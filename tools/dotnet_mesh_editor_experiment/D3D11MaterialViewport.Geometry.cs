@@ -305,6 +305,12 @@ internal sealed partial class D3D11MaterialViewport
         var sourceVertexToRenderCorners = D3D11SourceVertexToRenderCorners.Build(
             submesh.Vertices.Count,
             renderFaces);
+        var batchCenter = Vector3.Zero;
+        foreach (var vertex in vertices)
+        {
+            batchCenter += vertex.Position;
+        }
+        batchCenter /= Math.Max(1, vertices.Length);
         ID3D11Buffer? vertexBuffer = null;
         ID3D11Buffer? indexBuffer = null;
         try
@@ -328,6 +334,7 @@ internal sealed partial class D3D11MaterialViewport
                 vertexBuffer,
                 indexBuffer,
                 indices.Length,
+                batchCenter,
                 renderFaces,
                 sourceVertexToRenderCorners,
                 CreateMaterialResources(materialSubmeshIndex));
@@ -643,6 +650,7 @@ internal sealed class D3D11SubmeshBatch : IDisposable
         ID3D11Buffer vertexBuffer,
         ID3D11Buffer indexBuffer,
         int indexCount,
+        Vector3 center,
         ObjFace[] renderFaces,
         D3D11SourceVertexToRenderCorners sourceVertexToRenderCorners,
         D3D11MaterialResources materials)
@@ -653,6 +661,7 @@ internal sealed class D3D11SubmeshBatch : IDisposable
         VertexBuffer = vertexBuffer;
         IndexBuffer = indexBuffer;
         IndexCount = indexCount;
+        Center = center;
         RenderFaces = renderFaces;
         SourceVertexToRenderCorners = sourceVertexToRenderCorners;
         Materials = materials;
@@ -666,6 +675,7 @@ internal sealed class D3D11SubmeshBatch : IDisposable
     public ID3D11Buffer VertexBuffer { get; }
     public ID3D11Buffer IndexBuffer { get; }
     public int IndexCount { get; }
+    public Vector3 Center { get; }
     public ObjFace[] RenderFaces { get; }
     public D3D11SourceVertexToRenderCorners SourceVertexToRenderCorners { get; }
     public D3D11MaterialResources Materials { get; set; }

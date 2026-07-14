@@ -21,6 +21,7 @@ class MeshLiveStrokeRequest:
     controller: MeshEditorController
     command: MeshEditCommand
     source: str = ""
+    request_payloads: tuple[dict[str, object], ...] = ()
     stop_event: threading.Event = field(default_factory=threading.Event)
 
 
@@ -32,6 +33,7 @@ class MeshLiveStrokeOutcome:
     result: MeshEditResult
     native_update: MeshEditorNativeUpdate
     source: str = ""
+    request_payloads: tuple[dict[str, object], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +44,7 @@ class MeshLiveStrokeFailure:
     message: str
     cancelled: bool = False
     source: str = ""
+    request_payloads: tuple[dict[str, object], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,6 +124,7 @@ class MeshLiveStrokeDispatcher(QObject):
         phase: str,
         *,
         source: str = "",
+        request_payload: Mapping[str, object] | None = None,
     ) -> int:
         normalized_phase = str(phase or "").strip().lower()
         if normalized_phase not in {"begin", "update", "end", "cancel"}:
@@ -135,10 +139,14 @@ class MeshLiveStrokeDispatcher(QObject):
                 controller=controller,
                 command=command,
                 source=str(source or ""),
+                request_payloads=(dict(request_payload),) if request_payload is not None else (),
             )
             if normalized_phase == "update":
                 if self._pending_update is not None:
                     request.command = _merge_pending_screen_drag(self._pending_update, request)
+                    request.request_payloads = (
+                        self._pending_update.request_payloads + request.request_payloads
+                    )
                     self._pending_update.stop_event.set()
                     self._coalesced += 1
                 self._pending_update = request
@@ -274,6 +282,7 @@ class MeshLiveStrokeDispatcher(QObject):
                             result,
                             native_update,
                             request.source,
+                            request.request_payloads,
                         )
                     )
             except Exception as exc:
@@ -285,6 +294,7 @@ class MeshLiveStrokeDispatcher(QObject):
                         f"{type(exc).__name__}: {exc}",
                         cancelled=request.stop_event.is_set(),
                         source=request.source,
+                        request_payloads=request.request_payloads,
                     )
                 )
             finally:

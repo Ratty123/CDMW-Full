@@ -74,12 +74,66 @@ def test_draw_resources_and_renderer_metrics_are_cached_and_exposed() -> None:
     assert '["geometry_resources"] = RendererResourceMetricsPayload()' in status
 
 
+def test_native_dds_mips_color_space_and_semantic_shading_are_explicit() -> None:
+    native = _source("NetTextureSet.NativeDds.cs")
+    decode = _source("NetTextureSet.Dds.cs")
+    incremental = _source("NetTextureSet.Incremental.cs")
+    resources = _source("D3D11MaterialViewport.Resources.cs")
+    regions = _source("D3D11MaterialViewport.TextureRegions.cs")
+    constants = _source("D3D11MaterialViewport.Constants.cs")
+    presentation = _source("D3D11MaterialViewport.PresentationSettings.cs")
+    material_set = _source("NetMaterialSet.Resident.cs")
+    shader = _source("D3D11MaterialShaders.hlsl")
+    status = _source("MeshViewport.Status.cs")
+
+    assert "BuildNativeDdsTextureData" in native
+    assert "new NetDdsSubresource" in native
+    assert '"BC7"' in native and '99 => ("BC7", 0, 16, true)' in native
+    assert "native_subresource_size_overflow" in native
+    assert "non_2d_or_array_dx10_dds" in native
+    assert "NativeDds" in decode
+    assert "Task.Run(() =>" in incremental
+    assert "CreateNativeDdsSrv" in resources
+    assert "ResourceUsage.Immutable" in resources
+    assert "nativeDds.MipCount" in resources
+    assert "B8G8R8A8_UNorm_SRgb" in resources
+    assert '"texture_resource_diagnostics"' in _source("D3D11MaterialViewport.Metrics.cs")
+    assert "CopyResource(texture, source.Texture)" not in regions
+    assert "BitmapForReference(references[0])" in regions
+    assert "ResourceOptionFlags.GenerateMips" in regions
+    assert "_context.GenerateMips(editable.View)" in regions
+    assert "_context.GenerateMips(view)" in regions
+    assert "MaterialAlphaPolicy" in constants
+    assert "AlphaModeForSubmesh" in presentation
+    assert "OpacityFactorForSubmesh" in presentation
+    assert "DoubleSidedForSubmesh" in presentation
+    assert "ShaderFamilyForSubmesh" in material_set
+    assert "MaterialFamilyPolicy" in constants
+    assert '"skin" => new Vector4(1.0f, 0.30f, 0.34f, 0.40f)' in presentation
+    assert '"cloth" or "cloth_v2" => new Vector4(1.0f, 0.48f, 0.28f, 0.46f)' in presentation
+    assert '"hair" => new Vector4(1.0f, 0.36f, 0.46f, 0.38f)' in presentation
+    assert "roughness = max(roughness, MaterialFamilyPolicy.y)" in shader
+    assert "if (MaterialFamilyPolicy.x > 0.5f)" in shader
+    assert "specularColor = min(neutralSpecular, MaterialFamilyPolicy.z).xxx" in shader
+    assert "float stableDepth = lerp(1.0f, familyLitDepth, saturate(MaterialFamilyPolicy.w))" in shader
+    assert "DistributionGGX" in shader
+    assert "GeometrySmith" in shader
+    assert "FresnelSchlick" in shader
+    assert "clip(baseColor.a - MaterialAlphaPolicy.y)" in shader
+    assert "materialAlpha *= saturate(MaterialAlphaPolicy.w)" in shader
+    assert '"native_dds_2d_mip_chain_upload_v1"' in status
+    assert '"resident_texture_mip_regeneration_v1"' in status
+    assert '"native_dds_parity"] = false' in status
+
+
 def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence() -> None:
     entry = _source("ProgramEntry.cs")
     soak = _source("HeadlessGpuSparseSoak.cs")
     options = _source("HeadlessGpuSparseSoakOptions.cs")
     headless = _source("D3D11MaterialViewport.Headless.cs")
     metrics = _source("D3D11MaterialViewport.Metrics.cs")
+    readability = _source("D3D11UntexturedReadabilityProof.cs")
+    textured_metal_readability = _source("D3D11TexturedMetalReadabilityProof.cs")
 
     assert entry.index("HeadlessGpuSparseSoak.IsRequested(args)") < entry.index("LaunchOptions.Parse(args)")
     assert '"--headless-gpu-sparse-soak"' in entry
@@ -97,11 +151,48 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
     assert "IsWindowVisible(host.Handle)" in soak
     assert 'gates["native_windows_remained_hidden"]' in soak
     assert 'gates["production_d3d11_backend"]' in soak
+    assert 'gates["untextured_faces_readable_front_back_and_oblique"]' in soak
+    assert '"untextured_readability_proof"' in soak
+    assert 'gates["textured_metal_readable_front_back_and_oblique"]' in soak
+    assert '"textured_metal_readability_proof"' in soak
+    assert 'gates["resident_gizmo_moves_only_editable_role"]' in soak
+    assert '"editable_matrix_changed_at_input_cadence"' in soak
+    assert '"reference_matrix_unchanged"' in soak
+    assert '"nonzero_source_anchor_stayed_at_gizmo_pivot"' in soak
+    assert '"stale_authority_retained_newer_provisional_drag"' in soak
+    assert '"overlay_vertex_buffer_reused_across_frames"' in soak
+    assert '"vertex_markers_rendered_in_smoke"' in soak
+    assert '"vertices"' in soak and "UpdateRenderPanes" in soak
+    assert '"vertex_marker_size_pixels"' in metrics
     assert "TryRunHeadlessFrame" in headless
     assert "RenderFrame()" in headless
     assert '"geometry_buffer_identity"' in metrics
     assert '"dxgi_local_memory_current_usage_bytes"' in metrics
     assert '"material_binding_array_identity"' in metrics
+    assert '"overlay_vertex_buffer_creates"' in metrics
+    assert '"overlay_vertex_buffer_maps"' in metrics
+    assert '"cdmw_untextured_readability_v1"' in readability
+    assert '"hidden_synthetic_gpu_regression"' in readability
+    assert '("front", 0.0f, 0.0f)' in readability
+    assert '("back", MathF.PI, 0.0f)' in readability
+    assert "MinimumCenterP10Luma" in readability
+    assert "MaximumCenterBackgroundFraction" in readability
+    assert "TryCaptureReplacementPng" in readability
+    assert "IsWindowVisible(viewport.Handle)" in readability
+    assert '"cdmw_textured_metal_readability_v2"' in textured_metal_readability
+    assert '"hidden_synthetic_gpu_regression"' in textured_metal_readability
+    assert '["metalness"] = 1.0' in textured_metal_readability
+    assert '["double_sided"] = true' in textured_metal_readability
+    assert 'textures.BitmapForPath(texturePath) is not null' in textured_metal_readability
+    assert '"double_sided_opposite_views_balanced"' in textured_metal_readability
+    assert '"angle_color_identity_stable"' in textured_metal_readability
+    assert '"angle_brightness_stable"' in textured_metal_readability
+    assert "MinimumAllViewLumaRatio" in textured_metal_readability
+    assert "MaximumViewChromaticityDistance" in textured_metal_readability
+    assert "center_chromaticity_span" in textured_metal_readability
+    assert "center_white_fraction" in textured_metal_readability
+    assert 'TryCaptureReplacementPng' in textured_metal_readability
+    assert 'IsWindowVisible(viewport.Handle)' in textured_metal_readability
 
 
 def test_sparse_bounds_rebase_when_an_extremum_moves_inward() -> None:

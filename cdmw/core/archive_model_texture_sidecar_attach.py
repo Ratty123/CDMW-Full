@@ -43,6 +43,9 @@ from cdmw.core.archive_model_texture_sidecar_rules import (
     _is_low_authority_model_base_texture,
     _mesh_existing_base_is_sidecar_identity,
     _mesh_preview_base_is_low_authority,
+    _model_sidecar_binding_alpha_cutoff,
+    _model_sidecar_binding_alpha_mode,
+    _model_sidecar_binding_double_sided,
     _model_preview_sidecar_material_color,
 )
 
@@ -82,6 +85,9 @@ class _SidecarAttachmentState:
     low_authority_layer_override_count: int = 0
     ordered_anonymous_fallback_count: int = 0
     material_color_fallback_count: int = 0
+    material_contract_count: int = 0
+    alpha_contract_count: int = 0
+    double_sided_contract_count: int = 0
     promoted_anonymous_fallback: bool = False
 
 
@@ -336,9 +342,124 @@ def _assign_sidecar_material_colors(state: _SidecarAttachmentState) -> None:
             state.material_color_fallback_count += 1
 
 
+def _matching_sidecar_contract_bindings(
+    state: _SidecarAttachmentState,
+    index: int,
+    mesh: ModelPreviewMesh,
+) -> Tuple[_ArchiveModelSidecarTextureBinding, ...]:
+    candidates = set(_mesh_sidecar_candidates(state, index, mesh))
+    matched = tuple(
+        binding
+        for binding in state.bindings
+        if _model_sidecar_binding_matches_source_component(state.source_entry, binding)
+        and candidates.intersection(_iter_model_sidecar_binding_submesh_keys(binding))
+    )
+    if matched:
+        return matched
+    if len(state.model_preview.meshes) == 1:
+        return tuple(
+            binding
+            for binding in state.bindings
+            if _model_sidecar_binding_matches_source_component(state.source_entry, binding)
+        )
+    return ()
+
+
+def _assign_sidecar_material_contracts(state: _SidecarAttachmentState) -> None:
+    """Promote non-texture PAC XML authority onto the preview mesh.
+
+    This runs independently of DDS resolution. A missing preview conversion must
+    not erase an explicit shader family, AlphaTest flag, or two-sided contract.
+    """
+
+    for index, mesh in enumerate(state.model_preview.meshes):
+        raise_if_cancelled(state.stop_event)
+        bindings = _matching_sidecar_contract_bindings(state, index, mesh)
+        if not bindings:
+            continue
+        changed = False
+        shader_family = next(
+            (
+                str(getattr(binding, "shader_family", "") or "").strip()
+                for binding in bindings
+                if str(getattr(binding, "shader_family", "") or "").strip()
+            ),
+            "",
+        )
+        if shader_family and mesh.preview_sidecar_shader_family != shader_family:
+            mesh.preview_sidecar_shader_family = shader_family
+            changed = True
+        material_primitive = next(
+            (
+                str(
+                    getattr(binding, "material_name", "")
+                    or getattr(binding, "part_name", "")
+                    or getattr(binding, "submesh_name", "")
+                    or ""
+                ).strip()
+                for binding in bindings
+                if str(
+                    getattr(binding, "material_name", "")
+                    or getattr(binding, "part_name", "")
+                    or getattr(binding, "submesh_name", "")
+                    or ""
+                ).strip()
+            ),
+            "",
+        )
+        if material_primitive and mesh.preview_sidecar_material_primitive != material_primitive:
+            mesh.preview_sidecar_material_primitive = material_primitive
+            changed = True
+        parameters = list(tuple(getattr(mesh, "preview_material_parameters", ()) or ()))
+        for binding in bindings:
+            for parameter in tuple(getattr(binding, "material_parameters", ()) or ()):
+                if parameter not in parameters:
+                    parameters.append(parameter)
+        if tuple(parameters) != tuple(getattr(mesh, "preview_material_parameters", ()) or ()):
+            mesh.preview_material_parameters = tuple(parameters)
+            changed = True
+
+        alpha_mode = "blend" if any(
+            _model_sidecar_binding_alpha_mode(binding) == "blend" for binding in bindings
+        ) else "cutout" if any(
+            _model_sidecar_binding_alpha_mode(binding) == "cutout" for binding in bindings
+        ) else ""
+        if alpha_mode and str(getattr(mesh, "preview_alpha_mode", "") or "").strip().casefold() != alpha_mode:
+            mesh.preview_alpha_mode = alpha_mode
+            state.alpha_contract_count += 1
+            changed = True
+        alpha_cutoff = next(
+            (
+                cutoff
+                for binding in bindings
+                if (cutoff := _model_sidecar_binding_alpha_cutoff(binding)) is not None
+            ),
+            None,
+        )
+        if alpha_cutoff is not None:
+            overrides = dict(getattr(mesh, "preview_native_material_overrides", {}) or {})
+            if overrides.get("alpha_cutoff") != alpha_cutoff:
+                overrides["alpha_cutoff"] = alpha_cutoff
+                mesh.preview_native_material_overrides = overrides
+                changed = True
+        if any(_model_sidecar_binding_double_sided(binding) for binding in bindings) and not mesh.preview_double_sided:
+            mesh.preview_double_sided = True
+            state.double_sided_contract_count += 1
+            changed = True
+        if changed:
+            state.material_contract_count += 1
+
+
 def _sidecar_attachment_report(state: _SidecarAttachmentState) -> List[str]:
     if state.assigned_count <= 0:
-        return [] if state.material_color_fallback_count <= 0 else [f"Applied {state.material_color_fallback_count:,} sidecar material color fallback(s) for meshes without a reliable visible base DDS."]
+        info: List[str] = []
+        if state.material_contract_count:
+            info.append(
+                f"Applied {state.material_contract_count:,} sidecar shader/alpha material contract(s) independently of texture resolution."
+            )
+        if state.material_color_fallback_count:
+            info.append(f"Applied {state.material_color_fallback_count:,} sidecar material color fallback(s) for meshes without a reliable visible base DDS.")
+        return info
     suffix = f" from {', '.join(state.sidecar_paths[:2])}" if state.sidecar_paths else ""
     if len(state.sidecar_paths) > 2:
         suffix += " ..."
@@ -354,6 +475,10 @@ def _sidecar_attachment_report(state: _SidecarAttachmentState) -> List[str]:
         info.append(f"Promoted {state.low_authority_layer_override_count:,} sidecar visible layer texture preview(s) over low-detail overlay/default base(s).")
     if state.material_color_fallback_count:
         info.append(f"Applied {state.material_color_fallback_count:,} sidecar material color fallback(s) where the visible base DDS was missing or low confidence.")
+    if state.alpha_contract_count:
+        info.append(f"Applied {state.alpha_contract_count:,} explicit sidecar alpha-test/blend contract(s).")
+    if state.double_sided_contract_count:
+        info.append(f"Applied {state.double_sided_contract_count:,} explicit sidecar two-sided contract(s).")
     return info
 
 
@@ -389,6 +514,7 @@ def _attach_model_sidecar_texture_preview_paths(
         bindings=sidecar_texture_bindings,
     )
     _collect_and_prefetch_sidecar_bindings(state)
+    _assign_sidecar_material_contracts(state)
     _assign_matched_sidecar_bases(state)
     _assign_ordered_sidecar_bases(state)
     _promote_and_assign_global_sidecar_bases(state)

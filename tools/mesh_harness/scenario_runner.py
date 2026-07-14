@@ -11,7 +11,13 @@ from tools.mesh_harness.fixtures import build_synthetic_mesh
 from tools.mesh_harness.native_smoke import run_native_smoke
 from tools.mesh_harness.native_strokes import run_native_mesh_editor_standalone_stroke, run_native_mesh_editor_static_replacement_screen_stroke
 from tools.mesh_harness.native_workflow import run_long_edit_mesh_tools, run_native_mesh_editor_benchmark, run_native_mesh_editor_workflow
-from tools.mesh_harness.parity import run_mesh_dotnet_native_parity_report
+from tools.mesh_harness.parity import (
+    DEFAULT_PARITY_DIFFERENCE_SCALE,
+    DEFAULT_PARITY_FAIL_PERCENT,
+    DEFAULT_PARITY_FAIL_THRESHOLD,
+    DEFAULT_PARITY_HARD_FAIL_THRESHOLD,
+    run_mesh_dotnet_native_parity_report,
+)
 from tools.mesh_harness.qt_probes import run_native_mesh_editor_qt_cancellation, run_native_mesh_editor_qt_responsiveness
 from tools.mesh_harness.real_animation import run_real_archive_animation_binding_smoke
 from tools.mesh_harness.real_app import run_real_archive_app_workflow_smoke
@@ -43,7 +49,20 @@ def _apply_backend_gate(
     gated["ok"] = bool(gated.get("ok") and gated["backend_gate_ok"])
     return gated
 
-def run_scenario(scenario: str, output_dir: Path, *, game_root: Path | str | None=None, allow_synthetic_d3d11: bool=False) -> dict[str, object]:
+def run_scenario(
+    scenario: str,
+    output_dir: Path,
+    *,
+    game_root: Path | str | None = None,
+    allow_synthetic_d3d11: bool = False,
+    parity_reference: Path | str | None = None,
+    parity_candidate: Path | str | None = None,
+    openimageio_path: Path | str | None = None,
+    parity_fail_threshold: float = DEFAULT_PARITY_FAIL_THRESHOLD,
+    parity_fail_percent: float = DEFAULT_PARITY_FAIL_PERCENT,
+    parity_hard_fail_threshold: float = DEFAULT_PARITY_HARD_FAIL_THRESHOLD,
+    parity_difference_scale: float = DEFAULT_PARITY_DIFFERENCE_SCALE,
+) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     metadata = scenario_metadata(scenario)
     if scenario in _SYNTHETIC_D3D11_SCENARIOS and (not allow_synthetic_d3d11):
@@ -101,7 +120,19 @@ def run_scenario(scenario: str, output_dir: Path, *, game_root: Path | str | Non
         edit_result = run_real_archive_mesh_editor_d3d11_edit_smoke(Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT, output_dir, side_by_side=True, timeout_seconds=metadata.timeout_seconds)
         result = {'scenario': scenario, 'ok': bool(edit_result.get('ok')), 'real_archive_mesh_editor_d3d11_side_by_side_edit': edit_result}
     elif scenario == _DOTNET_NATIVE_PARITY_SCENARIO:
-        parity_result = run_mesh_dotnet_native_parity_report(output_dir, Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT)
+        configured_paths = {"openimageio": Path(openimageio_path)} if openimageio_path is not None else None
+        parity_result = run_mesh_dotnet_native_parity_report(
+            output_dir,
+            Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+            reference_capture_path=parity_reference,
+            candidate_capture_path=parity_candidate,
+            configured_paths=configured_paths,
+            fail_threshold=parity_fail_threshold,
+            fail_percent=parity_fail_percent,
+            hard_fail_threshold=parity_hard_fail_threshold,
+            difference_scale=parity_difference_scale,
+            timeout_s=metadata.timeout_seconds,
+        )
         result = {'scenario': scenario, 'ok': bool(parity_result.get('ok')), 'dotnet_native_parity': parity_result}
     elif scenario == 'long-edit-mesh-tools':
         long_edit_result = run_long_edit_mesh_tools()

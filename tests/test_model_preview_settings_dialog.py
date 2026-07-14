@@ -9,6 +9,10 @@ from PySide6.QtWidgets import QApplication, QLabel
 
 from cdmw.models import ArchivePerformanceSettings, ModelPreviewRenderSettings
 from cdmw.ui.model_preview_settings_dialog import ModelPreviewSettingsDialog
+from cdmw.ui.model_preview_settings_visibility import (
+    DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB,
+    preview_setting_widgets_by_tab,
+)
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 
 
@@ -226,6 +230,89 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         )
 
         self.assertEqual("game_outdoor", dialog.current_settings().d3d11_view_mode)
+
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_embedded_dotnet_context_exposes_only_resident_supported_controls(self) -> None:
+        _app()
+        dialog = ModelPreviewSettingsDialog(
+            settings=ModelPreviewRenderSettings(enable_tool_pbd_cloth_preview=True),
+            archive_renderer_backend="d3d11_native",
+            preview_target="dotnet_vortice",
+        )
+
+        visible_tabs = [
+            dialog.tabs.tabText(index)
+            for index in range(dialog.tabs.count())
+            if dialog.tabs.isTabVisible(index)
+        ]
+        self.assertEqual(["General", "Quality / Lighting", "Controls"], visible_tabs)
+        widgets_by_tab = preview_setting_widgets_by_tab(dialog)
+        self.assertEqual(set(DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB), set(widgets_by_tab))
+        for tab_name, widgets in widgets_by_tab.items():
+            supported = set(DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB[tab_name])
+            visible = {field for field, widget in widgets.items() if not widget.isHidden()}
+            self.assertEqual(supported, visible, tab_name)
+            for field, widget in widgets.items():
+                label = dialog._form_field_label(widget)
+                if field in supported:
+                    self.assertIn(".NET/Vortice", widget.toolTip(), field)
+                    if label is not None:
+                        self.assertFalse(label.isHidden(), field)
+                elif label is not None:
+                    self.assertTrue(label.isHidden(), field)
+        for widget in (
+            dialog.disable_tint_checkbox,
+            dialog.disable_brightness_checkbox,
+            dialog.disable_uv_scale_checkbox,
+            dialog.disable_depth_test_checkbox,
+        ):
+            self.assertTrue(dialog._general_tab.widget().isAncestorOf(widget))
+        for widget in (
+            dialog.force_nearest_no_mipmaps_checkbox,
+            dialog.disable_lighting_checkbox,
+        ):
+            self.assertTrue(dialog._quality_tab.widget().isAncestorOf(widget))
+        self.assertIn(".NET/Vortice", dialog.intro_label.text())
+        self.assertIn("Only settings with an active .NET/Vortice", dialog.advanced_warning_label.text())
+        self.assertIn("Archive-only texture-selection policy", dialog.d3d11_hint_label.text())
+        self.assertIn("Every visible control", dialog.quality_hint_label.text())
+        self.assertIn("Each role pane keeps its own camera", dialog.controls_usage_hint_label.text())
+        self.assertNotIn("Native D3D11 supports", dialog.d3d11_hint_label.text())
+        self.assertNotIn("PBD", dialog.d3d11_hint_label.text())
+        self.assertEqual("View mode", dialog._form_field_label(dialog.d3d11_view_mode_combo).text())
+        self.assertEqual("Normal-map Y", dialog._form_field_label(dialog.d3d11_normal_y_mode_combo).text())
+        self.assertEqual("Texture address", dialog._form_field_label(dialog.d3d11_texture_address_mode_combo).text())
+
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_embedded_dotnet_context_disables_controls_with_inactive_dependencies(self) -> None:
+        _app()
+        dialog = ModelPreviewSettingsDialog(
+            settings=ModelPreviewRenderSettings(),
+            archive_renderer_backend="d3d11_native",
+            preview_target="dotnet_vortice",
+        )
+
+        self.assertTrue(dialog._slider_controls["max_anisotropy"].isEnabled())
+        self.assertTrue(dialog._slider_controls["normal_strength_cap"].isEnabled())
+        dialog.disable_normal_map_checkbox.setChecked(True)
+        self.assertFalse(dialog._slider_controls["normal_strength_cap"].isEnabled())
+        dialog.use_textures_checkbox.setChecked(False)
+        self.assertFalse(dialog.d3d11_view_mode_combo.isEnabled())
+        self.assertFalse(dialog.d3d11_texture_address_mode_combo.isEnabled())
+        self.assertFalse(dialog._slider_controls["max_anisotropy"].isEnabled())
+        self.assertFalse(dialog._slider_controls["d3d11_tone_exposure"].isEnabled())
+        self.assertFalse(dialog.force_nearest_no_mipmaps_checkbox.isEnabled())
+        self.assertFalse(dialog.disable_tint_checkbox.isEnabled())
+        self.assertIn("Currently inactive", dialog._slider_controls["d3d11_tone_exposure"].toolTip())
+        dialog.use_textures_checkbox.setChecked(True)
+        self.assertTrue(dialog.d3d11_view_mode_combo.isEnabled())
+        self.assertTrue(dialog._slider_controls["d3d11_tone_exposure"].isEnabled())
+        self.assertTrue(dialog.force_nearest_no_mipmaps_checkbox.isEnabled())
+        self.assertTrue(dialog.disable_tint_checkbox.isEnabled())
 
         dialog.close()
         dialog.deleteLater()

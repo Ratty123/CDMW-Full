@@ -32,7 +32,7 @@ native integration explicitly vendors a library.
 | `assimp` | `asset_authoring/assimp_path` | `CDMW_ASSIMP_BIN` | Optional future import comparator only, not the primary FBX path. | Modified BSD 3-Clause. | Existing scene import paths. |
 | `directxmesh` | `asset_authoring/directxmesh_path` | `CDMW_DIRECTXMESH_BIN` | Future native validation/cleanup code should build with native mesh helpers. | MIT. Preserve upstream notice if bundled. | Service mesh-health preflight and Python cleanup. |
 | `meshoptimizer` | bundled in `cdmw_mesh_core`; optional external comparator path remains `asset_authoring/meshoptimizer_path` | `CDMW_MESH_CORE_BIN`; comparator `CDMW_MESHOPTIMIZER_BIN` | Build with `cdmw_mesh_core`; `optimize-json` reports vertex-cache/overdraw ordering and opt-in simplification metrics before any apply path. | MIT notice is preserved under `native/cdmw_mesh_core/third_party/meshoptimizer/`. | Conservative topology-preserving package output unless simplification is explicitly reviewed. |
-| `openimageio` | `asset_authoring/oiio_path` | `CDMW_OIIO_BIN` | Install `oiiotool` separately; CDMW uses it only for source metadata, conversion, and image diffs. | Primarily Apache-2.0, with small legacy BSD-3-Clause portions. | Existing PNG/JPG/BMP/DDS workflows and DirectXTex DDS authority. |
+| `openimageio` | `asset_authoring/oiio_path` | `CDMW_OIIO_BIN` | Install `oiiotool` separately; CDMW uses it only for source metadata, conversion, and image diffs. The offline Mesh Editor parity report adds explicit thresholds, structured mean/RMS/max/PSNR metrics, and an amplified absolute-difference PNG. | Primarily Apache-2.0, with small legacy BSD-3-Clause portions. | Existing PNG/JPG/BMP/DDS workflows and DirectXTex DDS authority. |
 
 ## Failure Behavior
 
@@ -58,7 +58,16 @@ Focused checks:
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-tangent-report --output "%TEMP%\cdmw-asset-authoring-tangent-report"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-mesh-health --output "%TEMP%\cdmw-asset-authoring-mesh-health"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-openimageio-report --output "%TEMP%\cdmw-asset-authoring-openimageio-report"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario mesh-dotnet-native-parity-report --parity-reference "%TEMP%\native.png" --parity-candidate "%TEMP%\dotnet.png" --output "%TEMP%\cdmw-mesh-image-parity"
+.\.venv\Scripts\python.exe tools\build_mesh_material_profile_corpus.py --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --external-model "E:\ModelCatalogue\downloads\.cdmw_extracted\wolf_gravestone_sword_free (1)\scene.gltf" --oiio-path ".\.venv\Scripts\oiiotool.exe" --output "%TEMP%\cdmw-mesh-material-profile-corpus.json"
 ```
+
+The parity scenario is deliberately offline: it compares supplied PNG pixels
+but does not launch a renderer or establish same-camera capture provenance. Its
+result is useful regression evidence, not user-facing real-PAC visual proof.
+The corpus command uses OpenImageIO to record deterministic texture metadata and
+pixel statistics beside CDMW's production material classification. It neither
+replaces DirectXTex as DDS authority nor participates in runtime shading.
 
 Native check:
 

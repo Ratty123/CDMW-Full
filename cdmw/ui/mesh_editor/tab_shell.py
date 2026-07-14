@@ -32,160 +32,14 @@ _STANDALONE_NATIVE_TOOL_STATE: dict[str, tuple[str, str, str]] = {
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_support import _mesh_editor_tab_index
+from cdmw.ui.mesh_editor.tab_shell_runtime import MeshEditorTabShellRuntimeMixin
 
 
-class MeshEditorTabShellMixin:
-    def _initialize_runtime_state(
-        self,
-        *,
-        get_archive_texture_entries_by_normalized_path: object,
-        get_archive_texture_entries_by_basename: object,
-    ) -> None:
-        self.current_request: Optional[_tab.MeshEditorSessionRequest] = None
-        self.current_archive_selection: Optional[_tab.ArchiveEntry] = None
-        self.current_edit_mode = "object"
-        self.current_selection_mode = "vertex"
-        self.current_tool_action_key = ""
-        self.current_selection_empty = True
-        self.current_undo_count = 0
-        self.current_redo_count = 0
-        self.standalone_controller: _tab.MeshEditorController | None = None
-        self.standalone_native_editor_available: bool | None = None
-        self.standalone_file_load_thread: _tab.QThread | None = None
-        self.standalone_file_load_worker: _tab.MeshFileSessionLoadWorker | None = None
-        self.standalone_file_load_target_entry: object | None = None
-        self.standalone_file_load_source_skeleton: object | None = None
-        self.standalone_file_load_request_id = 0
-        self.standalone_texture_source_thread: _tab.QThread | None = None
-        self.standalone_texture_source_worker: _tab.MeshTextureSourceResolveWorker | None = None
-        self.standalone_texture_source_request_id = 0
-        self.standalone_texture_source_target: object | None = None
-        self.standalone_texture_source_controller: _tab.MeshEditorController | None = None
-        self.get_archive_texture_entries_by_normalized_path = get_archive_texture_entries_by_normalized_path
-        self.get_archive_texture_entries_by_basename = get_archive_texture_entries_by_basename
-        self.standalone_native_host: object | None = None
-        self.standalone_native_process: _tab.QProcess | None = None
-        self.standalone_native_stdout_tail = ""
-        self.standalone_native_stderr_tail = ""
-        self.standalone_native_package_thread: _tab.QThread | None = None
-        self.standalone_native_package_worker: _tab.MeshNativePreviewPackageWorker | None = None
-        self.standalone_native_package_request_id = 0
-        self.standalone_action_thread: _tab.QThread | None = None
-        self.standalone_action_worker: _tab.MeshEditCommandWorker | None = None
-        self.standalone_action_progress: _tab.QProgressDialog | None = None
-        self.standalone_action_request_id = 0
-        self.standalone_action_text = ""
-        self.standalone_action_controller: _tab.MeshEditorController | None = None
-        self.standalone_action_dotnet_command = ""
-        self.standalone_rebuild_report_thread: _tab.QThread | None = None
-        self.standalone_rebuild_report_worker: _tab.MeshRebuildReportWorker | None = None
-        self.standalone_rebuild_report_progress: _tab.QProgressDialog | None = None
-        self.standalone_rebuild_report_request_id = 0
-        self.standalone_report_write_thread: _tab.QThread | None = None
-        self.standalone_report_write_worker: _tab.MeshReportWriteWorker | None = None
-        self.standalone_report_write_request_id = 0
-        self.standalone_validation_thread: _tab.QThread | None = None
-        self.standalone_validation_worker: _tab.MeshExportValidationWorker | None = None
-        self.standalone_validation_request_id = 0
-        self.standalone_dotnet_package_thread: _tab.QThread | None = None
-        self.standalone_dotnet_package_worker: _tab.MeshDotNetExperimentPackageWorker | None = None
-        self.standalone_dotnet_package_request_id = 0
-        self.standalone_dotnet_import_thread: _tab.QThread | None = None
-        self.standalone_dotnet_import_worker: _tab.MeshDotNetExperimentOutputImportWorker | None = None
-        self.standalone_dotnet_import_request_id = 0
-        self.standalone_editable_export_thread: _tab.QThread | None = None
-        self.standalone_editable_export_worker: _tab.MeshEditablePackageExportWorker | None = None
-        self.standalone_editable_export_request_id = 0
-        self.standalone_editable_import_thread: _tab.QThread | None = None
-        self.standalone_editable_import_worker: _tab.MeshEditablePackageImportWorker | None = None
-        self.standalone_editable_import_request_id = 0
-        self.standalone_dotnet_editor_process: _tab.QProcess | None = None
-        self.standalone_dotnet_experiment_package: _tab.MeshDotNetExperimentPackage | None = None
-        self.standalone_dotnet_status_payload: dict[str, object] = {}
-        self.standalone_dotnet_target_controller: _tab.MeshEditorController | None = None
-        self.standalone_dotnet_target_embedded = False
-        self.standalone_dotnet_embedded_state = "closed"
-        self.standalone_dotnet_embedded_exit_finalized = False
-        self.standalone_dotnet_exit_pending = False
-        self.standalone_dotnet_deactivate_acknowledged = False
-        self.standalone_dotnet_protocol_stdout = ""
-        self.standalone_dotnet_protocol_events: list[dict[str, object]] = []
-        self.standalone_dotnet_capabilities: set[str] = set()
-        self.standalone_dotnet_material_generation = 0
-        self.standalone_dotnet_applied_material_generation = 0
-        self.standalone_dotnet_completed_material_generation = 0
-        self.standalone_dotnet_material_signature = ""
-        self.standalone_dotnet_lifecycle_session_id = ""
-        self.standalone_dotnet_lifecycle_counts: dict[str, int] = {
-            "initial_package_build_count": 0,
-            "package_build_count": 0,
-            "renderer_process_start_count": 0,
-            "process_restart_count": 0,
-            "full_reload_count": 0,
-            "material_state_update_count": 0,
-            "material_state_applied_count": 0,
-            "material_state_failed_count": 0,
-        }
-        self._initialize_dotnet_material_parameter_state()
-        self.standalone_dotnet_update_queue = DotNetRevisionUpdateQueue(self._send_dotnet_protocol_message)
-        self._initialize_texture_region_queue()
-        self.standalone_dotnet_update_ack_timer = QTimer(self)
-        self.standalone_dotnet_update_ack_timer.setSingleShot(True)
-        self.standalone_dotnet_update_ack_timer.timeout.connect(self._handle_dotnet_update_ack_timeout)
-        self.standalone_dotnet_stdout_tail = ""
-        self.standalone_dotnet_stderr_tail = ""
-        self.standalone_dotnet_last_program = ""
-        self.standalone_dotnet_ready_timer = QTimer(self)
-        self.standalone_dotnet_ready_timer.setSingleShot(True)
-        self.standalone_dotnet_ready_timer.timeout.connect(self._handle_dotnet_ready_timeout)
-        self.standalone_dotnet_deactivate_timer = QTimer(self)
-        self.standalone_dotnet_deactivate_timer.setSingleShot(True)
-        self.standalone_dotnet_deactivate_timer.timeout.connect(self._handle_dotnet_deactivate_timeout)
-        self.standalone_dotnet_last_arguments: list[str] = []
-        self.standalone_dotnet_last_working_directory = ""
-        self.standalone_dotnet_last_parent_hwnd = 0
-        self.embedded_dotnet_editor_button: QPushButton | None = None
-        self.standalone_last_export_validation_report: object | None = None
-        self.standalone_last_rebuild_report: object | None = None
-        self.standalone_last_rebuilt_asset_path: _tab.Path | None = None
-        self.standalone_last_action_result: _tab.MeshEditResult | None = None
-        self.standalone_last_action_metrics: dict[str, float] = {}
-        self.standalone_native_package_reset_view = True
-        self.standalone_mesh_label = ""
-        self.standalone_source_skeleton: object | None = None
-        self.standalone_compare_mode = "edited"
-        self.standalone_texture_preview_overrides: dict[int, str] = {}
-        self.standalone_native_package_dir: _tab.Path | None = None
-        self.standalone_native_status_file: _tab.Path | None = None
-        self.standalone_native_package_has_reference = False
-        self.standalone_native_package_pending_has_reference = False
-        self.standalone_native_package_compare_mode = "edited"
-        self.standalone_native_package_pending_compare_mode = "edited"
-        self.standalone_native_status_signature: tuple[int, int] = (0, 0)
-        self.standalone_native_status_payload_text = ""
-        self.standalone_native_last_status_payload: dict[str, object] = {}
-        self.standalone_native_part_picking_wanted = False
-        self.standalone_native_part_picking_enabled = False
-        self.standalone_native_mesh_edit_state_signature: tuple[object, ...] = ()
-        self.standalone_native_mesh_edit_stroke_id = ""
-        self.standalone_native_mesh_edit_stroke_changed = False
-        self.standalone_live_stroke_dispatcher: _tab.MeshLiveStrokeDispatcher | None = None
-        self.embedded_workspace: MeshEditorWorkspace | None = None
-        self._embedded_control_tabs: QTabWidget | None = None
-        self._embedded_classic_builder: QWidget | None = None
-        self._embedded_restore_control_widget: QWidget | None = None
-        self.standalone_native_status_timer = QTimer(self)
-        self.standalone_native_status_timer.setInterval(250)
-        self.standalone_native_status_timer.timeout.connect(self._poll_standalone_native_preview_status)
-        self.standalone_animation_timer = QTimer(self)
-        self.standalone_animation_timer.setInterval(33)
-        self.standalone_animation_timer.timeout.connect(self._tick_standalone_animation_playback)
-        self.standalone_animation_last_tick = 0.0
-        self._wired_standalone_native_host_ids: set[int] = set()
+class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
 
     def _initialize_texture_region_queue(self) -> None:
         self.standalone_texture_region_queue = ResidentTextureRegionUpdateQueue(
-            self._send_dotnet_protocol_message,
+            self._send_dotnet_texture_region_message,
             parent=self,
         )
         self.standalone_texture_region_queue.update_applied.connect(
@@ -425,6 +279,7 @@ class MeshEditorTabShellMixin:
             ("standalone_rebuild_report", self.standalone_rebuild_report_thread, self.standalone_rebuild_report_worker),
             ("standalone_report_write", self.standalone_report_write_thread, self.standalone_report_write_worker),
             ("standalone_dotnet_package", self.standalone_dotnet_package_thread, self.standalone_dotnet_package_worker),
+            ("standalone_dotnet_scene", self.standalone_dotnet_scene_thread, self.standalone_dotnet_scene_worker),
             ("standalone_dotnet_import", self.standalone_dotnet_import_thread, self.standalone_dotnet_import_worker),
             ("standalone_editable_export", self.standalone_editable_export_thread, self.standalone_editable_export_worker),
             ("standalone_editable_import", self.standalone_editable_import_thread, self.standalone_editable_import_worker),
@@ -542,6 +397,62 @@ class MeshEditorTabShellMixin:
         if hasattr(tabs, "setTabVisible"):
             tabs.setTabVisible(workspace_index, False)
         self._embedded_restore_control_widget = None
+    def _embedded_dotnet_runtime_diagnostics(self) -> dict[str, object]:
+        builder = self.active_builder()
+        package = self.standalone_dotnet_experiment_package
+        process = self.standalone_dotnet_editor_process
+        status = dict(self.standalone_dotnet_status_payload)
+        renderer = status.get("renderer")
+        renderer_status = dict(renderer) if isinstance(renderer, Mapping) else {}
+        active = bool(
+            builder is not None
+            and getattr(builder, "_mesh_editor_embedded_dotnet_active", False)
+        )
+        return {
+            "state": str(self.standalone_dotnet_embedded_state or "closed"),
+            "active": active,
+            "renderer_backend": str(
+                renderer_status.get("backend")
+                or ("d3d11_vortice_shader" if active else "")
+            ),
+            "process": {
+                "attached": process is not None,
+                "generation": int(self.standalone_dotnet_process_generation),
+                "program": str(self.standalone_dotnet_last_program or ""),
+                "working_directory": str(self.standalone_dotnet_last_working_directory or ""),
+                "embedded_parent_hwnd": int(self.standalone_dotnet_last_parent_hwnd or 0),
+            },
+            "session": {
+                "session_id": str(self.standalone_dotnet_lifecycle_session_id or ""),
+                "package_dir": str(getattr(package, "package_dir", "") or ""),
+                "status_path": str(getattr(package, "status_path", "") or ""),
+                "capabilities": sorted(str(item) for item in self.standalone_dotnet_capabilities),
+                "lifecycle_counts": dict(self.standalone_dotnet_lifecycle_counts),
+            },
+            "scene": {
+                "desired": dict(self.standalone_dotnet_scene_desired),
+                "generation": int(self.standalone_dotnet_scene_generation),
+                "acknowledged_generation": int(self.standalone_dotnet_scene_acknowledged_generation),
+                "pending": self.standalone_dotnet_scene_pending is not None,
+                "acknowledged": dict(self.standalone_dotnet_scene_acknowledged or {}),
+            },
+            "presentation": {
+                "desired": dict(self.standalone_dotnet_presentation_desired),
+                "generation": int(self.standalone_dotnet_presentation_generation),
+                "pending": self.standalone_dotnet_presentation_pending is not None,
+                "acknowledged": dict(self.standalone_dotnet_presentation_acknowledged or {}),
+                "pane_header_behavior": "focuses that pane's independent camera; does not hide the other side-by-side pane",
+            },
+            "materials": {
+                "signature": str(self.standalone_dotnet_material_signature or ""),
+                "generation": int(self.standalone_dotnet_material_generation),
+                "applied_generation": int(self.standalone_dotnet_applied_material_generation),
+                "completed_generation": int(self.standalone_dotnet_completed_material_generation),
+            },
+            "renderer": renderer_status,
+            "host_status": status,
+        }
+
     def _set_embedded_dotnet_state(self, state: str, *, active: bool = False) -> None:
         normalized_state = str(state or "closed").strip().lower() or "closed"
         self.standalone_dotnet_embedded_state = normalized_state
@@ -575,9 +486,30 @@ class MeshEditorTabShellMixin:
         setattr(builder, "_mesh_editor_embedded_start_dotnet", self._start_embedded_dotnet_editor_requested)
         setattr(builder, "_mesh_editor_embedded_stop_dotnet", self._request_embedded_dotnet_editor_close)
         setattr(builder, "_mesh_editor_embedded_set_scene_state", self._send_dotnet_scene_state)
+        setattr(
+            builder,
+            "_mesh_editor_embedded_set_presentation_state",
+            self._send_dotnet_presentation_state,
+        )
+        setattr(
+            builder,
+            "_mesh_editor_embedded_runtime_diagnostics",
+            self._embedded_dotnet_runtime_diagnostics,
+        )
         setattr(builder, "_mesh_editor_embedded_send_native_update", self._send_embedded_dotnet_native_update)
         setattr(builder, "_mesh_editor_embedded_apply_material_parameters", self.apply_resident_material_parameters)
         setattr(builder, "_mesh_editor_embedded_apply_material_resources", self.apply_resident_material_resources)
+        setattr(
+            builder,
+            "_mesh_editor_embedded_apply_clone_material_resources",
+            self.apply_resident_clone_material_resources,
+        )
+        setattr(
+            builder,
+            "_mesh_editor_embedded_apply_reference_material_resources",
+            self.apply_resident_reference_material_resources,
+        )
+        setattr(builder, "_mesh_editor_embedded_capture_icon", self.request_resident_dotnet_icon_capture)
         setattr(builder, "_mesh_editor_embedded_resident_material_resources_supported", self._dotnet_resident_material_updates_supported)
         setattr(builder, "_mesh_editor_embedded_resident_material_parameters_supported", self._dotnet_resident_material_parameter_updates_supported)
         setattr(builder, "_mesh_editor_dotnet_available", dotnet_available)

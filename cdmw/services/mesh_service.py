@@ -18,6 +18,7 @@ from cdmw.domain.mesh import (
     MESH_EDIT_MODES,
     MeshAnimationClip,
     MeshEditCommand,
+    MeshEditHistoryEntry,
     MeshEditResult,
     MeshEditSelection,
     MeshEditSessionView,
@@ -97,6 +98,7 @@ from cdmw.services.mesh_service_state import (
     _MeshRestoreOutcome,
     _MeshVertexPositionDelta,
     _NativeEditorApplyResult,
+    MeshPreparedWorkingMeshReplacement,
 )
 from cdmw.services.mesh_service_rigging import (
     MeshRiggingServiceMixin,
@@ -124,6 +126,7 @@ from cdmw.services.mesh_service_rigging import (
     _valid_vertex_indices,
 )
 from cdmw.services.mesh_service_rebuild import MeshRebuildServiceMixin, _native_source_parse_eligible
+from cdmw.services.mesh_service_replacement import MeshWorkingReplacementServiceMixin
 from cdmw.services.mesh_service_materials import MeshResidentMaterialServiceMixin
 from cdmw.services.mesh_service_selection import (
     _apply_selection_operation_to_mesh,
@@ -386,7 +389,13 @@ def _load_mesh_file(path: Path | str, *, run_roundtrip: bool) -> ParsedMesh:
 
 
 @dataclass(slots=True)
-class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, MeshRebuildServiceMixin, MeshHistoryServiceMixin):
+class MeshService(
+    MeshRiggingServiceMixin,
+    MeshResidentMaterialServiceMixin,
+    MeshWorkingReplacementServiceMixin,
+    MeshRebuildServiceMixin,
+    MeshHistoryServiceMixin,
+):
     settings: object | None = None
     max_history: int = 64
     max_history_bytes: int = _DEFAULT_MESH_HISTORY_BYTES
@@ -481,6 +490,8 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
             face_count=int(session.working_mesh.total_faces or 0),
             undo_count=len(session.undo_stack),
             redo_count=len(session.redo_stack),
+            history_entries=_history_entries(session),
+            history_cursor=len(session.undo_stack),
         )
 
     def native_editor_mesh_dirty(self, session_id: str) -> bool:
@@ -519,55 +530,6 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
             "session.working_mesh_clone",
             "Python working mesh clone fallback blocked while native mesh core is available",
         )
-
-    def replace_working_mesh(self, session_id: str, mesh: ParsedMesh) -> MeshEditSessionView:
-        session = self._session(session_id)
-        with session.export_lock:
-            if session.closed:
-                raise KeyError(f"Unknown mesh edit session: {session_id}")
-            return self._replace_working_mesh_locked(session, mesh)
-
-    def _replace_working_mesh_locked(
-        self,
-        session: _MeshEditSession,
-        mesh: ParsedMesh,
-    ) -> MeshEditSessionView:
-        if not isinstance(mesh, ParsedMesh):
-            raise TypeError("mesh must be a ParsedMesh")
-        if session.native_editor_mesh_dirty and not _sync_native_editor_session_to_working_mesh(session):
-            raise RuntimeError("native mesh editor session export failed; Python mesh state is stale")
-        if bool(getattr(mesh, "_cdmw_imported_from_obj", False)) and bool(getattr(mesh, "_cdmw_obj_sidecar_present", False)):
-            validate_obj_sidecar_source_identity(mesh, session.original_data)
-        previous_mesh = session.working_mesh
-        previous_selection = session.selection
-        self._push_history(session, prefer_native=True)
-        _clear_history_stack(session.redo_stack)
-        _close_native_editor_session(session)
-        working_mesh = apply_operation_channels_to_original(session.base_mesh, mesh)
-        if session.original_data:
-            setattr(working_mesh, "_cdmw_original_data", session.original_data)
-        if not str(working_mesh.format or "").strip():
-            working_mesh.format = session.base_mesh.format
-        if not str(working_mesh.path or "").strip():
-            working_mesh.path = session.base_mesh.path
-        refresh_mesh_totals(working_mesh)
-        preserved_selection, selection_diagnostics = _selection_after_working_mesh_replace(
-            previous_mesh,
-            working_mesh,
-            previous_selection,
-        )
-        if selection_diagnostics:
-            setattr(working_mesh, "_cdmw_selection_diagnostics", selection_diagnostics)
-        session.working_mesh = working_mesh
-        session.selection = preserved_selection
-        session.sidecar_warnings = tuple(getattr(working_mesh, "_cdmw_sidecar_warnings", ()) or ())
-        session.edit_operations = tuple(getattr(working_mesh, "_cdmw_edit_operations", ()) or ())
-        session.requires_edit_operations = bool(getattr(working_mesh, "_cdmw_requires_edit_operations", False)) or (
-            bool(getattr(working_mesh, "_cdmw_imported_from_obj", False))
-            and bool(getattr(working_mesh, "_cdmw_obj_sidecar_present", False))
-        )
-        session.revision += 1
-        return self.session_view(session.session_id)
 
     def pose_preview_mesh(self, session_id: str) -> ParsedMesh:
         session = self._session(session_id)
@@ -682,7 +644,13 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
                 diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start),
             )
         incoming = MeshEditSelection.from_maps(vertices_by_submesh=native_vertices)
-        return self._select_native_uv_vertices(session, incoming, operation, fallback_event_start)
+        return self._select_native_uv_vertices(
+            session,
+            incoming,
+            operation,
+            fallback_event_start,
+            label="Select UV Region",
+        )
 
     @_with_mesh_session_export_lock
     def select_uv_lasso(
@@ -713,7 +681,13 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
                 diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start),
             )
         incoming = MeshEditSelection.from_maps(vertices_by_submesh=native_vertices)
-        return self._select_native_uv_vertices(session, incoming, operation, fallback_event_start)
+        return self._select_native_uv_vertices(
+            session,
+            incoming,
+            operation,
+            fallback_event_start,
+            label="Select UV Lasso",
+        )
 
     def _select_native_uv_vertices(
         self,
@@ -721,7 +695,10 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
         selection: MeshEditSelection,
         operation: object,
         fallback_event_start: int,
+        *,
+        label: str,
     ) -> MeshEditResult:
+        previous_selection = session.selection
         selected, native_selection_groups, select_diagnostics, selection_metrics = _apply_native_editor_session_selection_operation(
             session,
             selection,
@@ -735,6 +712,12 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
                 diagnostics=_native_blocked_fallback_diagnostics(fallback_event_start) + select_diagnostics,
                 metrics=selection_metrics,
             )
+        self._record_selection_history(
+            session,
+            previous_selection,
+            selected,
+            label=label,
+        )
         session.selection = selected
         return self._result(
             session,
@@ -814,6 +797,7 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
         operation = params.get("operation", params.get("selection_operation", "replace"))
         stop_event = _stop_event_from_params(params)
         fallback_event_start = len(native_mesh_core_fallback_events())
+        previous_selection = session.selection
         if native_mesh_core_available():
             native_payload = _native_editor_select_payload_for_params(selection or MeshEditSelection(), params)
             selected, groups, diagnostics, metrics = _apply_native_editor_session_selection_operation(
@@ -825,6 +809,13 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
             )
             if selected is None:
                 return self._result(session, "select", status="error", diagnostics=diagnostics, metrics=metrics)
+            if _records_history(command):
+                self._record_selection_history(
+                    session,
+                    previous_selection,
+                    selected,
+                    label=_history_action_label("select", command),
+                )
             session.selection = selected
             return self._result(
                 session,
@@ -840,6 +831,31 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
         else:
             diagnostics = ("Native editor selection is unavailable; Python selection fallback is blocked.",)
         return self._result(session, "select", status="error", diagnostics=diagnostics, metrics=metrics)
+
+    def _record_selection_history(
+        self,
+        session: _MeshEditSession,
+        previous_selection: MeshEditSelection,
+        selected: MeshEditSelection,
+        *,
+        label: str,
+    ) -> None:
+        if previous_selection == selected:
+            return
+        _clear_history_stack(session.redo_stack)
+        self._push_history_snapshot(
+            session,
+            _MeshHistorySnapshot(
+                mesh=None,
+                mode=session.mode,
+                selection=previous_selection,
+                edit_operations=tuple(session.edit_operations),
+                history_action="select",
+                history_label=str(label or "Select"),
+                selection_only=True,
+            ),
+        )
+        self._trim_session_history(session)
 
     def _apply_geometry_command(
         self,
@@ -872,7 +888,12 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
                 params={**dict(command.params or {}), "_require_native_history_delta": True},
             )
         elif pushed_history and not native_history:
-            self._push_history(session, prefer_native=True)
+            self._push_history(
+                session,
+                prefer_native=True,
+                action=action,
+                label=_history_action_label(action, command),
+            )
             history_pushed = True
         if command.mode is not None:
             session.mode = command_mode
@@ -937,6 +958,8 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
                     edit_operations=snapshot.edit_operations,
                     vertex_position_deltas=snapshot.vertex_position_deltas,
                     native_submesh_snapshot=snapshot.native_submesh_snapshot,
+                    history_action=execution.action,
+                    history_label=_history_action_label(execution.action, execution.command),
                 ),
             )
             execution.history_pushed = True
@@ -1057,6 +1080,8 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
                 )
                 if snapshot is None:
                     raise RuntimeError("native live edit did not provide undo history delta")
+                snapshot.history_action = execution.action
+                snapshot.history_label = _history_action_label(execution.action, execution.command)
                 self._push_history_snapshot(session, snapshot)
             elif execution.used_native_editor_session and execution.pushed_history and not execution.history_pushed:
                 result = execution.native_editor_result
@@ -1086,6 +1111,8 @@ class MeshService(MeshRiggingServiceMixin, MeshResidentMaterialServiceMixin, Mes
                             edit_operations=tuple(session.edit_operations),
                             native_editor_history=True,
                             native_editor_stroke_id=stroke_id,
+                            history_action=execution.action,
+                            history_label=_history_action_label(execution.action, execution.command),
                         ),
                     )
                     execution.history_pushed = True
@@ -1183,6 +1210,41 @@ def _coerce_command(command: MeshEditCommand | str) -> MeshEditCommand:
     if isinstance(command, MeshEditCommand):
         return command
     return MeshEditCommand(action=str(command))
+
+
+def _history_action_label(action: str, command: MeshEditCommand | None = None) -> str:
+    if command is not None and str(command.label or "").strip():
+        return str(command.label).strip()
+    normalized = str(action or "mesh_edit").strip().lower()
+    params = dict(command.params or {}) if command is not None else {}
+    if normalized == "select":
+        operation = str(params.get("operation", params.get("selection_operation", "replace")) or "replace").strip().lower()
+        return {
+            "all": "Select All",
+            "add": "Add Selection",
+            "subtract": "Subtract Selection",
+            "toggle": "Toggle Selection",
+            "grow": "Grow Selection",
+            "shrink": "Shrink Selection",
+            "invert": "Invert Selection",
+        }.get(operation, "Select")
+    if normalized == "brush":
+        tool = str(params.get("tool") or "brush").strip().replace("_", " ")
+        return tool.title()
+    if normalized == "transform":
+        return "Move"
+    return normalized.replace("_", " ").title() or "Mesh Edit"
+
+
+def _history_entries(session: _MeshEditSession) -> tuple[MeshEditHistoryEntry, ...]:
+    def entry(snapshot: _MeshHistorySnapshot, state: str) -> MeshEditHistoryEntry:
+        action = str(snapshot.history_action or "mesh_edit").strip().lower()
+        label = str(snapshot.history_label or "").strip() or _history_action_label(action)
+        return MeshEditHistoryEntry(action=action, label=label, state=state)
+
+    return tuple(entry(snapshot, "applied") for snapshot in session.undo_stack) + tuple(
+        entry(snapshot, "undone") for snapshot in reversed(session.redo_stack)
+    )
 
 
 def _snapshot(session: _MeshEditSession, *, prefer_native: bool = False) -> _MeshHistorySnapshot:
@@ -1472,6 +1534,7 @@ def _restore_native_editor_history(
     session.mode = snapshot.mode
     session.selection = snapshot.selection
     session.edit_operations = tuple(snapshot.edit_operations)
+    session.native_editor_selection_signature = ()
     after_signature = session.native_editor_mesh_dirty_counts if session.native_editor_mesh_dirty else _mesh_structure_signature(session.working_mesh)
     topology_changed, topology_affected, submesh_count_delta = _restore_topology_delta(
         before_signature,
@@ -1494,6 +1557,8 @@ def _restore_native_editor_history(
             edit_operations=current_edit_operations,
             native_editor_history=True,
             native_editor_stroke_id=snapshot.native_editor_stroke_id,
+            history_action=snapshot.history_action,
+            history_label=snapshot.history_label,
         ),
     )
     _restore_history_material_state(session, snapshot)
@@ -1515,6 +1580,28 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
     current_selection = session.selection
     current_edit_operations = tuple(session.edit_operations)
     before_signature = _mesh_structure_signature(session.working_mesh)
+    if snapshot.selection_only:
+        current_snapshot = _capture_history_material_state(
+            session,
+            _MeshHistorySnapshot(
+                mesh=None,
+                mode=current_mode,
+                selection=current_selection,
+                edit_operations=current_edit_operations,
+                history_action=snapshot.history_action,
+                history_label=snapshot.history_label,
+                selection_only=True,
+            ),
+        )
+        session.mode = snapshot.mode
+        session.selection = snapshot.selection
+        session.edit_operations = tuple(snapshot.edit_operations)
+        session.native_editor_selection_signature = ()
+        _restore_history_material_state(session, snapshot)
+        return _MeshRestoreOutcome(
+            snapshot=current_snapshot,
+            submesh_counts=before_signature,
+        )
     changed_vertices_by_submesh: dict[int, Sequence[int] | set[int]] = {}
     if snapshot.mesh is not None:
         current_snapshot = _snapshot(session)
@@ -1538,10 +1625,13 @@ def _restore_snapshot(session: _MeshEditSession, snapshot: _MeshHistorySnapshot)
         )
     else:
         current_snapshot = _snapshot(session)
+    current_snapshot.history_action = snapshot.history_action
+    current_snapshot.history_label = snapshot.history_label
     _capture_history_material_state(session, current_snapshot)
     session.mode = snapshot.mode
     session.selection = snapshot.selection
     session.edit_operations = tuple(snapshot.edit_operations)
+    session.native_editor_selection_signature = ()
     _restore_history_material_state(session, snapshot)
     after_signature = _mesh_structure_signature(session.working_mesh)
     topology_changed, affected_submesh_indices, submesh_count_delta = _restore_topology_delta(

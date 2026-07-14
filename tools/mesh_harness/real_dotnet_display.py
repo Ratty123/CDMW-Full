@@ -4,7 +4,10 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from types import SimpleNamespace
 
-from tools.mesh_harness.real_dotnet_material import renderer_resource_metrics
+from tools.mesh_harness.real_dotnet_material import (
+    _write_material_visual_diff,
+    renderer_resource_metrics,
+)
 
 
 _DISPLAY_MODES = (
@@ -82,6 +85,208 @@ def _mode_event(
 
     pump_until(state, locate, 3.0)
     return found
+
+
+def _presentation_event(
+    state: SimpleNamespace,
+    cursor: int,
+    pump_until: Callable[..., bool],
+) -> dict[str, object]:
+    found: dict[str, object] = {}
+
+    def locate() -> bool:
+        nonlocal found
+        for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]:
+            if str(event.get("event", "")) == "presentation_state_update_ack":
+                found = dict(event)
+                return True
+        return False
+
+    pump_until(state, locate, 4.0)
+    return found
+
+
+def _builder_presentation_payloads() -> tuple[dict[str, object], dict[str, object]]:
+    baseline_quality = {
+        "use_textures_by_default": True,
+        "high_quality_by_default": True,
+        "disable_lighting": False,
+        "disable_depth_test": False,
+        "disable_tint": True,
+        "disable_brightness": True,
+        "disable_uv_scale": False,
+        "disable_normal_map": False,
+        "disable_material_map": False,
+        "disable_height_map": False,
+        "disable_all_support_maps": False,
+        "force_nearest_no_mipmaps": False,
+        "d3d11_cull_back_faces": False,
+        "d3d11_light_azimuth_degrees": -10.0,
+        "d3d11_light_elevation_degrees": 0.0,
+        "d3d11_normal_y_mode": "asset",
+        "d3d11_ao_strength": 0.45,
+        "d3d11_roughness_bias": -0.04,
+        "d3d11_metalness_scale": 1.45,
+        "d3d11_environment_strength": 0.62,
+        "d3d11_emissive_gain": 2.2,
+        "d3d11_tone_exposure": 1.0,
+        "d3d11_tone_contrast": 1.08,
+        "d3d11_tone_gamma": 1.0,
+        "d3d11_texture_address_mode": "wrap",
+        "max_anisotropy": 16,
+        "d3d11_mip_lod_bias": -2.0,
+        "ambient_strength": 0.84,
+        "diffuse_wrap_bias": 0.58,
+        "diffuse_light_scale": 0.62,
+        "normal_strength_cap": 1.0,
+        "height_effect_max": 1.0,
+        "specular_max": 0.52,
+        "shininess_max": 152.0,
+    }
+    baseline = {
+        "active_view": "editable",
+        "comparison_mode": "replacement_only",
+        "display": {
+            "mode": "textured",
+            "material_debug_mode": 0,
+            "grid_visible": True,
+            "gizmo_visible": True,
+            "part_pick_enabled": False,
+            "quality": baseline_quality,
+        },
+        "uv": {
+            "scale_u": 1.0,
+            "scale_v": 1.0,
+            "offset_u": 0.0,
+            "offset_v": 0.0,
+            "rotate_degrees": 0.0,
+            "flip_u": False,
+            "flip_v": False,
+        },
+    }
+    tuned = {
+        **baseline,
+        "display": {
+            **baseline["display"],
+            "quality": {
+                **baseline_quality,
+                "disable_lighting": True,
+                "d3d11_normal_y_mode": "force_flip",
+                "d3d11_tone_exposure": 0.35,
+                "d3d11_tone_contrast": 1.45,
+                "d3d11_texture_address_mode": "clamp",
+                "max_anisotropy": 4,
+                "height_effect_max": 0.25,
+                "specular_max": 0.2,
+                "shininess_max": 72.0,
+            },
+        },
+        "uv": {
+            "scale_u": 1.75,
+            "scale_v": 0.8,
+            "offset_u": 0.13,
+            "offset_v": -0.08,
+            "rotate_degrees": 22.0,
+            "flip_u": True,
+            "flip_v": False,
+        },
+    }
+    return baseline, tuned
+
+
+def exercise_builder_presentation_controls(
+    state: SimpleNamespace,
+    *,
+    pump_until: Callable[..., bool],
+    capture_viewport: Callable[[SimpleNamespace, Path], dict[str, object]],
+) -> str:
+    """Prove resident Builder quality/lighting/UV controls change real pixels in place."""
+
+    baseline, tuned = _builder_presentation_payloads()
+    lifecycle_before = dict(state.tab.standalone_dotnet_lifecycle_counts)
+    process_before = int(state.tab.standalone_dotnet_editor_process.processId())
+    rows: list[dict[str, object]] = []
+    for name, payload in (("baseline", baseline), ("tuned", tuned), ("restored", baseline)):
+        cursor = len(state.tab.standalone_dotnet_protocol_events)
+        sent = bool(state.tab._send_dotnet_presentation_state(payload))
+        acknowledgement = _presentation_event(state, cursor, pump_until) if sent else {}
+        capture_path = state.output_dir / f"real_archive_dotnet_presentation_{name}.png"
+        capture = capture_viewport(state, capture_path) if acknowledgement.get("status") == "applied" else {}
+        rows.append(
+            {
+                "name": name,
+                "sent": sent,
+                "acknowledgement": acknowledgement,
+                "capture_path": str(capture_path),
+                "capture": capture,
+            }
+        )
+        if acknowledgement.get("status") != "applied" or not capture.get("ok"):
+            return f"Resident Builder presentation state {name!r} was not rendered and acknowledged."
+
+    diff_path = state.output_dir / "real_archive_dotnet_presentation_diff.png"
+    visual_diff = _write_material_visual_diff(
+        Path(str(rows[0]["capture_path"])),
+        Path(str(rows[1]["capture_path"])),
+        diff_path,
+    )
+    tuned_presentation = rows[1]["acknowledgement"].get("presentation", {})
+    tuned_presentation = dict(tuned_presentation) if isinstance(tuned_presentation, Mapping) else {}
+    quality_state = tuned_presentation.get("quality_state", {})
+    quality_state = dict(quality_state) if isinstance(quality_state, Mapping) else {}
+    uv_state = tuned_presentation.get("uv_state", {})
+    uv_state = dict(uv_state) if isinstance(uv_state, Mapping) else {}
+    lifecycle_after = dict(state.tab.standalone_dotnet_lifecycle_counts)
+    process_after = int(state.tab.standalone_dotnet_editor_process.processId())
+    baseline_renderer = _renderer_from_event(rows[0]["acknowledgement"])
+    restored_renderer = _renderer_from_event(rows[2]["acknowledgement"])
+    baseline_resources = renderer_resource_metrics(baseline_renderer)
+    restored_resources = renderer_resource_metrics(restored_renderer)
+    stable_resource_keys = (
+        "geometry_buffer_identity",
+        "texture_srv_creates",
+        "texture_srv_disposals",
+        "live_texture_srvs",
+        "material_binding_array_creates",
+    )
+    gates = {
+        "all_states_acknowledged_and_captured": all(
+            row["acknowledgement"].get("status") == "applied" and row["capture"].get("ok")
+            for row in rows
+        ),
+        "quality_and_uv_changed_pixels": bool(visual_diff.get("ok")),
+        "quality_state_applied": bool(
+            quality_state.get("disable_lighting") is True
+            and quality_state.get("normal_y_mode") == "force_flip"
+            and abs(float(quality_state.get("tone_exposure", 0.0) or 0.0) - 0.35) < 1e-6
+            and quality_state.get("texture_address_mode") == "clamp"
+        ),
+        "uv_state_applied": bool(
+            tuple(float(value) for value in tuple(uv_state.get("scale", ()))) == (1.75, 0.8)
+            and bool(uv_state.get("flip_u"))
+        ),
+        "process_and_package_unchanged": bool(
+            process_before == process_after and lifecycle_before == lifecycle_after
+        ),
+        "resident_resources_unchanged": all(
+            baseline_resources.get(key) == restored_resources.get(key) for key in stable_resource_keys
+        ),
+    }
+    state.builder_presentation_evidence = {
+        "schema": "cdmw_real_pac_builder_presentation_v1",
+        "states": rows,
+        "visual_diff": visual_diff,
+        "visual_diff_path": str(diff_path),
+        "lifecycle_before": lifecycle_before,
+        "lifecycle_after": lifecycle_after,
+        "process_before": process_before,
+        "process_after": process_after,
+        "baseline_resource_metrics": baseline_resources,
+        "restored_resource_metrics": restored_resources,
+        "gates": gates,
+        "ok": all(gates.values()),
+    }
+    return "" if state.builder_presentation_evidence["ok"] else "Resident Builder presentation validation failed."
 
 
 def _rendered_mode_metrics(
@@ -239,4 +444,8 @@ def exercise_geometry_display_modes(
     return "" if state.geometry_display_evidence["ok"] else "Real-PAC geometry display validation failed."
 
 
-__all__ = ["_image_color_metrics", "exercise_geometry_display_modes"]
+__all__ = [
+    "_image_color_metrics",
+    "exercise_builder_presentation_controls",
+    "exercise_geometry_display_modes",
+]

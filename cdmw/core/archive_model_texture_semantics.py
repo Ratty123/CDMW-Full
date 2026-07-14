@@ -402,11 +402,13 @@ def _infer_model_preview_texture_slot(
     if normalized_hint:
         if "normal" in normalized_hint:
             return "normal"
+        if any(token in normalized_hint for token in ("emissive", "emission", "illumination", "glow")):
+            return "emissive"
         if any(token in normalized_hint for token in ("height", "displacement", "parallax", "pom", "ssdm", "bump")):
             return "height"
         if any(token in normalized_hint for token in ("material", "roughness", "metallic", "metalness", "specular", "ao", "occlusion", "mask")):
             return "material"
-        if any(token in normalized_hint for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture", "emissive")):
+        if any(token in normalized_hint for token in ("basecolor", "overlaycolor", "diffuse", "albedo", "colortexture")):
             return "base"
     texture_type, semantic_subtype, _confidence = _resolve_model_texture_semantics(
         texture_path,
@@ -420,6 +422,8 @@ def _infer_model_preview_texture_slot(
         return "height"
     if normalized_type in {"mask", "roughness", "vector"}:
         return "material"
+    if normalized_type == "emissive" or normalized_subtype == "emissive":
+        return "emissive"
     return "base"
 
 def _model_texture_candidate_slot_priority(
@@ -429,7 +433,7 @@ def _model_texture_candidate_slot_priority(
     sidecar_texts: Sequence[str] = (),
 ) -> Optional[Tuple[int, int]]:
     normalized_slot = str(preview_slot or "").strip().lower()
-    if normalized_slot not in {"normal", "material", "height"}:
+    if normalized_slot not in {"normal", "material", "height", "emissive"}:
         return None
 
     texture_type, semantic_subtype, _confidence = _resolve_model_texture_semantics(
@@ -454,6 +458,13 @@ def _model_texture_candidate_slot_priority(
 
     if normalized_slot == "height":
         if normalized_type == "height" or normalized_subtype in {"displacement", "parallax_height", "height", "bump"}:
+            return (12, 3)
+        if suffix_index >= 0:
+            return (10, suffix_priority)
+        return None
+
+    if normalized_slot == "emissive":
+        if normalized_type == "emissive" or normalized_subtype == "emissive":
             return (12, 3)
         if suffix_index >= 0:
             return (10, suffix_priority)
@@ -640,6 +651,28 @@ def _set_model_preview_texture_slot(
                     preview_texture_path=preview_path_text,
                     semantic_type="height",
                     semantic_subtype="displacement",
+                    material_name=str(getattr(mesh, "material_name", "") or "").strip(),
+                    confidence="resolved",
+                    visualized=True,
+                ),
+            )
+            return True
+        return False
+    if normalized_slot == "emissive":
+        if not str(getattr(mesh, "preview_emissive_texture_path", "") or "").strip():
+            mesh.preview_emissive_texture_path = preview_path_text
+            mesh.preview_emissive_texture_image = None
+            mesh.preview_emissive_texture_name = texture_path_text
+            _append_model_preview_material_input(
+                mesh,
+                PreviewMaterialTextureInput(
+                    slot_kind="emissive",
+                    source_texture_path=texture_path_text,
+                    source_dds_path=texture_path_text,
+                    texture_name=PurePosixPath(texture_path_text.replace("\\", "/")).name,
+                    preview_texture_path=preview_path_text,
+                    semantic_type="emissive",
+                    semantic_subtype="emissive",
                     material_name=str(getattr(mesh, "material_name", "") or "").strip(),
                     confidence="resolved",
                     visualized=True,

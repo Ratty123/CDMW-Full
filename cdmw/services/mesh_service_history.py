@@ -121,7 +121,11 @@ class MeshHistoryServiceMixin:
         service_started = time.perf_counter()
         if not session.undo_stack:
             return self._result(session, "undo", status="noop")
-        if session.native_editor_mesh_dirty and not session.undo_stack[-1].native_editor_history:
+        if (
+            session.native_editor_mesh_dirty
+            and not session.undo_stack[-1].native_editor_history
+            and not session.undo_stack[-1].selection_only
+        ):
             raise RuntimeError("native mesh editor undo requires native history; Python mesh state is stale")
         snapshot = session.undo_stack.pop()
         if snapshot.native_editor_history:
@@ -168,7 +172,11 @@ class MeshHistoryServiceMixin:
         service_started = time.perf_counter()
         if not session.redo_stack:
             return self._result(session, "redo", status="noop")
-        if session.native_editor_mesh_dirty and not session.redo_stack[-1].native_editor_history:
+        if (
+            session.native_editor_mesh_dirty
+            and not session.redo_stack[-1].native_editor_history
+            and not session.redo_stack[-1].selection_only
+        ):
             raise RuntimeError("native mesh editor redo requires native history; Python mesh state is stale")
         snapshot = session.redo_stack.pop()
         if snapshot.native_editor_history:
@@ -212,8 +220,18 @@ class MeshHistoryServiceMixin:
             raise KeyError(f"Unknown mesh edit session: {session_id}")
         return session
 
-    def _push_history(self, session: _MeshEditSession, *, prefer_native: bool = False) -> None:
-        self._push_history_snapshot(session, _service_call("_snapshot", session, prefer_native=prefer_native))
+    def _push_history(
+        self,
+        session: _MeshEditSession,
+        *,
+        prefer_native: bool = False,
+        action: str = "",
+        label: str = "",
+    ) -> None:
+        snapshot = _service_call("_snapshot", session, prefer_native=prefer_native)
+        snapshot.history_action = str(action or "")
+        snapshot.history_label = str(label or "")
+        self._push_history_snapshot(session, snapshot)
 
     def _push_history_snapshot(self, session: _MeshEditSession, snapshot: _MeshHistorySnapshot) -> None:
         _service_call("_capture_history_material_state", session, snapshot)

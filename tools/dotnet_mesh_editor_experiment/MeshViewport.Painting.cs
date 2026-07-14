@@ -6,16 +6,25 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class MeshViewport
 {
+    private long _gdiFallbackFrameCount;
+
     protected override void OnPaint(PaintEventArgs e)
     {
         var started = _clock.ElapsedTicks;
-        if (_gpuViewport is not null)
+        if (_d3d11Viewport is not null)
         {
-            UpdateGpuViewport();
-            Metrics.Record((_clock.ElapsedTicks - started) * 1000.0 / Stopwatch.Frequency, 0.0, Math.Max(0.0, (DateTime.UtcNow - _dirtySinceUtc).TotalMilliseconds), string.Empty);
+            // The child HWND owns production presentation. Painting the CPU/GDI
+            // fallback underneath it duplicates every face on the UI thread.
             base.OnPaint(e);
             return;
         }
+        if (_gpuViewport is not null)
+        {
+            RecordRenderedFrame((_clock.ElapsedTicks - started) * 1000.0 / Stopwatch.Frequency, 0.0, string.Empty);
+            base.OnPaint(e);
+            return;
+        }
+        _gdiFallbackFrameCount++;
         e.Graphics.Clear(BackColor);
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
         var normalAlpha = ShowXRay ? 70 : 150;
@@ -80,7 +89,7 @@ internal sealed partial class MeshViewport
         }
 
         var frameTicks = _clock.ElapsedTicks - started;
-        Metrics.Record(frameTicks * 1000.0 / Stopwatch.Frequency, 0.0, Math.Max(0.0, (DateTime.UtcNow - _dirtySinceUtc).TotalMilliseconds), string.Empty);
+        RecordRenderedFrame(frameTicks * 1000.0 / Stopwatch.Frequency, 0.0, string.Empty);
         base.OnPaint(e);
     }
 

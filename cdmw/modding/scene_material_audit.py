@@ -1378,6 +1378,7 @@ def _apply_scene_material_parameters_to_submesh(
     alpha_factor = _scene_parameter_numeric(parameter_tuple, "alphafactor", "opacityfactor")
     if alpha_factor is not None:
         alpha_value = max(0.0, min(1.0, float(alpha_factor)))
+        native_overrides["opacity"] = alpha_value
         if alpha_value < 0.999:
             submesh.preview_alpha_mode = "BLEND"
             submesh.preview_vertex_alpha_mean = alpha_value

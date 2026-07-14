@@ -166,7 +166,26 @@ internal sealed partial class NetMaterialSet
                 JsonStringMap(item, "resolved_channels"),
                 JsonStringMap(item, "packaged_channels"),
                 JsonStringMap(item, "resource_channels"),
-                JsonStringMap(item, "channel_components")));
+                JsonStringMap(item, "channel_components"),
+                JsonString(item, "normal_y_policy"),
+                JsonBoolean(item, "texture_flip_vertical"),
+                JsonString(item, "shader_family"),
+                JsonString(item, "shader_technique"),
+                JsonString(item, "shader_authority"),
+                JsonString(item, "shader_family_source"),
+                JsonString(item, "shader_family_reason"),
+                JsonStringMap(item, "channel_color_spaces"),
+                JsonStringMap(item, "channel_authorities"),
+                JsonString(item, "alpha_mode"),
+                JsonFloat(item, "alpha_cutoff", 0.5f),
+                JsonFloat(item, "opacity_factor", 1.0f),
+                JsonString(item, "alpha_authority"),
+                JsonString(item, "alpha_reason"),
+                JsonBoolean(item, "double_sided"),
+                JsonString(item, "double_sided_authority"),
+                JsonString(item, "double_sided_reason"),
+                JsonStringArray(item, "unsupported_features"),
+                JsonArrayLength(item, "layer_bindings")));
         }
         return result;
     }
@@ -211,6 +230,34 @@ internal sealed partial class NetMaterialSet
             ? number
             : fallback;
     }
+
+    private static float JsonFloat(JsonElement element, string name, float fallback)
+    {
+        return element.TryGetProperty(name, out var value)
+            && value.ValueKind == JsonValueKind.Number
+            && value.TryGetDouble(out var number)
+            && double.IsFinite(number)
+                ? (float)number
+                : fallback;
+    }
+
+    private static IReadOnlyList<string> JsonStringArray(JsonElement element, string name)
+    {
+        return element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array
+            ? value.EnumerateArray()
+                .Where(item => item.ValueKind == JsonValueKind.String)
+                .Select(item => item.GetString() ?? string.Empty)
+                .Where(item => !string.IsNullOrWhiteSpace(item))
+                .ToArray()
+            : Array.Empty<string>();
+    }
+
+    private static int JsonArrayLength(JsonElement element, string name)
+    {
+        return element.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.Array
+            ? value.GetArrayLength()
+            : 0;
+    }
 }
 
 internal sealed record NetMaterialSlot(int Index, string Name, string Texture, Dictionary<string, string> Channels);
@@ -223,4 +270,23 @@ internal sealed record NetSubmeshMaterialBinding(
     Dictionary<string, string> ResolvedChannels,
     Dictionary<string, string> PackageChannels,
     Dictionary<string, string> ResourceChannels,
-    Dictionary<string, string> ChannelComponents);
+    Dictionary<string, string> ChannelComponents,
+    string NormalYPolicy,
+    bool TextureFlipVertical,
+    string ShaderFamily,
+    string ShaderTechnique,
+    string ShaderAuthority,
+    string ShaderFamilySource,
+    string ShaderFamilyReason,
+    Dictionary<string, string> ChannelColorSpaces,
+    Dictionary<string, string> ChannelAuthorities,
+    string AlphaMode,
+    float AlphaCutoff,
+    float OpacityFactor,
+    string AlphaAuthority,
+    string AlphaReason,
+    bool DoubleSided,
+    string DoubleSidedAuthority,
+    string DoubleSidedReason,
+    IReadOnlyList<string> UnsupportedFeatures,
+    int LayerBindingCount);

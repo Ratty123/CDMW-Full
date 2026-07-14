@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser.static_replacement_preview_materials import (
@@ -12,6 +13,10 @@ from cdmw.ui.archive_browser.static_replacement_preview_materials import (
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_session import (
     _mesh_editor_ensure_static_replacement_session,
 )
+from tests.static_replacement_source_support import static_replacement_ui_concern_source
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _mesh(**overrides: object) -> SimpleNamespace:
@@ -25,6 +30,35 @@ def _mesh(**overrides: object) -> SimpleNamespace:
     }
     values.update(overrides)
     return SimpleNamespace(**values)
+
+
+def test_alignment_startup_attaches_scene_preview_textures_before_first_d3d11_request() -> None:
+    archive_ui = ROOT / "cdmw" / "ui" / "archive_browser"
+    preflight_source = (archive_ui / "static_replacement_prompt_preflight.py").read_text(encoding="utf-8")
+    setup_source = (archive_ui / "static_replacement_dialog_prompt_setup.py").read_text(encoding="utf-8")
+    startup_state_source = (archive_ui / "static_replacement_startup_state.py").read_text(encoding="utf-8")
+    prompt_state = (archive_ui / "static_replacement_dialog_prompt_state_callbacks.py").read_text(encoding="utf-8")
+    start = preflight_source.index('report(5, 8, "Building preview models...")')
+    end = preflight_source.index('report(6, 8, "Suggesting draw-section routing...")', start)
+    startup = preflight_source[start:end]
+
+    assert '"preview_meshes": "Preparing preview meshes..."' in startup_state_source
+    assert "replacement_preview = parsed_mesh_to_preview_model(replacement_mesh)" in startup
+    assert "if had_scene_result:" in startup
+    assert "attach_scene_preview_textures(replacement_preview, scene_result, request.obj_path)" in startup
+    assert "scene_import_normalizes_texture_v(source_format, replacement_base.path or request.obj_path)" in startup
+    assert "set_dotnet_preview_texture_flip_vertical(replacement_preview, scene_flip_v)" in startup
+    assert "copy_dotnet_preview_material_bindings(replacement_base, replacement_preview)" in startup
+    assert "copy_dotnet_preview_material_bindings(replacement_mesh, replacement_preview)" in startup
+    assert "prompt_preflight.scene_flip_v" not in setup_source
+    assert '"flip_v": True' not in setup_source
+    setter_start = prompt_state.index("def _set_replacement_preview_model(value) -> None:")
+    setter_end = prompt_state.index("asset_profile:", setter_start)
+    setter = prompt_state[setter_start:setter_end]
+    assert "if SceneImportResult is not None and isinstance(scene_import_result, SceneImportResult):" in setter
+    assert "mesh.preview_texture_flip_vertical = flip_v" in setter
+    ui_sections = static_replacement_ui_concern_source(ROOT, "setup_options_transform")
+    assert "_state.setup_texture_flip_v_checkbox.setChecked(bool(_state.texture_uv_global_transform_state.get('flip_v')))" in ui_sections
 
 
 def test_preview_mesh_surface_matches_translated_clone_only() -> None:
@@ -106,6 +140,7 @@ def test_modify_original_session_uses_live_resolved_preview_model() -> None:
         original_reference_preview_model=stale_model,
         modify_original_clone_mode=True,
         context={"_get_original_reference_preview_model": lambda: resolved_model},
+        dialog=SimpleNamespace(),
         StaticReplacementMeshEditSession=FakeSession,
         source_skeleton=None,
         mesh_edit_native_result_submesh_counts={},

@@ -5,13 +5,18 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_selection import (
+    _mesh_edit_enabled_toggled,
     _mesh_editor_embedded_dotnet_failed,
     _mesh_editor_embedded_dotnet_ready,
     _stop_legacy_native_preview_after_dotnet_ready,
 )
+from cdmw.ui.archive_browser.static_replacement_mesh_edit_session import (
+    _mesh_editor_finalize_edit_mode_exit,
+)
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_controls_history import (
     _mesh_edit_control_runtime_state,
 )
+from cdmw.ui.archive_browser.static_replacement_combo_options import PREVIEW_MODE_OPTIONS
 from tests.static_replacement_source_support import static_replacement_callback_implementation_source
 
 
@@ -43,6 +48,7 @@ def test_edit_mesh_toggle_has_no_legacy_preview_fallback() -> None:
     assert "preview cannot start" in toggle_source
     assert "preview is disabled by configuration" in toggle_source
     assert "_mesh_edit_apply_preview_mode_transition(\"mesh_edit_toggle\")" not in toggle_source
+    assert "setVisible(False)" in toggle_source
 
 
 def test_dotnet_edit_hides_legacy_toolbar_and_qt_controls_owned_by_dotnet() -> None:
@@ -167,6 +173,17 @@ def test_alignment_native_preview_queue_is_unconditionally_disabled() -> None:
     assert "_safe_start_alignment_timer" not in body
 
 
+def test_preview_mode_includes_separate_original_view_context() -> None:
+    source = (
+        MESH_OWNER_ROOT / "static_replacement_dialog_callbacks_preview_mode_part_01.py"
+    ).read_text(encoding="utf-8")
+
+    assert ("Original only", "original_only") in PREVIEW_MODE_OPTIONS
+    assert "if normalized_mode == 'original_only':" in source
+    assert "return (_state.original_dialog_preview,)" in source
+    assert "'original_only': 'reference'" in source
+
+
 def test_edit_mesh_off_keeps_dotnet_resident_and_switches_to_placement() -> None:
     toggle_source = _function_source(
         "static_replacement_mesh_edit_selection.py", "_mesh_edit_enabled_toggled"
@@ -177,6 +194,84 @@ def test_edit_mesh_off_keeps_dotnet_resident_and_switches_to_placement() -> None
     assert 'interaction_mode="placement"' in toggle_source
     assert 'interaction_mode="mesh_edit"' in toggle_source
     assert "_callbacks._mesh_editor_finalize_edit_mode_exit" in toggle_source
+
+
+def test_edit_mesh_toggle_forces_replacement_only_and_restores_placement_mode() -> None:
+    class _Checkbox:
+        def __init__(self, checked: bool) -> None:
+            self.checked = checked
+
+        def isChecked(self) -> bool:
+            return self.checked
+
+        def setChecked(self, checked: bool) -> None:
+            self.checked = bool(checked)
+
+        def blockSignals(self, _blocked: bool) -> bool:
+            return False
+
+    transitions: list[dict[str, object]] = []
+    presentations: list[dict[str, object]] = []
+    visibility: list[bool] = []
+    queued: list[str] = []
+    checkbox = _Checkbox(True)
+    placement_presentation = {
+        "active_view": "reference",
+        "comparison_mode": "original_only",
+        "display": {"mode": "textured"},
+    }
+    dialog = SimpleNamespace(
+        _mesh_editor_embedded_dotnet_active=True,
+        _mesh_editor_embedded_placement_comparison_mode=lambda: "original_only",
+        _mesh_editor_embedded_comparison_mode=lambda: (
+            "replacement_only" if checkbox.isChecked() else "original_only"
+        ),
+        _mesh_editor_embedded_set_scene_state=lambda **state: transitions.append(dict(state)) or True,
+        _mesh_editor_embedded_presentation_state=lambda: placement_presentation,
+        _mesh_editor_embedded_set_presentation_state=lambda state: presentations.append(
+            dict(state)
+        )
+        or True,
+    )
+    state = SimpleNamespace(
+        dialog=dialog,
+        mesh_edit_enabled_checkbox=checkbox,
+        controls_panel=SimpleNamespace(
+            setVisible=lambda value: visibility.append(bool(value))
+        ),
+        mesh_edit_preview_model_dirty={"value": False},
+    )
+    callbacks = SimpleNamespace(
+        _refresh_mesh_edit_controls=lambda: None,
+        _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: True,
+        _mesh_editor_queue_post_edit_textured_preview_rebuild=lambda reason: queued.append(
+            str(reason)
+        ),
+    )
+    callbacks._mesh_editor_finalize_edit_mode_exit = lambda reason, mesh_changed=True: (
+        _mesh_editor_finalize_edit_mode_exit(
+            state,
+            callbacks,
+            reason,
+            mesh_changed=mesh_changed,
+        )
+    )
+
+    _mesh_edit_enabled_toggled(state, callbacks, True)
+    checkbox.checked = False
+    _mesh_edit_enabled_toggled(state, callbacks, False)
+
+    assert transitions == [
+        {"interaction_mode": "mesh_edit", "comparison_mode": "replacement_only"},
+        {
+            "interaction_mode": "placement",
+            "comparison_mode": "original_only",
+            "gizmo_tool": "move",
+        },
+    ]
+    assert visibility == [False, True]
+    assert presentations == [placement_presentation]
+    assert queued == ["mesh_edit_toggle"]
 
 
 def test_dotnet_ready_and_failed_callbacks_own_embedded_state() -> None:
@@ -267,6 +362,38 @@ def test_dotnet_edit_uses_full_width_then_failure_restores_setup_panel() -> None
     assert visibility == [False, True]
 
 
+def test_edit_mesh_launch_hides_builder_controls_for_dotnet_panel() -> None:
+    visibility: list[bool] = []
+    launches: list[str] = []
+    events: list[str] = []
+    dialog = SimpleNamespace(
+        _mesh_editor_embedded_dotnet_active=False,
+        _mesh_editor_embedded_start_dotnet=lambda: launches.append("started"),
+        _mesh_editor_use_embedded_dotnet_viewport=True,
+        _mesh_editor_dotnet_available=True,
+    )
+    state = SimpleNamespace(
+        dialog=dialog,
+        mesh_edit_enabled_checkbox=SimpleNamespace(isChecked=lambda: True),
+        controls_panel=SimpleNamespace(setVisible=lambda value: visibility.append(bool(value))),
+        self=SimpleNamespace(set_status_message=lambda *_args, **_kwargs: None),
+    )
+    callbacks = SimpleNamespace(
+        _refresh_mesh_edit_controls=lambda: None,
+        _record_mesh_edit_event=lambda event, **_payload: events.append(str(event)),
+        _embedded_dotnet_parent_hwnd=lambda: 123,
+        _alignment_d3d11_process_active=lambda: False,
+    )
+
+    _mesh_edit_enabled_toggled(state, callbacks, True)
+
+    assert visibility == [False]
+    assert launches == ["started"]
+    assert events == ["mesh_edit_dotnet_launch_requested"]
+    assert dialog._mesh_editor_embedded_dotnet_state == "launching"
+    assert dialog._mesh_editor_embedded_dotnet_active is False
+
+
 def test_texture_reapply_reads_latest_original_reference_model() -> None:
     source = static_replacement_callback_implementation_source(ROOT)
 
@@ -285,3 +412,65 @@ def test_dotnet_exit_always_queues_material_texture_restore_after_preview_transi
     assert restore_source.index("_mesh_edit_apply_preview_mode_transition") < restore_source.index(
         "_queue_texture_preview_refresh"
     )
+
+
+def test_finish_edit_restores_builder_controls_and_resident_placement_presentation() -> None:
+    class _Checkbox:
+        def __init__(self) -> None:
+            self.checked = True
+
+        def isChecked(self) -> bool:
+            return self.checked
+
+        def setChecked(self, checked: bool) -> None:
+            self.checked = bool(checked)
+
+        def blockSignals(self, _blocked: bool) -> bool:
+            return False
+
+    visibility: list[bool] = []
+    queued: list[str] = []
+    presentations: list[dict[str, object]] = []
+    checkbox = _Checkbox()
+    placement_presentation = {
+        "active_view": "editable",
+        "comparison_mode": "replacement_only",
+        "display": {"mode": "textured"},
+    }
+
+    def _placement_presentation() -> dict[str, object]:
+        assert checkbox.checked is False
+        return placement_presentation
+
+    state = SimpleNamespace(
+        dialog=SimpleNamespace(
+            _mesh_editor_embedded_dotnet_active=True,
+            _mesh_editor_embedded_presentation_state=_placement_presentation,
+            _mesh_editor_embedded_set_presentation_state=lambda state: presentations.append(
+                dict(state)
+            )
+            or True,
+        ),
+        controls_panel=SimpleNamespace(
+            setVisible=lambda value: visibility.append(bool(value))
+        ),
+        mesh_edit_enabled_checkbox=checkbox,
+        mesh_edit_preview_model_dirty={"value": False},
+    )
+    callbacks = SimpleNamespace(
+        _mesh_editor_sync_static_replacement_session_to_working_mesh=lambda _reason: True,
+        _mesh_editor_queue_post_edit_textured_preview_rebuild=lambda reason: queued.append(
+            str(reason)
+        ),
+        _refresh_mesh_edit_controls=lambda: None,
+    )
+
+    assert _mesh_editor_finalize_edit_mode_exit(
+        state,
+        callbacks,
+        "dotnet_finish_edit",
+    )
+    assert checkbox.checked is False
+    assert visibility == [True]
+    assert presentations == [placement_presentation]
+    assert queued == ["dotnet_finish_edit"]

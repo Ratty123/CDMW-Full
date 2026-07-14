@@ -426,13 +426,28 @@ def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> No
     edit_enabled = bool(_state.mesh_edit_enabled_checkbox.isChecked())
     dotnet_active = bool(getattr(_state.dialog, "_mesh_editor_embedded_dotnet_active", False))
     set_scene_state = getattr(_state.dialog, "_mesh_editor_embedded_set_scene_state", None)
+    comparison_mode_getter = getattr(
+        _state.dialog,
+        "_mesh_editor_embedded_placement_comparison_mode",
+        getattr(_state.dialog, "_mesh_editor_embedded_comparison_mode", None),
+    )
+    try:
+        comparison_mode = (
+            str(comparison_mode_getter() or "replacement_only")
+            if callable(comparison_mode_getter)
+            else "replacement_only"
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        comparison_mode = "replacement_only"
     if not edit_enabled:
-        if getattr(_state, "controls_panel", None) is not None:
-            _state.controls_panel.setVisible(True)
         if not _callbacks._mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True):
             return
         if callable(set_scene_state):
-            set_scene_state(interaction_mode="placement", gizmo_tool="move")
+            set_scene_state(
+                interaction_mode="placement",
+                comparison_mode=comparison_mode,
+                gizmo_tool="move",
+            )
         return
     start_dotnet = getattr(_state.dialog, "_mesh_editor_embedded_start_dotnet", None)
     dotnet_enabled = bool(getattr(_state.dialog, "_mesh_editor_use_embedded_dotnet_viewport", False))
@@ -440,7 +455,10 @@ def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> No
     if dotnet_active and callable(set_scene_state):
         if getattr(_state, "controls_panel", None) is not None:
             _state.controls_panel.setVisible(False)
-        set_scene_state(interaction_mode="mesh_edit")
+        set_scene_state(
+            interaction_mode="mesh_edit",
+            comparison_mode="replacement_only",
+        )
         _callbacks._refresh_mesh_edit_controls()
         return
     if dotnet_enabled and callable(start_dotnet):

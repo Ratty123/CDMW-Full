@@ -6,9 +6,15 @@ from .editing import (
     MESH_EDIT_ACTIONS,
     MESH_EDIT_MODES,
     MeshEditCommand,
+    MeshEditHistoryEntry,
     MeshEditResult,
     MeshEditSelection,
     MeshEditSessionView,
+)
+from .material_resource_policy import (
+    MeshMaterialResourcePolicy,
+    canonical_material_channel,
+    mesh_material_resource_policy,
 )
 from .asset import (
     BinaryLayout,
@@ -71,9 +77,13 @@ __all__ = [
     "MESH_EDIT_ACTIONS",
     "MESH_EDIT_MODES",
     "MeshEditCommand",
+    "MeshEditHistoryEntry",
     "MeshEditResult",
     "MeshEditSelection",
     "MeshEditSessionView",
+    "MeshMaterialResourcePolicy",
+    "canonical_material_channel",
+    "mesh_material_resource_policy",
     "MeshEditOperation",
     "MeshEditOperationIssue",
     "BinaryLayout",

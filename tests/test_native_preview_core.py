@@ -358,6 +358,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("DirectX::CaptureTexture", d3d11_text)
         self.assertIn("DirectX::SaveToWICFile", d3d11_text)
         self.assertIn('command == "capture_frame"', d3d11_text)
+        self.assertIn('json_direct_object_field(object, "dds_textures")', d3d11_text)
+        self.assertIn('json_direct_object_field(dds_textures, slot)', d3d11_text)
+        self.assertIn("self_test_dds_slot_scoping", d3d11_text)
         self.assertIn("workspace_grid_y_for_view", d3d11_text)
         self.assertIn("min_y - 0.035f", d3d11_text)
         self.assertIn("d3d11_light_azimuth_degrees", d3d11_text)
@@ -492,7 +495,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('send_side_by_side_split_event("drag");', d3d11_text)
         self.assertIn("SetCursor(LoadCursor(nullptr, IDC_SIZEWE));", d3d11_text)
         self.assertNotIn("static_cast<float>(width_) * 0.56f", d3d11_text)
-        self.assertIn("def remember_side_by_side_split_ratio(self, ratio: float) -> float:", host_text)
+        self.assertIn("def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:", host_text)
         self.assertIn("def set_side_by_side_split_ratio(self, ratio: float) -> bool:", host_text)
         load_start = host_text.index("def load_package(")
         load_body = host_text[load_start:host_text.index("def view_state_snapshot", load_start)]
@@ -1164,7 +1167,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         base_end = source.index("static std::string shader_rule_for_family", base_start)
         base_selector = source[base_start:base_end]
         fallback_start = source.index("static const TextureBinding* best_visible_layer_base_fallback")
-        fallback_end = source.index("static bool evidence_token_boundary", fallback_start)
+        fallback_end = source.index("static bool binding_has_explicit_metalness_slot", fallback_start)
         fallback_selector = source[fallback_start:fallback_end]
 
         self.assertIn("base_binding_has_unsafe_cross_part_texture_family", source)
@@ -1187,7 +1190,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         base_end = source.index("static std::string shader_rule_for_family", base_start)
         base_selector = source[base_start:base_end]
         fallback_start = source.index("static const TextureBinding* best_visible_layer_base_fallback")
-        fallback_end = source.index("static bool evidence_token_boundary", fallback_start)
+        fallback_end = source.index("static bool binding_has_explicit_metalness_slot", fallback_start)
         fallback_selector = source[fallback_start:fallback_end]
 
         self.assertIn("parameter_is_generic_color_texture_layer", source)
@@ -1206,6 +1209,15 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("base_wrong_family_layer", source)
         self.assertIn("wrong_family_layer", source)
         self.assertIn("wrong-family layer/terrain base fallback", source)
+        skin_start = source.index("static bool mesh_looks_like_skin_surface")
+        skin_end = source.index("static bool selected_base_is_semantically_unsafe_skin_albedo", skin_start)
+        skin_source = source[skin_start:skin_end]
+        self.assertIn("evidence_contains_token(text, token)", skin_source)
+        self.assertNotIn("native_base_text_has_any(text", skin_source)
+        self.assertIn("base_tint_only_fallback", source)
+        self.assertIn("package_preview_base", source)
+        self.assertIn("selected texture retained as evidence but omitted from visible base", source)
+        self.assertIn("binding_ptr == batch.base", source)
         self.assertLess(
             base_selector.index("wrong_family_layer_base && availability.mesh_family_visible"),
             base_selector.index('int score = material_match_score(binding, mesh, "base")'),
@@ -1261,7 +1273,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         base_end = source.index("static std::string shader_rule_for_family", base_start)
         base_selector = source[base_start:base_end]
         fallback_start = source.index("static const TextureBinding* best_visible_layer_base_fallback")
-        fallback_end = source.index("static bool evidence_token_boundary", fallback_start)
+        fallback_end = source.index("static bool binding_has_explicit_metalness_slot", fallback_start)
         fallback_selector = source[fallback_start:fallback_end]
 
         self.assertIn("if (material_wrapper_matches_mesh_local_index(binding, mesh)) return false;", unsafe_selector)
@@ -1345,7 +1357,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         parse_source = source[parse_start:parse_end]
 
         self.assertIn('batch.base_dds = dds_slot_source(object, "base");', parse_source)
-        self.assertIn('const std::string descriptor = json_object_field(object, slot);', source)
+        self.assertIn('const std::string dds_textures = json_direct_object_field(object, "dds_textures");', source)
+        self.assertIn('const std::string descriptor = json_direct_object_field(dds_textures, slot);', source)
+        self.assertNotIn('const std::string descriptor = json_object_field(object, slot);', source)
         self.assertIn('if (!json_bool_field(descriptor, "available", true)) return L"";', source)
         self.assertIn('if (!json_bool_field(descriptor, "direct_upload_candidate", true)) return L"";', source)
         self.assertNotIn('best_material_dds_for_role(object, "base")', parse_source)
@@ -1535,7 +1549,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("direct_metal_response", source)
         self.assertIn("env_material_scale", source)
         self.assertIn("float glossy_cue = glossy_nonmetal", source)
-        self.assertIn("float3 mapped = aces_tonemap(color * tone_exposure);", source)
+        self.assertIn("float preview_environment_intensity", source)
+        self.assertIn("float3 source_stable_fresnel", source)
+        self.assertIn("float mapped_luma = aces_tonemap(exposed_luma.xxx).r;", source)
         self.assertIn("user_metalness_scale", source)
         self.assertIn("category_metal_fallback", source)
         self.assertIn("metalness = max(metalness, category_metal_fallback);", source)
@@ -1792,8 +1808,11 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("lerp(0.05, 1.25, neutral_metal_tint)", source)
         self.assertIn("float neutral_metal_luma = saturate(albedo_luma * (0.55 + tint_luma * 0.45) + 0.012);", source)
         self.assertNotIn("albedo = srgb_to_linear(base_sample.rgb);", source)
-        self.assertIn("float3 mapped = aces_tonemap(color * tone_exposure);", source)
-        self.assertIn("mapped = saturate((mapped - 0.5) * tone_contrast + 0.5);", source)
+        self.assertIn("float preview_environment_intensity", source)
+        self.assertIn("float3 source_stable_fresnel", source)
+        self.assertIn("float mapped_luma = aces_tonemap(exposed_luma.xxx).r;", source)
+        self.assertIn("contrasted_luma = max(contrasted_luma, current_luma * 0.55);", source)
+        self.assertNotIn("preview_environment_color", source)
         self.assertIn("mapped = pow(mapped, float3(tone_gamma, tone_gamma, tone_gamma));", source)
         self.assertIn("return float4(linear_to_srgb(mapped), 1.0);", source)
 

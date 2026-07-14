@@ -123,16 +123,18 @@ internal sealed partial class MeshViewport
 
     private NetViewportCamera CurrentCamera()
     {
+        var viewport = ActivePaneBounds();
+        var cameraBounds = CameraBoundsForContext(_activeCameraContextId);
         return NetViewportCamera.Create(
-            _center,
-            _bounds,
+            BoundsCenter(cameraBounds),
+            cameraBounds,
             _yaw,
             _pitch,
             _zoom,
             _panX,
             _panY,
-            Math.Max(1, Width),
-            Math.Max(1, Height));
+            Math.Max(1, viewport.Width),
+            Math.Max(1, viewport.Height));
     }
 
     private void RebuildEdgeTopology()
@@ -208,16 +210,46 @@ internal sealed partial class MeshViewport
 
     public void FrameMesh()
     {
-        RefreshModelBounds();
+        if (_scene.HasAuthoritativeFrame)
+        {
+            _bounds = (
+                new Vec3(
+                    _scene.FramingBoundsMinimum.X,
+                    _scene.FramingBoundsMinimum.Y,
+                    _scene.FramingBoundsMinimum.Z),
+                new Vec3(
+                    _scene.FramingBoundsMaximum.X,
+                    _scene.FramingBoundsMaximum.Y,
+                    _scene.FramingBoundsMaximum.Z));
+            _center = new Vec3(
+                (_bounds.Min.X + _bounds.Max.X) * 0.5f,
+                (_bounds.Min.Y + _bounds.Max.Y) * 0.5f,
+                (_bounds.Min.Z + _bounds.Max.Z) * 0.5f);
+        }
+        else
+        {
+            RefreshModelBounds();
+        }
         if (_edgeTopology.Generation == 0)
         {
             RebuildEdgeTopology();
             RebuildPartAdjacency();
         }
-        var size = Math.Max(_bounds.Max.X - _bounds.Min.X, Math.Max(_bounds.Max.Y - _bounds.Min.Y, _bounds.Max.Z - _bounds.Min.Z));
-        _zoom = size > 0.0001f ? 380.0f / size : 220.0f;
+        var cameraBounds = SceneBoundsForContext(_activeCameraContextId);
+        if (_presentationContexts.Count > 0)
+        {
+            ReframePresentationContext(_activeCameraContextId);
+            cameraBounds = CameraBoundsForContext(_activeCameraContextId);
+        }
+        _zoom = FitZoomForBounds(cameraBounds);
         _panX = 0;
         _panY = 0;
+        if (_presentationContexts.TryGetValue(_activeCameraContextId, out var context))
+        {
+            context.Zoom = _zoom;
+            context.PanX = 0.0f;
+            context.PanY = 0.0f;
+        }
         UpdateGpuViewport();
         Invalidate();
     }
@@ -231,12 +263,18 @@ internal sealed partial class MeshViewport
         }
     }
 
-    public void UpdateSelection(
+    public bool UpdateSelection(
         Dictionary<int, HashSet<int>> vertices,
         Dictionary<int, HashSet<int>> faces,
         Dictionary<int, HashSet<(int A, int B)>> edges,
-        HashSet<int> sources)
+        HashSet<int> sources,
+        long requestId = 0,
+        long revision = 0)
     {
+        if (!CanAcceptAuthoritativeSelection(requestId, revision))
+        {
+            return false;
+        }
         ReplaceSelectionMap(_selectedVertices, vertices);
         ReplaceSelectionMap(_selectedFaces, faces);
         _selectedEdges.Clear();
@@ -256,7 +294,15 @@ internal sealed partial class MeshViewport
         {
             _selectedSources.Add(source);
         }
-        SyncSelectedPartFocus();
+        if (!AcceptAuthoritativeSelection(requestId, revision))
+        {
+            return false;
+        }
+        if (!HasNewerProvisionalSelection(requestId))
+        {
+            SyncSelectedPartFocus();
+        }
         UpdateGpuViewport();
+        return true;
     }
 }

@@ -794,8 +794,8 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
-    def remember_side_by_side_split_ratio(self, ratio: float) -> float:
-        self._side_by_side_split_ratio = max(0.18, min(0.82, float(ratio)))
+    def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:
+        self._side_by_side_split_ratio = max(0.18, min(0.82, float(self._side_by_side_split_ratio if ratio is None else ratio)))
         return float(self._side_by_side_split_ratio)
 
     def set_side_by_side_split_ratio(self, ratio: float) -> bool:

@@ -81,6 +81,19 @@ from .static_mesh_runtime_builder import (
     source_normal_transform_for_transformed_preview,
     source_point_for_transformed_point,
 )
+from .static_mesh_scene_frame import (
+    StaticAlignmentBasis,
+    StaticManualTransformDelta,
+    StaticMeshSceneFrame,
+    StaticSceneRoleFrame,
+    StaticTransformFrame,
+    StaticWorldBounds,
+    build_authoritative_static_scene_frame,
+    build_static_transform_frame,
+    matrix_transform_point,
+    selection_pivot_source_from_mesh,
+    static_scene_source_identity,
+)
 from .static_mesh_source_parts import (
     _apply_source_part_adjustment,
     _apply_texture_uv_transform,

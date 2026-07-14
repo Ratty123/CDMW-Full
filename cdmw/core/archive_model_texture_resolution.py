@@ -155,7 +155,7 @@ def _resolve_model_texture_archive_entry(
     if _has_explicit_model_texture_reference(material_name) and _is_placeholder_model_texture(material_name):
         return None, "missing"
     if expand_family_candidates is None:
-        if normalized_preferred_slot in {"normal", "material", "height"}:
+        if normalized_preferred_slot in {"normal", "material", "height", "emissive"}:
             expand_family_candidates = True
         else:
             expand_family_candidates = not _has_explicit_model_texture_reference(texture_name, material_name)
@@ -198,7 +198,7 @@ def _resolve_model_texture_archive_entry(
             family_members=family_members_by_group.get(group_key, (candidate.path,)),
             sidecar_texts=sidecar_texts,
         )
-        if normalized_preferred_slot in {"normal", "material", "height"}:
+        if normalized_preferred_slot in {"normal", "material", "height", "emissive"}:
             semantic_priority = _model_texture_candidate_slot_priority(
                 normalized_preferred_slot,
                 candidate.path,
@@ -226,7 +226,7 @@ def _resolve_model_texture_archive_entry(
             best_candidate_priority = semantic_priority
 
     if best_candidate is None:
-        if normalized_preferred_slot in {"normal", "material", "height"} and slot_filtered_out:
+        if normalized_preferred_slot in {"normal", "material", "height", "emissive"} and slot_filtered_out:
             return None, "technical_only"
         return None, "missing"
     if allow_technical_match and best_candidate_priority[0] <= 0:

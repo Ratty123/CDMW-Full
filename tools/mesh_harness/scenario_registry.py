@@ -137,8 +137,8 @@ _ROWS = (
     _scenario(
         "mesh-dotnet-native-parity-report",
         process_ownership="none",
-        scenario_role="blocked_report_scaffold",
-        expected_backend="not_implemented",
+        scenario_role="offline_image_comparison",
+        expected_backend="python+optional-openimageio",
     ),
 )
 

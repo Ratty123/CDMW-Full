@@ -10,11 +10,13 @@ CRIMSON_SHADER_REGISTRY_SCHEMA_VERSION = 1
 AUTHORITY_AUTHORITATIVE = "authoritative"
 AUTHORITY_SIDECAR = "sidecar"
 AUTHORITY_CAPTURE_INFERRED = "capture_inferred"
+AUTHORITY_INFERRED = "inferred"
 AUTHORITY_GUESS = "guess"
 AUTHORITY_VALUES = (
     AUTHORITY_AUTHORITATIVE,
     AUTHORITY_SIDECAR,
     AUTHORITY_CAPTURE_INFERRED,
+    AUTHORITY_INFERRED,
     AUTHORITY_GUESS,
 )
 
@@ -147,6 +149,73 @@ def normalize_shader_family(value: object) -> str:
     if "standard" in compact:
         return "standard_v2" if "v2" in compact or "ver2" in compact else "standard"
     return text.replace(" ", "_")
+
+
+def infer_shader_family_contract(
+    shader_family: object = "",
+    *,
+    material_name: object = "",
+    asset_path: object = "",
+    has_emissive: bool = False,
+) -> Dict[str, object]:
+    """Resolve a material family while preserving the strength of its evidence.
+
+    Explicit shader-family metadata always wins. Name/path inference is limited
+    to tokens that describe a material class directly; generic armor, weapons,
+    and props deliberately remain generic rather than receiving a guessed game
+    shader.
+    """
+
+    raw_family = str(shader_family or "").strip()
+    normalized_family = normalize_shader_family(raw_family)
+    if normalized_family and normalized_family not in {"generic", "unknown", "default"}:
+        profile = decode_profile_for_family(normalized_family)
+        return {
+            "family": normalized_family,
+            "authority": str(profile.get("authority", AUTHORITY_GUESS) or AUTHORITY_GUESS),
+            "source": "declared_shader_family",
+            "reason": f"source declared shader family {raw_family}",
+        }
+
+    material_text = str(material_name or "").replace("\\", "/").strip().lower()
+    asset_text = str(asset_path or "").replace("\\", "/").strip().lower()
+    material_key = _normalize_key(material_text)
+    asset_key = _normalize_key(asset_text)
+
+    family = ""
+    reason = ""
+    if any(marker in material_key for marker in ("hair", "fur")) or any(
+        marker in asset_text for marker in ("/hair/", "/fur/")
+    ):
+        family = "hair"
+        reason = "material or asset identity contains an explicit hair/fur token"
+    elif (
+        any(marker in material_key for marker in ("nude", "skin"))
+        or material_key.startswith(("cdptm00head", "cdphm00head", "cdpwm00head"))
+        or ("/nude/" in asset_text and any(marker in material_key for marker in ("head", "hand", "body", "face")))
+    ):
+        family = "skin"
+        reason = "material or nude-asset identity contains an explicit skin/body token"
+    elif "cloth" in material_key or "/cloth/" in asset_text:
+        family = "cloth"
+        reason = "material or asset identity contains an explicit cloth token"
+    elif "emissive" in material_key or "emissive" in asset_key or bool(has_emissive):
+        family = "emissive"
+        reason = "material has an explicit emissive identity or bound emissive input"
+
+    if family:
+        return {
+            "family": family,
+            "authority": AUTHORITY_INFERRED,
+            "source": "material_identity_inference",
+            "reason": reason,
+        }
+    return {
+        "family": "generic",
+        "authority": AUTHORITY_GUESS,
+        "source": "unresolved",
+        "reason": "no declared shader family or direct material-class identity was available",
+    }
 
 
 def shader_family_display_name(shader_family: object) -> str:
@@ -855,6 +924,7 @@ __all__ = [
     "AUTHORITY_AUTHORITATIVE",
     "AUTHORITY_CAPTURE_INFERRED",
     "AUTHORITY_GUESS",
+    "AUTHORITY_INFERRED",
     "AUTHORITY_SIDECAR",
     "AUTHORITY_VALUES",
     "CRIMSON_SHADER_FAMILIES",
@@ -863,6 +933,7 @@ __all__ = [
     "decode_crimson_texture_binding",
     "decode_crimson_texture_entry",
     "decode_profile_for_family",
+    "infer_shader_family_contract",
     "infer_layer_channel",
     "normalize_shader_family",
     "parameter_channel_suffix",

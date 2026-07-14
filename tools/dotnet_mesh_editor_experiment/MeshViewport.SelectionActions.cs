@@ -71,18 +71,26 @@ internal sealed partial class MeshViewport
 
     public void SelectPartsFromList(IEnumerable<int> submeshIndices)
     {
-        _selectedSources.Clear();
-        foreach (var submeshIndex in submeshIndices.Distinct())
+        var requestedSources = submeshIndices
+            .Where(index => index >= 0 && index < _document.Submeshes.Count)
+            .Distinct()
+            .OrderBy(index => index)
+            .ToArray();
+        EditorEventRequested?.Invoke("selection_request", new Dictionary<string, object?>
         {
-            if (submeshIndex >= 0 && submeshIndex < _document.Submeshes.Count)
+            ["operation"] = "replace",
+            ["target_mode"] = "source",
+            ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+            ["local_selection"] = new Dictionary<string, object?>
             {
-                _selectedSources.Add(submeshIndex);
-            }
-        }
-        SyncSelectedPartFocus();
-        NotifyLocalSelectionChanged();
-        UpdateGpuViewport();
-        Invalidate();
+                ["vertices_by_submesh"] = new Dictionary<string, int[]>(),
+                ["faces_by_submesh"] = new Dictionary<string, int[]>(),
+                ["edges_by_submesh"] = new Dictionary<string, int[][]>(),
+                ["source_indices"] = requestedSources,
+                ["sources"] = requestedSources,
+            },
+        });
+        StatusRequested?.Invoke("Part selection awaiting authoritative acceptance.");
     }
 
     private void SyncSelectedPartFocus()

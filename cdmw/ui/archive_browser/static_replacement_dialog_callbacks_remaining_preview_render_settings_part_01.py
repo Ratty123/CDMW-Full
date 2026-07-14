@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
+    send_resident_presentation_state,
+)
+
 def _remaining_preview_render_settings_step_001(_state):
     _state.state = _state._StaticReplacementDialogState(_state.context)
     _state.ARCHIVE_MODEL_RENDERER_D3D11 = _state.context.get('ARCHIVE_MODEL_RENDERER_D3D11')
@@ -15,6 +19,8 @@ def _remaining_preview_render_settings_step_001(_state):
     _state._alignment_renderer_backend_for_dialog = _state.context.get('_alignment_renderer_backend_for_dialog')
     _state._mark_alignment_d3d11_rebuild_reason = _state.context.get('_mark_alignment_d3d11_rebuild_reason')
     _state._queue_static_preview_refresh = _state.context.get('_queue_static_preview_refresh')
+    _state._load_original_reference_texture_preview = _state.context.get('_load_original_reference_texture_preview')
+    _state._stop_original_reference_texture_worker = _state.context.get('_stop_original_reference_texture_worker')
     _state._rough_control_value_from_settings = _state.context.get('_rough_control_value_from_settings')
     _state._set_alignment_renderer_from_dialog = _state.context.get('_set_alignment_renderer_from_dialog')
     _state._set_preview_performance_status = _state.context.get('_set_preview_performance_status')
@@ -37,6 +43,7 @@ def _remaining_preview_render_settings_step_001(_state):
     _state.normalize_archive_model_renderer_backend = _state.context.get('normalize_archive_model_renderer_backend')
     _state.old_settings = _state.context.get('old_settings')
     _state.original_dialog_preview = _state.context.get('original_dialog_preview')
+    _state.original_reference_texture_preview_state = _state.context.get('original_reference_texture_preview_state')
     _state.overlay_dialog_preview = _state.context.get('overlay_dialog_preview')
     _state.preview_depth_spin = _state.context.get('preview_depth_spin')
     _state.preview_disable_brightness_checkbox = _state.context.get('preview_disable_brightness_checkbox')
@@ -106,6 +113,38 @@ def _remaining_preview_render_settings_step_006(_state):
     def _apply_alignment_preview_render_settings(*_args, previous_settings: Optional[ModelPreviewRenderSettings]=None) -> None:
         old_settings = _state.clamp_model_preview_render_settings(previous_settings if isinstance(previous_settings, _state.ModelPreviewRenderSettings) else _state.state.preview_render_settings)
         _state.state.preview_render_settings = _state._current_alignment_preview_render_settings()
+        visible_texture_mode_changed = (
+            old_settings.visible_texture_mode
+            != _state.state.preview_render_settings.visible_texture_mode
+        )
+        resident_getter = getattr(_state.dialog, '_mesh_editor_embedded_presentation_state', None)
+        presentation_sent = False
+        if callable(resident_getter):
+            try:
+                resident_state = resident_getter()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                resident_state = None
+            if isinstance(resident_state, dict):
+                presentation_sent = send_resident_presentation_state(_state.dialog, resident_state)
+        if visible_texture_mode_changed and isinstance(
+            _state.original_reference_texture_preview_state,
+            dict,
+        ):
+            if callable(_state._stop_original_reference_texture_worker):
+                _state._stop_original_reference_texture_worker()
+            _state.original_reference_texture_preview_state.update(
+                {
+                    'loaded': False,
+                    'loading': False,
+                    'failed': False,
+                    'error': '',
+                    'native_package_path': '',
+                }
+            )
+            if callable(_state._load_original_reference_texture_preview):
+                _state._load_original_reference_texture_preview()
+        if presentation_sent:
+            return
         render_settings_route = _state._alignment_d3d11_render_settings_route_helper(d3d11_active=_state._alignment_d3d11_preview_active(), package_settings_changed=_state._alignment_preview_package_settings_changed(old_settings, _state.state.preview_render_settings))
         if _state._alignment_d3d11_preview_active():
             if render_settings_route.action == 'd3d11_rebuild':
@@ -183,7 +222,20 @@ def _remaining_preview_render_settings_step_009(_state):
             _state.state.preview_render_settings = _state._lit_alignment_settings(settings if isinstance(settings, _state.ModelPreviewRenderSettings) else _state.self._current_model_preview_render_settings())
             _state._sync_alignment_preview_controls_from_settings(_state.state.preview_render_settings)
             _state._apply_alignment_preview_render_settings(previous_settings=previous_settings)
-        _state.self._open_modal_model_preview_settings_dialog(_state.dialog, archive_renderer_backend_enabled=True, archive_renderer_backend=_alignment_renderer_backend_for_dialog(), archive_renderer_backend_changed_handler=_set_alignment_renderer_from_dialog, settings_changed_handler=_sync_from_modal_settings, preview_settings=_state._current_alignment_preview_render_settings())
+        preview_target = (
+            'dotnet_vortice'
+            if bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False))
+            else 'native_d3d11'
+        )
+        _state.self._open_modal_model_preview_settings_dialog(
+            _state.dialog,
+            archive_renderer_backend_enabled=True,
+            archive_renderer_backend=_alignment_renderer_backend_for_dialog(),
+            archive_renderer_backend_changed_handler=_set_alignment_renderer_from_dialog,
+            settings_changed_handler=_sync_from_modal_settings,
+            preview_settings=_state._current_alignment_preview_render_settings(),
+            preview_target=preview_target,
+        )
     _state._open_alignment_preview_settings_dialog = _open_alignment_preview_settings_dialog
 
 def _remaining_preview_render_settings_step_010(_state):

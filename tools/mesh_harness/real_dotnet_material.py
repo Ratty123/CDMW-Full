@@ -400,17 +400,21 @@ def exercise_material_parameter_update(
     state.material_parameter_window_identity_before = renderer_identity(renderer_before)
     state.material_parameter_resource_metrics_before = renderer_resource_metrics(renderer_before)
     state.material_parameter_decode_metrics_before = _renderer_decode_metrics(renderer_before)
+    # Use a conspicuous but valid per-part presentation change so the real-game
+    # proof cannot pass on protocol acknowledgement alone.  The previous
+    # near-neutral values produced only a handful of pixels above the capture
+    # noise floor on dark archive materials.
     group = {
         "source_submesh_indices": [int(state.submesh_index)],
         "editor_role": "replacement_preview",
-        "texture_brightness": 1.1,
-        "contrast": 1.05,
-        "saturation": 0.95,
-        "gamma": 1.0,
-        "tint_color": [1.0, 0.95, 0.9],
-        "roughness": 0.7,
-        "metalness": 0.0,
-        "specular": 0.35,
+        "texture_brightness": 1.35,
+        "contrast": 1.15,
+        "saturation": 1.2,
+        "gamma": 0.9,
+        "tint_color": [0.25, 0.75, 1.0],
+        "roughness": 0.2,
+        "metalness": 0.15,
+        "specular": 0.8,
     }
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     if not state.tab.apply_resident_material_parameters((group,)):

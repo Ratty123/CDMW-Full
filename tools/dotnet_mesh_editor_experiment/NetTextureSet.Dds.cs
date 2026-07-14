@@ -24,7 +24,7 @@ internal sealed partial class NetTextureSet
         return !string.IsNullOrWhiteSpace(value) && Path.GetExtension(value).Equals(".dds", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static (NetDdsTextureInfo? Info, Bitmap? Bitmap) DecodeDds(string path)
+    private static (NetDdsTextureInfo? Info, Bitmap? Bitmap, NetDdsNativeTextureData? NativeDds) DecodeDds(string path)
     {
         try
         {
@@ -32,17 +32,17 @@ internal sealed partial class NetTextureSet
             using var reader = new BinaryReader(stream, Encoding.ASCII, leaveOpen: false);
             if (stream.Length < 128)
             {
-                return (null, null);
+                return (null, null, null);
             }
             var magic = reader.ReadBytes(4);
             if (magic.Length != 4 || magic[0] != (byte)'D' || magic[1] != (byte)'D' || magic[2] != (byte)'S' || magic[3] != (byte)' ')
             {
-                return (null, null);
+                return (null, null, null);
             }
             var headerSize = reader.ReadInt32();
             if (headerSize != 124)
             {
-                return (null, null);
+                return (null, null, null);
             }
             _ = reader.ReadInt32();
             var height = Math.Max(0, reader.ReadInt32());
@@ -61,28 +61,68 @@ internal sealed partial class NetTextureSet
             var aMask = reader.ReadUInt32();
             var dxgiFormat = 0;
             var formatKey = fourCc;
-            if (string.Equals(fourCc, "DX10", StringComparison.OrdinalIgnoreCase) && stream.Length >= 148)
+            var legacyFourCc = fourCc;
+            stream.Position = 112;
+            var caps2 = reader.ReadUInt32();
+            var resourceDimension = D3D10ResourceDimensionTexture2D;
+            uint miscFlag = 0;
+            var arraySize = 1;
+            var hasDx10Header = string.Equals(fourCc, "DX10", StringComparison.OrdinalIgnoreCase);
+            if (hasDx10Header && stream.Length >= 148)
             {
                 stream.Position = 128;
                 dxgiFormat = reader.ReadInt32();
-                _ = reader.ReadInt32();
-                _ = reader.ReadInt32();
-                _ = reader.ReadInt32();
+                resourceDimension = reader.ReadInt32();
+                miscFlag = reader.ReadUInt32();
+                arraySize = reader.ReadInt32();
                 _ = reader.ReadInt32();
                 formatKey = DxgiDecodeKey(dxgiFormat);
                 fourCc = $"DXGI_{dxgiFormat}";
             }
-            var dataOffset = dxgiFormat != 0 ? 148 : 128;
+            else if (hasDx10Header)
+            {
+                return (null, null, null);
+            }
+            var dataOffset = hasDx10Header ? 148 : 128;
             stream.Position = Math.Min(stream.Length, dataOffset);
             var data = reader.ReadBytes((int)Math.Max(0, stream.Length - stream.Position));
             var bitmap = DecodeDdsBitmap(width, height, formatKey, rgbBitCount, rMask, gMask, bMask, aMask, data)
                 ?? DecodeDdsWithCdTextureDx(path)
                 ?? DecodeDdsWithTexconv(path);
-            return (new NetDdsTextureInfo(path, width, height, mipCount, fourCc, bitmap is not null), bitmap);
+            var native = BuildNativeDdsTextureData(
+                width,
+                height,
+                mipCount,
+                legacyFourCc,
+                dxgiFormat,
+                rgbBitCount,
+                rMask,
+                gMask,
+                bMask,
+                aMask,
+                caps2,
+                resourceDimension,
+                miscFlag,
+                arraySize,
+                data);
+            return (
+                new NetDdsTextureInfo(
+                    path,
+                    width,
+                    height,
+                    mipCount,
+                    fourCc,
+                    bitmap is not null,
+                    native.Data is not null,
+                    native.FormatKey,
+                    native.SourceSrgb,
+                    native.FallbackReason),
+                bitmap,
+                native.Data);
         }
         catch
         {
-            return (null, null);
+            return (null, null, null);
         }
     }
 
@@ -276,11 +316,11 @@ internal sealed partial class NetTextureSet
             49 => "RG8",
             56 => "R16",
             61 => "R8",
-            70 or 71 => "BC1",
-            72 or 73 => "BC2",
-            74 or 75 => "BC3",
-            76 or 77 => "BC4",
-            80 or 83 => "BC5",
+            70 or 71 or 72 => "BC1",
+            73 or 74 or 75 => "BC2",
+            76 or 77 or 78 => "BC3",
+            79 or 80 or 81 => "BC4",
+            82 or 83 or 84 => "BC5",
             87 or 91 => "BGRA8",
             88 or 93 => "BGRX8",
             _ => $"DXGI_{dxgiFormat}",

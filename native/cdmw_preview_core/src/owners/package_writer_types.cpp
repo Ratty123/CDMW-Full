@@ -82,6 +82,7 @@ struct PackageBatchState {
     std::array<float, 4> visible_layer_tint_color{1.0f, 1.0f, 1.0f, 1.0f};
     int base_identity_score = 0;
     bool base_technical = false;
+    bool base_wrong_family_layer = false;
     bool base_semantically_unsafe_skin_albedo = false;
     bool base_low_res = false;
     bool base_low_authority = false;
@@ -107,8 +108,13 @@ struct PackageBatchState {
     float specular_hint = 0.0f;
     float roughness_hint = 0.0f;
     float base_tint_strength = 0.0f;
+    bool base_tint_only_fallback = false;
     const MaterialLayer* primary_layer = nullptr;
 };
+
+static const TextureBinding* package_preview_base(const PackageBatchState& batch) {
+    return batch.base_tint_only_fallback ? nullptr : batch.base;
+}
 
 static PackageWriteState start_package_write(
     const EntryJob& job,
@@ -165,7 +171,7 @@ static void record_base_quality(PackageWriteState& state, PackageBatchState& bat
         state.package.material_quality_safe = false;
         state.package.base_quality_notes.push_back(
             "batch " + std::to_string(batch.index) + " " + mesh.material + ": technical base rejected " + base->texture_name);
-    } else if (state.job.use_textures && batch.base_semantically_unsafe_skin_albedo) {
+    } else if (state.job.use_textures && batch.base_wrong_family_layer) {
         ++state.package.base_low_confidence_count;
         state.package.material_quality_safe = false;
         state.package.base_quality_notes.push_back(

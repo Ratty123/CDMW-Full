@@ -635,6 +635,14 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
                     except (TypeError, ValueError, OverflowError):
                         color_values.append(1.0)
                 material_colors[material_index] = (color_values[0], color_values[1], color_values[2])
+                if len(base_color_factor) >= 4:
+                    _append_scene_parameter(
+                        preview_parameters,
+                        _scene_preview_float_parameter(
+                            "_gltfBaseColorAlphaFactor",
+                            base_color_factor[3],
+                        ),
+                    )
             else:
                 material_colors[material_index] = (1.0, 1.0, 1.0)
             _append_scene_parameter(preview_parameters, _scene_preview_color_parameter("_baseColorFactor", pbr.get("baseColorFactor")))
@@ -665,6 +673,14 @@ def _gltf_material_info(payload: _GltfPayload) -> _GltfMaterialInfo:
                     except (TypeError, ValueError, OverflowError):
                         color_values.append(1.0)
                 material_colors[material_index] = (color_values[0], color_values[1], color_values[2])
+                if len(diffuse_factor) >= 4:
+                    _append_scene_parameter(
+                        preview_parameters,
+                        _scene_preview_float_parameter(
+                            "_gltfDiffuseAlphaFactor",
+                            diffuse_factor[3],
+                        ),
+                    )
             _append_scene_parameter(preview_parameters, _scene_preview_color_parameter("_diffuseFactor", specular_gloss.get("diffuseFactor")))
             _append_scene_parameter(preview_parameters, _scene_preview_color_parameter("_specularFactor", specular_gloss.get("specularFactor")))
             _append_scene_parameter(preview_parameters, _scene_preview_float_parameter("_glossinessFactor", specular_gloss.get("glossinessFactor", 1.0)))

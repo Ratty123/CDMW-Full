@@ -184,6 +184,9 @@ def _real_game_mesh_evidence(proof: Mapping[str, object]) -> dict[str, object]:
         "geometry_display": dict(proof.get("geometry_display", {}))
         if isinstance(proof.get("geometry_display"), Mapping)
         else {},
+        "builder_presentation": dict(proof.get("builder_presentation", {}))
+        if isinstance(proof.get("builder_presentation"), Mapping)
+        else {},
         "production_flow": [
             dict(row) for row in tuple(proof.get("production_flow", ()) or ()) if isinstance(row, Mapping)
         ],
@@ -204,6 +207,12 @@ def _real_game_mesh_evidence(proof: Mapping[str, object]) -> dict[str, object]:
         else {},
         "process_identity": dict(proof.get("process_identity", {}))
         if isinstance(proof.get("process_identity"), Mapping)
+        else {},
+        "helper_provenance": dict(proof.get("helper_provenance", {}))
+        if isinstance(proof.get("helper_provenance"), Mapping)
+        else {},
+        "offscreen_icon_capture": dict(proof.get("offscreen_icon_capture", {}))
+        if isinstance(proof.get("offscreen_icon_capture"), Mapping)
         else {},
         "native_window": {
             "before": proof.get("native_window_rect_before", proof.get("form_rect_before")),

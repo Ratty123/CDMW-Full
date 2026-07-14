@@ -32,6 +32,7 @@ internal sealed partial class D3D11MaterialViewport : Control
     private ID3D11VertexShader? _vertexShader;
     private ID3D11PixelShader? _pixelShader;
     private ID3D11VertexShader? _overlayVertexShader;
+    private ID3D11GeometryShader? _vertexMarkerGeometryShader;
     private ID3D11PixelShader? _overlayPixelShader;
     private ID3D11InputLayout? _inputLayout;
     private ID3D11InputLayout? _overlayInputLayout;
@@ -39,10 +40,15 @@ internal sealed partial class D3D11MaterialViewport : Control
     private ID3D11Buffer? _cameraBuffer;
     private ID3D11Buffer? _overlayCameraBuffer;
     private ID3D11RasterizerState? _rasterizerState;
+    private ID3D11RasterizerState? _doubleSidedRasterizerState;
     private ID3D11BlendState? _blendState;
+    private ID3D11BlendState? _transparentBlendState;
     private ID3D11BlendState? _overlayBlendState;
     private ID3D11DepthStencilState? _depthState;
+    private ID3D11DepthStencilState? _transparentDepthState;
     private ID3D11DepthStencilState? _overlayDepthState;
+    private ID3D11DepthStencilState? _overlayNoDepthState;
+    private ID3D11DepthStencilState? _gizmoDepthState;
     private int _renderWidth;
     private int _renderHeight;
     private bool _renderResourcesDirty = true;
@@ -66,6 +72,7 @@ internal sealed partial class D3D11MaterialViewport : Control
     private int _materialDebugMode;
     private long _texturedSolidBatchDrawCount;
     private long _untexturedSolidBatchDrawCount;
+    private long _transparentSolidBatchDrawCount;
     private long _wireOverlayDrawCount;
     private long _vertexOverlayBatchDrawCount;
     private int _consecutiveRenderFailures;
@@ -75,6 +82,8 @@ internal sealed partial class D3D11MaterialViewport : Control
     private long _materialParameterApplyCount;
     private long _materialParameterApplyFailureCount;
     private long _affectedMaterialParameterBatchCount;
+    private uint _maximumFrameLatency;
+    private D3D11PresentationSettings _presentationSettings = new();
 
     public event Action<string>? BackendUnavailable;
     public event Action<double, double, string>? FrameRendered;
@@ -101,13 +110,19 @@ internal sealed partial class D3D11MaterialViewport : Control
         get => _materialDebugMode;
         set
         {
-            _materialDebugMode = Math.Clamp(value, 0, 6);
-            Invalidate();
+            _materialDebugMode = Math.Clamp(value, 0, 12);
         }
     }
     public bool ShowSolid { get; set; } = true;
     public bool TexturesEnabled { get; set; } = true;
+    public D3D11PresentationSettings PresentationSettings => _presentationSettings;
     public bool IsInitialized => _device is not null && _swapChain is not null;
+    public uint PresentSyncInterval => string.Equals(
+        Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_D3D11_NO_VSYNC"),
+        "1",
+        StringComparison.OrdinalIgnoreCase) ? 0u : 1u;
+    public uint MaximumFrameLatency => _maximumFrameLatency;
+    public string PresentationModel => _swapChain is null ? "unavailable" : "flip_discard";
 
     public void UpdateOverlay(
         NetEdgeTopology topology,
@@ -137,7 +152,6 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayShowXRay = showXRay;
         _overlayBrushCursor = brushCursor;
         _overlayBrushRadius = Math.Clamp(brushRadius, 1.0f, 512.0f);
-        Invalidate();
     }
 
     public void UpdateCamera(NetViewportCamera camera)
@@ -145,7 +159,6 @@ internal sealed partial class D3D11MaterialViewport : Control
         _center = camera.Center;
         _bounds = camera.Bounds;
         _camera = camera;
-        Invalidate();
     }
 
     public bool TryInitialize(out string error)
@@ -159,7 +172,7 @@ internal sealed partial class D3D11MaterialViewport : Control
                 throw new InvalidOperationException("D3D11 viewport handle was not created.");
             }
             InitializeDevice();
-            if (_device is null || _context is null || _swapChain is null || _vertexShader is null || _pixelShader is null || _inputLayout is null || _cameraBuffer is null || _overlayVertexShader is null || _overlayPixelShader is null || _overlayInputLayout is null || _overlayCameraBuffer is null)
+            if (_device is null || _context is null || _swapChain is null || _vertexShader is null || _pixelShader is null || _inputLayout is null || _cameraBuffer is null || _overlayVertexShader is null || _vertexMarkerGeometryShader is null || _overlayPixelShader is null || _overlayInputLayout is null || _overlayCameraBuffer is null)
             {
                 throw new InvalidOperationException("D3D11 device, shaders, swap chain, overlay pipeline, or pipeline state did not initialize.");
             }
@@ -299,6 +312,9 @@ internal sealed partial class D3D11MaterialViewport : Control
             DeviceCreationFlags.BgraSupport,
             featureLevels);
         _context = _device.ImmediateContext;
+        using var dxgiDevice1 = _device.QueryInterface<IDXGIDevice1>();
+        dxgiDevice1.SetMaximumFrameLatency(1);
+        _maximumFrameLatency = 1;
         using var dxgiDevice = _device.QueryInterface<IDXGIDevice>();
         using var adapter = dxgiDevice.GetAdapter();
         using var factory = adapter.GetParent<IDXGIFactory2>();
@@ -312,7 +328,7 @@ internal sealed partial class D3D11MaterialViewport : Control
             BufferUsage = Usage.RenderTargetOutput,
             BufferCount = 2,
             Scaling = Scaling.Stretch,
-            SwapEffect = SwapEffect.Discard,
+            SwapEffect = SwapEffect.FlipDiscard,
             AlphaMode = AlphaMode.Ignore,
         };
         _swapChain = factory.CreateSwapChainForHwnd(_device, Handle, swapChainDescription);
@@ -333,19 +349,23 @@ internal sealed partial class D3D11MaterialViewport : Control
         Compiler.CompileFromFile(shaderPath, null, null, "VSMain", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var vsBlob, out var vsError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "PSMain", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var psBlob, out var psError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "VSOverlay", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayVsBlob, out var overlayVsError).CheckError();
+        Compiler.CompileFromFile(shaderPath, null, null, "GSVertexMarker", "gs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var markerGsBlob, out var markerGsError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "PSOverlay", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayPsBlob, out var overlayPsError).CheckError();
         using (vsBlob)
         using (psBlob)
         using (vsError)
         using (psError)
         using (overlayVsBlob)
+        using (markerGsBlob)
         using (overlayPsBlob)
         using (overlayVsError)
+        using (markerGsError)
         using (overlayPsError)
         {
             _vertexShader = _device.CreateVertexShader(vsBlob.BufferPointer.ToPointer(), vsBlob.BufferSize, null);
             _pixelShader = _device.CreatePixelShader(psBlob.BufferPointer.ToPointer(), psBlob.BufferSize, null);
             _overlayVertexShader = _device.CreateVertexShader(overlayVsBlob.BufferPointer.ToPointer(), overlayVsBlob.BufferSize, null);
+            _vertexMarkerGeometryShader = _device.CreateGeometryShader(markerGsBlob.BufferPointer.ToPointer(), markerGsBlob.BufferSize, null);
             _overlayPixelShader = _device.CreatePixelShader(overlayPsBlob.BufferPointer.ToPointer(), overlayPsBlob.BufferSize, null);
             var elements = new[]
             {
@@ -410,14 +430,26 @@ internal sealed partial class D3D11MaterialViewport : Control
             return;
         }
         _samplerState = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Wrap, TextureAddressMode.Wrap, TextureAddressMode.Wrap));
-        _rasterizerState = _device.CreateRasterizerState(new RasterizerDescription(CullMode.None, FillMode.Solid));
+        _rasterizerState = _device.CreateRasterizerState(new RasterizerDescription(CullMode.Back, FillMode.Solid));
+        _doubleSidedRasterizerState = _device.CreateRasterizerState(new RasterizerDescription(CullMode.None, FillMode.Solid));
         _blendState = _device.CreateBlendState(BlendDescription.Opaque);
+        _transparentBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);
         _overlayBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);
         _depthState = _device.CreateDepthStencilState(DepthStencilDescription.Default);
+        var transparentDepthDescription = DepthStencilDescription.Default;
+        transparentDepthDescription.DepthWriteMask = DepthWriteMask.Zero;
+        _transparentDepthState = _device.CreateDepthStencilState(transparentDepthDescription);
         var overlayDepthDescription = DepthStencilDescription.Default;
-        overlayDepthDescription.DepthEnable = false;
+        // Selection faces and outlines reuse the mesh surface positions. Accept
+        // equal depth so the solid pass cannot reject its own highlight.
+        overlayDepthDescription.DepthFunc = ComparisonFunction.LessEqual;
         overlayDepthDescription.DepthWriteMask = DepthWriteMask.Zero;
         _overlayDepthState = _device.CreateDepthStencilState(overlayDepthDescription);
+        var overlayNoDepthDescription = DepthStencilDescription.Default;
+        overlayNoDepthDescription.DepthEnable = false;
+        overlayNoDepthDescription.DepthWriteMask = DepthWriteMask.Zero;
+        _overlayNoDepthState = _device.CreateDepthStencilState(overlayNoDepthDescription);
+        _gizmoDepthState = _device.CreateDepthStencilState(overlayNoDepthDescription);
         _cameraBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<D3D11CameraConstants>(), BindFlags.ConstantBuffer));
         _overlayCameraBuffer = _device.CreateBuffer(new BufferDescription((uint)Marshal.SizeOf<D3D11OverlayConstants>(), BindFlags.ConstantBuffer));
     }
@@ -439,7 +471,15 @@ internal sealed partial class D3D11MaterialViewport : Control
         _renderHeight = Math.Max(1, ClientSize.Height);
         _swapChain.ResizeBuffers(0, (uint)_renderWidth, (uint)_renderHeight, Format.Unknown, SwapChainFlags.None).CheckError();
         using var backBuffer = _swapChain.GetBuffer<ID3D11Texture2D>(0);
-        _renderTargetView = _device.CreateRenderTargetView(backBuffer);
+        _renderTargetView = _device.CreateRenderTargetView(
+            backBuffer,
+            new RenderTargetViewDescription(
+                backBuffer,
+                RenderTargetViewDimension.Texture2D,
+                Format.B8G8R8A8_UNorm_SRgb,
+                0,
+                0,
+                1));
         var depthDescription = new Texture2DDescription
         {
             Width = (uint)_renderWidth,
@@ -456,22 +496,69 @@ internal sealed partial class D3D11MaterialViewport : Control
         _renderResourcesDirty = false;
     }
 
-    private unsafe double RenderFrame()
+    private unsafe double RenderFrame(
+        bool present = true,
+        bool includeOverlays = true,
+        bool replacementOnly = false)
     {
         if (_context is null || _swapChain is null || _renderTargetView is null || _depthStencilView is null || _cameraBuffer is null)
         {
             return 0.0;
         }
-        if (string.Equals(Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_FORCE_D3D11_PRESENT_FAILURE"), "1", StringComparison.OrdinalIgnoreCase))
+        if (present && string.Equals(Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_FORCE_D3D11_PRESENT_FAILURE"), "1", StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Forced DXGI device lost during Present for D3D11 recovery testing.");
         }
-        _context.ClearRenderTargetView(_renderTargetView, new Color4(0.07f, 0.08f, 0.1f, 1.0f));
+        BeginOverlayFrame();
+        // The render target is sRGB. Supply the workbench background in linear
+        // space so enabling correct material output does not brighten the UI.
+        _context.ClearRenderTargetView(_renderTargetView, new Color4(0.00598f, 0.00719f, 0.01002f, 1.0f));
         _context.ClearDepthStencilView(_depthStencilView, DepthStencilClearFlags.Depth, 1.0f, 0);
-        _context.RSSetViewport(new Viewport(0, 0, _renderWidth, _renderHeight, 0, 1));
+        var previousCamera = _camera;
+        var previousShowSolid = ShowSolid;
+        var previousTexturesEnabled = TexturesEnabled;
+        var previousMaterialDebugMode = _materialDebugMode;
+        var previousShowWire = _overlayShowWire;
+        var previousShowVertices = _overlayShowVertices;
+        var previousShowXRay = _overlayShowXRay;
+        foreach (var pane in PanesForFrame(replacementOnly))
+        {
+            ActivateRenderPane(pane);
+            DrawActiveRenderPane(includeOverlays, replacementOnly);
+            RecordActivePaneRender();
+        }
+        if (includeOverlays && !replacementOnly)
+        {
+            DrawPaneDividerOverlay();
+        }
+        _activeRenderPane = null;
+        _camera = previousCamera;
+        ShowSolid = previousShowSolid;
+        TexturesEnabled = previousTexturesEnabled;
+        _materialDebugMode = previousMaterialDebugMode;
+        _overlayShowWire = previousShowWire;
+        _overlayShowVertices = previousShowVertices;
+        _overlayShowXRay = previousShowXRay;
+        if (!present)
+        {
+            _context.Flush();
+            return 0.0;
+        }
+        var presentStart = Stopwatch.GetTimestamp();
+        _swapChain.Present(PresentSyncInterval, PresentFlags.None);
+        return (Stopwatch.GetTimestamp() - presentStart) * 1000.0 / Stopwatch.Frequency;
+    }
+
+    private void DrawActiveRenderPane(bool includeOverlays, bool replacementOnly)
+    {
+        if (_context is null || _renderTargetView is null || _depthStencilView is null || _cameraBuffer is null)
+        {
+            return;
+        }
         _context.RSSetState(_rasterizerState);
         _context.OMSetRenderTargets(_renderTargetView, _depthStencilView);
-        _context.OMSetDepthStencilState(_depthState);
+        _context.OMSetDepthStencilState(
+            _presentationSettings.DisableDepthTest ? _overlayNoDepthState : _depthState);
         _context.OMSetBlendState(_blendState);
         _context.IASetPrimitiveTopology(PrimitiveTopology.TriangleList);
         _context.IASetInputLayout(_inputLayout);
@@ -485,32 +572,85 @@ internal sealed partial class D3D11MaterialViewport : Control
         _context.PSSetConstantBuffer(0u, _cameraBuffer);
         if (ShowSolid)
         {
-            foreach (var batch in _batches)
+            var visibleBatches = _batches
+                .Where(batch =>
+                    ActivePaneIncludes(batch.SubmeshIndex)
+                    && !(replacementOnly && _scene.IsReference(batch.SubmeshIndex))
+                    && !(_scene.ComparisonMode == "overlay" && _scene.IsReference(batch.SubmeshIndex))
+                    && _materials.ParametersForSubmesh(batch.MaterialSubmeshIndex).Visible is not false)
+                .ToArray();
+            foreach (var batch in visibleBatches.Where(batch => !IsAlphaBlendBatch(batch)))
             {
-                if (!_scene.IsVisible(batch.SubmeshIndex)
-                    || (_scene.ComparisonMode == "overlay" && _scene.IsReference(batch.SubmeshIndex))
-                    || _materials.ParametersForSubmesh(batch.SubmeshIndex).Visible is false) continue;
-                var constants = BuildCameraConstants(batch);
-                _context.UpdateSubresource(ref constants, _cameraBuffer);
-                _context.PSSetShaderResources(0u, batch.Materials.ShaderResources);
-                _context.IASetVertexBuffer(0u, batch.VertexBuffer, D3D11SubmeshBatch.VertexStride);
-                _context.IASetIndexBuffer(batch.IndexBuffer, Format.R32_UInt, 0);
-                _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
-                if (TexturesEnabled)
+                DrawSolidBatch(batch, transparent: false);
+            }
+            var transparentBatches = visibleBatches
+                .Where(IsAlphaBlendBatch)
+                .OrderByDescending(TransparentSortDistanceSquared)
+                .ToArray();
+            if (transparentBatches.Length > 0)
+            {
+                _context.OMSetBlendState(_transparentBlendState ?? _overlayBlendState);
+                _context.OMSetDepthStencilState(
+                    _presentationSettings.DisableDepthTest ? _overlayNoDepthState : _transparentDepthState);
+                foreach (var batch in transparentBatches)
                 {
-                    _texturedSolidBatchDrawCount++;
+                    DrawSolidBatch(batch, transparent: true);
                 }
-                else
-                {
-                    _untexturedSolidBatchDrawCount++;
-                }
+                _context.OMSetBlendState(_blendState);
+                _context.OMSetDepthStencilState(
+                    _presentationSettings.DisableDepthTest ? _overlayNoDepthState : _depthState);
             }
         }
-        DrawD3D11Overlay();
-        var syncInterval = string.Equals(Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_D3D11_NO_VSYNC"), "1", StringComparison.OrdinalIgnoreCase) ? 0u : 1u;
-        var presentStart = Stopwatch.GetTimestamp();
-        _swapChain.Present(syncInterval, PresentFlags.None);
-        return (Stopwatch.GetTimestamp() - presentStart) * 1000.0 / Stopwatch.Frequency;
+        if (includeOverlays)
+        {
+            DrawD3D11Overlay();
+        }
+    }
+
+    private bool IsAlphaBlendBatch(D3D11SubmeshBatch batch)
+    {
+        return string.Equals(
+            _materials.AlphaModeForSubmesh(batch.MaterialSubmeshIndex),
+            "blend",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private float TransparentSortDistanceSquared(D3D11SubmeshBatch batch)
+    {
+        var world = ActivePaneModelMatrix(batch.SubmeshIndex) * _camera.World;
+        var center = Vector3.Transform(batch.Center, world);
+        var cameraDistance = Math.Max(10.0f, _camera.SceneSize * 4.0f + 10.0f);
+        return Vector3.DistanceSquared(center, new Vector3(0.0f, 0.0f, -cameraDistance));
+    }
+
+    private void DrawSolidBatch(D3D11SubmeshBatch batch, bool transparent)
+    {
+        if (_context is null || _cameraBuffer is null)
+        {
+            return;
+        }
+        _context.RSSetState(
+            _materials.DoubleSidedForSubmesh(batch.MaterialSubmeshIndex)
+                ? _doubleSidedRasterizerState
+                : _rasterizerState);
+        var constants = BuildCameraConstants(batch);
+        _context.UpdateSubresource(ref constants, _cameraBuffer);
+        _context.PSSetShaderResources(0u, batch.Materials.ShaderResources);
+        _context.IASetVertexBuffer(0u, batch.VertexBuffer, D3D11SubmeshBatch.VertexStride);
+        _context.IASetIndexBuffer(batch.IndexBuffer, Format.R32_UInt, 0);
+        _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
+        if (TexturesEnabled)
+        {
+            _texturedSolidBatchDrawCount++;
+        }
+        else
+        {
+            _untexturedSolidBatchDrawCount++;
+        }
+        if (transparent)
+        {
+            _transparentSolidBatchDrawCount++;
+        }
     }
 
     private static bool IsDeviceLostException(Exception ex)
@@ -579,83 +719,6 @@ internal sealed partial class D3D11MaterialViewport : Control
         return true;
     }
 
-    private D3D11CameraConstants BuildCameraConstants(D3D11SubmeshBatch batch)
-    {
-        var materials = batch.Materials;
-        var parameters = _materials.ParametersForSubmesh(batch.SubmeshIndex);
-        var tint = parameters.TintColor ?? Vector3.One;
-        var emissiveColor = parameters.EmissiveColor ?? Vector3.One;
-        return new D3D11CameraConstants
-        {
-            WorldViewProjection = _scene.ModelMatrix(batch.SubmeshIndex) * _camera.WorldViewProjection,
-            World = _scene.ModelMatrix(batch.SubmeshIndex) * _camera.World,
-            CameraPosition = -_camera.Forward * Math.Max(10.0f, _camera.SceneSize * 4.0f + 10.0f),
-            MaterialRoughness = 0.45f,
-            LightDirection = Vector3.Normalize(new Vector3(-0.35f, -0.55f, -0.65f)),
-            MaterialMetallic = 0.0f,
-            LightColor = new Vector3(1.0f, 0.98f, 0.92f),
-            MaterialHeightScale = parameters.HeightScale ?? 0.025f,
-            AmbientColor = new Vector3(0.22f, 0.24f, 0.28f),
-            MaterialHasNormal = materials.Normal is null ? 0.0f : 1.0f,
-            MaterialHasBase = materials.Base is null ? 0.0f : 1.0f,
-            MaterialHasSpecular = materials.Specular is null ? 0.0f : 1.0f,
-            MaterialHasRoughness = materials.Roughness is null ? 0.0f : 1.0f,
-            MaterialHasMetallic = materials.Metallic is null ? 0.0f : 1.0f,
-            MaterialHasHeight = materials.Height is null ? 0.0f : 1.0f,
-            MaterialHasEmissive = materials.Emissive is null ? 0.0f : 1.0f,
-            MaterialDebugMode = TexturesEnabled ? _materialDebugMode : 7.0f,
-            MaterialBaseAdjustments = new Vector4(
-                parameters.TextureBrightness ?? 1.0f,
-                parameters.Contrast ?? 1.0f,
-                parameters.Saturation ?? 1.0f,
-                parameters.Gamma ?? 1.0f),
-            MaterialTint = new Vector4(tint, parameters.TintColor.HasValue ? 1.0f : 0.0f),
-            MaterialBaseAdvanced = new Vector4(
-                (parameters.BaseColorLift ?? 0) / 255.0f,
-                (parameters.ValueMax ?? 255) / 255.0f,
-                (parameters.AutoBalance ?? 0) / 100.0f,
-                (parameters.ShadowLift ?? 0) / 100.0f),
-            MaterialBasePost = new Vector4(parameters.PostContrastBrightness ?? 1.0f, 0.0f, 0.0f, 0.0f),
-            MaterialSurfaceOverrides = new Vector4(
-                parameters.Roughness ?? 0.0f,
-                parameters.Metalness ?? 0.0f,
-                parameters.Specular ?? 0.0f,
-                parameters.HeightScale ?? 0.0f),
-            MaterialSurfaceOverrideFlags = new Vector4(
-                parameters.Roughness.HasValue ? 1.0f : 0.0f,
-                parameters.Metalness.HasValue ? 1.0f : 0.0f,
-                parameters.Specular.HasValue ? 1.0f : 0.0f,
-                parameters.HeightScale.HasValue ? 1.0f : 0.0f),
-            MaterialSurfaceTransforms = new Vector4(
-                parameters.RoughnessScale ?? 1.0f,
-                (parameters.RoughnessMin ?? 0) / 255.0f,
-                (parameters.RoughnessMax ?? 255) / 255.0f,
-                parameters.RoughnessInverted == true ? 1.0f : 0.0f),
-            MaterialSurfaceTransforms2 = new Vector4(
-                parameters.MetalnessScale ?? 1.0f,
-                (parameters.MetalnessMin ?? 0) / 255.0f,
-                (parameters.MetalnessMax ?? 255) / 255.0f,
-                parameters.MetalnessInverted == true ? 1.0f : 0.0f),
-            MaterialSurfaceBlends = new Vector4(
-                parameters.RoughnessBlendTarget ?? 0.0f,
-                parameters.RoughnessBlendStrength ?? 0.0f,
-                parameters.MetalnessBlendTarget ?? 0.0f,
-                parameters.MetalnessBlendStrength ?? 0.0f),
-            MaterialEmissiveOverride = new Vector4(
-                emissiveColor,
-                parameters.EmissiveIntensity ?? 1.0f),
-            MaterialEmissiveOverrideFlags = new Vector4(
-                parameters.EmissiveColor.HasValue ? 1.0f : 0.0f,
-                parameters.EmissiveIntensity.HasValue ? 1.0f : 0.0f,
-                0.0f,
-                0.0f),
-            MaterialChannelSelectors = new Vector4(
-                _materials.ChannelComponentIndexForSubmesh(batch.SubmeshIndex, "roughness"),
-                _materials.ChannelComponentIndexForSubmesh(batch.SubmeshIndex, "metallic"),
-                0.0f,
-                0.0f),
-        };
-    }
 
     private void UnbindGeometryResources()
     {
@@ -685,11 +748,17 @@ internal sealed partial class D3D11MaterialViewport : Control
         DisposeBatches();
         ClearTextureCache();
         DiscardTextureResourceRefreshState();
+        DisposeOverlayDynamicResources();
         _blendState?.Dispose();
+        _transparentBlendState?.Dispose();
         _overlayBlendState?.Dispose();
         _depthState?.Dispose();
+        _transparentDepthState?.Dispose();
         _overlayDepthState?.Dispose();
+        _overlayNoDepthState?.Dispose();
+        _gizmoDepthState?.Dispose();
         _rasterizerState?.Dispose();
+        _doubleSidedRasterizerState?.Dispose();
         _cameraBuffer?.Dispose();
         _overlayCameraBuffer?.Dispose();
         _samplerState?.Dispose();
@@ -697,6 +766,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayInputLayout?.Dispose();
         _pixelShader?.Dispose();
         _overlayPixelShader?.Dispose();
+        _vertexMarkerGeometryShader?.Dispose();
         _vertexShader?.Dispose();
         _overlayVertexShader?.Dispose();
         _depthStencilView?.Dispose();
@@ -711,12 +781,18 @@ internal sealed partial class D3D11MaterialViewport : Control
             _device?.Dispose();
             _context = null;
             _device = null;
+            _maximumFrameLatency = 0;
         }
         _blendState = null;
+        _transparentBlendState = null;
         _overlayBlendState = null;
         _depthState = null;
+        _transparentDepthState = null;
         _overlayDepthState = null;
+        _overlayNoDepthState = null;
+        _gizmoDepthState = null;
         _rasterizerState = null;
+        _doubleSidedRasterizerState = null;
         _cameraBuffer = null;
         _overlayCameraBuffer = null;
         _samplerState = null;
@@ -724,6 +800,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayInputLayout = null;
         _pixelShader = null;
         _overlayPixelShader = null;
+        _vertexMarkerGeometryShader = null;
         _vertexShader = null;
         _overlayVertexShader = null;
         _depthStencilView = null;
@@ -743,42 +820,4 @@ internal sealed partial class D3D11MaterialViewport : Control
         }
         base.Dispose(disposing);
     }
-}
-
-[StructLayout(LayoutKind.Sequential)]
-internal readonly record struct D3D11MaterialVertex(Vector3 Position, Vector3 Normal, Vector3 Tangent, Vector3 Bitangent, Vector2 TexCoord);
-
-[StructLayout(LayoutKind.Sequential)]
-internal struct D3D11CameraConstants
-{
-    public Matrix4x4 WorldViewProjection;
-    public Matrix4x4 World;
-    public Vector3 CameraPosition;
-    public float MaterialRoughness;
-    public Vector3 LightDirection;
-    public float MaterialMetallic;
-    public Vector3 LightColor;
-    public float MaterialHeightScale;
-    public Vector3 AmbientColor;
-    public float MaterialHasNormal;
-    public float MaterialHasBase;
-    public float MaterialHasSpecular;
-    public float MaterialHasRoughness;
-    public float MaterialHasMetallic;
-    public float MaterialHasHeight;
-    public float MaterialHasEmissive;
-    public float MaterialDebugMode;
-    public float MaterialPadding;
-    public Vector4 MaterialBaseAdjustments;
-    public Vector4 MaterialTint;
-    public Vector4 MaterialBaseAdvanced;
-    public Vector4 MaterialBasePost;
-    public Vector4 MaterialSurfaceOverrides;
-    public Vector4 MaterialSurfaceOverrideFlags;
-    public Vector4 MaterialSurfaceTransforms;
-    public Vector4 MaterialSurfaceTransforms2;
-    public Vector4 MaterialSurfaceBlends;
-    public Vector4 MaterialEmissiveOverride;
-    public Vector4 MaterialEmissiveOverrideFlags;
-    public Vector4 MaterialChannelSelectors;
 }

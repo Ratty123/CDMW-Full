@@ -103,7 +103,8 @@ std::map<int, double> affected_vertex_weights_native(
     double radius,
     const std::string& falloff,
     const std::set<int>* allowed,
-    const JsonValue& edit
+    const JsonValue& edit,
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask = nullptr
 ) {
     const bool has_explicit_weights = edit.get("vertex_weights") != nullptr
         || edit.get("vertex_weight_indices_binary") != nullptr
@@ -114,12 +115,15 @@ std::map<int, double> affected_vertex_weights_native(
     }
     const JsonValue* raw_screen_brush = edit.get("screen_brush");
     MeshEditorScreenBrushDepthMask depth_mask_storage;
-    const MeshEditorScreenBrushDepthMask* depth_mask = mesh_editor_screen_brush_depth_mask_for_edit(
-        item,
-        edit,
-        raw_screen_brush,
-        depth_mask_storage
-    );
+    const MeshEditorScreenBrushDepthMask* depth_mask = shared_depth_mask;
+    if (depth_mask == nullptr) {
+        depth_mask = mesh_editor_screen_brush_depth_mask_for_edit(
+            item,
+            edit,
+            raw_screen_brush,
+            depth_mask_storage
+        );
+    }
     const std::string stroke_phase = lower_ascii(string_or(edit.get("stroke_phase"), ""));
     const std::string target_mode = lower_ascii(string_or(edit.get("target_mode"), ""));
     const bool prefer_screen_brush = raw_screen_brush != nullptr
@@ -256,7 +260,11 @@ std::vector<Vec3> smooth_brush_vertices(
     return relaxed;
 }
 
-SubmeshMeshEditResult run_brush_edit_for_submesh(const JsonValue& item, const JsonValue& edit) {
+SubmeshMeshEditResult run_brush_edit_for_submesh(
+    const JsonValue& item,
+    const JsonValue& edit,
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask = nullptr
+) {
     SubmeshMeshEditResult result;
     result.action = "brush";
     result.index = int_or(item.get("index"), -1);
@@ -300,7 +308,8 @@ SubmeshMeshEditResult run_brush_edit_for_submesh(const JsonValue& item, const Js
         radius,
         falloff,
         allowed,
-        edit
+        edit,
+        shared_depth_mask
     );
     if (!has_center && !direct_weights.empty()) center = brush_weighted_center(result.vertices, direct_weights, center);
     const double screen_radius = mesh_editor_screen_radius_units_at_center(screen_radius_payload, center, result.index);

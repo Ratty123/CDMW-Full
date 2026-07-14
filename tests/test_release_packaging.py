@@ -76,14 +76,30 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert "constraints-release.txt" in source
     assert "scripts\\verify_packaged_startup.ps1" in source
     assert 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $exePath -Context "published"' in source
+    assert 'Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $exePath -Context "published"' in source
+    assert 'cdmw-mesh-dotnet-editor.manifest.json' in source
+    assert 'executable_sha256 = $exeHash' in source
+    assert 'shader_sha256 = $shaderHash' in source
+    assert 'Start-Process -FilePath $ExecutablePath' in source
     packaged_smoke = 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"'
     assert packaged_smoke in source
+    assert 'Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"' in source
     assert '$Mode -eq "onedir"' in source
     assert source.index(packaged_smoke) < source.index('Stage "Verifying packaged startup"')
     assert source.index("Verifying packaged startup") < source.index("Publishing build output")
     assert source.index("generate_window_feature_provider_members.py") < source.index("Starting PyInstaller")
     assert 'NATIVE_CONFIGURATION = "Debug" if PROFILE == "debug" else "Release"' in spec_source
     assert 'native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl' in spec_source
+
+
+def test_onedir_publish_removes_runtime_artifacts_created_by_startup_smoke() -> None:
+    source = BUILDER.read_text(encoding="utf-8")
+
+    assert 'foreach ($artifactName in @("workspace", "CrimsonDesertModWorkbench.cfg"))' in source
+    cleanup_call = "Remove-PackagedOnedirRuntimeArtifacts -OnedirPath $builtDir"
+    publish_call = "Move-PathWithRetries -SourcePath $builtDir -DestinationPath $finalOutputPath"
+    assert cleanup_call in source
+    assert source.index(cleanup_call) < source.index(publish_call)
 
 
 def test_release_spec_collects_all_app_submodules_for_lazy_facades() -> None:

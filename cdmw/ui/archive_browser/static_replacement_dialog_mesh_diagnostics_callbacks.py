@@ -26,6 +26,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
     _source_index_is_enabled_renderable = context.get('_source_index_is_enabled_renderable')
     alignment_d3d11_preview_status_label = context.get('alignment_d3d11_preview_status_label')
     alignment_d3d11_state = context.get('alignment_d3d11_state')
+    dialog = context.get('dialog')
     embedded_alignment_builder = context.get('embedded_alignment_builder')
     entry = context.get('entry')
     find_native_d3d11_host = context.get('find_native_d3d11_host')
@@ -101,6 +102,20 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         except RuntimeError:
             return False
 
+    def _embedded_dotnet_runtime_state() -> dict[str, object]:
+        getter = getattr(dialog, "_mesh_editor_embedded_runtime_diagnostics", None)
+        if callable(getter):
+            try:
+                value = getter()
+                if isinstance(value, dict):
+                    return value
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
+        return {
+            "state": str(getattr(dialog, "_mesh_editor_embedded_dotnet_state", "") or ""),
+            "active": bool(getattr(dialog, "_mesh_editor_embedded_dotnet_active", False)),
+        }
+
     def _refresh_mesh_editor_diagnostics(*, auto: bool = False) -> None:
         text_widget = _mesh_editor_diagnostics_text_widget_helper(mesh_editor_diagnostics_state)
         if not isinstance(text_widget, QPlainTextEdit):
@@ -119,6 +134,17 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "native_host", lambda: str(find_native_d3d11_host() or "missing"))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "preview_mode", lambda: str(_widget_value("preview_mode_combo", "currentData") or ""))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "renderer", lambda: str(_widget_value("preview_renderer_combo", "currentData") or ""))
+        _mesh_editor_diagnostics_append_safe_value_helper(
+            lines,
+            "active_preview_backend",
+            lambda: (
+                "dotnet_vortice"
+                if bool(getattr(dialog, "_mesh_editor_embedded_dotnet_active", False))
+                else "legacy_native_d3d11"
+                if bool(_callback_value("_alignment_d3d11_preview_active"))
+                else "none"
+            ),
+        )
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "render_diagnostic_mode", lambda: str(_widget_value("preview_render_mode_combo", "currentData") or ""))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "visible_texture_mode", lambda: str(_widget_value("preview_visible_mode_combo", "currentData") or ""))
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "d3d11_active", lambda: bool(_callback_value("_alignment_d3d11_preview_active")))
@@ -134,7 +160,13 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "selected_source", _selected_source_index)
         _mesh_editor_diagnostics_append_safe_value_helper(lines, "highlighted_sources", _highlighted_source_indices)
         lines.append("")
-        lines.append("D3D11 state")
+        lines.append("Embedded .NET/Vortice state")
+        current_dotnet_state = _embedded_dotnet_runtime_state()
+        lines.append(json.dumps(current_dotnet_state, indent=2, sort_keys=True, default=str)[:16000])
+        lines.append("")
+        lines.append("Legacy native D3D11 state")
+        if bool(current_dotnet_state.get("active")):
+            lines.append("  note: intentionally inactive while embedded .NET/Vortice owns the visible preview")
         for key in (
             "request_id",
             "preview_loaded",
@@ -225,7 +257,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
         lines.append("Active package manifest")
         lines.extend(_mesh_editor_diagnostics_manifest_lines(current_d3d11_state.get("active_package")))
         lines.append("")
-        lines.append("Latest native status")
+        lines.append("Latest native status (legacy compatibility)")
         status_payload_text = str(current_d3d11_state.get("status_payload_text", "") or "").strip()
         if status_payload_text:
             try:

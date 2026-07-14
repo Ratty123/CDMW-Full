@@ -9,7 +9,8 @@ internal sealed partial class NetMaterialSet
     private static readonly string[] TextureSemantics =
     {
         "base", "albedo", "diffuse", "normal", "specular", "material",
-        "roughness", "metallic", "height", "emissive"
+        "roughness", "metallic", "height", "emissive", "opacity", "occlusion",
+        "layer_mask", "mask"
     };
 
     public NetMaterialStateSnapshot CaptureState()
@@ -128,19 +129,21 @@ internal sealed partial class NetMaterialSet
             if (binding.ResourceChannels.TryGetValue(key, out var resourceId)
                 && Resources.TryGetValue(resourceId, out var resource))
             {
-                return resource.Reference;
+                binding.ChannelColorSpaces.TryGetValue(key, out var colorSpace);
+                binding.ChannelAuthorities.TryGetValue(key, out var authority);
+                return resource.ReferenceForSemantic(key, colorSpace, authority);
             }
             if (binding.PackageChannels.TryGetValue(key, out var packaged) && !string.IsNullOrWhiteSpace(packaged))
             {
                 var packagedPath = ResolveManifestPath(packaged);
                 if (File.Exists(packagedPath))
                 {
-                    return NetMaterialTextureReference.FromPath(packagedPath);
+                    return NetMaterialTextureReference.FromPath(packagedPath, key);
                 }
             }
             if (binding.ResolvedChannels.TryGetValue(key, out var resolved) && !string.IsNullOrWhiteSpace(resolved))
             {
-                return NetMaterialTextureReference.FromPath(resolved);
+                return NetMaterialTextureReference.FromPath(resolved, key);
             }
         }
         return NetMaterialTextureReference.Empty;
@@ -162,6 +165,84 @@ internal sealed partial class NetMaterialSet
         };
     }
 
+    public string ShaderFamilyForSubmesh(int submeshIndex)
+    {
+        var family = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.ShaderFamily;
+        return string.IsNullOrWhiteSpace(family) ? "generic" : family.Trim().ToLowerInvariant();
+    }
+
+    public bool NormalYInvertedForSubmesh(int submeshIndex)
+    {
+        var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
+        return string.Equals(
+            binding?.NormalYPolicy,
+            "invert_green_for_directx",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    public bool TextureFlipVerticalForSubmesh(int submeshIndex)
+    {
+        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
+            ?.TextureFlipVertical == true;
+    }
+
+    public string AlphaModeForSubmesh(int submeshIndex)
+    {
+        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.AlphaMode ?? "opaque";
+    }
+
+    public float AlphaCutoffForSubmesh(int submeshIndex)
+    {
+        return Math.Clamp(
+            Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.AlphaCutoff ?? 0.5f,
+            0.0f,
+            1.0f);
+    }
+
+    public float OpacityFactorForSubmesh(int submeshIndex)
+    {
+        return Math.Clamp(
+            Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.OpacityFactor ?? 1.0f,
+            0.0f,
+            1.0f);
+    }
+
+    public bool DoubleSidedForSubmesh(int submeshIndex)
+    {
+        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.DoubleSided == true;
+    }
+
+    public IReadOnlyList<Dictionary<string, object?>> MaterialSemanticDiagnostics()
+    {
+        return Submeshes
+            .OrderBy(binding => binding.SubmeshIndex)
+            .Select(binding => new Dictionary<string, object?>
+            {
+                ["submesh_index"] = binding.SubmeshIndex,
+                ["material"] = binding.Material,
+                ["shader_family"] = string.IsNullOrWhiteSpace(binding.ShaderFamily) ? "generic" : binding.ShaderFamily,
+                ["shader_technique"] = binding.ShaderTechnique,
+                ["shader_authority"] = binding.ShaderAuthority,
+                ["shader_family_source"] = binding.ShaderFamilySource,
+                ["shader_family_reason"] = binding.ShaderFamilyReason,
+                ["channel_color_spaces"] = binding.ChannelColorSpaces,
+                ["channel_authorities"] = binding.ChannelAuthorities,
+                ["channel_components"] = binding.ChannelComponents,
+                ["normal_y_policy"] = binding.NormalYPolicy,
+                ["alpha_mode"] = string.IsNullOrWhiteSpace(binding.AlphaMode) ? "opaque" : binding.AlphaMode,
+                ["alpha_cutoff"] = binding.AlphaCutoff,
+                ["opacity_factor"] = binding.OpacityFactor,
+                ["alpha_authority"] = binding.AlphaAuthority,
+                ["alpha_reason"] = binding.AlphaReason,
+                ["double_sided"] = binding.DoubleSided,
+                ["double_sided_authority"] = binding.DoubleSidedAuthority,
+                ["double_sided_reason"] = binding.DoubleSidedReason,
+                ["layer_binding_count"] = binding.LayerBindingCount,
+                ["unsupported_features"] = binding.UnsupportedFeatures,
+            })
+            .ToArray();
+    }
+
     public IEnumerable<NetMaterialTextureReference> TextureReferencesForSubmesh(int submeshIndex)
     {
         return TextureSemantics
@@ -172,10 +253,28 @@ internal sealed partial class NetMaterialSet
 
     public IEnumerable<NetMaterialResource> TextureLoadResources()
     {
-        return Submeshes
-            .SelectMany(binding => TextureReferencesForSubmesh(binding.SubmeshIndex))
-            .DistinctBy(reference => reference.CacheKey)
-            .Select(reference => new NetMaterialResource(reference.ResourceId, reference.Path, reference.Fingerprint));
+        var activeResourceIds = Submeshes
+            .SelectMany(binding => binding.ResourceChannels.Values)
+            .ToHashSet(StringComparer.Ordinal);
+        return Resources.Values
+            .Where(resource => activeResourceIds.Contains(resource.ResourceId))
+            .OrderBy(resource => resource.ResourceId);
+    }
+
+    public IReadOnlyList<NetMaterialResource> FailedRequiredResources(IEnumerable<string> failedPaths)
+    {
+        var failed = failedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return TextureLoadResources()
+            .Where(resource => resource.Required && failed.Contains(resource.Path))
+            .ToArray();
+    }
+
+    public IReadOnlyList<NetMaterialResource> FailedOptionalResources(IEnumerable<string> failedPaths)
+    {
+        var failed = failedPaths.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return TextureLoadResources()
+            .Where(resource => !resource.Required && failed.Contains(resource.Path))
+            .ToArray();
     }
 
     public static NetMaterialStateUpdate ParseStateUpdate(JsonElement root)
@@ -231,7 +330,20 @@ internal sealed partial class NetMaterialSet
             {
                 throw new InvalidDataException("Material resources require resource_id and path.");
             }
-            resources.Add(new NetMaterialResource(resourceId, path, JsonText(item, "fingerprint")));
+            resources.Add(new NetMaterialResource(
+                resourceId,
+                path,
+                JsonText(item, "fingerprint"),
+                JsonText(item, "role"),
+                (int)JsonLong(item, "submesh_index", -1),
+                JsonText(item, "material_channel"),
+                JsonText(item, "semantic"),
+                JsonText(item, "color_space"),
+                JsonText(item, "semantic_authority"),
+                JsonText(item, "source_reference"),
+                JsonText(item, "profile"),
+                JsonBoolean(item, "required"),
+                JsonText(item, "fallback_policy")));
         }
         return resources;
     }
@@ -275,7 +387,26 @@ internal sealed partial class NetMaterialSet
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase),
                 channels,
-                JsonMap(item, "channel_components")));
+                JsonMap(item, "channel_components"),
+                JsonText(item, "normal_y_policy"),
+                JsonBoolean(item, "texture_flip_vertical"),
+                JsonText(item, "shader_family"),
+                JsonText(item, "shader_technique"),
+                JsonText(item, "shader_authority"),
+                JsonText(item, "shader_family_source"),
+                JsonText(item, "shader_family_reason"),
+                JsonMap(item, "channel_color_spaces"),
+                JsonMap(item, "channel_authorities"),
+                JsonText(item, "alpha_mode"),
+                JsonFloat(item, "alpha_cutoff", 0.5f),
+                JsonFloat(item, "opacity_factor", 1.0f),
+                JsonText(item, "alpha_authority"),
+                JsonText(item, "alpha_reason"),
+                JsonBoolean(item, "double_sided"),
+                JsonText(item, "double_sided_authority"),
+                JsonText(item, "double_sided_reason"),
+                JsonStringArray(item, "unsupported_features"),
+                JsonArrayLength(item, "layer_bindings")));
         }
         return result;
     }
@@ -332,6 +463,16 @@ internal sealed partial class NetMaterialSet
             ? number
             : fallback;
     }
+
+    private static bool JsonBoolean(JsonElement root, string name)
+    {
+        if (!root.TryGetProperty(name, out var value))
+        {
+            return false;
+        }
+        return value.ValueKind == JsonValueKind.True
+            || (value.ValueKind == JsonValueKind.String && bool.TryParse(value.GetString(), out var parsed) && parsed);
+    }
 }
 
 internal sealed record NetMaterialStateSnapshot(
@@ -361,19 +502,79 @@ internal sealed record NetMaterialStateUpdate(
     }
 }
 
-internal sealed record NetMaterialResource(string ResourceId, string Path, string Fingerprint)
+internal sealed record NetMaterialResource(
+    string ResourceId,
+    string Path,
+    string Fingerprint,
+    string Role,
+    int SubmeshIndex,
+    string MaterialChannel,
+    string Semantic,
+    string ColorSpace,
+    string SemanticAuthority,
+    string SourceReference,
+    string Profile,
+    bool Required,
+    string FallbackPolicy)
 {
-    public NetMaterialTextureReference Reference => new(ResourceId, Path, Fingerprint);
+    public NetMaterialTextureReference Reference => ReferenceForSemantic(Semantic, ColorSpace, SemanticAuthority);
+
+    public NetMaterialTextureReference ReferenceForSemantic(
+        string semantic,
+        string? colorSpace = null,
+        string? semanticAuthority = null)
+    {
+        var normalizedSemantic = string.IsNullOrWhiteSpace(semantic) ? MaterialChannel : semantic.Trim().ToLowerInvariant();
+        var normalizedColorSpace = NormalizeColorSpace(
+            colorSpace,
+            normalizedSemantic,
+            string.IsNullOrWhiteSpace(ColorSpace) ? null : ColorSpace);
+        return new NetMaterialTextureReference(
+            ResourceId,
+            Path,
+            Fingerprint,
+            normalizedSemantic,
+            normalizedColorSpace,
+            SourceReference,
+            string.IsNullOrWhiteSpace(semanticAuthority) ? SemanticAuthority : semanticAuthority);
+    }
+
+    private static string NormalizeColorSpace(string? value, string semantic, string? fallback)
+    {
+        var normalized = (value ?? fallback ?? string.Empty).Trim().ToLowerInvariant();
+        if (normalized is "srgb" or "linear")
+        {
+            return normalized;
+        }
+        return semantic is "base" or "albedo" or "diffuse" or "emissive" ? "srgb" : "linear";
+    }
 }
 
-internal readonly record struct NetMaterialTextureReference(string ResourceId, string Path, string Fingerprint)
+internal readonly record struct NetMaterialTextureReference(
+    string ResourceId,
+    string Path,
+    string Fingerprint,
+    string Semantic,
+    string ColorSpace,
+    string SourceReference,
+    string SemanticAuthority)
 {
-    public static NetMaterialTextureReference Empty { get; } = new(string.Empty, string.Empty, string.Empty);
+    public static NetMaterialTextureReference Empty { get; } = new(
+        string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty, string.Empty);
     public bool IsEmpty => string.IsNullOrWhiteSpace(Path);
-    public string CacheKey => NetTextureSet.TextureCacheKey(Path, Fingerprint);
+    public string SourceCacheKey => NetTextureSet.TextureCacheKey(Path, Fingerprint);
+    public string CacheKey => string.IsNullOrWhiteSpace(SourceCacheKey)
+        ? string.Empty
+        : $"{SourceCacheKey}|view:{ColorSpace}";
 
-    public static NetMaterialTextureReference FromPath(string path)
+    public static NetMaterialTextureReference FromPath(string path, string semantic = "")
     {
-        return string.IsNullOrWhiteSpace(path) ? Empty : new NetMaterialTextureReference(path, path, string.Empty);
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return Empty;
+        }
+        var normalized = semantic.Trim().ToLowerInvariant();
+        var colorSpace = normalized is "base" or "albedo" or "diffuse" or "emissive" ? "srgb" : "linear";
+        return new NetMaterialTextureReference(path, path, string.Empty, normalized, colorSpace, path, "legacy_fallback");
     }
 }

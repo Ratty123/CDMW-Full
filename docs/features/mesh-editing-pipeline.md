@@ -1,6 +1,6 @@
 # Mesh Editing Pipeline
 
-Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
+Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
 
 ## Current Implementation Map
 
@@ -75,6 +75,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
     units retain one reversible affected-submesh snapshot and swap it on
     undo/redo. Native and Python history are capped at 64 whole units and 256
     MiB, and session/result diagnostics expose retained bytes and stack counts.
+    The session view also exposes the ordered applied/undone action timeline.
+    Geometry, replacement, rigging, and selection changes use that same order;
+    selection history stores only the prior selection descriptor and never
+    clones or hydrates the resident mesh.
     Auto-UV captures both a reversible topology snapshot and sparse UV channels,
     so a same-topology unwrap remains exact and undoable.
     Apply roots are filtered to the selection-derived candidate submeshes before
@@ -108,6 +112,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
     process exits with an edited OBJ under the declared output package, the
     standalone UI imports it on a worker through the same OBJ sidecar contract,
     replaces the working mesh through `MeshService`, and refreshes validation.
+    Helper-reported edited OBJ, package, and operation paths are canonicalized
+    beneath that package's owned output directory before any import or sidecar
+    write. Traversal, external absolute paths, link/reparse escapes, and aliases
+    of either input OBJ fail closed.
     Service native-snapshot clones copy the MeshAsset validation metadata before
     handoff export, so .NET packages keep exact LOD section offsets/sizes instead
     of falling back to preview-only LOD identity.
@@ -321,16 +329,104 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
   builder or standalone original/imported mesh session is ready. `Edit Mesh`
   now changes the resident scene from placement-only interaction to geometry
   mutation; turning it off keeps the same process, decoded textures, camera,
-  scene buffers, grid, and comparison state resident. Placement mode keeps the
-  setup controls visible and rejects geometry commands.
-  The embedded child exposes its dark scrollable WinForms controls on the left;
-  its scene toolbar provides side-by-side, overlay, replacement-only, and
-  original-only modes plus move/rotate/scale gizmo selection. Left-dragging the
+  scene buffers, grid, and saved placement-preview choice resident. While edit
+  interaction is active, the host and child both force Replacement Only and pin
+  input to the editable camera context; Original, Overlay, and Side by Side
+  cannot be restored by a queued scene or presentation replay. Turning edit off
+  restores the placement preview mode selected in the Builder. Placement keeps
+  the Builder setup controls visible, keeps the child's tool panel collapsed, and
+  rejects geometry commands. Entering `Edit Mesh` hides the Builder controls
+  and exposes the embedded child's dark scrollable WinForms controls on the left.
+  Its editable viewport defaults to Wire + Vertices, with round vertex markers;
+  the inert Material Debug control is not shown in the Viewport section.
+  Its Original role selector is disabled during editing; Imported/Modify remains
+  active with move/rotate/scale gizmo selection. In placement, the scene toolbar
+  provides two-pane, overlay, focus-Imported/Modify, and focus-Original choices.
+  Original and Imported/Modify are distinct role-filtered presentation contexts
+  over the same parsed document, geometry buffers, materials, textures, revisions, and
+  resource fingerprints. In Side by Side, when both roles exist, one shared
+  Vortice viewport, device, and swap chain renders them simultaneously into
+  separate left/right rectangles with separate grids and independently stored
+  normal cameras and display state. Replacement Only and Original Only each
+  render their named role alone in the full viewport. A draggable divider
+  resizes the Side by Side rectangles from 18% through
+  82%; the host persists that ratio under the existing Builder D3D11 split
+  setting. Original accepts camera navigation only. Imported/Modify owns all
+  picking and mutation. Explicit Overlay is the single-surface exception and
+  links to the editable comparison camera without duplicating resources or
+  launching a second helper. Left-dragging the
   viewport in placement mode updates the authoritative Builder TRS controls.
-  The Y-up grid and
-  placement transform are carried by `resident_scene_state_v1`; replacement
-  control changes update translation, rotation, and scale without rebuilding
-  the package. Overlay renders the original as a reference wire layer.
+  Placement and Edit Mesh share the same reciprocal, fit-relative wheel zoom;
+  fitted zoom values below `1.0` can zoom outward and return exactly after an
+  inverse wheel step.
+  Every camera, stroke, gizmo, selection-rectangle, divider, or wheel state
+  change queues at most one latest-wins invalidation rather than rendering from
+  the 16 ms WinForms maintenance timer. A completed Present never schedules
+  another frame by itself, and invalidation stays asynchronous so rendering
+  cannot monopolize the WinForms input thread. D3D11 presents with VSync and a
+  maximum frame latency of one, so continuous input can follow 120 Hz, 144 Hz,
+  or another active monitor refresh rate without a software 60 Hz cap when the
+  input rate and GPU/display budget permit it.
+  Grid, gizmo, selection, wire, and divider vertices stream through one
+  capacity-growing dynamic D3D11 vertex buffer. The first overlay upload in a
+  frame uses discard mapping and later non-overlapping uploads use no-overwrite
+  mapping, so overlay primitives do not create and dispose GPU buffers in the
+  draw loop.
+  The production D3D11 child exclusively owns viewport painting: the parent
+  WinForms CPU/GDI fallback returns before traversing any faces while that child
+  exists. Windowed presentation uses DXGI flip-discard rather than the legacy
+  blit model, and camera orbit/pan bypasses gizmo hover hit-testing; ordinary
+  hover hit-testing constructs one camera per event. Continuous mouse input
+  performs one latest-wins renderer update and does not directly invalidate the
+  parent surface as a second paint path.
+  The reported FPS is calculated from completion-to-completion frame intervals;
+  render work, Present time, interval p95/max, and pacing jitter are reported
+  separately so fast submission cannot masquerade as smooth output. Placement
+  preview stays local and input-paced while Builder-authority transform
+  requests use an approximately 30 Hz latest-wins lane plus an exact final
+  mouse-up transform, avoiding synchronous pipe and Qt work on every raw mouse
+  event. The local preview reconstructs the exact editable world matrix from
+  the acknowledged automatic-alignment matrix plus the provisional manual TRS;
+  it never applies that provisional matrix to the Original role. A newer local
+  drag survives an older authority frame until a matching frame arrives, and
+  the resident world grid remains fixed while placement changes.
+  The Y-up grid and placement transform are carried by
+  `authoritative_resident_scene_frame_v2`. Python computes one frozen scene
+  frame through `cdmw.modding.static_mesh_scene_frame`; the final static build
+  and resident preview therefore share the same anchor/axis, length scale,
+  automatic roll, fit, floor-correction, and manual-TRS composition. The frame
+  carries row-major `System.Numerics` row-vector matrices, right-handed source
+  mesh units, exact transformed-vertex world bounds for both roles, placement
+  and optional selection pivots, ground/grid origin, framing extent, visibility,
+  comparison mode, interaction mode, source identity, and scene generation.
+  Legacy comparison offsets remain presentation-only and never enter output
+  matrices; the two role rectangles render offset-free role matrices. Each role
+  camera retains its own captured framing bounds across resident placement
+  frames; only an explicit Fit command recenters or rescales that role. Camera
+  payloads carry a per-role command generation so replaying persistent
+  presentation state cannot repeat Fit, pan, zoom, or rotation commands against
+  either pane. Replacement control changes calculate a latest-wins frame
+  off the Qt thread and update resident transforms without OBJ
+  export, package rebuild, source reparse, geometry-buffer replacement, or
+  renderer restart. Scene updates and acknowledgements correlate session,
+  request, process generation, source identity, and scene generation; stale or
+  rejected updates leave the last acknowledged scene frame active. Overlay
+  renders the original as a reference wire layer.
+  Production presentation exposes separate `Original` and
+  `Imported / Modify` resident view contexts inside that same helper process.
+  Both contexts retain the same parsed document, geometry buffers, material
+  set, and decoded texture resources; role filtering, camera, and display state
+  are per-view. Their normal cameras are independent, both role panes must draw
+  before readiness is published, and renderer diagnostics expose the shared
+  surface plus reference/editable client and screen rectangles. Overlay alone
+  links to the editable comparison camera without coupling the two normal role
+  cameras.
+  Builder camera, Fit, display/quality/lighting, grid/gizmo, UV, highlight,
+  hidden-part, routing, and per-part presentation state use one correlated
+  `presentation_state_update` lane. The host keeps one active request plus one
+  merged pending state and rejects stale session/process acknowledgements.
+  While production .NET presentation is active, migrated Builder callbacks
+  return through that lane instead of mutating only the legacy preview host.
   brush tools show their active button, gesture hint, and radius circle in the
   viewport. OBJ/glTF/GLB/DAE sources automatically apply the existing Flip V
   normalization, including imports prepared inside the preflight worker.
@@ -350,8 +446,19 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
   `MeshDotNetExperimentPackageWorker`, and launches the process with input
   metadata, status, output, and edit-operation paths. Embedded interaction
   mirrors local selection to the resident C++ session, sends incremental
-  strokes, rejects new mutations while a topology worker owns the session, and
-  runs topology commands in `MeshEditCommandWorker`. Closing the builder still
+  strokes, and routes screen selection plus topology commands through
+  `MeshEditCommandWorker` so native picking never blocks the Qt UI thread.
+  The embedded tool panel shows the live authoritative action timeline and
+  enables Undo/Redo from its cursor; Ctrl+Z, Ctrl+Y, and Ctrl+Shift+Z use the
+  same background command path. Select and brush tools retain camera access
+  through Ctrl+left-drag orbit, Shift+left-drag or middle/right-drag pan, and
+  wheel zoom, with the active bindings displayed below the viewport.
+  Grow, Shrink, and Invert operate only on the active vertex/edge/face domain;
+  a retained part highlight cannot expand a vertex selection to the whole mesh.
+  Visible-surface selection and brushes rasterize only their screen-space
+  brush/region depth bounds, and one brush command shares that depth mask across
+  all editable submeshes instead of rebuilding a full-viewport mask per part.
+  New mutations are rejected while the worker owns the session. Closing the builder still
   uses ordered deactivation and sync; toggling Edit Mesh does not. Changed material
   inputs synchronize through resident material protocol v2. Material generation
   is ordered independently, so multiple newer material generations may target
@@ -361,15 +468,62 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
   process, and full-reload counters remain host-owned. Only a source or session
   replacement, device loss, or explicit process restart creates another
   package/process. Embedded geometry is never replaced from OBJ.
+  Builder presentation updates use one active plus one merged pending request,
+  correlated by session/request/process. Camera presets/Fit, display,
+  quality/lighting, UV, grid/gizmo, highlight, hidden-part, routing, and
+  per-part state acknowledge in .NET; stale responses are ignored and
+  production-active callbacks bypass legacy-only presentation mutation.
   The .NET material manifest preserves source tint, surface, and emissive factors
   plus packed-channel selectors; glTF metallic-roughness reuses one decoded image
-  while sampling roughness from G and metallic from B. PNG-only sessions do not
-  report DDS-upload parity warnings.
+  while sampling roughness from G and metallic from B. A Python-owned resource
+  policy declares role, scene submesh, channel, profile, criticality, and
+  fallback for every texture. Initial Ready waits for resource resolution and a
+  presented frame: a missing declared-required base blocks Ready, while optional
+  channels retain their declared fallback and diagnostic. Late original archive
+  resources enter the existing reference-role material generation without an
+  export commit, package rebuild, camera change, or process restart. Normal-map
+  space is also explicit per submesh; glTF/green-up inputs invert green in the
+  DirectX shader while DirectX inputs are preserved. PNG-only sessions do not
+  report DDS-upload parity warnings. The focused profile corpus records every
+  supported profile's channels, criticality, scalar/tint/normal-Y/layer rules,
+  real PAC and external-catalogue input fingerprints, and synthetic failure
+  cases without claiming visual parity beyond production capture evidence. Its
+  representative hair PAC is DDS-backed and corpus generation fails if that
+  source resource no longer resolves.
+  The production bridge prefers an existing source DDS over preview PNG and
+  transports channel semantic, evidence authority, sRGB/linear interpretation,
+  shader family, alpha mode/cutoff, double-sided state, and unsupported-family
+  diagnostics. Vortice uploads supported 2D DDS as immutable native DXGI
+  resources with every validated mip; resident dirty-region edits copy only the
+  affected resource into a full mutable BGRA mip chain. Each boxed top-level
+  upload regenerates that resource's lower mips through its semantic sRGB or
+  linear view and reports the editable mip count in renderer evidence. The shader uses
+  sRGB-aware views/output, GGX/Smith/Schlick response, separate opacity and
+  occlusion inputs, proven cutout, and per-material culling. Blend ordering,
+  family layer graphs, hair/fur anisotropy, and captured skin subsurface/wrinkle
+  response remain explicit gaps. Classified skin, cloth, and hair nevertheless
+  use the native preview's conservative nonmetal contract: zero metalness,
+  family roughness floors, achromatic capped dielectric specular, and the same
+  family depth-authority values that keep texture hue stable as the camera
+  moves. This is an inspection fallback, not exact game-shader parity.
+  Native original-reference material batches are applied by authoritative local
+  submesh identity. Secondary/prefab batches are decoded as separate
+  original-reference-only geometry; they never enter the editable replacement,
+  export, or archive-mutation authority. Layer-only detail, damage, grime, dye,
+  and overlay textures remain diagnostic bindings and are not promoted into a
+  primary base channel when their blend graph is unavailable. None of these
+  material changes rebuilds the package, restarts the
+  process, replaces the viewport, or moves decode work onto the UI thread.
   For standalone/headless process exits, `MeshDotNetExperimentOutputImportWorker` detects `edited_mesh`,
   `edited_obj`, `output_mesh`, `edited_package`, or `output/mesh.obj`, restores
   the package sidecar if the editor wrote only OBJ geometry, imports through
-  `import_obj()`, applies any saved safe edit-operation list,
-  and reruns export validation before rebuild can be enabled. Process exits, successful imports,
+  `import_obj()`, applies any saved safe edit-operation list, and reruns export
+  validation before rebuild can be enabled. Preparation is detached and
+  cancellable; it records session identity and expected revision. The service
+  then performs one narrow noninterruptible compare-and-swap commit under its
+  lock. Cancellation or stale/closed state before commit leaves the live mesh
+  unchanged, while a commit that has started always publishes its terminal
+  result. Process exits, successful imports,
   and import failures write `dotnet_evaluation.md` in the handoff package,
   comparing reported .NET FPS, frame time, responsiveness, crash behavior,
   memory, packaging complexity, and maintenance complexity against any
@@ -414,6 +568,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
   no-op save.
   `build_pyside6_app.ps1` publishes it into
   `native/cdmw_mesh_dotnet_editor/build/<Config>` so PyInstaller can bundle it.
+  Release publish writes `cdmw-mesh-dotnet-editor.manifest.json` beside the
+  helper and shader. The helper reports semantic/protocol version, manifest or
+  development identity, process/assembly/shader SHA-256, renderer/edit backend,
+  and capabilities; Python rejects release Ready when the launched files and
+  report do not match. Deterministic icon generation uses a correlated
+  replacement-only offscreen D3D11 target inside the package output root and
+  excludes UI, grid, gizmo, selection, hover, and visible-state mutation.
 - Embedded .NET launch diagnostics are persisted through Mesh Editor runtime
   events and the handoff package. Failed launches record executable resolution,
   package paths, parent HWND, process state, QProcess error details, exit
@@ -456,8 +617,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-12.
   parts retain exact placement. Duplicate/Delete are visible beside the compact
   Parts list and route through the same resident mutations as context actions.
 - Production viewport modes include textured solid plus untextured faces, wire,
-  vertices, and combinations without texture/SRV churn. Wheel zoom accepts the
-  resident range `1.0` through `500000.0`.
+  vertices, and combinations without texture/SRV churn. `Faces (No Textures)`
+  uses a dedicated two-sided camera-relative workbench shader: inverse-transpose
+  normal transforms, safe zero-normal fallback, wrapped key/fill light, rim
+  shaping, and a fixed illumination floor keep projected faces distinct from
+  the dark viewport from front, back, and oblique cameras. It does not depend on
+  texture/material brightness settings and does not restart or reload the
+  resident scene. Wheel zoom accepts the resident range `1.0` through
+  `500000.0`.
 - Initial external imports and appended parts share the same work-area fit
   helper. External imports are centered against the reference/work area and
   bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones

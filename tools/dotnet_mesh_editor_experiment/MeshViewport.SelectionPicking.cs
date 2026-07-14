@@ -1,13 +1,17 @@
 using System.Drawing;
+using System.Numerics;
 
 namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class MeshViewport
 {
+    private const double SelectionClickRadiusPixels = 14.0;
+    private const int SelectionRegionTolerancePixels = 6;
+
     private (int SubmeshIndex, int ItemIndex)? PickVertexAt(Point point)
     {
         var camera = CurrentCamera();
-        var bestDistance = 8.0;
+        var bestDistance = SelectionClickRadiusPixels;
         (int SubmeshIndex, int ItemIndex)? best = null;
         for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
@@ -26,7 +30,11 @@ internal sealed partial class MeshViewport
                 var dx = point.X - projected.X;
                 var dy = point.Y - projected.Y;
                 var distance = Math.Sqrt((dx * dx) + (dy * dy));
-                if (distance < bestDistance)
+                if (distance < bestDistance
+                    && (ShowXRay
+                        || !IsWorldPointOccluded(
+                            point,
+                            SceneWorldPoint(submeshIndex, submesh.Vertices[vertexIndex]))))
                 {
                     bestDistance = distance;
                     best = (submeshIndex, vertexIndex);
@@ -38,6 +46,12 @@ internal sealed partial class MeshViewport
 
     private (int SubmeshIndex, int ItemIndex)? PickFaceAt(Point point)
     {
+        if (!ShowXRay)
+        {
+            return TryNearestVisibleSurface(point, out _, out var visibleSubmesh, out var visibleFace)
+                ? (visibleSubmesh, visibleFace)
+                : null;
+        }
         var camera = CurrentCamera();
         var bestScore = double.MaxValue;
         (int SubmeshIndex, int ItemIndex)? best = null;
@@ -122,52 +136,25 @@ internal sealed partial class MeshViewport
         var rectangle = EdgeDragRectangle();
         var targetMode = _selectionDragTargetMode;
         _edgeDragActive = false;
+        var payload = new Dictionary<string, object?>
+        {
+            ["operation"] = CurrentSelectionOperation(),
+            ["target_mode"] = targetMode,
+            ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
+        };
         if (rectangle.Width < 4 && rectangle.Height < 4)
         {
-            if (targetMode == "vertex")
-            {
-                SelectVertexAt(point);
-            }
-            else if (targetMode == "face")
-            {
-                SelectFaceAt(point);
-            }
-            else if (targetMode == "part" || targetMode == "source")
-            {
-                SelectPartAt(point);
-            }
-            else
-            {
-                SelectEdgeAt(point);
-            }
+            payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels);
+            EditorEventRequested?.Invoke("select_request", payload);
+            StatusRequested?.Invoke($"{targetMode} selection awaiting authoritative depth-resolved result.");
+            UpdateGpuViewport();
+            Invalidate();
             return;
         }
-        if (targetMode == "vertex")
-        {
-            var hits = VertexIdsInRectangle(rectangle);
-            ApplySelectionMapOperation(_selectedVertices, hits, CurrentSelectionOperation());
-            StatusRequested?.Invoke($"Vertex mode: selected={_selectedVertices.Values.Sum(vertices => vertices.Count)} drag={hits.Length} xray={(ShowXRay ? "on" : "off")}");
-        }
-        else if (targetMode == "face")
-        {
-            var hits = FaceIdsInRectangle(rectangle);
-            ApplySelectionMapOperation(_selectedFaces, hits, CurrentSelectionOperation());
-            StatusRequested?.Invoke($"Face mode: selected={_selectedFaces.Values.Sum(faces => faces.Count)} drag={hits.Length} xray={(ShowXRay ? "on" : "off")}");
-        }
-        else if (targetMode == "part" || targetMode == "source")
-        {
-            var hits = PartIdsInRectangle(rectangle);
-            ApplyPartSelectionOperation(hits, CurrentSelectionOperation());
-            StatusRequested?.Invoke($"Part mode: selected={_selectedSources.Count} drag={hits.Length} xray={(ShowXRay ? "on" : "off")}");
-        }
-        else
-        {
-            var edgeIds = EdgeIdsInRectangle(rectangle);
-            ApplyEdgeSelectionOperation(edgeIds, CurrentSelectionOperation());
-            StatusRequested?.Invoke($"Edge mode: selected={_selectedEdges.Count} drag={edgeIds.Length} xray={(ShowXRay ? "on" : "off")}");
-        }
+        payload["screen_region"] = ScreenDragPayload(_edgeDragStart, point);
+        EditorEventRequested?.Invoke("select_request", payload);
+        StatusRequested?.Invoke($"{targetMode} region selection awaiting authoritative depth-resolved result.");
         _hoverEdgeId = -1;
-        NotifyLocalSelectionChanged();
         UpdateGpuViewport();
         Invalidate();
     }
@@ -184,7 +171,7 @@ internal sealed partial class MeshViewport
     private (int SubmeshIndex, int ItemIndex)[] VertexIdsInRectangle(Rectangle rectangle)
     {
         var camera = CurrentCamera();
-        var expanded = Rectangle.Inflate(rectangle, 3, 3);
+        var expanded = Rectangle.Inflate(rectangle, SelectionRegionTolerancePixels, SelectionRegionTolerancePixels);
         var result = new List<(int SubmeshIndex, int ItemIndex)>();
         for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
@@ -212,7 +199,7 @@ internal sealed partial class MeshViewport
     private (int SubmeshIndex, int ItemIndex)[] FaceIdsInRectangle(Rectangle rectangle)
     {
         var camera = CurrentCamera();
-        var expanded = Rectangle.Inflate(rectangle, 3, 3);
+        var expanded = Rectangle.Inflate(rectangle, SelectionRegionTolerancePixels, SelectionRegionTolerancePixels);
         var result = new List<(int SubmeshIndex, int ItemIndex)>();
         for (var submeshIndex = 0; submeshIndex < _scene.EditableSubmeshCount; submeshIndex++)
         {
@@ -274,7 +261,7 @@ internal sealed partial class MeshViewport
     private int[] EdgeIdsInRectangle(Rectangle rectangle)
     {
         var camera = CurrentCamera();
-        var expanded = Rectangle.Inflate(rectangle, 3, 3);
+        var expanded = Rectangle.Inflate(rectangle, SelectionRegionTolerancePixels, SelectionRegionTolerancePixels);
         var result = new List<int>();
         foreach (var edge in _edgeTopology.Edges)
         {
@@ -410,7 +397,7 @@ internal sealed partial class MeshViewport
     {
         var camera = CurrentCamera();
         var bestEdgeId = -1;
-        var bestDistance = 9.0;
+        var bestDistance = SelectionClickRadiusPixels;
         foreach (var edge in _edgeTopology.Edges)
         {
             if (!IsSubmeshVisibleForViewportSelection(edge.SubmeshIndex))
@@ -433,7 +420,11 @@ internal sealed partial class MeshViewport
             var a = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexA]);
             var b = SceneProjectedPoint(camera, edge.SubmeshIndex, submesh.Vertices[edge.VertexB]);
             var distance = DistanceToSegment(point, a, b);
-            if (distance < bestDistance)
+            var edgePoint = Vector3.Lerp(
+                SceneWorldPoint(edge.SubmeshIndex, submesh.Vertices[edge.VertexA]),
+                SceneWorldPoint(edge.SubmeshIndex, submesh.Vertices[edge.VertexB]),
+                ScreenSegmentParameter(point, a, b));
+            if (distance < bestDistance && (ShowXRay || !IsWorldPointOccluded(point, edgePoint)))
             {
                 bestDistance = distance;
                 bestEdgeId = edge.Id;
@@ -446,6 +437,7 @@ internal sealed partial class MeshViewport
     {
         return submeshIndex >= 0
             && submeshIndex < _document.Submeshes.Count
+            && ActivePaneIncludesForPicking(submeshIndex)
             && _materials.ParametersForSubmesh(submeshIndex).Visible is not false;
     }
 

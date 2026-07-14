@@ -82,10 +82,12 @@ def _finish_tab(tab: ItemIconLibraryTab) -> None:
 def test_index_worker_cleanup_is_ordered_on_ui_thread() -> None:
     app = _app()
     cleanup_on_ui_thread: list[bool] = []
+    worker_owned_by_ui_thread: list[bool] = []
 
     class TrackingTab(ItemIconLibraryTab):
         def _cleanup_index_worker(self) -> None:
             cleanup_on_ui_thread.append(QThread.currentThread() is app.thread())
+            worker_owned_by_ui_thread.append(self._index_worker.thread() is app.thread())
             super()._cleanup_index_worker()
 
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -118,6 +120,7 @@ def test_index_worker_cleanup_is_ordered_on_ui_thread() -> None:
 
     assert len(cleanup_on_ui_thread) >= 40
     assert all(cleanup_on_ui_thread)
+    assert worker_owned_by_ui_thread == cleanup_on_ui_thread
 
 
 def test_metadata_save_is_nonblocking_and_updates_one_loaded_record() -> None:

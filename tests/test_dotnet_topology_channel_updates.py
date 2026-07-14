@@ -95,7 +95,7 @@ def test_whole_part_delete_sends_affected_only_shrink() -> None:
 
 
 def test_dotnet_packet_forwards_explicit_final_submesh_count() -> None:
-    sender = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py").read_text(encoding="utf-8")
+    sender = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_payloads.py").read_text(encoding="utf-8")
     update = (ROOT / "cdmw" / "ui" / "mesh_editor" / "controller.py").read_text(encoding="utf-8")
     topology = (ROOT / "cdmw" / "ui" / "mesh_editor" / "controller_topology.py").read_text(encoding="utf-8")
 

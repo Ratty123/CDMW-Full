@@ -867,6 +867,80 @@ def test_apply_native_preview_core_material_manifest_falls_back_to_slot_inputs(t
     )
 
 
+def test_apply_native_preview_core_material_manifest_uses_tint_only_wrong_family_base(tmp_path: Path) -> None:
+    mesh = ModelPreviewMesh(
+        material_name="CD_PHM_02_Handle_0014",
+        preview_texture_path="stale/texturelayer.dds",
+        preview_texture_dds_path="stale/texturelayer.dds",
+        preview_texture_image=object(),
+    )
+    preview_model = ModelPreviewData(meshes=[mesh])
+    normal_path = str(tmp_path / "handle_n.dds")
+    manifest = {
+        "batches": [
+            {
+                "index": 0,
+                "base_color": [0.86, 0.75, 0.24],
+                "base_tint_only_fallback": True,
+                "dds_textures": {
+                    "normal": {"source_path": normal_path},
+                },
+            }
+        ]
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    def convert_descriptor(descriptor: object, **kwargs: object) -> PreviewMaterialTextureInput | None:
+        if not isinstance(descriptor, dict):
+            return None
+        return PreviewMaterialTextureInput(
+            slot_kind=str(kwargs.get("fallback_slot") or ""),
+            source_texture_path=str(descriptor.get("source_path", "")),
+            material_name=str(kwargs.get("part_name", "")),
+        )
+
+    assert apply_native_preview_core_material_manifest(
+        preview_model,
+        tmp_path,
+        native_manifest_input_from_descriptor=convert_descriptor,
+    ) == 1
+    assert mesh.preview_texture_path == ""
+    assert mesh.preview_texture_dds_path == ""
+    assert mesh.preview_texture_image is None
+    assert mesh.preview_color == (0.86, 0.75, 0.24)
+    assert mesh.preview_normal_texture_dds_path == normal_path
+    assert mesh.preview_native_material_overrides["base_tint_only_fallback"] is True
+
+
+def test_apply_native_preview_core_material_manifest_does_not_tint_textured_skin(tmp_path: Path) -> None:
+    neutral_preview_color = (1.0, 1.0, 1.0)
+    mesh = ModelPreviewMesh(
+        material_name="CD_PHW_00_Nude_Body",
+        preview_color=neutral_preview_color,
+    )
+    preview_model = ModelPreviewData(meshes=[mesh])
+    base_path = str(tmp_path / "skin_base.dds")
+    manifest = {
+        "batches": [
+            {
+                "index": 0,
+                "base_color": [0.68, 0.55, 0.44],
+                "shader_family": "skin",
+                "dds_textures": {"base": {"source_path": base_path}},
+            }
+        ]
+    }
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    assert apply_native_preview_core_material_manifest(
+        preview_model,
+        tmp_path,
+        native_manifest_input_from_descriptor=lambda *_args, **_kwargs: None,
+    ) == 1
+    assert mesh.preview_texture_dds_path == base_path
+    assert mesh.preview_color == neutral_preview_color
+
+
 def test_apply_native_preview_core_material_manifest_ignores_invalid_manifest(tmp_path: Path) -> None:
     assert (
         apply_native_preview_core_material_manifest(

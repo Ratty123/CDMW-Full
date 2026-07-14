@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-12
+Last reviewed: 2026-07-14
 
 ## Goal
 
@@ -47,6 +47,145 @@ keeps core user workflows working behind stable facades.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-14:
+
+- The angle-stability follow-up removed view-dependent material recoloring from
+  both production preview shaders. Identical-material camera sweeps reduced
+  maximum chromaticity drift from 0.1670 to 0.0097, kept all-view mean luma
+  within a 0.8245 ratio, and produced no near-white clipping. The release-scale
+  hidden Vortice gate passed at 1,000,000 vertices and 1,000 paced updates with
+  0.1908 ms handler p95. Evidence:
+  `%TEMP%\cdmw-dotnet-gpu-sparse-soak-angle-color-final.json`.
+- The reported `cd_phm_02_sword_0014.pac` handle now rejects its proven
+  wrong-family generic layer as visible albedo, falls back to the decoded gold
+  material tint, and retains the same-family normal/material maps. Direct-slot
+  manifest parsing also prevents a nested normal-map `base` field from being
+  rebound as albedo. The exact package loaded six batches with five intended
+  base textures and no handle-normal-as-base binding; 109 focused tests and
+  `mesh-unit` (729 passed, 1 skipped) passed. The visible production
+  `.NET/Vortice` real-PAC gate preserved one resident package/process, reported
+  zero reloads/restarts, and left every PAMT/PAZ fingerprint unchanged.
+  Evidence:
+  `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-7415cb44a2b047e1b3539b1f010d13b9\evidence_report.json`.
+- The user-reported black fully-metallic/two-sided preview regression is closed
+  by production-shader environment response, backface tangent-frame correction,
+  and a linear-middle-gray contrast pivot. The pre-fix identical-camera proof
+  recorded zero front and oblique luma; the release-scale hidden Vortice gate
+  now keeps front/back mean luma within 0.1%, retains textured oblique detail,
+  and passes at 1,000,000 vertices plus 1,000 paced updates (59.9692 updates/s,
+  0.1918 ms handler p95). Evidence: `%TEMP%\cdmw-dotnet-metal-baseline.json`
+  and `%TEMP%\cdmw-dotnet-gpu-sparse-soak.json`.
+- The exact authorized Wolf Gravestone ZIP import passed, its corpus row retained
+  base/packed-material/normal semantics plus the explicit unsupported sorted
+  alpha-blend flag, and the runtime resource-policy probe passed. `mesh-unit`
+  reported 725 passed and 1 skipped. The canonical visible real-PAC
+  `.NET/Vortice` gate then passed with three native DDS bindings, a stable
+  resident process/package, 0.5730 ms stroke-handler p95, and unchanged source
+  payload plus PAMT/PAZ hashes. Evidence:
+  `%TEMP%\cdmw-mesh-material-profile-corpus.json`,
+  `%TEMP%\cdmw-material-resource-policy-runtime.json`, and
+  `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-8d3848e45e974221a6f14aaf72560ca4\evidence_report.json`.
+- Read-only inspection of the reported original
+  `cd_phm_02_sword_0014.pac` found six opaque batches and no source transparency
+  contract; five batches are fully metallic, which directly exercises the fixed
+  black-metal path. Its gold/emissive tints are source-derived. Exact game-layer
+  parity remains unclaimed because one handle-layer texture choice is marked
+  wrong-family and the package reports `material_quality_safe=false`. Evidence:
+  `%TEMP%\cdmw_user_sword_native_evidence_iadim4ll\package\manifest.json`.
+- The remaining material-risk follow-up passed all 73 production real-PAC gates.
+  Two linked Texture Editor strokes regenerated a 12-level editable BGRA chain
+  from a 12-mip native source; the canonical topology/UV/undo/redo/export flow
+  settled with one PID, zero reloads/restarts, and unchanged PAMT/PAZ hashes.
+  Evidence: `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-377f9781878941c4a27091a8dfe506dd\evidence_report.json`.
+- The full hidden Vortice gate passed at 1,000,000 vertices and 1,000 updates
+  with 59.9752 effective updates/second, 0.2247 ms handler p95, and no failed
+  gates. `mesh-unit` reported 722 passed and 1 skipped; the focused material,
+  mip, evidence, and corpus tests passed, as did the Release build and runtime
+  material-policy report. Evidence:
+  `%TEMP%\cdmw-dotnet-gpu-sparse-soak-risk-followup-20260714.json` and
+  `%TEMP%\cdmw-material-resource-policy-risk-followup-20260714.json`.
+- The bounded real-game corpus now uses
+  `cd_ptm_00_hair_00_0003.pac` for hair and requires it to resolve a source DDS.
+  The current game data resolves one DXT5 resource with 11 mips; the seven-asset
+  game-only corpus fingerprint is
+  `639459e0349d3d347666248f97df588ff1b05181d07457cef6786c2f32e41b7d`.
+  Evidence: `%TEMP%\cdmw-material-fidelity-corpus-risk-followup-20260714.json`.
+
+2026-07-13:
+
+- Material-fidelity hardening passed the production .NET/Vortice real-PAC gate
+  with native BC1 sRGB uploads preserving 11-12 source mips for all three
+  canonical DDS resources and zero native-upload fallbacks. The same resident
+  PID/HWND, one package/process, zero reload/restart, and unchanged PAMT/PAZ
+  hashes were proven. Deterministic 512x512 capture comparison changed 7,101
+  pixels; foreground mean luma rose from 30.42 to 62.77 and the below-25 dark
+  fraction fell from 47.23% to 0.26% while the dark workbench background stayed
+  stable. The bounded corpus now contains body, clothing, hair, weapon, prop,
+  layered armor, fur, and external-model rows (fingerprint
+  `5cca4652c9bb50620b1d5022ada731732ea3cc58e102a1ecb69c7d0d7670c619`).
+  Evidence: `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-1d5a55496ece49ff839d90b62f796823\evidence_report.json`,
+  `%TEMP%\cdmw-material-fidelity-before-after-20260713.json`, and
+  `%TEMP%\cdmw-material-fidelity-corpus-after-20260713.json`.
+- The resident .NET/Vortice repair implementation closed all 18 source defects
+  with owning behavior/protocol tests. `mesh-unit` reported 704 passed and 1
+  skipped. A direct full run reported 5,302 passed, 6 skipped, and 3 intentional
+  deselections. `run_full_qa.ps1` then completed in 1,026.3 seconds, including
+  canonical full pytest, compileall, dependency checks, `cd_hkx` format/tests,
+  production helper publication, hidden GPU proof, a clean temporary onedir
+  build, packaged helper GPU proof, and packaged startup smoke.
+- The canonical real nude-PAC proof passed all 72 gates through
+  `d3d11_vortice_shader` and `cdmw_mesh_core_0.1`. It bound three archive DDS
+  textures, changed only 12 selected vertices over 40 physical updates, recorded
+  0.5038 ms handler p95 and 38.8021 ms maximum heartbeat gap, produced a 16,744
+  pixel material difference, completed topology/UV/material/texture/undo/export/
+  readback, and preserved every PAMT/PAZ hash. Evidence:
+  `%TEMP%\cdmw-real-archive-mesh-editor-dotnet-7b829aea6dc94e998630a809543125ef\evidence_report.json`.
+- The final full-scale hidden Vortice soak passed with one million vertices,
+  1,000 sparse updates plus 64 warmups, 59.9742 effective updates/second,
+  0.2084 ms handler p95, 0.4659 ms maximum, and zero post-warmup growth. Evidence:
+  `%TEMP%\cdmw-mesh-editor-resident-repair-20260713-004343\dotnet-gpu-sparse-soak-final.json`.
+- External import proof passed against the authorized sword ZIP; the focused
+  real-game test reported 1 passed. The material corpus covers 20 declared
+  policy profiles, two hashed actual assets, and three failure cases with corpus
+  fingerprint `46a6af2113ca7c7d6543d628c7b0590c87f4fbce20c45ce104372221ff4eecf5`.
+- Current-worktree release builds and their startup/helper verification passed
+  again after the final packaged-UI repairs. The onefile artifact is
+  183,141,243 bytes, SHA-256
+  `87841F35E7F62EDA635777E778B4FE1F8DA99462B8D5EAF1098C4C6E85C798CC`.
+  The onedir EXE is 16,460,434 bytes, SHA-256
+  `A04A317C09EFDAE30D56462793055D5CFFCB397AF6388165D5378DE75A2B458D`.
+  Its bundled helper SHA-256 is
+  `A9BCADB48CC5BC330162CEF9C789BCAB8341DC1C4F59E6235133D88B891F45B4`,
+  and the helper-manifest file SHA-256 is
+  `96BE3BBFB041A8A902E7106A030C0C821D83D9C37D0138B04C556FC4FDE099F6`.
+- Computer Use completed the real packaged Mesh Editor workflow in both release
+  modes against
+  `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` after loading
+  the 1,674,731-entry archive cache. Onedir rendered separate Original and
+  Imported/Modify views. The final clean artifact was exercised from an
+  authorized temporary copy and kept helper PID 21620 across Edit Mesh, Finish
+  Edit Mesh, and placement; the preceding full control pass also proved
+  immediate edit-mode re-entry without reload. Runtime evidence recorded
+  `mesh_dotnet_edit_mode_finished_resident` with process generation 1 and no
+  deactivation/provenance-block event. Select All and Clear Selection produced
+  visible acknowledged selection changes. The embedded Advanced section opened
+  inside the Builder with no orphan window. Onefile repeated the real-PAC
+  Builder/helper smoke with helper PID 28236 and recorded
+  `mesh_dotnet_helper_provenance_verified` from its `_MEI` extraction.
+- The visible pass exposed and closed three packaged-only defects: Builder
+  factory read-before-assignment plus an orphan parentless Advanced section,
+  false helper-provenance rejection after an already verified
+  `protocol_ready`, and Finish Edit Mesh hiding the resident helper and leaving
+  a blank viewport. The final `mesh-unit` gate reported 706 passed and 1
+  skipped; focused resident-finish/true-close/busy-stroke review reported 20
+  passed. Both Builders were cancelled, `Build Mod` was never invoked, no game
+  archive was written, and both applications shut down without helper orphans.
+- The full-suite runtime smoke exposed and closed an Item Icons worker teardown
+  race: finished Python workers now return to the UI thread before their QThread
+  quits, and both objects are defer-deleted only after nonblocking native teardown
+  confirmation. Focused Item Icons/output/runtime/documentation coverage reported
+  26 passed. The completed active plan was removed from `docs/plans/active/`.
 
 2026-07-12:
 

@@ -111,8 +111,9 @@ The direct harness CLI resolves the game root from `--game-root`, then
 
 ```powershell
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --material-resource-policy-report "$env:TEMP\cdmw-material-resource-policy-runtime.json"
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-sparse-soak --gpu-soak-report "$env:TEMP\cdmw-dotnet-gpu-sparse-soak.json"
-.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_scene_import_uv_contract.py tests/test_scene_import_normalization.py tests/test_scene_importer_gltf.py
 .\scripts\codex_check.ps1 -Area mesh -GameRoot "C:\games\Steam\steamapps\common\Crimson Desert"
@@ -122,7 +123,15 @@ dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mes
 The default .NET GPU soak is the release-scale 1,000,000-vertex / 1,000-update
 60 Hz-equivalent upload gate and never shows a window. Verified frames bracket
 the paced upload interval; their timings remain evidence but do not throttle
-or redefine the edit-handler gate. For a fast environment check,
+or redefine the edit-handler gate. The report also proves exact editable and
+reference visibility plus pane roles for Side by Side, Overlay, Replacement
+Only, and Original Only. It additionally renders hidden offscreen front, back,
+and oblique captures of both a two-sided neutral plane and a textured,
+fully-metallic two-sided plane through the production shader. It rejects low
+center-patch luminance, lost texture contrast, background collapse, or
+front/back lighting imbalance, and excessive angle-driven chromaticity or
+all-view brightness drift. That synthetic GPU check is regression evidence,
+not a substitute for the explicit real-PAC visual gate. For a fast environment check,
 use `--gpu-soak-smoke --gpu-soak-vertices 30000 --gpu-soak-updates 100
 --gpu-soak-warmup 16 --gpu-soak-no-cadence`; smoke JSON is explicitly marked
 `release_gate_eligible=false`.
@@ -152,14 +161,23 @@ normal/full QA metadata excludes both visual classes. The real proof cycles the
 same resident nude PAC through neutral untextured faces, wire plus vertices,
 vertices only, and restored production textures. It requires stable PID/HWND,
 zero package/decode/SRV churn, non-black geometry, and captured draw counters
-for every mode. `mesh-dotnet-native-parity-report` is an explicit blocked
-report scaffold, not a passing gate, until same-camera automated comparison is
-implemented.
+for every mode. `mesh-dotnet-native-parity-report` is a headless, offline
+OpenImageIO comparison for two explicit PNG captures. It reports mean/RMS/max
+error, peak SNR, threshold counts, and an amplified absolute-difference PNG.
+It does not create captures or prove matching camera/light/provenance, so a
+pass is regression evidence and never replaces the canonical real-PAC visual
+gate. Configure `oiiotool` with `--oiio-path`, `CDMW_OIIO_BIN`, or `PATH`:
+
+```powershell
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario mesh-dotnet-native-parity-report --parity-reference "$env:TEMP\native.png" --parity-candidate "$env:TEMP\dotnet.png" --output "$env:TEMP\cdmw-mesh-image-parity"
+```
 
 Exact external-model import regression (local licensed/source assets, opt-in):
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q -m real_game tests/test_real_external_sword_import.py
+.\.venv\Scripts\python.exe tools\build_mesh_material_profile_corpus.py --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --external-model "E:\ModelCatalogue\downloads\.cdmw_extracted\wolf_gravestone_sword_free (1)\scene.gltf" --oiio-path ".\.venv\Scripts\oiiotool.exe" --output "$env:TEMP\cdmw-mesh-material-profile-corpus.json"
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_material_profile_corpus.py tests/test_mesh_material_resource_policy.py
 ```
 
 This resolves `wolf_gravestone_sword_free (1).zip` through production catalogue
@@ -167,7 +185,14 @@ ingestion and reads
 `character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac`
 through archive identity. It verifies centered/Y-grounded placement, one shared
 side-by-side/overlay grid, discovered non-checker texture inputs, and unchanged
-source PAMT/PAZ fingerprints. Packaged texture presentation is separately
+source PAMT/PAZ fingerprints. The corpus command consumes the scene produced by
+that verified ZIP ingestion rather than treating the ZIP itself as a scene.
+The profile corpus records supported-profile
+channel/criticality/scalar/tint/normal-Y/layer contracts, real PAC and external
+content-addressed inputs, OpenImageIO metadata/statistics, and required/optional
+synthetic failures. Identical inputs must produce an identical corpus
+fingerprint. Its scope is translator/resource parity; deterministic production
+captures provide the separate renderer-pixel evidence. Packaged texture presentation is separately
 confirmed by the explicit local Computer Use replay.
 
 Protocol-only local smoke, when a real game archive is not available:
@@ -319,7 +344,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mod
 
 Both release modes publish the self-contained .NET helper, require its hidden
 `d3d11_vortice_shader` GPU smoke to keep all native windows hidden, and run the
-packaged offscreen startup verifier before moving output into `dist/`. GitHub
+packaged offscreen startup verifier before moving output into `dist/`. The
+onedir publisher removes the smoke-created `workspace/` and
+`CrimsonDesertModWorkbench.cfg` runtime artifacts before publishing. GitHub
 Actions runs the complete nonvisual gate on Python 3.11 and 3.14 first;
 packaging has a hard dependency on both matrix jobs. CI explicitly excludes
 `visual` and `real_game` tests. Licensed local game evidence remains the separate

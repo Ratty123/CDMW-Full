@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
+    builder_presentation_state,
+    effective_builder_comparison_mode,
+)
+
 def _mesh_geometry_preview_step_001(_state):
     _state.CollapsibleSection = _state.context.get('CollapsibleSection')
     _state.Dict = _state.context.get('Dict')
@@ -48,6 +53,9 @@ def _mesh_geometry_preview_step_001(_state):
     _state._mesh_edit_action_control_text_helper = _state.context.get('_mesh_edit_action_control_text_helper')
     _state._mesh_edit_dialog_title_helper = _state.context.get('_mesh_edit_dialog_title_helper')
     _state.preview_mesh_edit_checkbox = _state.context.get('preview_mesh_edit_checkbox')
+    _state.preview_gizmo_checkbox = _state.context.get('preview_gizmo_checkbox')
+    _state.preview_part_pick_checkbox = _state.context.get('preview_part_pick_checkbox')
+    _state._current_alignment_preview_render_settings = _state.context.get('_current_alignment_preview_render_settings')
     _state._morph_slider_add_target_action_text_helper = _state.context.get('_morph_slider_add_target_action_text_helper')
     _state._morph_slider_bake_action_text_helper = _state.context.get('_morph_slider_bake_action_text_helper')
     _state._morph_slider_bake_action_tooltip_helper = _state.context.get('_morph_slider_bake_action_tooltip_helper')
@@ -100,6 +108,13 @@ def _mesh_geometry_preview_step_001(_state):
     _state.locals = _state._context_builtin(_state.context, 'locals')
     _state.mapping_edits = _state.context.get('mapping_edits')
     _state.mapping_tree = _state.context.get('mapping_tree')
+    _state.hovered_source_part = _state.context.get('hovered_source_part') or {}
+    _state.selected_source_highlight_indices = _state.context.get('selected_source_highlight_indices') or set()
+    _state.selected_target_source_highlight_indices = _state.context.get('selected_target_source_highlight_indices') or set()
+    _state.selected_original_highlight_indices = _state.context.get('selected_original_highlight_indices') or set()
+    _state.selected_target_original_highlight_indices = _state.context.get('selected_target_original_highlight_indices') or set()
+    _state.source_part_adjustments = _state.context.get('source_part_adjustments') or {}
+    _state.texture_uv_global_transform_state = _state.context.get('texture_uv_global_transform_state') or {}
     _state.max = _state._context_builtin(_state.context, 'max')
     _state.mesh_edit_layout_page = _state.context.get('mesh_edit_layout_page')
     _state.mesh_edit_page = _state.context.get('mesh_edit_page')
@@ -340,6 +355,122 @@ def _mesh_geometry_preview_step_007(_state):
     _state.compact_selection_mode_combo = None
     _state.compact_selection_depth_combo = None
 
+def _bind_embedded_mesh_editor_preview(_state):
+    if _state.dialog is None:
+        return
+
+    def _mesh_editor_embedded_presentation_state():
+        camera_getter = getattr(_state, '_alignment_current_camera_state', None)
+        camera = camera_getter() if callable(camera_getter) else {}
+        # This section is created before the alignment-settings callbacks. Read
+        # through the live preview-settings accessor instead of retaining the
+        # initial settings object captured in this factory state.
+        settings_getter = getattr(_state, '_current_preview_render_settings', None)
+        settings = settings_getter() if callable(settings_getter) else _state.preview_render_settings
+        try:
+            hovered_source_index = int(_state.hovered_source_part.get('index', -1))
+        except (AttributeError, TypeError, ValueError):
+            hovered_source_index = -1
+        split_ratio_getter = getattr(
+            _state.alignment_d3d11_preview_host,
+            'remember_side_by_side_split_ratio',
+            None,
+        )
+        try:
+            split_ratio = float(split_ratio_getter()) if callable(split_ratio_getter) else 0.5
+        except (TypeError, ValueError, AttributeError):
+            split_ratio = 0.5
+        comparison_mode = effective_builder_comparison_mode(
+            _state.preview_mode_combo.currentData(),
+            bool(_state.mesh_edit_enabled_checkbox.isChecked()),
+        )
+        return builder_presentation_state(
+            comparison_mode=comparison_mode,
+            camera=camera,
+            render_settings=settings,
+            grid_visible=True,
+            gizmo_visible=bool(_state.preview_gizmo_checkbox.isChecked()),
+            part_pick_enabled=bool(_state.preview_part_pick_checkbox.isChecked()),
+            mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()),
+            selected_source_indices=tuple(_state.selected_source_highlight_indices),
+            selected_target_source_indices=tuple(_state.selected_target_source_highlight_indices),
+            selected_original_indices=tuple(_state.selected_original_highlight_indices),
+            selected_target_original_indices=tuple(_state.selected_target_original_highlight_indices),
+            hovered_source_index=hovered_source_index,
+            source_part_adjustments=_state.source_part_adjustments,
+            uv_state=_state.texture_uv_global_transform_state,
+            side_by_side_split_ratio=split_ratio,
+        )
+
+    def _mesh_editor_embedded_split_ratio_changed(ratio):
+        try:
+            remembered = _state.alignment_d3d11_preview_host.remember_side_by_side_split_ratio(
+                float(ratio)
+            )
+            _state.self.settings.setValue(
+                'ui/mesh_alignment/d3d11_side_by_side_split_ratio',
+                remembered,
+            )
+            return True
+        except (TypeError, ValueError, AttributeError, RuntimeError):
+            return False
+
+    def _mesh_editor_embedded_reference_native_package() -> str:
+        prepared = str(_state.original_reference_texture_preview_state.get('native_package_path', '') or '').strip()
+        if prepared:
+            return prepared
+        current_entry = _state.self._current_archive_entry() if callable(getattr(_state.self, '_current_archive_entry', None)) else None
+        same_entry = callable(getattr(_state.self, '_same_archive_entry', None)) and _state.self._same_archive_entry(current_entry, _state.entry)
+        if not same_entry:
+            return ''
+        current_result = getattr(_state.self, 'current_archive_preview_result', None)
+        return str(getattr(current_result, 'native_preview_package_path', '') or '').strip()
+
+    setattr(_state.dialog, '_mesh_editor_auto_dotnet_preview', True)
+    setattr(_state.dialog, '_mesh_editor_action_bar_action_requested', _state.alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested)
+    setattr(_state.dialog, '_mesh_editor_embedded_controller', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_controller)
+    setattr(_state.dialog, '_mesh_editor_embedded_placement_state', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_placement_state)
+    setattr(
+        _state.dialog,
+        '_mesh_editor_embedded_scene_transform',
+        lambda: _state._current_static_alignment_transform(),
+    )
+    setattr(_state.dialog, '_mesh_editor_embedded_reference_mesh', lambda: _state.original_mesh_for_mapping)
+    setattr(
+        _state.dialog,
+        '_mesh_editor_embedded_reference_native_package',
+        _mesh_editor_embedded_reference_native_package,
+    )
+    setattr(
+        _state.dialog,
+        '_mesh_editor_embedded_reference_material_model',
+        lambda: _state._current_original_reference_preview_model(),
+    )
+    setattr(
+        _state.dialog,
+        '_mesh_editor_embedded_comparison_mode',
+        lambda: effective_builder_comparison_mode(
+            _state.preview_mode_combo.currentData(),
+            bool(_state.mesh_edit_enabled_checkbox.isChecked()),
+        ),
+    )
+    setattr(
+        _state.dialog,
+        '_mesh_editor_embedded_placement_comparison_mode',
+        lambda: effective_builder_comparison_mode(
+            _state.preview_mode_combo.currentData(),
+            False,
+        ),
+    )
+    setattr(_state.dialog, '_mesh_editor_embedded_interaction_mode', lambda: 'mesh_edit' if _state.mesh_edit_enabled_checkbox.isChecked() else 'placement')
+    setattr(_state.dialog, '_mesh_editor_embedded_presentation_state', _mesh_editor_embedded_presentation_state)
+    setattr(_state.dialog, '_mesh_editor_embedded_split_ratio_changed', _mesh_editor_embedded_split_ratio_changed)
+    setattr(_state.dialog, '_mesh_editor_embedded_apply_native_update', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_apply_native_update)
+    setattr(_state.dialog, '_mesh_editor_embedded_finalize_dotnet_import', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_finalize_dotnet_import)
+    setattr(_state.dialog, '_mesh_editor_embedded_run_part_action', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_run_part_action)
+    setattr(_state.dialog, '_mesh_editor_embedded_set_skeleton_bone', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_set_skeleton_bone)
+
+
 def _mesh_geometry_preview_step_008(_state):
     if _state.classic_mesh_edit_toolbar is not None and _state.classic_mesh_edit_toolbar_layout is not None:
         _state.compact_actions_by_key = _state.mesh_editor_actions_by_key()
@@ -420,18 +551,7 @@ def _mesh_geometry_preview_step_008(_state):
     _state.alignment_mesh_edit_callbacks = _state.create_alignment_mesh_edit_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_delete_selected_source_parts': lambda *args, **kwargs: _state._delete_selected_source_parts(*args, **kwargs)})
     if _state.classic_mesh_edit_action_bar is not None:
         _state.classic_mesh_edit_action_bar.action_requested.connect(_state.alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested)
-    if _state.dialog is not None:
-        setattr(_state.dialog, '_mesh_editor_auto_dotnet_preview', True)
-        setattr(_state.dialog, '_mesh_editor_action_bar_action_requested', _state.alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested)
-        setattr(_state.dialog, '_mesh_editor_embedded_controller', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_controller)
-        setattr(_state.dialog, '_mesh_editor_embedded_placement_state', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_placement_state)
-        setattr(_state.dialog, '_mesh_editor_embedded_reference_mesh', lambda: _state.original_mesh_for_mapping)
-        setattr(_state.dialog, '_mesh_editor_embedded_comparison_mode', lambda: str(_state.preview_mode_combo.currentData() or 'side_by_side'))
-        setattr(_state.dialog, '_mesh_editor_embedded_interaction_mode', lambda: 'mesh_edit' if _state.mesh_edit_enabled_checkbox.isChecked() else 'placement')
-        setattr(_state.dialog, '_mesh_editor_embedded_apply_native_update', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_apply_native_update)
-        setattr(_state.dialog, '_mesh_editor_embedded_finalize_dotnet_import', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_finalize_dotnet_import)
-        setattr(_state.dialog, '_mesh_editor_embedded_run_part_action', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_run_part_action)
-        setattr(_state.dialog, '_mesh_editor_embedded_set_skeleton_bone', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_set_skeleton_bone)
+    _bind_embedded_mesh_editor_preview(_state)
     _state._mesh_edit_adjusted_sources_for_live_preview = _state.alignment_mesh_edit_callbacks._mesh_edit_adjusted_sources_for_live_preview
     _state._mesh_edit_all_live_vertices_for_sources = _state.alignment_mesh_edit_callbacks._mesh_edit_all_live_vertices_for_sources
     _state._mesh_edit_allowed_source_indices = _state.alignment_mesh_edit_callbacks._mesh_edit_allowed_source_indices

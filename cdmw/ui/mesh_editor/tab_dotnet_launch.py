@@ -5,8 +5,6 @@ from typing import Mapping, Sequence
 
 from PySide6.QtCore import QThread
 
-
-
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
@@ -100,6 +98,16 @@ class MeshEditorDotNetLaunchMixin:
                     existing_controller is not None
                     and existing_controller.session_view().session_id == controller.session_view().session_id
                 )
+                cached_scene_identity = str(
+                    getattr(
+                        getattr(self.standalone_dotnet_experiment_package, "scene_frame", None),
+                        "source_identity",
+                        "",
+                    )
+                    or ""
+                )
+                current_scene_identity = cached_scene_identity
+                same_scene = bool(cached_scene_identity)
                 current_material_signature = _tab.mesh_dotnet_material_input_signature(
                     controller.working_mesh(clone=False)
                 )
@@ -114,15 +122,18 @@ class MeshEditorDotNetLaunchMixin:
                 )
             except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 same_session = False
+                same_scene = False
+                current_scene_identity = ""
                 same_materials = False
                 current_material_signature = ""
             resident_materials = self._dotnet_resident_material_updates_supported()
-            if same_session and (same_materials or resident_materials):
+            if same_session and same_scene and (same_materials or resident_materials):
                 self.standalone_dotnet_target_controller = controller
                 self._set_embedded_dotnet_state("launching", active=False)
                 if self._send_dotnet_protocol_message(
                     {
                         "event": "activate_request",
+                        "source_identity": current_scene_identity,
                         "material_signature": current_material_signature,
                         "material_generation": self.standalone_dotnet_material_generation + (0 if same_materials else 1),
                     }
@@ -138,7 +149,9 @@ class MeshEditorDotNetLaunchMixin:
                     return
                 self._stop_standalone_dotnet_editor_process(embedded_state="failed")
             else:
-                if same_session and not same_materials:
+                if same_session and (
+                    not same_scene or (not same_materials and not resident_materials)
+                ):
                     self.standalone_dotnet_lifecycle_counts["full_reload_count"] += 1
                 self._stop_standalone_dotnet_editor_process()
         executable = self._dotnet_editor_executable_path()
@@ -169,6 +182,8 @@ class MeshEditorDotNetLaunchMixin:
         if self._standalone_dotnet_editor_process_running():
             self._set_dotnet_status("Mesh .NET editor experiment is already running.")
             return
+        self.standalone_dotnet_pending_clone_material_model = None
+        self.standalone_dotnet_pending_reference_material_model = None
         session_id = controller.session_view().session_id
         if self.standalone_dotnet_lifecycle_session_id != session_id:
             self.standalone_dotnet_lifecycle_session_id = session_id
@@ -192,13 +207,22 @@ class MeshEditorDotNetLaunchMixin:
         )
         reference_mesh = self._dotnet_reference_mesh_for_package(controller, embedded=embedded)
         comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(embedded=embedded)
+        scene_transform = self._dotnet_current_scene_transform(embedded=embedded)
         worker = _tab.MeshDotNetExperimentPackageWorker(
             request_id,
             controller.mesh_service,
             session_id,
             reference_mesh=reference_mesh,
+            reference_material_source=self._dotnet_reference_material_source_for_package(
+                embedded=embedded
+            ),
+            reference_native_package=self._dotnet_reference_native_package_for_package(
+                embedded=embedded
+            ),
             comparison_mode=comparison_mode,
             interaction_mode=interaction_mode,
+            scene_transform=scene_transform,
+            scene_generation=1,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -235,6 +259,37 @@ class MeshEditorDotNetLaunchMixin:
         except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
             return None
 
+    def _dotnet_reference_material_source_for_package(self, *, embedded: bool) -> object | None:
+        if not embedded:
+            return None
+        getter = getattr(
+            self.active_builder(),
+            "_mesh_editor_embedded_reference_material_model",
+            None,
+        )
+        if not callable(getter):
+            return None
+        try:
+            return getter()
+        except Exception:
+            return None
+
+    def _dotnet_reference_native_package_for_package(self, *, embedded: bool) -> Path | None:
+        if not embedded:
+            return None
+        getter = getattr(
+            self.active_builder(),
+            "_mesh_editor_embedded_reference_native_package",
+            None,
+        )
+        if not callable(getter):
+            return None
+        try:
+            value = str(getter() or "").strip()
+            return Path(value) if value else None
+        except (OSError, TypeError, ValueError):
+            return None
+
     def _dotnet_initial_scene_modes(self, *, embedded: bool) -> tuple[str, str]:
         if not embedded:
             comparison = {"source": "original_only", "ghost": "overlay"}.get(
@@ -266,6 +321,16 @@ class MeshEditorDotNetLaunchMixin:
         except Exception:
             return None
         return value if isinstance(value, Mapping) else None
+    def _dotnet_current_scene_transform(self, *, embedded: bool) -> object | None:
+        if not embedded:
+            return None
+        getter = getattr(self.active_builder(), "_mesh_editor_embedded_scene_transform", None)
+        if not callable(getter):
+            return None
+        try:
+            return getter()
+        except Exception:
+            return None
     def _handle_standalone_dotnet_package_ready(self, request_id: int, package_object: object, elapsed_ms: float) -> None:
         if int(request_id) != int(self.standalone_dotnet_package_request_id):
             return

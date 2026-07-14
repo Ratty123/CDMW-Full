@@ -51,6 +51,8 @@ static void select_package_batch_bindings(PackageWriteState& state, PackageBatch
     batch.base_technical = batch.base != nullptr
         && (technical_for_visible_base(batch.base->parameter_name, batch.base->archive_path, batch.base->role)
             || dds_format_is_data_only_for_visible_base(batch.base->dds_format));
+    batch.base_wrong_family_layer = batch.base != nullptr
+        && base_binding_is_wrong_family_layer_or_environment(*batch.base, mesh);
     batch.base_semantically_unsafe_skin_albedo = batch.base != nullptr
         && selected_base_is_semantically_unsafe_skin_albedo(*batch.base, mesh);
     const bool authoritative_wrapper = batch.base != nullptr

@@ -29,6 +29,7 @@ from cdmw.services.mesh_service_state import MeshExportSnapshot, MeshExportTextu
 from cdmw.workers.mesh_editor_aux_workers import (
     MeshDotNetExperimentOutputImportWorker,
     MeshDotNetExperimentPackageWorker,
+    MeshDotNetSceneFrameWorker,
     MeshExportValidationWorker,
     MeshFileSessionLoadWorker,
     MeshTextureSourceResolveWorker,
@@ -37,7 +38,6 @@ from cdmw.workers.mesh_export_readback import readback_editable_package_metadata
 
 _LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})
 _BASE_TEXTURE_CHANNELS = frozenset({"base", "base_color", "albedo", "diffuse"})
-
 
 def _editable_package_mesh_path(path: Path) -> Path:
     if path.is_dir():
@@ -789,6 +789,7 @@ __all__ = [
     "MeshEditablePackageExportWorker",
     "MeshEditablePackageImportWorker",
     "MeshDotNetExperimentPackageWorker",
+    "MeshDotNetSceneFrameWorker",
     "MeshDotNetExperimentOutputImportWorker",
     "MeshEditCommandWorker",
     "MeshExportValidationWorker",

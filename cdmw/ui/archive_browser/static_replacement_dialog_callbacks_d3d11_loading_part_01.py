@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
+    send_resident_presentation_state,
+)
+
 def _d3d11_loading_step_001(_state):
     _state.Dict = _state.context.get('Dict')
     _state.Mapping = _state.context.get('Mapping')
@@ -78,6 +82,7 @@ def _d3d11_loading_step_001(_state):
     _state.alignment_preview_view_sync = _state.context.get('alignment_preview_view_sync')
     _state.alignment_transform_generation = _state.context.get('alignment_transform_generation') or {}
     _state.dialog_title = _state.context.get('dialog_title')
+    _state.dialog = _state.context.get('dialog')
     _state.entry = _state.context.get('entry')
     _state.original_dialog_preview = _state.context.get('original_dialog_preview')
     _state.overlay_dialog_preview = _state.context.get('overlay_dialog_preview')
@@ -408,6 +413,14 @@ def _d3d11_loading_step_021(_state):
 def _d3d11_loading_step_022(_state):
 
     def _alignment_current_camera_state() -> Dict[str, object]:
+        if bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False)):
+            saved = _state._alignment_preview_mode_saved_state_helper(
+                _state.alignment_preview_mode_view_states,
+                _state.preview_mode_combo.currentData(),
+            )
+            if saved is not None:
+                return dict(saved)
+            return _state._fixed_alignment_camera_state_helper(-35.0, 20.0, role='replacement')
         if _state._alignment_d3d11_camera_active():
             return _state.self._sanitize_d3d11_view_state_for_restore(_state.alignment_d3d11_preview_host.view_state_snapshot())
         widgets = _state._alignment_active_qt_camera_widgets()
@@ -418,6 +431,11 @@ def _d3d11_loading_step_022(_state):
 def _d3d11_loading_step_023(_state):
 
     def _apply_alignment_camera_state(state: Mapping[str, object]) -> None:
+        if send_resident_presentation_state(_state.dialog, {'camera': dict(state)}):
+            _state.alignment_preview_mode_view_states[
+                _state._alignment_preview_mode_key_helper(_state.preview_mode_combo.currentData())
+            ] = dict(state)
+            return
         if _state._alignment_d3d11_camera_active():
             _state.alignment_d3d11_preview_host.restore_view_state(state)
             return
@@ -448,9 +466,6 @@ def _d3d11_loading_step_026(_state):
     def _set_alignment_camera(yaw: float, pitch: float) -> None:
         state = _state._alignment_current_camera_state()
         state.update(_state._fixed_alignment_camera_state_helper(yaw, pitch, role='replacement'))
-        if _state._alignment_d3d11_camera_active():
-            _state.alignment_d3d11_preview_host.set_view(yaw=float(yaw), pitch=float(pitch), zoom_factor=1.0, fit_to_view=True, pan=(0.0, 0.0, 0.0))
-            return
         _state._apply_alignment_camera_state(state)
     _state._set_alignment_camera = _set_alignment_camera
 

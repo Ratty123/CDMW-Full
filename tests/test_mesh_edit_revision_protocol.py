@@ -142,10 +142,16 @@ def test_native_and_dotnet_receivers_advertise_revision_ack_and_keep_legacy_alia
     assert "mesh_edit_revision_ack_v1" in native
     assert "CanApplyEditRevision" in dotnet
     assert "MarkEditRevisionApplied" in dotnet
+    assert 'reason = "duplicate"' not in dotnet
+    assert "_appliedPacketKindsForRevision" not in dotnet
     assert '["edit_revision"] = revision' in dotnet
     assert '["revision"] = revision' in dotnet
     assert "stale_or_out_of_order" in dotnet
     assert "mesh_edit_revision_ack_v1" in dotnet
+    assert "resident_mutation_envelope_v2" in dotnet
+    assert "CopyMutationEnvelope(request, payload)" in dotnet
+    assert 'case "resident_state_resync":' in dotnet
+    assert 'WriteProtocolEvent("resident_state_resync_ack", payload)' in dotnet
 
     tab = mesh_editor_tab_source()
     queue = Path("cdmw/ui/mesh_editor/dotnet_update_queue.py").read_text(encoding="utf-8")
@@ -153,6 +159,10 @@ def test_native_and_dotnet_receivers_advertise_revision_ack_and_keep_legacy_alia
     assert 'event in {"preview_vertex_update_ack", "preview_triangle_update_ack"}' in tab
     assert "DotNetRevisionUpdateQueue" in tab
     assert "pending_depth" in queue
+    assert '"request_id": request_id' in queue
+    assert '"base_revision": self._last_acked_revision' in queue
+    assert '"process_generation": self._process_generation' in queue
+    assert '"event": "resident_state_resync"' in queue
     assert "_remove_paths(self._active_paths)" in queue
     assert "_handle_dotnet_update_ack_timeout" in tab
     assert "standalone_dotnet_update_ack_timer.start(1_000)" in tab

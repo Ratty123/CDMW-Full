@@ -31,12 +31,12 @@ internal static class NativeWindowHost
         {
             return false;
         }
-        ResizeToParent(form, parent);
+        ResizeToParent(form, parent, forceFrameRefresh: true);
         BringEmbeddedChildToFront(form, parent);
         return true;
     }
 
-    public static void ResizeToParent(Form form, IntPtr parent)
+    public static void ResizeToParent(Form form, IntPtr parent, bool forceFrameRefresh = false)
     {
         if (parent == IntPtr.Zero || !IsWindow(parent) || !GetClientRect(parent, out var rect))
         {
@@ -44,7 +44,20 @@ internal static class NativeWindowHost
         }
         var width = Math.Max(1, rect.Right - rect.Left);
         var height = Math.Max(1, rect.Bottom - rect.Top);
-        SetWindowPos(form.Handle, HwndTop, 0, 0, width, height, SwpNoActivate | SwpFrameChanged | SwpShowWindow);
+        if (!forceFrameRefresh
+            && form.Left == 0
+            && form.Top == 0
+            && form.Width == width
+            && form.Height == height)
+        {
+            return;
+        }
+        var flags = SwpNoActivate | SwpShowWindow;
+        if (forceFrameRefresh)
+        {
+            flags |= SwpFrameChanged;
+        }
+        SetWindowPos(form.Handle, HwndTop, 0, 0, width, height, flags);
     }
 
     private static void BringEmbeddedChildToFront(Form form, IntPtr parent)

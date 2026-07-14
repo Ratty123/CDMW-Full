@@ -44,6 +44,7 @@ $TestsByArea = @{
         "tests/test_mesh_editor_controller.py",
         "tests/test_mesh_editor_actions.py",
         "tests/test_mesh_editor_action_bar.py",
+        "tests/test_mesh_resident_editor_regressions.py",
         "tests/test_mesh_deformer.py",
         "tests/test_mesh_selection_tools.py",
         "tests/test_archive_structured_asset_preview.py",

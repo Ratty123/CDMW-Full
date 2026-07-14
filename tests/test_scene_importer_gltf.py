@@ -381,9 +381,13 @@ class GltfSceneImporterTests(unittest.TestCase):
             assert audit is not None
             inventory = audit.material_inventory[0]
             class_names = {item.material_class for item in inventory.material_classes}
+            mesh = parsed_mesh_to_preview_model(result.mesh).meshes[0]
             self.assertEqual("metallic_roughness", inventory.pbr_workflow)
             self.assertIn("glass_crystal", class_names)
             self.assertNotIn("metal", class_names)
+            self.assertEqual("BLEND", mesh.preview_alpha_mode)
+            self.assertAlmostEqual(0.5, mesh.preview_vertex_alpha_mean)
+            self.assertAlmostEqual(0.5, mesh.preview_native_material_overrides["opacity"])
 
     def test_gltf_external_audit_uses_texture_channel_stats_for_material_classes(self) -> None:
         from PIL import Image

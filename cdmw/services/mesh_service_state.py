@@ -5,7 +5,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping, Sequence
 
-from cdmw.domain.mesh import MeshAnimationClip, MeshEditCommand, MeshEditSelection
+from cdmw.domain.mesh import (
+    MeshAnimationClip,
+    MeshEditCommand,
+    MeshEditSelection,
+    MeshExportValidationReport,
+)
 from cdmw.modding.mesh_parser import ParsedMesh
 
 
@@ -28,6 +33,9 @@ class _MeshHistorySnapshot:
     native_submesh_snapshot: Mapping[str, object] | None = None
     native_editor_history: bool = False
     native_editor_stroke_id: str = ""
+    history_action: str = ""
+    history_label: str = ""
+    selection_only: bool = False
     material_generation: int | None = None
     committed_texture_resources: tuple[_MeshCommittedTextureResource, ...] | None = None
     retained_bytes: int = 0
@@ -111,6 +119,25 @@ class MeshExportSnapshot:
     requires_edit_operations: bool = False
     texture_resources: tuple[MeshExportTextureSnapshot, ...] = ()
     material_parameter_groups: tuple[Mapping[str, object], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class MeshPreparedWorkingMeshReplacement:
+    """Fully prepared replacement that can be committed by revision in one lock."""
+
+    session_id: str
+    expected_revision: int
+    working_mesh: ParsedMesh
+    selection: MeshEditSelection
+    previous_working_mesh: ParsedMesh
+    previous_selection: MeshEditSelection
+    validation_report: MeshExportValidationReport
+    previous_sidecar_warnings: tuple[object, ...] = ()
+    previous_edit_operations: tuple[object, ...] = ()
+    previous_requires_edit_operations: bool = False
+    sidecar_warnings: tuple[object, ...] = ()
+    edit_operations: tuple[object, ...] = ()
+    requires_edit_operations: bool = False
 
 
 @dataclass(slots=True)

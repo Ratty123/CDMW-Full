@@ -7,6 +7,8 @@ from collections.abc import Callable, Mapping, Sequence
 
 from PySide6.QtGui import QImage
 
+from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
+
 
 ORIGINAL_PREVIEW_TEXTURE_ATTRS = (
     "material_name",
@@ -134,6 +136,26 @@ def copy_preview_material_bindings_to_mesh(mesh: object, preview_model: object) 
                 continue
             setattr(submesh, attr, clone_preview_attr_value(getattr(preview_mesh, attr)))
     return len(submeshes)
+
+
+def apply_resolved_original_materials_to_resident_editor(
+    *,
+    dialog: object,
+    replacement_mesh_base: object,
+    replacement_mesh: object,
+    preview_model: object,
+    modify_original_clone_mode: bool,
+) -> None:
+    """Publish late original bindings to the resident reference and exact clone."""
+    if modify_original_clone_mode:
+        copy_dotnet_preview_material_bindings(replacement_mesh_base, preview_model)
+        copy_dotnet_preview_material_bindings(replacement_mesh, preview_model)
+        apply_clone = getattr(dialog, "_mesh_editor_embedded_apply_clone_material_resources", None)
+        if callable(apply_clone):
+            apply_clone(preview_model)
+    apply_reference = getattr(dialog, "_mesh_editor_embedded_apply_reference_material_resources", None)
+    if callable(apply_reference):
+        apply_reference(preview_model)
 
 
 def copy_exact_clone_original_preview_materials(
@@ -272,6 +294,7 @@ def apply_original_material_preview(
 
 __all__ = [
     "ORIGINAL_PREVIEW_TEXTURE_ATTRS",
+    "apply_resolved_original_materials_to_resident_editor",
     "apply_original_material_preview",
     "clone_preview_attr_value",
     "copy_exact_clone_original_preview_materials",

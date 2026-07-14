@@ -19,9 +19,17 @@ from cdmw.services.mesh_dotnet_experiment import (
     write_mesh_dotnet_experiment_evaluation,
 )
 from cdmw.services.mesh_service import MeshService
+from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
+from cdmw.services.mesh_dotnet_reference_composite import (
+    apply_dotnet_native_reference_materials,
+    append_dotnet_native_reference_composite,
+)
 from cdmw.services.mesh_texture_sources import resolve_mesh_texture_source
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.modding.static_mesh_scene_frame import selection_pivot_source_from_mesh
+from cdmw.modding.static_mesh_scene_frame import build_authoritative_static_scene_frame
+from cdmw.modding.static_mesh_types import StaticReplacementTransform
 
 
 class MeshFileSessionLoadWorker(QObject):
@@ -165,8 +173,12 @@ class MeshDotNetExperimentPackageWorker(QObject):
         *,
         output_root: Path | str | None = None,
         reference_mesh: ParsedMesh | None = None,
+        reference_material_source: object | None = None,
+        reference_native_package: Path | str | None = None,
         comparison_mode: str = "side_by_side",
         interaction_mode: str = "placement",
+        scene_transform: StaticReplacementTransform | None = None,
+        scene_generation: int = 1,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -174,7 +186,97 @@ class MeshDotNetExperimentPackageWorker(QObject):
         self.session_id = str(session_id or "")
         self.output_root = Path(output_root) if output_root is not None else None
         self.reference_mesh = reference_mesh
+        self.reference_material_source = reference_material_source
+        self.reference_native_package = Path(reference_native_package) if reference_native_package else None
         self.comparison_mode = str(comparison_mode or "side_by_side")
+        self.interaction_mode = str(interaction_mode or "placement")
+        self.scene_transform = scene_transform
+        self.scene_generation = max(1, int(scene_generation))
+        self.stop_event = threading.Event()
+
+    def stop(self) -> None:
+        self.stop_event.set()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            if self.stop_event.is_set():
+                return
+            started = time.perf_counter()
+            mesh = self.service.working_mesh(self.session_id, clone=True)
+            view = self.service.session_view(self.session_id)
+            selection_pivot = selection_pivot_source_from_mesh(mesh, view.selection)
+            reference_mesh = clone_mesh_for_editing(self.reference_mesh) if self.reference_mesh is not None else None
+            if reference_mesh is not None and self.reference_material_source is not None:
+                copy_dotnet_preview_material_bindings(
+                    reference_mesh,
+                    self.reference_material_source,
+                )
+            if reference_mesh is not None and self.reference_native_package is not None:
+                apply_dotnet_native_reference_materials(
+                    reference_mesh,
+                    self.reference_native_package,
+                    cancelled=self.stop_event.is_set,
+                )
+                append_dotnet_native_reference_composite(
+                    reference_mesh,
+                    self.reference_native_package,
+                    cancelled=self.stop_event.is_set,
+                )
+            if self.stop_event.is_set():
+                return
+            package = build_mesh_dotnet_experiment_package(
+                mesh,
+                output_root=self.output_root,
+                reference_mesh=reference_mesh,
+                comparison_mode=self.comparison_mode,
+                interaction_mode=self.interaction_mode,
+                scene_transform=self.scene_transform,
+                scene_generation=self.scene_generation,
+                scene_session_id=self.session_id,
+                selection_pivot_source=selection_pivot,
+            )
+            elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
+            if self.stop_event.is_set():
+                shutil.rmtree(package.package_dir, ignore_errors=True)
+                return
+            self.completed.emit(self.request_id, package, elapsed_ms)
+        except Exception as exc:
+            if not self.stop_event.is_set():
+                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
+        finally:
+            self.finished.emit()
+
+
+class MeshDotNetSceneFrameWorker(QObject):
+    """Calculate one correlated resident frame without touching the Qt thread."""
+
+    completed = Signal(int, object, float)
+    error = Signal(int, str)
+    finished = Signal()
+
+    def __init__(
+        self,
+        request_id: int,
+        service: MeshService,
+        session_id: str,
+        reference_mesh: ParsedMesh,
+        transform: StaticReplacementTransform,
+        *,
+        source_identity: str,
+        scene_generation: int,
+        comparison_mode: str,
+        interaction_mode: str,
+    ) -> None:
+        super().__init__()
+        self.request_id = int(request_id)
+        self.service = service
+        self.session_id = str(session_id or "")
+        self.reference_mesh = reference_mesh
+        self.transform = transform
+        self.source_identity = str(source_identity or "")
+        self.scene_generation = max(1, int(scene_generation))
+        self.comparison_mode = str(comparison_mode or "replacement_only")
         self.interaction_mode = str(interaction_mode or "placement")
         self.stop_event = threading.Event()
 
@@ -188,21 +290,24 @@ class MeshDotNetExperimentPackageWorker(QObject):
                 return
             started = time.perf_counter()
             mesh = self.service.working_mesh(self.session_id, clone=True)
-            reference_mesh = clone_mesh_for_editing(self.reference_mesh) if self.reference_mesh is not None else None
+            view = self.service.session_view(self.session_id)
+            reference = clone_mesh_for_editing(self.reference_mesh)
             if self.stop_event.is_set():
                 return
-            package = build_mesh_dotnet_experiment_package(
+            frame = build_authoritative_static_scene_frame(
+                reference,
                 mesh,
-                output_root=self.output_root,
-                reference_mesh=reference_mesh,
+                self.transform,
+                source_identity=self.source_identity,
+                scene_generation=self.scene_generation,
                 comparison_mode=self.comparison_mode,
                 interaction_mode=self.interaction_mode,
+                selection_pivot_source=selection_pivot_source_from_mesh(mesh, view.selection),
+                cancelled=self.stop_event.is_set,
             )
             elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-            if self.stop_event.is_set():
-                shutil.rmtree(package.package_dir, ignore_errors=True)
-                return
-            self.completed.emit(self.request_id, package, elapsed_ms)
+            if not self.stop_event.is_set():
+                self.completed.emit(self.request_id, frame, elapsed_ms)
         except Exception as exc:
             if not self.stop_event.is_set():
                 self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
@@ -230,9 +335,17 @@ class MeshDotNetExperimentOutputImportWorker(QObject):
         self.package = package
         self.status_payload = dict(status_payload or {})
         self.stop_event = threading.Event()
+        self._commit_gate = threading.Lock()
+        self._commit_started = False
 
-    def stop(self) -> None:
-        self.stop_event.set()
+    def stop(self) -> bool:
+        """Cancel preparation, or report that the noninterruptible commit began."""
+
+        with self._commit_gate:
+            if self._commit_started:
+                return False
+            self.stop_event.set()
+            return True
 
     @Slot()
     def run(self) -> None:
@@ -245,13 +358,24 @@ class MeshDotNetExperimentOutputImportWorker(QObject):
                 raise RuntimeError("Mesh .NET editor did not produce an edited OBJ package.")
             if self.stop_event.is_set():
                 return
-            view = self.service.replace_working_mesh(self.session_id, mesh)
-            validation = self.service.validate_export(self.session_id)
+            prepared = self.service.prepare_working_mesh_replacement(self.session_id, mesh)
+            validation = prepared.validation_report
+            if validation.blockers:
+                raise ValueError(
+                    "Mesh .NET output failed pre-commit export validation: "
+                    + str(validation.blockers[0].message)
+                )
+            with self._commit_gate:
+                if self.stop_event.is_set():
+                    return
+                self._commit_started = True
+            view = self.service.commit_prepared_working_mesh_replacement(prepared)
             elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-            if not self.stop_event.is_set():
-                self.completed.emit(self.request_id, view, validation, elapsed_ms)
+            # Once commit starts its terminal result is always published. A late
+            # cancellation cannot turn a successful mutation into a silent one.
+            self.completed.emit(self.request_id, view, validation, elapsed_ms)
         except Exception as exc:
-            if not self.stop_event.is_set():
+            if self._commit_started or not self.stop_event.is_set():
                 message = f"{type(exc).__name__}: {exc}"
                 try:
                     evaluation_path = write_mesh_dotnet_experiment_evaluation(

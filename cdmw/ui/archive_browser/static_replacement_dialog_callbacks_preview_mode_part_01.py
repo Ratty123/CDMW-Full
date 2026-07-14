@@ -1,5 +1,11 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
+    builder_part_highlight_state,
+    effective_builder_comparison_mode,
+    send_resident_presentation_state,
+)
+
 def _preview_mode_step_001(_state):
     _state.ModelPreviewData = _state.context.get('ModelPreviewData')
     _state.NativePreviewPanel = _state.context.get('NativePreviewPanel')
@@ -147,8 +153,11 @@ def _preview_mode_step_009(_state):
 
     def _sync_highlight_sets() -> None:
         d3d11_active = _state._d3d11_preview_active()
-        geometry_active = _state._geometry_tab_active() if d3d11_active else False
-        part_pick_checked = bool(d3d11_active and _state.preview_part_pick_checkbox is not None and _state.preview_part_pick_checkbox.isChecked())
+        resident_active = bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False))
+        preview_active = bool(d3d11_active or resident_active)
+        geometry_active = _state._geometry_tab_active() if preview_active else False
+        texture_tab_active = _state.control_tabs.widget(_state.control_tabs.currentIndex()) is _state.textures_tab if preview_active else False
+        part_pick_checked = bool(preview_active and _state.preview_part_pick_checkbox is not None and _state.preview_part_pick_checkbox.isChecked())
         try:
             hovered_source_index = int(_state.hovered_source_part.get('index', -1))
         except (TypeError, ValueError):
@@ -157,11 +166,23 @@ def _preview_mode_step_009(_state):
             _state.hovered_source_part['index'] = -1
             hovered_source_index = -1
         hovered_source_indices = (hovered_source_index,) if part_pick_checked and hovered_source_index >= 0 else ()
-        selection_state = _state._selection_highlight_sets_state_helper(selected_source_highlights=tuple(_state.selected_source_highlight_indices), selected_target_source_highlights=tuple(_state.selected_target_source_highlight_indices), hovered_source_highlights=hovered_source_indices, selected_original_highlights=tuple(_state.selected_original_highlight_indices), selected_target_original_highlights=tuple(_state.selected_target_original_highlight_indices), d3d11_active=d3d11_active, geometry_active=geometry_active, texture_tab_active=_state.control_tabs.widget(_state.control_tabs.currentIndex()) is _state.textures_tab if d3d11_active else False, mesh_edit_raw_active=bool(_state._mesh_edit_raw_preview_active()) if d3d11_active else False, preview_gizmo_checked=bool(_state.preview_gizmo_checkbox.isChecked()) if d3d11_active else False, mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()) if d3d11_active else False, selected_source_overlay_ids=_state._d3d11_editor_ids_for_source_indices(tuple(_state.selected_source_highlight_indices), selection_overlay=True) if d3d11_active else (), selected_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(tuple(_state.selected_source_highlight_indices)) if d3d11_active else (), selected_target_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(tuple(_state.selected_target_source_highlight_indices)) if d3d11_active else (), hovered_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(hovered_source_indices) if d3d11_active else (), disabled_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(_state._disabled_source_indices()) if d3d11_active else (), default_d3d11_editor_ids=_state._default_d3d11_editor_ids() if d3d11_active else (), part_pick_checked=part_pick_checked)
+        selection_state = _state._selection_highlight_sets_state_helper(selected_source_highlights=tuple(_state.selected_source_highlight_indices), selected_target_source_highlights=tuple(_state.selected_target_source_highlight_indices), hovered_source_highlights=hovered_source_indices, selected_original_highlights=tuple(_state.selected_original_highlight_indices), selected_target_original_highlights=tuple(_state.selected_target_original_highlight_indices), d3d11_active=d3d11_active, geometry_active=geometry_active, texture_tab_active=texture_tab_active, mesh_edit_raw_active=bool(_state._mesh_edit_raw_preview_active()) if preview_active else False, preview_gizmo_checked=bool(_state.preview_gizmo_checkbox.isChecked()) if preview_active else False, mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()) if preview_active else False, selected_source_overlay_ids=_state._d3d11_editor_ids_for_source_indices(tuple(_state.selected_source_highlight_indices), selection_overlay=True) if d3d11_active else (), selected_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(tuple(_state.selected_source_highlight_indices)) if d3d11_active else (), selected_target_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(tuple(_state.selected_target_source_highlight_indices)) if d3d11_active else (), hovered_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(hovered_source_indices) if d3d11_active else (), disabled_source_editor_ids=_state._d3d11_editor_ids_for_source_indices(_state._disabled_source_indices()) if d3d11_active else (), default_d3d11_editor_ids=_state._default_d3d11_editor_ids() if d3d11_active else (), part_pick_checked=part_pick_checked)
         _state.highlighted_source_indices.clear()
         _state.highlighted_source_indices.update(tuple(selection_state['highlighted_source_indices']))
         _state.highlighted_original_indices.clear()
         _state.highlighted_original_indices.update(tuple(selection_state['highlighted_original_indices']))
+        resident_state = builder_part_highlight_state(
+            selection_active=bool(geometry_active or texture_tab_active or hovered_source_indices),
+            highlighted_source_indices=tuple(selection_state['highlighted_source_indices']),
+            highlighted_original_indices=tuple(selection_state['highlighted_original_indices']),
+            hovered_source_index=hovered_source_index,
+            hidden_source_indices=tuple(_state._disabled_source_indices()),
+            grid_visible=True,
+            gizmo_visible=bool(selection_state['d3d11_gizmo_enabled']),
+            part_pick_enabled=part_pick_checked,
+        )
+        if send_resident_presentation_state(_state.dialog, resident_state):
+            return
         if d3d11_active:
             if hasattr(_state.alignment_d3d11_preview_host, 'set_source_part_picking'):
                 if _state.part_pick_native_state.get('enabled') != part_pick_checked:
@@ -212,8 +233,23 @@ def _preview_mode_step_012(_state):
         previous_mode, mode = _state._alignment_preview_mode_record_helper(_state.alignment_preview_mode_state, mode)
         if previous_mode != mode:
             _state._save_alignment_preview_mode_view_state(previous_mode)
+        resident_mode = effective_builder_comparison_mode(
+            mode,
+            bool(_state.mesh_edit_enabled_checkbox.isChecked()),
+        )
         set_scene_state = getattr(_state.dialog, '_mesh_editor_embedded_set_scene_state', None)
-        if callable(set_scene_state) and bool(set_scene_state(comparison_mode=mode)):
+        active_view = {
+            'original_only': 'reference',
+            'overlay': 'comparison',
+            'side_by_side': 'comparison',
+        }.get(resident_mode, 'editable')
+        presentation_sent = send_resident_presentation_state(
+            _state.dialog,
+            {'active_view': active_view, 'comparison_mode': resident_mode},
+        )
+        if callable(set_scene_state) and bool(set_scene_state(comparison_mode=resident_mode)):
+            return
+        if presentation_sent:
             return
         needs_static_refresh = _state._preview_mode_needs_static_refresh(mode)
         mode_route = _state._alignment_preview_mode_route_helper(mode, d3d11_active=_state._d3d11_preview_active(), needs_static_refresh=needs_static_refresh)

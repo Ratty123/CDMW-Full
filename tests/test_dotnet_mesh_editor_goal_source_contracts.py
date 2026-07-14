@@ -21,3 +21,33 @@ def test_dotnet_material_channels_and_embedded_panel_source_contracts() -> None:
     assert 'SetWindowTheme(control.Handle, "DarkMode_Explorer", null)' in source
     assert source.index("_ = _textureSet.LoadAsync(_materials);") < source.index("_viewport = new MeshViewport")
     assert 'AddSection(stack, "Clipboard"' not in source
+
+
+def test_builder_presentation_fields_are_consumed_by_the_vortice_renderer() -> None:
+    dotnet_root = Path(__file__).resolve().parents[1] / "tools" / "dotnet_mesh_editor_experiment"
+    source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(dotnet_root.glob("*.cs")))
+    hlsl_source = (dotnet_root / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
+
+    assert "ApplyPresentationQualityAndUv(display, root)" in source
+    assert "ApplyPresentationPartStates(root)" in source
+    assert "SetPresentationPartMatrices" in source
+    assert "_presentationHighlightedOriginals" in source
+    assert "ForceNearestSampling" in source
+    assert "CullBackFaces" in source
+    assert "TextureAddressMode.Clamp" in source
+    assert '"force_flip" => 1.0f' in source
+    assert "PresentationUvScaleOffset" in hlsl_source
+    assert "PresentationUvRotationFlip" in hlsl_source
+    assert "PresentationLightingTuning" in hlsl_source
+    assert "PresentationMaterialTuning" in hlsl_source
+    assert "NormalTexture.Sample(MaterialSampler, uv)" in hlsl_source
+    assert "finalColor *= max(PresentationToneTuning.x, 0.05f)" in hlsl_source
+    assert "PreviewEnvironmentIntensity" in hlsl_source
+    assert "SourceStableFresnel" in hlsl_source
+    assert "environmentSpecular" in hlsl_source
+    assert "bool isFrontFace : SV_IsFrontFace" in hlsl_source
+    assert "MaterialAlphaPolicy.z > 0.5f && !isFrontFace" in hlsl_source
+    assert "materialAlpha *= saturate(MaterialAlphaPolicy.w)" in hlsl_source
+    assert "OpacityFactorForSubmesh" in source
+    assert "const float linearMiddleGray = 0.18f" in hlsl_source
+    assert "contrastedLuma = max(contrastedLuma, finalLuma * 0.55f)" in hlsl_source

@@ -49,6 +49,11 @@ from cdmw.domain.mesh import (
 from cdmw.modding.mesh_importer import MeshRebuildReport
 from cdmw.modding.mesh_exporter import _build_roundtrip_manifest_payload
 from cdmw.modding.skeleton_parser import Bone, Skeleton
+from cdmw.modding.static_mesh_scene_frame import (
+    build_authoritative_static_scene_frame,
+    static_scene_source_identity,
+)
+from cdmw.modding.static_mesh_types import StaticReplacementTransform
 from cdmw.models import (
     ArchiveEntry,
     ModelPreviewData,
@@ -668,6 +673,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
 
         self.assertTrue(getattr(builder, "_mesh_editor_embedded_dotnet_active", False))
         self.assertEqual("ready", getattr(builder, "_mesh_editor_embedded_dotnet_state", ""))
+        diagnostics = builder._mesh_editor_embedded_runtime_diagnostics()
+        self.assertTrue(diagnostics["active"])
+        self.assertEqual("d3d11_vortice_shader", diagnostics["renderer_backend"])
+        self.assertIn("does not hide", diagnostics["presentation"]["pane_header_behavior"])
         app.processEvents()
         tab.deleteLater()
 
@@ -715,18 +724,18 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.standalone_dotnet_target_controller = builder.controller
         with tempfile.TemporaryDirectory() as tmp:
             package_dir = Path(tmp)
+            (output_dir := package_dir / "output").mkdir()
             package = MeshDotNetExperimentPackage(
                 package_dir=package_dir,
                 mesh_path=package_dir / "mesh.obj",
                 obj_sidecar_path=package_dir / "mesh.obj.meta.json",
                 cdmeta_path=package_dir / "mesh.cdmeta.json",
                 original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=package_dir / "dotnet_status.json",
-                output_dir=package_dir / "output",
-                edit_operations_path=package_dir / "output" / "edit_operations.json",
+                status_path=output_dir / "dotnet_status.json",
+                output_dir=output_dir,
+                edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
             )
-
             ok = tab._start_standalone_dotnet_output_import(
                 package,
                 {
@@ -829,22 +838,12 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
         tab.standalone_dotnet_target_embedded = True
-        captured: list[tuple[str, MeshEditSelection | None, dict[str, object]]] = []
+        captured: list[MeshEditCommand] = []
 
-        def fake_apply(
-            action: str,
-            *,
-            selection: MeshEditSelection | None = None,
-            mode: str | None = None,
-            **params: object,
-        ) -> MeshEditResult:
-            captured.append((action, selection, dict(params)))
-            return MeshEditResult(action=action, status="ok", revision=0)
-
-        with patch.object(builder.controller, "apply", side_effect=fake_apply), patch.object(
+        with patch.object(
             tab,
-            "_apply_dotnet_result_update",
-            return_value=True,
+            "_start_dotnet_action_worker",
+            side_effect=lambda _controller, command, **_kwargs: captured.append(command) or True,
         ):
             self.assertTrue(
                 tab._handle_dotnet_protocol_event(
@@ -855,10 +854,10 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual("select", captured[0][0])
-        assert captured[0][1] is not None
-        self.assertEqual(((0, (2,)),), captured[0][1].vertices_by_submesh)
-        self.assertEqual("replace", captured[0][2]["operation"])
+        self.assertEqual("select", captured[0].action)
+        assert captured[0].selection is not None
+        self.assertEqual(((0, (2,)),), captured[0].selection.vertices_by_submesh)
+        self.assertEqual("replace", captured[0].params["operation"])
         app.processEvents()
         tab.deleteLater()
 
@@ -915,13 +914,46 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertTrue(tab.standalone_live_stroke_dispatcher.wait_idle(2.0))
             app.processEvents()
 
-        self.assertEqual(["select", "transform", "transform", "transform"], [item[0] for item in captured])
+        self.assertEqual(["transform", "transform", "transform"], [item[0] for item in captured])
+        self.assertIn("_native_screen_selection_payload", captured[0][2])
         self.assertNotIn("_native_screen_selection_payload", captured[1][2])
-        self.assertNotIn("_native_screen_selection_payload", captured[2][2])
-        self.assertEqual((50, 50, 55, 50), tuple(captured[2][2]["screen_drag"][key] for key in ("start_x", "start_y", "end_x", "end_y")))
+        self.assertEqual((50, 50, 55, 50), tuple(captured[1][2]["screen_drag"][key] for key in ("start_x", "start_y", "end_x", "end_y")))
         self.assertEqual("", tab.standalone_native_mesh_edit_stroke_id)
         app.processEvents()
         tab.deleteLater()
+
+    def test_dotnet_move_stroke_begin_preserves_existing_resident_selection(self) -> None:
+        app = QApplication.instance() or QApplication([])
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDotNetStrokeResidentSelection"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        tab.standalone_dotnet_target_controller = builder.controller
+        builder.controller.select(vertices_by_submesh={0: (0,)}, operation="replace")
+        screen = {
+            "x": 50,
+            "y": 50,
+            "radius": 24,
+            "viewport_width": 100,
+            "viewport_height": 100,
+            "world_view_projection": [1.0] * 16,
+        }
+
+        command = tab._standalone_native_mesh_edit_stroke_command(
+            {
+                "stroke_id": "resident-7",
+                "tool": "move",
+                "screen_brush": screen,
+                "screen_drag": {**screen, "start_x": 50, "start_y": 50, "end_x": 55, "end_y": 50},
+            },
+            "begin",
+        )
+
+        assert command is not None
+        self.assertNotIn("_native_screen_selection_payload", command.params)
+        self.assertNotIn("_native_selection_payload", command.params)
+        app.processEvents()
+        tab.deleteLater()
+        builder.deleteLater()
 
     def test_dotnet_rejects_selection_strokes_and_commands_while_topology_worker_is_active(self) -> None:
         app = QApplication.instance() or QApplication([])
@@ -966,7 +998,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         with patch.object(
             tab,
             "_start_dotnet_action_worker",
-            side_effect=lambda controller, command, command_name: captured.append(
+            side_effect=lambda controller, command, command_name, request_payload=None: captured.append(
                 (controller, command, command_name)
             ) or True,
         ):
@@ -1000,36 +1032,29 @@ class MeshEditorActionBarTests(unittest.TestCase):
         builder = _EmbeddedMeshBuilder()
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
-        captured: list[tuple[str, MeshEditSelection | None, dict[str, object]]] = []
+        captured: list[MeshEditCommand] = []
 
-        def fake_apply_editor_action(
-            action: object,
-            *,
-            selection: MeshEditSelection | None = None,
-            mode: str | None = None,
-            **params: object,
-        ) -> MeshEditResult:
-            captured.append((str(action), selection, dict(params)))
-            return MeshEditResult(action=str(action), status="ok", revision=builder.controller.session_view().revision)
-
-        builder.controller.apply_editor_action = fake_apply_editor_action  # type: ignore[method-assign]
-
-        self.assertTrue(
-            tab._handle_dotnet_command_request(
-                {
-                    "event": "command_request",
-                    "command": "transform_move",
-                    "axis": "x",
-                    "step": 0.25,
-                    "local_selection": {"vertices_by_submesh": {"0": [0]}},
-                }
+        with patch.object(
+            tab,
+            "_start_dotnet_action_worker",
+            side_effect=lambda _controller, command, **_kwargs: captured.append(command) or True,
+        ):
+            self.assertTrue(
+                tab._handle_dotnet_command_request(
+                    {
+                        "event": "command_request",
+                        "command": "transform_move",
+                        "axis": "x",
+                        "step": 0.25,
+                        "local_selection": {"vertices_by_submesh": {"0": [0]}},
+                    }
+                )
             )
-        )
 
-        self.assertEqual("transform_move", captured[0][0])
-        self.assertEqual((0.25, 0.0, 0.0), captured[0][2]["delta"])
-        assert captured[0][1] is not None
-        self.assertEqual(((0, (0,)),), captured[0][1].vertices_by_submesh)
+        self.assertEqual("transform", captured[0].action)
+        self.assertEqual((0.25, 0.0, 0.0), captured[0].params["delta"])
+        assert captured[0].selection is not None
+        self.assertEqual(((0, (0,)),), captured[0].selection.vertices_by_submesh)
         app.processEvents()
         tab.deleteLater()
 
@@ -3774,7 +3799,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 obj_sidecar_path=package_dir / "mesh.obj.meta.json",
                 cdmeta_path=package_dir / "mesh.cdmeta.json",
                 original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=package_dir / "dotnet_status.json",
+                status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
@@ -3794,7 +3819,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 self.assertIn("--metadata", process.arguments)
                 self.assertIn(str(package.cdmeta_path), process.arguments)
                 self.assertIn("--evaluation", process.arguments)
-                self.assertIn(str(package.package_dir / "dotnet_evaluation.md"), process.arguments)
+                self.assertIn(str(package.output_dir / "dotnet_evaluation.md"), process.arguments)
                 self.assertEqual(str(package.package_dir), process.working_directory)
                 self.assertIs(process, tab.standalone_dotnet_editor_process)
 
@@ -3805,7 +3830,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 self.assertIn("Output package", messages[-1][0])
                 self.assertIn("Evaluation", messages[-1][0])
                 self.assertFalse(messages[-1][1])
-                self.assertTrue((package.package_dir / "dotnet_evaluation.md").is_file())
+                self.assertTrue((package.output_dir / "dotnet_evaluation.md").is_file())
         app.processEvents()
         tab.deleteLater()
 
@@ -3831,17 +3856,27 @@ class MeshEditorActionBarTests(unittest.TestCase):
             package_dir = root / "package"
             output_dir = package_dir / "output"
             output_dir.mkdir(parents=True)
+            working_mesh = builder.controller.working_mesh(clone=False)
+            scene_frame = build_authoritative_static_scene_frame(
+                working_mesh,
+                working_mesh,
+                StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+                source_identity=static_scene_source_identity(working_mesh, None),
+                comparison_mode="replacement_only",
+                interaction_mode="mesh_edit",
+            )
             package = MeshDotNetExperimentPackage(
                 package_dir=package_dir,
                 mesh_path=package_dir / "mesh.obj",
                 obj_sidecar_path=package_dir / "mesh.obj.meta.json",
                 cdmeta_path=package_dir / "mesh.cdmeta.json",
                 original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=package_dir / "dotnet_status.json",
+                status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
-                material_signature=mesh_dotnet_material_input_signature(builder.controller.working_mesh(clone=False)),
+                material_signature=mesh_dotnet_material_input_signature(working_mesh),
+                scene_frame=scene_frame,
             )
             tab.standalone_dotnet_target_embedded = True
             tab.standalone_dotnet_target_controller = builder.controller
@@ -3866,7 +3901,13 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 '{"event":"command_request","command":"move","delta":[0.05,0,0],'
                 '"local_selection":{"vertices_by_submesh":{"0":[0]}}}\n'
             )
-            self.assertGreater(builder.controller.session_view().revision, revision_before_late_event)
+            self.assertTrue(
+                _wait_for(
+                    app,
+                    lambda: builder.controller.session_view().revision > revision_before_late_event
+                    and not tab._standalone_action_worker_active(),
+                )
+            )
             self.assertEqual([], builder.finalized_dotnet_imports)
             process.emit_stdout('{"event":"deactivated"}\n')
             self.assertEqual("suspended", tab.standalone_dotnet_embedded_state)
@@ -3915,7 +3956,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 obj_sidecar_path=package_dir / "mesh.obj.meta.json",
                 cdmeta_path=package_dir / "mesh.cdmeta.json",
                 original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=package_dir / "dotnet_status.json",
+                status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
@@ -4002,7 +4043,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 obj_sidecar_path=package_dir / "mesh.obj.meta.json",
                 cdmeta_path=package_dir / "mesh.cdmeta.json",
                 original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=package_dir / "dotnet_status.json",
+                status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
@@ -4045,7 +4086,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 obj_sidecar_path=package_dir / "mesh.obj.meta.json",
                 cdmeta_path=package_dir / "mesh.cdmeta.json",
                 original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=package_dir / "dotnet_status.json",
+                status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
@@ -4061,13 +4102,26 @@ class MeshEditorActionBarTests(unittest.TestCase):
             process.emit_stdout('{"event":"ready","renderer":{"backend":"d3d11_vortice_shader","gpu_backed":true,"renderer_blocked":false}}\n')
             self.assertTrue(any(b'"selection_depth_mode":"visible"' in write for write in process.stdin_writes))
 
-            captured: list[tuple[str, dict[str, object]]] = []
+            captured: list[MeshEditCommand] = []
 
-            def fake_apply(action: str, **params: object) -> MeshEditResult:
-                captured.append((action, dict(params)))
-                return MeshEditResult(action=action, status="noop", revision=7)
+            def fake_start_worker(
+                _controller: object,
+                command: MeshEditCommand,
+                *,
+                command_name: str,
+                request_payload: dict[str, object] | None = None,
+            ) -> bool:
+                captured.append(command)
+                tab._send_dotnet_command_result(
+                    command_name,
+                    ok=True,
+                    status="noop",
+                    revision=7,
+                    request_payload=request_payload,
+                )
+                return True
 
-            with patch.object(builder.controller, "apply", side_effect=fake_apply):
+            with patch.object(tab, "_start_dotnet_action_worker", side_effect=fake_start_worker):
                 process.emit_stdout(json.dumps({
                     "event": "select_request",
                     "screen_brush": {
@@ -4082,8 +4136,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
                     "selection_depth_mode": "visible",
                     "operation": "add",
                 }) + "\n")
-            self.assertEqual("select", captured[-1][0])
-            screen_payload = captured[-1][1]["_native_screen_selection_payload"]
+            self.assertEqual("select", captured[-1].action)
+            screen_payload = captured[-1].params["_native_screen_selection_payload"]
             self.assertIsInstance(screen_payload, dict)
             self.assertEqual("visible", screen_payload["selection_depth_mode"])
             self.assertEqual("face", screen_payload["target_mode"])
@@ -4122,7 +4176,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 obj_sidecar_path=package_dir / "mesh.obj.meta.json",
                 cdmeta_path=package_dir / "mesh.cdmeta.json",
                 original_asset_hash_path=package_dir / "original_asset_hash.txt",
-                status_path=package_dir / "dotnet_status.json",
+                status_path=output_dir / "dotnet_status.json",
                 output_dir=output_dir,
                 edit_operations_path=output_dir / "edit_operations.json",
                 launch_manifest_path=package_dir / "dotnet_launch.json",
@@ -4171,7 +4225,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             )
             self.assertIn("importing", messages[-1][0].lower())
             self.assertFalse(messages[-1][1])
-            self.assertTrue((package.package_dir / "dotnet_evaluation.md").is_file())
+            self.assertTrue((package.output_dir / "dotnet_evaluation.md").is_file())
         tab.close_standalone_session()
         app.processEvents()
         tab.deleteLater()

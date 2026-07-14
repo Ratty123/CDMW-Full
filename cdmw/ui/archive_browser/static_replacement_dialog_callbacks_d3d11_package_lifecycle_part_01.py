@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
+    send_resident_presentation_state,
+)
+
 def _d3d11_package_lifecycle_step_001(_state):
     _state.AlignmentD3D11PackageWorker = _state.context.get('AlignmentD3D11PackageWorker')
     _state.Dict = _state.context.get('Dict')
@@ -330,6 +334,15 @@ def _d3d11_package_lifecycle_step_018(_state):
         current_flip_v = _state._current_global_flip_v_fast_preview_value()
         if current_flip_v is None or bool(current_flip_v) != bool(expected_flip_v):
             return
+        if send_resident_presentation_state(
+            _state.dialog,
+            {'uv': {'flip_v': bool(expected_flip_v)}},
+        ):
+            _state._texture_uv_fast_preview_record_global_flip_v_helper(
+                _state.alignment_d3d11_texture_uv_fast_state,
+                expected_flip_v,
+            )
+            return
         if _state.alignment_d3d11_preview_host.set_texture_flip_vertical(bool(expected_flip_v), editor_role='replacement_preview'):
             _state._texture_uv_fast_preview_record_global_flip_v_helper(_state.alignment_d3d11_texture_uv_fast_state, expected_flip_v)
     _state._reapply_global_flip_v_fast_preview = _reapply_global_flip_v_fast_preview
@@ -349,6 +362,15 @@ def _d3d11_package_lifecycle_step_020(_state):
         flip_v = _state._current_global_flip_v_fast_preview_value()
         if flip_v is None:
             return False
+        if send_resident_presentation_state(
+            _state.dialog,
+            {'uv': {'flip_v': bool(flip_v)}},
+        ):
+            _state._texture_uv_fast_preview_record_global_flip_v_helper(
+                _state.alignment_d3d11_texture_uv_fast_state,
+                flip_v,
+            )
+            return True
         if _state.alignment_d3d11_preview_host.set_texture_flip_vertical(flip_v, editor_role='replacement_preview'):
             _state._texture_uv_fast_preview_record_global_flip_v_helper(_state.alignment_d3d11_texture_uv_fast_state, flip_v)
             _state._alignment_d3d11_mark_preview_loaded_helper(_state.alignment_d3d11_state)

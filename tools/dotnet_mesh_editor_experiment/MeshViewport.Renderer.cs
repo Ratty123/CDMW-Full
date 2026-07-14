@@ -56,6 +56,7 @@ internal sealed partial class MeshViewport
                 return false;
             }
             _d3d11Viewport = viewport;
+            _d3d11Viewport.ApplyPresentationSettings(_residentPresentationSettings);
             Controls.Add(_d3d11Viewport);
             _d3d11Viewport.BringToFront();
             StatusRequested?.Invoke("D3D11/Vortice HLSL material viewport initialized.");
@@ -148,9 +149,18 @@ internal sealed partial class MeshViewport
             _d3d11Viewport.ShowSolid = ShowSolid;
             _d3d11Viewport.TexturesEnabled = TexturesEnabled;
             _d3d11Viewport.UpdateCamera(_camera);
+            _d3d11Viewport.UpdateRenderPanes(CurrentRenderPanes());
             var brushTool = ActiveTool is "grab" or "smooth" or "inflate" or "pinch";
             var brushRadius = (float)NumberOption(ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(), "radius", 24.0);
-            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _selectedSources, SelectedSubmeshIndex, ShowWire, ShowVertices, ShowXRay, brushTool && _pointerInside ? _pointerLocation : null, brushRadius);
+            var presentedSources = _selectedSources
+                .Concat(_presentationHighlightedSources)
+                .Concat(_presentationHighlightedOriginals.Select(index => _scene.EditableSubmeshCount + index))
+                .Where(index => index >= 0)
+                .ToHashSet();
+            var presentedSourceIndex = _presentationHoveredSource >= 0
+                ? _presentationHoveredSource
+                : (presentedSources.Count > 0 ? presentedSources.Min() : -1);
+            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, brushTool && _pointerInside ? _pointerLocation : null, brushRadius);
             return;
         }
         var viewport = _gpuViewport;
@@ -173,8 +183,85 @@ internal sealed partial class MeshViewport
             _camera.Project);
     }
 
+    public void InvalidateRenderSurface()
+    {
+        if (_d3d11Viewport is not null)
+        {
+            _d3d11Viewport.Invalidate();
+            return;
+        }
+        if (_gpuHost is not null)
+        {
+            _gpuHost.Invalidate();
+            return;
+        }
+        Invalidate();
+    }
+
+    public void EnsureRenderScheduled()
+    {
+        if (_frameDirty && !_renderInvalidationQueued)
+        {
+            QueueRenderSurfaceInvalidation();
+        }
+    }
+
+    private void QueueRenderSurfaceInvalidation()
+    {
+        if (_renderInvalidationQueued || IsDisposed || Disposing || !IsHandleCreated)
+        {
+            return;
+        }
+        _renderInvalidationQueued = true;
+        try
+        {
+            BeginInvoke((Action)(() =>
+            {
+                _renderInvalidationQueued = false;
+                if (IsDisposed || Disposing || !IsHandleCreated)
+                {
+                    return;
+                }
+                if (ConsumeRenderRequest())
+                {
+                    InvalidateRenderSurface();
+                }
+            }));
+        }
+        catch (InvalidOperationException)
+        {
+            _renderInvalidationQueued = false;
+        }
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        EnsureRenderScheduled();
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        _renderInvalidationQueued = false;
+        base.OnHandleDestroyed(e);
+    }
+
     public void ApplySceneState()
     {
+        if (_scene.HasAuthoritativeFrame)
+        {
+            var viewCenter = _center;
+            _bounds = (
+                new Vec3(
+                    _scene.FramingBoundsMinimum.X,
+                    _scene.FramingBoundsMinimum.Y,
+                    _scene.FramingBoundsMinimum.Z),
+                new Vec3(
+                    _scene.FramingBoundsMaximum.X,
+                    _scene.FramingBoundsMaximum.Y,
+                    _scene.FramingBoundsMaximum.Z));
+            _center = viewCenter;
+        }
         _d3d11Viewport?.Invalidate();
         RequestFrame();
         UpdateGpuViewport();
@@ -248,5 +335,21 @@ internal sealed partial class MeshViewport
         RequestFrame();
         Invalidate();
         return true;
+    }
+
+    public bool TryCaptureReplacementPng(
+        string outputPath,
+        int width,
+        int height,
+        out string sha256,
+        out string error)
+    {
+        sha256 = string.Empty;
+        if (_d3d11Viewport is null || ProductionD3D11Required && _rendererBlocked)
+        {
+            error = "Deterministic icon capture requires the D3D11/Vortice production renderer.";
+            return false;
+        }
+        return _d3d11Viewport.TryCaptureReplacementPng(outputPath, width, height, out sha256, out error);
     }
 }

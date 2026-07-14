@@ -8,6 +8,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Sequence
@@ -577,7 +578,7 @@ class AssetAuthoringService:
         source = Path(source_path).expanduser()
         helper = _helper_report(_helper_spec("openimageio"), self.settings, _configured_mapping(configured_paths))
         suffix = source.suffix.lower()
-        helper_ready = helper["status"] == "available"
+        helper_ready = helper["status"] == "available" and bool(str(helper.get("path", "") or "").strip())
         existing_workflow = suffix in _EXISTING_IMAGE_WORKFLOW_SUFFIXES
         return {
             "schema": ASSET_AUTHORING_SOURCE_IMAGE_SCHEMA,
@@ -601,7 +602,7 @@ class AssetAuthoringService:
     ) -> dict[str, object]:
         helper = _helper_report(_helper_spec("openimageio"), self.settings, _configured_mapping(configured_paths))
         source = Path(source_path).expanduser()
-        if helper["status"] != "available":
+        if helper["status"] != "available" or not str(helper.get("path", "") or "").strip():
             return {
                 "status": "helper_unavailable",
                 "helper": helper,
@@ -662,7 +663,7 @@ class AssetAuthoringService:
         helper = _helper_report(_helper_spec("openimageio"), self.settings, _configured_mapping(configured_paths))
         source = Path(source_path).expanduser()
         output = Path(output_path).expanduser()
-        if helper["status"] != "available":
+        if helper["status"] != "available" or not str(helper.get("path", "") or "").strip():
             return {
                 "status": "helper_unavailable",
                 "helper": helper,
@@ -721,12 +722,19 @@ class AssetAuthoringService:
         left_path: Path | str,
         right_path: Path | str,
         configured_paths: Mapping[str, object] | None = None,
+        *,
+        fail_threshold: float | None = None,
+        fail_percent: float | None = None,
+        hard_fail_threshold: float | None = None,
+        difference_output_path: Path | str | None = None,
+        difference_scale: float = 1.0,
     ) -> dict[str, object]:
         helper = _helper_report(_helper_spec("openimageio"), self.settings, _configured_mapping(configured_paths))
         left = Path(left_path).expanduser()
         right = Path(right_path).expanduser()
+        difference_output = Path(difference_output_path).expanduser() if difference_output_path is not None else None
         missing = [str(path) for path in (left, right) if not path.is_file()]
-        if helper["status"] != "available":
+        if helper["status"] != "available" or not str(helper.get("path", "") or "").strip():
             return {
                 "status": "helper_unavailable",
                 "helper": helper,
@@ -744,12 +752,34 @@ class AssetAuthoringService:
                 "argv": [],
                 "can_run": False,
             }
+        thresholds = _openimageio_diff_thresholds(
+            fail_threshold=fail_threshold,
+            fail_percent=fail_percent,
+            hard_fail_threshold=hard_fail_threshold,
+        )
+        argv = [str(helper["path"]), str(left), str(right)]
+        if thresholds["fail_threshold"] is not None:
+            argv.extend(("--fail", _openimageio_number(thresholds["fail_threshold"])))
+        if thresholds["fail_percent"] is not None:
+            argv.extend(("--failpercent", _openimageio_number(thresholds["fail_percent"])))
+        if thresholds["hard_fail_threshold"] is not None:
+            argv.extend(("--hardfail", _openimageio_number(thresholds["hard_fail_threshold"])))
+        argv.append("--diff")
+        if difference_output is not None:
+            argv.append("--absdiff")
+            if difference_scale != 1.0:
+                argv.extend(("--mulc", _openimageio_number(difference_scale)))
+            argv.extend(("--ch", "R,G,B"))
+            argv.extend(("-o", str(difference_output)))
         return {
             "status": "ready",
             "helper": helper,
             "left_path": str(left),
             "right_path": str(right),
-            "argv": [str(helper["path"]), "--diff", str(left), str(right)],
+            "difference_output_path": str(difference_output) if difference_output is not None else "",
+            "difference_scale": float(difference_scale),
+            "thresholds": thresholds,
+            "argv": argv,
             "can_run": True,
         }
 
@@ -759,24 +789,65 @@ class AssetAuthoringService:
         right_path: Path | str,
         configured_paths: Mapping[str, object] | None = None,
         timeout_s: float | None = None,
+        *,
+        fail_threshold: float | None = None,
+        fail_percent: float | None = None,
+        hard_fail_threshold: float | None = None,
+        difference_output_path: Path | str | None = None,
+        difference_scale: float = 1.0,
     ) -> dict[str, object]:
-        command = self.openimageio_diff_command(left_path, right_path, configured_paths)
+        command = self.openimageio_diff_command(
+            left_path,
+            right_path,
+            configured_paths,
+            fail_threshold=fail_threshold,
+            fail_percent=fail_percent,
+            hard_fail_threshold=hard_fail_threshold,
+            difference_output_path=difference_output_path,
+            difference_scale=difference_scale,
+        )
         if not command.get("can_run"):
             return command
-        completed = subprocess.run(
-            tuple(str(part) for part in command["argv"]),
-            cwd=str(Path(left_path).expanduser().parent),
-            capture_output=True,
-            text=True,
-            timeout=timeout_s,
-            check=False,
-        )
+        output_text = str(command.get("difference_output_path", "") or "").strip()
+        if output_text:
+            Path(output_text).parent.mkdir(parents=True, exist_ok=True)
+        try:
+            completed = subprocess.run(
+                tuple(str(part) for part in command["argv"]),
+                cwd=str(Path(left_path).expanduser().parent),
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                check=False,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            return {
+                **command,
+                "status": "failed",
+                "returncode": None,
+                "stdout": "",
+                "stderr": str(exc),
+                "metrics": {},
+                "difference_output_written": False,
+            }
+        metrics = _openimageio_diff_metrics(completed.stdout, completed.stderr)
+        metric_result = str(metrics.get("result", "") or "")
+        if completed.returncode == 0:
+            status = "ok"
+        elif metric_result == "warning":
+            status = "ok"
+        elif metric_result == "failure":
+            status = "different"
+        else:
+            status = "failed"
         return {
             **command,
-            "status": "ok" if completed.returncode == 0 else "different",
+            "status": status,
             "returncode": completed.returncode,
             "stdout": completed.stdout,
             "stderr": completed.stderr,
+            "metrics": metrics,
+            "difference_output_written": bool(output_text and Path(output_text).is_file()),
         }
 
 
@@ -828,11 +899,11 @@ def _helper_report(
         module_available = bool(spec.module and importlib.util.find_spec(spec.module) is not None)
         if path is not None:
             status = "available"
+        elif configured_path:
+            status = "configured_missing"
         elif module_available:
             status = "available"
             source = "python_module"
-        elif configured_path:
-            status = "configured_missing"
         else:
             status = "unavailable"
     report = {
@@ -915,7 +986,35 @@ def _external_path(spec: AssetAuthoringHelperSpec, configured_path: Path | None)
         found = shutil.which(name)
         if found:
             return Path(found), "path"
+    module_executable = _module_executable_path(spec)
+    if module_executable is not None:
+        return module_executable, "python_module_script"
     return None, "not_detected"
+
+
+def _module_executable_path(spec: AssetAuthoringHelperSpec) -> Path | None:
+    if not spec.module:
+        return None
+    try:
+        module_spec = importlib.util.find_spec(spec.module)
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return None
+    if module_spec is None:
+        return None
+    roots = [Path(sys.executable).resolve().parent]
+    origin = str(getattr(module_spec, "origin", "") or "").strip()
+    if origin:
+        module_root = Path(origin).resolve().parent
+        roots.extend((module_root / "bin", module_root.parent / "bin"))
+    locations = tuple(getattr(module_spec, "submodule_search_locations", ()) or ())
+    roots.extend(Path(location).resolve() / "bin" for location in locations if str(location or "").strip())
+    for root in dict.fromkeys(roots):
+        for name in spec.executables:
+            for filename in (name, f"{name}.exe"):
+                candidate = root / filename
+                if candidate.is_file():
+                    return candidate
+    return None
 
 
 def _helper_version_argv(spec: AssetAuthoringHelperSpec, path: Path | None) -> list[str]:
@@ -1152,7 +1251,7 @@ def _scene_unsupported_hints(scene_result: object) -> list[str]:
 
 
 def _openimageio_info_argv(helper: Mapping[str, object], source: Path) -> list[str]:
-    return [str(helper["path"]), "--info", "-v", str(source)]
+    return [str(helper["path"]), "--info", "-v", "--stats", str(source)]
 
 
 def _openimageio_metadata_from_output(stdout: str, stderr: str = "") -> dict[str, object]:
@@ -1161,13 +1260,136 @@ def _openimageio_metadata_from_output(stdout: str, stderr: str = "") -> dict[str
     channels = re.search(r"(?P<count>\d+)\s+channels?\b", text, re.IGNORECASE)
     bit_depth = _openimageio_bit_depth(text)
     color_space = _openimageio_metadata_value(text, (r"oiio:ColorSpace", r"Color\s*space", r"colorspace"))
+    channel_names_match = re.search(r"channel\s+list\s*:\s*(?P<names>[^\r\n]+)", text, re.IGNORECASE)
+    channel_names = [
+        name.strip()
+        for name in (channel_names_match.group("names").split(",") if channel_names_match else ())
+        if name.strip()
+    ]
+    channel_stats = _openimageio_channel_stats(text, channel_names)
+    alpha_stats = channel_stats.get("A", channel_stats.get("a", {}))
+    alpha_maximum = float(alpha_stats.get("maximum", 0.0) or 0.0) if alpha_stats else 0.0
+    alpha_minimum = float(alpha_stats.get("minimum", alpha_maximum) or 0.0) if alpha_stats else 0.0
+    alpha_average = float(alpha_stats.get("average", alpha_maximum) or 0.0) if alpha_stats else 0.0
     return {
         "width": int(dimensions.group("width")) if dimensions else 0,
         "height": int(dimensions.group("height")) if dimensions else 0,
         "channel_count": int(channels.group("count")) if channels else 0,
         "bit_depth": bit_depth,
         "color_space": color_space,
+        "channel_names": channel_names,
+        "channel_stats": channel_stats,
+        "has_alpha_channel": bool(alpha_stats),
+        "alpha_varies": bool(alpha_stats and alpha_maximum > alpha_minimum),
+        "alpha_has_transparency": bool(alpha_stats and alpha_average < alpha_maximum),
         "raw_line_count": len([line for line in text.splitlines() if line.strip()]),
+    }
+
+
+def _openimageio_channel_stats(text: str, channel_names: Sequence[str]) -> dict[str, dict[str, float]]:
+    rows: dict[str, list[float]] = {}
+    labels = {
+        "Min": "minimum",
+        "Max": "maximum",
+        "Avg": "average",
+        "StdDev": "stddev",
+    }
+    for source_label, target_label in labels.items():
+        match = re.search(
+            rf"Stats\s+{source_label}\s*:\s*(?P<values>[^\r\n(]+)",
+            text,
+            re.IGNORECASE,
+        )
+        if match is None:
+            continue
+        values = [
+            float(value)
+            for value in re.findall(r"[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?)", match.group("values"), re.IGNORECASE)
+        ]
+        rows[target_label] = values
+    count = max((len(values) for values in rows.values()), default=0)
+    names = list(channel_names[:count])
+    names.extend(f"channel_{index}" for index in range(len(names), count))
+    return {
+        name: {
+            label: values[index]
+            for label, values in rows.items()
+            if index < len(values)
+        }
+        for index, name in enumerate(names)
+    }
+
+
+def _openimageio_diff_thresholds(
+    *,
+    fail_threshold: float | None,
+    fail_percent: float | None,
+    hard_fail_threshold: float | None,
+) -> dict[str, float | None]:
+    values = {
+        "fail_threshold": fail_threshold,
+        "fail_percent": fail_percent,
+        "hard_fail_threshold": hard_fail_threshold,
+    }
+    normalized: dict[str, float | None] = {}
+    for name, value in values.items():
+        if value is None:
+            normalized[name] = None
+            continue
+        number = float(value)
+        if not math.isfinite(number) or number < 0.0:
+            raise ValueError(f"OpenImageIO {name} must be a finite non-negative number.")
+        if name == "fail_percent" and number > 100.0:
+            raise ValueError("OpenImageIO fail_percent must be between 0 and 100.")
+        normalized[name] = number
+    return normalized
+
+
+def _openimageio_number(value: object) -> str:
+    number = float(value)
+    if not math.isfinite(number) or number < 0.0:
+        raise ValueError("OpenImageIO numeric arguments must be finite non-negative numbers.")
+    return format(number, ".12g")
+
+
+def _openimageio_diff_metrics(stdout: str, stderr: str = "") -> dict[str, object]:
+    text = "\n".join(part for part in (str(stdout or ""), str(stderr or "")) if part)
+
+    def metric(label: str) -> float | str | None:
+        match = re.search(
+            rf"{label}\s*=\s*(?P<value>[+-]?(?:(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?|inf(?:inity)?))",
+            text,
+            re.IGNORECASE,
+        )
+        if match is None:
+            return None
+        raw = match.group("value")
+        value = float(raw)
+        return value if math.isfinite(value) else raw.casefold()
+
+    threshold_rows = []
+    for match in re.finditer(
+        r"(?P<count>\d+)\s+pixels?\s*\((?P<percent>[\d.]+)%\)\s+over\s+(?P<threshold>\S+)",
+        text,
+        re.IGNORECASE,
+    ):
+        threshold_rows.append(
+            {
+                "pixel_count": int(match.group("count")),
+                "percent": float(match.group("percent")),
+                "threshold": match.group("threshold"),
+            }
+        )
+    result_rows = re.findall(r"^\s*(PASS|WARNING|FAILURE)\s*$", text, re.IGNORECASE | re.MULTILINE)
+    max_location = re.search(r"Max\s+error\s*=.*?@\s*\((?P<location>[^)]+)\)", text, re.IGNORECASE)
+    return {
+        "mean_error": metric(r"Mean\s+error"),
+        "rms_error": metric(r"RMS\s+error"),
+        "peak_snr_db": metric(r"Peak\s+SNR"),
+        "max_error": metric(r"Max\s+error"),
+        "max_error_location": max_location.group("location").strip() if max_location else "",
+        "threshold_rows": threshold_rows,
+        "result": result_rows[-1].casefold() if result_rows else "unknown",
     }
 
 

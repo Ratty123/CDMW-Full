@@ -109,6 +109,12 @@ def _preview_meshes_from_submeshes(submeshes: Sequence[SubMesh]) -> List[ModelPr
             preview_mesh.preview_height_texture_name = str(
                 getattr(submesh, "preview_height_texture_name", "") or Path(preview_height_texture_path).name
             )
+        preview_emissive_texture_path = str(getattr(submesh, "preview_emissive_texture_path", "") or "").strip()
+        if preview_emissive_texture_path:
+            preview_mesh.preview_emissive_texture_path = preview_emissive_texture_path
+            preview_mesh.preview_emissive_texture_name = str(
+                getattr(submesh, "preview_emissive_texture_name", "") or Path(preview_emissive_texture_path).name
+            )
         preview_material_texture_inputs = tuple(getattr(submesh, "preview_material_texture_inputs", ()) or ())
         if preview_material_texture_inputs:
             preview_mesh.preview_material_texture_inputs = preview_material_texture_inputs

@@ -283,7 +283,17 @@ class WorkspaceStateMixin:
         ):
             self.properties_tree.addTopLevelItem(QTreeWidgetItem((str(key), str(value))))
         self.history_list.clear()
-        self.history_list.addItems((f"Undo: {int(view.undo_count or 0)}", f"Redo: {int(view.redo_count or 0)}"))
+        if view.history_entries:
+            self.history_list.addItems(
+                tuple(
+                    f"{index + 1:02d}  {'[undone] ' if entry.state == 'undone' else ''}{entry.label}"
+                    for index, entry in enumerate(view.history_entries)
+                )
+            )
+            if view.history_cursor > 0:
+                self.history_list.setCurrentRow(min(view.history_cursor - 1, self.history_list.count() - 1))
+        else:
+            self.history_list.addItem("No edit actions yet")
 
     def update_workspace_summary(self, summary: MeshWorkspaceSummary | None) -> None:
         self._workspace_summary = summary

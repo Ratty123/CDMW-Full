@@ -25,11 +25,15 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     texture_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(DOTNET_EDITOR.glob("NetTextureSet*.cs")))
     material_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(DOTNET_EDITOR.glob("NetMaterialSet*.cs")))
     material_protocol_source = _source("ExperimentForm.MaterialProtocol.cs")
+    provenance_source = _source("HelperBuildProvenance.cs")
     all_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(DOTNET_EDITOR.glob("*.cs")))
 
-    assert '["local_selection"] = SelectionSnapshotPayload()' in input_source
-    assert 'EditorEventRequested?.Invoke("selection_request"' in selection_source
-    assert "NotifyLocalSelectionChanged();" in picking_source
+    assert '["local_selection"] = SelectionSnapshotPayload()' not in input_source
+    assert 'EditorEventRequested?.Invoke("select_request", payload);' in picking_source
+    committed_selection = picking_source.split("private void FinishEdgeDrag(Point point)", 1)[1].split(
+        "private Rectangle EdgeDragRectangle", 1
+    )[0]
+    assert "NotifyLocalSelectionChanged();" not in committed_selection
     assert "_strokePrevious" in input_source
     assert "_strokeStart" not in input_source
     active_stroke_move = input_source.split("if (_editorStrokeActive)", maxsplit=2)[2].split("else if (_rotating)", maxsplit=1)[0]
@@ -45,7 +49,7 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'WriteProtocolEvent("protocol_ready"' in protocol_source
     assert 'case "tool_state": ApplyHostToolState' in protocol_source
     assert 'WriteProtocolEvent("tool_state_applied"' in host_state_source
-    assert '"host_tool_state_v1"' in protocol_source
+    assert '"host_tool_state_v1"' in provenance_source
     assert '["viewport"] = RenderSurfaceStatusPayload()' in selection_source
     for field in ('["hwnd"]', '["form_hwnd"]', '["screen_x"]', '["screen_y"]', '["width"]', '["height"]'):
         assert field in host_diagnostics_source
@@ -60,6 +64,15 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert "ResourceChannels" in material_source
     assert "result.Resources = ParseResources(root)" in material_source
     assert 'JsonStringMap(item, "resource_channels")' in material_source
+    for semantic_diagnostic in (
+        "shader_family_source",
+        "shader_family_reason",
+        "alpha_authority",
+        "alpha_reason",
+        "double_sided_authority",
+        "double_sided_reason",
+    ):
+        assert semantic_diagnostic in material_source
     assert 'return $"fingerprint|{fingerprint}";' in texture_source
     assert "_decoded[resource.Path] = cached;" in texture_source
     assert 'case "material_state_update":' in protocol_source
@@ -102,10 +115,57 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert "if (_overlayShowVertices)" in d3d_source
     assert "PrimitiveTopology.PointList" in d3d_source
     assert "MaterialDebugMode > 6.5f" in shader_source
-    assert 'Text = "Choose a brush, then left-drag on the mesh. Right-drag pans; wheel zooms."' in program_source
+    assert 'Text = "Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms."' in program_source
     assert 'ActiveTool is "grab" or "smooth" or "inflate" or "pinch"' in all_source
     assert "DrawBrushCursorOverlay();" in d3d_source
     assert '_statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"' in _source("ExperimentForm.Controls.cs")
+
+
+def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_shortcut_driven() -> None:
+    program_source = _source("Program.cs")
+    input_source = _source("MeshViewport.Input.cs")
+    controls_source = _source("ExperimentForm.Controls.cs")
+    presentation_source = _source("ExperimentForm.PresentationProtocol.cs")
+    protocol_source = _source("ExperimentForm.Protocol.cs")
+    history_source = _source("ExperimentForm.History.cs")
+
+    assert 'AddSection(stack, "Action History"' in program_source
+    assert 'Name = "ResidentActionHistoryList"' in program_source
+    assert 'ApplyHistoryState(document.RootElement);' in protocol_source
+    assert 'root.TryGetProperty("history_entries"' in history_source
+    assert 'state == "undone"' in history_source
+    assert 'WriteCommandRequest("undo")' in controls_source
+    assert 'WriteCommandRequest("redo")' in controls_source
+    assert "Ctrl+LMB drag" in controls_source
+    assert "Ctrl+Shift+Z" in controls_source
+    assert "IsOrbitOverrideGesture(e)" in input_source
+    assert '(ModifierKeys & Keys.Control) == Keys.Control' in input_source
+    assert 'Name = "ResidentViewportControlsHint"' in presentation_source
+
+
+def test_dotnet_screen_edits_match_rendered_mesh_and_use_readable_hit_targets() -> None:
+    input_source = _source("MeshViewport.Input.cs")
+    picking_source = _source("MeshViewport.SelectionPicking.cs")
+    viewport_source = _source("D3D11MaterialViewport.cs")
+    overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
+    shader_source = _source("D3D11MaterialShaders.hlsl")
+    program_source = _source("Program.cs")
+
+    assert 'payload["screen_radius"]' in input_source
+    assert '["source_submesh_world_view_projections"] = SourceProjectionOverrides(camera)' in input_source
+    assert "ActiveSceneModelMatrix(submeshIndex) * camera.WorldViewProjection" in input_source
+    assert input_source.count('["source_submesh_indices"] = VisibleEditableSubmeshIndices()') >= 2
+    assert "SelectionClickRadiusPixels = 14.0" in picking_source
+    assert "ScreenPayload(point, SelectionClickRadiusPixels)" in picking_source
+
+    assert "VertexMarkerSizePixels = 7.0f" in overlay_source
+    assert "GSVertexMarker" in shader_source
+    assert "_vertexMarkerGeometryShader" in viewport_source
+    assert "GSSetShader(_vertexMarkerGeometryShader)" in overlay_source
+    assert "GSSetShader(null)" in overlay_source
+    assert "AddScreenCross" in overlay_source and "SelectedVertexMarkerRadiusPixels" in overlay_source
+    assert "maximum: 1" in program_source
+    assert '["smooth_iterations"] = 3' in program_source
 
 
 def test_resident_material_generation_order_is_independent_of_packet_kind_duplicates() -> None:
@@ -131,8 +191,41 @@ def test_resident_material_generation_order_is_independent_of_packet_kind_duplic
     assert "revision > residentRevision" in validator
     assert 'reason = "future_edit_revision"' in validator
     assert "CanApplyMaterialEditRevision(update.EditRevision" in completion
-    assert 'MarkEditRevisionApplied(update.EditRevision, "material_state_update")' in completion
+    assert "MarkEditRevisionApplied(update.EditRevision)" in completion
+    assert 'MarkEditRevisionApplied(update.EditRevision, "material_state_update")' not in completion
     assert "_lastObservedSessionRevision" in protocol_source + material_source
+
+
+def test_dotnet_preview_settings_have_distinct_support_outdoor_and_layer_mask_paths() -> None:
+    settings_source = _source("D3D11MaterialViewport.PresentationSettings.cs")
+    parser_source = _source("MeshViewport.PresentationSettings.cs")
+    resource_source = _source("D3D11MaterialViewport.Resources.cs")
+    shader_source = _source("D3D11MaterialShaders.hlsl")
+
+    assert "!settings.HighQuality || settings.DisableAllSupportMaps" in settings_source
+    assert 'string.Equals(viewMode, "game_outdoor"' in parser_source
+    assert "settings.GameOutdoorApprox" in settings_source
+    assert 'TextureReferenceForSubmesh(submeshIndex, "layer_mask", "mask")' in resource_source
+    assert "Texture2D LayerMaskTexture : register(t7);" in shader_source
+    assert "LayerMaskTexture.Sample" in shader_source
+
+
+def test_dotnet_alpha_blend_uses_a_sorted_depth_read_only_material_pass() -> None:
+    renderer_source = _source("D3D11MaterialViewport.cs")
+    geometry_source = _source("D3D11MaterialViewport.Geometry.cs")
+    metrics_source = _source("D3D11MaterialViewport.Metrics.cs")
+    settings_source = _source("D3D11MaterialViewport.PresentationSettings.cs")
+
+    assert "_transparentBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);" in renderer_source
+    assert "transparentDepthDescription.DepthWriteMask = DepthWriteMask.Zero;" in renderer_source
+    assert ".Where(IsAlphaBlendBatch)" in renderer_source
+    assert ".OrderByDescending(TransparentSortDistanceSquared)" in renderer_source
+    assert "_context.OMSetBlendState(_transparentBlendState ?? _overlayBlendState);" in renderer_source
+    assert "_transparentSolidBatchDrawCount++" in renderer_source
+    assert "public Vector3 Center { get; }" in geometry_source
+    assert '"back_to_front_submesh_depth_read_no_write"' in metrics_source
+    assert "var materialSubmeshIndex = batch.MaterialSubmeshIndex;" in settings_source
+    assert "_materials.AlphaModeForSubmesh(materialSubmeshIndex)" in settings_source
 
 
 def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
@@ -142,14 +235,25 @@ def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
     output_source = _source("ExperimentForm.Output.cs")
     program_source = _source("Program.cs")
     input_source = _source("MeshViewport.Input.cs")
+    gizmo_source = _source("MeshViewport.Gizmo.cs")
 
     assert 'case "scene_state_update":' in protocol_source
     assert 'ResidentSceneCapability = "resident_scene_state_v1"' in protocol_source
+    assert 'AuthoritativeResidentSceneCapability = "authoritative_resident_scene_frame_v2"' in protocol_source
+    assert "HandleSceneStateUpdate(document.RootElement);" in protocol_source
+    assert "TryApplyResidentUpdate" in scene_source
+    assert 'rejectionReason = "stale_scene_generation"' in scene_source
+    assert 'rejectionReason = "stale_source_identity"' in scene_source
+    assert "EditableModelMatrix" in scene_source
+    assert "ReferenceModelMatrix" in scene_source
+    assert "EditableBoundsMinimum" in scene_source
+    assert "GroundOrigin" in scene_source
     for mode in ("side_by_side", "overlay", "replacement_only", "original_only"):
         assert f'"{mode}"' in scene_source
     assert "EditableSubmeshCount" in scene_source
     assert "ReferenceSubmeshCount" in scene_source
-    assert "DrawSceneGridAndGizmo" in overlay_source
+    assert "DrawSceneGrid();" in overlay_source
+    assert "DrawSceneGizmo();" in overlay_source
     assert 'GizmoTool == "rotate"' in overlay_source
     assert 'GizmoTool == "scale"' in overlay_source
     assert "scene.EditableSubmeshCount" in output_source
@@ -157,8 +261,278 @@ def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
     assert 'GizmoButton("Move", "move")' in program_source
     assert 'GizmoButton("Rotate", "rotate")' in program_source
     assert 'GizmoButton("Scale", "scale")' in program_source
-    assert 'EditorEventRequested?.Invoke("placement_transform_request"' in input_source
-    assert "ApplyGizmoDrag" in input_source
+    assert 'EditorEventRequested?.Invoke("placement_transform_request"' in gizmo_source
+    assert "TryBeginPlacementGizmoDrag" in input_source
+    assert "TryScreenRay" in gizmo_source
+    assert "ClosestAxisParameter" in gizmo_source
+    assert "TryRayPlane" in gizmo_source
+    assert 'new[] { "xy", "xz", "yz" }' in gizmo_source
+    assert "ApplyConstrainedRotation" in gizmo_source
+    assert "ApplyConstrainedScale" in gizmo_source
+    assert "ProvisionalEditableModelMatrix()" in scene_source
+    assert "automaticLinear * ManualLinearMatrix(RotationDegrees, Scale)" in scene_source
+    assert "ResolvedAlignmentSourceAnchor()" in scene_source
+    assert "_acknowledgedPlacement.SourceAnchor" in scene_source
+    assert "part * ProvisionalEditableModelMatrix()" in scene_source
+    assert "ProvisionalPlacementPivot()" in scene_source
+    assert "preserveResidentWorldFrame" in scene_source
+
+
+def test_dotnet_interaction_rendering_is_uncapped_without_self_scheduling_and_coalesces_placement() -> None:
+    program_source = _source("Program.cs")
+    runtime_source = _source("ExperimentForm.Runtime.cs")
+    renderer_source = _source("MeshViewport.Renderer.cs")
+    gizmo_source = _source("MeshViewport.Gizmo.cs")
+    d3d_source = _source("D3D11MaterialViewport.cs")
+    metrics_source = _source("RuntimeSupport.cs")
+    protocol_source = _source("ExperimentForm.Protocol.cs")
+    status_source = _source("MeshViewport.Status.cs")
+
+    assert "_viewport.EditorEventRequested += HandleViewportEditorEvent;" in program_source
+    assert "HasActiveRenderInput" not in program_source
+    assert "_frameDirty = false;" in program_source
+    assert "EnsureRenderScheduled();" in program_source
+    rendered_frame_source = program_source.split("private void RecordRenderedFrame", maxsplit=1)[1].split(
+        "public MeshViewport", maxsplit=1
+    )[0]
+    assert "EnsureRenderScheduled();" not in rendered_frame_source
+    assert "QueueRenderSurfaceInvalidation" in renderer_source
+    assert "BeginInvoke((Action)(() =>" in renderer_source
+    assert "_d3d11Viewport.Invalidate();" in renderer_source
+    assert "_d3d11Viewport.Refresh();" not in renderer_source
+    assert "_viewport.ConsumeRenderRequest()" not in runtime_source
+    assert "_viewport.EnsureRenderScheduled();" in runtime_source
+    assert "PlacementTransformProtocolIntervalMs = 30.0" in runtime_source
+    assert "_pendingPlacementTransformPayload = new Dictionary<string, object?>(payload);" in runtime_source
+    assert 'string.Equals(phase, "end"' in runtime_source
+    assert 'EmitPlacementTransformRequest("update", handle);' in gizmo_source
+    assert 'EmitPlacementTransformRequest("end", handle);' in gizmo_source
+    assert '["placement_phase"] = phase' in gizmo_source
+    assert "SetMaximumFrameLatency(1)" in d3d_source
+    assert "Present(PresentSyncInterval, PresentFlags.None)" in d3d_source
+    assert '"state_change_latest_wins_d3d11"' in status_source
+    assert "AverageFrameIntervalMs" in metrics_source
+    assert "FrameIntervalP95Ms" in metrics_source
+    assert "FramePacingJitterMs" in metrics_source
+    assert '["render_time_ms"]' in protocol_source
+    assert '["frame_interval_p95_ms"]' in protocol_source
+
+
+def test_dotnet_overlay_geometry_reuses_one_dynamic_vertex_buffer_per_frame() -> None:
+    d3d_source = _source("D3D11MaterialViewport.cs")
+    overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
+    metrics_source = _source("D3D11MaterialViewport.Metrics.cs")
+
+    assert "BeginOverlayFrame();" in d3d_source
+    assert "DisposeOverlayDynamicResources();" in d3d_source
+    assert "InitialOverlayVertexCapacity" in overlay_source
+    assert "ResourceUsage.Dynamic" in overlay_source
+    assert "CpuAccessFlags.Write" in overlay_source
+    assert "MapMode.WriteDiscard" in overlay_source
+    assert "MapMode.WriteNoOverwrite" in overlay_source
+    assert "using var vertexBuffer = _device.CreateBuffer" not in overlay_source
+    assert "_context.Draw((uint)positions.Count, (uint)startVertex);" in overlay_source
+    assert '["overlay_vertex_buffer_creates"]' in metrics_source
+    assert '["overlay_vertex_buffer_reused"]' in metrics_source
+
+
+def test_dotnet_d3d11_interaction_skips_hidden_gdi_rendering_and_uses_flip_model() -> None:
+    d3d_source = _source("D3D11MaterialViewport.cs")
+    painting_source = _source("MeshViewport.Painting.cs")
+    input_source = _source("MeshViewport.Input.cs")
+    gizmo_source = _source("MeshViewport.Gizmo.cs")
+    status_source = _source("MeshViewport.Status.cs")
+
+    before_gdi_clear = painting_source.split("e.Graphics.Clear(BackColor);", maxsplit=1)[0]
+    assert "if (_d3d11Viewport is not null)" in before_gdi_clear
+    assert "_gdiFallbackFrameCount++;" in painting_source
+    assert 'SwapEffect = SwapEffect.FlipDiscard' in d3d_source
+    assert 'SwapEffect = SwapEffect.Discard' not in d3d_source
+    assert 'PresentationModel => _swapChain is null ? "unavailable" : "flip_discard"' in d3d_source
+    assert "if (!_rotating" in input_source
+    mouse_move_source = input_source.split("protected override void OnMouseMove", maxsplit=1)[1].split(
+        "protected override void OnMouseEnter", maxsplit=1
+    )[0]
+    assert mouse_move_source.count("UpdateGpuViewport();") == 1
+    assert "Invalidate();" not in mouse_move_source
+    hit_test_source = gizmo_source.split("private string HitTestGizmo", maxsplit=1)[1].split(
+        "private void ApplyMoveHandleDrag", maxsplit=1
+    )[0]
+    assert hit_test_source.count("CurrentCamera()") == 1
+    assert "GizmoProjectedPoint(pivot, camera)" in hit_test_source
+    assert '["presentation_model"]' in status_source
+    assert '["gdi_fallback_frame_count"]' in status_source
+
+
+def test_resident_role_views_share_resources_and_keep_normal_cameras_independent() -> None:
+    program_source = _source("Program.cs")
+    presentation_source = _source("MeshViewport.Presentation.cs")
+    split_view_source = _source("MeshViewport.SplitView.cs")
+    presentation_protocol = _source("ExperimentForm.PresentationProtocol.cs")
+    protocol_source = _source("ExperimentForm.Protocol.cs")
+    renderer_source = _source("MeshViewport.Renderer.cs")
+    pane_renderer_source = _source("D3D11MaterialViewport.Panes.cs")
+    d3d_renderer_source = _source("D3D11MaterialViewport.cs")
+    scene_source = _source("NetSceneState.cs")
+    picking_source = _source("MeshViewport.SelectionPicking.cs")
+    occlusion_source = _source("MeshViewport.OcclusionPicking.cs")
+    diagnostics_source = _source("MeshViewport.HostDiagnostics.cs")
+    status_source = _source("MeshViewport.Status.cs")
+
+    assert program_source.count("new MeshViewport(") == 1
+    assert 'NewPresentationContext("editable", "editable")' in presentation_source
+    assert 'NewPresentationContext("reference", "reference")' in presentation_source
+    assert '["normal_cameras_independent"] = true' in presentation_source
+    assert '_comparisonCameraLinked = overlay' in presentation_source
+    assert 'LoadPresentationContext("editable")' in presentation_source
+    assert 'LoadPresentationContext("reference")' in presentation_source
+    assert '["shared_scene_resources"]' in presentation_source
+    assert 'RuntimeHelpers.GetHashCode(_document)' in presentation_source
+    assert 'RuntimeHelpers.GetHashCode(_materials)' in presentation_source
+    assert 'RuntimeHelpers.GetHashCode(_textureSet)' in presentation_source
+    assert '"OriginalResidentViewButton"' in presentation_protocol
+    assert '"EditableResidentViewButton"' in presentation_protocol
+    assert '"Original (focus)"' in presentation_protocol
+    assert '"Imported / Modify (focus)"' in presentation_protocol
+    assert "Both side-by-side panes remain visible" in presentation_protocol
+    assert "_viewport.FocusPresentationPane(view);" in presentation_protocol
+    assert "_viewport.ActivatePresentationView(view);" not in presentation_protocol
+    assert 'Name = "ResidentRoleViewHeaderDivider"' in presentation_protocol
+    assert "notifyHost: true" in presentation_protocol
+    assert "editableSubmeshCount > 0" in split_view_source
+    assert "referenceSubmeshCount > 0" in split_view_source
+    assert 'string.Equals(comparisonMode, "side_by_side", StringComparison.OrdinalIgnoreCase)' in split_view_source
+    assert "SinglePaneRoleForMode(_scene.ComparisonMode)" in split_view_source
+    assert "RenderPane(bounds.Reference, reference, \"reference\", interactionAllowed: false)" in split_view_source
+    assert "RenderPane(bounds.Editable, editable, \"editable\", interactionAllowed: true)" in split_view_source
+    assert "foreach (var pane in PanesForFrame(replacementOnly))" in d3d_renderer_source
+    assert "ActivePaneIncludes(batch.SubmeshIndex)" in d3d_renderer_source
+    assert "HasRenderedBothRolePanes" in pane_renderer_source
+    assert "ActivePaneIncludesForPicking(submeshIndex)" in picking_source
+    assert "ActivePaneIncludesForPicking(submeshIndex)" in occlusion_source
+    assert "RoleViewModelMatrix" in scene_source
+    assert "EditablePresentationMatrix(includeSideBySideOffset)" in scene_source
+    assert "RoleViewGizmoPivot" in scene_source
+    assert "context.CameraMinimum" in split_view_source
+    assert "context.CameraMaximum" in split_view_source
+    assert "return SceneBoundsForContext(contextId);" in split_view_source
+    assert "ReframePresentationContext(_activeCameraContextId);" in _source("MeshViewport.Topology.cs")
+    assert "commandGeneration <= context.LastCameraCommandGeneration" in presentation_source
+    assert 'role is "original" or "reference" or "original_only"' in presentation_source
+    assert '["screen_x"] = origin.X + editable.X' in diagnostics_source
+    assert '["client_x"] = editable.X' in diagnostics_source
+    assert '["full_surface"]' in diagnostics_source
+    assert '["viewports"]' in diagnostics_source
+    assert "HasRenderedRequiredPresentation" in _source("ExperimentForm.Runtime.cs")
+    assert '"resident_simultaneous_role_panes_v2"' in status_source
+    assert '"resizable_role_panes_v1"' in status_source
+    assert 'case "presentation_state_update":' in protocol_source
+    assert 'WriteProtocolEvent("presentation_state_update_ack"' in presentation_protocol
+    assert 'processGeneration != _residentProcessGeneration' in presentation_protocol
+    assert 'resident_presentation_state_v1' in presentation_protocol
+    assert '_presentationHighlightedSources' in renderer_source
+
+
+def test_mesh_edit_forces_the_resident_view_to_editable_replacement_only() -> None:
+    scene_source = _source("NetSceneState.cs")
+    presentation_source = _source("MeshViewport.Presentation.cs")
+    controls_source = _source("ExperimentForm.Controls.cs")
+
+    assert '"mesh_edit" => "replacement_only"' in scene_source
+    assert "EffectiveComparisonMode(value, InteractionMode)" in scene_source
+    assert 'normalized = "editable";' in presentation_source
+    assert '_viewport.ActivatePresentationView("editable")' in controls_source
+    assert "button.Enabled = !meshEdit" in _source("ExperimentForm.PresentationProtocol.cs")
+
+
+def test_dotnet_input_precedence_depth_passes_and_mode_controls_are_explicit() -> None:
+    input_source = _source("MeshViewport.Input.cs")
+    overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
+    renderer_source = _source("D3D11MaterialViewport.cs")
+    program_source = _source("Program.cs")
+    controls_source = _source("ExperimentForm.Controls.cs")
+    host_commands = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_commands.py").read_text(
+        encoding="utf-8"
+    )
+
+    placement = input_source.split(
+        'if (e.Button == MouseButtons.Left\n            && !string.Equals(_scene.InteractionMode, "mesh_edit"',
+        1,
+    )[1].split(
+        'if (e.Button == MouseButtons.Left && !string.Equals(ActiveTool, "orbit"',
+        1,
+    )[0]
+    assert placement.index("TryBeginPlacementGizmoDrag") < placement.index("PartPickEnabled")
+    assert placement.index("PartPickEnabled") < placement.index("_rotating = true")
+    assert "_placementDragActive = true;" not in placement
+
+    assert "_overlayDepthState = _device.CreateDepthStencilState(overlayDepthDescription);" in renderer_source
+    assert "overlayDepthDescription.DepthEnable = false;" not in renderer_source
+    assert "overlayNoDepthDescription.DepthEnable = false;" in renderer_source
+    assert "_gizmoDepthState = _device.CreateDepthStencilState" in renderer_source
+    assert overlay_source.index("DrawSceneGrid();") < overlay_source.index(
+        "_context.OMSetDepthStencilState(_overlayNoDepthState);"
+    )
+    assert overlay_source.index(
+        "_context.OMSetDepthStencilState(_overlayNoDepthState);"
+    ) < overlay_source.index("DrawSelectionRectangleOverlay();")
+    assert overlay_source.index(
+        "_context.OMSetDepthStencilState(_gizmoDepthState);"
+    ) < overlay_source.index("DrawSceneGizmo();")
+
+    assert "ApplyInteractionModeControls();" in program_source
+    assert "section.Visible = meshEdit;" in controls_source
+    assert "section.Visible = !meshEdit;" in controls_source
+    assert "var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;" in controls_source
+    assert '_viewport.TrySetSynchronizedDisplayMode("textured", out var error)' in controls_source
+    assert "SynchronizePresentationDisplaySettings();" in _source("MeshViewport.PresentationSettings.cs")
+    assert 'phase == "begin" and isinstance(payload.get("local_selection"), Mapping)' not in host_commands
+    assert "includeLocalSelection" not in input_source
+
+
+def test_dotnet_provisional_picking_and_mutation_responses_are_authority_safe() -> None:
+    picking = _source("MeshViewport.SelectionPicking.cs")
+    occlusion = _source("MeshViewport.OcclusionPicking.cs")
+    selection_authority = _source("MeshViewport.SelectionAuthority.cs")
+    mutation_authority = _source("ExperimentForm.MutationAuthority.cs")
+    protocol = _source("ExperimentForm.Protocol.cs")
+    output = _source("ExperimentForm.Output.cs")
+    scene = _source("NetSceneState.cs")
+    gizmo = _source("MeshViewport.Gizmo.cs")
+
+    assert "TryNearestVisibleSurface" in occlusion
+    assert "RayIntersectsTriangle" in occlusion
+    assert "IsWorldPointOccluded" in occlusion
+    assert "nearestDistance + depthTolerance < candidateDistance" in occlusion
+    assert "ActivePaneIncludesForPicking(submeshIndex)" in occlusion
+    assert "ShowXRay" in occlusion
+    assert "ShowXRay || !IsWorldPointOccluded" in picking
+    assert "return TryNearestVisibleSurface(point" in picking
+
+    assert "SelectionAuthoritySnapshot" in selection_authority
+    assert "BeginProvisionalSelection" in selection_authority
+    assert "RejectProvisionalSelection" in selection_authority
+    assert "RestoreAcknowledgedSelection" in selection_authority
+    assert "AcknowledgedSelectionRevision" in selection_authority
+
+    for field in ("session_id", "request_id", "base_revision", "process_generation"):
+        assert f'"{field}"' in mutation_authority
+    assert "TryMatchPendingMutation" in mutation_authority
+    assert "revision < candidate.BaseRevision" in mutation_authority
+    assert "revision < _viewport.AcknowledgedSelectionRevision" in mutation_authority
+    assert "Ignored stale or uncorrelated command result" in mutation_authority
+    assert "Ignored stale or uncorrelated selection update" in protocol
+    assert "HandleCommandResult(document.RootElement);" in protocol
+    assert "TryPrepareCorrelatedSelectionUpdate" in protocol
+    assert "RegisterOutgoingMutation(eventName, message);" in output
+
+    assert "BeginProvisionalPlacement" in gizmo
+    assert "TrackProvisionalPlacementRequest" in mutation_authority
+    assert "RejectProvisionalPlacement" in mutation_authority
+    assert "AcceptAuthoritativePlacementFrame" in scene
+    assert "if (!_scene.AcceptAuthoritativePlacementFrame())" in mutation_authority
+    assert "ForceAcceptAuthoritativePlacementFrame" in mutation_authority
+    assert "CompleteAuthoritativeSceneState();" in protocol
 
 
 def test_dotnet_texture_decode_cache_singleflights_and_prunes_inactive_entries() -> None:
@@ -198,7 +572,10 @@ def test_dotnet_lifecycle_counts_use_parser_and_renderer_owners() -> None:
     material_source = _source("ExperimentForm.MaterialProtocol.cs")
     d3d_source = _source("D3D11MaterialViewport.cs")
     renderer_resources = _source("MeshViewport.RendererResources.cs")
-    host_source = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_shell.py").read_text(encoding="utf-8")
+    host_source = "\n".join(
+        (ROOT / "cdmw" / "ui" / "mesh_editor" / name).read_text(encoding="utf-8")
+        for name in ("tab_shell.py", "tab_shell_runtime.py")
+    )
 
     assert entry_source.index("ObjDocument.Load(options.MeshPath)") < entry_source.index("sourceParseCount++")
     assert "new ExperimentForm(options, document, sourceParseCount)" in entry_source
@@ -222,19 +599,24 @@ def test_dotnet_tool_panel_has_no_disabled_gizmo_placeholder() -> None:
     assert 'DisabledButton("Gizmo"' not in program_source
 
 
-def test_embedded_dotnet_owns_one_dark_scrollable_tool_panel_and_stable_camera() -> None:
+def test_embedded_dotnet_exposes_its_tool_panel_in_mesh_edit_mode() -> None:
     program_source = _source("Program.cs")
+    controls_source = _source("ExperimentForm.Controls.cs")
     protocol_source = _source("ExperimentForm.Protocol.cs")
     material_source = _source("ExperimentForm.MaterialProtocol.cs")
     input_source = _source("MeshViewport.Input.cs")
     topology_source = _source("MeshViewport.Topology.cs")
 
     assert 'Name = "DotNetMeshEditorLayout"' in program_source
-    assert "editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, toolPanel.Width));" in program_source
-    assert "toolPanel.Margin = new Padding(0);" in program_source
+    assert "_editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : ToolPanelWidth));" in program_source
+    assert "_toolPanel.Visible = !_options.Embedded;" in program_source
+    assert "_toolPanel.Margin = new Padding(0);" in program_source
     assert "_viewport.Margin = new Padding(0);" in program_source
-    assert "editorLayout.Controls.Add(toolPanel, 0, 0);" in program_source
-    assert "editorLayout.Controls.Add(_viewport, 1, 0);" in program_source
+    assert "_editorLayout.Controls.Add(_toolPanel, 0, 0);" in program_source
+    assert "_editorLayout.Controls.Add(BuildPresentationViewportRegion(), 1, 0);" in program_source
+    assert "ApplyEmbeddedToolPanelVisibility(meshEdit);" in controls_source
+    assert "_editorLayout.ColumnStyles[0].Width = meshEdit ? ToolPanelWidth : 0;" in controls_source
+    assert "_toolPanel.Visible = meshEdit;" in controls_source
     assert "if (!options.Embedded)" not in program_source
     assert 'Name = "DotNetMeshEditorToolScroll"' in program_source
     assert 'SetWindowTheme(control.Handle, "DarkMode_Explorer", null)' in program_source
@@ -248,13 +630,14 @@ def test_embedded_dotnet_owns_one_dark_scrollable_tool_panel_and_stable_camera()
     assert '_selectionTarget.SelectedItem = "Part";' in program_source
     assert "RefreshSubmeshList();" in protocol_source
     assert material_source.count("RefreshSubmeshList();") >= 2
-    assert "Math.Clamp(_zoom, 1.0f, 500000.0f)" in input_source
+    assert "CameraZoomPolicy.ApplyWheelDelta(" in input_source
+    assert "Math.Clamp(_zoom, 1.0f, 500000.0f)" not in input_source
     assert topology_source.count("var viewCenter = _center;") == 2
     assert topology_source.count("_center = viewCenter;") == 2
     assert "IsSubmeshVisibleForViewportSelection" in _source("MeshViewport.SelectionPicking.cs")
     assert "_materials.ParametersForSubmesh(pair.Key).Visible is false" in _source("D3D11MaterialViewport.Overlay.cs")
 
-    host_protocol = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py").read_text(encoding="utf-8")
+    host_protocol = (ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_payloads.py").read_text(encoding="utf-8")
     sender = host_protocol.split("    def _send_dotnet_native_update(", maxsplit=1)[1].split(
         "    def _dotnet_screen_selection_payload", maxsplit=1
     )[0]
@@ -290,9 +673,14 @@ def test_dotnet_editor_starts_and_can_return_to_no_part_selection() -> None:
     assert "SubmeshSelectedRequested?.Invoke(SelectedSubmeshIndex);" in selection_source
     assert selection_source.count("SubmeshSelectedRequested?.Invoke(") == 1
     assert "SubmeshSelectedRequested?.Invoke(" not in selection_picking_source
-    clicked_part = selection_source.split("private void SelectPartAt(Point point)", 1)[1].split("private int PickPartAt", 1)[0]
-    assert "ApplyPartSelectionOperation(new[] { submeshIndex }, CurrentSelectionOperation());" in clicked_part
-    assert "SelectedSubmeshIndex = submeshIndex;" not in clicked_part
+    committed_selection = selection_picking_source.split("private void FinishEdgeDrag(Point point)", 1)[1].split(
+        "private Rectangle EdgeDragRectangle", 1
+    )[0]
+    assert 'EditorEventRequested?.Invoke("select_request", payload);' in committed_selection
+    assert "ApplyPartSelectionOperation" not in committed_selection
+    assert "ApplySelectionMapOperation" not in committed_selection
+    assert "ApplyEdgeSelectionOperation" not in committed_selection
+    assert "SelectedSubmeshIndex = submeshIndex;" not in selection_source
     assert "new HashSet<int> { SelectedSubmeshIndex }" not in selection_commands_source
     assert "SyncSelectedPartFocus();" in topology_source
     assert "DrawSelectedSourcesOverlay();" in overlay_source
@@ -302,6 +690,7 @@ def test_dotnet_editor_starts_and_can_return_to_no_part_selection() -> None:
 def test_dotnet_embedded_ready_requires_a_verified_native_parent() -> None:
     host_source = _source("NativeWindowHost.cs")
     program_source = _source("Program.cs")
+    runtime_source = _source("ExperimentForm.Runtime.cs")
     protocol_source = _source("ExperimentForm.Protocol.cs")
     material_protocol_source = _source("ExperimentForm.MaterialProtocol.cs")
 
@@ -321,8 +710,8 @@ def test_dotnet_embedded_ready_requires_a_verified_native_parent() -> None:
     texture_load_source = constructor_source.split("private void StartTextureLoad", maxsplit=1)[1]
     successful_texture_load = texture_load_source.split("var allSubmeshes", maxsplit=1)[1]
     assert successful_texture_load.index("TryApplyMaterialState") < successful_texture_load.index('QueueReadyAfterFirstFrame("ready"')
-    assert "_viewport.Metrics.HasRenderedFrame" in constructor_source
-    assert constructor_source.index("_viewport.Metrics.HasRenderedFrame") < constructor_source.index(
+    assert "_viewport.HasRenderedRequiredPresentation" in runtime_source
+    assert runtime_source.index("_viewport.HasRenderedRequiredPresentation") < runtime_source.index(
         "PublishReady(_pendingTextureState, _pendingTextureError);"
     )
     assert 'PublishReady("ready", string.Empty)' not in successful_texture_load
@@ -360,3 +749,99 @@ def test_real_dotnet_edit_harness_declares_mesh_edit_scene_mode() -> None:
 
     assert '"_mesh_editor_embedded_comparison_mode", lambda: "replacement_only"' in source
     assert '"_mesh_editor_embedded_interaction_mode", lambda: "mesh_edit"' in source
+
+
+def test_texture_criticality_blocks_required_ready_and_keeps_optional_fallbacks_diagnostic() -> None:
+    program = _source("Program.cs")
+    materials = _source("NetMaterialSet.Resident.cs")
+    material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
+    texture_set = _source("NetTextureSet.Incremental.cs")
+
+    assert program.index("FailedRequiredResources") < program.index("QueueReadyAfterFirstFrame")
+    assert 'WriteProtocolEvent("textures_error"' in program
+    assert '"optional_resource_failures"' in program
+    assert "bool Required" in materials
+    assert "string FallbackPolicy" in materials
+    assert '"required_texture_decode_failed"' in material_protocol
+    assert '"optional_resource_failures"' in material_protocol
+    assert "resourceGroups[index]" in texture_set
+
+
+def test_late_original_reference_completion_routes_to_resident_material_generation() -> None:
+    callback_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_remaining_callbacks.py"
+    ).read_text(encoding="utf-8")
+    helper_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_materials.py"
+    ).read_text(encoding="utf-8")
+    protocol_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_resources.py"
+    ).read_text(encoding="utf-8")
+
+    assert "preview_materials.apply_resolved_original_materials_to_resident_editor(" in callback_source
+    assert "_mesh_editor_embedded_apply_reference_material_resources" in helper_source
+    assert "apply_reference(preview_model)" in helper_source
+    assert 'role="original_reference"' in protocol_source
+    assert '"reason": "late_original_reference_resources"' in protocol_source
+    assert "standalone_dotnet_pending_reference_material_model" in protocol_source
+
+
+def test_late_modify_original_materials_also_route_to_the_exact_editable_clone() -> None:
+    callback_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_remaining_callbacks.py"
+    ).read_text(encoding="utf-8")
+    helper_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_materials.py"
+    ).read_text(encoding="utf-8")
+    protocol_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_resources.py"
+    ).read_text(encoding="utf-8")
+
+    assert "modify_original_clone_mode=bool(modify_original_clone_mode)" in callback_source
+    assert "if modify_original_clone_mode:" in helper_source
+    assert "copy_dotnet_preview_material_bindings(" in helper_source
+    assert "_mesh_editor_embedded_apply_clone_material_resources" in helper_source
+    assert "def apply_resident_clone_material_resources(" in protocol_source
+    assert 'reason="late_exact_clone_resources"' in protocol_source
+    assert "standalone_dotnet_pending_clone_material_model" in protocol_source
+    launch_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_launch.py"
+    ).read_text(encoding="utf-8")
+    connect_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py"
+    ).read_text(encoding="utf-8")
+    assert launch_source.index("standalone_dotnet_pending_clone_material_model = None") < launch_source.index(
+        "standalone_dotnet_package_request_id += 1"
+    )
+    assert "standalone_dotnet_pending_clone_material_model = None" not in connect_source
+
+
+def test_icon_capture_uses_deterministic_offscreen_d3d_target_without_visible_state_mutation() -> None:
+    capture = _source("D3D11MaterialViewport.Capture.cs")
+    renderer = _source("D3D11MaterialViewport.cs")
+    protocol = _source("ExperimentForm.Protocol.cs")
+
+    assert "BindFlags.RenderTarget" in capture
+    assert "ResourceUsage.Staging" in capture
+    assert "CpuAccessFlags.Read" in capture
+    assert "CopyResource(stagingTexture, targetTexture)" in capture
+    assert "RenderFrame(present: false, includeOverlays: false, replacementOnly: true)" in capture
+    assert "bitmap.Save(temporaryPath, ImageFormat.Png)" in capture
+    assert "screen.grabWindow" not in capture
+    assert "replacementOnly && _scene.IsReference" in renderer
+    assert 'case "capture_request"' in protocol
+    assert '"visible_view_mutated"] = false' in protocol
+    assert "Capture output must remain inside the package output directory" in protocol
+
+
+def test_required_and_optional_resource_policy_has_an_executable_runtime_probe() -> None:
+    probe = _source("MaterialResourcePolicyProbe.cs")
+    entry = _source("ProgramEntry.cs")
+
+    assert "NetMaterialSet.Load(manifestPath)" in probe
+    assert "textures.LoadAsync(materials).GetAwaiter().GetResult()" in probe
+    assert "FailedRequiredResources" in probe
+    assert "FailedOptionalResources" in probe
+    assert '"required_texture_decode_failed"' in probe
+    assert '"optional_texture_fallback_applied"' in probe
+    assert "MaterialResourcePolicyProbe.Run(args)" in entry

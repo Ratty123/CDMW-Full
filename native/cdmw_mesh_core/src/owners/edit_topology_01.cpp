@@ -477,6 +477,60 @@ struct MeshEditorScreenBrushDepthMask {
     std::vector<double> depths;
 };
 
+std::array<double, 4> mesh_editor_screen_depth_mask_bounds(
+    const JsonValue& brush,
+    const MeshEditorScreenBrushProjection& projection
+) {
+    const double viewport_left = projection.viewport_x;
+    const double viewport_top = projection.viewport_y;
+    const double viewport_right = viewport_left + projection.viewport_width;
+    const double viewport_bottom = viewport_top + projection.viewport_height;
+    double left = viewport_left;
+    double top = viewport_top;
+    double right = viewport_right;
+    double bottom = viewport_bottom;
+    const double x = number_or(
+        brush.get("x"),
+        number_or(brush.get("cursor_x"), number_or(brush.get("screen_x"), std::numeric_limits<double>::quiet_NaN()))
+    );
+    const double y = number_or(
+        brush.get("y"),
+        number_or(brush.get("cursor_y"), number_or(brush.get("screen_y"), std::numeric_limits<double>::quiet_NaN()))
+    );
+    const double radius = std::max(
+        0.0,
+        number_or(
+            brush.get("radius_pixels"),
+            number_or(brush.get("brush_radius_pixels"), number_or(brush.get("radius"), 0.0))
+        )
+    );
+    constexpr double kPaddingPixels = 2.0;
+    if (std::isfinite(x) && std::isfinite(y)) {
+        const double extent = std::max(radius, 1.0) + kPaddingPixels;
+        left = x - extent;
+        top = y - extent;
+        right = x + extent;
+        bottom = y + extent;
+    } else {
+        const double start_x = number_or(brush.get("start_x"), std::numeric_limits<double>::quiet_NaN());
+        const double start_y = number_or(brush.get("start_y"), std::numeric_limits<double>::quiet_NaN());
+        const double end_x = number_or(brush.get("end_x"), std::numeric_limits<double>::quiet_NaN());
+        const double end_y = number_or(brush.get("end_y"), std::numeric_limits<double>::quiet_NaN());
+        if (std::isfinite(start_x) && std::isfinite(start_y)
+            && std::isfinite(end_x) && std::isfinite(end_y)) {
+            left = std::min(start_x, end_x) - kPaddingPixels;
+            top = std::min(start_y, end_y) - kPaddingPixels;
+            right = std::max(start_x, end_x) + kPaddingPixels;
+            bottom = std::max(start_y, end_y) + kPaddingPixels;
+        }
+    }
+    left = std::clamp(left, viewport_left, std::max(viewport_left, viewport_right - 1.0));
+    top = std::clamp(top, viewport_top, std::max(viewport_top, viewport_bottom - 1.0));
+    right = std::clamp(right, left + 1.0, viewport_right);
+    bottom = std::clamp(bottom, top + 1.0, viewport_bottom);
+    return {left, top, right, bottom};
+}
+
 MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
     const MeshEditorSession* session,
     const JsonValue& brush
@@ -489,15 +543,18 @@ MeshEditorScreenBrushDepthMask mesh_editor_screen_brush_depth_mask(
     if (!projection.has_world_view_projection && projection.source_world_view_projections.empty()) {
         return mask;
     }
+    const std::array<double, 4> bounds = mesh_editor_screen_depth_mask_bounds(brush, projection);
+    const double mask_width = std::max(1.0, bounds[2] - bounds[0]);
+    const double mask_height = std::max(1.0, bounds[3] - bounds[1]);
     constexpr double kMaxDepthMaskDimension = 1024.0;
-    const double scale = std::min(1.0, kMaxDepthMaskDimension / std::max(projection.viewport_width, projection.viewport_height));
+    const double scale = std::min(1.0, kMaxDepthMaskDimension / std::max(mask_width, mask_height));
     mask.valid = true;
-    mask.width = std::max(1, static_cast<int>(std::ceil(projection.viewport_width * scale)));
-    mask.height = std::max(1, static_cast<int>(std::ceil(projection.viewport_height * scale)));
-    mask.viewport_x = projection.viewport_x;
-    mask.viewport_y = projection.viewport_y;
-    mask.scale_x = static_cast<double>(mask.width) / projection.viewport_width;
-    mask.scale_y = static_cast<double>(mask.height) / projection.viewport_height;
+    mask.width = std::max(1, static_cast<int>(std::ceil(mask_width * scale)));
+    mask.height = std::max(1, static_cast<int>(std::ceil(mask_height * scale)));
+    mask.viewport_x = bounds[0];
+    mask.viewport_y = bounds[1];
+    mask.scale_x = static_cast<double>(mask.width) / mask_width;
+    mask.scale_y = static_cast<double>(mask.height) / mask_height;
     mask.depths.assign(
         static_cast<std::size_t>(mask.width) * static_cast<std::size_t>(mask.height),
         std::numeric_limits<double>::infinity()

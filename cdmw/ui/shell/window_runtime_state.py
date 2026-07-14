@@ -104,6 +104,37 @@ class ShellWindowRuntimeStateMixin:
         self.compare_syncing_scrollbars = False
         self.workflow_right_splitter_normal_sizes: Optional[List[int]] = None
 
+    def _initialize_archive_renderer_runtime_state(self) -> None:
+        self.archive_isolated_renderer_process: Optional[QProcess] = None
+        self.archive_isolated_renderer_generation_counter = 0
+        self.archive_isolated_renderer_generations: Dict[
+            int,
+            Tuple[QProcess, int, Optional[Path]],
+        ] = {}
+        self.archive_isolated_renderer_expected_stops: Dict[
+            int,
+            Tuple[QProcess, str, Dict[str, object]],
+        ] = {}
+        self.archive_isolated_renderer_active_package: Optional[Path] = None
+        self.archive_isolated_renderer_active_process: Optional[QProcess] = None
+        self.archive_isolated_renderer_pending_package: Optional[Path] = None
+        self.archive_isolated_renderer_pending_status_file: Optional[Path] = None
+        self.archive_isolated_renderer_pending_package_source = ""
+        self.archive_isolated_renderer_retired_packages: List[Path] = []
+        self.archive_isolated_renderer_status_file: Optional[Path] = None
+        self.archive_isolated_renderer_status_signature: Tuple[int, int] = (0, 0)
+        self.archive_isolated_renderer_status_payload_text = ""
+        self.archive_isolated_renderer_last_status_payload: Dict[str, object] = {}
+        self.archive_isolated_renderer_status_timer = QTimer(self)
+        self.archive_isolated_renderer_status_timer.setInterval(250)
+        self.archive_isolated_renderer_status_timer.timeout.connect(self._poll_archive_isolated_renderer_status)
+        self.archive_isolated_renderer_debug_text = ""
+        self.archive_isolated_renderer_package_source = ""
+        self.archive_isolated_package_thread: Optional[QThread] = None
+        self.archive_isolated_package_worker: Optional[ArchiveD3D11PackageWorker] = None
+        self.archive_isolated_package_request_id = 0
+        self.archive_isolated_package_pending_result: Optional[ArchivePreviewResult] = None
+
     def _initialize_archive_runtime_state(self) -> None:
         self.archive_preview_thread: Optional[QThread] = None
         self.archive_preview_worker: Optional[ArchivePreviewWorker] = None
@@ -130,20 +161,7 @@ class ShellWindowRuntimeStateMixin:
         self.archive_preview_request_started_at: Dict[int, float] = {}
         self.archive_preview_request_phase_timings: Dict[int, Dict[str, float]] = {}
         self.archive_preview_request_sources: Dict[int, str] = {}
-        self.archive_isolated_renderer_process: Optional[QProcess] = None
-        self.archive_isolated_renderer_active_package: Optional[Path] = None
-        self.archive_isolated_renderer_active_process: Optional[QProcess] = None
-        self.archive_isolated_renderer_pending_package: Optional[Path] = None
-        self.archive_isolated_renderer_pending_status_file: Optional[Path] = None
-        self.archive_isolated_renderer_pending_package_source = ""
-        self.archive_isolated_renderer_retired_packages: List[Path] = []
-        self.archive_isolated_renderer_status_file: Optional[Path] = None
-        self.archive_isolated_renderer_status_signature: Tuple[int, int] = (0, 0)
-        self.archive_isolated_renderer_status_payload_text = ""
-        self.archive_isolated_renderer_last_status_payload: Dict[str, object] = {}
-        self.archive_isolated_renderer_status_timer = QTimer(self)
-        self.archive_isolated_renderer_status_timer.setInterval(250)
-        self.archive_isolated_renderer_status_timer.timeout.connect(self._poll_archive_isolated_renderer_status)
+        self._initialize_archive_renderer_runtime_state()
         self.archive_memory_audit_timer = QTimer(self)
         self.archive_memory_audit_timer.setInterval(30000)
         self.archive_memory_audit_timer.timeout.connect(
@@ -158,12 +176,6 @@ class ShellWindowRuntimeStateMixin:
         self.archive_preview_core_idle_shutdown_timer.setSingleShot(True)
         self.archive_preview_core_idle_shutdown_timer.setInterval(self.archive_preview_core_idle_shutdown_ms)
         self.archive_preview_core_idle_shutdown_timer.timeout.connect(self._shutdown_idle_native_preview_core_service)
-        self.archive_isolated_renderer_debug_text = ""
-        self.archive_isolated_renderer_package_source = ""
-        self.archive_isolated_package_thread: Optional[QThread] = None
-        self.archive_isolated_package_worker: Optional[ArchiveD3D11PackageWorker] = None
-        self.archive_isolated_package_request_id = 0
-        self.archive_isolated_package_pending_result: Optional[ArchivePreviewResult] = None
         self.archive_native_prefetch_thread: Optional[QThread] = None
         self.archive_native_prefetch_worker: Optional[ArchiveNativePreviewPrefetchWorker] = None
         self.archive_native_prefetch_request_id = 0

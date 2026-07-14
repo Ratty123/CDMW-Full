@@ -31,12 +31,31 @@ internal sealed partial class NetTextureSet
         }
         lock (_gate)
         {
-            if (_decodedByFingerprint.TryGetValue(reference.CacheKey, out var exact))
+            if (_decodedByFingerprint.TryGetValue(reference.SourceCacheKey, out var exact))
             {
                 return exact;
             }
             return _lastGoodResourceKeys.TryGetValue(reference.ResourceId, out var lastGoodKey)
                 && _decodedByFingerprint.TryGetValue(lastGoodKey, out var lastGood)
+                    ? lastGood
+                    : null;
+        }
+    }
+
+    public NetDdsNativeTextureData? NativeDdsForReference(NetMaterialTextureReference reference)
+    {
+        if (reference.IsEmpty)
+        {
+            return null;
+        }
+        lock (_gate)
+        {
+            if (_nativeDdsByFingerprint.TryGetValue(reference.SourceCacheKey, out var exact))
+            {
+                return exact;
+            }
+            return _lastGoodResourceKeys.TryGetValue(reference.ResourceId, out var lastGoodKey)
+                && _nativeDdsByFingerprint.TryGetValue(lastGoodKey, out var lastGood)
                     ? lastGood
                     : null;
         }
@@ -81,9 +100,11 @@ internal sealed partial class NetTextureSet
             }
         }
 
-        var tasks = resources
-            .DistinctBy(item => item.Reference.CacheKey)
-            .Select(DecodeOneResourceAsync)
+        var resourceGroups = resources
+            .GroupBy(item => item.Reference.SourceCacheKey, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var tasks = resourceGroups
+            .Select(group => DecodeOneResourceAsync(group.First()))
             .ToArray();
         var results = tasks.Length == 0
             ? Array.Empty<NetTextureResourceDecodeResult>()
@@ -92,15 +113,18 @@ internal sealed partial class NetTextureSet
             results.Sum(result => result.Decoded),
             results.Sum(result => result.Reused),
             results
-                .Where(result => !string.IsNullOrWhiteSpace(result.Error))
-                .GroupBy(result => result.ResourceId, StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.Last().Error, StringComparer.Ordinal));
+                .SelectMany((result, index) => string.IsNullOrWhiteSpace(result.Error)
+                    ? Array.Empty<KeyValuePair<string, string>>()
+                    : resourceGroups[index]
+                        .Select(resource => new KeyValuePair<string, string>(resource.ResourceId, result.Error)))
+                .GroupBy(pair => pair.Key, StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.Last().Value, StringComparer.Ordinal));
     }
 
     private async Task<NetTextureResourceDecodeResult> DecodeOneResourceAsync(NetMaterialResource resource)
     {
         var reference = resource.Reference;
-        var key = reference.CacheKey;
+        var key = reference.SourceCacheKey;
         Task<NetTextureDecodePayload> flight;
         lock (_gate)
         {
@@ -108,9 +132,14 @@ internal sealed partial class NetTextureSet
             {
                 return new NetTextureResourceDecodeResult(resource.ResourceId, 0, 0, "texture_set_disposed");
             }
-            if (_decodedByFingerprint.TryGetValue(key, out var cached))
+            var hasBitmap = _decodedByFingerprint.TryGetValue(key, out var cached);
+            var hasNative = _nativeDdsByFingerprint.ContainsKey(key);
+            if (hasBitmap || hasNative)
             {
-                _decoded[resource.Path] = cached;
+                if (cached is not null)
+                {
+                    _decoded[resource.Path] = cached;
+                }
                 _lastGoodResourceKeys[resource.ResourceId] = key;
                 _decodeReuseCount++;
                 return new NetTextureResourceDecodeResult(resource.ResourceId, 0, 1, string.Empty);
@@ -124,8 +153,8 @@ internal sealed partial class NetTextureSet
             {
                 flight = Task.Run(() =>
                 {
-                    var (bitmap, ddsInfo, error) = DecodeResource(resource.Path);
-                    return new NetTextureDecodePayload(bitmap, ddsInfo, error);
+                    var (bitmap, ddsInfo, nativeDds, error) = DecodeResource(resource.Path);
+                    return new NetTextureDecodePayload(bitmap, ddsInfo, nativeDds, error);
                 });
                 _decodeFlights[key] = flight;
                 _decodeAttemptCount++;
@@ -162,7 +191,7 @@ internal sealed partial class NetTextureSet
             {
                 _ddsResources[resource.Path] = payload.DdsInfo with { Path = resource.Path };
             }
-            if (payload.Bitmap is null)
+            if (payload.Bitmap is null && payload.NativeDds is null)
             {
                 RememberTextureLoadFailure(resource.Path);
                 return new NetTextureResourceDecodeResult(resource.ResourceId, 0, 0, payload.Error);
@@ -170,7 +199,20 @@ internal sealed partial class NetTextureSet
 
             var decoded = 0;
             var reused = 0;
-            if (_decodedByFingerprint.TryGetValue(key, out var existing))
+            if (payload.NativeDds is not null)
+            {
+                if (_nativeDdsByFingerprint.ContainsKey(key))
+                {
+                    reused = 1;
+                }
+                else
+                {
+                    _nativeDdsByFingerprint[key] = payload.NativeDds;
+                    decoded = 1;
+                }
+            }
+            Bitmap? existing = null;
+            if (payload.Bitmap is not null && _decodedByFingerprint.TryGetValue(key, out existing))
             {
                 if (finalizedFlight && !ReferenceEquals(existing, payload.Bitmap))
                 {
@@ -179,14 +221,24 @@ internal sealed partial class NetTextureSet
                 _decodeReuseCount++;
                 reused = 1;
             }
-            else
+            else if (payload.Bitmap is not null)
             {
                 existing = payload.Bitmap;
                 _decodedByFingerprint[key] = existing;
-                _decodeSuccessCount++;
                 decoded = 1;
             }
-            _decoded[resource.Path] = existing;
+            if (existing is not null)
+            {
+                _decoded[resource.Path] = existing;
+            }
+            if (decoded > 0)
+            {
+                _decodeSuccessCount++;
+            }
+            else if (reused > 0 && payload.Bitmap is null)
+            {
+                _decodeReuseCount++;
+            }
             _lastGoodResourceKeys[resource.ResourceId] = key;
             _textureLoadFailures.RemoveAll(item => string.Equals(item, resource.Path, StringComparison.OrdinalIgnoreCase));
             return new NetTextureResourceDecodeResult(resource.ResourceId, decoded, reused, string.Empty);
@@ -220,7 +272,7 @@ internal sealed partial class NetTextureSet
             .ToArray();
         var activeResourceIds = active.Select(resource => resource.ResourceId).ToHashSet(StringComparer.Ordinal);
         var activePaths = active.Select(resource => resource.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var keepKeys = active.Select(resource => resource.Reference.CacheKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var keepKeys = active.Select(resource => resource.Reference.SourceCacheKey).ToHashSet(StringComparer.OrdinalIgnoreCase);
         lock (_gate)
         {
             foreach (var resourceId in activeResourceIds)
@@ -265,35 +317,39 @@ internal sealed partial class NetTextureSet
             {
                 _ddsResources.Remove(path);
             }
+            foreach (var key in _nativeDdsByFingerprint.Keys.Where(key => !keepKeys.Contains(key)).ToArray())
+            {
+                _nativeDdsByFingerprint.Remove(key);
+            }
             _textureLoadFailures.RemoveAll(path => !activePaths.Contains(path));
         }
     }
 
-    private static (Bitmap? Bitmap, NetDdsTextureInfo? DdsInfo, string Error) DecodeResource(string path)
+    private static (Bitmap? Bitmap, NetDdsTextureInfo? DdsInfo, NetDdsNativeTextureData? NativeDds, string Error) DecodeResource(string path)
     {
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
         {
-            return (null, null, "texture_file_missing");
+            return (null, null, null, "texture_file_missing");
         }
         if (IsDdsPath(path))
         {
             var decoded = DecodeDds(path);
-            return decoded.Bitmap is null
-                ? (null, decoded.Info, "dds_decode_failed")
-                : (decoded.Bitmap, decoded.Info, string.Empty);
+            return decoded.Bitmap is null && decoded.NativeDds is null
+                ? (null, decoded.Info, null, "dds_decode_failed")
+                : (decoded.Bitmap, decoded.Info, decoded.NativeDds, string.Empty);
         }
         if (!IsDecodableImagePath(path))
         {
-            return (null, null, "unsupported_texture_format");
+            return (null, null, null, "unsupported_texture_format");
         }
         try
         {
             using var source = new Bitmap(path);
-            return (new Bitmap(source), null, string.Empty);
+            return (new Bitmap(source), null, null, string.Empty);
         }
         catch (Exception ex)
         {
-            return (null, null, ex.Message);
+            return (null, null, null, ex.Message);
         }
     }
 }
@@ -301,6 +357,7 @@ internal sealed partial class NetTextureSet
 internal sealed record NetTextureDecodePayload(
     Bitmap? Bitmap,
     NetDdsTextureInfo? DdsInfo,
+    NetDdsNativeTextureData? NativeDds,
     string Error);
 
 internal sealed record NetTextureResourceDecodeResult(

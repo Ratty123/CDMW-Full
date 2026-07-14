@@ -41,6 +41,7 @@ def test_static_combo_options_keep_expected_order_and_values() -> None:
         ("Side by side", "side_by_side"),
         ("Overlay", "overlay"),
         ("Replacement only", "replacement_only"),
+        ("Original only", "original_only"),
     )
     assert TEXTURE_UV_ROTATION_OPTIONS == (
         ("0 deg", 0),

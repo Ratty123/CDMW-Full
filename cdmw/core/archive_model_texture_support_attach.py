@@ -333,6 +333,11 @@ def _assign_exact_support_maps(state: _SupportAttachmentState) -> None:
 
 def _assign_ordered_support_maps(state: _SupportAttachmentState) -> None:
     for slot in state.support_slots:
+        if slot == "emissive":
+            # Emissive maps are sparse, submesh-specific effects. PAC wrapper
+            # order is not a reliable material identity and must not spread a
+            # blade/accessory glow onto unrelated handle or guard geometry.
+            continue
         keys = state.ordered_keys.get(slot, {})
         if len(keys) <= 1:
             continue
@@ -355,6 +360,8 @@ def _assign_ordered_support_maps(state: _SupportAttachmentState) -> None:
 
 def _assign_global_support_maps(state: _SupportAttachmentState) -> None:
     for slot in state.support_slots:
+        if slot == "emissive" and len(state.model_preview.meshes) > 1:
+            continue
         bindings = sorted(state.global_bindings.get(slot, ()), key=lambda item: item[0], reverse=True)
         unresolved = [mesh for mesh in state.model_preview.meshes if not str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip()]
         for index, mesh in enumerate(unresolved):
@@ -390,6 +397,13 @@ def _assign_fallback_support_maps(state: _SupportAttachmentState) -> None:
             )
             if entry is None or status != "resolved":
                 continue
+            sidecar_texts = _support_sidecar_texts(state, entry.path)
+            if _model_texture_candidate_slot_priority(
+                slot,
+                entry.path,
+                sidecar_texts=sidecar_texts,
+            ) is None:
+                continue
             try:
                 if _assign_support_slot(state, mesh, slot, entry, slot):
                     state.fallback_assigned[slot] += 1
@@ -401,7 +415,12 @@ def _assign_fallback_support_maps(state: _SupportAttachmentState) -> None:
 
 
 def _support_attachment_report(state: _SupportAttachmentState) -> List[str]:
-    labels = {"normal": "normal-map", "material": "material-mask", "height": "height/displacement"}
+    labels = {
+        "normal": "normal-map",
+        "material": "material-mask",
+        "height": "height/displacement",
+        "emissive": "emissive",
+    }
     info: List[str] = []
     exact_total = sum(state.exact_assigned.values())
     fallback_total = sum(state.fallback_assigned.values())
@@ -444,13 +463,13 @@ def _attach_model_support_texture_preview_paths(
     texture_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]] = None,
     sidecar_texts_by_normalized_path: Optional[Dict[str, Tuple[str, ...]]] = None,
     sidecar_texts_by_basename: Optional[Dict[str, Tuple[str, ...]]] = None,
-    support_slots: Sequence[str] = ("normal", "material", "height"),
+    support_slots: Sequence[str] = ("normal", "material", "height", "emissive"),
     stop_event: Optional[threading.Event] = None,
 ) -> List[str]:
     if model_preview is None or not model_preview.meshes:
         return []
     requested = {str(slot or "").strip().lower() for slot in support_slots}
-    slots = tuple(slot for slot in ("normal", "material", "height") if slot in requested)
+    slots = tuple(slot for slot in ("normal", "material", "height", "emissive") if slot in requested)
     if not slots:
         return []
     state = _SupportAttachmentState(

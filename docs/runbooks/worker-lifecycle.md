@@ -15,6 +15,11 @@ New worker code uses shared contracts in `cdmw/workers/`.
   asynchronously, and force-stops only after timeout. It retains every owned
   `QThread` until nonblocking `wait(0)` confirms native teardown; `finished`
   alone is not a safe ownership-release boundary.
+- A parentless Python `QObject` worker that will be deleted by the UI must move
+  back to the owning UI thread from its terminal worker-thread signal before
+  `QThread.quit()`. After `wait(0)` confirms native teardown, the UI may clear
+  owner references and defer-delete both objects. Deleting the Python-backed
+  worker in the native QThread tail can invert Qt locks against the GUI GIL.
 - Picker close handlers request cooperative cancellation and return
   immediately; the shell retains thread ownership until completion.
 - Cancellable subprocesses run in an owned process group. Cancellation and
@@ -24,7 +29,10 @@ New worker code uses shared contracts in `cdmw/workers/`.
 - Persistent mesh/preview helpers continuously drain stderr into a 64 KiB
   diagnostic tail. Mesh Editor QProcess shutdown is timer-driven: terminate
   first, then kill the child tree after bounded grace; UI code never waits for
-  process start, writes, or finish.
+  process start, writes, or finish. Archive Preview expected stops are bound to
+  the exact `QProcess` object and its monotonic generation before terminate or
+  kill; stale stop records cannot suppress a later process failure, and device
+  loss remains diagnostic.
 - Output workers stage complete results beside the destination and publish by
   atomic rename; cancellation or write failure leaves prior output intact.
 

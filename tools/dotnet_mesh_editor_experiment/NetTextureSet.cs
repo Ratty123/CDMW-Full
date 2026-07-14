@@ -15,6 +15,7 @@ internal sealed partial class NetTextureSet : IDisposable
     private readonly Dictionary<string, string> _lastGoodResourceKeys = new(StringComparer.Ordinal);
     private readonly Dictionary<string, Bitmap> _materialPreviews = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, NetDdsTextureInfo> _ddsResources = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, NetDdsNativeTextureData> _nativeDdsByFingerprint = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _textureLoadFailures = new();
     private Task? _loadTask;
     private bool _disposed;
@@ -26,6 +27,7 @@ internal sealed partial class NetTextureSet : IDisposable
     public int DecodedCount { get { lock (_gate) return _decoded.Count; } }
     public int DdsResourceCount { get { lock (_gate) return _ddsResources.Count; } }
     public int DdsDecodedCount { get { lock (_gate) return _ddsResources.Values.Count(info => info.Decoded); } }
+    public int NativeDdsResourceCount { get { lock (_gate) return _nativeDdsByFingerprint.Count; } }
     public int TextureLoadFailureCount { get { lock (_gate) return _textureLoadFailures.Count; } }
     public IReadOnlyDictionary<string, NetDdsTextureInfo> DdsResources { get { lock (_gate) return new Dictionary<string, NetDdsTextureInfo>(_ddsResources); } }
     public IReadOnlyList<string> TextureLoadFailures { get { lock (_gate) return _textureLoadFailures.ToArray(); } }
@@ -199,6 +201,7 @@ internal sealed partial class NetTextureSet : IDisposable
             }
             _materialPreviews.Clear();
             _ddsResources.Clear();
+            _nativeDdsByFingerprint.Clear();
             _textureLoadFailures.Clear();
         }
     }

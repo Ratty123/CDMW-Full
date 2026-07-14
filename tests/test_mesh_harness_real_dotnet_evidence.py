@@ -138,6 +138,21 @@ def test_real_dotnet_stroke_never_sends_global_input_without_foreground_ownershi
     send_button.assert_not_called()
 
 
+def test_real_dotnet_harness_targets_editable_pane_coordinates_on_shared_hwnd() -> None:
+    root = Path(__file__).resolve().parents[1]
+    flow_source = (root / "tools" / "mesh_harness" / "real_dotnet.py").read_text(
+        encoding="utf-8"
+    )
+    input_source = (
+        root / "tools" / "mesh_harness" / "real_dotnet_input.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'client_x = int(state.viewport.get("client_x", 0) or 0)' in flow_source
+    assert "client_x + max(1, width // 2)" in flow_source
+    assert 'if "screen_x" in state.viewport' in input_source
+    assert 'if "screen_y" in state.viewport' in input_source
+
+
 def test_topology_evidence_waits_for_final_gpu_shrink_frame() -> None:
     def event(partial: int, live: int) -> dict[str, object]:
         return {
@@ -149,6 +164,38 @@ def test_topology_evidence_waits_for_final_gpu_shrink_frame() -> None:
 
     assert _latest_settled_topology_metrics(state, 0, partial_rebuild_floor=4, live_batch_count=3) == event(4, 3)
     assert _latest_settled_topology_metrics(state, 0, partial_rebuild_floor=5, live_batch_count=3) == {}
+
+    capped = [event(3, 4)] * 255 + [event(4, 3)]
+    state.tab.standalone_dotnet_protocol_events = capped
+    assert _latest_settled_topology_metrics(state, 256, partial_rebuild_floor=4, live_batch_count=3) == event(4, 3)
+
+
+def test_texture_mip_evidence_joins_on_canonical_resident_resource_id() -> None:
+    source = (
+        Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet_flow.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'resource_id = str(getattr(state, "painted_resource_id", "") or binding.mesh_resource_id or "")' in source
+
+
+def test_stroke_geometry_gate_is_frozen_before_later_workflow_edits() -> None:
+    from tools.mesh_harness.real_dotnet import _record_stroke_geometry_evidence
+
+    mesh = SimpleNamespace(
+        submeshes=[SimpleNamespace(vertices=[(1.0, 0.0, 0.0), (0.0, 0.0, 0.0)])]
+    )
+    state = SimpleNamespace(
+        controller=SimpleNamespace(working_mesh=lambda clone: mesh),
+        original_vertex_positions=(((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),),
+        submesh_index=0,
+        face_vertices=[0],
+    )
+
+    _record_stroke_geometry_evidence(state)
+    mesh.submeshes[0].vertices[1] = (2.0, 0.0, 0.0)
+
+    assert state.changed_vertex_keys == {(0, 0)}
+    assert state.changed_only_selected_geometry is True
 
 
 def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process() -> None:
@@ -236,7 +283,9 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     assert '"part_selection_optional": bool(' in source
     assert "state.initial_part_selection_empty and state.face_selection_keeps_part_unselected" in source
     run = source[source.index("def run_real_archive_mesh_editor_dotnet_edit_smoke(") :]
+    offscreen_capture = run.index("exercise_deterministic_offscreen_capture(")
     state_update = run.index("exercise_resident_material_update(")
+    builder_presentation = run.index("exercise_builder_presentation_controls(")
     geometry_display = run.index("exercise_geometry_display_modes(")
     selection = run.index("_configure_selection_and_projection(state)")
     transform = run.index("_drive_viewport_stroke(state)")
@@ -244,7 +293,13 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     texture_update = run.index("exercise_linked_texture_strokes(")
     topology = run.index("exercise_assignment_and_mesh_edits(")
     export = run.index("exercise_coherent_export(")
-    assert state_update < geometry_display < selection < transform < parameter_update < texture_update < topology < export
+    assert offscreen_capture < state_update < builder_presentation < geometry_display < selection < transform < parameter_update < texture_update < topology < export
+    capture_source = (
+        Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet_capture.py"
+    ).read_text(encoding="utf-8")
+    assert "request_resident_dotnet_icon_capture" in capture_source
+    assert 'rows[0]["sha256"] == rows[1]["sha256"]' in capture_source
+    assert 'not row["visible_view_mutated"]' in capture_source
     flow_source = (
         Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet_flow.py"
     ).read_text(encoding="utf-8")
@@ -350,6 +405,7 @@ def test_production_flow_is_ordered_and_gated_by_real_lifecycle_evidence() -> No
             "updates_applied": True,
             "queue_bounded": True,
             "copy_on_write_once": True,
+            "mip_chain_preserved": True,
             "snapshot_pixels_match": True,
             "assignment_in_snapshot": True,
             "assignment_exported": True,
@@ -460,10 +516,22 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
     with (
         patch("tools.mesh_harness.real_dotnet._prepare_real_asset", return_value=state),
         patch("tools.mesh_harness.real_dotnet._start_embedded_editor", side_effect=start),
+        patch(
+            "tools.mesh_harness.real_dotnet.exercise_deterministic_offscreen_capture",
+            side_effect=lambda *_args, **_kwargs: calls.append("offscreen_capture") or {"ok": True},
+        ),
         patch("tools.mesh_harness.real_dotnet.exercise_resident_material_update", side_effect=resident),
+        patch(
+            "tools.mesh_harness.real_dotnet.exercise_builder_presentation_controls",
+            side_effect=flow("builder_presentation"),
+        ),
         patch("tools.mesh_harness.real_dotnet.exercise_geometry_display_modes", side_effect=flow("geometry_display")),
         patch("tools.mesh_harness.real_dotnet._configure_selection_and_projection", side_effect=select),
         patch("tools.mesh_harness.real_dotnet._drive_viewport_stroke", side_effect=transform),
+        patch(
+            "tools.mesh_harness.real_dotnet._record_stroke_geometry_evidence",
+            side_effect=lambda _state: calls.append("stroke_evidence"),
+        ),
         patch("tools.mesh_harness.real_dotnet.exercise_material_parameter_update", side_effect=scalar),
         patch("tools.mesh_harness.real_dotnet.exercise_linked_texture_strokes", side_effect=flow("texture")),
         patch("tools.mesh_harness.real_dotnet.exercise_assignment_and_mesh_edits", side_effect=flow("mesh_edits")),
@@ -475,10 +543,13 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
     assert result["ok"] is True
     assert calls == [
         "ready",
+        "offscreen_capture",
         "resident_material",
+        "builder_presentation",
         "geometry_display",
         "select",
         "transform",
+        "stroke_evidence",
         "scalar",
         "texture",
         "mesh_edits",

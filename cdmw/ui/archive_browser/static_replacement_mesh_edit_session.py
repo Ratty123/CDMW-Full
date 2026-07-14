@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from functools import partial
 from types import SimpleNamespace
+from uuid import uuid4
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
+    send_resident_presentation_state,
+)
 from cdmw.ui.archive_browser.static_replacement_preview_materials import (
     copy_preview_material_bindings_to_mesh,
 )
@@ -92,14 +97,20 @@ def _mesh_editor_ensure_static_replacement_session(_state, _callbacks, mesh=None
     if source_mesh is None or current_revision < 0:
         return None
     session = _state.mesh_editor_static_replacement_session_state.get("session")
-    material_source = None
-    if bool(_state.modify_original_clone_mode):
-        material_source_getter = _state.context.get("_get_original_reference_preview_model")
-        material_source = (
-            material_source_getter()
-            if callable(material_source_getter)
-            else _state.original_reference_preview_model
+    material_source_getter = _state.context.get(
+        "_get_original_reference_preview_model"
+        if bool(_state.modify_original_clone_mode)
+        else "_get_replacement_preview_model"
+    )
+    material_source = (
+        material_source_getter()
+        if callable(material_source_getter)
+        else (
+            _state.original_reference_preview_model
+            if bool(_state.modify_original_clone_mode)
+            else _state.replacement_preview_model
         )
+    )
     material_source_changed = (
         material_source is not None
         and _state.mesh_editor_static_replacement_session_state.get("material_source") is not material_source
@@ -112,7 +123,13 @@ def _mesh_editor_ensure_static_replacement_session(_state, _callbacks, mesh=None
         or _state.mesh_editor_static_replacement_session_state.get("revision") != current_revision
     ):
         _callbacks._mesh_editor_clear_static_replacement_session()
-        session = _state.StaticReplacementMeshEditSession(session_id="static-replacement")
+        session_id = str(
+            getattr(_state.dialog, "_mesh_editor_embedded_session_id", "") or ""
+        )
+        if not session_id:
+            session_id = f"static-replacement-{uuid4().hex}"
+            setattr(_state.dialog, "_mesh_editor_embedded_session_id", session_id)
+        session = _state.StaticReplacementMeshEditSession(session_id=session_id)
         session.open(source_mesh)
         if _state.source_skeleton is not None:
             try:
@@ -321,6 +338,18 @@ def _mesh_editor_finalize_edit_mode_exit(_state, _callbacks, reason: str, mesh_c
             _state.mesh_edit_enabled_checkbox.blockSignals(was_blocked)
     if getattr(_state, "controls_panel", None) is not None:
         _state.controls_panel.setVisible(True)
+    presentation_getter = getattr(
+        _state.dialog,
+        "_mesh_editor_embedded_presentation_state",
+        None,
+    )
+    if callable(presentation_getter):
+        try:
+            presentation_state = presentation_getter()
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            presentation_state = None
+        if isinstance(presentation_state, Mapping):
+            send_resident_presentation_state(_state.dialog, presentation_state)
     if bool(mesh_changed):
         _state.mesh_edit_preview_model_dirty["value"] = True
     _callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild(str(reason or "mesh_edit.finalize"))

@@ -869,6 +869,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("active_package_quality", source)
         self.assertIn("mesh_edit_raw_preview_active", source)
         self.assertIn("source_face_limit", source)
+        self.assertIn("Embedded .NET/Vortice state", source)
+        self.assertIn("active_preview_backend", source)
+        self.assertIn("_mesh_editor_embedded_runtime_diagnostics", source)
+        self.assertIn("intentionally inactive while embedded .NET/Vortice owns the visible preview", source)
         self.assertIn("manifest flags: two_sided_batches=", diagnostics_source)
         self.assertIn("manifest material inputs: ", diagnostics_source)
         self.assertIn("Latest native status", source)
@@ -934,6 +938,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
 
     def test_alignment_camera_controls_are_view_only_and_feed_icon_capture(self) -> None:
         source = _main_window_source()
+        loading_source = static_replacement_callback_concern_source(ROOT, "d3d11_loading")
+        capture_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CUSTOM_ICON_CALLBACKS.read_text(encoding="utf-8")
         preview_status_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_STATUS_STATE.read_text(encoding="utf-8")
         self.assertIn("def alignment_preview_camera_button_specs", preview_status_source)
         self.assertIn('"MeshAlignmentCameraFrontButton"', preview_status_source)
@@ -949,13 +955,15 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('preview_camera_row.addWidget(setup_texture_flip_u_checkbox)', preview_shell_source)
         self.assertIn('preview_camera_row.addWidget(setup_texture_flip_v_checkbox)', preview_shell_source)
         self.assertIn('setup_texture_flip_controls_in_preview = bool(', ui_sections_source)
-        self.assertIn("def _alignment_current_camera_state", source)
-        self.assertIn("def _apply_alignment_camera_state", source)
-        self.assertIn("alignment_d3d11_preview_host.set_view(", source)
-        self.assertIn("_qt_alignment_camera_tuple_helper(", source)
-        self.assertIn("fit_distance=NativePreviewPanel._FIT_DISTANCE", source)
-        self.assertIn("alignment_d3d11_preview_host.restore_view_state(capture_view_state)", source)
-        self.assertIn("alignment_d3d11_preview_host.restore_view_state(previous_view_state)", source)
+        self.assertIn("def _alignment_current_camera_state", loading_source)
+        self.assertIn("def _apply_alignment_camera_state", loading_source)
+        self.assertIn("send_resident_presentation_state(_state.dialog, {'camera': dict(state)})", loading_source)
+        self.assertIn("_state.alignment_preview_mode_view_states[", loading_source)
+        self.assertIn("_state.alignment_d3d11_preview_host.restore_view_state(state)", loading_source)
+        self.assertIn("_state._qt_alignment_camera_tuple_helper(", loading_source)
+        self.assertIn("fit_distance=_state.NativePreviewPanel._FIT_DISTANCE", loading_source)
+        self.assertTrue(all(token in capture_source for token in ('capture = getattr(dialog, "_mesh_editor_embedded_capture_icon", None)', "if callable(capture):", "capture(on_captured)", "replacement_only_preview.restore_view_state(previous_replacement_view_state)")))
+        self.assertNotIn("set_icon_capture_mode", capture_source)
         self.assertNotIn("camera_front_button.clicked.connect(lambda _checked=False: rotate_", source)
 
     def test_manual_texture_override_uses_assignment_store(self) -> None:
@@ -1735,6 +1743,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("setup_summary_layout.addWidget(import_section)", source)
         self.assertIn("setup_summary_layout.addWidget(context_group)", source)
         self.assertIn('advanced_setup_section = CollapsibleSection("Advanced", expanded=False)', source)
+        self.assertIn("advanced_setup_section.setParent(setup_page)", workflow_source)
+        self.assertNotIn("advanced_setup_section.setVisible(True)", workflow_source)
         self.assertIn('source_mix_tray = QGroupBox(source_mix_control_text["group_title"])', source)
         self.assertIn("setup_advanced_layout.addWidget(source_mix_tray)", source)
         self.assertNotIn("setup_layout.addWidget(source_mix_tray)", source)
@@ -1755,6 +1765,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _choose_mod_archive_mesh_source_for_alignment", source)
         self.assertIn("def _choose_archive_mesh_source_dialog", source)
         self.assertIn('"archive_source_prompt": "Search archive source by name, path, package, or role"', source_mix_state_source)
+
         self.assertIn("This does not rescan the archive.", source)
         self.assertIn('preview_title = QLabel("Source Preview")', source)
         self.assertIn('extension_combo.addItem("All supported", "")', source)
@@ -1772,6 +1783,17 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("Geometry same | Materials same | Render settings same | Camera synced", source_mix_state_source)
         self.assertIn("Selection highlight preserves texture bindings", source_mix_state_source)
         self.assertNotIn('self.main_tabs.addTab(self.mod_composer_tab', source)
+
+    def test_embedded_scene_transform_binding_is_deferred_until_factory_completion(self) -> None:
+        source = static_replacement_ui_concern_source(ROOT, "mesh_geometry_preview")
+        binding = "lambda: _state._current_static_alignment_transform()"
+        assignment = (
+            "_state._current_static_alignment_transform = "
+            "_state.alignment_preview_model_callbacks._current_static_alignment_transform"
+        )
+        self.assertIn(binding, source)
+        self.assertIn(assignment, source)
+        self.assertLess(source.index(binding), source.index(assignment))
 
     def test_archive_browser_has_source_mix_pair_overlay_export(self) -> None:
         source = (
@@ -1956,8 +1978,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         static_source = _static_replacer_source()
         custom_icon_source = ARCHIVE_STATIC_REPLACEMENT_CUSTOM_ICON.read_text(encoding="utf-8")
         setup_ui_source = static_replacement_ui_concern_source(ROOT, "setup_options_transform")
-        host_source = _native_d3d11_preview_host_source()
-        native_source = d3d11_preview_source()
+        capture_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_CUSTOM_ICON_CALLBACKS.read_text(encoding="utf-8")
         self.assertIn("from cdmw.domain.library.item_icons import", source + icon_source + custom_icon_source)
         self.assertIn("custom_icon_control_text = _custom_item_icon_control_text_helper()", source)
         self.assertIn("_state.custom_icon_checkbox = _state.QCheckBox(_state.custom_icon_control_text['use_custom_icon'])", setup_ui_source)
@@ -1999,13 +2020,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("custom_icon_specs", source)
         self.assertIn("requests_by_path[target_key] = ArchivePatchRequest(target_icon_entry, generated_icon_spec.payload_data)", source)
         self.assertIn("custom_item_icon_override: object | None = None", static_source)
-        self.assertIn("def set_icon_capture_mode(self, enabled: bool) -> bool:", host_source)
-        self.assertIn('"command": "set_icon_capture_mode"', host_source)
-        self.assertIn("alignment_d3d11_preview_host.set_icon_capture_mode(True)", source)
-        self.assertIn("alignment_d3d11_preview_host.set_icon_capture_mode(False)", source)
-        self.assertIn("if (!icon_capture_mode_)", native_source)
-        self.assertIn('if (command == "set_icon_capture_mode")', native_source)
-        self.assertIn("bool icon_capture_mode_ = false;", native_source)
+        self.assertTrue(all(token in capture_source for token in ('capture = getattr(dialog, "_mesh_editor_embedded_capture_icon", None)', "if callable(capture):", "capture(on_captured)", "on_captured(None)")))
+        self.assertNotIn("set_icon_capture_mode", capture_source)
+        self.assertNotIn("screen.grabWindow", capture_source)
 
     def test_modify_original_clone_uses_exact_geometry_preview_and_target_highlight(self) -> None:
         source = _main_window_source() + "\n" + _archive_mesh_import_sources()
@@ -3414,10 +3431,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("alignment_d3d11_package_reload_interval_ms = 560", source)
         self.assertIn("alignment_d3d11_reload_timer.setInterval(alignment_d3d11_fast_reload_interval_ms)", source)
         queue_block = _nested_function_source(package_source, "_queue_alignment_d3d11_preview")
-        self.assertIn("alignment_d3d11_reload_timer.setInterval(", queue_block)
-        self.assertIn("alignment_d3d11_fast_reload_interval_ms", queue_block)
-        self.assertIn("if rebuild_reason == 'material'", queue_block)
-        self.assertIn("else _state.alignment_d3d11_package_reload_interval_ms", queue_block)
+        self.assertIn("del model, label", queue_block)
+        self.assertIn("reason='dotnet_authoritative'", queue_block)
+        self.assertIn("requested_reason=str(reason or '')", queue_block)
+        self.assertNotIn("alignment_d3d11_reload_timer.setInterval(", queue_block)
         self.assertIn("static_preview_batch_state = _static_preview_batch_initial_state_helper()", source)
         self.assertIn('return {"depth": 0, **{key: False for key in _REQUEST_KEYS}}', preview_batch_source)
         self.assertIn("def _queue_texture_uv_preview_refresh(*_args: object) -> None:", source)
@@ -3464,6 +3481,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("def _reapply_global_flip_v_fast_preview(expected_flip_v: bool) -> None:", fast_flip_block)
         self.assertIn("def _reapply_current_global_flip_v_fast_preview() -> None:", fast_flip_block)
+        self.assertIn("send_resident_presentation_state(", fast_flip_block)
+        self.assertIn("{'uv': {'flip_v': bool(expected_flip_v)}}", fast_flip_block)
+        self.assertIn("{'uv': {'flip_v': bool(flip_v)}}", fast_flip_block)
         self.assertIn("alignment_d3d11_preview_host.set_texture_flip_vertical(bool(expected_flip_v)", fast_flip_block)
         self.assertIn("_texture_uv_fast_preview_record_global_flip_v_helper(", fast_flip_block)
         self.assertIn("_state._set_alignment_d3d11_progress(100, 'Preview ready.', active=False)", fast_flip_block)
@@ -3578,10 +3598,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_state._start_alignment_d3d11_process(cached_package_dir, request_id=request_id)", start_worker_block)
         self.assertIn("live_frame_available = _state._alignment_d3d11_live_frame_available()", start_worker_block)
         queue_block = _nested_function_source(package_source, "_queue_alignment_d3d11_preview")
-        self.assertIn("live_frame_available = _state._alignment_d3d11_live_frame_available()", queue_block)
-        self.assertIn("active=not live_frame_available", queue_block)
-        self.assertIn("rebuild_reason == 'material'", queue_block)
-        self.assertIn("_state.alignment_d3d11_fast_reload_interval_ms", queue_block)
+        self.assertIn("del model, label", queue_block)
+        self.assertIn("reason='dotnet_authoritative'", queue_block)
+        self.assertIn("requested_reason=str(reason or '')", queue_block)
+        self.assertNotIn("_alignment_d3d11_live_frame_available()", queue_block)
+        self.assertNotIn("alignment_d3d11_reload_timer", queue_block)
 
     def test_alignment_d3d11_gizmo_defaults_to_whole_replacement_mesh(self) -> None:
         source = _main_window_source()
@@ -5521,29 +5542,6 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             queue_source.index("_queue_static_preview_refresh()"),
         )
         self.assertNotIn('static_preview_refresh_timer.start()', queue_source)
-
-    def test_alignment_startup_attaches_scene_preview_textures_before_first_d3d11_request(self) -> None:
-        preflight_source = ARCHIVE_STATIC_REPLACEMENT_PROMPT_PREFLIGHT.read_text(encoding="utf-8")
-        setup_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SETUP.read_text(encoding="utf-8")
-        startup_state_source = ARCHIVE_STATIC_REPLACEMENT_STARTUP_STATE.read_text(encoding="utf-8")
-        prompt_state = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_STATE_CALLBACKS.read_text(encoding="utf-8")
-        start = preflight_source.index('report(5, 8, "Building preview models...")')
-        end = preflight_source.index('report(6, 8, "Suggesting draw-section routing...")', start)
-        startup = preflight_source[start:end]
-        self.assertIn('"preview_meshes": "Preparing preview meshes..."', startup_state_source)
-        self.assertIn("replacement_preview = parsed_mesh_to_preview_model(replacement_mesh)", startup)
-        self.assertIn("if had_scene_result:", startup)
-        self.assertIn("attach_scene_preview_textures(replacement_preview, scene_result, request.obj_path)", startup)
-        self.assertIn("scene_import_normalizes_texture_v(source_format, replacement_base.path or request.obj_path)", startup)
-        self.assertIn("prompt_preflight.scene_flip_v", setup_source)
-        self.assertIn('"flip_v": True', setup_source)
-        setter_start = prompt_state.index("def _set_replacement_preview_model(value) -> None:")
-        setter_end = prompt_state.index("asset_profile:", setter_start)
-        setter = prompt_state[setter_start:setter_end]
-        self.assertIn("if SceneImportResult is not None and isinstance(scene_import_result, SceneImportResult):", setter)
-        self.assertIn("mesh.preview_texture_flip_vertical = flip_v", setter)
-        ui_sections = static_replacement_ui_concern_source(ROOT, "setup_options_transform")
-        self.assertIn("_state.setup_texture_flip_v_checkbox.setChecked(bool(_state.texture_uv_global_transform_state.get('flip_v')))", ui_sections)
 
     def test_alignment_imported_textures_clear_stale_original_d3d11_bindings(self) -> None:
         preview_textures_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_TEXTURES.read_text(encoding="utf-8")

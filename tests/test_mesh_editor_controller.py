@@ -1060,10 +1060,17 @@ class MeshEditorControllerTests(unittest.TestCase):
         controller.apply("duplicate", selection=MeshEditSelection.from_maps(faces_by_submesh={0: (0,)}))
         controller.select(faces_by_submesh={1: (0,)}, source_indices=(1,))
 
+        selection_undo = controller.undo()
+        with patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")):
+            selection_update = controller.native_update_for_result(selection_undo)
         undo = controller.undo()
         with patch.object(controller, "working_mesh", side_effect=AssertionError("full mesh refresh")):
             update = controller.native_update_for_result(undo)
 
+        self.assertTrue(selection_undo.ok)
+        self.assertFalse(selection_update.triangle_groups)
+        self.assertTrue(selection_update.refresh_selection)
+        self.assertFalse(selection_update.selection_groups)
         self.assertTrue(undo.ok)
         self.assertEqual((False, 1), (update.replace_all_triangles, update.final_submesh_count))
         self.assertEqual((1,), update.triangle_source_submesh_indices)
@@ -1148,7 +1155,7 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertEqual([0], _selection_i32_values(undo_update.selection_groups[0], "source_face_indices", "source_face_indices_binary"))
         self.assertEqual(0, undo_update.selection_groups[0]["source_submesh_index"])
         self.assertTrue(redo.ok)
-        self.assertEqual([1], [group["source_submesh_index"] for group in redo_update.triangle_groups])
+        self.assertEqual((), redo_update.triangle_groups)
         self.assertEqual([0], _selection_i32_values(redo_update.selection_groups[0], "source_face_indices", "source_face_indices_binary"))
         self.assertEqual(1, redo_update.selection_groups[0]["source_submesh_index"])
 

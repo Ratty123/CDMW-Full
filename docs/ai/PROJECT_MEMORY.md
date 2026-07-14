@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-12
+Last updated: 2026-07-14
 
 ## Repository rules
 
@@ -51,11 +51,12 @@ Last updated: 2026-07-12
   synthetic fallback, runs the resident select/transform/material/texture/
   UV/topology/undo/export sequence, reparses exported GLB/OBJ/DDS/sidecars, and
   fingerprints source archives before/after.
-- The same proof must exercise acknowledged Vortice `textured`,
-  `untextured_faces`, `wire_vertices`, and `vertices` modes against that real
-  PAC. Display-only changes retain the process, package, resident buffers,
-  decoded textures, and SRVs; neutral faces must remain visibly non-black and
-  textured mode is restored before mutation/export.
+- The same proof must exercise acknowledged Vortice `textured`, `untextured_faces`,
+  `wire_vertices`, and `vertices` against the real PAC. Display-only changes
+  retain the process, package, buffers, textures, and SRVs. Neutral faces use
+  inverse-transpose, two-sided camera-relative shading with a fixed floor;
+  hidden front/back/oblique captures are synthetic evidence only, while the
+  real PAC remains visual proof.
 - Real-proof output is versioned JSON under an owned temporary root. It records
   PAC/archive/texture provenance and hashes, backend, geometry selection,
   captures, timings, fallback state, archive fingerprints, and individual gate
@@ -114,6 +115,12 @@ Last updated: 2026-07-12
 - Non-topology edits use sparse channel/index deltas. Topology edits use
   copy-on-write affected-submesh snapshots. History is bounded to 64 whole
   operations and 256 MiB while preserving exact undo/redo.
+- Mesh session views expose one ordered applied/undone timeline for geometry,
+  replacement, rigging, and selection changes. Selection history stores only
+  descriptors, remains undoable while the native mesh is dirty, and does not
+  hydrate or clone resident geometry. Resident Undo/Redo runs in the command
+  worker; Select keeps camera access through Ctrl+left orbit, Shift+left or
+  middle/right pan, and wheel zoom, with bindings shown below the viewport.
 - Live edit packets have monotonic revisions. One sender per preview source has
   queue depth one, latest-wins coalescing, ack pacing, stale-revision rejection,
   and cleanup of superseded payload files. Revisionless bundled readers remain
@@ -124,13 +131,40 @@ Last updated: 2026-07-12
   BGRA8 uploads after first copy-on-write resource creation, and acknowledged
   cleanup. Preparation failure must advance pending work and every lease is
   released exactly once.
-- Native/.NET renderers retain mesh/GPU buffers, corner mappings, SRV arrays, and immutable draw resources. Sparse edits update affected ranges; topology edits rebuild affected batches and preserve original material lineage.
+- Native/.NET renderers retain mesh/GPU buffers, corner mappings, SRV arrays, and immutable draw resources. Sparse edits update affected ranges; topology edits rebuild affected batches and preserve original material lineage. Active .NET interaction queues one asynchronous latest-wins invalidation per state change instead of using a 16 ms UI-timer cap; Present never self-schedules another frame. VSync and maximum frame latency one remain, and FPS comes from completion intervals with render/Present work and p95/jitter reported separately. Overlay primitives stream through one reusable dynamic per-frame vertex buffer instead of creating GPU buffers inside the draw loop. While the D3D11 child exists, parent paint must return before the CPU/GDI face loop; DXGI uses flip-discard, and camera drags skip gizmo hover work.
 - Preview packages use singleflight, leases, atomic publication, consume/ack cleanup, and safe pruning. Source-stamped PAMT indexes have parse fallback; per-job material maps release while bounded decoded entries remain reusable.
-- The .NET/Vortice editor is the production embedded/standalone presentation child; Python/C++ retain data authority. It starts for replacement builders and original/imported sessions before Edit Mesh. One resident scene contains editable submeshes first and a render-only original reference, plus Y-up grid, four comparison modes, placement TRS, and move/rotate/scale gizmo state. Edit Mesh only gates mutation; turning it off keeps the renderer resident and placement controls visible. Scene-format Flip V normalization is format-driven even when preflight performs the import. Builder close still uses acknowledged deactivation and one final sync.
+- .NET helper-authored OBJ/package/operation paths and generated sidecars stay under the package output root after canonical link-aware resolution. Archive Preview expected stops are keyed by exact process plus generation; unmatched nonzero exits and device loss remain failures.
+- The .NET/Vortice editor is the production embedded/standalone presentation child; Python/C++ retain data authority. One resident document/resource owner backs separate Original and Imported/Modify contexts with independent normal cameras and explicit linked comparison. Edit Mesh forces Replacement Only and pins the editable camera context across scene/presentation replay; leaving it restores the selected placement preview mode without restarting the renderer. Builder presentation is correlated; placement previews locally at input cadence with an exact provisional editable matrix while Original, role camera frames, and the resident world grid stay fixed. Camera Fit/nudge commands are role-addressed and generation-gated so persistent presentation replay is state-only. Authority requests coalesce at approximately 30 Hz with an exact final transform, and close uses acknowledged deactivation plus one final sync.
 - Resident material protocol v2 updates shader parameters, texture resources,
-  and affected bindings in the same process after `Ready`. Automatic and Manual
-  are the normal Material Authority profiles. Unsupported target resource/
-  height controls disable with an exact reason; enabled no-ops are forbidden.
+  and affected bindings in-process. Python owns resource criticality; required
+  failures block Ready, optional failures use declared fallbacks, and late
+  reference generations are render-only. Source DDS wins over preview PNG;
+  supported 2D DDS preserves native format and mips through semantic sRGB/linear
+  SRVs. PAC shader/alpha/two-sided contracts do not depend on successful DDS
+  resolution. glTF green-up normals invert in HLSL and base alpha remains a
+  constant opacity factor. Exact PAC emissive ownership prevents cross-material
+  leakage; proven color-blending masks use R=AO, G=roughness, B=metalness while
+  `_mg` remains layer-only. The production shader uses linear GGX/Smith/Schlick
+  plus proven opacity/cutout/occlusion and per-material culling; blend draws are
+  depth-read/no-write and sorted back-to-front by transformed submesh center.
+  Its neutral studio environment anchors metallic reflections to source color,
+  proven two-sided backfaces flip the tangent frame, and final contrast preserves
+  luminance chromaticity. Hidden textured-metal captures must retain texture detail
+  with bounded angle-driven chromaticity and brightness drift. Wrong-family
+  generic layer albedo may fall back to decoded sidecar tint while retaining
+  same-family technical maps. Unproven layer, hair/fur, skin,
+  and blend ordering stays diagnostic. Mutable
+  region edits copy only the affected resource to a full BGRA mip chain,
+  regenerate lower mips after each boxed upload, and preserve the resident
+  process/package/viewport contract. Real topology evidence scans the retained
+  protocol tail when the bounded event buffer has pruned the original cursor.
+  The representative real hair corpus entry is `cd_ptm_00_hair_00_0003.pac`;
+  it must resolve at least one source DDS instead of recording empty coverage.
+  OpenImageIO is optional offline metadata/diff evidence, never runtime shading
+  or DDS authority; identical corpus inputs must yield an identical fingerprint.
+  `cd-texture-dx` batch JSON parsing must stay allocation-light and must not use
+  `std::regex`; archive/icon warmup can leave the parent near 1.7 GiB private
+  memory. Its executable self-test owns JSON escape and alias coverage.
 - External OBJ/DAE/glTF/GLB missing/incomplete UVs use cancellable xatlas and report review-required. Shared UV transforms bake before the V flip; differing sets use sampler/color-space-correct raster baking, native tangents, normal-basis conversion, gutters, and atomic hashes. Unsupported input blocks safely; PAC/PAM is never auto-unwrapped.
 - External ZIP import uses verified extraction; geometry fits the original frame, centers and Y-grounds, and overlay/side-by-side share one grid. Exact `cd_phm_01_sword_0016.pac` plus `wolf_gravestone_sword_free (1).zip` uses archive-resolved original textures and ZIP-owned imported textures.
 - Hardware soak must cover production-scale sparse updates, tail shrink,
@@ -138,8 +172,10 @@ Last updated: 2026-07-12
   `docs/release-confidence-plan.md`.
 - The real nude-PAC gate must leave archives unchanged. Mesh Edit starts with no
   selected part; face/vertex modes can render without textures. Parts visibility
-  never changes the alignment basis, duplicate/delete are resident actions, and
-  wheel zoom spans `1.0` to `500000.0`.
+  never changes the alignment basis, and duplicate/delete are resident actions.
+- Embedded .NET Preview Settings expose only fields with Python transport and a .NET renderer/camera consumer; their getter must read the live Builder accessor, not the setup factory's initial object.
+  Side by Side alone creates two role panes; Overlay is one comparison surface, and each Only mode is one full-viewport role. Texture/view state syncs across roles while cameras stay independent.
+  Wheel zoom uses reciprocal steps and fit-relative bounds so fitted values below `1.0` remain reachable.
 
 ## Startup and packaging contracts
 
@@ -153,7 +189,9 @@ Last updated: 2026-07-12
   callables execute in the worker even with `QueuedConnection`.
 - Shell Qt virtuals are explicit controller bridges. Close retains all owned
   `QThread`s until nonblocking `wait(0)` confirms native teardown; only then may
-  QObject teardown publish `clean_shutdown: true`.
+  QObject teardown publish `clean_shutdown: true`. A finished parentless Python
+  worker returns to the UI thread before its QThread quits; UI-side cleanup then
+  defer-deletes both objects after that same fence.
 - Release builds reject stale provider metadata. The configured-archive gate
   loads 1.67M entries, paints, filters, and requires a clean shutdown.
 - Startup benchmark evidence is owned by

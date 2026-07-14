@@ -232,23 +232,6 @@ static const TextureBinding* best_visible_layer_base_fallback(
     return best;
 }
 
-static bool evidence_token_boundary(char ch) {
-    return !std::isalnum(static_cast<unsigned char>(ch));
-}
-
-static bool evidence_contains_token(const std::string& evidence, const std::string& token) {
-    if (token.empty()) return false;
-    size_t pos = 0;
-    while ((pos = evidence.find(token, pos)) != std::string::npos) {
-        const bool left_boundary = pos == 0 || evidence_token_boundary(evidence[pos - 1]);
-        const size_t end = pos + token.size();
-        const bool right_boundary = end >= evidence.size() || evidence_token_boundary(evidence[end]);
-        if (left_boundary && right_boundary) return true;
-        pos = end;
-    }
-    return false;
-}
-
 static bool binding_has_explicit_metalness_slot(const TextureBinding* binding) {
     if (binding == nullptr) return false;
     const std::string role = lower_copy(binding->role);

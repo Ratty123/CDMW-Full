@@ -593,6 +593,11 @@ class MeshEditorController:
                     refresh_selection=True,
                 )
             return MeshEditorNativeUpdate()
+        if result.action in {"undo", "redo"} and result.ok and current_selection is not None:
+            return MeshEditorNativeUpdate(
+                selection_groups=selection_groups,
+                refresh_selection=True,
+            )
         if result.ok and not (result.affected_submesh_indices or result.topology_changed or changed_vertices):
             return MeshEditorNativeUpdate()
         if str(result.status or "").strip().lower() == "noop" and not (

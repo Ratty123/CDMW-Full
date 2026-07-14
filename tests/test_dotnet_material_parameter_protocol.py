@@ -25,6 +25,8 @@ def test_parameter_protocol_is_versioned_session_scoped_and_independently_ordere
     assert "AcceptMaterialSession(update.SessionId" in material_protocol
     assert "update.ParameterGeneration <= _lastRequestedMaterialParameterGeneration" in material_protocol
     assert "update.EditRevision < _lastAppliedEditRevision" in material_protocol
+    assert "ValidateMutationEnvelope(root, out var envelopeError)" in material_protocol
+    assert "CopyMutationEnvelope(root, payload)" in material_protocol
     assert 'CanApplyEditRevision(update.EditRevision, "material_parameter_update"' not in material_protocol
     assert 'MarkEditRevisionApplied(update.EditRevision, "material_parameter_update"' not in material_protocol
 
@@ -72,12 +74,13 @@ def test_parameter_groups_validate_atomically_and_preserve_null_zero_semantics()
 
 def test_parameter_apply_updates_only_d3d_constants_and_exposes_counters_and_roles() -> None:
     renderer = _source("D3D11MaterialViewport.cs")
+    presentation = _source("D3D11MaterialViewport.PresentationSettings.cs")
     resources = _source("D3D11MaterialViewport.Resources.cs")
     metrics = _source("D3D11MaterialViewport.Metrics.cs")
     viewport = _source("MeshViewport.Renderer.cs")
     status = _source("MeshViewport.Status.cs")
 
-    apply = renderer.split("public bool TryApplyMaterialParameters", maxsplit=1)[1].split("private D3D11CameraConstants", maxsplit=1)[0]
+    apply = renderer.split("public bool TryApplyMaterialParameters", maxsplit=1)[1].split("private void UnbindGeometryResources", maxsplit=1)[0]
     assert "_affectedMaterialParameterBatchCount" in apply
     assert "_materialParameterApplyCount++" in apply
     assert "Invalidate();" in apply
@@ -86,18 +89,18 @@ def test_parameter_apply_updates_only_d3d_constants_and_exposes_counters_and_rol
     assert "BuildCameraConstants(batch)" in renderer
     assert "ParametersForSubmesh(batch.SubmeshIndex)" in renderer
     assert "ParametersForSubmesh(batch.SubmeshIndex).Visible is false" in renderer
-    assert "MaterialSurfaceOverrideFlags" in renderer
-    assert "MaterialBaseAdvanced" in renderer
-    assert "MaterialBasePost" in renderer
-    assert "MaterialSurfaceTransforms" in renderer
-    assert "MaterialSurfaceTransforms2" in renderer
-    assert "MaterialSurfaceBlends" in renderer
-    assert "(parameters.BaseColorLift ?? 0) / 255.0f" in renderer
-    assert "(parameters.ValueMax ?? 255) / 255.0f" in renderer
-    assert "(parameters.AutoBalance ?? 0) / 100.0f" in renderer
-    assert "(parameters.RoughnessMin ?? 0) / 255.0f" in renderer
-    assert "(parameters.MetalnessMax ?? 255) / 255.0f" in renderer
-    assert "MaterialEmissiveOverrideFlags" in renderer
+    assert "MaterialSurfaceOverrideFlags" in presentation
+    assert "MaterialBaseAdvanced" in presentation
+    assert "MaterialBasePost" in presentation
+    assert "MaterialSurfaceTransforms" in presentation
+    assert "MaterialSurfaceTransforms2" in presentation
+    assert "MaterialSurfaceBlends" in presentation
+    assert "(parameters.BaseColorLift ?? 0) / 255.0f" in presentation
+    assert "(parameters.ValueMax ?? 255) / 255.0f" in presentation
+    assert "(parameters.AutoBalance ?? 0) / 100.0f" in presentation
+    assert "(parameters.RoughnessMin ?? 0) / 255.0f" in presentation
+    assert "(parameters.MetalnessMax ?? 255) / 255.0f" in presentation
+    assert "MaterialEmissiveOverrideFlags" in presentation
     assert '"material_parameter_apply_count"' in metrics
     assert '"affected_material_parameter_batches"' in metrics
     assert "TryApplyMaterialParameters" not in resources

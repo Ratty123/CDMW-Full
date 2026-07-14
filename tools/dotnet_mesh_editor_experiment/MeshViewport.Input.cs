@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Globalization;
+using System.Numerics;
 using System.Windows.Forms;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -42,14 +43,12 @@ internal sealed partial class MeshViewport
             _pitch = 1.35f;
         }
         UpdateGpuViewport();
-        Invalidate();
     }
 
     public void RotateYawDegrees(float degrees)
     {
         _yaw += degrees * MathF.PI / 180.0f;
         UpdateGpuViewport();
-        Invalidate();
     }
 
     protected override void Dispose(bool disposing)
@@ -71,17 +70,57 @@ internal sealed partial class MeshViewport
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
+        if (TryBeginPaneDividerDrag(e))
+        {
+            return;
+        }
+        var paneId = PaneAt(e.Location);
+        if (paneId.Length == 0)
+        {
+            return;
+        }
+        FocusPresentationPane(paneId);
+        _capturedInputPane = paneId;
+        e = PaneMouseEvent(e, paneId);
         _pointerInside = true;
         _pointerLocation = e.Location;
         _lastMouse = e.Location;
+        if (IsPanGesture(e))
+        {
+            _rotating = false;
+            _panning = true;
+            base.OnMouseDown(e);
+            return;
+        }
+        if (IsOrbitOverrideGesture(e))
+        {
+            _rotating = true;
+            _panning = false;
+            base.OnMouseDown(e);
+            return;
+        }
+        if (!PresentationInteractionAllowed)
+        {
+            _rotating = e.Button == MouseButtons.Left;
+            _panning = false;
+            base.OnMouseDown(e);
+            return;
+        }
         if (e.Button == MouseButtons.Left
             && !string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
         {
-            _placementDragActive = true;
-            _placementDragStart = e.Location;
-            _placementStartTranslation = _scene.Translation;
-            _placementStartRotation = _scene.RotationDegrees;
-            _placementStartScale = _scene.Scale;
+            if (TryBeginPlacementGizmoDrag(e.Location))
+            {
+                return;
+            }
+            if (PartPickEnabled)
+            {
+                BeginSelectionDrag(e.Location, "source");
+                base.OnMouseDown(e);
+                return;
+            }
+            _rotating = true;
+            base.OnMouseDown(e);
             return;
         }
         if (e.Button == MouseButtons.Left && !string.Equals(ActiveTool, "orbit", StringComparison.OrdinalIgnoreCase))
@@ -110,18 +149,28 @@ internal sealed partial class MeshViewport
                 _editorStrokeActive = true;
                 _strokePrevious = e.Location;
                 _strokeId++;
-                EditorEventRequested?.Invoke("stroke_begin", PointerPayload(e.Location, e.Location, true, includeLocalSelection: true));
+                EditorEventRequested?.Invoke("stroke_begin", PointerPayload(e.Location, e.Location, true));
             }
             base.OnMouseDown(e);
             return;
         }
         _rotating = e.Button == MouseButtons.Left;
-        _panning = e.Button == MouseButtons.Right || (ModifierKeys & Keys.Shift) == Keys.Shift;
+        _panning = false;
         base.OnMouseDown(e);
     }
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
+        if (TryEndPaneDividerDrag(e))
+        {
+            return;
+        }
+        var paneId = _capturedInputPane.Length > 0 ? _capturedInputPane : PaneAt(e.Location);
+        if (paneId.Length == 0)
+        {
+            return;
+        }
+        e = PaneMouseEvent(e, paneId);
         if (_edgeDragActive)
         {
             FinishEdgeDrag(e.Location);
@@ -134,12 +183,28 @@ internal sealed partial class MeshViewport
         }
         _rotating = false;
         _panning = false;
-        _placementDragActive = false;
+        if (_placementDragActive)
+        {
+            EndPlacementGizmoDrag();
+        }
+        _capturedInputPane = string.Empty;
         base.OnMouseUp(e);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
+        if (TryUpdatePaneDividerDrag(e))
+        {
+            return;
+        }
+        var paneId = _capturedInputPane.Length > 0 ? _capturedInputPane : PaneAt(e.Location);
+        if (paneId.Length == 0
+            || (_capturedInputPane.Length == 0
+                && !string.Equals(paneId, _activeCameraContextId, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+        e = PaneMouseEvent(e, paneId);
         _pointerInside = true;
         _pointerLocation = e.Location;
         var dx = e.X - _lastMouse.X;
@@ -147,26 +212,19 @@ internal sealed partial class MeshViewport
         _lastMouse = e.Location;
         if (_placementDragActive && (e.Button & MouseButtons.Left) == MouseButtons.Left)
         {
-            _scene.ApplyGizmoDrag(
-                _placementStartTranslation,
-                _placementStartRotation,
-                _placementStartScale,
-                e.X - _placementDragStart.X,
-                e.Y - _placementDragStart.Y);
-            EditorEventRequested?.Invoke("placement_transform_request", new Dictionary<string, object?>
-            {
-                ["placement"] = _scene.PlacementPayload(),
-                ["gizmo_tool"] = _scene.GizmoTool,
-            });
-            ApplySceneState();
+            UpdatePlacementGizmoDrag(e.Location);
             base.OnMouseMove(e);
             return;
+        }
+        if (!_rotating
+            && !_panning
+            && !string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
+        {
+            UpdateGizmoHover(e.Location);
         }
         if (_edgeDragActive)
         {
             _edgeDragCurrent = e.Location;
-            UpdateGpuViewport();
-            Invalidate();
         }
         if (!_edgeDragActive
             && !_editorStrokeActive
@@ -183,20 +241,22 @@ internal sealed partial class MeshViewport
             {
                 EditorEventRequested?.Invoke("stroke_update", PointerPayload(e.Location, _strokePrevious, true));
                 _strokePrevious = e.Location;
-                Invalidate();
             }
         }
         else if (_rotating)
         {
-            _yaw += dx * 0.01f;
-            _pitch = Math.Clamp(_pitch + dy * 0.01f, -1.45f, 1.45f);
-            Invalidate();
+            var radiansPerPixel = _residentPresentationSettings.OrbitSensitivity * MathF.PI / 180.0f;
+            var orbitX = _residentPresentationSettings.InvertOrbitX ? -dx : dx;
+            var orbitY = _residentPresentationSettings.InvertOrbitY ? -dy : dy;
+            _yaw += orbitX * radiansPerPixel;
+            _pitch = Math.Clamp(_pitch + orbitY * radiansPerPixel, -1.45f, 1.45f);
         }
         else if (_panning)
         {
-            _panX += dx;
-            _panY += dy;
-            Invalidate();
+            var panX = _residentPresentationSettings.InvertPanX ? -dx : dx;
+            var panY = _residentPresentationSettings.InvertPanY ? -dy : dy;
+            _panX += panX * _residentPresentationSettings.PanSensitivity;
+            _panY += panY * _residentPresentationSettings.PanSensitivity;
         }
         UpdateGpuViewport();
         base.OnMouseMove(e);
@@ -211,21 +271,45 @@ internal sealed partial class MeshViewport
     protected override void OnMouseLeave(EventArgs e)
     {
         _pointerInside = false;
+        if (!_paneDividerDragging)
+        {
+            Cursor = Cursors.Default;
+        }
         UpdateGpuViewport();
-        Invalidate();
         base.OnMouseLeave(e);
     }
 
     protected override void OnMouseWheel(MouseEventArgs e)
     {
-        _zoom *= e.Delta > 0 ? 1.1f : 0.9f;
-        _zoom = Math.Clamp(_zoom, 1.0f, 500000.0f);
+        var paneId = PaneAt(e.Location);
+        if (paneId.Length == 0)
+        {
+            return;
+        }
+        FocusPresentationPane(paneId);
+        e = PaneMouseEvent(e, paneId);
+        _zoom = CameraZoomPolicy.ApplyWheelDelta(
+            _zoom,
+            FitZoomForContext(_activeCameraContextId),
+            e.Delta);
+        SaveActivePresentationContext();
         UpdateGpuViewport();
-        Invalidate();
         base.OnMouseWheel(e);
     }
 
-    private Dictionary<string, object?> PointerPayload(Point point, Point? start, bool stroke, bool includeLocalSelection = false)
+    private static bool IsPanGesture(MouseEventArgs e)
+    {
+        return e.Button is MouseButtons.Middle or MouseButtons.Right
+            || (e.Button == MouseButtons.Left && (ModifierKeys & Keys.Shift) == Keys.Shift);
+    }
+
+    private static bool IsOrbitOverrideGesture(MouseEventArgs e)
+    {
+        return e.Button == MouseButtons.Left
+            && (ModifierKeys & Keys.Control) == Keys.Control;
+    }
+
+    private Dictionary<string, object?> PointerPayload(Point point, Point? start, bool stroke)
     {
         var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
         var radius = NumberOption(options, "radius", 24.0);
@@ -235,9 +319,12 @@ internal sealed partial class MeshViewport
             ["tool"] = ActiveTool,
             ["screen_brush"] = screenPayload
         };
-        if (includeLocalSelection)
+        if (ActiveTool is "inflate" or "pinch")
         {
-            payload["local_selection"] = SelectionSnapshotPayload();
+            payload["screen_radius"] = new Dictionary<string, object?>(screenPayload)
+            {
+                ["amount_scale"] = 0.08,
+            };
         }
         if (stroke)
         {
@@ -250,35 +337,68 @@ internal sealed partial class MeshViewport
 
     private Dictionary<string, object?> ScreenPayload(Point point, double radius)
     {
+        var viewport = ActivePaneBounds();
+        var camera = CurrentCamera();
         return new Dictionary<string, object?>
         {
             ["x"] = point.X,
             ["y"] = point.Y,
             ["radius"] = radius,
             ["radius_pixels"] = radius,
-            ["viewport_width"] = Math.Max(1, Width),
-            ["viewport_height"] = Math.Max(1, Height),
-            ["world_view_projection"] = WorldViewProjection()
+            ["viewport_width"] = Math.Max(1, viewport.Width),
+            ["viewport_height"] = Math.Max(1, viewport.Height),
+            ["world_view_projection"] = camera.WorldViewProjectionRowMajorArray(),
+            ["source_submesh_indices"] = VisibleEditableSubmeshIndices(),
+            ["source_submesh_world_view_projections"] = SourceProjectionOverrides(camera),
         };
     }
 
     private Dictionary<string, object?> ScreenDragPayload(Point start, Point end)
     {
+        var viewport = ActivePaneBounds();
+        var camera = CurrentCamera();
         return new Dictionary<string, object?>
         {
             ["start_x"] = start.X,
             ["start_y"] = start.Y,
             ["end_x"] = end.X,
             ["end_y"] = end.Y,
-            ["viewport_width"] = Math.Max(1, Width),
-            ["viewport_height"] = Math.Max(1, Height),
-            ["world_view_projection"] = WorldViewProjection()
+            ["viewport_width"] = Math.Max(1, viewport.Width),
+            ["viewport_height"] = Math.Max(1, viewport.Height),
+            ["world_view_projection"] = camera.WorldViewProjectionRowMajorArray(),
+            ["source_submesh_indices"] = VisibleEditableSubmeshIndices(),
+            ["source_submesh_world_view_projections"] = SourceProjectionOverrides(camera),
         };
     }
 
-    private double[] WorldViewProjection()
+    private int[] VisibleEditableSubmeshIndices()
     {
-        return CurrentCamera().WorldViewProjectionRowMajorArray();
+        return Enumerable.Range(0, Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count))
+            .Where(IsSubmeshVisibleForViewportSelection)
+            .ToArray();
+    }
+
+    private Dictionary<string, object?>[] SourceProjectionOverrides(NetViewportCamera camera)
+    {
+        return Enumerable.Range(0, Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count))
+            .Select(submeshIndex => new Dictionary<string, object?>
+            {
+                ["source_submesh_index"] = submeshIndex,
+                ["world_view_projection"] = MatrixRowMajorArray(
+                    ActiveSceneModelMatrix(submeshIndex) * camera.WorldViewProjection),
+            })
+            .ToArray();
+    }
+
+    private static double[] MatrixRowMajorArray(Matrix4x4 matrix)
+    {
+        return new[]
+        {
+            (double)matrix.M11, (double)matrix.M12, (double)matrix.M13, (double)matrix.M14,
+            (double)matrix.M21, (double)matrix.M22, (double)matrix.M23, (double)matrix.M24,
+            (double)matrix.M31, (double)matrix.M32, (double)matrix.M33, (double)matrix.M34,
+            (double)matrix.M41, (double)matrix.M42, (double)matrix.M43, (double)matrix.M44,
+        };
     }
 
     private void BeginSelectionDrag(Point point, string mode)
@@ -289,6 +409,5 @@ internal sealed partial class MeshViewport
         _edgeDragCurrent = point;
         _hoverEdgeId = _selectionDragTargetMode == "edge" ? PickEdgeAt(point) : -1;
         UpdateGpuViewport();
-        Invalidate();
     }
 }

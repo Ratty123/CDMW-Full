@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from typing import Mapping
 
 from PySide6.QtCore import QThread, Qt
 from PySide6.QtWidgets import QProgressDialog
@@ -89,6 +90,11 @@ class MeshEditorDotNetProcessMixin:
                 error=str(exc),
             )
         process = _tab.QProcess(self)
+        self.standalone_dotnet_process_generation += 1
+        self.standalone_dotnet_update_queue.set_context(
+            session_id=self.standalone_dotnet_lifecycle_session_id,
+            process_generation=self.standalone_dotnet_process_generation,
+        )
         process.setProgram(program)
         process.setArguments(arguments)
         process.setWorkingDirectory(str(package.package_dir))
@@ -103,6 +109,21 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_editor_process = process
         self.standalone_dotnet_experiment_package = package
         self.standalone_dotnet_material_signature = str(package.material_signature or "")
+        self.standalone_dotnet_scene_request_id = 0
+        self.standalone_dotnet_scene_generation = int(
+            getattr(package.scene_frame, "scene_generation", 0) or 0
+        )
+        self.standalone_dotnet_scene_acknowledged_generation = 0
+        self.standalone_dotnet_scene_pending = None
+        self.standalone_dotnet_scene_acknowledged = None
+        self.standalone_dotnet_scene_candidate = None
+        self.standalone_dotnet_scene_frame = package.scene_frame
+        self.standalone_dotnet_scene_queued = None
+        if package.scene_frame is not None:
+            self.standalone_dotnet_scene_desired.update({
+                "comparison_mode": str(package.scene_frame.comparison_mode),
+                "interaction_mode": str(package.scene_frame.interaction_mode),
+            })
         configured_payload = self._dotnet_process_event_payload(process, package=package)
         self._record_mesh_dotnet_event("mesh_dotnet_process_configured", **configured_payload)
         mode = "embedded" if embedded_parent_hwnd > 0 else "standalone"
@@ -158,6 +179,15 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
         self.standalone_texture_region_queue.reset()
+        self._cancel_pending_dotnet_captures()
+        self.standalone_dotnet_scene_request_id += 1
+        self.standalone_dotnet_scene_pending = None
+        self.standalone_dotnet_scene_candidate = None
+        self.standalone_dotnet_scene_queued = None
+        self.standalone_dotnet_pending_clone_material_model = None
+        self.standalone_dotnet_pending_reference_material_model = None
+        if self.standalone_dotnet_scene_worker is not None:
+            self.standalone_dotnet_scene_worker.stop()
         if process is None:
             return
         _tab.stop_qprocess_async(process)
@@ -176,6 +206,15 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_editor_process = None
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
+        self._cancel_pending_dotnet_captures()
+        self.standalone_dotnet_scene_request_id += 1
+        self.standalone_dotnet_scene_pending = None
+        self.standalone_dotnet_scene_candidate = None
+        self.standalone_dotnet_scene_queued = None
+        self.standalone_dotnet_pending_clone_material_model = None
+        self.standalone_dotnet_pending_reference_material_model = None
+        if self.standalone_dotnet_scene_worker is not None:
+            self.standalone_dotnet_scene_worker.stop()
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         payload: dict[str, object] = {}
         if package.status_path.is_file():
@@ -315,6 +354,7 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_action_text = str(action_text or "Mesh Editor action")
         self.standalone_action_controller = controller
         self.standalone_action_dotnet_command = ""
+        self.standalone_action_dotnet_request_payload = None
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         self.status_message_requested.emit(f"Applying {action_text} in the background...", False)
         thread.start(QThread.LowPriority)
@@ -325,6 +365,7 @@ class MeshEditorDotNetProcessMixin:
         command: _tab.MeshEditCommand,
         *,
         command_name: str,
+        request_payload: Mapping[str, object] | None = None,
     ) -> bool:
         normalized_name = str(command_name or command.action or "command")
         if self._standalone_action_worker_active():
@@ -333,6 +374,7 @@ class MeshEditorDotNetProcessMixin:
                 ok=False,
                 status="busy",
                 diagnostics=("Wait for the current Mesh Editor action to finish.",),
+                request_payload=request_payload,
             )
             return True
         self.standalone_action_request_id += 1
@@ -365,6 +407,9 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_action_text = str(command.label or normalized_name)
         self.standalone_action_controller = controller
         self.standalone_action_dotnet_command = normalized_name
+        self.standalone_action_dotnet_request_payload = (
+            dict(request_payload) if request_payload is not None else None
+        )
         self._set_dotnet_status(f"Applying {self.standalone_action_text} in the background...")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         thread.start(QThread.LowPriority)
@@ -392,6 +437,7 @@ class MeshEditorDotNetProcessMixin:
                     controller,
                     result,
                     command_name=self.standalone_action_dotnet_command,
+                    request_payload=self.standalone_action_dotnet_request_payload,
                 )
             self._complete_pending_dotnet_exit()
             return
@@ -417,6 +463,7 @@ class MeshEditorDotNetProcessMixin:
                 ok=False,
                 status="cancelled",
                 diagnostics=(text,),
+                request_payload=self.standalone_action_dotnet_request_payload,
             )
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, False)
@@ -431,6 +478,7 @@ class MeshEditorDotNetProcessMixin:
                 ok=False,
                 status="error",
                 diagnostics=(text,),
+                request_payload=self.standalone_action_dotnet_request_payload,
             )
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
@@ -447,6 +495,7 @@ class MeshEditorDotNetProcessMixin:
             self.standalone_action_text = ""
             self.standalone_action_controller = None
             self.standalone_action_dotnet_command = ""
+            self.standalone_action_dotnet_request_payload = None
         progress = self.standalone_action_progress
         if progress is not None:
             progress.close()

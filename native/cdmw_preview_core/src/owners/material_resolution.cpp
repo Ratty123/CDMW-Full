@@ -492,9 +492,26 @@ static bool base_binding_is_wrong_family_layer_or_environment(const TextureBindi
         && !base_binding_texture_family_matches_mesh(binding, mesh);
 }
 
+static bool evidence_token_boundary(char ch) {
+    return !std::isalnum(static_cast<unsigned char>(ch));
+}
+
+static bool evidence_contains_token(const std::string& evidence, const std::string& token) {
+    if (token.empty()) return false;
+    size_t pos = 0;
+    while ((pos = evidence.find(token, pos)) != std::string::npos) {
+        const bool left_boundary = pos == 0 || evidence_token_boundary(evidence[pos - 1]);
+        const size_t end = pos + token.size();
+        const bool right_boundary = end >= evidence.size() || evidence_token_boundary(evidence[end]);
+        if (left_boundary && right_boundary) return true;
+        pos = end;
+    }
+    return false;
+}
+
 static bool mesh_looks_like_skin_surface(const NativeSubmesh& mesh) {
     const std::string text = lower_copy(mesh.material + " " + mesh.name + " " + mesh.source_component_label);
-    return native_base_text_has_any(text, {
+    for (const char* token : {
         "nude",
         "skin",
         "body",
@@ -504,7 +521,10 @@ static bool mesh_looks_like_skin_surface(const NativeSubmesh& mesh) {
         "arm",
         "leg",
         "foot"
-    });
+    }) {
+        if (evidence_contains_token(text, token)) return true;
+    }
+    return false;
 }
 
 static bool selected_base_is_semantically_unsafe_skin_albedo(const TextureBinding& binding, const NativeSubmesh& mesh) {

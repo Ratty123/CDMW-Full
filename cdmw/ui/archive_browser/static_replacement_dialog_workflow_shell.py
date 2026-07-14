@@ -156,7 +156,7 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     setup_summary_layout = summary_section.body_layout
     setup_layout.addWidget(summary_section)
     advanced_setup_section = CollapsibleSection("Advanced", expanded=False)
-    advanced_setup_section.setVisible(True)
+    advanced_setup_section.setParent(setup_page)
     setup_advanced_layout = advanced_setup_section.body_layout
     placement_note = None
     source_mix_control_text = _alignment_source_mix_control_text_helper()

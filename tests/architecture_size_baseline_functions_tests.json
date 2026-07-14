@@ -23,7 +23,6 @@
     "tests/test_isolated_d3d11_preview_package.py::IsolatedD3D11PreviewPackageTests.test_material_category_uses_standalone_tinted_metal_tokens": 178,
     "tests/test_isolated_d3d11_preview_package.py::IsolatedD3D11PreviewPackageTests.test_writes_geometry_and_direct_texture_slots": 187,
     "tests/test_item_name_archive_search.py::ItemNameArchiveSearchTests.test_asset_catalog_classifies_obvious_display_name_categories": 468,
-    "tests/test_mesh_dotnet_experiment.py::test_dotnet_experiment_headless_smoke_reports_metrics": 249,
     "tests/test_mesh_edit_responsiveness_source_guards.py::MeshEditResponsivenessSourceGuardTests.test_initial_preview_geometry_blob_is_native_owned": 250,
     "tests/test_mesh_edit_responsiveness_source_guards.py::MeshEditResponsivenessSourceGuardTests.test_live_vertex_update_bridge_is_wired": 261,
     "tests/test_mesh_edit_responsiveness_source_guards.py::MeshEditResponsivenessSourceGuardTests.test_mesh_edit_drag_inverts_preview_delta_without_display_space_rewrite": 199,

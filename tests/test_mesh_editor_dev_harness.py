@@ -59,8 +59,8 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
         self.assertFalse(parity.visual)
         self.assertFalse(parity.real_game)
         self.assertEqual("none", parity.process_ownership)
-        self.assertEqual("blocked_report_scaffold", parity.scenario_role)
-        self.assertEqual("not_implemented", parity.expected_backend)
+        self.assertEqual("offline_image_comparison", parity.scenario_role)
+        self.assertEqual("python+optional-openimageio", parity.expected_backend)
 
     def test_real_game_evidence_keeps_v1_schema_and_truth_gates(self) -> None:
         gate_names = (

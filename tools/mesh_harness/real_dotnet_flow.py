@@ -69,6 +69,7 @@ def production_flow_gates(state: SimpleNamespace) -> dict[str, bool]:
         "linked_texture_updates_applied": bool(texture.get("updates_applied")),
         "linked_texture_queue_bounded": bool(texture.get("queue_bounded")),
         "linked_texture_copy_on_write_once": bool(texture.get("copy_on_write_once")),
+        "linked_texture_mip_chain_preserved": bool(texture.get("mip_chain_preserved")),
         "linked_texture_snapshot_exact": bool(texture.get("snapshot_pixels_match")),
         "linked_texture_exportable": bool(texture.get("painted_derivative_exported")),
         "committed_assignment_exportable": bool(
@@ -90,7 +91,10 @@ def _latest_settled_topology_metrics(
     partial_rebuild_floor: int,
     live_batch_count: int,
 ) -> dict[str, object]:
-    for event in reversed(tuple(state.tab.standalone_dotnet_protocol_events)[max(0, int(cursor)) :]):
+    events = tuple(state.tab.standalone_dotnet_protocol_events)
+    start = max(0, int(cursor))
+    candidates = events[start:] if start < len(events) else events
+    for event in reversed(candidates):
         if str(event.get("event", "")) != "metrics":
             continue
         renderer = event.get("renderer")
@@ -224,6 +228,25 @@ def exercise_linked_texture_strokes(
     patch_delta = int(after_resources.get("texture_region_patch_count", 0) or 0) - int(
         before_resources.get("texture_region_patch_count", 0) or 0
     )
+    mip_generation_delta = int(after_resources.get("texture_region_mip_generation_count", 0) or 0) - int(
+        before_resources.get("texture_region_mip_generation_count", 0) or 0
+    )
+    resource_id = str(getattr(state, "painted_resource_id", "") or binding.mesh_resource_id or "")
+    source_diagnostics = tuple(before_resources.get("texture_resource_diagnostics", ()) or ())
+    source_mip_count = next(
+        (
+            int(item.get("source_mip_count", 0) or 0)
+            for item in source_diagnostics
+            if isinstance(item, Mapping) and str(item.get("resource_id", "") or "") == resource_id
+        ),
+        0,
+    )
+    editable_mip_levels = after_resources.get("editable_texture_mip_levels", {})
+    editable_mip_count = int(
+        editable_mip_levels.get(resource_id, 0) or 0
+        if isinstance(editable_mip_levels, Mapping)
+        else 0
+    )
     state.texture_binding = binding
     state.texture_flow_evidence = {
         "source_path": str(source),
@@ -255,6 +278,14 @@ def exercise_linked_texture_strokes(
             and patch_delta == len(applied)
             and int(after_resources.get("editable_texture_resources", 0) or 0)
             == int(before_resources.get("editable_texture_resources", 0) or 0) + 1
+        ),
+        "source_mip_count": source_mip_count,
+        "editable_mip_count": editable_mip_count,
+        "mip_generation_delta": mip_generation_delta,
+        "mip_chain_preserved": bool(
+            source_mip_count > 1
+            and editable_mip_count >= source_mip_count
+            and mip_generation_delta == len(applied)
         ),
         "snapshot_pixels_match": pixels_match,
         "painted_resource_id": str(getattr(state, "painted_resource_id", "")),
@@ -319,6 +350,23 @@ def _encode_painted_assignment(state: SimpleNamespace) -> tuple[Path | None, str
     return assigned, ""
 
 
+def _record_apply_update_evidence(
+    state: SimpleNamespace,
+    update: object,
+    expected_revision: int,
+    before: Mapping[str, object],
+    after: Mapping[str, object],
+) -> None:
+    state.last_apply_update_evidence = {
+        "expected_revision": expected_revision,
+        "vertex_group_count": len(tuple(getattr(update, "vertex_groups", ()) or ())),
+        "triangle_group_count": len(tuple(getattr(update, "triangle_groups", ()) or ())),
+        "refresh_selection": bool(getattr(update, "refresh_selection", False)),
+        "before": dict(before),
+        "after": dict(after),
+    }
+
+
 def exercise_assignment_and_mesh_edits(
     state: SimpleNamespace,
     *,
@@ -334,6 +382,7 @@ def exercise_assignment_and_mesh_edits(
             timeout_seconds,
         )
         after = state.tab.standalone_dotnet_update_queue.metrics()
+        _record_apply_update_evidence(state, update, expected_revision, before, after)
         return bool(
             drained
             and int(after.get("last_acked_revision", 0) or 0) >= expected_revision
@@ -480,7 +529,20 @@ def exercise_coherent_export(
         return "Resident editable package export timed out."
     report_path = export_dir / "mesh_export_report.json"
     if not report_path.is_file():
-        return "Resident editable package export produced no report."
+        status = str(state.tab.standalone_status_label.text() or "").strip()
+        pending = state.tab.standalone_dotnet_pending_material_parameter_payload
+        sent = state.tab.standalone_dotnet_sent_material_parameter_payload
+        ordering = {
+            "revision": state.tab.standalone_dotnet_material_parameter_revision,
+            "generation": state.tab.standalone_dotnet_material_parameter_generation,
+            "sent_generation": state.tab.standalone_dotnet_sent_material_parameter_generation,
+            "completed_generation": state.tab.standalone_dotnet_completed_material_parameter_generation,
+        }
+        return (
+            f"Resident editable package export produced no report. {status} "
+            f"Pending material parameters: {pending!r}. Sent material parameters: {sent!r}. "
+            f"Material parameter ordering: {ordering!r}."
+        ).strip()
     try:
         report = json.loads(report_path.read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:

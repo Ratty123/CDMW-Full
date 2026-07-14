@@ -16,7 +16,12 @@ from cdmw.core.archive import (
     normalize_texture_reference_for_sidecar_lookup,
 )
 from cdmw.core.upscale_profiles import parse_texture_sidecar_bindings
-from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
+from cdmw.models import (
+    ArchiveEntry,
+    ModelPreviewData,
+    ModelPreviewMesh,
+    PreviewMaterialParameterInput,
+)
 
 
 def _entry(path: str) -> ArchiveEntry:
@@ -43,6 +48,96 @@ def _texture_maps(*paths: str):
 
 
 class ArchivePreviewTextureBindingTests(unittest.TestCase):
+    def test_sidecar_material_contract_applies_without_resolved_texture(self) -> None:
+        source_entry = _entry("character/model/cd_test_cloth.pac")
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="CD_Test_Cloth")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/missing_cloth.dds",
+                parameter_name="_baseColorTexture",
+                submesh_name="CD_Test_Cloth",
+                sidecar_kind="pac_xml",
+                shader_family="SkinnedMeshStandard",
+                material_parameters=(
+                    PreviewMaterialParameterInput(
+                        parameter_kind="uint",
+                        parameter_name="AlphaTest",
+                        value="1",
+                        numeric_value=1.0,
+                    ),
+                    PreviewMaterialParameterInput(
+                        parameter_kind="float",
+                        parameter_name="AlphaRef",
+                        value="128",
+                        numeric_value=128.0,
+                    ),
+                    PreviewMaterialParameterInput(
+                        parameter_kind="bool",
+                        parameter_name="DoubleSided",
+                        value="true",
+                        numeric_value=1.0,
+                    ),
+                ),
+            ),
+        )
+
+        lines = _attach_model_sidecar_texture_preview_paths(
+            None,
+            source_entry,
+            model,
+            parsed_mesh=None,
+            sidecar_texture_bindings=bindings,
+        )
+
+        mesh = model.meshes[0]
+        self.assertEqual("SkinnedMeshStandard", mesh.preview_sidecar_shader_family)
+        self.assertEqual("cutout", mesh.preview_alpha_mode)
+        self.assertAlmostEqual(128.0 / 255.0, mesh.preview_native_material_overrides["alpha_cutoff"])
+        self.assertTrue(mesh.preview_double_sided)
+        self.assertEqual(bindings[0].material_parameters, mesh.preview_material_parameters)
+        self.assertTrue(any("independently of texture resolution" in line for line in lines))
+
+    def test_sidecar_layer_opacity_names_do_not_enable_surface_blending(self) -> None:
+        source_entry = _entry("character/model/cd_test_weapon.pac")
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="CD_Test_Weapon")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/missing_weapon.dds",
+                parameter_name="_baseColorTexture",
+                submesh_name="CD_Test_Weapon",
+                material_parameters=(
+                    PreviewMaterialParameterInput(
+                        parameter_kind="uint",
+                        parameter_name="_colorBlendingFlag",
+                        value="1",
+                        numeric_value=1.0,
+                    ),
+                    PreviewMaterialParameterInput(
+                        parameter_kind="float",
+                        parameter_name="_dyeingGlobalOpacity",
+                        value="0.5",
+                        numeric_value=0.5,
+                    ),
+                ),
+            ),
+        )
+
+        _attach_model_sidecar_texture_preview_paths(
+            None,
+            source_entry,
+            model,
+            parsed_mesh=None,
+            sidecar_texture_bindings=bindings,
+        )
+
+        self.assertEqual("", model.meshes[0].preview_alpha_mode)
+
     def test_texture_slot_detail_text_lists_part_to_dds_mapping(self) -> None:
         model = ModelPreviewData(
             path="character/model/cloth.pac",
@@ -673,6 +768,148 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
             "preview://character/texture/cd_texturelayer_003_0005.dds",
             model.meshes[0].preview_texture_path,
         )
+
+    def test_emissive_sidecar_binding_uses_emissive_channel_not_base(self) -> None:
+        source_entry = _entry("character/model/cd_test_lantern.pac")
+        emissive_path = "character/texture/cd_test_lantern_emissive.dds"
+        by_normalized, by_basename = _texture_maps(emissive_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="CD_Test_Lantern")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=emissive_path,
+                parameter_name="_emissiveTexture",
+                submesh_name="CD_Test_Lantern",
+                sidecar_kind="pac_xml",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            lines = _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        self.assertEqual("", mesh.preview_texture_path)
+        self.assertEqual(f"preview://{emissive_path}", mesh.preview_emissive_texture_path)
+        self.assertEqual(emissive_path, mesh.preview_emissive_texture_name)
+        self.assertEqual("emissive", mesh.preview_material_texture_inputs[0].semantic_type)
+        self.assertIn("Exact sidecar emissive bindings", "\n".join(lines))
+
+    def test_base_texture_is_not_reused_as_emissive_sibling_fallback(self) -> None:
+        source_entry = _entry("character/model/cd_test_cloth.pac")
+        base_path = "character/texture/cd_test_cloth.dds"
+        by_normalized, by_basename = _texture_maps(base_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_Test_Cloth",
+                    texture_name=base_path,
+                    preview_texture_path=f"preview://{base_path}",
+                )
+            ],
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            lines = _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("", model.meshes[0].preview_emissive_texture_path)
+        self.assertNotIn("emissive bindings", "\n".join(lines))
+
+    def test_emissive_sibling_fallback_requires_matching_material_family(self) -> None:
+        source_entry = _entry("character/model/cd_test_sword.pac")
+        blade_emissive = "character/texture/cd_test_blade_0014_emi.dds"
+        by_normalized, by_basename = _texture_maps(blade_emissive)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_Test_Blade_0014",
+                    texture_name="CD_Test_Blade_0014",
+                ),
+                ModelPreviewMesh(
+                    material_name="CD_Test_Handle_0014",
+                    texture_name="CD_Test_Handle_0014",
+                ),
+            ],
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual(f"preview://{blade_emissive}", model.meshes[0].preview_emissive_texture_path)
+        self.assertEqual("", model.meshes[1].preview_emissive_texture_path)
+
+    def test_anonymous_wrapper_order_does_not_spread_emissive_maps(self) -> None:
+        source_entry = _entry("character/model/cd_test_sword.pac")
+        paths = (
+            "character/texture/cd_test_blade_0014_emi.dds",
+            "character/texture/cd_test_acc_0037_emi.dds",
+        )
+        by_normalized, by_basename = _texture_maps(*paths)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(material_name="unknown_10"),
+                ModelPreviewMesh(material_name="unknown_20"),
+            ],
+        )
+        bindings = tuple(
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=path,
+                parameter_name="_emissiveIntensityTexture",
+                submesh_name=f"wrapper_{index}",
+            )
+            for index, path in enumerate(paths)
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertTrue(all(not mesh.preview_emissive_texture_path for mesh in model.meshes))
 
     def test_placeholder_none_texture_is_not_applied_as_support_map(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")

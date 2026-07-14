@@ -409,12 +409,14 @@ class ArchivePreviewSettingsMixin:
         archive_renderer_backend_changed_handler: Optional[Callable[[str], None]] = None,
         settings_changed_handler: Optional[Callable[[object], None]] = None,
         preview_settings: Optional[ModelPreviewRenderSettings] = None,
+        preview_target: str = ModelPreviewSettingsDialog.PREVIEW_TARGET_NATIVE_D3D11,
     ) -> QDialog:
         self._ensure_archive_preview_startup_state()
         dialog = ModelPreviewSettingsDialog(
             settings=preview_settings or self._current_model_preview_render_settings(),
             archive_performance_settings=self._current_archive_performance_settings(),
             archive_renderer_backend=archive_renderer_backend or self._archive_model_renderer_backend(),
+            preview_target=preview_target,
             parent=parent_dialog,
         )
         dialog.setAttribute(Qt.WA_DeleteOnClose, True)

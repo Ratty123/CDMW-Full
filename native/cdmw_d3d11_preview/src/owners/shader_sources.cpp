@@ -99,7 +99,7 @@ float geometry_smith(float ndotv, float ndotl, float roughness) {
 float3 fresnel_schlick(float costheta, float3 f0) {
     return f0 + (1.0 - f0) * pow(1.0 - saturate(costheta), 5.0);
 }
-float3 preview_environment_color(float3 reflected_view, float roughness) {
+float preview_environment_intensity(float3 reflected_view, float roughness) {
     float env_lobe = saturate((reflected_view.y * 0.55) + (reflected_view.z * -0.14) + 0.58);
     float horizon_band = pow(saturate(1.0 - abs(reflected_view.y) * 1.12), 2.2);
     float front_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.18, 0.36, -0.92)))), lerp(14.0, 4.0, roughness));
@@ -108,15 +108,19 @@ float3 preview_environment_color(float3 reflected_view, float roughness) {
     float back_softbox = pow(saturate(dot(reflected_view, normalize(float3(-0.72, 0.26, 0.64)))), lerp(18.0, 5.0, roughness));
     float opposite_softbox = pow(saturate(dot(reflected_view, normalize(float3(0.58, 0.30, 0.76)))), lerp(20.0, 6.0, roughness));
     float dark_band = pow(saturate(1.0 - abs(reflected_view.x * 1.8 + reflected_view.y * 0.35)), 3.2) * saturate(0.85 - reflected_view.z);
-    float3 env_color = lerp(float3(0.10, 0.11, 0.13), float3(0.82, 0.88, 0.98), env_lobe);
-    env_color = lerp(env_color, env_color * float3(0.54, 0.56, 0.60), dark_band * (1.0 - roughness) * 0.32);
-    env_color += horizon_band * float3(0.30, 0.32, 0.36);
-    env_color += front_softbox.xxx * float3(0.78, 0.86, 0.98);
-    env_color += top_softbox.xxx * float3(0.92, 0.86, 0.68);
-    env_color += side_softbox.xxx * float3(0.48, 0.58, 0.76);
-    env_color += back_softbox.xxx * float3(0.44, 0.52, 0.66);
-    env_color += opposite_softbox.xxx * float3(0.38, 0.46, 0.60);
-    return env_color;
+    float intensity = lerp(0.48, 0.52, env_lobe);
+    intensity *= lerp(1.0, 0.96, dark_band * (1.0 - roughness));
+    intensity += horizon_band * 0.025;
+    intensity += front_softbox * 0.04;
+    intensity += top_softbox * 0.03;
+    intensity += side_softbox * 0.025;
+    intensity += back_softbox * 0.02;
+    intensity += opposite_softbox * 0.018;
+    return clamp(intensity, 0.46, 0.60);
+}
+float3 source_stable_fresnel(float costheta, float3 f0, float metallic) {
+    float3 physical_fresnel = fresnel_schlick(costheta, f0);
+    return lerp(physical_fresnel, f0, saturate(metallic * 0.88));
 }
 float wrapped_ndotl(float3 normal_value, float3 light_value, float wrap_amount) {
     float wrap = saturate(wrap_amount);
@@ -545,6 +549,8 @@ static const char kShaderSourcePixelLighting[] = R"(
     float metal_diffuse_scale = lerp(1.0, 0.34, metal_strength);
     float3 color = material_reference_albedo * stable_ao * nonmetal_texture_scale * diffuse_depth * metal_diffuse_scale;
     color += material_reference_albedo * metal_cue * 0.16;
+    color += material_reference_albedo * metal_strength * stable_ao
+        * (0.14 + roughness * 0.06 + (1.0 - camera_shape) * 0.30);
     color += material_reference_albedo * glossy_cue * 0.22;
     color += material_reference_albedo * authority_gloss_cue * (0.035 + rim_shape * 0.16);
     float ndotv = saturate(camera_shape);
@@ -553,21 +559,14 @@ static const char kShaderSourcePixelLighting[] = R"(
     float direct_lobe = pow(ndoth, spec_power) * saturate(key_light * 1.25);
     float broad_metal_lobe = category_metal ? pow(ndoth, lerp(7.0, 22.0, smoothness)) * saturate(key_light * 0.85 + rim_shape * 0.45) : 0.0;
     float3 f0 = lerp(float3(0.035, 0.035, 0.035), material_reference_albedo, saturate(metalness));
-    float3 direct_specular = fresnel_schlick(ndotv, f0) * (direct_lobe + broad_metal_lobe * 1.05) * render_tuning.w;
-    float direct_specular_scale = category_metal ? (1.10 + metalness * 0.85) : (glossy_nonmetal ? 0.18 : (conservative_nonmetal ? 0.025 : 0.08));
+    float3 direct_specular = source_stable_fresnel(ndotv, f0, metalness) * (direct_lobe + broad_metal_lobe * 1.05) * render_tuning.w;
+    float direct_specular_scale = category_metal ? (0.45 + metalness * 0.30) : (glossy_nonmetal ? 0.18 : (conservative_nonmetal ? 0.025 : 0.08));
     color += direct_specular * direct_specular_scale;
     float3 reflected_view = normalize(reflect(-view_dir, n));
-    float3 env_reflection = preview_environment_color(reflected_view, roughness);
-    if (category_metal) {
-        float3 metal_tint = saturate(base_color_flip.rgb);
-        float tint_chroma = max(metal_tint.r, max(metal_tint.g, metal_tint.b)) - min(metal_tint.r, min(metal_tint.g, metal_tint.b));
-        float tint_luma = max(dot(metal_tint, float3(0.299, 0.587, 0.114)), 0.08);
-        float3 tint_bias = clamp(metal_tint / tint_luma, float3(0.70, 0.70, 0.70), float3(1.36, 1.36, 1.36));
-        env_reflection *= lerp(float3(1.0, 1.0, 1.0), tint_bias, saturate(tint_chroma * 0.44));
-    }
+    float env_reflection = preview_environment_intensity(reflected_view, roughness);
     float env_material_scale = category_metal ? (0.55 + metalness * lerp(0.45, 1.10, smoothness)) : (glossy_nonmetal ? 0.18 : (conservative_nonmetal ? 0.018 : 0.08));
     env_material_scale = max(env_material_scale, authority_gloss_cue * 0.32);
-    float3 env_fresnel = fresnel_schlick(ndotv, f0);
+    float3 env_fresnel = source_stable_fresnel(ndotv, f0, metalness);
     color += env_reflection * env_fresnel * render_tuning3.w * category_env_scale * env_material_scale;
     if (emissive_params.a > 0.001) {
         float encoded_emissive = emissive_params.a;
@@ -587,8 +586,15 @@ static const char kShaderSourcePixelLighting[] = R"(
     float tone_exposure = max(render_tuning4.y, 0.05);
     float tone_contrast = max(render_tuning4.z, 0.10);
     float tone_gamma = max(render_tuning4.w, 0.20);
-    float3 mapped = aces_tonemap(color * tone_exposure);
-    mapped = saturate((mapped - 0.5) * tone_contrast + 0.5);
+    float3 exposed = max(color * tone_exposure, float3(0.0, 0.0, 0.0));
+    float exposed_luma = dot(exposed, float3(0.2126, 0.7152, 0.0722));
+    float mapped_luma = aces_tonemap(exposed_luma.xxx).r;
+    float3 mapped = exposed * (mapped_luma / max(exposed_luma, 0.00001));
+    float current_luma = dot(mapped, float3(0.2126, 0.7152, 0.0722));
+    float contrasted_luma = (current_luma - 0.5) * tone_contrast + 0.5;
+    contrasted_luma = max(contrasted_luma, current_luma * 0.55);
+    mapped *= max(contrasted_luma, 0.0) / max(current_luma, 0.00001);
+    mapped = saturate(mapped);
     mapped = pow(mapped, float3(tone_gamma, tone_gamma, tone_gamma));
     return float4(linear_to_srgb(mapped), 1.0);
 }

@@ -39,6 +39,7 @@ from cdmw.models import (
     ArchivePreviewResult,
     ModelPreviewData,
     ModelPreviewRenderSettings,
+    clamp_model_preview_render_settings,
 )
 from cdmw.services.material_sidecar_document_service import (
     MaterialSidecarEditorDocument,

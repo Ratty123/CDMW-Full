@@ -37,12 +37,21 @@ class _ItemIconThreadLifecycle(QObject):
     def __init__(self, owner: object) -> None:
         super().__init__(owner)
         self._owner = owner
-        self._pending: dict[QThread, tuple[str, object]] = {}
+        self._pending: dict[QThread, tuple[str, object, QObject]] = {}
         self._retry_scheduled = False
 
-    def watch(self, thread: QThread, lane: str, cleanup_handler: object) -> None:
-        self._pending[thread] = (lane, cleanup_handler)
+    def watch(self, thread: QThread, worker: QObject, lane: str, cleanup_handler: object) -> None:
+        self._pending[thread] = (lane, cleanup_handler, worker)
+        worker.finished.connect(
+            lambda target_worker=worker: self._return_worker_to_owner_thread(target_worker),
+            Qt.ConnectionType.DirectConnection,
+        )
         thread.finished.connect(self._thread_finished, Qt.ConnectionType.QueuedConnection)
+
+    def _return_worker_to_owner_thread(self, worker: QObject) -> None:
+        owner_thread = self.thread()
+        if worker.thread() is not owner_thread:
+            worker.moveToThread(owner_thread)
 
     @Slot()
     def _thread_finished(self) -> None:
@@ -62,9 +71,13 @@ class _ItemIconThreadLifecycle(QObject):
                 self._retry_scheduled = True
                 QTimer.singleShot(1, self._retry_finished)
             return
-        lane, cleanup_handler = self._pending.pop(thread)
+        lane, cleanup_handler, worker = self._pending.pop(thread)
         if getattr(self._owner, f"_{lane}_thread", None) is thread:
             cleanup_handler()
+        try:
+            worker.deleteLater()
+        except RuntimeError:
+            pass
         try:
             thread.deleteLater()
         except RuntimeError:
@@ -142,9 +155,8 @@ class ItemIconWorkerMixin:
         thread.started.connect(worker.run)
         worker.completed.connect(completed_handler, Qt.ConnectionType.QueuedConnection)
         worker.error.connect(error_handler, Qt.ConnectionType.QueuedConnection)
+        self._item_icon_thread_lifecycle.watch(thread, worker, lane, cleanup_handler)
         worker.finished.connect(thread.quit, Qt.ConnectionType.DirectConnection)
-        thread.finished.connect(worker.deleteLater, Qt.ConnectionType.DirectConnection)
-        self._item_icon_thread_lifecycle.watch(thread, lane, cleanup_handler)
         setattr(self, f"_{lane}_thread", thread)
         setattr(self, f"_{lane}_worker", worker)
         thread.start()

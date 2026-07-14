@@ -13,6 +13,7 @@ from cdmw.models import ModelPreviewData, ModelPreviewMesh, PreviewMaterialTextu
 NATIVE_MATERIAL_MANIFEST_OVERRIDE_KEYS = frozenset(
     {
         "base_tint_strength",
+        "base_tint_only_fallback",
         "height_amount",
         "height_scale",
         "material_analysis",
@@ -103,6 +104,18 @@ def apply_native_preview_core_material_manifest(
         apply_slot("normal", "preview_normal_texture_path", "preview_normal_texture_dds_path", "preview_normal_texture_name")
         apply_slot("material", "preview_material_texture_path", "preview_material_texture_dds_path", "preview_material_texture_name")
         apply_slot("height", "preview_height_texture_path", "preview_height_texture_dds_path", "preview_height_texture_name")
+        if bool(batch.get("base_tint_only_fallback", False)):
+            raw_base_color = batch.get("base_color")
+            if isinstance(raw_base_color, Sequence) and not isinstance(raw_base_color, (str, bytes, bytearray)):
+                try:
+                    decoded_base_color = tuple(float(value) for value in raw_base_color[:3])
+                except (TypeError, ValueError):
+                    decoded_base_color = ()
+                if len(decoded_base_color) == 3:
+                    mesh.preview_color = decoded_base_color
+            mesh.preview_texture_path = ""
+            mesh.preview_texture_dds_path = ""
+            mesh.preview_texture_image = None
         material_inputs: list[PreviewMaterialTextureInput] = []
         raw_inputs = dds_textures.get("material_inputs")
         if isinstance(raw_inputs, Sequence) and not isinstance(raw_inputs, (str, bytes, bytearray)):

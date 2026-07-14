@@ -279,7 +279,12 @@ class MeshRiggingServiceMixin:
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         vertex_map = session.selection.vertex_map()
         if vertex_map:
-            self._push_history(session, prefer_native=True)
+            self._push_history(
+                session,
+                prefer_native=True,
+                action="adjust_vertex_weights",
+                label="Adjust Bone Weight",
+            )
             native_result = apply_native_mesh_skin_weights(
                 session.working_mesh,
                 vertex_map,
@@ -317,7 +322,11 @@ class MeshRiggingServiceMixin:
             if not operations:
                 continue
             if not pushed:
-                self._push_history(session)
+                self._push_history(
+                    session,
+                    action="adjust_vertex_weights",
+                    label="Adjust Bone Weight",
+                )
                 pushed = True
             _ensure_skinning_rows(submesh)
             for vertex_index, next_indices, next_weights in operations:
@@ -342,7 +351,12 @@ class MeshRiggingServiceMixin:
         session.selection = _prune_selection_to_mesh(session.working_mesh, session.selection)
         vertex_map = session.selection.vertex_map()
         if vertex_map:
-            self._push_history(session, prefer_native=True)
+            self._push_history(
+                session,
+                prefer_native=True,
+                action="normalize_vertex_weights",
+                label="Normalize Bone Weights",
+            )
             native_result = apply_native_mesh_skin_weights(
                 session.working_mesh,
                 vertex_map,
@@ -378,7 +392,11 @@ class MeshRiggingServiceMixin:
             if not operations:
                 continue
             if not pushed:
-                self._push_history(session)
+                self._push_history(
+                    session,
+                    action="normalize_vertex_weights",
+                    label="Normalize Bone Weights",
+                )
                 pushed = True
             _ensure_skinning_rows(submesh)
             for vertex_index, next_indices, next_weights in operations:
@@ -412,7 +430,12 @@ class MeshRiggingServiceMixin:
         selected_submeshes = set(vertex_map) | set(session.selection.source_indices)
         if selected_submeshes:
             invalidate_native_mesh_session_submeshes(session.working_mesh, selected_submeshes)
-            self._push_history(session, prefer_native=True)
+            self._push_history(
+                session,
+                prefer_native=True,
+                action="transfer_vertex_weights",
+                label="Transfer Bone Weights",
+            )
             native_result = transfer_native_mesh_skin_weights_from_source(
                 session.working_mesh,
                 session.base_mesh,
@@ -474,7 +497,11 @@ class MeshRiggingServiceMixin:
                 operations_by_submesh[submesh_index] = operations
         if not operations_by_submesh:
             return self.skeleton_summary(session_id)
-        self._push_history(session)
+        self._push_history(
+            session,
+            action="transfer_vertex_weights",
+            label="Transfer Bone Weights",
+        )
         for submesh_index, operations in operations_by_submesh.items():
             target = session.working_mesh.submeshes[submesh_index]
             _ensure_skinning_rows(target)

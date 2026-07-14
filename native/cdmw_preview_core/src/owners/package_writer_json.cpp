@@ -3,6 +3,7 @@ static void append_package_material_slot_and_decision(
     const PackageBatchState& batch
 ) {
     const NativeSubmesh& mesh = *batch.mesh;
+    const TextureBinding* preview_base = package_preview_base(batch);
     if (state.emitted_batch_count > 0) {
         state.material_slots_json << ",";
         state.selection_decisions_json << ",";
@@ -17,7 +18,7 @@ static void append_package_material_slot_and_decision(
         << "\"material_category_confidence\":" << batch.material_category_confidence << ","
         << "\"material_category_reason\":\"" << json_escape(batch.material_category_reason) << "\","
         << "\"material_response_disposition\":\"" << json_escape(batch.material_response) << "\","
-        << "\"base\":\"" << json_escape(batch.base == nullptr ? "" : batch.base->archive_path) << "\","
+        << "\"base\":\"" << json_escape(preview_base == nullptr ? "" : preview_base->archive_path) << "\","
         << "\"normal\":\"" << json_escape(batch.normal == nullptr ? "" : batch.normal->archive_path) << "\","
         << "\"material\":\"" << json_escape(batch.material == nullptr ? "" : batch.material->archive_path) << "\","
         << "\"specular\":\"" << json_escape(batch.specular == nullptr ? "" : batch.specular->archive_path) << "\","
@@ -38,7 +39,8 @@ static void append_package_material_slot_and_decision(
         << "\"base_low_res\":" << (batch.base_low_res ? "true" : "false") << ","
         << "\"base_low_confidence\":" << (batch.base_low_confidence ? "true" : "false") << ","
         << "\"base_low_authority_overlay\":" << (batch.base_low_authority_overlay_selected ? "true" : "false") << ","
-        << "\"base_wrong_family_layer\":" << (batch.base_semantically_unsafe_skin_albedo ? "true" : "false") << ","
+        << "\"base_wrong_family_layer\":" << (batch.base_wrong_family_layer ? "true" : "false") << ","
+        << "\"base_tint_only_fallback\":" << (batch.base_tint_only_fallback ? "true" : "false") << ","
         << "\"visible_layer_albedo_used\":" << (batch.visible_layer_albedo_used ? "true" : "false") << ","
         << "\"visible_layer_albedo_score\":" << batch.visible_layer_albedo_score << ","
         << "\"visible_layer_tint_applied\":" << (batch.visible_layer_tint_applied ? "true" : "false") << ","
@@ -57,9 +59,10 @@ static void append_package_material_inputs(
     PackageWriteState& state,
     const PackageBatchState& batch
 ) {
+    const TextureBinding* preview_base = package_preview_base(batch);
     bool wrote_slot = false;
     for (const auto& slot : std::vector<std::pair<std::string, const TextureBinding*>>{
-        {"base", batch.base},
+        {"base", preview_base},
         {"normal", batch.normal},
         {"material", batch.material},
         {"height", batch.height},
@@ -78,6 +81,7 @@ static void append_package_material_inputs(
     bool first = true;
     for (const TextureBinding* binding_ptr : batch.bindings) {
         if (binding_ptr == nullptr || binding_ptr->source_path.empty()) continue;
+        if (batch.base_tint_only_fallback && binding_ptr == batch.base) continue;
         const TextureBinding& binding = *binding_ptr;
         if (!job_allows_texture_role(state.job, binding.role)) continue;
         if (!first) state.batches_json << ",";

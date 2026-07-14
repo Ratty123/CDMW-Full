@@ -24,7 +24,7 @@ def _package(root: Path) -> MeshDotNetExperimentPackage:
         obj_sidecar_path=package_dir / "mesh.obj.meta.json",
         cdmeta_path=package_dir / "mesh.cdmeta.json",
         original_asset_hash_path=package_dir / "original_asset_hash.txt",
-        status_path=package_dir / "dotnet_status.json",
+        status_path=output_dir / "dotnet_status.json",
         output_dir=output_dir,
         edit_operations_path=output_dir / "edit_operations.json",
         launch_manifest_path=package_dir / "dotnet_launch.json",

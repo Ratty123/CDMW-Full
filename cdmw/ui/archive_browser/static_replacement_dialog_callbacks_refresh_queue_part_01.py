@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
+    send_resident_presentation_state,
+)
+
 def _refresh_queue_step_001(_state):
     _state.Callable = _state.context.get('Callable')
     _state.Dict = _state.context.get('Dict')
@@ -351,6 +355,14 @@ def _refresh_queue_step_026(_state):
 def _refresh_queue_step_027(_state):
 
     def _queue_static_preview_refresh(*_args: object) -> None:
+        resident_getter = getattr(_state.dialog, '_mesh_editor_embedded_presentation_state', None)
+        if callable(resident_getter):
+            try:
+                resident_state = resident_getter()
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                resident_state = None
+            if isinstance(resident_state, dict):
+                send_resident_presentation_state(_state.dialog, resident_state)
         _state._mark_alignment_d3d11_rebuild_reason('geometry')
         if _state._active_mesh_edit_preview_queue_blocked('refresh', 'mesh_edit_static_preview_refresh_blocked'):
             return

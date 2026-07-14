@@ -398,11 +398,22 @@ MeshEditorSelection mesh_editor_apply_selection_edit(
     MeshEditorSelection result;
     const bool all_operation = operation == "all";
     const bool invert_operation = operation == "invert";
-    std::set<int> targets = mesh_editor_selection_target_indices(MeshEditorSelection{}, incoming);
-    for (const int source_index : incoming.source_indices) {
-        if (source_index >= 0) {
-            targets.insert(source_index);
+    const bool source_target = target_mode == "source" || target_mode == "part";
+    std::set<int> targets;
+    if (all_operation || invert_operation || source_target) {
+        targets.insert(incoming.source_indices.begin(), incoming.source_indices.end());
+    }
+    const auto append_map_targets = [&](const auto& values) {
+        for (const auto& entry : values) {
+            if (entry.first >= 0) targets.insert(entry.first);
         }
+    };
+    if (target_mode == "face") {
+        append_map_targets(incoming.faces);
+    } else if (target_mode == "edge") {
+        append_map_targets(incoming.edges);
+    } else if (!source_target) {
+        append_map_targets(incoming.vertices);
     }
     for (const int submesh_index : targets) {
         const auto found = mesh_editor_submeshes(session).find(submesh_index);
@@ -413,12 +424,19 @@ MeshEditorSelection mesh_editor_apply_selection_edit(
         if (submesh.vertices.empty()) {
             continue;
         }
-        std::set<int> selected = mesh_editor_vertices_from_selection_domains(incoming, submesh_index, submesh);
-        if (all_operation) {
-            if (target_mode == "source" || target_mode == "part") {
+        if (source_target) {
+            if (all_operation || operation == "grow" || operation == "shrink" || operation == "smooth") {
                 result.source_indices.insert(submesh_index);
-                continue;
+            } else if (invert_operation) {
+                for (const auto& entry : mesh_editor_submeshes(session)) {
+                    if (incoming.source_indices.find(entry.first) == incoming.source_indices.end()) {
+                        result.source_indices.insert(entry.first);
+                    }
+                }
             }
+            continue;
+        }
+        if (all_operation) {
             if (target_mode == "face") {
                 std::set<int>& faces = result.faces[submesh_index];
                 for (std::size_t face_index = 0; face_index < submesh.faces.size(); ++face_index) {
@@ -430,11 +448,105 @@ MeshEditorSelection mesh_editor_apply_selection_edit(
                 result.edges[submesh_index] = face_edge_set(submesh.faces);
                 continue;
             }
-            selected.clear();
+            std::set<int>& selected = result.vertices[submesh_index];
             for (std::size_t vertex_index = 0; vertex_index < submesh.vertices.size(); ++vertex_index) {
                 selected.insert(static_cast<int>(vertex_index));
             }
-        } else if (invert_operation) {
+            continue;
+        }
+        if (target_mode == "face") {
+            std::set<int> selected = mesh_editor_pruned_faces_for_submesh(
+                incoming, submesh_index, submesh.faces.size()
+            );
+            if (invert_operation) {
+                std::set<int> inverted;
+                for (std::size_t index = 0; index < submesh.faces.size(); ++index) {
+                    if (selected.find(static_cast<int>(index)) == selected.end()) {
+                        inverted.insert(static_cast<int>(index));
+                    }
+                }
+                selected = std::move(inverted);
+            } else if (!selected.empty()) {
+                std::vector<std::set<int>> adjacency(submesh.faces.size());
+                std::map<std::array<int, 2>, std::vector<int>> edge_faces;
+                for (std::size_t index = 0; index < submesh.faces.size(); ++index) {
+                    const auto& face = submesh.faces[index];
+                    for (const std::array<int, 2>& edge : {
+                            edge_key(face[0], face[1]),
+                            edge_key(face[1], face[2]),
+                            edge_key(face[2], face[0])}) {
+                        edge_faces[edge].push_back(static_cast<int>(index));
+                    }
+                }
+                for (const auto& entry : edge_faces) {
+                    for (const int left : entry.second) {
+                        for (const int right : entry.second) {
+                            if (left != right) adjacency[static_cast<std::size_t>(left)].insert(right);
+                        }
+                    }
+                }
+                for (int iteration = 0; iteration < std::max(0, iterations); ++iteration) {
+                    std::set<int> next = operation == "grow" ? selected : std::set<int>{};
+                    for (const int index : selected) {
+                        const std::set<int>& neighbors = adjacency[static_cast<std::size_t>(index)];
+                        if (operation == "grow") {
+                            next.insert(neighbors.begin(), neighbors.end());
+                        } else if (operation == "shrink"
+                                   && std::all_of(neighbors.begin(), neighbors.end(), [&](int neighbor) {
+                                       return selected.find(neighbor) != selected.end();
+                                   })) {
+                            next.insert(index);
+                        }
+                    }
+                    selected = std::move(next);
+                }
+            }
+            if (!selected.empty()) result.faces[submesh_index] = std::move(selected);
+            continue;
+        }
+        if (target_mode == "edge") {
+            const std::set<std::array<int, 2>> all_edges = face_edge_set(submesh.faces);
+            std::set<std::array<int, 2>> selected = mesh_editor_pruned_edges_for_submesh(
+                incoming, submesh_index, submesh.vertices.size(), submesh.faces
+            );
+            if (invert_operation) {
+                std::set<std::array<int, 2>> inverted;
+                std::set_difference(
+                    all_edges.begin(), all_edges.end(), selected.begin(), selected.end(),
+                    std::inserter(inverted, inverted.end())
+                );
+                selected = std::move(inverted);
+            } else if (!selected.empty()) {
+                std::map<int, std::set<std::array<int, 2>>> incident;
+                for (const auto& edge : all_edges) {
+                    incident[edge[0]].insert(edge);
+                    incident[edge[1]].insert(edge);
+                }
+                for (int iteration = 0; iteration < std::max(0, iterations); ++iteration) {
+                    std::set<std::array<int, 2>> next = operation == "grow" ? selected : std::set<std::array<int, 2>>{};
+                    for (const auto& edge : selected) {
+                        std::set<std::array<int, 2>> neighbors = incident[edge[0]];
+                        neighbors.insert(incident[edge[1]].begin(), incident[edge[1]].end());
+                        neighbors.erase(edge);
+                        if (operation == "grow") {
+                            next.insert(neighbors.begin(), neighbors.end());
+                        } else if (operation == "shrink"
+                                   && std::all_of(neighbors.begin(), neighbors.end(), [&](const auto& neighbor) {
+                                       return selected.find(neighbor) != selected.end();
+                                   })) {
+                            next.insert(edge);
+                        }
+                    }
+                    selected = std::move(next);
+                }
+            }
+            if (!selected.empty()) result.edges[submesh_index] = std::move(selected);
+            continue;
+        }
+        std::set<int> selected = mesh_editor_pruned_vertices_for_submesh(
+            incoming, submesh_index, submesh.vertices.size()
+        );
+        if (invert_operation) {
             std::set<int> inverted;
             for (std::size_t vertex_index = 0; vertex_index < submesh.vertices.size(); ++vertex_index) {
                 if (selected.find(static_cast<int>(vertex_index)) == selected.end()) {

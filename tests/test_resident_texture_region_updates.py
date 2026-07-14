@@ -5,6 +5,7 @@ import os
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 
@@ -18,6 +19,7 @@ from cdmw.ui.mesh_editor.resident_texture_update_queue import (
     ResidentTextureRegionRequest,
     ResidentTextureRegionUpdateQueue,
 )
+from cdmw.ui.mesh_editor.tab_dotnet_resources import MeshEditorDotNetResourceProtocolMixin
 from cdmw.ui.texture_editor_tab import TextureEditorTab
 from cdmw.ui.texture_workflow.editor_export_state import (
     texture_editor_handoff_source_binding,
@@ -256,6 +258,31 @@ def test_region_queue_keeps_one_active_and_coalesces_pending_union(tmp_path: Pat
     finally:
         queue.shutdown()
         app.processEvents()
+
+
+def test_texture_region_transport_adds_a_fresh_mutation_envelope() -> None:
+    sent: list[dict[str, object]] = []
+    state = SimpleNamespace(
+        standalone_dotnet_texture_region_request_id=0,
+        standalone_dotnet_process_generation=9,
+        standalone_dotnet_update_queue=SimpleNamespace(
+            metrics=lambda: {"last_acked_revision": 6}
+        ),
+        _send_dotnet_protocol_message=lambda payload: sent.append(dict(payload)) or True,
+    )
+    payload = {
+        "event": "texture_region_update",
+        "session_id": "session",
+        "edit_revision": 7,
+    }
+
+    assert MeshEditorDotNetResourceProtocolMixin._send_dotnet_texture_region_message(state, payload)
+    assert MeshEditorDotNetResourceProtocolMixin._send_dotnet_texture_region_message(state, payload)
+
+    assert [message["request_id"] for message in sent] == [1, 2]
+    assert all(message["base_revision"] == 6 for message in sent)
+    assert all(message["process_generation"] == 9 for message in sent)
+    assert all(message["protocol_version"] == 2 for message in sent)
 
 
 def test_region_queue_releases_submitted_snapshots_once_and_keeps_pending_owned(tmp_path: Path) -> None:

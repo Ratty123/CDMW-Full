@@ -11,8 +11,8 @@ import tempfile
 import time
 from collections.abc import Mapping, Sequence
 from uuid import uuid4
-from dataclasses import dataclass, asdict
-from pathlib import Path
+from dataclasses import dataclass, asdict, replace
+from pathlib import Path, PurePosixPath
 
 from cdmw.core.atomic_file import atomic_copy_file, atomic_write_text
 from cdmw.domain.mesh.operations import (
@@ -25,15 +25,33 @@ from cdmw.modding.mesh_deformer import clone_mesh_for_editing
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.modding.mesh_parser import ParsedMesh
+from cdmw.modding.static_mesh_scene_frame import (
+    StaticMeshSceneFrame,
+    StaticSceneRoleFrame,
+    StaticWorldBounds,
+    build_authoritative_static_scene_frame,
+    static_scene_source_identity,
+)
+from cdmw.modding.static_mesh_types import StaticReplacementTransform
 from cdmw.services.mesh_dotnet_material_state import (
     _dotnet_manifest_resource_bindings,
     _dotnet_initial_material_parameters,
     _dotnet_material_channel_components,
+    _dotnet_material_normal_y_policy,
     _dotnet_material_input_channels,
+    _dotnet_material_semantic_contract,
     _dotnet_resolved_texture_channels,
     _source_file_stat_key,
     mesh_dotnet_material_input_signature,
     mesh_dotnet_material_state_payload,
+)
+from cdmw.services.mesh_dotnet_runtime_status import (
+    MESH_DOTNET_HELPER_MANIFEST_NAME,
+    mesh_dotnet_experiment_evaluation_path,
+    mesh_dotnet_helper_provenance_blockers,
+    mesh_dotnet_material_parity_warnings,
+    mesh_dotnet_renderer_blockers,
+    write_mesh_dotnet_experiment_evaluation,
 )
 
 
@@ -56,6 +74,8 @@ class MeshDotNetExperimentPackage:
     scene_manifest_path: Path | None = None
     editable_submesh_count: int = 0
     reference_submesh_count: int = 0
+    scene_frame: StaticMeshSceneFrame | None = None
+    scene_session_id: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,19 +184,34 @@ def _dotnet_submesh_material_payload(
     fallback_index: int,
     *,
     source_submesh: object | None = None,
+    source_asset_path: str = "",
     package_dir: Path,
     texture_copy_cache: dict[str, str],
-    resource_payloads: dict[str, dict[str, str]],
+    resource_payloads: dict[str, dict[str, object]],
+    role: str = "replacement",
 ) -> dict[str, object]:
     submesh_map = submesh if isinstance(submesh, Mapping) else {}
     texture = str(submesh_map.get("texture", "") or "").strip()
     resolved_channels = _dotnet_resolved_texture_channels(source_submesh)
+    semantic_contract = _dotnet_material_semantic_contract(
+        source_submesh,
+        resolved_channels,
+        source_asset_path=source_asset_path,
+    )
     packaged_channels = _copy_dotnet_texture_channel_resources(resolved_channels, package_dir, texture_copy_cache)
-    resource_channels, resources = _dotnet_manifest_resource_bindings(resolved_channels, packaged_channels)
+    submesh_index = _safe_int(submesh_map.get("submesh_index"), fallback_index)
+    resource_channels, resources = _dotnet_manifest_resource_bindings(
+        resolved_channels,
+        packaged_channels,
+        source=source_submesh,
+        source_asset_path=source_asset_path,
+        submesh_index=submesh_index,
+        role=role,
+    )
     for resource_id, resource in resources.items():
         resource_payloads.setdefault(resource_id, resource)
     return {
-        "submesh_index": _safe_int(submesh_map.get("submesh_index"), fallback_index),
+        "submesh_index": submesh_index,
         "name": str(submesh_map.get("name", "") or "").strip(),
         "material_slot_index": _safe_int(submesh_map.get("material_slot_index"), fallback_index),
         "material": str(submesh_map.get("material", "") or "").strip(),
@@ -185,7 +220,12 @@ def _dotnet_submesh_material_payload(
         "resolved_channels": resolved_channels,
         "packaged_channels": packaged_channels,
         "resource_channels": resource_channels,
+        "texture_flip_vertical": bool(
+            getattr(source_submesh, "preview_texture_flip_vertical", False)
+        ),
+        "normal_y_policy": _dotnet_material_normal_y_policy(source_submesh),
         "channel_components": _dotnet_material_channel_components(source_submesh),
+        **semantic_contract,
         "parameters": _dotnet_initial_material_parameters(source_submesh, resolved_channels),
         "resolved_texture_count": len([value for value in resolved_channels.values() if value]),
         "packaged_texture_count": len(packaged_channels),
@@ -198,6 +238,7 @@ def _write_dotnet_material_manifest(
     mesh: ParsedMesh,
     sidecar_payload: Mapping[str, object],
     material_signature: str,
+    editable_submesh_count: int | None = None,
 ) -> None:
     raw_slots = sidecar_payload.get("material_slots", [])
     slots = list(raw_slots) if isinstance(raw_slots, list) else []
@@ -224,15 +265,22 @@ def _write_dotnet_material_manifest(
             for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ()))
         ]
     texture_copy_cache: dict[str, str] = {}
-    resource_payloads: dict[str, dict[str, str]] = {}
+    resource_payloads: dict[str, dict[str, object]] = {}
+    source_asset_path = str(getattr(mesh, "path", "") or "").strip()
     submesh_payloads = [
         _dotnet_submesh_material_payload(
             submesh,
             index,
             source_submesh=source_submeshes[index] if index < len(source_submeshes) else None,
+            source_asset_path=source_asset_path,
             package_dir=path.parent,
             texture_copy_cache=texture_copy_cache,
             resource_payloads=resource_payloads,
+            role=(
+                "original_reference"
+                if editable_submesh_count is not None and index >= int(editable_submesh_count)
+                else "replacement"
+            ),
         )
         for index, submesh in enumerate(submeshes)
     ]
@@ -281,42 +329,12 @@ def _build_dotnet_scene_mesh(mesh: ParsedMesh, reference_mesh: ParsedMesh | None
 def _write_dotnet_scene_manifest(
     path: Path,
     *,
-    mesh: ParsedMesh,
-    reference_mesh: ParsedMesh | None,
-    editable_submesh_count: int,
-    comparison_mode: str,
-    interaction_mode: str,
+    scene_frame: StaticMeshSceneFrame,
+    session_id: str = "",
 ) -> None:
-    bounds_min, bounds_max = _mesh_scene_bounds(tuple(item for item in (mesh, reference_mesh) if item is not None))
-    extent = max((bounds_max[axis] - bounds_min[axis] for axis in range(3)), default=0.0)
-    center = [(bounds_min[axis] + bounds_max[axis]) * 0.5 for axis in range(3)]
-    reference_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh is not None else 0
-    payload = {
-        "format": "cdmw_mesh_dotnet_scene_v1",
-        "renderer_authority": "dotnet_vortice_resident_scene",
-        "editable_submesh_count": int(editable_submesh_count),
-        "reference_submesh_count": int(reference_count),
-        "roles": {
-            "replacement": list(range(int(editable_submesh_count))),
-            "original_reference": list(range(int(editable_submesh_count), int(editable_submesh_count) + int(reference_count))),
-        },
-        "comparison_mode": str(comparison_mode or "side_by_side"),
-        "interaction_mode": str(interaction_mode or "placement"),
-        "grid": {
-            "visible": True,
-            "origin": [center[0], bounds_min[1], center[2]],
-            "normal_axis": "y",
-            "spacing": max(float(extent) / 10.0, 0.01),
-            "major_line_every": 5,
-        },
-        "placement": {
-            "translation": [0.0, 0.0, 0.0],
-            "rotation_degrees": [0.0, 0.0, 0.0],
-            "scale": [1.0, 1.0, 1.0],
-        },
-        "gizmo": {"visible": True, "tool": "move", "space": "world"},
-        "bounds": {"min": bounds_min, "max": bounds_max, "center": center},
-    }
+    payload = scene_frame.to_protocol_payload()
+    payload["renderer_authority"] = "dotnet_vortice_resident_scene"
+    payload["session_id"] = str(session_id or "")
     atomic_write_text(path, json.dumps(payload, indent=2))
 
 
@@ -480,6 +498,10 @@ def build_mesh_dotnet_experiment_package(
     reference_mesh: ParsedMesh | None = None,
     comparison_mode: str = "side_by_side",
     interaction_mode: str = "placement",
+    scene_transform: StaticReplacementTransform | None = None,
+    scene_generation: int = 1,
+    scene_session_id: str = "",
+    selection_pivot_source: tuple[float, float, float] | None = None,
 ) -> MeshDotNetExperimentPackage:
     material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
@@ -528,20 +550,44 @@ def build_mesh_dotnet_experiment_package(
         mesh=scene_mesh,
         sidecar_payload=scene_sidecar_payload,
         material_signature=material_signature,
+        editable_submesh_count=editable_submesh_count,
     )
     scene_manifest_path = package_dir / "dotnet_scene.json"
-    _write_dotnet_scene_manifest(
-        scene_manifest_path,
-        mesh=mesh,
-        reference_mesh=reference_mesh,
-        editable_submesh_count=editable_submesh_count,
+    target_frame_mesh = reference_mesh if reference_mesh is not None else mesh
+    scene_frame = build_authoritative_static_scene_frame(
+        target_frame_mesh,
+        mesh,
+        scene_transform
+        or StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+        source_identity=static_scene_source_identity(mesh, reference_mesh),
+        scene_generation=scene_generation,
         comparison_mode=comparison_mode,
         interaction_mode=interaction_mode,
+        selection_pivot_source=selection_pivot_source,
+    )
+    if reference_mesh is None:
+        empty_bounds = StaticWorldBounds((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
+        scene_frame = replace(
+            scene_frame,
+            reference=StaticSceneRoleFrame(
+                role="reference",
+                model_matrix=scene_frame.reference.model_matrix,
+                world_bounds=empty_bounds,
+                visible=False,
+                submesh_indices=(),
+            ),
+            framing_bounds=scene_frame.editable.world_bounds,
+            framing_extent=max(0.01, scene_frame.editable.world_bounds.extent),
+        )
+    _write_dotnet_scene_manifest(
+        scene_manifest_path,
+        scene_frame=scene_frame,
+        session_id=scene_session_id,
     )
 
     output_dir = package_dir / "output"
     output_dir.mkdir()
-    status_path = package_dir / "dotnet_status.json"
+    status_path = output_dir / "dotnet_status.json"
     edit_operations_path = output_dir / "edit_operations.json"
     launch_manifest_path = package_dir / "dotnet_launch.json"
 
@@ -560,10 +606,22 @@ def build_mesh_dotnet_experiment_package(
         scene_manifest_path=scene_manifest_path,
         editable_submesh_count=editable_submesh_count,
         reference_submesh_count=reference_submesh_count,
+        scene_frame=scene_frame,
+        scene_session_id=str(scene_session_id or ""),
     )
+    _write_initial_dotnet_launch_manifest(package, net_materials_path, scene_mesh_path, scene_manifest_path)
+    return package
+
+
+def _write_initial_dotnet_launch_manifest(
+    package: MeshDotNetExperimentPackage,
+    net_materials_path: Path,
+    scene_mesh_path: Path,
+    scene_manifest_path: Path,
+) -> None:
     created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     atomic_write_text(
-        launch_manifest_path,
+        package.launch_manifest_path,
         json.dumps(
             {
                 "format": "cdmw_mesh_dotnet_experiment_handoff_v1",
@@ -590,28 +648,33 @@ def build_mesh_dotnet_experiment_package(
                     "created_at": created_at,
                 },
                 "input": {
-                    "mesh": mesh_path.name,
-                    "metadata": cdmeta_path.name,
-                    "obj_sidecar": obj_sidecar_path.name,
-                    "original_asset_hash": original_asset_hash_path.name,
+                    "mesh": package.mesh_path.name,
+                    "metadata": package.cdmeta_path.name,
+                    "obj_sidecar": package.obj_sidecar_path.name,
+                    "original_asset_hash": package.original_asset_hash_path.name,
                     "materials": net_materials_path.name,
                     "scene": scene_mesh_path.name,
                     "scene_state": scene_manifest_path.name,
-                    "material_signature": material_signature,
+                    "material_signature": package.material_signature,
                 },
                 "output": {
-                    "directory": output_dir.name,
-                    "edit_operations": str(edit_operations_path.relative_to(package_dir)),
+                    "directory": package.output_dir.name,
+                    "edit_operations": str(package.edit_operations_path.relative_to(package.package_dir)),
                     "edit_operations_required": True,
-                    "status": status_path.name,
-                    "evaluation": "dotnet_evaluation.md",
+                    "status": str(package.status_path.relative_to(package.package_dir)),
+                    "evaluation": str(
+                        mesh_dotnet_experiment_evaluation_path(package).relative_to(package.package_dir)
+                    ),
                 },
-                "package": {key: str(value) for key, value in asdict(package).items()},
+                "package": {
+                    key: str(value)
+                    for key, value in asdict(package).items()
+                    if key != "scene_frame"
+                },
             },
             indent=2,
         ),
     )
-    return package
 
 
 def mesh_dotnet_experiment_command(
@@ -624,6 +687,13 @@ def mesh_dotnet_experiment_command(
     executable = Path(executable_path)
     if not str(executable).strip():
         raise ValueError("Mesh .NET editor experiment executable is not configured.")
+    status_path = _resolve_package_output_path(package, package.status_path, label="status")
+    edit_operations_path = _resolve_package_output_path(
+        package, package.edit_operations_path, label="edit operations"
+    )
+    evaluation_path = _resolve_package_output_path(
+        package, mesh_dotnet_experiment_evaluation_path(package), label="evaluation"
+    )
     args = [
         "--input-package",
         str(package.package_dir),
@@ -632,13 +702,13 @@ def mesh_dotnet_experiment_command(
         "--metadata",
         str(package.cdmeta_path),
         "--status",
-        str(package.status_path),
+        str(status_path),
         "--output",
         str(package.output_dir),
         "--edit-operations",
-        str(package.edit_operations_path),
+        str(edit_operations_path),
         "--evaluation",
-        str(mesh_dotnet_experiment_evaluation_path(package)),
+        str(evaluation_path),
     ]
     if int(embedded_parent_hwnd or 0) > 0:
         args.extend(["--embedded", "--parent-hwnd", str(int(embedded_parent_hwnd))])
@@ -693,58 +763,6 @@ def write_mesh_dotnet_launch_diagnostics(
     return path
 
 
-def mesh_dotnet_experiment_evaluation_path(package: MeshDotNetExperimentPackage) -> Path:
-    return package.package_dir / "dotnet_evaluation.md"
-
-
-def write_mesh_dotnet_experiment_evaluation(
-    package: MeshDotNetExperimentPackage,
-    status_payload: Mapping[str, object] | None = None,
-    *,
-    validation_report: object | None = None,
-) -> Path:
-    path = mesh_dotnet_experiment_evaluation_path(package)
-    payload = status_payload or {}
-    event = str(payload.get("event", "") or "closed").strip().lower()
-    dotnet_metrics = _metrics_mapping(payload, "metrics", "dotnet_metrics")
-    native_metrics = _metrics_mapping(payload, "native_baseline", "baseline", "python_cpp_baseline")
-    validation_ok = _validation_ok(validation_report)
-    blocker_count = _sequence_len(getattr(validation_report, "blockers", None))
-    warning_count = _sequence_len(getattr(validation_report, "warnings", None))
-    recommendation = _dotnet_recommendation(event, dotnet_metrics, native_metrics, validation_ok)
-    atomic_write_text(
-        path,
-        "\n".join(
-            [
-                "# Mesh .NET Editor Evaluation",
-                "",
-                f"Package: `{package.package_dir}`",
-                f"Status event: `{event or 'closed'}`",
-                f"Output validation: `{_validation_label(validation_ok)}`",
-                f"Validation blockers: {blocker_count if blocker_count is not None else 'not run'}",
-                f"Validation warnings: {warning_count if warning_count is not None else 'not run'}",
-                "",
-                "| Area | Python/C++ Editor | .NET Experiment |",
-                "|---|---:|---:|",
-                f"| FPS | {_metric_text(native_metrics, 'fps', 'average_fps', 'avg_fps')} | {_metric_text(dotnet_metrics, 'fps', 'average_fps', 'avg_fps')} |",
-                f"| Frame time ms | {_metric_text(native_metrics, 'frame_time_ms', 'average_frame_time_ms', 'avg_frame_time_ms')} | {_metric_text(dotnet_metrics, 'frame_time_ms', 'average_frame_time_ms', 'avg_frame_time_ms')} |",
-                f"| UI responsiveness ms | {_metric_text(native_metrics, 'responsiveness_ms', 'input_latency_ms')} | {_metric_text(dotnet_metrics, 'responsiveness_ms', 'input_latency_ms')} |",
-                f"| Crash behavior | {_metric_text(native_metrics, 'crash_behavior', 'crash_rate')} | {_dotnet_crash_text(event, dotnet_metrics)} |",
-                f"| Memory MB | {_metric_text(native_metrics, 'memory_mb', 'working_set_mb')} | {_metric_text(dotnet_metrics, 'memory_mb', 'working_set_mb')} |",
-                f"| Packaging complexity | {_metric_text(native_metrics, 'packaging_complexity', default='bundled Python/C++ path')} | {_metric_text(dotnet_metrics, 'packaging_complexity', default='bundled external process; parser/rebuilder stay Python/C++')} |",
-                f"| Maintenance complexity | {_metric_text(native_metrics, 'maintenance_complexity', default='current authority')} | {_metric_text(dotnet_metrics, 'maintenance_complexity', default='UI-only bridge; parser/rebuilder remain Python/C++')} |",
-                "",
-                f"Keep/drop Recommendation: **{recommendation}**",
-                "",
-                "Notes:",
-                "- Python/C++ remains the parser, validator, rebuilder, and package authority.",
-                "- Missing metrics mean the .NET prototype has not produced enough evidence for a migration decision.",
-                "- A validation failure means the edited output is not rebuildable, regardless of viewport performance.",
-                "",
-            ]
-        ),
-    )
-    return path
 
 
 def mesh_dotnet_experiment_output_obj_path(
@@ -757,10 +775,10 @@ def mesh_dotnet_experiment_output_obj_path(
     for key in ("edited_mesh", "edited_obj", "output_mesh"):
         raw_value = str(payload.get(key, "") or "").strip()
         if raw_value:
-            candidates.append(_resolve_package_path(package, raw_value))
+            candidates.append(_resolve_package_output_path(package, raw_value, label=key))
     edited_package = str(payload.get("edited_package", "") or "").strip()
     if edited_package:
-        edited_path = _resolve_package_path(package, edited_package)
+        edited_path = _resolve_package_output_path(package, edited_package, label="edited_package")
         if edited_path.is_file():
             candidates.append(edited_path)
         elif edited_path.is_dir():
@@ -768,9 +786,8 @@ def mesh_dotnet_experiment_output_obj_path(
     candidates.extend(_obj_candidates_in_dir(package.output_dir))
 
     for candidate in candidates:
+        candidate = _resolve_package_output_path(package, candidate, label="edited OBJ")
         if candidate.suffix.casefold() != ".obj":
-            continue
-        if _same_path(candidate, package.mesh_path):
             continue
         if candidate.is_file():
             return candidate
@@ -785,14 +802,14 @@ def import_mesh_dotnet_experiment_output(
     obj_path = mesh_dotnet_experiment_output_obj_path(package, status_payload)
     if obj_path is None:
         return None
-    _ensure_output_sidecar(package, obj_path)
-    mesh = import_obj(str(obj_path))
     operation_path = _dotnet_edit_operations_path(package, status_payload)
     if not operation_path.is_file():
         raise ValueError("Mesh .NET output is missing authoritative edit operation records.")
     operations = _load_dotnet_edit_operations(operation_path)
     if not operations:
         raise ValueError("Mesh .NET output has no authoritative edit operation records.")
+    _ensure_output_sidecar(package, obj_path)
+    mesh = import_obj(str(obj_path))
     issues = validate_mesh_edit_operations(operations, mesh=mesh)
     blockers = tuple(issue for issue in issues if issue.severity == "blocker")
     if blockers:
@@ -802,9 +819,58 @@ def import_mesh_dotnet_experiment_output(
     return mesh
 
 
-def _resolve_package_path(package: MeshDotNetExperimentPackage, value: str) -> Path:
-    path = Path(value).expanduser()
-    return path if path.is_absolute() else package.package_dir / path
+def _resolve_package_output_path(
+    package: MeshDotNetExperimentPackage,
+    value: Path | str,
+    *,
+    label: str,
+) -> Path:
+    raw_value = str(value or "").strip()
+    if not raw_value or "\x00" in raw_value:
+        raise ValueError(f"Mesh .NET {label} path is invalid.")
+    normalized_value = raw_value.replace("\\", "/")
+    if ".." in PurePosixPath(normalized_value).parts:
+        raise ValueError(f"Mesh .NET {label} path contains traversal.")
+
+    try:
+        package_root = package.package_dir.resolve(strict=True)
+        output_root = package.output_dir.resolve(strict=True)
+        output_root.relative_to(package_root)
+    except OSError as exc:
+        raise ValueError("Mesh .NET package output directory is unavailable.") from exc
+    except ValueError as exc:
+        raise ValueError("Mesh .NET package output directory escapes its package root.") from exc
+    if not output_root.is_dir():
+        raise ValueError("Mesh .NET package output directory is unavailable.")
+
+    raw_path = Path(normalized_value).expanduser()
+    candidate = raw_path if raw_path.is_absolute() else output_root / raw_path
+    try:
+        resolved = candidate.resolve(strict=False)
+        resolved.relative_to(output_root)
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"Mesh .NET {label} path escapes the package output directory.") from exc
+
+    input_paths = (package.mesh_path, package.scene_mesh_path)
+    for input_path in input_paths:
+        if input_path is None:
+            continue
+        try:
+            input_resolved = Path(input_path).resolve(strict=False)
+        except OSError:
+            input_resolved = Path(input_path)
+        physical_alias = False
+        try:
+            physical_alias = (
+                resolved.is_file()
+                and input_resolved.is_file()
+                and os.path.samefile(resolved, input_resolved)
+            )
+        except OSError:
+            pass
+        if resolved == input_resolved or physical_alias:
+            raise ValueError(f"Mesh .NET {label} path aliases an input OBJ.")
+    return resolved
 
 
 def _obj_candidates_in_dir(directory: Path) -> tuple[Path, ...]:
@@ -815,15 +881,13 @@ def _obj_candidates_in_dir(directory: Path) -> tuple[Path, ...]:
     )
 
 
-def _same_path(left: Path, right: Path) -> bool:
-    try:
-        return left.resolve() == right.resolve()
-    except OSError:
-        return left == right
-
-
 def _ensure_output_sidecar(package: MeshDotNetExperimentPackage, obj_path: Path) -> None:
-    sidecar_path = Path(f"{obj_path}.meta.json")
+    contained_obj_path = _resolve_package_output_path(package, obj_path, label="edited OBJ")
+    sidecar_path = _resolve_package_output_path(
+        package,
+        Path(f"{contained_obj_path}.meta.json"),
+        label="edited OBJ sidecar",
+    )
     if sidecar_path.is_file():
         return
     sidecar_path.parent.mkdir(parents=True, exist_ok=True)
@@ -835,7 +899,8 @@ def _dotnet_edit_operations_path(
     status_payload: Mapping[str, object] | None,
 ) -> Path:
     raw_value = str((status_payload or {}).get("edit_operations", "") or "").strip()
-    return _resolve_package_path(package, raw_value) if raw_value else package.edit_operations_path
+    value = raw_value if raw_value else package.edit_operations_path
+    return _resolve_package_output_path(package, value, label="edit_operations")
 
 
 def _load_dotnet_edit_operations(path: Path) -> tuple[object, ...]:
@@ -847,138 +912,11 @@ def _load_dotnet_edit_operations(path: Path) -> tuple[object, ...]:
     return mesh_edit_operations_from_dicts(payload)
 
 
-def _dotnet_renderer_payload(status_payload: Mapping[str, object] | None) -> Mapping[str, object]:
-    payload = status_payload or {}
-    renderer = payload.get("renderer")
-    if isinstance(renderer, Mapping):
-        return renderer
-    if "backend" in payload or "native_dds_parity" in payload or "dds_native_dxgi_upload" in payload:
-        return payload
-    return {}
-
-
-def mesh_dotnet_material_parity_warnings(status_payload: Mapping[str, object] | None) -> tuple[str, ...]:
-    renderer = _dotnet_renderer_payload(status_payload)
-    warnings: list[str] = []
-    dds_resources = renderer.get("dds_resources")
-    dds_present = not (dds_resources == 0 or str(dds_resources or "").strip() == "0")
-    if dds_present and renderer.get("native_dds_parity") is False:
-        warnings.append("native DDS parity is not available")
-    if dds_present and renderer.get("dds_native_dxgi_upload") is False:
-        warnings.append("native DXGI DDS upload is not available")
-    upload_mode = str(renderer.get("dds_upload_mode", "") or "").strip().lower()
-    if dds_present and upload_mode and upload_mode != "native_dxgi_upload":
-        warnings.append(f"DDS upload mode is {upload_mode}")
-    gap = renderer.get("material_contract_gap")
-    if isinstance(gap, Sequence) and not isinstance(gap, (str, bytes)) and tuple(gap):
-        warnings.append("material contract gaps are present")
-    return tuple(warnings)
-
-
-def mesh_dotnet_renderer_blockers(
-    status_payload: Mapping[str, object] | None,
-    *,
-    embedded: bool = False,
-    developer_override: bool = False,
-    require_material_parity: bool = False,
-) -> tuple[str, ...]:
-    renderer = _dotnet_renderer_payload(status_payload)
-    backend = str(renderer.get("backend", "") or "").strip().lower()
-    blockers: list[str] = []
-    block_reason = str(renderer.get("renderer_block_reason", "") or "").strip()
-    if backend == "blocked_renderer_unavailable" or renderer.get("renderer_blocked") is True:
-        blockers.append(f"blocked_renderer_unavailable{': ' + block_reason if block_reason else ''}")
-    if bool(embedded) and not ((backend, renderer.get("gpu_backed"), renderer.get("renderer_blocked")) == ("d3d11_vortice_shader", True, False) or (bool(developer_override) and (backend, renderer.get("gpu_backed"), renderer.get("renderer_blocked")) in {("wpf_viewport3d_gpu", True, False), ("winforms_gdi_fallback", False, False)})):
-        blockers.append(f"embedded production .NET renderer requires backend=d3d11_vortice_shader, gpu_backed=true, renderer_blocked=false; got backend={backend or '<missing>'}, gpu_backed={renderer.get('gpu_backed')!r}, renderer_blocked={renderer.get('renderer_blocked')!r}")
-    if bool(require_material_parity) and not bool(developer_override):
-        warnings = mesh_dotnet_material_parity_warnings(status_payload)
-        if warnings:
-            blockers.append("material parity incomplete: " + "; ".join(warnings))
-    return tuple(blockers)
-
-
-def _metrics_mapping(payload: Mapping[str, object], *keys: str) -> Mapping[str, object]:
-    for key in keys:
-        raw_value = payload.get(key)
-        if isinstance(raw_value, Mapping):
-            return raw_value
-    return {}
-
-
-def _metric_text(metrics: Mapping[str, object], *keys: str, default: str = "not reported") -> str:
-    for key in keys:
-        value = metrics.get(key)
-        if value is None or value == "":
-            continue
-        return str(value)
-    return default
-
-
-def _metric_float(metrics: Mapping[str, object], *keys: str) -> float | None:
-    for key in keys:
-        value = metrics.get(key)
-        if isinstance(value, bool):
-            continue
-        try:
-            number = float(value)  # type: ignore[arg-type]
-        except (TypeError, ValueError, OverflowError):
-            continue
-        return number
-    return None
-
-
-def _validation_ok(validation_report: object | None) -> bool | None:
-    if validation_report is None:
-        return None
-    return bool(getattr(validation_report, "ok", False))
-
-
-def _validation_label(value: bool | None) -> str:
-    if value is True:
-        return "passed"
-    if value is False:
-        return "blocked"
-    return "not run"
-
-
-def _sequence_len(value: object) -> int | None:
-    if value is None:
-        return None
-    try:
-        return len(tuple(value))  # type: ignore[arg-type]
-    except TypeError:
-        return None
-
-
-def _dotnet_crash_text(event: str, dotnet_metrics: Mapping[str, object]) -> str:
-    if event in {"error", "crash", "crashed"}:
-        return "failed"
-    return _metric_text(dotnet_metrics, "crash_behavior", "crash_rate", default="no crash reported")
-
-
-def _dotnet_recommendation(
-    event: str,
-    dotnet_metrics: Mapping[str, object],
-    native_metrics: Mapping[str, object],
-    validation_ok: bool | None,
-) -> str:
-    if event in {"error", "crash", "crashed"}:
-        return "drop .NET output for this run; the external editor reported failure"
-    if validation_ok is False:
-        return "drop .NET output for this run; validation blocked rebuild"
-    dotnet_fps = _metric_float(dotnet_metrics, "average_fps", "avg_fps", "fps")
-    native_fps = _metric_float(native_metrics, "average_fps", "avg_fps", "fps")
-    if dotnet_fps is None:
-        return "keep as experiment only; .NET FPS/frame metrics were not reported"
-    if native_fps is None:
-        return "keep as experiment only; no Python/C++ baseline was reported"
-    if validation_ok is True and dotnet_fps >= native_fps * 1.1:
-        return "keep .NET experiment for more testing; reported FPS beats baseline and validation passed"
-    return "keep Python/C++ editor as default; .NET has not beaten the baseline enough"
 
 
 __all__ = [
     "MESH_DOTNET_EXPERIMENT_BINARY_NAME",
+    "MESH_DOTNET_HELPER_MANIFEST_NAME",
     "MeshDotNetExecutableResolution",
     "MeshDotNetExperimentPackage",
     "build_mesh_dotnet_experiment_package",
@@ -989,6 +927,7 @@ __all__ = [
     "mesh_dotnet_experiment_command",
     "mesh_dotnet_experiment_evaluation_path",
     "mesh_dotnet_experiment_output_obj_path",
+    "mesh_dotnet_helper_provenance_blockers",
     "mesh_dotnet_material_input_signature",
     "mesh_dotnet_material_state_payload",
     "mesh_dotnet_material_parity_warnings",

@@ -30,6 +30,10 @@ internal sealed partial class ExperimentForm
         {
             WriteTextureRegionFailed(
                 JsonString(root, "session_id"),
+                JsonLongValue(root, "request_id"),
+                JsonLongValue(root, "base_revision"),
+                JsonLongValue(root, "process_generation"),
+                JsonLongValue(root, "protocol_version"),
                 JsonLongValue(root, "edit_revision"),
                 JsonLongValue(root, "texture_revision"),
                 JsonLongValue(root, "generation"),
@@ -40,12 +44,22 @@ internal sealed partial class ExperimentForm
             return;
         }
 
+        if (update.RequestId <= 0)
+        {
+            WriteTextureRegionFailed(update, "missing_request_id", "Texture region update requires a correlated request id.");
+            return;
+        }
+        if (update.ProcessGeneration <= 0 || update.ProcessGeneration != _residentProcessGeneration)
+        {
+            WriteTextureRegionFailed(update, "stale_process_generation", "Texture region update does not match the resident process generation.");
+            return;
+        }
         if (!AcceptMaterialSession(update.SessionId, out var sessionError))
         {
             WriteTextureRegionFailed(update, "session_mismatch", sessionError);
             return;
         }
-        if (!CanApplyMaterialEditRevision(update.EditRevision, out var revisionError))
+        if (!CanApplyTextureEditRevision(update, out var revisionError))
         {
             WriteTextureRegionFailed(update, revisionError, "Texture edit revision does not match the resident session revision.");
             return;
@@ -93,7 +107,7 @@ internal sealed partial class ExperimentForm
             WriteTextureRegionFailed(update, "superseded", "A newer texture generation replaced this request.");
             return;
         }
-        if (!CanApplyMaterialEditRevision(update.EditRevision, out var revisionError))
+        if (!CanApplyTextureEditRevision(update, out var revisionError))
         {
             WriteTextureRegionFailed(update, revisionError, "Resident edit revision changed while the texture patch was loading.");
             return;
@@ -118,7 +132,7 @@ internal sealed partial class ExperimentForm
         _lastAppliedTextureRegionGeneration[update.ResourceId] = update.Generation;
         _lastAppliedTextureRevision[update.ResourceId] = update.TextureRevision;
         _textureRegionAppliedCount++;
-        MarkEditRevisionApplied(update.EditRevision, "texture_region_update");
+        MarkEditRevisionApplied(update.EditRevision);
         WriteProtocolEvent("texture_region_applied", TextureRegionPayload(update, new Dictionary<string, object?>
         {
             ["bytes_uploaded"] = bytesUploaded,
@@ -132,6 +146,10 @@ internal sealed partial class ExperimentForm
     {
         WriteTextureRegionFailed(
             update.SessionId,
+            update.RequestId,
+            update.BaseRevision,
+            update.ProcessGeneration,
+            update.ProtocolVersion,
             update.EditRevision,
             update.TextureRevision,
             update.Generation,
@@ -144,6 +162,10 @@ internal sealed partial class ExperimentForm
 
     private void WriteTextureRegionFailed(
         string sessionId,
+        long requestId,
+        long baseRevision,
+        long processGeneration,
+        long protocolVersion,
         long editRevision,
         long textureRevision,
         long generation,
@@ -157,6 +179,10 @@ internal sealed partial class ExperimentForm
         var extra = new Dictionary<string, object?>
         {
             ["session_id"] = sessionId,
+            ["request_id"] = requestId,
+            ["base_revision"] = baseRevision,
+            ["process_generation"] = processGeneration,
+            ["protocol_version"] = protocolVersion,
             ["edit_revision"] = editRevision,
             ["texture_revision"] = textureRevision,
             ["generation"] = generation,
@@ -178,6 +204,10 @@ internal sealed partial class ExperimentForm
         Dictionary<string, object?> payload)
     {
         payload["session_id"] = update.SessionId;
+        payload["request_id"] = update.RequestId;
+        payload["base_revision"] = update.BaseRevision;
+        payload["process_generation"] = update.ProcessGeneration;
+        payload["protocol_version"] = update.ProtocolVersion;
         payload["edit_revision"] = update.EditRevision;
         payload["texture_revision"] = update.TextureRevision;
         payload["generation"] = update.Generation;
@@ -192,6 +222,23 @@ internal sealed partial class ExperimentForm
             ["height"] = update.Rect.Height,
         };
         return payload;
+    }
+
+    private bool CanApplyTextureEditRevision(NetTextureRegionUpdate update, out string reason)
+    {
+        reason = string.Empty;
+        var residentRevision = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
+        if (update.EditRevision < residentRevision)
+        {
+            reason = "stale_edit_revision";
+            return false;
+        }
+        if (update.EditRevision > residentRevision && update.BaseRevision != residentRevision)
+        {
+            reason = "future_edit_revision";
+            return false;
+        }
+        return true;
     }
 
     private NetTextureRegionUpdate ParseTextureRegionUpdate(JsonElement root)
@@ -214,6 +261,10 @@ internal sealed partial class ExperimentForm
         }
         return new NetTextureRegionUpdate(
             JsonString(root, "session_id").Trim(),
+            JsonLongValue(root, "request_id"),
+            JsonLongValue(root, "base_revision"),
+            JsonLongValue(root, "process_generation"),
+            JsonLongValue(root, "protocol_version"),
             JsonLongValue(root, "edit_revision"),
             JsonLongValue(root, "texture_revision"),
             JsonLongValue(root, "generation"),
@@ -237,6 +288,8 @@ internal sealed partial class ExperimentForm
     {
         if (string.IsNullOrWhiteSpace(update.SessionId) || string.IsNullOrWhiteSpace(update.ResourceId))
             throw new InvalidDataException("Texture region update requires session_id and resource_id.");
+        if (update.ProtocolVersion < 2 || update.BaseRevision < 0 || update.EditRevision < update.BaseRevision)
+            throw new InvalidDataException("Texture region update requires a valid mutation envelope.");
         if (!string.Equals(update.Channel, "base", StringComparison.Ordinal))
             throw new InvalidDataException("Resident dirty-region editing currently supports only the base channel.");
         if (update.EditRevision < 0 || update.TextureRevision < 0 || update.Generation <= 0)
@@ -342,6 +395,10 @@ internal sealed partial class ExperimentForm
 
 internal sealed record NetTextureRegionUpdate(
     string SessionId,
+    long RequestId,
+    long BaseRevision,
+    long ProcessGeneration,
+    long ProtocolVersion,
     long EditRevision,
     long TextureRevision,
     long Generation,

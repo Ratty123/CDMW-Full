@@ -115,6 +115,16 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
         batch.material_category, batch.bindings, batch.base);
     batch.effective_material_hints = clamp_material_hints_for_category(
         batch.material_hints, batch.material_category);
+    batch.base_tint_only_fallback = batch.base_wrong_family_layer
+        && mesh_local_surface_has_strong_nonmetal_token(mesh)
+        && batch.material_category != "metal"
+        && batch.visible_layer_tint_applied
+        && preview_color_is_tinted(batch.color);
+    if (batch.base_tint_only_fallback) {
+        state.package.notes.push_back(
+            "native tint-only wrong-family layer fallback: batch " + std::to_string(batch.index)
+            + "; selected texture retained as evidence but omitted from visible base");
+    }
     batch.force_nonmetal_equipment_layer_tint = nonmetal_equipment_texturelayer_base(
         batch.base, mesh, batch.material_category);
     if (nonmetal_equipment_texturelayer_without_tint(
@@ -142,7 +152,7 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
     batch.roughness_hint = batch.material_category == "metal"
         ? std::min(batch.effective_material_hints.roughness, strong_metal_response ? 0.24f : 0.32f)
         : batch.effective_material_hints.roughness;
-    batch.base_tint_strength = native_preview_base_tint_strength(
+    batch.base_tint_strength = batch.base_tint_only_fallback ? 0.0f : native_preview_base_tint_strength(
         batch.base, batch.color, batch.material_layers, batch.visible_layer_tint_applied,
         batch.force_nonmetal_equipment_layer_tint);
     batch.preview_emissive = emissive_binding_is_safe_for_preview(
@@ -185,7 +195,8 @@ static void record_package_batch_selection(PackageWriteState& state, const Packa
         + (batch.visible_layer_albedo_used ? ", visible_layer_albedo=used" : "")
         + (batch.visible_layer_tint_applied ? ", visible_layer_tint=applied" : "")
         + (batch.base_low_authority_overlay_selected ? ", base_low_authority_overlay=true" : "")
-        + (batch.base_semantically_unsafe_skin_albedo ? ", base_wrong_family_layer=true" : "")
+        + (batch.base_wrong_family_layer ? ", base_wrong_family_layer=true" : "")
+        + (batch.base_tint_only_fallback ? ", base_tint_only_fallback=true" : "")
         + ", material_category=" + batch.material_category
         + ", material_category_reason=" + batch.material_category_reason
         + ", material_response=" + batch.material_response

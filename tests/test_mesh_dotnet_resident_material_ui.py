@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
@@ -14,6 +15,7 @@ from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
     mesh_dotnet_material_input_signature,
 )
+from cdmw.modding.static_mesh_scene_frame import static_scene_source_identity
 from cdmw.ui.mesh_editor import MeshEditorTab
 from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder, _FakeProcess
 
@@ -38,6 +40,9 @@ def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -
         edit_operations_path=Path("package/output/edit_operations.json"),
         launch_manifest_path=Path("package/dotnet_launch.json"),
         material_signature=original_signature,
+        scene_frame=SimpleNamespace(
+            source_identity=static_scene_source_identity(mesh, None),
+        ),
     )
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
@@ -149,6 +154,128 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
         ("authority/base", "base", 1),
     )
     assert completions[-1][0:2] == (failed_payload["generation"], False)
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorLateExactCloneMaterials"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab.standalone_dotnet_editor_process = process
+    tab._connect_dotnet_protocol(process)
+    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    editable_mesh = builder.controller.working_mesh(clone=False)
+    texture_path = tmp_path / "resolved-body.dds"
+    texture_path.write_bytes(b"resolved-body")
+    preview_model = SimpleNamespace(
+        meshes=[
+            SimpleNamespace(
+                source_submesh_index=index,
+                material_name=f"resolved-{index}",
+                preview_texture_path=str(texture_path),
+                preview_texture_dds_path=str(texture_path),
+                preview_texture_flip_vertical=False,
+                preview_material_texture_inputs=(),
+            )
+            for index, _submesh in enumerate(editable_mesh.submeshes)
+        ]
+    )
+
+    clone_hook = getattr(builder, "_mesh_editor_embedded_apply_clone_material_resources")
+    reference_hook = getattr(builder, "_mesh_editor_embedded_apply_reference_material_resources")
+    assert clone_hook(preview_model)
+    assert reference_hook(preview_model)
+    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+    assert all(submesh.preview_texture_path == str(texture_path) for submesh in editable_mesh.submeshes)
+
+    material_writes = [
+        json.loads(raw.decode("utf-8"))
+        for raw in process.stdin_writes
+        if b'"event":"material_state_update"' in raw
+    ]
+    assert len(material_writes) == 1
+    assert material_writes[0]["reason"] == "late_exact_clone_resources"
+    assert all(resource["role"] == "replacement" for resource in material_writes[0]["resources"])
+
+    assert tab._handle_dotnet_protocol_event({
+        "event": "material_state_applied",
+        "generation": material_writes[0]["generation"],
+        "material_signature": material_writes[0]["material_signature"],
+    })
+    app.processEvents()
+    material_writes = [
+        json.loads(raw.decode("utf-8"))
+        for raw in process.stdin_writes
+        if b'"event":"material_state_update"' in raw
+    ]
+    assert len(material_writes) == 2
+    assert material_writes[1]["reason"] == "late_original_reference_resources"
+    assert all(resource["role"] == "original_reference" for resource in material_writes[1]["resources"])
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_pre_ready_clone_materials_replay_and_stale_pending_models_clear(tmp_path: Path) -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPreReadyCloneMaterials"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab.standalone_dotnet_embedded_state = "launching"
+    texture_path = tmp_path / "pre-ready.dds"
+    texture_path.write_bytes(b"pre-ready")
+    editable_mesh = builder.controller.working_mesh(clone=False)
+    preview_model = SimpleNamespace(
+        meshes=[
+            SimpleNamespace(
+                source_submesh_index=index,
+                material_name=f"pre-ready-{index}",
+                preview_texture_path=str(texture_path),
+                preview_texture_dds_path=str(texture_path),
+                preview_material_texture_inputs=(),
+            )
+            for index, _submesh in enumerate(editable_mesh.submeshes)
+        ]
+    )
+
+    assert tab.apply_resident_clone_material_resources(preview_model)
+    assert tab.apply_resident_reference_material_resources(preview_model)
+    assert tab.standalone_dotnet_pending_clone_material_model is preview_model
+    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_editor_process = process
+    tab._connect_dotnet_protocol(process)
+    assert tab.standalone_dotnet_pending_clone_material_model is preview_model
+    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+    assert not process.stdin_writes
+
+    tab._observe_dotnet_capabilities({"capabilities": ["resident_material_updates_v2"]})
+    app.processEvents()
+    material_writes = [
+        json.loads(raw.decode("utf-8"))
+        for raw in process.stdin_writes
+        if b'"event":"material_state_update"' in raw
+    ]
+    assert len(material_writes) == 1
+    assert material_writes[0]["reason"] == "late_exact_clone_resources"
+    assert tab.standalone_dotnet_pending_reference_material_model is preview_model
+
+    tab._stop_standalone_dotnet_editor_process()
+    assert tab.standalone_dotnet_pending_clone_material_model is None
+    assert tab.standalone_dotnet_pending_reference_material_model is None
+
     tab.deleteLater()
     builder.deleteLater()
     app.processEvents()

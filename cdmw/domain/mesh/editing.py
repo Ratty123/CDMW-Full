@@ -225,6 +225,13 @@ class MeshEditResult:
 
 
 @dataclass(frozen=True, slots=True)
+class MeshEditHistoryEntry:
+    action: str
+    label: str
+    state: str = "applied"
+
+
+@dataclass(frozen=True, slots=True)
 class MeshEditSessionView:
     session_id: str
     mode: str
@@ -235,12 +242,15 @@ class MeshEditSessionView:
     face_count: int
     undo_count: int = 0
     redo_count: int = 0
+    history_entries: tuple[MeshEditHistoryEntry, ...] = ()
+    history_cursor: int = 0
 
 
 __all__ = [
     "MESH_EDIT_ACTIONS",
     "MESH_EDIT_MODES",
     "MeshEditCommand",
+    "MeshEditHistoryEntry",
     "MeshEditResult",
     "MeshEditSelection",
     "MeshEditSessionView",

@@ -13,62 +13,102 @@ from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 
 
 class MeshEditorDotNetCommandMixin:
-    def _reject_dotnet_mutation_while_busy(self, command_name: str) -> bool:
-        if not self._standalone_action_worker_active():
+    def _reject_dotnet_mutation_while_busy(
+        self,
+        command_name: str,
+        request_payload: Mapping[str, object] | None = None,
+    ) -> bool:
+        normalized = str(command_name or "command").strip().lower()
+        if self._standalone_action_worker_active():
+            self._send_dotnet_command_result(
+                normalized,
+                ok=False,
+                status="busy",
+                diagnostics=("Wait for the current Mesh Editor action to finish.",),
+                request_payload=request_payload,
+            )
+            return True
+        live_stroke_busy = normalized != "stroke" and bool(
+            str(self.standalone_native_mesh_edit_stroke_id or "").strip()
+        )
+        dispatcher = self.standalone_live_stroke_dispatcher
+        if normalized != "stroke" and dispatcher is not None:
+            try:
+                metrics = dispatcher.metrics()
+            except (AttributeError, RuntimeError):
+                metrics = {"active": 1}
+            live_stroke_busy = live_stroke_busy or any(
+                int(metrics.get(key, 0) or 0) > 0
+                for key in ("active", "control_depth", "queue_depth")
+            )
+        if not live_stroke_busy:
             return False
         self._send_dotnet_command_result(
-            str(command_name or "command"),
+            normalized,
             ok=False,
             status="busy",
-            diagnostics=("Wait for the current Mesh Editor action to finish.",),
+            diagnostics=("Wait for the active Mesh Editor stroke to finish.",),
+            request_payload=request_payload,
         )
         return True
     def _handle_dotnet_select_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
             return False
-        if self._reject_dotnet_mutation_while_busy("select"):
+        if self._reject_dotnet_mutation_while_busy("select", payload):
             return True
         screen_payload = self._dotnet_screen_selection_payload(payload)
         if not any(key in screen_payload for key in ("screen_brush", "screen_region")):
-            self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=("Missing screen selection payload.",))
+            self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=("Missing screen selection payload.",), request_payload=payload)
             return False
         operation = str(payload.get("operation", payload.get("selection_operation", "replace")) or "replace").strip().lower()
         try:
-            result = controller.apply(
+            command = _tab.MeshEditCommand(
                 "select",
                 selection=_tab.MeshEditSelection(),
-                operation=operation,
-                _native_screen_selection_payload=screen_payload,
+                params={
+                    "operation": operation,
+                    "_native_screen_selection_payload": screen_payload,
+                },
+                label="Select Mesh",
             )
         except Exception as exc:
             self._set_dotnet_status(f"Mesh .NET editor selection failed: {exc}", error=True)
-            self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=(str(exc),))
+            self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=(str(exc),), request_payload=payload)
             return False
-        return self._apply_dotnet_result_update(controller, result, command_name="select")
+        return self._start_dotnet_action_worker(
+            controller,
+            command,
+            command_name="select",
+            request_payload=payload,
+        )
     def _handle_dotnet_local_selection_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None or not isinstance(payload.get("local_selection"), Mapping):
             return False
-        if self._reject_dotnet_mutation_while_busy("select"):
+        if self._reject_dotnet_mutation_while_busy("select", payload):
             return True
         selection = self._dotnet_local_selection_payload_to_selection(payload)
-        try:
-            result = controller.apply("select", selection=selection, operation="replace")
-        except Exception as exc:
-            self._set_dotnet_status(f"Mesh .NET editor selection failed: {exc}", error=True)
-            self._send_dotnet_command_result("select", ok=False, status="error", diagnostics=(str(exc),))
-            return False
-        return self._apply_dotnet_result_update(controller, result, command_name="select")
+        return self._start_dotnet_action_worker(
+            controller,
+            _tab.MeshEditCommand(
+                "select",
+                selection=selection,
+                params={"operation": "replace"},
+                label="Select Mesh",
+            ),
+            command_name="select",
+            request_payload=payload,
+        )
     def _handle_dotnet_stroke_event(self, payload: Mapping[str, object], phase: str) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
             return False
-        if self._reject_dotnet_mutation_while_busy("stroke"):
+        if self._reject_dotnet_mutation_while_busy("stroke", payload):
             return True
         command = self._standalone_native_mesh_edit_stroke_command(payload, phase)
         if command is None:
-            self._send_dotnet_command_result("stroke", ok=False, status="error", diagnostics=("Invalid stroke payload.",))
+            self._send_dotnet_command_result("stroke", ok=False, status="error", diagnostics=("Invalid stroke payload.",), request_payload=payload)
             return False
         blocked_command = "transform" if command.action == "transform" else "brush"
         if self._native_editor_action_blocked(blocked_command, embedded=self.standalone_dotnet_target_embedded):
@@ -77,19 +117,7 @@ class MeshEditorDotNetCommandMixin:
         if phase == "begin":
             self.standalone_native_mesh_edit_stroke_id = stroke_id
         command_params = dict(command.params)
-        if isinstance(payload.get("local_selection"), Mapping):
-            command_params.pop("_native_screen_selection_payload", None)
-            command_params.pop("_native_selection_payload", None)
         try:
-            if phase == "begin" and isinstance(payload.get("local_selection"), Mapping):
-                selection_result = controller.apply(
-                    "select",
-                    selection=self._dotnet_local_selection_payload_to_selection(payload),
-                    operation="replace",
-                )
-                if not self._apply_dotnet_result_update(controller, selection_result, command_name="select"):
-                    self.standalone_native_mesh_edit_stroke_id = ""
-                    return False
             queued_command = _tab.MeshEditCommand(
                 command.action,
                 selection=command.selection,
@@ -101,13 +129,14 @@ class MeshEditorDotNetCommandMixin:
             if phase in {"begin", "end", "cancel"}:
                 self.standalone_native_mesh_edit_stroke_id = ""
             self._set_dotnet_status(f"Mesh .NET editor stroke failed: {exc}", error=True)
-            self._send_dotnet_command_result(command.action, ok=False, status="error", diagnostics=(str(exc),))
+            self._send_dotnet_command_result(command.action, ok=False, status="error", diagnostics=(str(exc),), request_payload=payload)
             return False
         sequence = self._ensure_standalone_live_stroke_dispatcher().submit(
             controller,
             queued_command,
             phase,
             source="dotnet",
+            request_payload=payload,
         )
         if sequence > 0:
             return True
@@ -118,6 +147,7 @@ class MeshEditorDotNetCommandMixin:
             ok=False,
             status="cancelled",
             diagnostics=("Mesh Editor live-stroke dispatcher is stopping.",),
+            request_payload=payload,
         )
         return False
     def _handle_dotnet_live_stroke_completed(self, outcome: object) -> None:
@@ -143,9 +173,24 @@ class MeshEditorDotNetCommandMixin:
             self._apply_standalone_native_update(update)
             if outcome.phase != "update":
                 _tab.QTimer.singleShot(0, self._sync_state)
-        self._send_dotnet_native_update(update, result=outcome.result)
+        request_payloads = tuple(outcome.request_payloads)
+        for coalesced_payload in request_payloads[:-1]:
+            self._send_dotnet_command_result(
+                outcome.result.action,
+                ok=True,
+                status="coalesced",
+                revision=outcome.result.revision,
+                diagnostics=("Superseded by a newer cumulative stroke update.",),
+                request_payload=coalesced_payload,
+            )
+        self._send_dotnet_native_update(
+            update,
+            result=outcome.result,
+            request_payload=request_payloads[-1] if request_payloads else None,
+        )
         if outcome.phase in {"end", "cancel"}:
             self.standalone_native_mesh_edit_stroke_id = ""
+            self._send_dotnet_session_state()
     def _handle_dotnet_live_stroke_failed(self, failure: object) -> None:
         if not isinstance(failure, _tab.MeshLiveStrokeFailure) or failure.source != "dotnet":
             return
@@ -158,12 +203,15 @@ class MeshEditorDotNetCommandMixin:
             return
         message = f"Mesh .NET editor stroke failed: {failure.message}"
         self._set_dotnet_status(message, error=True)
-        self._send_dotnet_command_result(
-            "stroke",
-            ok=False,
-            status="error",
-            diagnostics=(failure.message,),
-        )
+        request_payloads = tuple(failure.request_payloads) or (None,)
+        for request_payload in request_payloads:
+            self._send_dotnet_command_result(
+                "stroke",
+                ok=False,
+                status="error",
+                diagnostics=(failure.message,),
+                request_payload=request_payload,
+            )
     def _handle_dotnet_command_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
@@ -171,9 +219,9 @@ class MeshEditorDotNetCommandMixin:
         command = str(payload.get("command", payload.get("action", "")) or "").strip().lower()
         command = command.replace("-", "_")
         if not command:
-            self._send_dotnet_command_result("command", ok=False, status="error", diagnostics=("Missing command.",))
+            self._send_dotnet_command_result("command", ok=False, status="error", diagnostics=("Missing command.",), request_payload=payload)
             return False
-        if self._reject_dotnet_mutation_while_busy(command):
+        if self._reject_dotnet_mutation_while_busy(command, payload):
             return True
         if command in {"copy", "paste"}:
             self._send_dotnet_command_result(
@@ -181,6 +229,7 @@ class MeshEditorDotNetCommandMixin:
                 ok=False,
                 status="disabled",
                 diagnostics=("Mesh clipboard is disabled until metadata-preserving paste is proved; use Duplicate for same-selection copies.",),
+                request_payload=payload,
             )
             return False
         local_selection = self._dotnet_local_selection_payload_to_selection(payload)
@@ -201,6 +250,7 @@ class MeshEditorDotNetCommandMixin:
                     ok=False,
                     status="unavailable",
                     diagnostics=("Resident part action bridge is unavailable.",),
+                    request_payload=payload,
                 )
                 return False
             try:
@@ -212,6 +262,7 @@ class MeshEditorDotNetCommandMixin:
                     ok=False,
                     status="error",
                     diagnostics=(str(exc),),
+                    request_payload=payload,
                 )
                 return False
             revision = None
@@ -227,11 +278,23 @@ class MeshEditorDotNetCommandMixin:
                 ok=ok,
                 status="applied" if ok else "no_change",
                 revision=revision,
+                request_payload=payload,
             )
+            self._send_dotnet_session_state()
             return ok
         try:
             if command == "clear_selection":
-                result = controller.select(operation="replace")
+                return self._start_dotnet_action_worker(
+                    controller,
+                    _tab.MeshEditCommand(
+                        "select",
+                        selection=_tab.MeshEditSelection(),
+                        params={"operation": "replace"},
+                        label="Clear Selection",
+                    ),
+                    command_name=command,
+                    request_payload=payload,
+                )
             elif command == "select_all":
                 summary = controller.workspace_summary()
                 target_mode = str(payload.get("target_mode", "vertex") or "vertex").strip().lower()
@@ -246,6 +309,7 @@ class MeshEditorDotNetCommandMixin:
                         label="Select All",
                     ),
                     command_name=command,
+                    request_payload=payload,
                 )
             elif command in {"grow", "shrink", "invert"}:
                 return self._start_dotnet_action_worker(
@@ -253,13 +317,13 @@ class MeshEditorDotNetCommandMixin:
                     _tab.MeshEditCommand(
                         "select",
                         selection=local_selection,
-                        params={"operation": command},
+                        params={"operation": command, "target_mode": target_mode or "vertex"},
                         label=command.replace("_", " ").title(),
                     ),
                     command_name=command,
+                    request_payload=payload,
                 )
             else:
-                action_key = command
                 aliases = {
                     "delete_selection": "delete",
                     "subdivide_selection": "subdivide",
@@ -271,7 +335,7 @@ class MeshEditorDotNetCommandMixin:
                     "inflate": "brush_inflate",
                     "pinch": "brush_pinch",
                 }
-                action_key = aliases.get(action_key, action_key)
+                action_key = aliases.get(command, command)
                 params: dict[str, object] = {}
                 if action_key == "transform_move":
                     if "delta" in payload:
@@ -287,7 +351,6 @@ class MeshEditorDotNetCommandMixin:
                 action = mesh_editor_actions_by_key().get(action_key)
                 if (
                     action is not None
-                    and str(action.command or "") not in {"transform", "brush", "undo", "redo"}
                     and self._standalone_action_can_run_in_background(action)
                 ):
                     worker_command = _tab.MeshEditCommand(
@@ -301,13 +364,14 @@ class MeshEditorDotNetCommandMixin:
                         controller,
                         worker_command,
                         command_name=command,
+                        request_payload=payload,
                     )
                 result = controller.apply_editor_action(action_key, selection=action_selection, **params)
         except Exception as exc:
             self._set_dotnet_status(f"Mesh .NET editor command failed: {command}: {exc}", error=True)
-            self._send_dotnet_command_result(command, ok=False, status="error", diagnostics=(str(exc),))
+            self._send_dotnet_command_result(command, ok=False, status="error", diagnostics=(str(exc),), request_payload=payload)
             return False
-        return self._apply_dotnet_result_update(controller, result, command_name=command)
+        return self._apply_dotnet_result_update(controller, result, command_name=command, request_payload=payload)
     def _dotnet_embedded_parent_hwnd(self) -> int:
         if not self.standalone_dotnet_target_embedded:
             if str(_tab.QApplication.platformName() or "").strip().lower() == "offscreen":
@@ -446,17 +510,128 @@ class MeshEditorDotNetCommandMixin:
         else:
             self._set_dotnet_status("Waiting for Mesh .NET editor to finish queued edits before saving...")
         return True
+    def _finish_embedded_dotnet_edit_mode(
+        self,
+        request_payload: Mapping[str, object] | None = None,
+    ) -> bool:
+        if not self.standalone_dotnet_target_embedded:
+            return False
+        if self._reject_dotnet_mutation_while_busy("save_request", request_payload):
+            return True
+        live_stroke_busy = bool(
+            str(self.standalone_native_mesh_edit_stroke_id or "").strip()
+        )
+        dispatcher = self.standalone_live_stroke_dispatcher
+        if dispatcher is not None:
+            try:
+                dispatcher_metrics = dispatcher.metrics()
+            except RuntimeError:
+                dispatcher_metrics = {"active": 1}
+            live_stroke_busy = live_stroke_busy or any(
+                int(dispatcher_metrics.get(key, 0) or 0) > 0
+                for key in ("active", "control_depth", "queue_depth")
+            )
+        if live_stroke_busy:
+            self._send_dotnet_command_result(
+                "save_request",
+                ok=False,
+                status="busy",
+                diagnostics=("Wait for the active Mesh Editor stroke to finish.",),
+                request_payload=request_payload,
+            )
+            return True
+        if not self._standalone_dotnet_editor_process_running():
+            self._send_dotnet_command_result(
+                "save_request",
+                ok=False,
+                status="unavailable",
+                diagnostics=("Resident Mesh .NET editor is not running.",),
+                request_payload=request_payload,
+            )
+            return False
+        comparison_mode = "replacement_only"
+        builder = self.active_builder()
+        comparison_getter = getattr(
+            builder,
+            "_mesh_editor_embedded_placement_comparison_mode",
+            getattr(
+                builder,
+                "_mesh_editor_embedded_comparison_mode",
+                None,
+            ),
+        )
+        if callable(comparison_getter):
+            try:
+                comparison_mode = str(comparison_getter() or "replacement_only")
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                comparison_mode = "replacement_only"
+        if not self._send_dotnet_scene_state(
+            interaction_mode="placement",
+            comparison_mode=comparison_mode,
+            gizmo_tool="move",
+        ):
+            self._send_dotnet_command_result(
+                "save_request",
+                ok=False,
+                status="error",
+                diagnostics=("Resident placement mode transition could not be queued.",),
+                request_payload=request_payload,
+            )
+            return False
+        if not self._finalize_embedded_dotnet_import("dotnet_finish_edit"):
+            self._send_dotnet_scene_state(
+                interaction_mode="mesh_edit",
+                comparison_mode="replacement_only",
+            )
+            self._send_dotnet_command_result(
+                "save_request",
+                ok=False,
+                status="error",
+                diagnostics=("Resident mesh edit finalization failed.",),
+                request_payload=request_payload,
+            )
+            return False
+        controller = self._dotnet_target_controller()
+        revision = None
+        if controller is not None:
+            try:
+                revision = int(controller.session_view().revision)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                revision = None
+        self._refresh_embedded_workspace_from_builder()
+        self._send_dotnet_command_result(
+            "save_request",
+            ok=True,
+            status="saved",
+            revision=revision,
+            request_payload=request_payload,
+        )
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_edit_mode_finished_resident",
+            edit_revision=revision,
+            process_generation=self.standalone_dotnet_process_generation,
+        )
+        self._set_dotnet_status(
+            "Mesh .NET edit mode finished; resident placement preview remains active."
+        )
+        return True
     def _cancel_standalone_dotnet_import_worker(self) -> None:
         worker = self.standalone_dotnet_import_worker
         thread = self.standalone_dotnet_import_thread
         if worker is None and thread is None:
             return
-        self.standalone_dotnet_import_request_id += 1
+        cancelled_before_commit = True
         if worker is not None:
             try:
-                worker.stop()
+                cancelled_before_commit = bool(worker.stop())
             except RuntimeError:
                 pass
+        if not cancelled_before_commit:
+            self._set_dotnet_status(
+                "Mesh .NET output commit is already in progress; waiting for its result."
+            )
+            return
+        self.standalone_dotnet_import_request_id += 1
         if thread is not None:
             try:
                 thread.requestInterruption()

@@ -135,46 +135,11 @@ def create_alignment_custom_icon_callbacks(context: dict[str, object]) -> Simple
 
     def _capture_alignment_replacement_icon_pixmap(on_captured) -> None:
         if _alignment_d3d11_preview_active():
-            previous_mode = str(preview_mode_combo.currentData() or "side_by_side")
-            previous_view_state = alignment_d3d11_preview_host.view_state_snapshot()
-            capture_view_state = _alignment_current_camera_state()
-            alignment_d3d11_preview_host.restore_view_state(capture_view_state)
-            alignment_d3d11_preview_host.set_icon_capture_mode(True)
-            alignment_d3d11_preview_host.set_display_mode("replacement_only")
-            alignment_d3d11_preview_host.set_highlighted_alignment_submeshes(
-                replacement_submesh_indices=(),
-                original_submesh_indices=(),
-            )
-            alignment_d3d11_preview_host.set_hidden_source_submeshes(())
-            alignment_d3d11_preview_host.set_alignment_state(
-                enabled=False,
-                source_submesh_indices=(),
-                translation_sensitivity=0.85,
-                rotation_degrees_per_pixel=0.18,
-            )
-
-            def _capture_d3d11_frame() -> None:
-                pixmap = None
-                try:
-                    screen = alignment_d3d11_preview_host.screen() or dialog.screen() or QApplication.primaryScreen()
-                    if screen is not None:
-                        captured = screen.grabWindow(int(alignment_d3d11_preview_host.winId()))
-                        pixmap = captured if not captured.isNull() else None
-                finally:
-                    try:
-                        alignment_d3d11_preview_host.set_icon_capture_mode(False)
-                        alignment_d3d11_preview_host.set_display_mode(previous_mode)
-                        alignment_d3d11_preview_host.restore_view_state(previous_view_state)
-                        _sync_highlight_sets()
-                        _sync_mesh_edit_preview_settings()
-                        try:
-                            _replay_alignment_d3d11_fast_transform()
-                        except NameError:
-                            pass
-                    finally:
-                        on_captured(pixmap)
-
-            _schedule_icon_capture(80, _capture_d3d11_frame)
+            capture = getattr(dialog, "_mesh_editor_embedded_capture_icon", None)
+            if callable(capture):
+                capture(on_captured)
+            else:
+                on_captured(None)
             return
 
         preview_widget = replacement_only_preview

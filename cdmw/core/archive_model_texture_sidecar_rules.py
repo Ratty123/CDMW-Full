@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import math
+import re
 from pathlib import PurePosixPath
 from typing import (
+    Mapping,
     Optional,
     Tuple,
 )
@@ -21,6 +24,99 @@ from cdmw.core.archive_model_texture_semantics import (
     _is_placeholder_model_texture,
     _iter_model_submesh_reference_candidates,
 )
+
+
+def _sidecar_parameter_field(parameter: object, name: str, fallback: object = "") -> object:
+    if isinstance(parameter, Mapping):
+        return parameter.get(name, fallback)
+    return getattr(parameter, name, fallback)
+
+
+def _normalized_sidecar_parameter_name(parameter: object) -> str:
+    return re.sub(
+        r"[^a-z0-9]+",
+        "",
+        str(_sidecar_parameter_field(parameter, "parameter_name", "") or "").casefold(),
+    )
+
+
+def _sidecar_parameter_number(parameter: object) -> Optional[float]:
+    value = _sidecar_parameter_field(parameter, "numeric_value", None)
+    if value is None:
+        value = _sidecar_parameter_field(parameter, "value", "")
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return number if math.isfinite(number) else None
+
+
+def _sidecar_parameter_enabled(parameter: object) -> bool:
+    number = _sidecar_parameter_number(parameter)
+    if number is not None:
+        return abs(number) > 1.0e-9
+    value = str(_sidecar_parameter_field(parameter, "value", "") or "").strip().casefold()
+    return value in {"enabled", "on", "true", "yes"}
+
+
+def _model_sidecar_binding_alpha_mode(binding: _ArchiveModelSidecarTextureBinding) -> str:
+    """Return only explicit transparency contracts from material sidecar flags.
+
+    Crimson sidecars contain many unrelated fields with ``blend`` or ``opacity``
+    in their names (dye layers, grime blending, and skin detail opacity).  Those
+    are not surface transparency, so the match is intentionally exact.
+    """
+
+    cutout = False
+    for parameter in tuple(getattr(binding, "material_parameters", ()) or ()):
+        key = _normalized_sidecar_parameter_name(parameter)
+        if key in {
+            "alphablend",
+            "enablealphablend",
+            "usealphablend",
+            "transparent",
+            "transparencyenabled",
+        } and _sidecar_parameter_enabled(parameter):
+            return "blend"
+        if key in {
+            "alphaclip",
+            "alphacutout",
+            "alphatest",
+            "enablealphatest",
+            "usealphatest",
+        } and _sidecar_parameter_enabled(parameter):
+            cutout = True
+    return "cutout" if cutout else ""
+
+
+def _model_sidecar_binding_alpha_cutoff(binding: _ArchiveModelSidecarTextureBinding) -> Optional[float]:
+    for parameter in tuple(getattr(binding, "material_parameters", ()) or ()):
+        if _normalized_sidecar_parameter_name(parameter) not in {
+            "alphaclipthreshold",
+            "alphacutoff",
+            "alpharef",
+            "alphathreshold",
+        }:
+            continue
+        number = _sidecar_parameter_number(parameter)
+        if number is None:
+            continue
+        if number > 1.0:
+            number /= 255.0
+        return max(0.0, min(0.95, number))
+    return None
+
+
+def _model_sidecar_binding_double_sided(binding: _ArchiveModelSidecarTextureBinding) -> bool:
+    for parameter in tuple(getattr(binding, "material_parameters", ()) or ()):
+        if _normalized_sidecar_parameter_name(parameter) in {
+            "doublesided",
+            "enabledoublesided",
+            "twosided",
+            "usetwosided",
+        } and _sidecar_parameter_enabled(parameter):
+            return True
+    return False
 
 def _model_preview_sidecar_tint(binding: _ArchiveModelSidecarTextureBinding) -> Tuple[float, float, float]:
     tint = tuple(getattr(binding, "tint_color", ()) or ())

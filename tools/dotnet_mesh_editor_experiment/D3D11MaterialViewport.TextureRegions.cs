@@ -1,4 +1,7 @@
 using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Imaging;
+using Vortice.Direct3D;
 using Vortice.Direct3D11;
 using Vortice.DXGI;
 using Vortice.Mathematics;
@@ -12,6 +15,7 @@ internal sealed partial class D3D11MaterialViewport
     private long _textureRegionBytesUploaded;
     private long _textureRegionFailureCount;
     private long _textureRegionAffectedBatchRebindCount;
+    private long _textureRegionMipGenerationCount;
 
     public bool TryApplyTextureRegion(
         NetTextureRegionUpdate update,
@@ -73,6 +77,8 @@ internal sealed partial class D3D11MaterialViewport
             try
             {
                 UploadTextureRegion(editable.Texture, update, pixels);
+                _context.GenerateMips(editable.View);
+                _textureRegionMipGenerationCount++;
                 RecordTextureRegionApplied(expectedBytes);
                 bytesUploaded = expectedBytes;
                 Invalidate();
@@ -97,20 +103,64 @@ internal sealed partial class D3D11MaterialViewport
         ID3D11ShaderResourceView? view = null;
         try
         {
-            texture = _device.CreateTexture2D(new Texture2DDescription
+            var sourceBitmap = _textureSet.BitmapForReference(references[0]);
+            if (sourceBitmap is null)
             {
-                Width = (uint)source.Width,
-                Height = (uint)source.Height,
-                MipLevels = 1,
-                ArraySize = 1,
-                Format = Format.B8G8R8A8_UNorm,
-                SampleDescription = new SampleDescription(1, 0),
-                Usage = ResourceUsage.Default,
-                BindFlags = BindFlags.ShaderResource,
-            });
-            _context.CopyResource(texture, source.Texture);
-            view = _device.CreateShaderResourceView(texture);
+                return TextureRegionFailure(
+                    "The source DDS is GPU-native only and cannot enter the editable BGRA texture path.",
+                    out error);
+            }
+            using var converted = new Bitmap(sourceBitmap.Width, sourceBitmap.Height, PixelFormat.Format32bppArgb);
+            using (var graphics = Graphics.FromImage(converted))
+            {
+                graphics.DrawImageUnscaled(sourceBitmap, 0, 0);
+            }
+            var bitmapRect = new Rectangle(0, 0, converted.Width, converted.Height);
+            var bitmapData = converted.LockBits(bitmapRect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+            var mipCount = EditableMipLevelCount(source.Width, source.Height);
+            try
+            {
+                texture = _device.CreateTexture2D(
+                    new Texture2DDescription
+                    {
+                        Width = (uint)source.Width,
+                        Height = (uint)source.Height,
+                        MipLevels = (uint)mipCount,
+                        ArraySize = 1,
+                        Format = Format.B8G8R8A8_Typeless,
+                        SampleDescription = new SampleDescription(1, 0),
+                        Usage = ResourceUsage.Default,
+                        BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
+                        MiscFlags = ResourceOptionFlags.GenerateMips,
+                    });
+                _context.UpdateSubresource(
+                    texture,
+                    0,
+                    null,
+                    bitmapData.Scan0,
+                    (uint)bitmapData.Stride,
+                    0);
+            }
+            finally
+            {
+                converted.UnlockBits(bitmapData);
+            }
+            var viewFormat = string.Equals(references[0].ColorSpace, "srgb", StringComparison.OrdinalIgnoreCase)
+                ? Format.B8G8R8A8_UNorm_SRgb
+                : Format.B8G8R8A8_UNorm;
+            view = _device.CreateShaderResourceView(
+                texture,
+                new ShaderResourceViewDescription(
+                    texture,
+                    ShaderResourceViewDimension.Texture2D,
+                    viewFormat,
+                    0,
+                    (uint)mipCount,
+                    0,
+                    1));
             UploadTextureRegion(texture, update, pixels);
+            _context.GenerateMips(view);
+            _textureRegionMipGenerationCount++;
 
             var replacements = targets
                 .Select(batch => (Batch: batch, Materials: batch.Materials.WithShaderResource(channelIndex, view)))
@@ -120,8 +170,15 @@ internal sealed partial class D3D11MaterialViewport
             {
                 replacement.Batch.Materials = replacement.Materials;
             }
-            var estimatedBytes = checked((long)source.Width * source.Height * 4);
-            var entry = new D3D11EditableTextureRegion(texture, view, sourceCacheKey, source.Width, source.Height, estimatedBytes);
+            var estimatedBytes = EditableMipBytes(source.Width, source.Height);
+            var entry = new D3D11EditableTextureRegion(
+                texture,
+                view,
+                sourceCacheKey,
+                source.Width,
+                source.Height,
+                mipCount,
+                estimatedBytes);
             _editableTextureRegions.Add(update.ResourceId, entry);
             texture = null;
             view = null;
@@ -162,6 +219,33 @@ internal sealed partial class D3D11MaterialViewport
                 1));
     }
 
+    private static int EditableMipLevelCount(int width, int height)
+    {
+        var mipCount = 1;
+        while (width > 1 || height > 1)
+        {
+            width = Math.Max(1, width / 2);
+            height = Math.Max(1, height / 2);
+            mipCount++;
+        }
+        return mipCount;
+    }
+
+    private static long EditableMipBytes(int width, int height)
+    {
+        long bytes = 0;
+        while (true)
+        {
+            bytes = checked(bytes + checked((long)width * height * 4));
+            if (width == 1 && height == 1)
+            {
+                return bytes;
+            }
+            width = Math.Max(1, width / 2);
+            height = Math.Max(1, height / 2);
+        }
+    }
+
     private void RecordTextureRegionApplied(int bytesUploaded)
     {
         _textureRegionPatchCount++;
@@ -188,6 +272,9 @@ internal sealed partial class D3D11MaterialViewport
             4 => _materials.TextureReferenceForSubmesh(submeshIndex, "metallic"),
             5 => _materials.TextureReferenceForSubmesh(submeshIndex, "height"),
             6 => _materials.TextureReferenceForSubmesh(submeshIndex, "emissive"),
+            7 => _materials.TextureReferenceForSubmesh(submeshIndex, "layer_mask", "mask"),
+            8 => _materials.TextureReferenceForSubmesh(submeshIndex, "opacity"),
+            9 => _materials.TextureReferenceForSubmesh(submeshIndex, "occlusion", "ao"),
             _ => NetMaterialTextureReference.Empty,
         };
     }
@@ -203,6 +290,9 @@ internal sealed partial class D3D11MaterialViewport
             "metallic" => 4,
             "height" => 5,
             "emissive" => 6,
+            "layer_mask" or "mask" => 7,
+            "opacity" => 8,
+            "occlusion" or "ao" => 9,
             _ => -1,
         };
     }
@@ -247,6 +337,7 @@ internal sealed record D3D11EditableTextureRegion(
     string SourceCacheKey,
     int Width,
     int Height,
+    int MipCount,
     long EstimatedBytes,
     long CreatedTimestamp)
 {
@@ -256,8 +347,9 @@ internal sealed record D3D11EditableTextureRegion(
         string sourceCacheKey,
         int width,
         int height,
+        int mipCount,
         long estimatedBytes)
-        : this(texture, view, sourceCacheKey, width, height, estimatedBytes, Stopwatch.GetTimestamp())
+        : this(texture, view, sourceCacheKey, width, height, mipCount, estimatedBytes, Stopwatch.GetTimestamp())
     {
     }
 }

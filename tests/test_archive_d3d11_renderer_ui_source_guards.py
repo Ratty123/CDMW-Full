@@ -159,7 +159,8 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("_deactivate_archive_model_renderers_for_non_model_preview()", source)
         self.assertIn('quality_tier", "") or "").strip().lower() == "fast"', source)
         self.assertIn("SendMessageTimeoutW", host_source)
-        self.assertIn("_kill_archive_isolated_renderer_process_if_running(process)", source)
+        self.assertIn("_kill_archive_isolated_renderer_process_if_running(", source)
+        self.assertIn('reason="reload_fallback"', reload_source)
 
     def test_native_d3d11_overlay_uses_view_specific_workspace_grid(self) -> None:
         native_source = d3d11_preview_source()

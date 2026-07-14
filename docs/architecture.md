@@ -70,8 +70,15 @@ behind compatibility wrappers.
   only through an explicit developer override. The resident C++ edit backend
   remains `cdmw_mesh_core_0.1`. One resident scene protocol owns editable and
   original-reference roles, Y-up grid, comparison mode, placement transform,
-  and move/rotate/scale gizmo state. `Edit Mesh` changes mutation permission; it
-  does not choose or restart the renderer.
+  and move/rotate/scale gizmo state. One shared parsed document and D3D resource
+  owner backs simultaneous Original and Imported/Modify render rectangles in
+  one Vortice viewport/swap chain. Each rectangle has its own role filter, grid,
+  camera, and display state; a persisted draggable divider resizes them without
+  duplicating geometry, materials, textures, devices, or helper processes. The
+  Original rectangle is camera-only and Imported/Modify is the sole mutation
+  authority. Their normal cameras remain independent; explicit Overlay is the
+  single-surface comparison exception. `Edit Mesh` changes mutation permission;
+  it does not choose or restart the renderer.
 
 ## Layer Rules
 
@@ -282,7 +289,10 @@ The Vortice viewport owns acknowledged resident display modes for production
 textures, neutral untextured faces, wireframe, and resident-buffer vertices.
 Mode changes reuse the same process, mesh buffers, decoded resources, and SRVs;
 the real-PAC proof rejects black geometry and restores textured mode before
-painting and export.
+painting and export. Outer Builder presentation state uses a correlated,
+one-active/one-merged-pending lane; camera, display, lighting/quality, UV,
+grid/gizmo, highlight, visibility, routing, and part state cannot silently
+target only the legacy host while production .NET owns the session.
 Physical proof input and screen-region capture are fail-closed: the published
 .NET form must own the foreground, and the sampled point must be a viewport
 descendant owned by the renderer PID. Part highlighting derives only from the

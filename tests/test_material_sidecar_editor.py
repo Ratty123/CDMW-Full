@@ -23,7 +23,14 @@ from cdmw.core.material_sidecar_editor import (
 )
 from cdmw.core.mod_package import ModPackageExportOptions
 from cdmw.core.upscale_profiles import parse_material_sidecar_profile, parse_texture_sidecar_bindings
-from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ModPackageInfo, RunCancelled
+from cdmw.models import (
+    ArchiveEntry,
+    ArchiveModelTextureReference,
+    ModelPreviewRenderSettings,
+    ModPackageInfo,
+    RunCancelled,
+)
+from cdmw.ui.archive_browser import material_sidecar_editor_dialog
 from cdmw.ui.archive_browser.material_sidecar_editor_helpers import (
     material_sidecar_action_button_labels,
     material_sidecar_edit_failed_dialog_title,
@@ -602,6 +609,13 @@ class MaterialSidecarEditorTests(unittest.TestCase):
 
 
 class MaterialSidecarEditorHelperTests(unittest.TestCase):
+    def test_material_sidecar_editor_preview_settings_clamp_is_available(self) -> None:
+        clamped = material_sidecar_editor_dialog.clamp_model_preview_render_settings(
+            ModelPreviewRenderSettings()
+        )
+
+        self.assertIsInstance(clamped, ModelPreviewRenderSettings)
+
     def test_material_sidecar_editor_setup_presentation_text(self) -> None:
         self.assertEqual("Could not read material sidecar: boom", material_sidecar_read_failed_status("boom"))
         self.assertEqual(

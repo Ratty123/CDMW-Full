@@ -60,6 +60,7 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
         self.standalone_live_stroke_dispatcher = None
         self.applied_revisions: list[int] = []
         self.sent_revisions: list[int] = []
+        self.sent_request_ids: list[int] = []
         self.command_results: list[tuple[str, str]] = []
         self.statuses: list[str] = []
 
@@ -108,9 +109,10 @@ class _Harness(MeshEditorDotNetCommandMixin, MeshEditorInteractionMixin, QObject
     def _refresh_embedded_workspace_from_builder() -> None:
         return None
 
-    def _send_dotnet_native_update(self, _update, *, result=None) -> None:
+    def _send_dotnet_native_update(self, _update, *, result=None, request_payload=None) -> None:
         if result is not None:
             self.sent_revisions.append(int(result.revision))
+            self.sent_request_ids.append(int((request_payload or {}).get("request_id", 0)))
 
     def _send_dotnet_command_result(self, command: str, *, status: str, **_kwargs) -> bool:
         self.command_results.append((command, status))
@@ -136,43 +138,44 @@ def test_dotnet_stroke_updates_return_quickly_coalesce_and_apply_final_revision(
     harness = _Harness(controller)
     try:
         assert harness._handle_dotnet_stroke_event(
-            {"stroke_id": "stroke-1", "value": 0, "local_selection": {"vertices_by_submesh": {"0": [0]}}},
+            {"stroke_id": "stroke-1", "value": 0, "request_id": 1, "local_selection": {"vertices_by_submesh": {"0": [0]}}},
             "begin",
         )
         dispatcher = harness.standalone_live_stroke_dispatcher
         assert dispatcher is not None
         assert dispatcher.wait_idle(2.0)
-        assert _process_until(app, lambda: harness.sent_revisions[-1:] == [2])
+        assert _process_until(app, lambda: harness.sent_revisions[-1:] == [1])
 
         started = time.perf_counter()
-        assert harness._handle_dotnet_stroke_event({"stroke_id": "stroke-1", "value": 1}, "update")
+        assert harness._handle_dotnet_stroke_event({"stroke_id": "stroke-1", "value": 1, "request_id": 2}, "update")
         first_handler_ms = (time.perf_counter() - started) * 1000.0
         assert controller.update_started.wait(1.0)
 
         handler_times: list[float] = [first_handler_ms]
         for value in (2, 3):
             started = time.perf_counter()
-            assert harness._handle_dotnet_stroke_event({"stroke_id": "stroke-1", "value": value}, "update")
+            assert harness._handle_dotnet_stroke_event({"stroke_id": "stroke-1", "value": value, "request_id": value + 1}, "update")
             handler_times.append((time.perf_counter() - started) * 1000.0)
         started = time.perf_counter()
-        assert harness._handle_dotnet_stroke_event({"stroke_id": "stroke-1", "value": 0}, "end")
+        assert harness._handle_dotnet_stroke_event({"stroke_id": "stroke-1", "value": 0, "request_id": 5}, "end")
         handler_times.append((time.perf_counter() - started) * 1000.0)
 
         controller.release_update.set()
         assert dispatcher.wait_idle(2.0)
-        assert _process_until(app, lambda: harness.sent_revisions[-1:] == [5])
+        assert _process_until(app, lambda: harness.sent_revisions[-1:] == [4])
 
         assert max(handler_times) < 50.0
         assert dispatcher.metrics()["coalesced_updates"] == 1
         assert controller.calls == [
-            ("select", "", 0),
             ("transform", "begin", 0),
             ("transform", "update", 1),
             ("transform", "update", 3),
             ("transform", "end", 0),
         ]
-        assert harness.applied_revisions == [1, 2, 3, 4, 5]
-        assert harness.sent_revisions == [1, 2, 3, 4, 5]
+        assert harness.applied_revisions == [1, 2, 3, 4]
+        assert harness.sent_revisions == [1, 2, 3, 4]
+        assert harness.sent_request_ids == [1, 2, 4, 5]
+        assert harness.command_results == [("transform", "coalesced")]
         assert harness.standalone_native_mesh_edit_stroke_id == ""
     finally:
         controller.release_update.set()

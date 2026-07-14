@@ -60,19 +60,72 @@ class MeshHarnessNativeScenarioTests(unittest.TestCase):
         finally:
             clear_native_mesh_core_fallback_counts()
 
-    def test_dotnet_native_parity_report_scenario_is_non_blocking_scaffold(self) -> None:
+    def test_dotnet_native_parity_report_blocks_without_capture_inputs(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             result = run_scenario("mesh-dotnet-native-parity-report", Path(temp_dir))
             self.assertTrue((Path(temp_dir) / "dotnet_native_parity_report.json").is_file())
 
         self.assertFalse(result["ok"])
         parity = result["dotnet_native_parity"]
-        self.assertEqual("blocked_report_scaffold", parity["mode"])
+        self.assertEqual("offline_openimageio_capture_comparison", parity["mode"])
+        self.assertEqual("blocked", parity["status"])
         self.assertEqual("dotnet_vortice_d3d11", parity["authority"])
         self.assertEqual("legacy_cpp_d3d11", parity["comparison_backend"])
         self.assertEqual("production_authoritative_renderer", parity["dotnet_role"])
         self.assertIn("final", parity["debug_channels"])
         self.assertTrue(parity["blockers"])
+
+    def test_dotnet_native_parity_report_runs_optional_openimageio_comparison(self) -> None:
+        from tools.mesh_harness.png_evidence import _write_checker_png
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            reference = root / "reference.png"
+            candidate = root / "candidate.png"
+            helper = root / "oiiotool.exe"
+            _write_checker_png(reference, width=64, height=64)
+            _write_checker_png(candidate, width=64, height=64)
+            helper.write_text("", encoding="utf-8")
+
+            def compare(*_args: object, **kwargs: object) -> dict[str, object]:
+                difference = Path(str(kwargs["difference_output_path"]))
+                _write_checker_png(difference, width=64, height=64)
+                return {
+                    "status": "ok",
+                    "can_run": True,
+                    "returncode": 0,
+                    "metrics": {
+                        "mean_error": 0.0,
+                        "rms_error": 0.0,
+                        "peak_snr_db": "inf",
+                        "max_error": 0.0,
+                        "result": "pass",
+                    },
+                    "difference_output_written": True,
+                }
+
+            with patch(
+                "tools.mesh_harness.parity.AssetAuthoringService.run_openimageio_diff",
+                side_effect=compare,
+            ) as diff_mock:
+                result = run_scenario(
+                    "mesh-dotnet-native-parity-report",
+                    root / "report",
+                    parity_reference=reference,
+                    parity_candidate=candidate,
+                    openimageio_path=helper,
+                )
+
+        self.assertTrue(result["ok"])
+        parity = result["dotnet_native_parity"]
+        self.assertEqual("passed", parity["status"])
+        self.assertTrue(parity["comparison_executed"])
+        self.assertTrue(parity["threshold_passed"])
+        self.assertTrue(parity["capture_pair_valid"])
+        self.assertTrue(parity["difference_image_written"])
+        self.assertFalse(parity["user_facing_visual_proof"])
+        self.assertEqual(0.0, parity["diff_metrics"]["mean_error"])
+        self.assertEqual({"openimageio": helper}, diff_mock.call_args.args[2])
 
     def test_long_edit_mesh_tools_scenario_exercises_all_active_tools(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

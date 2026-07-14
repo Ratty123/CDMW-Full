@@ -103,25 +103,6 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
             nonlocal original_reference_preview_model
             original_reference_preview_model = value
 
-        if (
-            isinstance(texture_uv_global_transform_state, dict)
-            and prompt_preflight.scene_flip_v
-            and not bool(texture_uv_global_transform_state.get("flip_v"))
-            and not bool(texture_uv_global_transform_state.get("flip_u"))
-            and int(texture_uv_global_transform_state.get("rotate_degrees") or 0) == 0
-        ):
-            texture_uv_global_transform_state.update(
-                {
-                    "source_material_name": "__global__",
-                    "rotate_degrees": 0,
-                    "flip_u": False,
-                    "flip_v": True,
-                    "offset_u": 0.0,
-                    "offset_v": 0.0,
-                    "scale_u": 1.0,
-                    "scale_v": 1.0,
-                }
-            )
         original_dialog_preview.set_render_settings(preview_render_settings)
         static_dialog_preview.set_render_settings(preview_render_settings)
         original_dialog_preview.set_use_textures(True)

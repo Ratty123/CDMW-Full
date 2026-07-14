@@ -141,6 +141,7 @@ def _mesh_edit_source() -> str:
             _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py"),
             _read("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py"),
             _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py"),
+            _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_session.py"),
             _read("cdmw/ui/archive_browser/static_replacement_combo_options.py"),
             _read("cdmw/ui/archive_browser/static_replacement_d3d11_state.py"),
             _read("cdmw/ui/archive_browser/static_replacement_d3d11_status_state.py"),
@@ -1439,7 +1440,6 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
         mesh_native_source = _read("cdmw/modding/mesh_native_core.py")
         native_d3d11_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
-
         for source in (bridge_source,):
             self.assertIn('"command": "update_mesh_edit_vertices"', source)
             self.assertIn("_MESH_EDIT_VERTEX_FILE_THRESHOLD = 512 * 1024", source)
@@ -6097,9 +6097,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         highlight_body = _function_source(source, "_sync_highlight_sets")
         self.assertIn("_state._selection_highlight_sets_state_helper(", highlight_body)
         self.assertIn("_state.mesh_edit_enabled_checkbox = _state.context.get('mesh_edit_enabled_checkbox')", source)
-        self.assertIn("mesh_edit_raw_active=bool(_state._mesh_edit_raw_preview_active()) if d3d11_active else False", highlight_body)
-        self.assertIn("preview_gizmo_checked=bool(_state.preview_gizmo_checkbox.isChecked()) if d3d11_active else False", highlight_body)
-        self.assertIn("mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()) if d3d11_active else False", highlight_body)
+        self.assertIn("resident_active = bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False))", highlight_body)
+        self.assertIn("preview_active = bool(d3d11_active or resident_active)", highlight_body)
+        self.assertIn("mesh_edit_raw_active=bool(_state._mesh_edit_raw_preview_active()) if preview_active else False", highlight_body)
+        self.assertIn("preview_gizmo_checked=bool(_state.preview_gizmo_checkbox.isChecked()) if preview_active else False", highlight_body)
+        self.assertIn("mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()) if preview_active else False", highlight_body)
         self.assertIn("part_pick_checked=part_pick_checked", highlight_body)
         self.assertIn("enabled=bool(selection_state['d3d11_gizmo_enabled'])", highlight_body)
 
@@ -6148,7 +6150,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_editor_apply_native_update(_state, _callbacks, native_update: object) -> bool:", source)
         self.assertIn("return _state.apply_native_update_to_host(_state.alignment_d3d11_preview_host, native_update)", source)
         self.assertIn("mesh_editor_static_replacement_session_state", source)
-        self.assertIn("StaticReplacementMeshEditSession(session_id=\"static-replacement\")", source)
+        self.assertIn("_mesh_editor_embedded_session_id", source)
+        self.assertIn('session_id = f"static-replacement-{uuid4().hex}"', source)
+        self.assertIn("StaticReplacementMeshEditSession(session_id=session_id)", source)
         self.assertIn("_state.mesh_editor_static_replacement_session_state[\"revision\"] = current_revision + (1 if changed else 0)", source)
         result_body = static_adapter_source[
             static_adapter_source.index("    def _result("):
@@ -7475,9 +7479,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         adjust_body = service_source[adjust_start: service_source.index("def normalize_selected_vertex_weights(", adjust_start)]
         self.assertIn("apply_native_mesh_skin_weights(", adjust_body)
         self.assertIn("native mesh editor skin weight edit unavailable; Python mesh state is stale", adjust_body)
-        self.assertIn("self._push_history(session, prefer_native=True)", adjust_body)
+        self.assertIn("self._push_history(", adjust_body)
+        self.assertIn("prefer_native=True", adjust_body)
         self.assertLess(
-            adjust_body.index("self._push_history(session, prefer_native=True)"),
+            adjust_body.index("self._push_history("),
             adjust_body.index("apply_native_mesh_skin_weights("),
         )
         self.assertLess(adjust_body.index("apply_native_mesh_skin_weights("), adjust_body.index("_nudge_bone_weight("))
@@ -7487,9 +7492,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         normalize_body = service_source[normalize_start: service_source.index("def transfer_selected_vertex_weights_from_source(", normalize_start)]
         self.assertIn("apply_native_mesh_skin_weights(", normalize_body)
         self.assertIn("native mesh editor skin weight edit unavailable; Python mesh state is stale", normalize_body)
-        self.assertIn("self._push_history(session, prefer_native=True)", normalize_body)
+        self.assertIn("self._push_history(", normalize_body)
+        self.assertIn("prefer_native=True", normalize_body)
         self.assertLess(
-            normalize_body.index("self._push_history(session, prefer_native=True)"),
+            normalize_body.index("self._push_history("),
             normalize_body.index("apply_native_mesh_skin_weights("),
         )
         self.assertLess(normalize_body.index("apply_native_mesh_skin_weights("), normalize_body.index("_normalize_weight_row("))
@@ -7499,9 +7505,10 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         transfer_body = service_source[transfer_start: service_source.index("def _require_clean_python_skeleton_state(", transfer_start)]
         self.assertIn("transfer_native_mesh_skin_weights_from_source(", transfer_body)
         self.assertIn("native mesh editor skin weight edit unavailable; Python mesh state is stale", transfer_body)
-        self.assertIn("self._push_history(session, prefer_native=True)", transfer_body)
+        self.assertIn("self._push_history(", transfer_body)
+        self.assertIn("prefer_native=True", transfer_body)
         self.assertLess(
-            transfer_body.index("self._push_history(session, prefer_native=True)"),
+            transfer_body.index("self._push_history("),
             transfer_body.index("transfer_native_mesh_skin_weights_from_source("),
         )
         self.assertIn("invalidate_native_mesh_session_submeshes(session.working_mesh, selected_submeshes)", transfer_body)

@@ -1140,6 +1140,10 @@ class ModelPreviewMesh:
     preview_height_texture_dds_path: str = ""
     preview_height_texture_image: object = None
     preview_height_texture_name: str = ""
+    preview_emissive_texture_path: str = ""
+    preview_emissive_texture_dds_path: str = ""
+    preview_emissive_texture_image: object = None
+    preview_emissive_texture_name: str = ""
     preview_base_texture_default_path: str = ""
     preview_base_texture_default_name: str = ""
     preview_normal_texture_default_path: str = ""
@@ -1152,6 +1156,8 @@ class ModelPreviewMesh:
     preview_material_texture_default_packed_channels: Tuple[str, ...] = ()
     preview_height_texture_default_path: str = ""
     preview_height_texture_default_name: str = ""
+    preview_emissive_texture_default_path: str = ""
+    preview_emissive_texture_default_name: str = ""
     preview_texture_flip_vertical: Optional[bool] = None
     preview_base_texture_source: str = ""
     preview_base_texture_quality: str = ""
@@ -1166,6 +1172,7 @@ class ModelPreviewMesh:
     preview_vertex_color_count: int = 0
     preview_texture_approximation_note: str = ""
     preview_material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
+    preview_material_parameters: Tuple[PreviewMaterialParameterInput, ...] = ()
     preview_native_material_overrides: Dict[str, object] = field(default_factory=dict)
     preview_alpha_mode: str = ""
     preview_double_sided: bool = False

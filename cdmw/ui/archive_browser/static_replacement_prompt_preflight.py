@@ -21,6 +21,7 @@ from cdmw.services.preview_workflow_service import (
 )
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.services.mesh_workflow_service import read_archive_entry_baseline_data
+from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings, set_dotnet_preview_texture_flip_vertical
 from cdmw.services.preview_workflow_service import scene_import_normalizes_texture_v
 from cdmw.models import ArchiveEntry, ModelPreviewData, RunCancelled
 from cdmw.services.mesh_workflow_service import ReplacementAssetProfile, analyze_replacement_asset
@@ -268,6 +269,9 @@ def _prepare_meshes(
             pass
     source_format = str(replacement_base.format or "").strip().lower()
     scene_flip_v = scene_import_normalizes_texture_v(source_format, replacement_base.path or request.obj_path)
+    set_dotnet_preview_texture_flip_vertical(replacement_preview, scene_flip_v)
+    copy_dotnet_preview_material_bindings(replacement_base, replacement_preview)
+    copy_dotnet_preview_material_bindings(replacement_mesh, replacement_preview)
     raise_if_cancelled(stop, "Static replacement preflight stopped by user.")
     return _PreparedMeshes(
         scene_result,

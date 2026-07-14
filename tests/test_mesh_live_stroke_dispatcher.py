@@ -106,8 +106,17 @@ def test_live_stroke_dispatcher_preserves_cumulative_drag_when_updates_coalesce(
                 _drag_command(start_x, start_x + 1),
                 "update",
                 source="dotnet",
+                request_payload={"request_id": start_x + 1},
             ) > 0
         assert dispatcher.submit(controller, _command("end"), "end", source="dotnet") > 0
+        pending_update = next(item for item in dispatcher._controls if item.phase == "update")
+        assert tuple(payload["request_id"] for payload in pending_update.request_payloads) == (
+            1,
+            2,
+            3,
+            4,
+            5,
+        )
 
         controller.release_begin.set()
         assert dispatcher.wait_idle(2.0)

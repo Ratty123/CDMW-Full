@@ -8,12 +8,21 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed class RenderMetrics
 {
-    private readonly Queue<double> _frameMs = new();
+    private const int SampleWindow = 120;
+    private const double CadenceResetThresholdMs = 250.0;
+    private readonly Queue<double> _renderMs = new();
+    private readonly Queue<double> _frameIntervalMs = new();
     private readonly Queue<double> _presentMs = new();
     private readonly Queue<double> _dirtyToPresentMs = new();
     private readonly Queue<double> _responsivenessMs = new();
+    private long _lastFrameTimestamp;
 
-    public double AverageFrameMs { get; private set; }
+    public double AverageRenderMs { get; private set; }
+    public double AverageFrameIntervalMs { get; private set; }
+    public double FrameIntervalP95Ms { get; private set; }
+    public double FrameIntervalMaxMs { get; private set; }
+    public double FramePacingJitterMs { get; private set; }
+    public double AverageFrameMs => AverageFrameIntervalMs > 0.0001 ? AverageFrameIntervalMs : AverageRenderMs;
     public double AveragePresentMs { get; private set; }
     public double AverageDirtyToPresentMs { get; private set; }
     public double AverageResponsivenessMs { get; private set; }
@@ -21,36 +30,55 @@ internal sealed class RenderMetrics
     public int FrameCount { get; private set; }
     public bool HasRenderedFrame => FrameCount > 0;
     public string DeviceRemovedReason { get; private set; } = string.Empty;
-    public double AverageFps => AverageFrameMs > 0.0001 ? 1000.0 / AverageFrameMs : 0.0;
+    public double AverageFps => AverageFrameIntervalMs > 0.0001 ? 1000.0 / AverageFrameIntervalMs : 0.0;
 
     public void Record(double frameMs, double presentMs, double dirtyToPresentMs, string deviceRemovedReason)
     {
-        var normalizedFrameMs = Math.Max(0.0, frameMs);
+        var now = Stopwatch.GetTimestamp();
+        var normalizedRenderMs = Math.Max(0.0, frameMs);
         FrameCount++;
-        _frameMs.Enqueue(normalizedFrameMs);
+        _renderMs.Enqueue(normalizedRenderMs);
         _presentMs.Enqueue(Math.Max(0.0, presentMs));
         _dirtyToPresentMs.Enqueue(Math.Max(0.0, dirtyToPresentMs));
-        while (_frameMs.Count > 120)
+        while (_renderMs.Count > SampleWindow)
         {
-            _frameMs.Dequeue();
+            _renderMs.Dequeue();
         }
-        while (_presentMs.Count > 120)
+        while (_presentMs.Count > SampleWindow)
         {
             _presentMs.Dequeue();
         }
-        while (_dirtyToPresentMs.Count > 120)
+        while (_dirtyToPresentMs.Count > SampleWindow)
         {
             _dirtyToPresentMs.Dequeue();
         }
-        if (normalizedFrameMs > 16.7)
+
+        if (_lastFrameTimestamp > 0)
         {
-            DroppedFrames++;
+            var intervalMs = (now - _lastFrameTimestamp) * 1000.0 / Stopwatch.Frequency;
+            if (intervalMs <= CadenceResetThresholdMs)
+            {
+                _frameIntervalMs.Enqueue(Math.Max(0.0, intervalMs));
+                while (_frameIntervalMs.Count > SampleWindow)
+                {
+                    _frameIntervalMs.Dequeue();
+                }
+                if (intervalMs > 16.7)
+                {
+                    DroppedFrames++;
+                }
+            }
         }
+        _lastFrameTimestamp = now;
         if (!string.IsNullOrWhiteSpace(deviceRemovedReason))
         {
             DeviceRemovedReason = deviceRemovedReason;
         }
-        AverageFrameMs = _frameMs.Count == 0 ? 0.0 : _frameMs.Average();
+        AverageRenderMs = _renderMs.Count == 0 ? 0.0 : _renderMs.Average();
+        AverageFrameIntervalMs = _frameIntervalMs.Count == 0 ? 0.0 : _frameIntervalMs.Average();
+        FrameIntervalP95Ms = Percentile(_frameIntervalMs, 0.95);
+        FrameIntervalMaxMs = _frameIntervalMs.Count == 0 ? 0.0 : _frameIntervalMs.Max();
+        FramePacingJitterMs = StandardDeviation(_frameIntervalMs, AverageFrameIntervalMs);
         AveragePresentMs = _presentMs.Count == 0 ? 0.0 : _presentMs.Average();
         AverageDirtyToPresentMs = _dirtyToPresentMs.Count == 0 ? 0.0 : _dirtyToPresentMs.Average();
     }
@@ -58,11 +86,30 @@ internal sealed class RenderMetrics
     public void RecordResponsiveness(double responsivenessMs)
     {
         _responsivenessMs.Enqueue(Math.Max(0.0, responsivenessMs));
-        while (_responsivenessMs.Count > 120)
+        while (_responsivenessMs.Count > SampleWindow)
         {
             _responsivenessMs.Dequeue();
         }
         AverageResponsivenessMs = _responsivenessMs.Count == 0 ? 0.0 : _responsivenessMs.Average();
+    }
+
+    private static double Percentile(IEnumerable<double> samples, double percentile)
+    {
+        var ordered = samples.OrderBy(value => value).ToArray();
+        if (ordered.Length == 0)
+        {
+            return 0.0;
+        }
+        var index = Math.Clamp((int)Math.Ceiling(percentile * ordered.Length) - 1, 0, ordered.Length - 1);
+        return ordered[index];
+    }
+
+    private static double StandardDeviation(IEnumerable<double> samples, double average)
+    {
+        var values = samples as ICollection<double> ?? samples.ToArray();
+        return values.Count == 0
+            ? 0.0
+            : Math.Sqrt(values.Sum(value => Math.Pow(value - average, 2.0)) / values.Count);
     }
 }
 

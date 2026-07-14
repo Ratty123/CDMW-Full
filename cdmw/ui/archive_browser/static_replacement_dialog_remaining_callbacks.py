@@ -5,6 +5,7 @@ from __future__ import annotations
 import traceback
 from types import SimpleNamespace
 
+from cdmw.ui.archive_browser import static_replacement_preview_materials as preview_materials
 from cdmw.ui.archive_browser.static_replacement_sparse_history import (
     allow_python_mesh_history_snapshot_fallback,
     clear_mesh_history_snapshot_stack,
@@ -121,7 +122,6 @@ def create_alignment_geometry_history_callbacks(context: dict[str, object]) -> S
 
 
 def create_alignment_mapping_edit_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     QLineEdit = context.get('QLineEdit')
     _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _flush_mapping_edit_refresh = context.get('_flush_mapping_edit_refresh')
@@ -169,7 +169,6 @@ def create_alignment_mapping_edit_callbacks(context: dict[str, object]) -> Simpl
 
 
 def create_alignment_original_source_filter_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     QEvent = context.get('QEvent')
     QObject = context.get('QObject')
     QTreeWidget = context.get('QTreeWidget')
@@ -342,6 +341,7 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
     _set_preview_performance_status = context.get('_set_preview_performance_status')
     alignment_d3d11_state = context.get('alignment_d3d11_state')
     dialog_title = context.get('dialog_title')
+    dialog = context.get('dialog')
     entry = context.get('entry')
     elapsed_ms = context.get('elapsed_ms')
     message = context.get('message')
@@ -368,6 +368,14 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
             modify_original_clone=modify_original_clone_mode,
         )
         state.original_reference_preview_model = preview_model_object if isinstance(preview_model_object, ModelPreviewData) else state.original_reference_preview_model
+        if isinstance(preview_model_object, ModelPreviewData):
+            preview_materials.apply_resolved_original_materials_to_resident_editor(
+                dialog=dialog,
+                replacement_mesh_base=state.replacement_mesh_base_for_mapping,
+                replacement_mesh=state.replacement_mesh_for_mapping,
+                preview_model=preview_model_object,
+                modify_original_clone_mode=bool(modify_original_clone_mode),
+            )
         if ready_state.should_apply_manifest_performance:
             _set_preview_performance_status(ready_state.manifest_performance.summary, details=ready_state.manifest_performance.details)
         _alignment_d3d11_reset_request_state_helper(alignment_d3d11_state, clear_active_request_id=False)
@@ -466,7 +474,6 @@ def create_alignment_added_part_texture_override_callbacks(context: dict[str, ob
 
 
 def create_alignment_added_part_texture_choice_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     Path = context.get('Path')
     QFileDialog = context.get('QFileDialog')
     QMessageBox = context.get('QMessageBox')
@@ -507,7 +514,6 @@ def create_alignment_added_part_texture_choice_callbacks(context: dict[str, obje
 
 
 def create_alignment_preview_pixmap_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     Optional = context.get('Optional')
     Path = context.get('Path')
     QImageReader = context.get('QImageReader')
@@ -536,7 +542,6 @@ def create_alignment_source_material_plan_refresh_callbacks(context: dict[str, o
 
 
 def create_alignment_complete_swap_profile_select_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     _material_authority_requested_profile_name_helper = context.get('_material_authority_requested_profile_name_helper')
     complete_swap_material_profile_combo = context.get('complete_swap_material_profile_combo')
     complete_swap_profile_store_path = context.get('complete_swap_profile_store_path')
@@ -570,7 +575,6 @@ def create_alignment_complete_swap_profile_select_callbacks(context: dict[str, o
 
 
 def create_alignment_manual_profile_preset_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     Mapping = context.get('Mapping')
     Sequence = context.get('Sequence')
     _manual_material_profile_presets_payload_helper = context.get('_manual_material_profile_presets_payload_helper')
@@ -598,7 +602,6 @@ def create_alignment_manual_profile_control_callbacks(context: dict[str, object]
 
 
 def create_alignment_texture_orientation_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     _queue_texture_uv_preview_refresh = context.get('_queue_texture_uv_preview_refresh')
     _record_texture_uv_global_transform_state_helper = context.get('_record_texture_uv_global_transform_state_helper')
     _texture_uv_global_transform_control_state_helper = context.get('_texture_uv_global_transform_control_state_helper')
@@ -624,7 +627,6 @@ def create_alignment_texture_orientation_callbacks(context: dict[str, object]) -
 
 
 def create_alignment_transform_slider_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     Optional = context.get('Optional')
     QDoubleSpinBox = context.get('QDoubleSpinBox')
     QSlider = context.get('QSlider')
@@ -647,7 +649,6 @@ def create_alignment_transform_slider_callbacks(context: dict[str, object]) -> S
 
 
 def create_alignment_transform_row_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     Optional = context.get('Optional')
     QDoubleSpinBox = context.get('QDoubleSpinBox')
     QHBoxLayout = context.get('QHBoxLayout')
@@ -769,7 +770,6 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
 
 
 def create_alignment_fit_dialog_callbacks(context: dict[str, object]) -> SimpleNamespace:
-    state = _StaticReplacementDialogState(context)
     QApplication = context.get('QApplication')
     _alignment_dialog_fit_size_helper = context.get('_alignment_dialog_fit_size_helper')
     _alignment_dialog_frame_origin_helper = context.get('_alignment_dialog_frame_origin_helper')

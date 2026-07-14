@@ -21,7 +21,7 @@ from tools.mesh_harness.archive_provenance import (
     _archive_content_fingerprints,
     _archive_entry_provenance,
     _archive_source_file_snapshot,
-    _resolve_real_archive_mesh_textures,
+    _hydrate_real_archive_mesh_materials,
 )
 from tools.mesh_harness.constants import (
     _MK_LBUTTON,
@@ -39,7 +39,10 @@ from tools.mesh_harness.native_projection import (
 from tools.mesh_harness.native_protocol import _send_mouse_message
 from tools.mesh_harness.png_evidence import _write_real_archive_visual_edit_proof
 from tools.mesh_harness.real_common import _archive_entry_indexes, _archive_key, _read_archive_payload
-from tools.mesh_harness.real_dotnet_capture import capture_dotnet_viewport as _capture_viewport
+from tools.mesh_harness.real_dotnet_capture import (
+    capture_dotnet_viewport as _capture_viewport,
+    exercise_deterministic_offscreen_capture,
+)
 from tools.mesh_harness.real_dotnet_material import (
     exercise_material_parameter_update,
     exercise_resident_material_update,
@@ -56,11 +59,22 @@ from tools.mesh_harness.real_dotnet_flow import (
     record_flow_step,
 )
 from tools.mesh_harness.real_dotnet_input import drive_viewport_stroke
-from tools.mesh_harness.real_dotnet_display import exercise_geometry_display_modes
+from tools.mesh_harness.real_dotnet_display import (
+    exercise_builder_presentation_controls,
+    exercise_geometry_display_modes,
+)
 from tools.mesh_harness.service_summary import _command_summary
 
 
 _DOTNET_RENDERER_BACKEND = "d3d11_vortice_shader"
+
+
+def _revision_ack_tail(state: SimpleNamespace) -> list[dict[str, object]]:
+    events = tuple(
+        getattr(getattr(state, "tab", None), "standalone_dotnet_protocol_events", ()) or ()
+    )
+    names = {"preview_vertex_update_ack", "preview_triangle_update_ack", "resident_state_resync_ack"}
+    return [dict(event) for event in events if str(event.get("event", "")) in names][-32:]
 
 
 def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
@@ -106,6 +120,7 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "error": str(message),
         "production_flow": list(getattr(state, "production_flow", ()) or ()),
         "geometry_display": dict(getattr(state, "geometry_display_evidence", {}) or {}),
+        "builder_presentation": dict(getattr(state, "builder_presentation_evidence", {}) or {}),
         "linked_texture_updates": dict(getattr(state, "texture_flow_evidence", {}) or {}),
         "lifecycle_counts": dict(
             getattr(getattr(state, "tab", None), "standalone_dotnet_lifecycle_counts", {}) or {}
@@ -116,6 +131,14 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
             and hasattr(state.tab, "standalone_texture_region_queue")
             else {}
         ),
+        "update_queue": (
+            state.tab.standalone_dotnet_update_queue.metrics()
+            if getattr(state, "tab", None) is not None
+            and hasattr(state.tab, "standalone_dotnet_update_queue")
+            else {}
+        ),
+        "last_apply_update": dict(getattr(state, "last_apply_update_evidence", {}) or {}),
+        "revision_ack_tail": _revision_ack_tail(state),
         "protocol_event_tail": list(
             tuple(getattr(getattr(state, "tab", None), "standalone_dotnet_protocol_events", ()) or ())[-16:]
         ),
@@ -168,7 +191,7 @@ def _prepare_real_asset(game_root: Path, output_dir: Path, timeout_seconds: floa
         tuple(tuple(float(component) for component in vertex) for vertex in submesh.vertices)
         for submesh in state.mesh.submeshes
     )
-    state.resolved_textures = _resolve_real_archive_mesh_textures(
+    state.resolved_textures, state.material_resolution_diagnostics = _hydrate_real_archive_mesh_materials(
         state.mesh,
         state.model_entry,
         state.entries_by_path,
@@ -387,7 +410,9 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     )
     width = int(state.viewport.get("width", 0) or 0)
     height = int(state.viewport.get("height", 0) or 0)
-    probe = (max(1, width // 2), max(1, height // 2))
+    client_x = int(state.viewport.get("client_x", 0) or 0)
+    client_y = int(state.viewport.get("client_y", 0) or 0)
+    probe = (client_x + max(1, width // 2), client_y + max(1, height // 2))
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     state.probe_down_sent = _send_mouse_message(state.viewport_hwnd, _WM_LBUTTONDOWN, *probe, wparam=_MK_LBUTTON)
     state.probe_started = _wait_protocol_event(state, "stroke_begin", cursor)
@@ -444,6 +469,27 @@ def _drive_viewport_stroke(state: SimpleNamespace) -> dict[str, object] | None:
     )
 
 
+def _record_stroke_geometry_evidence(state: SimpleNamespace) -> None:
+    state.after_mesh = state.controller.working_mesh(clone=True)
+    state.after_vertices = [
+        tuple(float(value) for value in state.after_mesh.submeshes[state.submesh_index].vertices[index])
+        for index in state.face_vertices
+    ]
+    state.changed_vertex_keys = {
+        (submesh_index, vertex_index)
+        for submesh_index, submesh in enumerate(state.after_mesh.submeshes)
+        for vertex_index, vertex in enumerate(submesh.vertices)
+        if any(
+            abs(float(vertex[axis]) - state.original_vertex_positions[submesh_index][vertex_index][axis]) > 1e-8
+            for axis in range(3)
+        )
+    }
+    state.selected_vertex_keys = {(state.submesh_index, index) for index in state.face_vertices}
+    state.changed_only_selected_geometry = bool(state.changed_vertex_keys) and (
+        state.changed_vertex_keys <= state.selected_vertex_keys
+    )
+
+
 def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
     renderer_texture_ok = bool(
         int(state.renderer.get("resolved_texture_references", 0) or 0) > 0
@@ -457,6 +503,9 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
         **production_flow_gates(state),
         "real_pac_geometry_display_modes": bool(
             getattr(state, "geometry_display_evidence", {}).get("ok")
+        ),
+        "real_pac_builder_presentation": bool(
+            getattr(state, "builder_presentation_evidence", {}).get("ok")
         ),
         "renderer_backend_ok": state.renderer_backend == _DOTNET_RENDERER_BACKEND,
         "renderer_gpu_backed": state.renderer.get("gpu_backed") is True,
@@ -490,6 +539,9 @@ def _result_gates(state: SimpleNamespace) -> dict[str, bool]:
             and state.after_capture_summary.get("ok")
             and state.visual_proof_summary.get("ok")
         ),
+        "deterministic_offscreen_icon_capture": bool(
+            getattr(state, "offscreen_capture_evidence", {}).get("ok")
+        ),
         "source_archives_unchanged": bool(
             state.archive_sources_unchanged
             and state.archive_source_content_unchanged
@@ -506,22 +558,7 @@ def _part_selection_evidence(state: SimpleNamespace) -> dict[str, bool]:
 
 
 def _finish_result(state: SimpleNamespace) -> dict[str, object]:
-    state.after_mesh = state.controller.working_mesh(clone=True)
-    state.after_vertices = [tuple(float(value) for value in state.after_mesh.submeshes[state.submesh_index].vertices[index]) for index in state.face_vertices]
-    state.changed_vertex_keys = {
-        (submesh_index, vertex_index)
-        for submesh_index, submesh in enumerate(state.after_mesh.submeshes)
-        for vertex_index, vertex in enumerate(submesh.vertices)
-        if any(
-            abs(float(vertex[axis]) - state.original_vertex_positions[submesh_index][vertex_index][axis]) > 1e-8
-            for axis in range(3)
-        )
-    }
-    state.selected_vertex_keys = {(state.submesh_index, index) for index in state.face_vertices}
-    state.changed_only_selected_geometry = bool(state.changed_vertex_keys) and state.changed_vertex_keys <= state.selected_vertex_keys
-    state.after_center = tuple(
-        sum(vertex[axis] for vertex in state.after_vertices) / len(state.after_vertices) for axis in range(3)
-    )
+    state.after_center = tuple(sum(vertex[axis] for vertex in state.after_vertices) / len(state.after_vertices) for axis in range(3))
     matrix = tuple(state.projection_drag.get("world_view_projection", ()) or ())
     state.projected_after_center = _project_world_to_screen(
         matrix,
@@ -586,6 +623,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "resident_material_update": resident_material_evidence(state),
         "resident_material_parameter_update": material_parameter_evidence(state),
         "geometry_display": dict(state.geometry_display_evidence),
+        "builder_presentation": dict(state.builder_presentation_evidence),
         "production_flow": list(state.production_flow),
         "linked_texture_updates": dict(state.texture_flow_evidence),
         "resident_mesh_edits": dict(state.edit_flow_evidence),
@@ -597,6 +635,8 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
             "initial_windows": dict(state.production_window_identity),
             "final_windows": dict(state.final_window_identity),
         },
+        "helper_provenance": dict(state.protocol_ready.get("provenance", {}) or {}),
+        "offscreen_icon_capture": dict(state.offscreen_capture_evidence),
         "protocol_events": {
             "protocol_ready": state.protocol_ready,
             "ready": state.ready_event,
@@ -672,12 +712,26 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         error = _start_embedded_editor(state)
         if error is not None:
             return error
+        state.offscreen_capture_evidence = exercise_deterministic_offscreen_capture(
+            state,
+            pump_until=_pump_until,
+            wait_protocol_event=_wait_protocol_event,
+        )
+        if not state.offscreen_capture_evidence.get("ok"):
+            return _base_error(state, "Deterministic production offscreen icon capture failed.")
         state.process = state.tab.standalone_dotnet_editor_process
         error = exercise_resident_material_update(
             state, base_error=_base_error, pump_until=_pump_until, wait_protocol_event=_wait_protocol_event
         )
         if error is not None:
             return error
+        message = exercise_builder_presentation_controls(
+            state,
+            pump_until=_pump_until,
+            capture_viewport=_capture_viewport,
+        )
+        if message:
+            return _base_error(state, message)
         message = exercise_geometry_display_modes(
             state,
             pump_until=_pump_until,
@@ -692,6 +746,7 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         error = _drive_viewport_stroke(state)
         if error is not None:
             return error
+        _record_stroke_geometry_evidence(state)
         record_flow_step(state, "transform", update_count=len(state.stroke_updates))
         error = exercise_material_parameter_update(
             state,

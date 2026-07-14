@@ -21,6 +21,7 @@ endif()
 
 set(D3D_PREVIEW_OWNER_SOURCES
     src/owners/protocol_json.cpp
+    src/owners/manifest_json_slots.cpp
     src/owners/manifest_material.cpp
     src/owners/status_and_view.cpp
     src/owners/shader_sources.cpp

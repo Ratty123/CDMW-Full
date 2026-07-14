@@ -393,16 +393,6 @@ static std::wstring absolute_from_manifest_path(const fs::path& package_dir, con
     return path.wstring();
 }
 
-static std::string json_object_field(const std::string& object, const std::string& name);
-
-static std::wstring dds_slot_source(const std::string& object, const std::string& slot) {
-    const std::string descriptor = json_object_field(object, slot);
-    if (descriptor.empty()) return L"";
-    if (!json_bool_field(descriptor, "available", true)) return L"";
-    if (!json_bool_field(descriptor, "direct_upload_candidate", true)) return L"";
-    return utf8_to_wide(json_string_field(descriptor, "source_path"));
-}
-
 static std::wstring texture_slot_relative(const fs::path& package_dir, const std::string& object, const std::string& slot) {
     std::regex textures_pattern("\"textures\"\\s*:\\s*\\{([^{}]*)\\}");
     std::smatch textures_match;

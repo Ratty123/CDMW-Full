@@ -4,6 +4,7 @@ import importlib.util
 import os
 from pathlib import Path
 import struct
+import sys
 import threading
 from functools import lru_cache
 from typing import Dict, Mapping
@@ -56,6 +57,28 @@ def _detect_executable(*names: str) -> Dict[str, object]:
     )
     if path:
         return {"status": status, "path": path}
+    # Python wheels commonly place their console tools beside the active
+    # interpreter without adding that directory to the parent process PATH.
+    # Treat those real executables as detected so the preflight agrees with
+    # the asset-authoring service (notably for OpenImageIO's oiiotool wheel).
+    scripts_root = Path(sys.executable).resolve().parent
+    extensions = [""]
+    if os.name == "nt":
+        extensions.extend(
+            value.lower()
+            for value in os.environ.get("PATHEXT", ".EXE;.BAT;.CMD").split(";")
+            if value
+        )
+    for name in names:
+        raw_name = str(name or "").strip()
+        if not raw_name:
+            continue
+        for extension in extensions:
+            candidate = scripts_root / (
+                raw_name if Path(raw_name).suffix or not extension else f"{raw_name}{extension}"
+            )
+            if candidate.is_file():
+                return {"status": "python_console_script_detected", "path": str(candidate)}
     return {"status": status, "path": ""}
 
 
@@ -394,9 +417,9 @@ def image_color_preflight_report() -> Dict[str, object]:
             "OpenImageIO": {
                 **oiio,
                 "bundled_feasibility": "not_bundled",
-                "role": "future_source_image_io",
+                "role": "optional_source_image_io_and_parity_diagnostics",
                 "dds_write": "not_used",
-                "notes": "useful for high-bit/PSD/TIFF/TGA/EXR-ish source handling and batch image ops",
+                "notes": "active when detected for metadata, high-bit/PSD/TIFF/TGA/EXR source handling, conversion, and deterministic image diffs",
             },
             "OpenColorIO": {
                 "status": "python_module_detected" if ocio_available else "not_detected",

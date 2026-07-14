@@ -1,6 +1,18 @@
 # .NET Mesh Editor Repair Audit
 
-Last updated: 2026-07-12
+Last updated: 2026-07-13
+
+## 2026-07-13 resident completion
+
+- Original and Imported/Modify are role-filtered presentation contexts backed
+  by one helper, document, geometry/material/texture owner, and revision stream.
+  Normal cameras are independent; explicit comparison modes link deliberately.
+- Builder presentation state is correlated and bounded. Production camera,
+  display, quality/lighting, UV, grid/gizmo, highlight, visibility, routing, and
+  part callbacks do not silently mutate only the legacy host.
+- Initial resource criticality, late reference generations, deterministic
+  offscreen capture, helper provenance, and prepare-then-commit output import
+  are enforced contracts rather than follow-up gaps.
 
 ## Current entry point
 
@@ -43,18 +55,30 @@ Last updated: 2026-07-12
 ## Texture and material data flow
 
 - Texture and material authority remains in Python/C++ and the existing D3D11 preview payloads.
-- .NET reports ready before texture decoding, loads textures in a background task, uploads them through its D3D11 viewport, and keeps the process-local texture cache for the asset session.
-- The native D3D11 process stays alive below .NET. Its SRV cache uses Windows file identity so hard-linked textures survive package-path changes.
-- Leaving Edit Mesh hides rather than exits the .NET child. The host waits for the ordered `deactivated` acknowledgement before syncing, so queued stroke events cannot land after the saved preview. The latest original-reference model is read at material reapply time, then the existing preview transition schedules one texture/static refresh.
-- Reactivation compares the current material-input signature with the running package. Changed texture/material inputs rebuild the package and helper; unchanged inputs reuse the same decoded texture cache.
+- .NET resolves declared initial resources asynchronously, blocks Ready on a
+  failed required resource, records optional fallback diagnostics, and reports
+  Ready only after bindings plus a first presented production frame.
+- Once .NET Ready is accepted, any covered native D3D11 sibling is stopped so
+  it cannot paint over the production child. .NET retains its decoded bitmap,
+  SRV, and binding caches for the resident session.
+- Leaving Edit Mesh hides rather than exits the .NET child. The host waits for
+  ordered `deactivated` acknowledgement before syncing, so queued stroke events
+  cannot land after the saved preview. Late original/reference textures and
+  editable material changes use targeted resident generations; they do not
+  route through a skipped legacy refresh.
+- Material-signature changes update affected bindings/resources atomically in
+  the running helper. Only source/session replacement, device loss, explicit
+  recovery, or unrecoverable protocol failure creates another package/process.
 
 ## Edit mode lifecycle
 
 - Enter edit mode: host starts the embedded .NET helper by default when the helper is available and a parent HWND exists; `mesh_editor/use_embedded_dotnet_viewport=false` remains a developer fallback. Helper availability is tracked separately as `_mesh_editor_dotnet_available`.
 - During launch: the classic Qt edit toolbar hides as soon as `_mesh_editor_embedded_dotnet_state` enters `launching`. Native D3D11 stays alive underneath until accepted .NET `ready`; a 10-second ready watchdog restores native fallback after a hung launch.
-- During embedded .NET ownership, the WinForms editor exposes its single dark,
-  scrollable left tool panel. The legacy Qt toolbar and merged right-side Qt
-  controls remain hidden; they return only for native fallback.
+- During embedded .NET ownership, the WinForms editor owns production
+  presentation and input. Entering `Edit Mesh` hides the legacy Qt toolbar and
+  Builder controls panel, then exposes the child's dark scrollable WinForms
+  tool panel inside the expanded host; placement mode reverses that split
+  without restarting the resident process.
 - During edit mode: local selection is mirrored to the resident service, strokes use incremental pointer segments, heavy commands run through `MeshEditCommandWorker`, and .NET consumes native preview deltas.
 - Stop edit mode: host sends `deactivate_request`, waits for its ordered acknowledgement and any active command to finish/cancel, syncs the resident session once, hides .NET as `suspended`, and restores the textured preview. A two-second acknowledgement watchdog stops a stuck helper before committing resident edits. Re-entry sends `activate_request` to the same process only when its material signature still matches.
 - Leaving Edit Mesh explicitly queues the material/texture refresh after the
@@ -64,9 +88,10 @@ Last updated: 2026-07-12
   through the existing resident builder authority. Live vertex/topology updates
   retain the current camera center; Reset/Fit is the only recenter operation.
 - Failure path: invalid HWND embedding, failed launch, unexpected process
-  error/finish, or renderer-blocked `ready` clears embedded ownership and
-  restores the legacy compatibility edit controls without finalizing away
-  resident edits. That fallback is not accepted by the production proof.
+  error/finish, renderer-blocked Ready, or provenance mismatch clears embedded
+  ownership and fails production closed without finalizing away resident edits.
+  Explicit compatibility workflows remain separate and are never accepted by
+  production proof.
 
 ## Current selection and hit test implementation
 

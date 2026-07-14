@@ -4,10 +4,12 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest import mock
 
 from cdmw.rendering.asset_fidelity_preflight import (
     asset_fidelity_preflight_manifest,
     dds_encoder_compatibility_matrix,
+    image_color_preflight_report,
     normal_y_policy_report,
     renderdoc_truth_pass_report,
     shader_truth_capture_backend_report,
@@ -16,6 +18,25 @@ from cdmw.rendering.asset_fidelity_preflight import (
 
 
 class AssetFidelityPreflightTests(unittest.TestCase):
+    def test_image_preflight_detects_openimageio_console_script_beside_python(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            scripts = Path(temp_dir) / "Scripts"
+            scripts.mkdir()
+            python = scripts / "python.exe"
+            helper = scripts / "oiiotool.exe"
+            python.write_text("", encoding="utf-8")
+            helper.write_text("", encoding="utf-8")
+            with (
+                mock.patch("cdmw.rendering.asset_fidelity_preflight.sys.executable", str(python)),
+                mock.patch.dict("os.environ", {"PATH": "", "PATHEXT": ".EXE;.BAT;.CMD"}),
+            ):
+                report = image_color_preflight_report()
+
+        openimageio = report["backends"]["OpenImageIO"]
+        self.assertEqual("python_console_script_detected", openimageio["status"])
+        self.assertEqual(str(helper), openimageio["path"])
+        self.assertEqual("optional_source_image_io_and_parity_diagnostics", openimageio["role"])
+
     def test_dds_encoder_matrix_keeps_directxtex_as_writer_authority(self) -> None:
         matrix = dds_encoder_compatibility_matrix()
 

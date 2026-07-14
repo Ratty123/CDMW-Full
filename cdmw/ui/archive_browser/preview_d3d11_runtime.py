@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from functools import partial
 from pathlib import Path
 from typing import List, Mapping, Sequence
 
@@ -10,6 +11,12 @@ from PySide6.QtCore import QProcess, QTimer
 
 from cdmw.models import ArchivePreviewResult
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
+
+
+def _archive_status_reports_device_loss(payload: Mapping[str, object]) -> bool:
+    reason = str(payload.get("reason", "") or "").strip().lower()
+    event = str(payload.get("event", "") or "").strip().lower()
+    return bool(payload.get("device_lost", False)) or reason == "device_lost" or event == "device_lost"
 
 
 class ArchivePreviewD3D11RuntimeMixin:
@@ -24,6 +31,32 @@ class ArchivePreviewD3D11RuntimeMixin:
         setter = getattr(self, "_set_last_active_operation", None)
         if callable(setter):
             setter(operation, **fields)
+
+    def _configure_archive_isolated_renderer_process(
+        self,
+        process: QProcess,
+        status_file: Path,
+    ) -> int:
+        try:
+            process.setWorkingDirectory(str(Path(__file__).resolve().parents[3]))
+        except Exception:
+            pass
+        process.setProcessChannelMode(QProcess.SeparateChannels)
+        generation = self._register_archive_isolated_renderer_process(process, status_file)
+        process.started.connect(lambda: self.set_status_message("Starting isolated D3D11 renderer..."))
+        process.readyReadStandardError.connect(
+            partial(self._handle_archive_isolated_renderer_stderr, process, generation)
+        )
+        process.finished.connect(
+            partial(self._handle_archive_isolated_renderer_finished, process, generation)
+        )
+        process.errorOccurred.connect(
+            partial(self._handle_archive_isolated_renderer_error, process, generation)
+        )
+        track_process = getattr(self.archive_d3d11_preview_host, "track_renderer_process", None)
+        if callable(track_process):
+            track_process(process)
+        return generation
 
     def _start_archive_isolated_renderer_process(self, package_dir: Path) -> None:
         valid_package, missing_paths = self._validate_d3d11_preview_package_paths(package_dir)
@@ -59,6 +92,9 @@ class ArchivePreviewD3D11RuntimeMixin:
         self.archive_isolated_renderer_status_payload_text = ""
         self.archive_isolated_renderer_last_status_payload = {}
         if self._archive_isolated_renderer_process_running():
+            active_process = getattr(self, "archive_isolated_renderer_process", None)
+            if active_process is not None:
+                self._set_archive_isolated_renderer_process_status_file(active_process, status_file)
             source = str(getattr(self, "archive_isolated_renderer_pending_package_source", "") or "")
             self._set_archive_d3d11_pending_package(
                 package_dir,
@@ -114,11 +150,16 @@ class ArchivePreviewD3D11RuntimeMixin:
             self.archive_d3d11_pending_model_key = ""
             process = getattr(self, "archive_isolated_renderer_process", None)
             if process is not None:
+                generation = self._archive_isolated_renderer_generation_for_process(process)
                 try:
                     process.finished.connect(lambda *_args, process=process: self._delete_archive_qprocess_later(process))
                 except (RuntimeError, TypeError):
                     pass
-                self._kill_archive_isolated_renderer_process_if_running(process)
+                self._kill_archive_isolated_renderer_process_if_running(
+                    process,
+                    generation=generation,
+                    reason="reload_fallback",
+                )
         previous = getattr(self, "archive_isolated_renderer_active_package", None)
         if previous is None or Path(previous) != Path(package_dir):
             if previous is not None:
@@ -158,20 +199,9 @@ class ArchivePreviewD3D11RuntimeMixin:
             package_dir=str(package_dir),
             status_file=str(status_file),
         )
-        try:
-            process.setWorkingDirectory(str(Path(__file__).resolve().parents[3]))
-        except Exception:
-            pass
-        process.setProcessChannelMode(QProcess.SeparateChannels)
-        process.started.connect(lambda: self.set_status_message("Starting isolated D3D11 renderer..."))
-        process.readyReadStandardError.connect(self._handle_archive_isolated_renderer_stderr)
-        process.finished.connect(self._handle_archive_isolated_renderer_finished)
-        process.errorOccurred.connect(self._handle_archive_isolated_renderer_error)
+        self._configure_archive_isolated_renderer_process(process, status_file)
         self.archive_isolated_renderer_process = process
         self.archive_isolated_renderer_active_process = process
-        track_process = getattr(self.archive_d3d11_preview_host, "track_renderer_process", None)
-        if callable(track_process):
-            track_process(process)
         self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
         self.archive_d3d11_preview_status_label.setText("Loading preview... starting renderer.")
         self._set_archive_isolated_renderer_debug(
@@ -204,11 +234,16 @@ class ArchivePreviewD3D11RuntimeMixin:
         )
         process = getattr(self, "archive_isolated_renderer_process", None)
         if process is not None:
+            generation = self._archive_isolated_renderer_generation_for_process(process)
             try:
                 process.finished.connect(lambda *_args, process=process: self._delete_archive_qprocess_later(process))
             except (RuntimeError, TypeError):
                 pass
-            self._kill_archive_isolated_renderer_process_if_running(process)
+            self._kill_archive_isolated_renderer_process_if_running(
+                process,
+                generation=generation,
+                reason="startup_timeout",
+            )
         had_pending = self._discard_archive_d3d11_pending_package(expected_status)
         self.archive_isolated_renderer_process = None
         self.archive_isolated_renderer_active_process = None
@@ -227,11 +262,8 @@ class ArchivePreviewD3D11RuntimeMixin:
         del result
         return
 
-    def _handle_archive_isolated_renderer_stderr(self) -> None:
-        if not self._archive_isolated_renderer_sender_is_current():
-            return
-        process = getattr(self, "archive_isolated_renderer_process", None)
-        if process is None:
+    def _handle_archive_isolated_renderer_stderr(self, process: QProcess, generation: int) -> None:
+        if not self._archive_isolated_renderer_signal_is_current(process, generation):
             return
         try:
             chunk = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
@@ -382,13 +414,40 @@ class ArchivePreviewD3D11RuntimeMixin:
                 self.archive_d3d11_preview_status_label.setText("D3D11 preview closed.")
                 self.set_status_message("Isolated D3D11 renderer closed.")
 
-    def _handle_archive_isolated_renderer_error(self, error) -> None:
-        if not self._archive_isolated_renderer_sender_is_current():
+    def _handle_archive_isolated_renderer_error(
+        self,
+        process: QProcess,
+        generation: int,
+        error: object,
+    ) -> None:
+        expected_stop = self._consume_archive_isolated_renderer_expected_stop(process, generation)
+        if expected_stop is not None:
+            reason, status_payload = expected_stop
+            self._record_archive_d3d11_runtime_event(
+                "d3d11_process_expected_stop_error",
+                error=str(error),
+                reason=reason,
+                process_pid=self._archive_qprocess_pid(process),
+                process_generation=int(generation),
+            )
+            if _archive_status_reports_device_loss(status_payload):
+                stage = str(
+                    status_payload.get("device_loss_stage", status_payload.get("stage", "render"))
+                    or "render"
+                )
+                message = f"Native D3D11 preview stopped after device loss during {stage}."
+                self.archive_d3d11_preview_status_label.setText(message)
+                self.set_status_message(message, error=True)
+                self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(status_payload))
+                self._show_archive_d3d11_hard_failure(message)
+            return
+        if not self._archive_isolated_renderer_signal_is_current(process, generation):
             return
         self._record_archive_d3d11_runtime_event(
             "d3d11_process_error",
             error=str(error),
-            process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
+            process_pid=self._archive_qprocess_pid(process),
+            process_generation=int(generation),
         )
         self.set_status_message(f"Isolated D3D11 renderer process error: {error}", error=True)
         self._set_archive_isolated_renderer_debug(
@@ -398,24 +457,58 @@ class ArchivePreviewD3D11RuntimeMixin:
         )
         if not self._archive_isolated_renderer_process_running():
             self.archive_isolated_renderer_process = None
+            self.archive_isolated_renderer_active_process = None
             self.archive_isolated_renderer_status_timer.stop()
             had_pending = self._discard_archive_d3d11_pending_package()
             self._cleanup_archive_isolated_renderer_packages(include_active=not had_pending)
             self._show_archive_d3d11_hard_failure(f"Isolated D3D11 renderer process error: {error}")
+            self._release_archive_isolated_renderer_process_generation(process, generation)
 
-    def _handle_archive_isolated_renderer_finished(self, exit_code: int, exit_status) -> None:
-        if not self._archive_isolated_renderer_sender_is_current():
+    def _handle_archive_isolated_renderer_finished(
+        self,
+        process: QProcess,
+        generation: int,
+        exit_code: int,
+        exit_status: object,
+    ) -> None:
+        expected_stop = self._consume_archive_isolated_renderer_expected_stop(process, generation)
+        if expected_stop is not None:
+            reason, status_payload = expected_stop
+            self._record_archive_d3d11_runtime_event(
+                "d3d11_process_expected_stop_finished",
+                exit_code=int(exit_code),
+                exit_status=str(exit_status),
+                reason=reason,
+                process_pid=self._archive_qprocess_pid(process),
+                process_generation=int(generation),
+            )
+            self._release_archive_isolated_renderer_process_generation(process, generation)
+            if _archive_status_reports_device_loss(status_payload):
+                stage = str(
+                    status_payload.get("device_loss_stage", status_payload.get("stage", "render"))
+                    or "render"
+                )
+                message = f"Native D3D11 preview stopped after device loss during {stage} (exit {int(exit_code)})."
+                self.archive_d3d11_preview_status_label.setText(message)
+                self.set_status_message(message, error=True)
+                self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(status_payload))
+                self._show_archive_d3d11_hard_failure(message)
+            return
+        if not self._archive_isolated_renderer_signal_is_current(process, generation):
+            self._release_archive_isolated_renderer_process_generation(process, generation)
             return
         self._record_archive_d3d11_runtime_event(
             "d3d11_process_finished",
             exit_code=int(exit_code),
             exit_status=str(exit_status),
-            process_pid=self._archive_qprocess_pid(getattr(self, "archive_isolated_renderer_process", None)),
+            process_pid=self._archive_qprocess_pid(process),
+            process_generation=int(generation),
         )
         self._poll_archive_isolated_renderer_status()
         last_status_payload = dict(getattr(self, "archive_isolated_renderer_last_status_payload", {}) or {})
         self.archive_isolated_renderer_process = None
         self.archive_isolated_renderer_active_process = None
+        self._release_archive_isolated_renderer_process_generation(process, generation)
         self.archive_isolated_renderer_status_timer.stop()
         self.archive_isolated_renderer_last_status_payload = {}
         had_pending = self._discard_archive_d3d11_pending_package()
@@ -448,11 +541,19 @@ class ArchivePreviewD3D11RuntimeMixin:
             self._cleanup_archive_isolated_renderer_packages(include_active=True)
             self._release_archive_d3d11_package_leases()
             return
+        generation = self._archive_isolated_renderer_generation_for_process(process)
         package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
+        self._poll_archive_isolated_renderer_status()
+        self._mark_archive_isolated_renderer_expected_stop(
+            process,
+            generation,
+            reason="shutdown",
+        )
         self._record_archive_d3d11_runtime_event(
             "d3d11_process_shutdown_begin",
             package_dir=str(package_dir or ""),
             process_pid=self._archive_qprocess_pid(process),
+            process_generation=generation,
             process_state=str(self._archive_qprocess_state(process)),
         )
         self.archive_isolated_renderer_process = None
@@ -465,21 +566,23 @@ class ArchivePreviewD3D11RuntimeMixin:
         self.archive_isolated_renderer_status_payload_text = ""
         self.archive_isolated_renderer_last_status_payload = {}
         self.archive_isolated_renderer_status_timer.stop()
-        try:
-            process.disconnect()
-        except RuntimeError:
-            pass
-        except TypeError:
-            pass
         state = self._archive_qprocess_state(process)
         try:
             if state != QProcess.NotRunning:
                 def cleanup_finished_process(*_args: object) -> None:
                     self._release_archive_d3d11_package_leases()
-                    self._cleanup_finished_archive_isolated_renderer_process(process, package_dir)
+                    self._cleanup_finished_archive_isolated_renderer_process(
+                        process,
+                        package_dir,
+                        generation,
+                    )
 
                 def kill_process_if_still_running() -> None:
-                    self._kill_archive_isolated_renderer_process_if_running(process)
+                    self._kill_archive_isolated_renderer_process_if_running(
+                        process,
+                        generation=generation,
+                        reason="shutdown_force_kill",
+                    )
 
                 def remove_retired_package_dir() -> None:
                     self._remove_archive_isolated_package_dir(package_dir)
@@ -489,10 +592,12 @@ class ArchivePreviewD3D11RuntimeMixin:
                 QTimer.singleShot(1200, kill_process_if_still_running)
                 QTimer.singleShot(7000, remove_retired_package_dir)
             else:
+                self._release_archive_isolated_renderer_process_generation(process, generation)
                 self._release_archive_d3d11_package_leases()
                 self._remove_archive_isolated_package_dir(package_dir)
                 self._delete_archive_qprocess_later(process)
         except RuntimeError:
+            self._release_archive_isolated_renderer_process_generation(process, generation)
             self._release_archive_d3d11_package_leases()
             self._remove_archive_isolated_package_dir(package_dir)
             self._delete_archive_qprocess_later(process)
@@ -501,5 +606,6 @@ class ArchivePreviewD3D11RuntimeMixin:
         self._record_archive_d3d11_runtime_event(
             "d3d11_process_shutdown_queued",
             package_dir=str(package_dir or ""),
+            process_generation=generation,
             process_state=str(state),
         )

@@ -87,6 +87,13 @@ class _D3dHost:
 
 def _callbacks_for_d3d(dialog: QWidget, events: list[str], screen: _Screen):  # type: ignore[no-untyped-def]
     host = _D3dHost(events, screen)
+    def capture(callback) -> bool:  # type: ignore[no-untyped-def]
+        events.append("offscreen:requested")
+        pixmap = QPixmap(8, 8)
+        pixmap.fill(QColor("red"))
+        QTimer.singleShot(0, lambda: callback(pixmap))
+        return True
+    setattr(dialog, "_mesh_editor_embedded_capture_icon", capture)
     return create_alignment_custom_icon_callbacks(
         {
             "Optional": Optional,
@@ -106,7 +113,7 @@ def _callbacks_for_d3d(dialog: QWidget, events: list[str], screen: _Screen):  # 
     )
 
 
-def test_d3d_icon_capture_waits_queued_without_blocking_ui_thread() -> None:
+def test_d3d_icon_capture_uses_resident_offscreen_request_without_blocking_ui_thread() -> None:
     _app()
     dialog = QWidget()
     events: list[str] = []
@@ -126,11 +133,8 @@ def test_d3d_icon_capture_waits_queued_without_blocking_ui_thread() -> None:
     assert "grab:42" not in events
     _wait_until(lambda: bool(captured))
 
-    assert screen.grabbed_at - started_at >= 0.06
     assert captured[0] is not None and not captured[0].isNull()
-    assert events.index("capture:True") < events.index("grab:42")
-    assert events.index("grab:42") < events.index("capture:False")
-    assert events.index("restore:previous") < events.index("callback")
+    assert events == ["offscreen:requested", "callback"]
     dialog.deleteLater()
 
 
@@ -146,7 +150,10 @@ def test_capture_source_has_no_nested_event_pump_or_ui_sleep() -> None:
     assert "QThread.msleep" not in capture_source
     assert "QApplication.processEvents" not in capture_source
     assert "timer.timeout.connect(_run)" in capture_source
-    assert "_schedule_icon_capture(80, _capture_d3d11_frame)" in capture_source
+    assert "screen.grabWindow" not in capture_source
+    assert "_mesh_editor_embedded_capture_icon" in capture_source
+    assert "set_icon_capture_mode" not in capture_source
+    assert "set_display_mode(\"replacement_only\")" not in capture_source
     assert "self.capture(lambda pixmap: self._finish_capture(pixmap, generation))" in output_source
     assert "icon_image.save(" not in source
     assert "pixmap.toImage().copy()" in output_source

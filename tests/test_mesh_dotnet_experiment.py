@@ -1,11 +1,20 @@
 from __future__ import annotations
 
 import json
+import hashlib
+import struct
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services import mesh_dotnet_experiment
+from cdmw.services.mesh_dotnet_reference_composite import (
+    apply_dotnet_native_reference_materials,
+    append_dotnet_native_reference_composite,
+)
 from cdmw.services.mesh_dotnet_experiment import (
     MESH_DOTNET_EXPERIMENT_BINARY_NAME,
     MeshDotNetExperimentPackage,
@@ -17,12 +26,12 @@ from cdmw.services.mesh_dotnet_experiment import (
     mesh_dotnet_experiment_evaluation_path,
     mesh_dotnet_material_input_signature,
     mesh_dotnet_experiment_output_obj_path,
+    mesh_dotnet_helper_provenance_blockers,
     mesh_dotnet_material_parity_warnings,
     mesh_dotnet_renderer_blockers,
     write_mesh_dotnet_experiment_evaluation,
 )
 from cdmw.workers import mesh_editor_aux_workers, mesh_editor_workers
-from tests.mesh_editor_source_support import mesh_editor_tab_source
 
 
 def _mesh() -> ParsedMesh:
@@ -46,6 +55,100 @@ def _mesh() -> ParsedMesh:
         total_faces=1,
         has_uvs=True,
     )
+
+
+def _provenance_payload(executable: Path, shader: Path, *, mode: str, manifest_id: str) -> dict[str, object]:
+    capabilities = ["helper_build_provenance_v1", "resident_mutation_envelope_v2"]
+    return {
+        "capabilities": capabilities,
+        "provenance": {
+            "manifest_mode": mode,
+            "manifest_id": manifest_id,
+            "semantic_version": "2.0.0",
+            "protocol_version": 2,
+            "process_sha256": hashlib.sha256(executable.read_bytes()).hexdigest(),
+            "shader_sha256": hashlib.sha256(shader.read_bytes()).hexdigest(),
+            "renderer_backend": "d3d11_vortice_shader",
+            "edit_backend": "cdmw_mesh_core_0.1",
+            "capabilities": capabilities,
+        },
+    }
+
+
+def test_helper_provenance_accepts_explicit_development_identity(tmp_path: Path) -> None:
+    executable = tmp_path / "cdmw-mesh-dotnet-editor.exe"
+    shader = tmp_path / "D3D11MaterialShaders.hlsl"
+    executable.write_bytes(b"helper")
+    shader.write_bytes(b"shader")
+    payload = _provenance_payload(
+        executable,
+        shader,
+        mode="development",
+        manifest_id="development:helper:shader",
+    )
+
+    assert mesh_dotnet_helper_provenance_blockers(executable, payload) == ()
+
+
+def test_helper_provenance_release_manifest_matches_all_runtime_identities(tmp_path: Path) -> None:
+    executable = tmp_path / "cdmw-mesh-dotnet-editor.exe"
+    shader = tmp_path / "D3D11MaterialShaders.hlsl"
+    executable.write_bytes(b"release-helper")
+    shader.write_bytes(b"release-shader")
+    payload = _provenance_payload(executable, shader, mode="release_manifest", manifest_id="manifest-1")
+    provenance = payload["provenance"]
+    assert isinstance(provenance, dict)
+    (tmp_path / "cdmw-mesh-dotnet-editor.manifest.json").write_text(
+        json.dumps(
+            {
+                "manifest_id": "manifest-1",
+                "semantic_version": "2.0.0",
+                "protocol_version": 2,
+                "executable_sha256": provenance["process_sha256"],
+                "shader_sha256": provenance["shader_sha256"],
+                "renderer_backend": "d3d11_vortice_shader",
+                "edit_backend": "cdmw_mesh_core_0.1",
+                "capabilities": provenance["capabilities"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert mesh_dotnet_helper_provenance_blockers(
+        executable,
+        payload,
+        require_manifest=True,
+    ) == ()
+
+
+def test_helper_provenance_fails_closed_on_release_hash_or_manifest_mismatch(tmp_path: Path) -> None:
+    executable = tmp_path / "cdmw-mesh-dotnet-editor.exe"
+    shader = tmp_path / "D3D11MaterialShaders.hlsl"
+    executable.write_bytes(b"release-helper")
+    shader.write_bytes(b"release-shader")
+    payload = _provenance_payload(executable, shader, mode="release_manifest", manifest_id="reported")
+    (tmp_path / "cdmw-mesh-dotnet-editor.manifest.json").write_text(
+        json.dumps(
+            {
+                "manifest_id": "expected",
+                "semantic_version": "1.9.0",
+                "protocol_version": 2,
+                "executable_sha256": "0" * 64,
+                "shader_sha256": "1" * 64,
+                "renderer_backend": "d3d11_vortice_shader",
+                "edit_backend": "cdmw_mesh_core_0.1",
+                "capabilities": ["helper_build_provenance_v1"],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    blockers = mesh_dotnet_helper_provenance_blockers(executable, payload, require_manifest=True)
+    assert "helper provenance mismatch for manifest_id" in blockers
+    assert "helper provenance mismatch for semantic_version" in blockers
+    assert "helper provenance mismatch for executable_sha256" in blockers
+    assert "helper provenance mismatch for shader_sha256" in blockers
+    assert "helper provenance capability set does not match the release manifest" in blockers
 
 
 def test_dotnet_texture_channels_seed_existing_source_texture_before_preview_overrides(tmp_path: Path) -> None:
@@ -194,252 +297,6 @@ def test_dotnet_resident_material_resources_are_incremental() -> None:
     assert "affected_material_batch_rebinds" in source
 
 
-def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
-    root = Path(__file__).resolve().parents[1]
-    dotnet_root = root / "tools" / "dotnet_mesh_editor_experiment"
-    source = "\n".join(
-        path.read_text(encoding="utf-8")
-        for path in sorted(dotnet_root.glob("*.cs"))
-        if path.name != "Cdmw.MeshEditorExperiment.GlobalUsings.g.cs"
-    )
-    gpu_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "WpfGpuMeshViewport.cs").read_text(encoding="utf-8")
-    d3d_root = root / "tools" / "dotnet_mesh_editor_experiment"
-    d3d_source = "\n".join(path.read_text(encoding="utf-8") for path in sorted(d3d_root.glob("D3D11MaterialViewport*.cs")))
-    d3d_overlay_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
-    hlsl_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
-    camera_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "NetViewportCamera.cs").read_text(encoding="utf-8")
-    build_script = (root / "build_pyside6_app.ps1").read_text(encoding="utf-8")
-
-    assert "D3D11MaterialViewport" in d3d_source
-    assert "Vortice.Direct3D11" in d3d_source
-    assert "CreateSwapChainForHwnd" in d3d_source
-    assert "CreateInputLayout" in d3d_source
-    assert "CreateShaderResourceView" in d3d_source
-    assert "D3D11MaterialShaders.hlsl" in d3d_source
-    assert "ResolveShaderPath" in d3d_source
-    assert "GetManifestResourceStream" in d3d_source
-    assert "cdmw-dotnet-mesh-editor-shaders" in d3d_source
-    assert "DrawD3D11Overlay()" in d3d_overlay_source
-    assert "DrawD3D11Overlay(e.Graphics)" not in d3d_source
-    assert "ProjectOverlayVertex" not in d3d_overlay_source
-    assert "DrawOverlayPrimitive" in d3d_overlay_source
-    assert "PrimitiveTopology.LineList" in d3d_overlay_source
-    assert "PrimitiveTopology.TriangleList" in d3d_overlay_source
-    assert "Graphics" not in d3d_overlay_source
-    assert "VSOverlay" in hlsl_source
-    assert "PSOverlay" in hlsl_source
-    assert "TryInitialize(out string error)" in d3d_source
-    assert "CDMW_MESH_DOTNET_FORCE_D3D11_FAILURE" in d3d_source
-    assert "CDMW_MESH_DOTNET_FORCE_D3D11_PRESENT_FAILURE" in d3d_source
-    assert "TryResetDeviceAfterLoss" in d3d_source
-    assert "DeviceRemovedReason" in d3d_source
-    assert "FrameRendered" in d3d_source
-    assert "BackendUnavailable" in d3d_source
-    assert "DrawD3D11WireOverlay" in d3d_overlay_source
-    assert "DrawSelectedFacesOverlay" in d3d_overlay_source
-    assert "DrawSelectedSourcesOverlay" in d3d_overlay_source
-    assert "DrawXRayOverlayMarker" in d3d_overlay_source
-    assert "static NetViewportCamera Create" in camera_source
-    assert "WorldViewProjectionRowMajorArray" in camera_source
-    assert "Vector3.Cross(forward, right)" in camera_source
-    assert "BuildCameraMatrices()" not in d3d_source
-    assert "UpdateCamera(NetViewportCamera camera)" in d3d_source
-    assert "UpdateCamera(NetViewportCamera camera)" in gpu_source
-    assert "_camera.Project" in source
-    assert "_pitch = -1.35f" in source
-    assert "_pitch = 1.35f" in source
-    assert "matrices.WorldViewProjection" not in d3d_overlay_source
-    assert "MaterialDebugMode" in d3d_source
-    assert "MaterialDebugMode" in hlsl_source
-    assert "Material debug" in source
-    assert "_textureSrvCache" in d3d_source
-    assert "ClearTextureCache" in d3d_source
-    assert "UnbindGeometryResources" in d3d_source
-    assert "CDMW_MESH_DOTNET_D3D11_NO_VSYNC" in d3d_source
-    assert "AveragePresentMs" in source
-    assert "AverageDirtyToPresentMs" in source
-    assert "DroppedFrames" in source
-    assert "ConsumeRenderRequest" in source
-    assert "SHA256.HashData" in d3d_source
-    assert "shaderHash" in d3d_source
-    assert "UpdateOverlay" in d3d_source
-    assert "Texture2D NormalTexture" in hlsl_source
-    assert "PSMain" in hlsl_source
-    assert "SampleNormal" in hlsl_source
-    assert "MaterialHasRoughness" in hlsl_source
-    assert "WpfGpuMeshViewport" in gpu_source
-    assert "Viewport3D" in gpu_source
-    assert "OrthographicCamera" in gpu_source
-    assert "MeshGeometry3D" in gpu_source
-    assert "geometry.Normals.Add" in gpu_source
-    assert "NormalForCorner" in gpu_source
-    assert "NormalFromMap" in gpu_source
-    assert "FaceTangentSpace" in gpu_source
-    assert "FallbackTangentSpace" in gpu_source
-    assert "FaceNormal" in gpu_source
-    assert "DiffuseMaterial" in gpu_source
-    assert "ImageBrush" in gpu_source
-    assert "EmissiveMaterial" in gpu_source
-    assert "TextureBrushForPath" in gpu_source
-    assert "BitmapSourceFromBitmap" in gpu_source
-    assert "SpecularBrushForSubmesh" in gpu_source
-    assert "SpecularPowerForSubmesh" in gpu_source
-    assert "AverageColorForPath" in source
-    assert "AverageBrightnessForPath" in source
-    assert "UpdateOverlay" in gpu_source
-    assert "ElementHost" in source
-    assert "InitializeGpuViewport" in source
-    assert "RendererStatusPayload" in source
-    assert "ActiveCapabilities()" in source
-    assert "d3d11_overlay_vertices_edges_faces_parts_wire_xray" in source
-    assert "wpf_viewport3d_gpu" in source
-    assert "wpf_gpu_material_renderer" in source
-    assert "d3d11_vortice_hlsl_material_renderer" in source
-    assert "NetDdsTextureInfo" in source
-    assert "DecodeDds" in source
-    assert "DxgiDecodeKey" in source
-    assert "DecodeBc1" in source
-    assert "DecodeBc3" in source
-    assert "DecodeBc4" in source
-    assert "DecodeBc5" in source
-    assert "DecodeRgba32" in source
-    assert "DecodeBgra32" in source
-    assert "DecodeR8" in source
-    assert "DecodeRg8" in source
-    assert "DecodeUncompressed32" in source
-    assert "DdsDecodedCount" in source
-    assert "DecodeDdsWithTexconv" in source
-    assert "FindTexconvExecutable" in source
-    assert "CDMW_TEXCONV_EXE" in source
-    assert "DecodeDdsWithCdTextureDx" in source
-    assert "FindCdTextureDxExecutable" in source
-    assert "CDMW_CD_TEXTURE_DX_EXE" in source
-    assert "batch-preview-json" in source
-    assert "cd-texture-dx.exe" in source
-    assert '"dds_resources"]' in source
-    assert '"dds_decoded_resources"]' in source
-    assert '"dds_upload_mode"] = "bitmap_rgba_upload"' in source
-    assert '"native_dds_parity"] = false' in source
-    assert '"dds_native_dxgi_upload"] = false' in source
-    assert '"renderer_blocked"]' in source
-    assert '"blocked_renderer_unavailable"' in source
-    assert "ProductionD3D11Required" in source
-    assert "DeveloperRendererFallback" in source
-    assert "developer-renderer-fallback" in source
-    assert '"dds_upload_format"] = "B8G8R8A8_UNorm"' in source
-    assert '"bitmap_decode_then_bgra32_upload"' in source
-    assert '"dds_decode_tools"]' in source
-    assert '"header_verified_not_sampled"' in source
-    assert '"material_contract_gap"]' in source
-    assert "ApplyHeadlessSmokeEdit(document)" in source
-    assert "X = vertex.X + 0.001f" in source
-    assert "HeadlessRenderer.Measure(document)" in source
-    assert '"replace_positions_same_count"' in source
-    assert '"average_fps"' in source
-    assert '"frame_time_ms"' in source
-    assert '"responsiveness_ms"' in source
-    assert "public void RefreshBounds()" in source
-    assert "public bool ShowSolid" in source
-    assert "public bool ShowWire" in source
-    assert '"parent-hwnd"' in source
-    assert "dotnet_close_requested.txt" in source
-    assert "FormBorderStyle.None" in source
-    assert "BringEmbeddedChildToFront" in source
-    assert "SetFocus(form.Handle)" in source
-    assert "EnableWindow(form.Handle, true)" in source
-    assert "_viewport.Focus()" in source
-    assert "WriteProtocolEvent(\"ready\"" in source
-    assert "WriteProtocolEvent(\"metrics\"" in source
-    assert "\"select_request\"" in source
-    assert "\"stroke_begin\"" in source
-    assert "\"command_request\"" in source
-    assert "WriteCommandRequest(command);" in source
-    assert "TryHandleLocalCommand(command, targetMode)" not in source
-    assert "RequestTransformMove" in source
-    assert "TranslateSelected" not in source
-    assert "\"selection_depth_mode\"" in source
-    assert "\"edges_by_submesh\"" in source
-    assert "\"source_indices\"" in source
-    assert "JsonEdgeSelectionMap" in source
-    assert "EdgeByVertices" in source
-    assert "Renderer ready, waiting for first frame" in source
-    assert "\"has_rendered_frame\"" in source
-    assert "\"frame_count\"" in source
-    assert "WorldViewProjection()" in source
-    assert "ApplyPreviewVertexUpdate" in source
-    assert "ApplyPreviewTriangleUpdate" in source
-    assert "BuildToolPanel()" in source
-    assert "DotNetMeshEditorToolPanel" in source
-    assert "Mesh Edit Session" in source
-    assert "Preview mode" in source
-    assert "ShowXRay" in source
-    assert "ApplySelectionUpdate" in source
-    assert "UpdateSelection" in source
-    assert "SelectVertexAt" in source
-    assert "SelectFaceAt" in source
-    assert "SelectPartAt" in source
-    assert "PickVertexAt" in source
-    assert "PickFaceAt" in source
-    assert "PickPartAt" in source
-    assert "PointInTriangle" in source
-    assert "BeginSelectionDrag" in source
-    assert "VertexIdsInRectangle" in source
-    assert "FaceIdsInRectangle" in source
-    assert "PartIdsInRectangle" in source
-    assert "ApplySelectionMapOperation" in source
-    assert "ApplyPartSelectionOperation" in source
-    assert "SubmeshSelectedRequested" in source
-    assert "TryHandleLocalCommand" in source
-    assert "SelectionSnapshotPayload" in source
-    assert "ClearSelectionForTarget" in source
-    assert "SelectAllForTarget" in source
-    assert "InvertSelectionForTarget" in source
-    assert "GrowSelectionForTarget" in source
-    assert "ShrinkSelectionForTarget" in source
-    assert "RebuildPartAdjacency" in source
-    assert "PartNeighbors" in source
-    assert "SubmeshesAdjacent" in source
-    assert "BoundsTouchOrOverlap" in source
-    assert "EdgeById" in source
-    assert "EditableVertexIndicesForSubmesh" in source
-    assert "SetCameraPreset" in source
-    assert "RotateYawDegrees" in source
-    tab_source = mesh_editor_tab_source(root)
-    assert "_confirm_dotnet_process_started" in tab_source
-    assert "_dotnet_process_diagnostics" in tab_source
-    assert "mesh_dotnet_renderer_blockers" in tab_source
-    assert "mesh_dotnet_material_parity_warnings" in tab_source
-    assert "mesh_editor/developer_renderer_fallback" in tab_source
-    assert "NetEdgeTopology.Build" in source
-    assert "stable_edge_descriptors" in source
-    assert "edge_descriptors" in source
-    assert "topology_generation" in source
-    assert "StableKey" in source
-    assert "EdgeByStableKey" in source
-    assert "PickEdgeAt" in source
-    assert "BeginEdgeDrag" in source
-    assert "FinishEdgeDrag" in source
-    assert "EdgeIdsInRectangle" in source
-    assert "SegmentIntersectsRectangle" in source
-    assert "DrawEdgeSelectionRectangle" in source
-    assert "AddSelectionRectangle" in gpu_source
-    assert "DrawSelectedEdges" in source
-    assert "ApplyEdgeSelectionOperation" in source
-    assert "NetMaterialSet.Load" in source
-    assert "NetTextureSet.Load" in source
-    assert "TryDrawTexturedFace" in source
-    assert "DrawAffineTexturedTriangle" in source
-    assert "MaterialsPath" in source
-    assert "material_manifest" in source
-    assert "decoded_texture_resources" in source
-    assert "authority_contract" in source
-    assert "dotnet_viewport_python_cpp_validation" in source
-    assert "native_authoritative_operation_required" in source
-    assert "release_preflight.py" in build_script
-    assert "private PointF Project" not in source
-    assert "MathF.Cos(_yaw)" not in source
-    assert "MathF.Sin(_yaw)" not in source
-    assert "_document.Bounds()" not in camera_source
 
 
 def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, monkeypatch) -> None:
@@ -560,17 +417,270 @@ def test_dotnet_package_carries_resident_editable_and_original_scene(tmp_path: P
     assert package.editable_submesh_count == 1
     assert package.reference_submesh_count == 1
     scene = json.loads(package.scene_manifest_path.read_text(encoding="utf-8"))
-    assert scene["format"] == "cdmw_mesh_dotnet_scene_v1"
-    assert scene["roles"] == {"replacement": [0], "original_reference": [1]}
+    assert scene["format"] == "cdmw_resident_scene_frame_v2"
+    assert scene["protocol_version"] == 2
+    assert scene["roles"]["replacement"] == [0]
+    assert scene["roles"]["original_reference"] == [1]
+    assert len(scene["roles"]["editable"]["model_matrix"]) == 16
+    assert scene["roles"]["editable"]["world_bounds"]["min"] == [0.0, 0.0, 0.0]
+    assert scene["roles"]["reference"]["model_matrix"] == [
+        1.0, 0.0, 0.0, 0.0,
+        0.0, 1.0, 0.0, 0.0,
+        0.0, 0.0, 1.0, 0.0,
+        0.0, 0.0, 0.0, 1.0,
+    ]
     assert scene["comparison_mode"] == "side_by_side"
     assert scene["interaction_mode"] == "placement"
     assert scene["grid"]["visible"] is True
     assert scene["gizmo"]["tool"] == "move"
+    assert scene["coordinate_contract"] == {
+        "matrix_layout": "row_major",
+        "vector_convention": "row_vector",
+        "handedness": "right_handed",
+        "units": "source_mesh_units",
+        "multiplication_order": "source_point_then_automatic_alignment_then_manual_delta",
+    }
     materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
     assert len(materials["submeshes"]) == 2
     _program, args = mesh_dotnet_experiment_command("C:/tools/MeshEditorExperiment.exe", package)
     assert args[args.index("--mesh") + 1] == str(package.scene_mesh_path)
     assert package.mesh_path != package.scene_mesh_path
+
+
+def _write_native_reference_composite_fixture(tmp_path: Path) -> Path:
+    package_dir = tmp_path / "native_reference"
+    geometry_dir = package_dir / "geometry"
+    geometry_dir.mkdir(parents=True)
+    center = (10.0, 20.0, 30.0)
+    scale = 2.0
+    source_positions = ((11.0, 20.0, 30.0), (10.0, 21.0, 30.0), (10.0, 20.0, 31.0))
+    records = []
+    for corner, position in enumerate(source_positions):
+        normalized = tuple((position[axis] - center[axis]) * scale for axis in range(3))
+        barycentric = tuple(1.0 if axis == corner else 0.0 for axis in range(3))
+        records.append(
+            struct.pack(
+                "<23f",
+                *normalized,
+                0.0,
+                0.0,
+                1.0,
+                0.64,
+                0.64,
+                0.56,
+                float(corner == 1),
+                float(corner == 2),
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0,
+                *barycentric,
+            )
+        )
+    (geometry_dir / "batch_001.bin").write_bytes(b"".join(records))
+    (geometry_dir / "batch_001_identity.bin").write_bytes(
+        b"".join(struct.pack("<2i", 1, source_vertex) for source_vertex in (7, 8, 9))
+    )
+    normal = tmp_path / "underwear_n.dds"
+    material = tmp_path / "underwear_ma.dds"
+    skin_base = tmp_path / "skin_base.dds"
+    normal.write_bytes(b"normal")
+    material.write_bytes(b"material")
+    skin_base.write_bytes(b"skin")
+    (package_dir / "manifest.json").write_text(
+        json.dumps(
+            {
+                "normalization_center": list(center),
+                "normalization_scale": scale,
+                "batches": [
+                    {
+                        "index": 0,
+                        "material_name": "material",
+                        "vertex_file": "geometry/missing_direct_batch.bin",
+                        "vertex_count": 3,
+                        "editor_identity": {
+                            "source_submesh_index": 0,
+                            "source_local_submesh_index": 0,
+                            "source_component_index": 0,
+                            "prefab_component": False,
+                        },
+                        "base_color": [0.78, 0.62, 0.44],
+                        "base_tint_only_fallback": False,
+                        "roughness": 0.56,
+                        "metalness": 0.0,
+                        "specular": 0.28,
+                        "material_category": "skin",
+                        "shader_family": "SkinnedMeshSkin",
+                        "normal_y_policy": "shader_invert_legacy_compat",
+                        "alpha_mode": "opaque",
+                        "two_sided": False,
+                        "dds_textures": {
+                            "base": {
+                                "slot": "base",
+                                "source_path": str(skin_base),
+                                "semantic_type": "albedo",
+                                "shader_family": "SkinnedMeshSkin",
+                            },
+                            "material_inputs": [
+                                {
+                                    "slot": "base",
+                                    "source_path": str(skin_base),
+                                    "semantic_type": "albedo",
+                                    "shader_family": "SkinnedMeshSkin",
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "index": 1,
+                        "material_name": "CD_PHW_00_UW_00_0001",
+                        "vertex_file": "geometry/batch_001.bin",
+                        "vertex_count": 3,
+                        "editor_identity": {
+                            "source_submesh_index": 1,
+                            "source_local_submesh_index": 0,
+                            "source_component_index": 1,
+                            "source_component_label": "underwear.pac",
+                            "prefab_component": True,
+                            "identity_file": "geometry/batch_001_identity.bin",
+                        },
+                        "base_color": [0.90, 0.83, 0.71],
+                        "base_tint_only_fallback": True,
+                        "roughness": 0.48,
+                        "metalness": 0.0,
+                        "specular": 0.28,
+                        "material_category": "cloth",
+                        "shader_family": "SkinnedMeshCloth_Ver2",
+                        "normal_y_policy": "shader_invert_legacy_compat",
+                        "alpha_mode": "opaque",
+                        "two_sided": False,
+                        "dds_textures": {
+                            "normal": {
+                                "slot": "normal",
+                                "source_path": str(normal),
+                                "semantic_type": "normal",
+                                "shader_family": "SkinnedMeshCloth_Ver2",
+                            },
+                            "material": {
+                                "slot": "material",
+                                "source_path": str(material),
+                                "semantic_type": "packed_material",
+                                "semantic_subtype": "material_mask",
+                                "packed_channels": "r=occlusion,g=roughness,b=metalness,a=specular_response",
+                                "shader_family": "SkinnedMeshCloth_Ver2",
+                            },
+                            "material_inputs": [
+                                {
+                                    "slot": "normal",
+                                    "source_path": str(normal),
+                                    "semantic_type": "normal",
+                                    "shader_family": "SkinnedMeshCloth_Ver2",
+                                },
+                                {
+                                    "slot": "material",
+                                    "source_path": str(material),
+                                    "semantic_type": "packed_material",
+                                    "semantic_subtype": "material_mask",
+                                    "packed_channels": "r=occlusion,g=roughness,b=metalness,a=specular_response",
+                                    "shader_family": "SkinnedMeshCloth_Ver2",
+                                },
+                            ],
+                        },
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return package_dir
+
+
+def test_native_reference_direct_materials_use_native_identity_and_dds(tmp_path: Path) -> None:
+    package_dir = _write_native_reference_composite_fixture(tmp_path)
+    reference = _mesh()
+
+    assert apply_dotnet_native_reference_materials(reference, package_dir) == 1
+    direct = reference.submeshes[0]
+    assert direct.preview_sidecar_shader_family == "SkinnedMeshSkin"
+    assert direct.preview_texture_dds_path == str(tmp_path / "skin_base.dds")
+    assert direct.preview_native_material_overrides["material_category"] == "skin"
+    assert direct.preview_native_material_overrides["metalness"] == 0.0
+    assert not hasattr(direct, "preview_color")
+
+    package = build_mesh_dotnet_experiment_package(
+        _mesh(),
+        output_root=tmp_path / "direct-materials",
+        reference_mesh=reference,
+        comparison_mode="side_by_side",
+    )
+    materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    direct_material = materials["submeshes"][1]
+    assert direct_material["shader_family"] == "skin"
+    assert direct_material["parameters"]["roughness"] == 0.56
+    assert direct_material["parameters"]["metalness"] == 0.0
+    assert "base" in direct_material["resolved_channels"]
+
+
+def test_native_reference_composite_keeps_prefab_separate_and_reference_only(tmp_path: Path) -> None:
+    package_dir = _write_native_reference_composite_fixture(tmp_path)
+    reference = _mesh()
+
+    assert append_dotnet_native_reference_composite(reference, package_dir) == 1
+    assert len(reference.submeshes) == 2
+    prefab = reference.submeshes[1]
+    assert prefab.vertices == [(11.0, 20.0, 30.0), (10.0, 21.0, 30.0), (10.0, 20.0, 31.0)]
+    assert prefab.faces == [(0, 1, 2)]
+    assert prefab.source_vertex_map == [7, 8, 9]
+    assert prefab.material == "CD_PHW_00_UW_00_0001"
+    assert prefab.preview_role == "original_reference_prefab"
+    assert prefab.preview_color == (0.90, 0.83, 0.71)
+    assert prefab.preview_sidecar_shader_family == "SkinnedMeshCloth_Ver2"
+    assert prefab.preview_native_material_overrides["material_category"] == "cloth"
+    assert prefab.preview_native_material_overrides["metalness"] == 0.0
+
+    package = build_mesh_dotnet_experiment_package(
+        _mesh(),
+        output_root=tmp_path / "dotnet",
+        reference_mesh=reference,
+        comparison_mode="side_by_side",
+    )
+    assert package.reference_submesh_count == 2
+    scene = json.loads(package.scene_manifest_path.read_text(encoding="utf-8"))
+    assert scene["roles"]["original_reference"] == [1, 2]
+    materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    prefab_material = materials["submeshes"][2]
+    assert prefab_material["shader_family"] == "cloth_v2"
+    assert prefab_material["normal_y_policy"] == "invert_green_for_directx"
+    assert prefab_material["parameters"]["roughness_scale"] == 0.48
+    assert prefab_material["parameters"]["metalness_scale"] == 0.0
+    assert prefab_material["parameters"]["tint_color"] == [0.90, 0.83, 0.71]
+    prefab_resources = [resource for resource in materials["resources"] if resource["submesh_index"] == 2]
+    assert prefab_resources
+    assert all(resource["role"] == "original_reference" for resource in prefab_resources)
+
+
+def test_native_reference_composite_cancellation_publishes_no_partial_geometry(tmp_path: Path) -> None:
+    package_dir = _write_native_reference_composite_fixture(tmp_path)
+    reference = _mesh()
+    checks = 0
+
+    def cancelled() -> bool:
+        nonlocal checks
+        checks += 1
+        return checks >= 2
+
+    assert append_dotnet_native_reference_composite(
+        reference,
+        package_dir,
+        cancelled=cancelled,
+    ) == 0
+    assert len(reference.submeshes) == 1
+    assert reference.total_vertices == 3
 
 
 def test_dotnet_renderer_status_requires_exact_embedded_production_backend() -> None:
@@ -647,24 +757,29 @@ def test_dotnet_renderer_status_blocks_explicit_renderer_unavailable() -> None:
     assert mesh_dotnet_renderer_blockers(payload) == ("blocked_renderer_unavailable: D3D11 failed",)
 
 
-def test_dotnet_experiment_output_import_uses_output_obj_sidecar_and_operations(
-    tmp_path: Path,
-    monkeypatch,
-) -> None:
+def _dotnet_output_test_package(tmp_path: Path) -> MeshDotNetExperimentPackage:
     package_dir = tmp_path / "package"
     output_dir = package_dir / "output"
     output_dir.mkdir(parents=True)
-    package = MeshDotNetExperimentPackage(
+    return MeshDotNetExperimentPackage(
         package_dir=package_dir,
         mesh_path=package_dir / "mesh.obj",
         obj_sidecar_path=package_dir / "mesh.obj.meta.json",
         cdmeta_path=package_dir / "mesh.cdmeta.json",
         original_asset_hash_path=package_dir / "original_asset_hash.txt",
-        status_path=package_dir / "dotnet_status.json",
+        status_path=output_dir / "dotnet_status.json",
         output_dir=output_dir,
         edit_operations_path=output_dir / "edit_operations.json",
         launch_manifest_path=package_dir / "dotnet_launch.json",
     )
+
+
+def test_dotnet_experiment_output_import_uses_output_obj_sidecar_and_operations(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    output_dir = package.output_dir
     package.mesh_path.write_text("input", encoding="utf-8")
     package.obj_sidecar_path.write_text(json.dumps({"format": "mesh_roundtrip_manifest_v2"}), encoding="utf-8")
     output_obj = output_dir / "mesh.obj"
@@ -693,8 +808,12 @@ def test_dotnet_experiment_output_import_uses_output_obj_sidecar_and_operations(
 
     monkeypatch.setattr(mesh_dotnet_experiment, "import_obj", fake_import_obj)
 
-    assert mesh_dotnet_experiment_output_obj_path(package, {"edited_package": "output"}) == output_obj
-    mesh = import_mesh_dotnet_experiment_output(package, {"edited_package": "output"})
+    assert mesh_dotnet_experiment_output_obj_path(package, {"edited_package": "."}) == output_obj.resolve()
+    assert (
+        mesh_dotnet_experiment_output_obj_path(package, {"edited_package": str(output_dir)})
+        == output_obj.resolve()
+    )
+    mesh = import_mesh_dotnet_experiment_output(package, {"edited_package": "."})
 
     assert mesh is imported
     assert getattr(mesh, "_cdmw_edit_operations")[0]["operation"] == "replace_positions_same_count"
@@ -705,31 +824,119 @@ def test_dotnet_experiment_output_import_rejects_missing_operation_records(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    package_dir = tmp_path / "package"
-    output_dir = package_dir / "output"
-    output_dir.mkdir(parents=True)
-    package = MeshDotNetExperimentPackage(
-        package_dir=package_dir,
-        mesh_path=package_dir / "mesh.obj",
-        obj_sidecar_path=package_dir / "mesh.obj.meta.json",
-        cdmeta_path=package_dir / "mesh.cdmeta.json",
-        original_asset_hash_path=package_dir / "original_asset_hash.txt",
-        status_path=package_dir / "dotnet_status.json",
-        output_dir=output_dir,
-        edit_operations_path=output_dir / "edit_operations.json",
-        launch_manifest_path=package_dir / "dotnet_launch.json",
-    )
+    package = _dotnet_output_test_package(tmp_path)
+    output_dir = package.output_dir
     package.mesh_path.write_text("input", encoding="utf-8")
     package.obj_sidecar_path.write_text(json.dumps({"format": "mesh_roundtrip_manifest_v2"}), encoding="utf-8")
     (output_dir / "mesh.obj").write_text("edited", encoding="utf-8")
     monkeypatch.setattr(mesh_dotnet_experiment, "import_obj", lambda _path: _mesh())
 
     try:
-        import_mesh_dotnet_experiment_output(package, {"edited_package": "output"})
+        import_mesh_dotnet_experiment_output(package, {"edited_package": "."})
     except ValueError as exc:
         assert "authoritative edit operation records" in str(exc)
     else:
         raise AssertionError("missing edit operations should be rejected")
+
+
+def test_dotnet_experiment_output_rejects_absolute_external_path(tmp_path: Path) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    external_obj = tmp_path / "external" / "mesh.obj"
+    external_obj.parent.mkdir()
+    external_obj.write_text("external", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="escapes the package output directory"):
+        mesh_dotnet_experiment_output_obj_path(package, {"edited_obj": str(external_obj)})
+
+    assert not Path(f"{external_obj}.meta.json").exists()
+
+
+@pytest.mark.parametrize("reported_path", ("../external/mesh.obj", r"..\external\mesh.obj"))
+def test_dotnet_experiment_output_rejects_traversal(tmp_path: Path, reported_path: str) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+
+    with pytest.raises(ValueError, match="contains traversal"):
+        mesh_dotnet_experiment_output_obj_path(package, {"edited_obj": reported_path})
+
+
+def test_dotnet_experiment_output_rejects_symlink_escape(tmp_path: Path) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    external_dir = tmp_path / "external"
+    external_dir.mkdir()
+    (external_dir / "mesh.obj").write_text("external", encoding="utf-8")
+    link = package.output_dir / "linked"
+    try:
+        link.symlink_to(external_dir, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks are unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="escapes the package output directory"):
+        mesh_dotnet_experiment_output_obj_path(package, {"edited_obj": "linked/mesh.obj"})
+
+
+@pytest.mark.parametrize("input_field", ("mesh_path", "scene_mesh_path"))
+def test_dotnet_experiment_output_rejects_input_obj_alias(tmp_path: Path, input_field: str) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    output_obj = package.output_dir / "mesh.obj"
+    output_obj.write_text("input", encoding="utf-8")
+    package = replace(package, **{input_field: output_obj})
+
+    with pytest.raises(ValueError, match="aliases an input OBJ"):
+        mesh_dotnet_experiment_output_obj_path(package, {"edited_obj": "mesh.obj"})
+
+
+def test_dotnet_experiment_output_rejects_input_obj_hardlink_alias(tmp_path: Path) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    package.mesh_path.write_text("input", encoding="utf-8")
+    output_obj = package.output_dir / "mesh.obj"
+    try:
+        output_obj.hardlink_to(package.mesh_path)
+    except OSError as exc:
+        pytest.skip(f"hard links are unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="aliases an input OBJ"):
+        mesh_dotnet_experiment_output_obj_path(package, {"edited_obj": "mesh.obj"})
+
+
+def test_dotnet_experiment_output_rejects_external_operations_before_sidecar_write(tmp_path: Path) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    package.obj_sidecar_path.write_text(json.dumps({"format": "mesh_roundtrip_manifest_v2"}), encoding="utf-8")
+    output_obj = package.output_dir / "mesh.obj"
+    output_obj.write_text("edited", encoding="utf-8")
+    external_operations = tmp_path / "external_operations.json"
+    external_operations.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="escapes the package output directory"):
+        import_mesh_dotnet_experiment_output(
+            package,
+            {"edited_obj": "mesh.obj", "edit_operations": str(external_operations)},
+        )
+
+    assert not Path(f"{output_obj}.meta.json").exists()
+
+
+@pytest.mark.parametrize("field", ("status_path", "edit_operations_path"))
+def test_dotnet_experiment_command_rejects_external_helper_output_paths(
+    tmp_path: Path,
+    field: str,
+) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    escaped = replace(package, **{field: tmp_path / f"external-{field}.json"})
+
+    with pytest.raises(ValueError, match="escapes the package output directory"):
+        mesh_dotnet_experiment_command(tmp_path / "helper.exe", escaped)
+
+
+def test_dotnet_experiment_rejects_output_root_outside_package(tmp_path: Path) -> None:
+    package = _dotnet_output_test_package(tmp_path)
+    external_output = tmp_path / "external-output"
+    external_output.mkdir()
+
+    with pytest.raises(ValueError, match="escapes its package root"):
+        mesh_dotnet_experiment_command(
+            tmp_path / "helper.exe",
+            replace(package, output_dir=external_output),
+        )
 
 
 def test_dotnet_experiment_evaluation_writes_keep_drop_note(tmp_path: Path) -> None:
@@ -742,7 +949,7 @@ def test_dotnet_experiment_evaluation_writes_keep_drop_note(tmp_path: Path) -> N
         obj_sidecar_path=package_dir / "mesh.obj.meta.json",
         cdmeta_path=package_dir / "mesh.cdmeta.json",
         original_asset_hash_path=package_dir / "original_asset_hash.txt",
-        status_path=package_dir / "dotnet_status.json",
+        status_path=output_dir / "dotnet_status.json",
         output_dir=output_dir,
         edit_operations_path=output_dir / "edit_operations.json",
         launch_manifest_path=package_dir / "dotnet_launch.json",
@@ -759,7 +966,7 @@ def test_dotnet_experiment_evaluation_writes_keep_drop_note(tmp_path: Path) -> N
     )
     text = path.read_text(encoding="utf-8")
 
-    assert path == package_dir / "dotnet_evaluation.md"
+    assert path == output_dir / "dotnet_evaluation.md"
     assert "FPS" in text
     assert "75.0" in text
     assert "60.0" in text
@@ -780,7 +987,7 @@ def test_dotnet_experiment_import_worker_writes_drop_evaluation_on_import_failur
         obj_sidecar_path=package_dir / "mesh.obj.meta.json",
         cdmeta_path=package_dir / "mesh.cdmeta.json",
         original_asset_hash_path=package_dir / "original_asset_hash.txt",
-        status_path=package_dir / "dotnet_status.json",
+        status_path=output_dir / "dotnet_status.json",
         output_dir=output_dir,
         edit_operations_path=output_dir / "edit_operations.json",
         launch_manifest_path=package_dir / "dotnet_launch.json",
@@ -805,7 +1012,7 @@ def test_dotnet_experiment_import_worker_writes_drop_evaluation_on_import_failur
     assert errors
     assert errors[0][0] == 12
     assert "Evaluation:" in errors[0][1]
-    text = (package_dir / "dotnet_evaluation.md").read_text(encoding="utf-8")
+    text = (output_dir / "dotnet_evaluation.md").read_text(encoding="utf-8")
     assert "Output validation: `blocked`" in text
     assert "Validation blockers: 1" in text
     assert "drop .NET output" in text

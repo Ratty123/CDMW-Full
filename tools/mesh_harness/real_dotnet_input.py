@@ -51,8 +51,16 @@ def drive_viewport_stroke(
     input_error = ""
     original_cursor = _screen_cursor_position()
     viewport_rect = state.viewport_rect_before
-    screen_x = int(viewport_rect[0]) if viewport_rect else int(state.viewport.get("screen_x", 0) or 0)
-    screen_y = int(viewport_rect[1]) if viewport_rect else int(state.viewport.get("screen_y", 0) or 0)
+    screen_x = (
+        int(state.viewport.get("screen_x", 0) or 0)
+        if "screen_x" in state.viewport
+        else int(viewport_rect[0]) if viewport_rect else 0
+    )
+    screen_y = (
+        int(state.viewport.get("screen_y", 0) or 0)
+        if "screen_y" in state.viewport
+        else int(viewport_rect[1]) if viewport_rect else 0
+    )
     button_down = False
     try:
         state.input_window_activated = _activate_window_for_input(

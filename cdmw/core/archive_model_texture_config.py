@@ -61,6 +61,7 @@ MODEL_TEXTURE_SUPPORT_FAMILY_SUFFIXES: Dict[str, Tuple[str, ...]] = {
         "_pom",
         "_ssdm",
     ),
+    "emissive": ("_em", "_emi", "_emissive", "_glow"),
 }
 MODEL_TEXTURE_PREVIEW_PATH_CACHE_LIMIT = 2048
 MODEL_TEXTURE_PREVIEW_PATH_CACHE: OrderedDict[Tuple[object, ...], str] = OrderedDict()

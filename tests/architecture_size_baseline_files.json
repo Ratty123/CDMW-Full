@@ -101,7 +101,6 @@
     "cdmw/ui/texture_workflow/editor_canvas.py": 1102,
     "cdmw/ui/texture_workflow/editor_history_state.py": 824,
     "cdmw/ui/texture_workflow/editor_layer_state.py": 1008,
-    "cdmw/ui/themes.py": 1152,
     "native/cdmw_archive_accelerator/src/main.cpp": 1403,
     "tests/test_alignment_dialog_source_guards.py": 5658,
     "tests/test_archive_browser_asset_understanding_ui_source_guards.py": 1306,

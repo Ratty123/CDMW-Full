@@ -52,6 +52,7 @@ internal sealed partial class ExperimentForm
         renderer["last_applied_material_generation"] = _lastAppliedMaterialGeneration;
         renderer["last_requested_material_parameter_generation"] = _lastRequestedMaterialParameterGeneration;
         renderer["last_applied_material_parameter_generation"] = _lastAppliedMaterialParameterGeneration;
+        renderer["provenance"] = HelperBuildProvenance.Payload(_viewport.ActiveCapabilities());
         return renderer;
     }
 
@@ -91,6 +92,7 @@ internal sealed partial class ExperimentForm
     private void HandleMaterialStateUpdate(JsonElement root)
     {
         _materialStateUpdateCount++;
+        var request = root.Clone();
         NetMaterialStateUpdate update;
         try
         {
@@ -98,38 +100,43 @@ internal sealed partial class ExperimentForm
         }
         catch (Exception ex) when (ex is InvalidDataException or IOException or ArgumentException or NotSupportedException or OverflowException)
         {
-            WriteMaterialStateFailed(0, string.Empty, "invalid_payload", ex.Message);
+            WriteMaterialStateFailed(request, 0, string.Empty, "invalid_payload", ex.Message);
             return;
         }
 
+        if (!ValidateMutationEnvelope(root, out var envelopeError))
+        {
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, envelopeError, "Material state update requires a current mutation envelope.");
+            return;
+        }
         if (update.Generation <= 0)
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "invalid_generation", "Material generation must be positive.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "invalid_generation", "Material generation must be positive.");
             return;
         }
         if (string.IsNullOrWhiteSpace(update.MaterialSignature))
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "invalid_signature", "Material state update requires material_signature.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "invalid_signature", "Material state update requires material_signature.");
             return;
         }
         if (!AcceptMaterialSession(update.SessionId, out var sessionError))
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "session_mismatch", sessionError);
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "session_mismatch", sessionError);
             return;
         }
         if (update.Generation <= _lastRequestedMaterialGeneration)
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "stale_or_out_of_order", "Material generation is not newer than the last request.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "stale_or_out_of_order", "Material generation is not newer than the last request.");
             return;
         }
         if (!CanApplyMaterialEditRevision(update.EditRevision, out var revisionError))
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, revisionError, "Material edit revision does not match the resident session revision.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, revisionError, "Material edit revision does not match the resident session revision.");
             return;
         }
         if (update.AffectedSubmeshes.Any(index => index < 0 || index >= _document.Submeshes.Count))
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "invalid_submesh", "Material update references an unknown submesh.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "invalid_submesh", "Material update references an unknown submesh.");
             return;
         }
 
@@ -144,7 +151,7 @@ internal sealed partial class ExperimentForm
             }
             try
             {
-                BeginInvoke(new Action(() => CompleteMaterialStateUpdate(update, task)));
+                BeginInvoke(new Action(() => CompleteMaterialStateUpdate(update, task, request)));
             }
             catch (InvalidOperationException)
             {
@@ -180,6 +187,14 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
+        var processGeneration = Math.Max(0, JsonLongValue(root, "process_generation"));
+        if ((_residentProcessGeneration > 0 && processGeneration != _residentProcessGeneration)
+            || (!string.IsNullOrWhiteSpace(_residentMaterialSessionId)
+                && !string.Equals(_residentMaterialSessionId, sessionId, StringComparison.Ordinal)))
+        {
+            ResetPendingMutationAuthority();
+        }
+        _residentProcessGeneration = processGeneration;
         if (string.IsNullOrWhiteSpace(_residentMaterialSessionId))
         {
             _residentMaterialSessionId = sessionId;
@@ -221,31 +236,38 @@ internal sealed partial class ExperimentForm
         return true;
     }
 
-    private void CompleteMaterialStateUpdate(NetMaterialStateUpdate update, Task<NetTextureDecodeResult> task)
+    private void CompleteMaterialStateUpdate(NetMaterialStateUpdate update, Task<NetTextureDecodeResult> task, JsonElement request)
     {
         if (update.Generation != _lastRequestedMaterialGeneration)
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "superseded", "A newer material generation replaced this request.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "superseded", "A newer material generation replaced this request.");
             return;
         }
         if (!CanApplyMaterialEditRevision(update.EditRevision, out var revisionError))
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, revisionError, "Material edit revision changed while textures were decoding.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, revisionError, "Material edit revision changed while textures were decoding.");
             return;
         }
         if (task.IsCanceled || task.IsFaulted)
         {
             var message = task.Exception?.GetBaseException().Message ?? "Material texture decode was cancelled.";
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "texture_decode_failed", message);
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "texture_decode_failed", message);
             return;
         }
         var decode = task.Result;
-        if (!decode.Ok)
+        var resourcesById = update.Resources.ToDictionary(resource => resource.ResourceId, StringComparer.Ordinal);
+        var requiredFailures = decode.Failures
+            .Where(pair => resourcesById.TryGetValue(pair.Key, out var resource) && resource.Required)
+            .ToArray();
+        if (requiredFailures.Length > 0)
         {
-            var message = string.Join("; ", decode.Failures.Select(pair => $"{pair.Key}: {pair.Value}"));
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "texture_decode_failed", message);
+            var message = string.Join("; ", requiredFailures.Select(pair => $"{pair.Key}: {pair.Value}"));
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "required_texture_decode_failed", message);
             return;
         }
+        var optionalFailures = decode.Failures
+            .Where(pair => !resourcesById.TryGetValue(pair.Key, out var resource) || !resource.Required)
+            .ToArray();
 
         var previous = _materials.CaptureState();
         var next = _materials.BuildState(update);
@@ -255,7 +277,7 @@ internal sealed partial class ExperimentForm
             .FirstOrDefault(resourceId => !next.Resources.ContainsKey(resourceId));
         if (!string.IsNullOrWhiteSpace(missingResource))
         {
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "missing_resource", $"Material resource {missingResource} was not supplied.");
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "missing_resource", $"Material resource {missingResource} was not supplied.");
             return;
         }
 
@@ -263,7 +285,7 @@ internal sealed partial class ExperimentForm
         if (!_viewport.TryApplyMaterialState(update.AffectedSubmeshes, out var bindError))
         {
             _materials.ReplaceState(previous);
-            WriteMaterialStateFailed(update.Generation, update.SessionId, "d3d_binding_failed", bindError);
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "d3d_binding_failed", bindError);
             return;
         }
         _textureSet.PruneToResources(_materials.TextureLoadResources());
@@ -271,8 +293,8 @@ internal sealed partial class ExperimentForm
 
         _lastAppliedMaterialGeneration = update.Generation;
         _materialStateAppliedCount++;
-        MarkEditRevisionApplied(update.EditRevision, "material_state_update");
-        WriteProtocolEvent("material_state_applied", new Dictionary<string, object?>
+        MarkEditRevisionApplied(update.EditRevision);
+        var payload = new Dictionary<string, object?>
         {
             ["session_id"] = update.SessionId,
             ["edit_revision"] = update.EditRevision,
@@ -281,10 +303,20 @@ internal sealed partial class ExperimentForm
             ["affected_submeshes"] = update.AffectedSubmeshes,
             ["decoded_resources"] = decode.Decoded,
             ["reused_resources"] = decode.Reused,
+            ["optional_resource_failures"] = optionalFailures.Select(pair => new Dictionary<string, object?>
+            {
+                ["resource_id"] = pair.Key,
+                ["message"] = pair.Value,
+                ["fallback_policy"] = resourcesById.TryGetValue(pair.Key, out var resource)
+                    ? resource.FallbackPolicy
+                    : "diagnostic_only",
+            }).ToArray(),
             ["renderer"] = RendererStatusWithLifecycle(),
             ["lifecycle_counts"] = LifecycleCountsPayload(),
             ["capabilities"] = new[] { ResidentMaterialUpdatesCapability },
-        });
+        };
+        CopyMutationEnvelope(request, payload);
+        WriteProtocolEvent("material_state_applied", payload);
         if (_activateAfterMaterialSync)
         {
             _activateAfterMaterialSync = false;
@@ -304,6 +336,7 @@ internal sealed partial class ExperimentForm
         catch (Exception ex) when (ex is InvalidDataException or ArgumentException or OverflowException)
         {
             WriteMaterialParameterFailed(
+                root,
                 ProtocolParameterGeneration(root),
                 JsonString(root, "session_id"),
                 ProtocolEditRevision(root),
@@ -314,32 +347,37 @@ internal sealed partial class ExperimentForm
 
         if (update.ParameterGeneration <= 0)
         {
-            WriteMaterialParameterFailed(update.ParameterGeneration, update.SessionId, update.EditRevision, "invalid_generation", "Material parameter_generation must be positive.");
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "invalid_generation", "Material parameter_generation must be positive.");
             return;
         }
         if (update.EditRevision < 0)
         {
-            WriteMaterialParameterFailed(update.ParameterGeneration, update.SessionId, update.EditRevision, "invalid_revision", "Material edit_revision cannot be negative.");
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "invalid_revision", "Material edit_revision cannot be negative.");
+            return;
+        }
+        if (!ValidateMutationEnvelope(root, out var envelopeError))
+        {
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, envelopeError, "Material parameter update requires a current mutation envelope.");
             return;
         }
         if (!AcceptMaterialSession(update.SessionId, out var sessionError))
         {
-            WriteMaterialParameterFailed(update.ParameterGeneration, update.SessionId, update.EditRevision, "session_mismatch", sessionError);
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "session_mismatch", sessionError);
             return;
         }
         if (update.ParameterGeneration <= _lastRequestedMaterialParameterGeneration)
         {
-            WriteMaterialParameterFailed(update.ParameterGeneration, update.SessionId, update.EditRevision, "stale_or_out_of_order", "Material parameter_generation is not newer than the last request.");
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "stale_or_out_of_order", "Material parameter_generation is not newer than the last request.");
             return;
         }
         if (update.EditRevision < _lastAppliedEditRevision)
         {
-            WriteMaterialParameterFailed(update.ParameterGeneration, update.SessionId, update.EditRevision, "stale_edit_revision", "Material edit_revision is older than the resident edit revision.");
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "stale_edit_revision", "Material edit_revision is older than the resident edit revision.");
             return;
         }
         if (update.AffectedSubmeshes.Any(index => index < 0 || index >= _document.Submeshes.Count))
         {
-            WriteMaterialParameterFailed(update.ParameterGeneration, update.SessionId, update.EditRevision, "invalid_submesh", "Material parameter update references an unknown submesh.");
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "invalid_submesh", "Material parameter update references an unknown submesh.");
             return;
         }
 
@@ -349,14 +387,14 @@ internal sealed partial class ExperimentForm
         if (!_viewport.TryApplyMaterialParameters(update.AffectedSubmeshes, out var applyError))
         {
             _materials.ReplaceParameterState(previous);
-            WriteMaterialParameterFailed(update.ParameterGeneration, update.SessionId, update.EditRevision, "renderer_rejected", applyError);
+            WriteMaterialParameterFailed(root, update.ParameterGeneration, update.SessionId, update.EditRevision, "renderer_rejected", applyError);
             return;
         }
 
         RefreshSubmeshList();
         _lastAppliedMaterialParameterGeneration = update.ParameterGeneration;
         _materialParameterAppliedCount++;
-        WriteProtocolEvent("material_parameter_applied", new Dictionary<string, object?>
+        var payload = new Dictionary<string, object?>
         {
             ["session_id"] = update.SessionId,
             ["edit_revision"] = update.EditRevision,
@@ -365,7 +403,9 @@ internal sealed partial class ExperimentForm
             ["renderer"] = RendererStatusWithLifecycle(),
             ["lifecycle_counts"] = LifecycleCountsPayload(),
             ["capabilities"] = new[] { ResidentMaterialParameterUpdatesCapability },
-        });
+        };
+        CopyMutationEnvelope(root, payload);
+        WriteProtocolEvent("material_parameter_applied", payload);
     }
 
     private static long ProtocolParameterGeneration(JsonElement root)
@@ -383,10 +423,10 @@ internal sealed partial class ExperimentForm
             : 0;
     }
 
-    private void WriteMaterialParameterFailed(long generation, string sessionId, long editRevision, string reason, string message)
+    private void WriteMaterialParameterFailed(JsonElement request, long generation, string sessionId, long editRevision, string reason, string message)
     {
         _materialParameterFailedCount++;
-        WriteProtocolEvent("material_parameter_failed", new Dictionary<string, object?>
+        var payload = new Dictionary<string, object?>
         {
             ["session_id"] = sessionId,
             ["edit_revision"] = editRevision,
@@ -399,13 +439,15 @@ internal sealed partial class ExperimentForm
             ["renderer"] = RendererStatusWithLifecycle(),
             ["lifecycle_counts"] = LifecycleCountsPayload(),
             ["capabilities"] = new[] { ResidentMaterialParameterUpdatesCapability },
-        });
+        };
+        CopyMutationEnvelope(request, payload);
+        WriteProtocolEvent("material_parameter_failed", payload);
     }
 
-    private void WriteMaterialStateFailed(long generation, string sessionId, string reason, string message)
+    private void WriteMaterialStateFailed(JsonElement request, long generation, string sessionId, string reason, string message)
     {
         _materialStateFailedCount++;
-        WriteProtocolEvent("material_state_failed", new Dictionary<string, object?>
+        var payload = new Dictionary<string, object?>
         {
             ["session_id"] = sessionId,
             ["generation"] = generation,
@@ -418,7 +460,9 @@ internal sealed partial class ExperimentForm
             ["renderer"] = RendererStatusWithLifecycle(),
             ["lifecycle_counts"] = LifecycleCountsPayload(),
             ["capabilities"] = new[] { ResidentMaterialUpdatesCapability },
-        });
+        };
+        CopyMutationEnvelope(request, payload);
+        WriteProtocolEvent("material_state_failed", payload);
         if (_activateAfterMaterialSync)
         {
             _activateAfterMaterialSync = false;

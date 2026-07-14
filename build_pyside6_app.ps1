@@ -91,6 +91,17 @@ function Move-PathWithRetries {
     }
 }
 
+function Remove-PackagedOnedirRuntimeArtifacts {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OnedirPath
+    )
+
+    foreach ($artifactName in @("workspace", "CrimsonDesertModWorkbench.cfg")) {
+        Remove-PathWithRetries -LiteralPath (Join-Path $OnedirPath $artifactName) -Recurse
+    }
+}
+
 function Stop-AppProcesses {
     param(
         [Parameter(Mandatory = $true)]
@@ -411,9 +422,13 @@ function Invoke-DotNetMeshEditorGpuSmoke {
     }
     $smokeReport = Join-Path ([System.IO.Path]::GetTempPath()) ("cdmw-dotnet-gpu-smoke-{0}.json" -f [Guid]::NewGuid().ToString("N"))
     try {
-        & $ExecutablePath --headless-gpu-sparse-soak --gpu-soak-smoke --gpu-soak-vertices 100000 --gpu-soak-updates 100 --gpu-soak-warmup 16 --gpu-soak-no-cadence --gpu-soak-report $smokeReport | Out-Null
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $smokeReport)) {
-            throw ".NET Mesh Editor $Context hidden GPU smoke failed with exit code $LASTEXITCODE."
+        $smokeProcess = Start-Process -FilePath $ExecutablePath -ArgumentList @(
+            "--headless-gpu-sparse-soak", "--gpu-soak-smoke", "--gpu-soak-vertices", "100000",
+            "--gpu-soak-updates", "100", "--gpu-soak-warmup", "16", "--gpu-soak-no-cadence",
+            "--gpu-soak-report", $smokeReport
+        ) -Wait -PassThru -WindowStyle Hidden
+        if ($smokeProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $smokeReport)) {
+            throw ".NET Mesh Editor $Context hidden GPU smoke failed with exit code $($smokeProcess.ExitCode)."
         }
         $smoke = Get-Content -LiteralPath $smokeReport -Raw | ConvertFrom-Json
         if ($smoke.ok -ne $true -or $smoke.backend_proof.backend -ne "d3d11_vortice_shader" -or $smoke.gates.native_windows_remained_hidden -ne $true) {
@@ -421,6 +436,50 @@ function Invoke-DotNetMeshEditorGpuSmoke {
         }
     } finally {
         Remove-Item -LiteralPath $smokeReport -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Invoke-DotNetMeshEditorProvenanceCheck {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [Parameter(Mandatory = $true)]
+        [string]$Context
+    )
+
+    $manifestPath = Join-Path (Split-Path -Parent $ExecutablePath) "cdmw-mesh-dotnet-editor.manifest.json"
+    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
+        throw ".NET Mesh Editor $Context manifest is missing: $manifestPath"
+    }
+    $reportPath = Join-Path ([System.IO.Path]::GetTempPath()) ("cdmw-dotnet-provenance-{0}.json" -f [Guid]::NewGuid().ToString("N"))
+    try {
+        $provenanceProcess = Start-Process -FilePath $ExecutablePath -ArgumentList @(
+            "--helper-provenance-report", $reportPath
+        ) -Wait -PassThru -WindowStyle Hidden
+        if ($provenanceProcess.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
+            throw ".NET Mesh Editor $Context provenance report failed with exit code $($provenanceProcess.ExitCode)."
+        }
+        $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+        $manifestCapabilities = @($manifest.capabilities | ForEach-Object { [string]$_ } | Sort-Object)
+        $reportCapabilities = @($report.capabilities | ForEach-Object { [string]$_ } | Sort-Object)
+        if (
+            $report.manifest_mode -ne "release_manifest" -or
+            $report.manifest_id -ne $manifest.manifest_id -or
+            $report.semantic_version -ne $manifest.semantic_version -or
+            $report.protocol_version -ne $manifest.protocol_version -or
+            $report.process_sha256 -ne $manifest.executable_sha256 -or
+            $report.shader_sha256 -ne $manifest.shader_sha256 -or
+            $report.renderer_backend -ne $manifest.renderer_backend -or
+            $report.edit_backend -ne $manifest.edit_backend -or
+            $manifestCapabilities.Count -eq 0 -or
+            $reportCapabilities.Count -ne $manifestCapabilities.Count -or
+            ($reportCapabilities -join "`n") -ne ($manifestCapabilities -join "`n")
+        ) {
+            throw ".NET Mesh Editor $Context provenance does not match its packaged manifest."
+        }
+    } finally {
+        Remove-Item -LiteralPath $reportPath -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -470,7 +529,59 @@ function Invoke-DotNetMeshEditorBuild {
         Write-Warning ".NET Mesh Editor experiment helper publish did not create $exePath."
         return
     }
+    $shaderPath = Join-Path $outputDir "D3D11MaterialShaders.hlsl"
+    if (-not (Test-Path -LiteralPath $shaderPath -PathType Leaf)) {
+        throw ".NET Mesh Editor publish did not include the authoritative shader: $shaderPath"
+    }
+    $exeHash = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $shaderHash = (Get-FileHash -LiteralPath $shaderPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $semanticVersion = "2.0.0"
+    $protocolCapabilities = @(
+        "mesh_edit_revision_ack_v1"
+        "resident_mutation_envelope_v2"
+        "host_tool_state_v1"
+        "resident_material_updates_v2"
+        "resident_material_parameter_updates_v1"
+        "resident_texture_region_updates_v1"
+        "viewport_display_modes_v1"
+        "resident_scene_state_v1"
+        "authoritative_resident_scene_frame_v2"
+        "helper_build_provenance_v1"
+        "deterministic_offscreen_capture_v1"
+    )
+    $sourceRevision = (& git -C $scriptDir rev-parse HEAD 2>$null | Select-Object -First 1)
+    if (-not $sourceRevision) {
+        $sourceRevision = "unavailable"
+    }
+    $manifestSeed = "$exeHash|$shaderHash|$sourceRevision|$semanticVersion|$($protocolCapabilities -join ',')"
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $manifestId = -join ($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($manifestSeed)) | ForEach-Object { $_.ToString("x2") })
+    } finally {
+        $sha.Dispose()
+    }
+    $manifestPath = Join-Path $outputDir "cdmw-mesh-dotnet-editor.manifest.json"
+    $manifest = [ordered]@{
+        format = "cdmw_mesh_dotnet_helper_manifest_v1"
+        manifest_id = $manifestId
+        source_revision = [string]$sourceRevision
+        semantic_version = $semanticVersion
+        protocol_version = 2
+        executable = "cdmw-mesh-dotnet-editor.exe"
+        executable_sha256 = $exeHash
+        shader = "D3D11MaterialShaders.hlsl"
+        shader_sha256 = $shaderHash
+        renderer_backend = "d3d11_vortice_shader"
+        edit_backend = "cdmw_mesh_core_0.1"
+        capabilities = $protocolCapabilities
+    }
+    [IO.File]::WriteAllText(
+        $manifestPath,
+        ($manifest | ConvertTo-Json -Depth 4),
+        [Text.UTF8Encoding]::new($false)
+    )
     if ($Required) {
+        Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $exePath -Context "published"
         Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $exePath -Context "published"
     }
 }
@@ -702,6 +813,7 @@ if ($BuildProfile -eq "release") {
     if ($Mode -eq "onedir") {
         Write-BuildProgress -Percent 95 -Stage "Verifying packaged .NET Mesh Editor GPU backend"
         $packagedDotNetHelper = Join-Path $pyInstallerDistDir "$appName\_internal\native\cdmw-mesh-dotnet-editor.exe"
+        Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"
         Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"
     } else {
         Write-Host "Direct packaged .NET helper smoke is deferred for onefile because PyInstaller extracts helpers at app runtime."
@@ -735,6 +847,7 @@ if ($Mode -eq "onefile") {
     if (-not (Test-Path -LiteralPath $builtDir)) {
         throw "Expected build output not found: $builtDir"
     }
+    Remove-PackagedOnedirRuntimeArtifacts -OnedirPath $builtDir
     Remove-PathWithRetries -LiteralPath (Join-Path $stableDistDir $appName) -Recurse
     Remove-PathWithRetries -LiteralPath $finalOutputPath -Recurse
     if ($BuildProfile -eq "release") {

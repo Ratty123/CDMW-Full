@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Windows.Forms;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -10,6 +11,28 @@ internal static class Program
     {
         try
         {
+            var provenanceReportIndex = Array.FindIndex(
+                args,
+                arg => string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));
+            if (provenanceReportIndex >= 0)
+            {
+                if (provenanceReportIndex + 1 >= args.Length)
+                {
+                    throw new ArgumentException("--helper-provenance-report requires an output path.");
+                }
+                var reportPath = Path.GetFullPath(args[provenanceReportIndex + 1]);
+                Directory.CreateDirectory(Path.GetDirectoryName(reportPath) ?? throw new InvalidOperationException("Provenance report has no parent directory."));
+                File.WriteAllText(
+                    reportPath,
+                    JsonSerializer.Serialize(
+                        HelperBuildProvenance.Payload(HelperBuildProvenance.RequiredProtocolCapabilities),
+                        new JsonSerializerOptions { WriteIndented = true }));
+                return 0;
+            }
+            if (MaterialResourcePolicyProbe.IsRequested(args))
+            {
+                return MaterialResourcePolicyProbe.Run(args);
+            }
             if (HeadlessGpuSparseSoak.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();
@@ -51,7 +74,9 @@ internal static class Program
             var suppressDialog = Array.Exists(args, arg =>
                 string.Equals(arg, "--embedded", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase));
+                || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--material-resource-policy-report", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));
             if (!suppressDialog)
             {
                 MessageBox.Show(ex.Message, "CDMW .NET Mesh Editor Experiment", MessageBoxButtons.OK, MessageBoxIcon.Error);

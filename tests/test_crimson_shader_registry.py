@@ -5,8 +5,10 @@ import unittest
 from cdmw.rendering.crimson_shader_registry import (
     AUTHORITY_AUTHORITATIVE,
     AUTHORITY_GUESS,
+    AUTHORITY_INFERRED,
     decode_crimson_texture_binding,
     decode_profile_for_family,
+    infer_shader_family_contract,
     normalize_shader_family,
     registry_manifest,
 )
@@ -19,6 +21,47 @@ class CrimsonShaderRegistryTests(unittest.TestCase):
         self.assertEqual("static_multitextured", normalize_shader_family("StaticMultiTextured"))
         self.assertEqual("skin", normalize_shader_family("SkinnedMeshSkin"))
         self.assertEqual("hair", normalize_shader_family("SkinnedMeshHairStandard"))
+
+    def test_family_inference_is_conservative_and_reports_its_evidence(self) -> None:
+        cases = (
+            ("CD_PTM_00_Head_0001_01", "character/model/head/example.pac", False, "skin"),
+            ("CD_PTM_00_Nude_0001_Hand", "character/model/nude/example.pac", False, "skin"),
+            ("CD_PHM_00_Hair_0003", "character/model/hair/example.pac", False, "hair"),
+            ("CD_M0001_00_Beastman_Fur_0001", "character/model/upperbody/example.pac", False, "hair"),
+            ("linen_cloth", "character/model/upperbody/example.pac", False, "cloth"),
+            ("gem", "character/model/accessory/example.pac", True, "emissive"),
+        )
+        for material, asset_path, has_emissive, expected_family in cases:
+            with self.subTest(material=material):
+                contract = infer_shader_family_contract(
+                    material_name=material,
+                    asset_path=asset_path,
+                    has_emissive=has_emissive,
+                )
+                self.assertEqual(expected_family, contract["family"])
+                self.assertEqual(AUTHORITY_INFERRED, contract["authority"])
+                self.assertEqual("material_identity_inference", contract["source"])
+                self.assertTrue(contract["reason"])
+
+        generic = infer_shader_family_contract(
+            material_name="CD_PHM_01_Blade_0001_mg",
+            asset_path="character/model/weapon/twohand/sword.pac",
+        )
+        self.assertEqual("generic", generic["family"])
+        self.assertEqual(AUTHORITY_GUESS, generic["authority"])
+        self.assertEqual("unresolved", generic["source"])
+
+    def test_declared_shader_family_wins_over_material_identity_inference(self) -> None:
+        contract = infer_shader_family_contract(
+            "SkinnedMeshStandard_Ver2",
+            material_name="nude_skin_hair",
+            asset_path="character/model/hair/example.pac",
+            has_emissive=True,
+        )
+
+        self.assertEqual("standard_v2", contract["family"])
+        self.assertEqual(AUTHORITY_AUTHORITATIVE, contract["authority"])
+        self.assertEqual("declared_shader_family", contract["source"])
 
     def test_color_blending_mask_promotes_with_authority(self) -> None:
         decode = decode_crimson_texture_binding(
@@ -124,6 +167,7 @@ class CrimsonShaderRegistryTests(unittest.TestCase):
         self.assertIn("standard_v2", [family["family"] for family in manifest["families"]])
         self.assertIn("environment_water", [family["family"] for family in manifest["families"]])
         self.assertIn("authoritative", manifest["authority_values"])
+        self.assertIn("inferred", manifest["authority_values"])
         self.assertEqual("checklist_only", decode_profile_for_family("Hair")["renderdoc_truth_pass"]["status"])
         self.assertEqual(
             "material_authority_runtime_xml",

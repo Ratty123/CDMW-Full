@@ -261,6 +261,7 @@ int run(int argc, wchar_t** argv) {
             && SUCCEEDED(compile_shader(kVertexDotShaderSource, "ps_dot", "ps_4_0", dot_ps_blob.GetAddressOf(), shader_error));
         const bool selection_binary_ok = self_test_i32_descriptor_reader();
         const bool revision_ordering_ok = self_test_mesh_edit_revision_ordering();
+        const bool dds_slot_scoping_ok = self_test_dds_slot_scoping();
         if (FAILED(hr)) {
             cdmw_native_diag::event("self_test_error", {{"hresult", std::to_string(static_cast<unsigned int>(hr))}});
         } else if (!shader_ok) {
@@ -269,12 +270,15 @@ int run(int argc, wchar_t** argv) {
             cdmw_native_diag::event("self_test_error", {{"reason", "selection_binary_descriptor_failed"}});
         } else if (!revision_ordering_ok) {
             cdmw_native_diag::event("self_test_error", {{"reason", "mesh_edit_revision_ordering_failed"}});
+        } else if (!dds_slot_scoping_ok) {
+            cdmw_native_diag::event("self_test_error", {{"reason", "dds_slot_scoping_failed"}});
         } else {
-            cdmw_native_diag::event("self_test_ok", {{"feature_level", std::to_string(static_cast<unsigned int>(feature))}, {"shader", "ok"}, {"selection_binary", "ok"}, {"mesh_edit_revision_ordering", "ok"}});
+            cdmw_native_diag::event("self_test_ok", {{"feature_level", std::to_string(static_cast<unsigned int>(feature))}, {"shader", "ok"}, {"selection_binary", "ok"}, {"mesh_edit_revision_ordering", "ok"}, {"dds_slot_scoping", "ok"}});
         }
-        const bool ok = SUCCEEDED(hr) && shader_ok && selection_binary_ok && revision_ordering_ok;
+        const bool ok = SUCCEEDED(hr) && shader_ok && selection_binary_ok && revision_ordering_ok && dds_slot_scoping_ok;
         std::cout << "{\"event\":\"self_test\",\"backend\":\"D3D11\",\"ok\":" << (ok ? "true" : "false")
-                  << ",\"mesh_edit_revision_ordering\":" << (revision_ordering_ok ? "true" : "false") << "}\n";
+                  << ",\"mesh_edit_revision_ordering\":" << (revision_ordering_ok ? "true" : "false")
+                  << ",\"dds_slot_scoping\":" << (dds_slot_scoping_ok ? "true" : "false") << "}\n";
         return ok ? 0 : 2;
     }
     if (args.backend != L"d3d11" && args.backend != L"D3D11") {

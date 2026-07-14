@@ -70,6 +70,26 @@ def _minimal_luminance_dds(*, width: int = 4, height: int = 4, bit_count: int = 
 
 
 class NativeTextureBackendTests(unittest.TestCase):
+    def test_directxtex_helper_contains_structured_cxx_exception_boundaries(self) -> None:
+        source = Path("native/cd_texture_dx/src/main.cpp").read_text(encoding="utf-8")
+
+        self.assertNotIn("#include <regex>", source)
+        self.assertNotIn("std::regex", source)
+        self.assertIn("json_leaf_objects", source)
+        self.assertIn("json_parser_self_test", source)
+        self.assertIn(r"\u00e9", source)
+        self.assertIn(r"\ud83d\udde1", source)
+        self.assertIn("decode_preview_guarded", source)
+        self.assertIn("encode_dds_guarded", source)
+        self.assertIn("batch_preview_json_guarded", source)
+        self.assertIn("batch_encode_json_guarded", source)
+        self.assertIn("write_batch_exception_report", source)
+        self.assertIn('"batch_preview_item_exception"', source)
+        self.assertIn('"batch_encode_item_exception"', source)
+        self.assertIn('"native_cxx_exception_caught"', source)
+        self.assertIn("return run_command(argc, argv);", source)
+        self.assertIn("catch (const std::exception& exc)", source)
+
     def test_directxtex_fetchcontent_builds_from_cached_source_offline(self) -> None:
         for relative in (
             "native/cd_texture_dx/CMakeLists.txt",

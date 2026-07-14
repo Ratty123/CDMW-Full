@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import threading
+import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -80,25 +81,35 @@ def _best_archive_texture_entry(
     entries_by_basename: Mapping[str, Sequence[ArchiveEntry]] | None,
 ) -> ArchiveEntry | None:
     candidates: dict[str, ArchiveEntry] = {}
-    for key in _texture_lookup_keys(texture):
+    texture_keys = _texture_lookup_keys(texture)
+    exact_texture_keys = _exact_texture_lookup_keys(texture)
+    for key in texture_keys:
         for entry in tuple((entries_by_normalized_path or {}).get(key, ()) or ()):
             _remember_texture_candidate(candidates, entry)
-    for basename in _texture_basename_keys(texture):
+    texture_basenames = _texture_basename_keys(texture)
+    exact_texture_basenames = tuple(
+        dict.fromkeys(PurePosixPath(key).name.lower() for key in exact_texture_keys)
+    )
+    for basename in texture_basenames:
         for entry in tuple((entries_by_basename or {}).get(basename, ()) or ()):
             _remember_texture_candidate(candidates, entry)
     if not candidates:
         return None
-    texture_keys = _texture_lookup_keys(texture)
     target_path = _normalize_virtual_path(getattr(target_entry, "path", ""))
     target_pamt = getattr(target_entry, "pamt_path", None)
 
     def score(entry: ArchiveEntry) -> tuple[int, str]:
         path = _normalize_virtual_path(entry.path)
         value = 0
-        if path in texture_keys:
+        if path in exact_texture_keys:
             value += 100
-        if PurePosixPath(path).name in _texture_basename_keys(texture):
+        elif path in texture_keys:
+            value += 70
+        basename = PurePosixPath(path).name
+        if basename in exact_texture_basenames:
             value += 20
+        elif basename in texture_basenames:
+            value += 10
         if target_pamt is not None and getattr(entry, "pamt_path", None) == target_pamt:
             value += 18
         value += min(_shared_prefix_len(path, target_path) * 3, 24)
@@ -116,6 +127,23 @@ def _remember_texture_candidate(candidates: dict[str, ArchiveEntry], entry: obje
 
 
 def _texture_lookup_keys(texture: str) -> tuple[str, ...]:
+    keys = list(_exact_texture_lookup_keys(texture))
+    normalized = _normalize_virtual_path(texture)
+    path = PurePosixPath(normalized)
+    suffix = path.suffix if path.suffix.lower() == ".dds" else ""
+    stem = path.stem if suffix else path.name
+    # PAC material slots commonly append a two-digit slot discriminator after
+    # a four-digit texture identity (for example ``..._0013_01``), while the
+    # archive DDS keeps the identity without that final discriminator. Keep it
+    # as a lower-priority candidate; exact DDS names always score higher.
+    match = re.fullmatch(r"(?P<base>.+_\d{4})_\d{2}", stem)
+    if match is not None:
+        fallback = path.with_name(match.group("base") + ".dds").as_posix()
+        keys.append(fallback)
+    return tuple(dict.fromkeys(keys))
+
+
+def _exact_texture_lookup_keys(texture: str) -> tuple[str, ...]:
     normalized = _normalize_virtual_path(texture)
     if not normalized:
         return ()

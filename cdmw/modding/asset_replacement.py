@@ -109,7 +109,7 @@ def infer_cd_texture_role_from_path(texture_path: str) -> str:
     if normalized.endswith(("emissive", "emission", "glow", "illumination")):
         return "emissive"
 
-    if last in {"orm", "rma", "mra", "arm", "sp", "spec", "specular", "specularglossiness", "metallicroughness", "metalrough", "roughmetal", "clearcoat"}:
+    if last in {"m", "orm", "rma", "mra", "arm", "sp", "spec", "specular", "specularglossiness", "metallicroughness", "metalrough", "roughmetal", "clearcoat"}:
         return "material"
     if normalized.endswith(("metallicroughness", "metalrough", "roughmetal", "roughnessmetallic", "specularglossiness", "clearcoat")):
         return "material"

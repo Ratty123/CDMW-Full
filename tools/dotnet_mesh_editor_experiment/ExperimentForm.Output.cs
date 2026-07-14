@@ -6,15 +6,41 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm
 {
-    private static void WriteProtocolEvent(string eventName, Dictionary<string, object?>? payload = null)
+    private void WriteProtocolEvent(string eventName, Dictionary<string, object?>? payload = null)
     {
         var message = payload is null
             ? new Dictionary<string, object?>()
             : new Dictionary<string, object?>(payload);
         message["event"] = eventName;
+        if (IsMutatingProtocolRequest(eventName))
+        {
+            message["session_id"] = _residentMaterialSessionId;
+            message["request_id"] = ++_outgoingMutationRequestSequence;
+            message["base_revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
+            message["revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
+            message["edit_revision"] = Math.Max(_lastAppliedEditRevision, _lastObservedSessionRevision);
+            message["process_generation"] = _residentProcessGeneration;
+            message["protocol_version"] = 2;
+            RegisterOutgoingMutation(eventName, message);
+        }
         Console.Out.WriteLine(JsonSerializer.Serialize(message));
         Console.Out.Flush();
     }
+
+    private static bool IsMutatingProtocolRequest(string eventName) => eventName.Trim().ToLowerInvariant() switch
+    {
+        "select_request" or
+        "selection_request" or
+        "stroke_begin" or
+        "stroke_update" or
+        "stroke_end" or
+        "stroke_cancel" or
+        "command_request" or
+        "placement_transform_request" or
+        "capture_request" or
+        "save_request" => true,
+        _ => false,
+    };
 
     private void SaveAndReport()
     {
@@ -76,6 +102,11 @@ internal sealed partial class ExperimentForm
             {
                 ["average_fps"] = metrics?.AverageFps,
                 ["frame_time_ms"] = metrics?.AverageFrameMs,
+                ["render_time_ms"] = metrics?.AverageRenderMs,
+                ["frame_interval_ms"] = metrics?.AverageFrameIntervalMs,
+                ["frame_interval_p95_ms"] = metrics?.FrameIntervalP95Ms,
+                ["frame_interval_max_ms"] = metrics?.FrameIntervalMaxMs,
+                ["frame_pacing_jitter_ms"] = metrics?.FramePacingJitterMs,
                 ["present_time_ms"] = metrics?.AveragePresentMs,
                 ["dirty_to_present_ms"] = metrics?.AverageDirtyToPresentMs,
                 ["dropped_frames"] = metrics?.DroppedFrames,

@@ -295,11 +295,12 @@ std::vector<int> source_vertex_values_for_result(
 std::vector<SubmeshMeshEditResult> run_mesh_edit_operation(
     const JsonValue& item,
     const JsonValue& edit,
-    const std::string& operation
+    const std::string& operation,
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask = nullptr
 ) {
 std::vector<SubmeshMeshEditResult> item_results;
 if (operation == "brush") {
-    item_results.push_back(run_brush_edit_for_submesh(item, edit));
+    item_results.push_back(run_brush_edit_for_submesh(item, edit, shared_depth_mask));
 } else if (operation == "delete") {
     item_results.push_back(run_delete_edit_for_submesh(item, edit));
 } else if (operation == "dissolve") {
@@ -388,12 +389,32 @@ std::vector<SubmeshMeshEditResult> run_mesh_edit(const JsonValue& root) {
     }
     std::string operation = string_or(edit->get("operation"), string_or(root.get("operation"), ""));
     std::transform(operation.begin(), operation.end(), operation.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    MeshEditorScreenBrushDepthMask shared_depth_mask_storage;
+    const MeshEditorScreenBrushDepthMask* shared_depth_mask = nullptr;
+    if (operation == "brush") {
+        const JsonValue* raw_screen_brush = edit->get("screen_brush");
+        for (const JsonValue& item : submeshes->array_value) {
+            if (item.type != JsonValue::Type::Object) continue;
+            shared_depth_mask = mesh_editor_screen_brush_depth_mask_for_edit(
+                item,
+                *edit,
+                raw_screen_brush,
+                shared_depth_mask_storage
+            );
+            break;
+        }
+    }
     std::vector<SubmeshMeshEditResult> results;
     for (const JsonValue& item : submeshes->array_value) {
         if (item.type != JsonValue::Type::Object) {
             continue;
         }
-        std::vector<SubmeshMeshEditResult> item_results = run_mesh_edit_operation(item, *edit, operation);
+        std::vector<SubmeshMeshEditResult> item_results = run_mesh_edit_operation(
+            item,
+            *edit,
+            operation,
+            shared_depth_mask
+        );
         for (SubmeshMeshEditResult& result : item_results) {
             set_mesh_edit_result_output_paths(result, item, *edit);
             if (result.append_submesh) {

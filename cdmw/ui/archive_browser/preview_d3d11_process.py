@@ -31,14 +31,107 @@ class ArchivePreviewD3D11ProcessMixin:
         except RuntimeError:
             return False
 
-    def _archive_isolated_renderer_sender_is_current(self) -> bool:
-        try:
-            sender = self.sender()
-        except RuntimeError:
-            sender = None
-        if sender is None:
-            return True
-        return sender is getattr(self, "archive_isolated_renderer_process", None)
+    def _register_archive_isolated_renderer_process(
+        self,
+        process: QProcess,
+        status_file: Optional[Path] = None,
+    ) -> int:
+        generation = int(getattr(self, "archive_isolated_renderer_generation_counter", 0) or 0) + 1
+        self.archive_isolated_renderer_generation_counter = generation
+        self.archive_isolated_renderer_generations[id(process)] = (
+            process,
+            generation,
+            Path(status_file) if status_file is not None else None,
+        )
+        return generation
+
+    def _set_archive_isolated_renderer_process_status_file(
+        self,
+        process: QProcess,
+        status_file: Path,
+    ) -> None:
+        record = self.archive_isolated_renderer_generations.get(id(process))
+        if record is None or record[0] is not process:
+            return
+        self.archive_isolated_renderer_generations[id(process)] = (
+            process,
+            int(record[1]),
+            Path(status_file),
+        )
+
+    def _archive_isolated_renderer_generation_for_process(self, process: Optional[QProcess]) -> int:
+        if process is None:
+            return 0
+        record = self.archive_isolated_renderer_generations.get(id(process))
+        if record is None or record[0] is not process:
+            return 0
+        return int(record[1])
+
+    def _archive_isolated_renderer_signal_is_current(self, process: QProcess, generation: int) -> bool:
+        return (
+            process is getattr(self, "archive_isolated_renderer_process", None)
+            and self._archive_isolated_renderer_generation_for_process(process) == int(generation)
+        )
+
+    def _mark_archive_isolated_renderer_expected_stop(
+        self,
+        process: QProcess,
+        generation: int,
+        *,
+        reason: str,
+    ) -> None:
+        generation = int(generation)
+        if generation <= 0 or self._archive_isolated_renderer_generation_for_process(process) != generation:
+            return
+        existing = self.archive_isolated_renderer_expected_stops.get(generation)
+        if existing is not None and existing[0] is process:
+            return
+        status_payload = dict(getattr(self, "archive_isolated_renderer_last_status_payload", {}) or {})
+        self.archive_isolated_renderer_expected_stops[generation] = (
+            process,
+            str(reason or "expected_stop"),
+            status_payload,
+        )
+
+    def _consume_archive_isolated_renderer_expected_stop(
+        self,
+        process: QProcess,
+        generation: int,
+    ) -> Optional[Tuple[str, Dict[str, object]]]:
+        generation = int(generation)
+        record = self.archive_isolated_renderer_expected_stops.get(generation)
+        if record is None or record[0] is not process:
+            return None
+        self.archive_isolated_renderer_expected_stops.pop(generation, None)
+        status_payload = dict(record[2])
+        process_record = self.archive_isolated_renderer_generations.get(id(process))
+        status_file = process_record[2] if process_record is not None and process_record[0] is process else None
+        if status_file is not None:
+            try:
+                loaded = json.loads(Path(status_file).read_text(encoding="utf-8"))
+                if isinstance(loaded, Mapping):
+                    status_payload = dict(loaded)
+            except (OSError, ValueError):
+                pass
+        return str(record[1]), status_payload
+
+    def _release_archive_isolated_renderer_process_generation(
+        self,
+        process: Optional[QProcess],
+        generation: int = 0,
+    ) -> None:
+        if process is None:
+            return
+        record = self.archive_isolated_renderer_generations.get(id(process))
+        if record is None or record[0] is not process:
+            return
+        actual_generation = int(record[1])
+        if int(generation or 0) not in (0, actual_generation):
+            return
+        self.archive_isolated_renderer_generations.pop(id(process), None)
+        expected = self.archive_isolated_renderer_expected_stops.get(actual_generation)
+        if expected is not None and expected[0] is process:
+            self.archive_isolated_renderer_expected_stops.pop(actual_generation, None)
 
     def _archive_qprocess_state(self, process: Optional[QProcess]) -> object:
         if process is None:
@@ -179,14 +272,28 @@ class ArchivePreviewD3D11ProcessMixin:
         except OSError:
             pass
 
-    def _kill_archive_isolated_renderer_process_if_running(self, process: QProcess) -> None:
+    def _kill_archive_isolated_renderer_process_if_running(
+        self,
+        process: QProcess,
+        *,
+        generation: int = 0,
+        reason: str = "forced_stop",
+    ) -> None:
         try:
             if self._archive_qprocess_state(process) != QProcess.NotRunning:
+                process_generation = int(generation or self._archive_isolated_renderer_generation_for_process(process))
+                self._mark_archive_isolated_renderer_expected_stop(
+                    process,
+                    process_generation,
+                    reason=reason,
+                )
                 recorder = getattr(self, "_record_runtime_event", None)
                 if callable(recorder):
                     recorder(
                         "d3d11_process_kill",
                         process_pid=self._archive_qprocess_pid(process),
+                        process_generation=process_generation,
+                        reason=reason,
                     )
                 process.kill()
         except RuntimeError:
@@ -221,14 +328,18 @@ class ArchivePreviewD3D11ProcessMixin:
         self,
         process: Optional[QProcess],
         package_dir: Optional[Path],
+        generation: int = 0,
     ) -> None:
+        process_generation = int(generation or self._archive_isolated_renderer_generation_for_process(process))
         recorder = getattr(self, "_record_runtime_event", None)
         if callable(recorder):
             recorder(
                 "d3d11_process_cleanup_finished",
                 package_dir=str(package_dir or ""),
                 process_pid=self._archive_qprocess_pid(process),
+                process_generation=process_generation,
             )
+        self._release_archive_isolated_renderer_process_generation(process, process_generation)
         self._remove_archive_isolated_package_dir(package_dir)
         self._delete_archive_qprocess_later(process)
 

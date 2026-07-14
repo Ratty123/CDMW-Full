@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
@@ -12,9 +12,10 @@ from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_support import _validation_report_json_payload
+from cdmw.ui.mesh_editor.tab_dotnet_presentation import MeshEditorDotNetPresentationMixin
 
 
-class MeshEditorStateMixin:
+class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
     def _entry_path(self, entry: object) -> str:
         return str(getattr(entry, "path", "") or getattr(entry, "name", "") or "").strip()
     def _entry_label(self, entry: object) -> str:
@@ -526,20 +527,173 @@ class MeshEditorStateMixin:
     ) -> bool:
         if not self._standalone_dotnet_editor_process_running():
             return False
-        payload: dict[str, object] = {
+        if comparison_mode is not None:
+            self.standalone_dotnet_scene_desired["comparison_mode"] = str(comparison_mode)
+        if interaction_mode is not None:
+            self.standalone_dotnet_scene_desired["interaction_mode"] = str(interaction_mode)
+        if gizmo_tool is not None:
+            self.standalone_dotnet_scene_desired["gizmo_tool"] = str(gizmo_tool)
+        if placement is not None:
+            return self._queue_dotnet_scene_frame_update()
+        if self.standalone_dotnet_scene_thread is not None:
+            # The active latest-wins calculation will publish these presentation
+            # values with its authoritative transform instead of racing it with
+            # an older matrix.
+            return True
+        frame = self.standalone_dotnet_scene_candidate or self.standalone_dotnet_scene_frame
+        if frame is None:
+            return False
+        self.standalone_dotnet_scene_request_id += 1
+        self.standalone_dotnet_scene_generation += 1
+        try:
+            frame = frame.with_protocol_context(
+                scene_generation=self.standalone_dotnet_scene_generation,
+                comparison_mode=str(self.standalone_dotnet_scene_desired["comparison_mode"]),
+                interaction_mode=str(self.standalone_dotnet_scene_desired["interaction_mode"]),
+            )
+        except (AttributeError, TypeError, ValueError):
+            return False
+        return self._publish_dotnet_scene_frame(frame, self.standalone_dotnet_scene_request_id)
+
+
+    def _queue_dotnet_scene_frame_update(self) -> bool:
+        controller = self._dotnet_target_controller()
+        transform = self._dotnet_current_scene_transform(
+            embedded=bool(self.standalone_dotnet_target_embedded)
+        )
+        if controller is None or transform is None:
+            return False
+        reference = self._dotnet_reference_mesh_for_package(
+            controller,
+            embedded=bool(self.standalone_dotnet_target_embedded),
+        )
+        if not isinstance(reference, _tab.ParsedMesh):
+            return False
+        base_frame = self.standalone_dotnet_scene_candidate or self.standalone_dotnet_scene_frame
+        source_identity = str(getattr(base_frame, "source_identity", "") or "")
+        if not source_identity:
+            return False
+        self.standalone_dotnet_scene_request_id += 1
+        self.standalone_dotnet_scene_generation += 1
+        spec = {
+            "request_id": self.standalone_dotnet_scene_request_id,
+            "generation": self.standalone_dotnet_scene_generation,
+            "controller": controller,
+            "reference": reference,
+            "transform": transform,
+            "source_identity": source_identity,
+            "comparison_mode": str(self.standalone_dotnet_scene_desired["comparison_mode"]),
+            "interaction_mode": str(self.standalone_dotnet_scene_desired["interaction_mode"]),
+        }
+        if self.standalone_dotnet_scene_thread is not None:
+            self.standalone_dotnet_scene_queued = spec
+            worker = self.standalone_dotnet_scene_worker
+            if worker is not None:
+                worker.stop()
+            return True
+        self._start_dotnet_scene_frame_worker(spec)
+        return True
+
+    def _start_dotnet_scene_frame_worker(self, spec: Mapping[str, object]) -> None:
+        controller = spec["controller"]
+        worker = _tab.MeshDotNetSceneFrameWorker(
+            int(spec["request_id"]),
+            controller.mesh_service,
+            self.standalone_dotnet_lifecycle_session_id,
+            spec["reference"],
+            spec["transform"],
+            source_identity=str(spec["source_identity"]),
+            scene_generation=int(spec["generation"]),
+            comparison_mode=str(spec["comparison_mode"]),
+            interaction_mode=str(spec["interaction_mode"]),
+        )
+        thread = _tab.QThread(self)
+        worker.moveToThread(thread)
+        thread.started.connect(worker.run)
+        worker.completed.connect(self._handle_dotnet_scene_frame_ready)
+        worker.error.connect(self._handle_dotnet_scene_frame_error)
+        worker.finished.connect(thread.quit)
+        worker.finished.connect(worker.deleteLater)
+        thread.finished.connect(thread.deleteLater)
+        thread.finished.connect(
+            lambda target_thread=thread, target_worker=worker: self._cleanup_dotnet_scene_frame_worker(
+                target_thread, target_worker
+            )
+        )
+        self.standalone_dotnet_scene_thread = thread
+        self.standalone_dotnet_scene_worker = worker
+        thread.start(_tab.QThread.LowPriority)
+
+    def _cleanup_dotnet_scene_frame_worker(self, thread: object, worker: object) -> None:
+        if self.standalone_dotnet_scene_thread is thread:
+            self.standalone_dotnet_scene_thread = None
+        if self.standalone_dotnet_scene_worker is worker:
+            self.standalone_dotnet_scene_worker = None
+        queued = self.standalone_dotnet_scene_queued
+        self.standalone_dotnet_scene_queued = None
+        if queued is not None and self._standalone_dotnet_editor_process_running():
+            self._start_dotnet_scene_frame_worker(queued)
+
+    def _handle_dotnet_scene_frame_ready(
+        self,
+        request_id: int,
+        frame: object,
+        elapsed_ms: float,
+    ) -> None:
+        if int(request_id) != int(self.standalone_dotnet_scene_request_id):
+            return
+        if not self._standalone_dotnet_editor_process_running():
+            return
+        try:
+            frame = frame.with_protocol_context(
+                comparison_mode=str(self.standalone_dotnet_scene_desired["comparison_mode"]),
+                interaction_mode=str(self.standalone_dotnet_scene_desired["interaction_mode"]),
+            )
+        except (AttributeError, TypeError, ValueError):
+            return
+        if self._publish_dotnet_scene_frame(frame, int(request_id)):
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_scene_frame_sent",
+                request_id=int(request_id),
+                scene_generation=int(getattr(frame, "scene_generation", 0) or 0),
+                elapsed_ms=float(elapsed_ms),
+            )
+
+    def _handle_dotnet_scene_frame_error(self, request_id: int, message: str) -> None:
+        if int(request_id) != int(self.standalone_dotnet_scene_request_id):
+            return
+        self._set_dotnet_status(
+            f"Could not calculate the authoritative resident scene frame: {message}",
+            error=True,
+        )
+
+    def _publish_dotnet_scene_frame(self, frame: object, request_id: int) -> bool:
+        try:
+            payload = dict(frame.to_protocol_payload())
+        except (AttributeError, TypeError, ValueError):
+            return False
+        payload.update({
             "event": "scene_state_update",
             "session_id": self.standalone_dotnet_lifecycle_session_id,
+            "request_id": int(request_id),
+            "process_generation": self.standalone_dotnet_process_generation,
+            "protocol_version": 2,
+        })
+        payload["gizmo"] = {
+            "visible": True,
+            "tool": str(self.standalone_dotnet_scene_desired["gizmo_tool"]),
+            "space": "world",
         }
-        if comparison_mode is not None:
-            payload["comparison_mode"] = str(comparison_mode)
-        if interaction_mode is not None:
-            payload["interaction_mode"] = str(interaction_mode)
-        if gizmo_tool is not None:
-            payload["gizmo"] = {"visible": True, "tool": str(gizmo_tool), "space": "world"}
-        if placement is not None:
-            payload["placement"] = dict(placement)
         sent = self._send_dotnet_protocol_message(payload)
         if sent:
+            self.standalone_dotnet_scene_candidate = frame
+            self.standalone_dotnet_scene_pending = {
+                "session_id": self.standalone_dotnet_lifecycle_session_id,
+                "request_id": int(request_id),
+                "process_generation": self.standalone_dotnet_process_generation,
+                "source_identity": str(payload.get("source_identity", "") or ""),
+                "scene_generation": int(payload.get("scene_generation", 0) or 0),
+            }
             self._flush_dotnet_protocol_messages()
         return bool(sent)
     def _handle_embedded_viewport_display_mode(self, mode: str) -> bool:

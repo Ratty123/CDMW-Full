@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from array import array
+from dataclasses import replace
 from types import SimpleNamespace
 import threading
 import tempfile
@@ -1270,6 +1271,7 @@ class MeshServiceEditingTests(unittest.TestCase):
 
         self.assertEqual(1, updated.revision)
         self.assertEqual(1, updated.undo_count)
+        self.assertEqual("Replace Working Mesh", updated.history_entries[0].label)
         working = service.working_mesh(view.session_id, clone=False)
         self.assertEqual(b"original", getattr(working, "_cdmw_original_data"))
         self.assertEqual([(0,), (0,), (1,), (1,)], working.submeshes[0].bone_indices)
@@ -1277,7 +1279,6 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual((0.0, 0.0, 0.0), service.base_mesh(view.session_id, clone=False).submeshes[0].vertices[0])
         self.assertTrue(report.ok)
         self.assertEqual("replace_positions_same_count", service._sessions[view.session_id].edit_operations[0]["operation"])
-
     def test_replace_working_mesh_preserves_selection_for_same_topology_import(self) -> None:
         mesh = _quad_mesh(two_parts=True)
         service = MeshService()
@@ -2562,7 +2563,7 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual((0, 1), service.working_mesh(view.session_id).submeshes[0].bone_indices[2])
         self.assertAlmostEqual(0.4, service.working_mesh(view.session_id).submeshes[0].bone_weights[2][0])
         self.assertAlmostEqual(0.6, service.working_mesh(view.session_id).submeshes[0].bone_weights[2][1])
-        self.assertEqual(2, service.session_view(view.session_id).undo_count)
+        self.assertEqual(3, service.session_view(view.session_id).undo_count)
 
     def test_pose_preview_mesh_applies_skinned_bone_rotation_without_mutating_working_mesh(self) -> None:
         mesh = _quad_mesh()
@@ -2812,7 +2813,9 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertAlmostEqual(0.7, summary.selected_vertex_weights[0].selected_bone_weight)
         self.assertEqual((0, 1), service.working_mesh(view.session_id).submeshes[0].bone_indices[2])
         self.assertEqual((0.3, 0.7), service.working_mesh(view.session_id).submeshes[0].bone_weights[2])
-        self.assertEqual(1, service.session_view(view.session_id).undo_count)
+        history = service.session_view(view.session_id)
+        self.assertEqual(2, history.undo_count)
+        self.assertEqual(("Select", "Adjust Bone Weight"), tuple(entry.label for entry in history.history_entries))
 
     def test_native_selected_vertex_weight_history_uses_native_snapshot_before_clone(self) -> None:
         mesh = _quad_mesh()
@@ -2849,7 +2852,7 @@ class MeshServiceEditingTests(unittest.TestCase):
         ):
             summary = service.adjust_selected_vertex_bone_weight(view.session_id, 0.25)
 
-        snapshot = service._sessions[view.session_id].undo_stack[0]
+        snapshot = service._sessions[view.session_id].undo_stack[-1]
         self.assertAlmostEqual(0.75, summary.selected_vertex_weights[0].selected_bone_weight)
         self.assertIsNone(snapshot.mesh)
         self.assertEqual(native_snapshot, snapshot.native_submesh_snapshot)
@@ -2883,7 +2886,7 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual((0, 1), service.working_mesh(view.session_id).submeshes[0].bone_indices[2])
         self.assertAlmostEqual(2.0 / 3.0, service.working_mesh(view.session_id).submeshes[0].bone_weights[2][0])
         self.assertAlmostEqual(1.0 / 3.0, service.working_mesh(view.session_id).submeshes[0].bone_weights[2][1])
-        self.assertEqual(1, service.session_view(view.session_id).undo_count)
+        self.assertEqual(2, service.session_view(view.session_id).undo_count)
 
     def test_dirty_native_skeleton_paths_block_python_mesh_reads(self) -> None:
         mesh = _quad_mesh()
@@ -3402,7 +3405,7 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(summary.skinned)
         self.assertEqual([(0,), (1,), (0, 1), (1,)], working.submeshes[0].bone_indices)
         self.assertEqual([(1.0,), (1.0,), (0.25, 0.75), (1.0,)], working.submeshes[0].bone_weights)
-        self.assertEqual(1, service.session_view(view.session_id).undo_count)
+        self.assertEqual(2, service.session_view(view.session_id).undo_count)
 
     def test_transfer_selected_weights_can_remap_bones_by_name(self) -> None:
         mesh = _quad_mesh()
@@ -3482,7 +3485,7 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(summary.skinned)
         self.assertEqual((0, 1), working.submeshes[0].bone_indices[2])
         self.assertEqual((0.25, 0.75), working.submeshes[0].bone_weights[2])
-        self.assertEqual(1, service.session_view(view.session_id).undo_count)
+        self.assertEqual(2, service.session_view(view.session_id).undo_count)
 
     def test_compare_summary_reports_material_uv_bounds_and_topology_differences(self) -> None:
         service = MeshService()
@@ -4339,9 +4342,16 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertIn("replace_normals_same_count", operation_names)
         self.assertEqual(0, operations[0]["submesh_index"])  # type: ignore[index]
         self.assertNotIn("untracked_edit_channel", {issue.code for issue in report.blockers})
+        history = service.session_view(view.session_id)
+        self.assertEqual(("Select", "Move"), tuple(entry.label for entry in history.history_entries))
+        self.assertEqual(2, history.history_cursor)
 
         self.assertTrue(service.undo(view.session_id).ok)
         self.assertEqual((), service._sessions[view.session_id].edit_operations)
+        self.assertEqual(
+            ("applied", "undone"),
+            tuple(entry.state for entry in service.session_view(view.session_id).history_entries),
+        )
         self.assertTrue(service.redo(view.session_id).ok)
         redone_operation_names = [operation["operation"] for operation in service._sessions[view.session_id].edit_operations]  # type: ignore[index]
         self.assertIn("translate_vertices", redone_operation_names)
@@ -4418,6 +4428,25 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertEqual({0: {(2, 3)}}, toggled.edge_map())
         self.assertEqual({}, toggled.face_map())
         self.assertEqual((), toggled.source_indices)
+
+        history = service.session_view(view.session_id)
+        self.assertEqual(4, history.undo_count)
+        self.assertEqual(4, history.history_cursor)
+        self.assertEqual(
+            ("Select", "Add Selection", "Subtract Selection", "Toggle Selection"),
+            tuple(entry.label for entry in history.history_entries),
+        )
+
+        self.assertTrue(service.undo(view.session_id).ok)
+        after_undo = service.session_view(view.session_id)
+        self.assertEqual({0: {3}}, after_undo.selection.vertex_map())
+        self.assertEqual(("applied", "applied", "applied", "undone"), tuple(entry.state for entry in after_undo.history_entries))
+        self.assertEqual(3, after_undo.history_cursor)
+
+        self.assertTrue(service.redo(view.session_id).ok)
+        after_redo = service.session_view(view.session_id)
+        self.assertEqual({0: {2}}, after_redo.selection.vertex_map())
+        self.assertEqual(4, after_redo.history_cursor)
 
     def test_select_requires_native_core_without_python_selection_fallback(self) -> None:
         service = MeshService()
@@ -4699,6 +4728,16 @@ class MeshServiceEditingTests(unittest.TestCase):
         self.assertTrue(session.native_editor_mesh_dirty)
         self.assertEqual({0: {0, 1}}, service.session_view(view.session_id).selection.vertex_map())
 
+        with patch(
+            "cdmw.services.mesh_service.undo_native_mesh_editor_session",
+            side_effect=AssertionError("selection-only undo used native geometry history"),
+        ):
+            undo = service.undo(view.session_id)
+
+        self.assertTrue(undo.ok)
+        self.assertTrue(session.native_editor_mesh_dirty)
+        self.assertTrue(service.session_view(view.session_id).selection.is_empty())
+
     def test_topology_edit_prunes_deleted_face_selection(self) -> None:
         service = MeshService()
         view = service.open_edit_session(_quad_mesh(), session_id="topology-selection-prune", mode="edit")
@@ -4728,16 +4767,21 @@ class MeshServiceEditingTests(unittest.TestCase):
         )
         selected = service.session_view(view.session_id).selection
 
-        undo = service.undo(view.session_id)
+        selection_undo = service.undo(view.session_id)
+        view_after_selection_undo = service.session_view(view.session_id)
+        geometry_undo = service.undo(view.session_id)
         view_after_undo = service.session_view(view.session_id)
 
         self.assertTrue(duplicated.ok)
         self.assertTrue(duplicated.topology_changed)
         self.assertEqual(2, view_after_duplicate.submesh_count)
         self.assertEqual((1,), selected.source_indices)
-        self.assertTrue(undo.ok)
+        self.assertTrue(selection_undo.ok)
+        self.assertEqual(2, view_after_selection_undo.submesh_count)
+        self.assertTrue(view_after_selection_undo.selection.is_empty())
+        self.assertTrue(geometry_undo.ok)
         self.assertEqual(1, view_after_undo.submesh_count)
-        self.assertEqual(1, view_after_undo.redo_count)
+        self.assertEqual(2, view_after_undo.redo_count)
         self.assertTrue(view_after_undo.selection.is_empty())
 
     def test_undo_redo_restore_selection_context_snapshots(self) -> None:

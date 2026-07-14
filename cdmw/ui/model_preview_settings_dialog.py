@@ -46,6 +46,7 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
+from cdmw.ui.model_preview_settings_visibility import initialize_preview_settings_state, sync_renderer_specific_controls
 
 
 class _PreviewSliderControl(QWidget):
@@ -128,6 +129,8 @@ class ModelPreviewSettingsDialog(QDialog):
     cloth_preview_reset_requested = Signal()
 
     ARCHIVE_RENDERER_D3D11 = "d3d11_native"
+    PREVIEW_TARGET_NATIVE_D3D11 = "native_d3d11"
+    PREVIEW_TARGET_DOTNET_VORTICE = "dotnet_vortice"
 
     def __init__(
         self,
@@ -135,6 +138,7 @@ class ModelPreviewSettingsDialog(QDialog):
         settings: Optional[ModelPreviewRenderSettings] = None,
         archive_performance_settings: Optional[ArchivePerformanceSettings] = None,
         archive_renderer_backend: str = ARCHIVE_RENDERER_D3D11,
+        preview_target: str = PREVIEW_TARGET_NATIVE_D3D11,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -142,27 +146,30 @@ class ModelPreviewSettingsDialog(QDialog):
         self.setModal(False)
         self.resize(560, 420)
         self._applying_settings = False
-        self._base_settings = clamp_model_preview_render_settings(settings)
-        self._archive_performance_settings = clamp_archive_performance_settings(archive_performance_settings)
-        self._archive_renderer_backend = self._normalize_archive_renderer_backend(archive_renderer_backend)
-        self._slider_controls: Dict[str, _PreviewSliderControl] = {}
+        initialize_preview_settings_state(
+            self,
+            settings,
+            archive_performance_settings,
+            archive_renderer_backend,
+            preview_target,
+        )
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(12, 12, 12, 12)
         root_layout.setSpacing(10)
 
-        intro_label = QLabel(
+        self.intro_label = QLabel(
             "Realtime model-preview controls for the Archive Browser. Adjust these while the preview is visible to see the result immediately."
         )
-        intro_label.setObjectName("HintLabel")
-        intro_label.setWordWrap(True)
-        root_layout.addWidget(intro_label)
-        advanced_warning_label = QLabel(
+        self.intro_label.setObjectName("HintLabel")
+        self.intro_label.setWordWrap(True)
+        root_layout.addWidget(self.intro_label)
+        self.advanced_warning_label = QLabel(
             "Advanced diagnostics and render options can be expensive, visually incorrect, asset-dependent, or have no visible effect on some previews. Use them for inspection rather than as guaranteed final rendering."
         )
-        advanced_warning_label.setObjectName("WarningText")
-        advanced_warning_label.setWordWrap(True)
-        root_layout.addWidget(advanced_warning_label)
+        self.advanced_warning_label.setObjectName("WarningText")
+        self.advanced_warning_label.setWordWrap(True)
+        root_layout.addWidget(self.advanced_warning_label)
 
         self.tabs = QTabWidget()
         root_layout.addWidget(self.tabs, stretch=1)
@@ -172,6 +179,9 @@ class ModelPreviewSettingsDialog(QDialog):
         controls_tab, controls_layout = self._create_scroll_tab()
         diagnostics_tab, diagnostics_layout = self._create_scroll_tab()
         performance_tab, performance_layout = self._create_scroll_tab()
+        self._general_tab = general_tab
+        self._quality_tab = quality_tab
+        self._controls_tab = controls_tab
         self._diagnostics_tab = diagnostics_tab
 
         self.tabs.addTab(general_tab, "General")
@@ -284,12 +294,12 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("", self.show_tool_pbd_cloth_colliders_checkbox)
         general_form.addRow("", self.reset_tool_pbd_cloth_button)
         general_layout.addLayout(general_form)
-        general_hint = QLabel(
+        self.general_hint_label = QLabel(
             "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview. Visible texture mode controls how aggressively sidecar-visible layers are allowed to replace the mesh-derived base texture."
         )
-        general_hint.setObjectName("HintLabel")
-        general_hint.setWordWrap(True)
-        general_layout.addWidget(general_hint)
+        self.general_hint_label.setObjectName("HintLabel")
+        self.general_hint_label.setWordWrap(True)
+        general_layout.addWidget(self.general_hint_label)
         self.d3d11_hint_label = QLabel(
             "Native D3D11 supports texture on/off, culling, D3D11 view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and native DDS diagnostics."
         )
@@ -446,12 +456,12 @@ class ModelPreviewSettingsDialog(QDialog):
             decimals=2,
         )
         quality_layout.addLayout(quality_form)
-        quality_hint = QLabel(
+        self.quality_hint_label = QLabel(
             "Native D3D11 applies these to its shader and sampler directly. Texture resolution normally comes from direct DDS upload; generated fallback maps still use the existing preview cache pipeline."
         )
-        quality_hint.setObjectName("HintLabel")
-        quality_hint.setWordWrap(True)
-        quality_layout.addWidget(quality_hint)
+        self.quality_hint_label.setObjectName("HintLabel")
+        self.quality_hint_label.setWordWrap(True)
+        quality_layout.addWidget(self.quality_hint_label)
         quality_layout.addStretch(1)
 
         diagnostics_form = QFormLayout()
@@ -512,6 +522,21 @@ class ModelPreviewSettingsDialog(QDialog):
         self.solo_batch_spin.setSingleStep(1)
         self.solo_batch_spin.setToolTip("-1 draws all batches. Any other value draws only that batch index.")
         diagnostics_form.addRow("Solo batch index", self.solo_batch_spin)
+        if self._preview_target == self.PREVIEW_TARGET_DOTNET_VORTICE:
+            for widget in (
+                self.disable_tint_checkbox,
+                self.disable_brightness_checkbox,
+                self.disable_uv_scale_checkbox,
+                self.disable_depth_test_checkbox,
+            ):
+                diagnostics_form.removeWidget(widget)
+                general_form.addRow("", widget)
+            for widget in (
+                self.force_nearest_no_mipmaps_checkbox,
+                self.disable_lighting_checkbox,
+            ):
+                diagnostics_form.removeWidget(widget)
+                quality_form.addRow("", widget)
         diagnostics_layout.addLayout(diagnostics_form)
         diagnostics_hint = QLabel(
             "Use Selected Texture Probe with Probe texture to inspect Base, Normal, Material, or Height bindings directly. Base Texture Raw always samples the base/color binding. Normal, material, and height toggles only change previews with resolved support-map slots."
@@ -525,12 +550,12 @@ class ModelPreviewSettingsDialog(QDialog):
         controls_form.setContentsMargins(0, 0, 0, 0)
         controls_form.setHorizontalSpacing(12)
         controls_form.setVerticalSpacing(10)
-        controls_usage_hint = QLabel(
+        self.controls_usage_hint_label = QLabel(
             "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view."
         )
-        controls_usage_hint.setObjectName("HintLabel")
-        controls_usage_hint.setWordWrap(True)
-        controls_layout.addWidget(controls_usage_hint)
+        self.controls_usage_hint_label.setObjectName("HintLabel")
+        self.controls_usage_hint_label.setWordWrap(True)
+        controls_layout.addWidget(self.controls_usage_hint_label)
         self._add_slider_row(
             controls_form,
             "Orbit sensitivity",
@@ -581,18 +606,18 @@ class ModelPreviewSettingsDialog(QDialog):
         invert_layout.addLayout(invert_row_two)
         controls_form.addRow("Control inversion", invert_widget)
         controls_layout.addLayout(controls_form)
-        inversion_hint = QLabel(
+        self.inversion_hint_label = QLabel(
             "Invert orbit X reverses horizontal orbit: dragging left/right spins around the model in the opposite direction. Invert orbit Y reverses vertical orbit. Pan inversion reverses screen-space panning and never edits the asset."
         )
-        inversion_hint.setObjectName("HintLabel")
-        inversion_hint.setWordWrap(True)
-        controls_layout.addWidget(inversion_hint)
-        controls_hint = QLabel(
+        self.inversion_hint_label.setObjectName("HintLabel")
+        self.inversion_hint_label.setWordWrap(True)
+        controls_layout.addWidget(self.inversion_hint_label)
+        self.controls_hint_label = QLabel(
             "Reset keeps the inversion checkboxes as-is so you do not lose your preferred camera controls."
         )
-        controls_hint.setObjectName("HintLabel")
-        controls_hint.setWordWrap(True)
-        controls_layout.addWidget(controls_hint)
+        self.controls_hint_label.setObjectName("HintLabel")
+        self.controls_hint_label.setWordWrap(True)
+        controls_layout.addWidget(self.controls_hint_label)
         controls_layout.addStretch(1)
 
         related_index_group = QGroupBox("Related-File Indexing")
@@ -797,66 +822,19 @@ class ModelPreviewSettingsDialog(QDialog):
 
     def _set_form_field_visible(self, widget: QWidget, visible: bool) -> None:
         widget.setVisible(visible)
-        parent = widget.parentWidget()
-        while parent is not None:
-            layout = parent.layout()
-            if isinstance(layout, QFormLayout):
-                label = layout.labelForField(widget)
-                if label is not None:
-                    label.setVisible(visible)
-                return
-            parent = parent.parentWidget()
+        label = self._form_field_label(widget)
+        if label is not None:
+            label.setVisible(visible)
+
+    def _form_field_label(self, widget: QWidget) -> Optional[QWidget]:
+        for layout in self.findChildren(QFormLayout):
+            label = layout.labelForField(widget)
+            if label is not None:
+                return label
+        return None
 
     def _sync_renderer_specific_controls(self) -> None:
-        d3d11 = self.current_archive_renderer_backend() == self.ARCHIVE_RENDERER_D3D11
-        legacy = False
-        diagnostics_index = self.tabs.indexOf(self._diagnostics_tab)
-        if diagnostics_index >= 0:
-            self.tabs.setTabVisible(diagnostics_index, legacy)
-        self._set_form_field_visible(self.render_diagnostic_mode_combo, legacy)
-        self._set_form_field_visible(self.d3d11_view_mode_combo, d3d11)
-        self._set_form_field_visible(self.flip_texture_v_checkbox, True)
-        self._set_form_field_visible(self.d3d11_cull_back_faces_checkbox, d3d11)
-        self._set_form_field_visible(self.d3d11_normal_y_mode_combo, d3d11)
-        self._set_form_field_visible(self.d3d11_texture_address_mode_combo, d3d11)
-        for key in (
-            "d3d11_mip_lod_bias",
-            "d3d11_light_azimuth_degrees",
-            "d3d11_light_elevation_degrees",
-            "d3d11_ao_strength",
-            "d3d11_roughness_bias",
-            "d3d11_metalness_scale",
-            "d3d11_environment_strength",
-            "d3d11_emissive_gain",
-            "d3d11_tone_exposure",
-            "d3d11_tone_contrast",
-            "d3d11_tone_gamma",
-        ):
-            control = self._slider_controls.get(key)
-            if control is not None:
-                self._set_form_field_visible(control, d3d11)
-        for widget in (
-            self.alpha_handling_combo,
-            self.texture_probe_source_combo,
-            self.sampler_probe_combo,
-            self.diffuse_swizzle_combo,
-            self.disable_tint_checkbox,
-            self.disable_brightness_checkbox,
-            self.disable_uv_scale_checkbox,
-            self.force_nearest_no_mipmaps_checkbox,
-            self.disable_lighting_checkbox,
-            self.disable_depth_test_checkbox,
-            self.show_texture_debug_strip_checkbox,
-            self.show_physics_overlay_checkbox,
-            self.show_physics_simulation_preview_checkbox,
-            self.solo_batch_spin,
-        ):
-            widget.setVisible(legacy)
-        self.d3d11_hint_label.setVisible(d3d11)
-        self.high_quality_checkbox.setToolTip(
-            "D3D11 packages and shades resolved normal/material/height support maps only when this is enabled."
-        )
-        self._sync_probe_controls_enabled()
+        sync_renderer_specific_controls(self)
 
     def current_settings(self) -> ModelPreviewRenderSettings:
         current = clamp_model_preview_render_settings(self._base_settings)
@@ -1048,8 +1026,10 @@ class ModelPreviewSettingsDialog(QDialog):
                 "Selecting a value switches Diagnostic render mode to Selected Texture Probe, where this control directly changes the preview."
             )
         relief_control_modes = {"rich_lit", "height_calibrated", "relief_control_test"}
+        dotnet = self._preview_target == self.PREVIEW_TARGET_DOTNET_VORTICE
+        textures_enabled = self.use_textures_checkbox.isChecked()
         relief_controls_enabled = bool(
-            self.use_textures_checkbox.isChecked()
+            textures_enabled
             and self.high_quality_checkbox.isChecked()
             and not self.disable_all_support_maps_checkbox.isChecked()
             and (
@@ -1063,7 +1043,7 @@ class ModelPreviewSettingsDialog(QDialog):
             else "Enable textures and support-map preview shading."
         )
         support_controls_enabled = bool(
-            self.use_textures_checkbox.isChecked()
+            textures_enabled
             and self.high_quality_checkbox.isChecked()
         )
         self.disable_all_support_maps_checkbox.setEnabled(support_controls_enabled)
@@ -1074,11 +1054,57 @@ class ModelPreviewSettingsDialog(QDialog):
             self.disable_height_map_checkbox,
         ):
             checkbox.setEnabled(per_slot_enabled)
-        for key in ("normal_strength_cap", "height_effect_max", "specular_max", "shininess_max"):
-            control = self._slider_controls.get(key)
-            if control is not None:
-                control.setEnabled(relief_controls_enabled)
-                control.setToolTip(relief_tooltip)
+        if dotnet:
+            texture_dependent = {
+                "d3d11_mip_lod_bias",
+                "diffuse_wrap_bias",
+                "specular_base",
+                "specular_max",
+                "shininess_max",
+                "d3d11_ao_strength",
+                "d3d11_roughness_bias",
+                "d3d11_metalness_scale",
+                "d3d11_emissive_gain",
+                "d3d11_tone_exposure",
+                "d3d11_tone_contrast",
+                "d3d11_tone_gamma",
+            }
+            enabled_by_key = {
+                **{key: textures_enabled for key in texture_dependent},
+                "max_anisotropy": support_controls_enabled,
+                "normal_strength_cap": bool(
+                    relief_controls_enabled and not self.disable_normal_map_checkbox.isChecked()
+                ),
+                "height_effect_max": bool(
+                    relief_controls_enabled and not self.disable_height_map_checkbox.isChecked()
+                ),
+            }
+            for key, enabled in enabled_by_key.items():
+                control = self._slider_controls[key]
+                control.setEnabled(enabled)
+                base_tooltip = str(control.property("dotnetEffectTooltip") or "")
+                if enabled:
+                    control.setToolTip(base_tooltip)
+                else:
+                    control.setToolTip(
+                        f"{base_tooltip} Currently inactive because its required texture or support-map input is disabled."
+                    )
+            self.d3d11_view_mode_combo.setEnabled(textures_enabled)
+            self.flip_texture_v_checkbox.setEnabled(textures_enabled)
+            self.d3d11_texture_address_mode_combo.setEnabled(textures_enabled)
+            self.force_nearest_no_mipmaps_checkbox.setEnabled(textures_enabled)
+            self.disable_tint_checkbox.setEnabled(textures_enabled)
+            self.disable_brightness_checkbox.setEnabled(textures_enabled)
+            self.disable_uv_scale_checkbox.setEnabled(textures_enabled)
+            self.d3d11_normal_y_mode_combo.setEnabled(
+                bool(relief_controls_enabled and not self.disable_normal_map_checkbox.isChecked())
+            )
+        else:
+            for key in ("normal_strength_cap", "height_effect_max", "specular_max", "shininess_max"):
+                control = self._slider_controls.get(key)
+                if control is not None:
+                    control.setEnabled(relief_controls_enabled)
+                    control.setToolTip(relief_tooltip)
         cloth_enabled = self.enable_tool_pbd_cloth_preview_checkbox.isChecked()
         self.pause_tool_pbd_cloth_preview_checkbox.setEnabled(cloth_enabled)
         self.show_tool_pbd_cloth_pins_checkbox.setEnabled(cloth_enabled)

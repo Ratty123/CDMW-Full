@@ -6,11 +6,12 @@
 #include <chrono>
 #include <cctype>
 #include <cmath>
+#include <cstdio>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <regex>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -90,19 +91,99 @@ static std::string wide_to_utf8(const std::wstring& text) {
 
 static std::string json_escape(const std::string& text) {
     std::ostringstream out;
-    for (char ch : text) {
+    const char* hex = "0123456789abcdef";
+    for (unsigned char raw : text) {
+        const char ch = static_cast<char>(raw);
         switch (ch) {
         case '\\': out << "\\\\"; break;
         case '"': out << "\\\""; break;
+        case '\b': out << "\\b"; break;
+        case '\f': out << "\\f"; break;
         case '\n': out << "\\n"; break;
         case '\r': out << "\\r"; break;
         case '\t': out << "\\t"; break;
         default:
-            if (static_cast<unsigned char>(ch) < 0x20) out << "\\u00" << std::hex << int(static_cast<unsigned char>(ch));
-            else out << ch;
+            if (raw < 0x20) {
+                out << "\\u00" << hex[(raw >> 4) & 0xF] << hex[raw & 0xF];
+            } else {
+                out << ch;
+            }
         }
     }
     return out.str();
+}
+
+static std::string exception_item_json(
+    const std::wstring& source,
+    const std::wstring& output,
+    const char* operation,
+    const char* message
+) {
+    std::ostringstream out;
+    out << "{"
+        << "\"status\":\"error\","
+        << "\"backend\":\"directxtex_native_0.1\","
+        << "\"source_path\":\"" << json_escape(wide_to_utf8(source)) << "\","
+        << "\"output_path\":\"" << json_escape(wide_to_utf8(output)) << "\","
+        << "\"operation\":\"" << json_escape(operation ? operation : "") << "\","
+        << "\"exception_type\":\"cxx_exception\","
+        << "\"message\":\"" << json_escape(message ? message : "native C++ exception") << "\""
+        << "}";
+    return out.str();
+}
+
+static void record_caught_exception(const char* event_name, const char* operation, const char* message) noexcept {
+    const char* safe_event = event_name ? event_name : "native_cxx_exception";
+    const char* safe_operation = operation ? operation : "unknown";
+    const char* safe_message = message ? message : "native C++ exception";
+    try {
+        cdmw_native_diag::event(
+            safe_event,
+            {{"operation", safe_operation}, {"message", safe_message}}
+        );
+    } catch (...) {
+        // Diagnostics must never turn a recovered native exception into a crash.
+    }
+    std::fprintf(stderr, "%s failed with a C++ exception: %s\n", safe_operation, safe_message);
+}
+
+static int json_hex_value(char ch) {
+    if (ch >= '0' && ch <= '9') return ch - '0';
+    if (ch >= 'a' && ch <= 'f') return ch - 'a' + 10;
+    if (ch >= 'A' && ch <= 'F') return ch - 'A' + 10;
+    return -1;
+}
+
+static bool parse_json_hex4(const std::string& text, size_t offset, uint32_t& value) {
+    if (offset + 4 > text.size()) return false;
+    uint32_t parsed = 0;
+    for (size_t index = 0; index < 4; ++index) {
+        const int digit = json_hex_value(text[offset + index]);
+        if (digit < 0) return false;
+        parsed = (parsed << 4) | static_cast<uint32_t>(digit);
+    }
+    value = parsed;
+    return true;
+}
+
+static void append_utf8_codepoint(std::string& output, uint32_t codepoint) {
+    if (codepoint <= 0x7F) {
+        output.push_back(static_cast<char>(codepoint));
+    } else if (codepoint <= 0x7FF) {
+        output.push_back(static_cast<char>(0xC0 | (codepoint >> 6)));
+        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else if (codepoint <= 0xFFFF) {
+        output.push_back(static_cast<char>(0xE0 | (codepoint >> 12)));
+        output.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else if (codepoint <= 0x10FFFF) {
+        output.push_back(static_cast<char>(0xF0 | (codepoint >> 18)));
+        output.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3F)));
+        output.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3F)));
+        output.push_back(static_cast<char>(0x80 | (codepoint & 0x3F)));
+    } else {
+        append_utf8_codepoint(output, 0xFFFD);
+    }
 }
 
 static std::string json_unescape(const std::string& text) {
@@ -118,9 +199,31 @@ static std::string json_unescape(const std::string& text) {
         switch (next) {
         case '\\': out.push_back('\\'); break;
         case '"': out.push_back('"'); break;
+        case '/': out.push_back('/'); break;
+        case 'b': out.push_back('\b'); break;
+        case 'f': out.push_back('\f'); break;
         case 'n': out.push_back('\n'); break;
         case 'r': out.push_back('\r'); break;
         case 't': out.push_back('\t'); break;
+        case 'u': {
+            uint32_t codepoint = 0;
+            if (!parse_json_hex4(text, i + 1, codepoint)) {
+                append_utf8_codepoint(out, 0xFFFD);
+                break;
+            }
+            i += 4;
+            if (codepoint >= 0xD800 && codepoint <= 0xDBFF && i + 6 < text.size() &&
+                text[i + 1] == '\\' && text[i + 2] == 'u') {
+                uint32_t low = 0;
+                if (parse_json_hex4(text, i + 3, low) && low >= 0xDC00 && low <= 0xDFFF) {
+                    codepoint = 0x10000 + ((codepoint - 0xD800) << 10) + (low - 0xDC00);
+                    i += 6;
+                }
+            }
+            if (codepoint >= 0xD800 && codepoint <= 0xDFFF) codepoint = 0xFFFD;
+            append_utf8_codepoint(out, codepoint);
+            break;
+        }
         default: out.push_back(next); break;
         }
     }
@@ -143,40 +246,124 @@ static bool write_text_file(const fs::path& path, const std::string& text) {
     return bool(stream);
 }
 
+static size_t skip_json_space(const std::string& text, size_t offset) {
+    while (offset < text.size()) {
+        const char ch = text[offset];
+        if (ch != ' ' && ch != '\t' && ch != '\r' && ch != '\n') break;
+        ++offset;
+    }
+    return offset;
+}
+
+static bool json_string_token(const std::string& text, size_t offset, size_t& end, std::string& value) {
+    if (offset >= text.size() || text[offset] != '"') return false;
+    bool escaped = false;
+    for (size_t index = offset + 1; index < text.size(); ++index) {
+        const char ch = text[index];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escaped = true;
+            continue;
+        }
+        if (ch == '"') {
+            value = json_unescape(text.substr(offset + 1, index - offset - 1));
+            end = index + 1;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool json_field_value_offset(const std::string& object, const std::string& name, size_t& value_offset) {
+    for (size_t index = 0; index < object.size();) {
+        if (object[index] != '"') {
+            ++index;
+            continue;
+        }
+        size_t token_end = index;
+        std::string token;
+        if (!json_string_token(object, index, token_end, token)) return false;
+        size_t separator = skip_json_space(object, token_end);
+        if (token == name && separator < object.size() && object[separator] == ':') {
+            value_offset = skip_json_space(object, separator + 1);
+            return true;
+        }
+        index = token_end;
+    }
+    return false;
+}
+
 static std::string json_string_field(const std::string& object, const std::string& name, const std::string& fallback = "") {
-    std::regex pattern("\"" + name + "\"\\s*:\\s*\"((?:\\\\.|[^\"])*)\"");
-    std::smatch match;
-    if (!std::regex_search(object, match, pattern)) return fallback;
-    return json_unescape(match[1].str());
+    size_t value_offset = 0;
+    if (!json_field_value_offset(object, name, value_offset)) return fallback;
+    size_t token_end = value_offset;
+    std::string value;
+    return json_string_token(object, value_offset, token_end, value) ? value : fallback;
 }
 
 static int json_int_field(const std::string& object, const std::string& name, int fallback = 0) {
-    std::regex pattern("\"" + name + "\"\\s*:\\s*(-?\\d+)");
-    std::smatch match;
-    if (!std::regex_search(object, match, pattern)) return fallback;
+    size_t value_offset = 0;
+    if (!json_field_value_offset(object, name, value_offset)) return fallback;
+    size_t end = value_offset;
+    if (end < object.size() && object[end] == '-') ++end;
+    while (end < object.size() && object[end] >= '0' && object[end] <= '9') ++end;
+    if (end == value_offset || (end == value_offset + 1 && object[value_offset] == '-')) return fallback;
     try {
-        return std::stoi(match[1].str());
+        return std::stoi(object.substr(value_offset, end - value_offset));
     } catch (...) {
         return fallback;
     }
 }
 
 static bool json_bool_field(const std::string& object, const std::string& name, bool fallback = false) {
-    std::regex pattern("\"" + name + "\"\\s*:\\s*(true|false|1|0)", std::regex_constants::icase);
-    std::smatch match;
-    if (!std::regex_search(object, match, pattern)) return fallback;
-    std::string value = match[1].str();
-    std::transform(value.begin(), value.end(), value.begin(), ::tolower);
-    return value == "true" || value == "1";
+    size_t value_offset = 0;
+    if (!json_field_value_offset(object, name, value_offset)) return fallback;
+    if (object.compare(value_offset, 4, "true") == 0 || object.compare(value_offset, 1, "1") == 0) return true;
+    if (object.compare(value_offset, 5, "false") == 0 || object.compare(value_offset, 1, "0") == 0) return false;
+    return fallback;
+}
+
+static std::vector<std::string> json_leaf_objects(const std::string& text) {
+    struct Frame {
+        size_t start = 0;
+        bool has_child = false;
+    };
+    std::vector<Frame> frames;
+    std::vector<std::string> objects;
+    bool in_string = false;
+    bool escaped = false;
+    for (size_t index = 0; index < text.size(); ++index) {
+        const char ch = text[index];
+        if (in_string) {
+            if (escaped) {
+                escaped = false;
+            } else if (ch == '\\') {
+                escaped = true;
+            } else if (ch == '"') {
+                in_string = false;
+            }
+            continue;
+        }
+        if (ch == '"') {
+            in_string = true;
+        } else if (ch == '{') {
+            if (!frames.empty()) frames.back().has_child = true;
+            frames.push_back({index, false});
+        } else if (ch == '}' && !frames.empty()) {
+            const Frame frame = frames.back();
+            frames.pop_back();
+            if (!frame.has_child) objects.push_back(text.substr(frame.start, index - frame.start + 1));
+        }
+    }
+    return objects;
 }
 
 static std::vector<PreviewJob> parse_jobs(const std::string& text) {
     std::vector<PreviewJob> jobs;
-    std::regex object_pattern("\\{[^{}]*\"(?:input|dds_path)\"[^{}]*\\}");
-    auto begin = std::sregex_iterator(text.begin(), text.end(), object_pattern);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        std::string object = it->str();
+    for (const std::string& object : json_leaf_objects(text)) {
         std::string input = json_string_field(object, "input", json_string_field(object, "dds_path"));
         std::string output = json_string_field(object, "output", json_string_field(object, "output_path"));
         if (input.empty() || output.empty()) continue;
@@ -194,11 +381,7 @@ static std::vector<PreviewJob> parse_jobs(const std::string& text) {
 
 static std::vector<EncodeJob> parse_encode_jobs(const std::string& text) {
     std::vector<EncodeJob> jobs;
-    std::regex object_pattern("\\{[^{}]*\"(?:input|png_path|source_path)\"[^{}]*\\}");
-    auto begin = std::sregex_iterator(text.begin(), text.end(), object_pattern);
-    auto end = std::sregex_iterator();
-    for (auto it = begin; it != end; ++it) {
-        std::string object = it->str();
+    for (const std::string& object : json_leaf_objects(text)) {
         std::string input = json_string_field(object, "input", json_string_field(object, "png_path", json_string_field(object, "source_path")));
         std::string output = json_string_field(object, "output", json_string_field(object, "dds_path", json_string_field(object, "output_path")));
         if (input.empty() || output.empty()) continue;
@@ -214,6 +397,60 @@ static std::vector<EncodeJob> parse_encode_jobs(const std::string& text) {
         jobs.push_back(job);
     }
     return jobs;
+}
+
+static bool json_parser_self_test() {
+    const std::string preview_json = R"json({
+        "version": 1,
+        "backend": "directxtex_native_0.1",
+        "jobs": [
+            {
+                "input": "C:\\textures\\caf\u00e9{base}.dds",
+                "output": "C:\\out\\preview.png",
+                "slot": "base",
+                "max_dimension": 512
+            },
+            {
+                "dds_path": "D:\\emoji\\blade\ud83d\udde1.dds",
+                "output_path": "D:\\out\\second.png",
+                "slot_kind": "normal",
+                "max_dim": 128
+            }
+        ]
+    })json";
+    const std::vector<PreviewJob> previews = parse_jobs(preview_json);
+    const std::string expected_first = std::string("C:\\textures\\caf") + "\xC3\xA9" + "{base}.dds";
+    const std::string expected_second = std::string("D:\\emoji\\blade") + "\xF0\x9F\x97\xA1" + ".dds";
+    if (previews.size() != 2 ||
+        wide_to_utf8(previews[0].input) != expected_first ||
+        wide_to_utf8(previews[0].output) != "C:\\out\\preview.png" ||
+        previews[0].slot != "base" ||
+        previews[0].max_dimension != 512 ||
+        wide_to_utf8(previews[1].input) != expected_second ||
+        wide_to_utf8(previews[1].output) != "D:\\out\\second.png" ||
+        previews[1].slot != "normal" ||
+        previews[1].max_dimension != 128) {
+        return false;
+    }
+
+    const std::string encode_json = R"json({
+        "jobs": [
+            {
+                "png_path": "C:\\source\\a\"b.png",
+                "dds_path": "C:\\output\\a.dds",
+                "format": "BC7_UNORM",
+                "mips": 4,
+                "overwrite": false
+            }
+        ]
+    })json";
+    const std::vector<EncodeJob> encodes = parse_encode_jobs(encode_json);
+    return encodes.size() == 1 &&
+        wide_to_utf8(encodes[0].input) == "C:\\source\\a\"b.png" &&
+        wide_to_utf8(encodes[0].output) == "C:\\output\\a.dds" &&
+        encodes[0].format == "BC7_UNORM" &&
+        encodes[0].mip_count == 4 &&
+        !encodes[0].overwrite;
 }
 
 static std::string upper_copy(std::string value) {
@@ -514,6 +751,18 @@ static std::string decode_preview(const PreviewJob& job) {
     return out.str();
 }
 
+static std::string decode_preview_guarded(const PreviewJob& job) {
+    try {
+        return decode_preview(job);
+    } catch (const std::exception& exc) {
+        record_caught_exception("batch_preview_item_exception", "decode_preview", exc.what());
+        return exception_item_json(job.input, job.output, "decode_preview", exc.what());
+    } catch (...) {
+        record_caught_exception("batch_preview_item_exception", "decode_preview", "unknown native exception");
+        return exception_item_json(job.input, job.output, "decode_preview", "unknown native exception");
+    }
+}
+
 static int inspect_json(const std::wstring& source) {
     cdmw_native_diag::event("inspect_start", {{"source_path", wide_to_utf8(source)}});
     DirectX::ScratchImage image;
@@ -538,7 +787,7 @@ static int batch_preview_json(const fs::path& job_file, const fs::path& report_f
     size_t errors = 0;
     for (size_t index = 0; index < jobs.size(); ++index) {
         if (index) report << ",";
-        const std::string item = decode_preview(jobs[index]);
+        const std::string item = decode_preview_guarded(jobs[index]);
         if (item.find("\"status\":\"error\"") != std::string::npos) ++errors;
         report << item;
     }
@@ -551,6 +800,40 @@ static int batch_preview_json(const fs::path& job_file, const fs::path& report_f
     cdmw_native_diag::event("batch_preview_complete", {{"batch_size", std::to_string(jobs.size())}, {"errors", std::to_string(errors)}});
     std::cout << report.str() << "\n";
     return 0;
+}
+
+static int write_batch_exception_report(
+    const fs::path& report_file,
+    const char* operation,
+    const char* message
+) {
+    std::ostringstream report;
+    report << "{"
+        << "\"status\":\"error\","
+        << "\"backend\":\"directxtex_native_0.1\","
+        << "\"batch_size\":0,"
+        << "\"items\":[],"
+        << "\"operation\":\"" << json_escape(operation ? operation : "") << "\","
+        << "\"exception_type\":\"cxx_exception\","
+        << "\"message\":\"" << json_escape(message ? message : "native C++ exception") << "\""
+        << "}";
+    if (!write_text_file(report_file, report.str())) {
+        return 3;
+    }
+    std::cout << report.str() << "\n";
+    return 2;
+}
+
+static int batch_preview_json_guarded(const fs::path& job_file, const fs::path& report_file) {
+    try {
+        return batch_preview_json(job_file, report_file);
+    } catch (const std::exception& exc) {
+        record_caught_exception("batch_preview_exception", "batch_preview_json", exc.what());
+        return write_batch_exception_report(report_file, "batch_preview_json", exc.what());
+    } catch (...) {
+        record_caught_exception("batch_preview_exception", "batch_preview_json", "unknown native exception");
+        return write_batch_exception_report(report_file, "batch_preview_json", "unknown native exception");
+    }
 }
 
 static std::string encode_dds(const EncodeJob& job) {
@@ -701,6 +984,18 @@ static std::string encode_dds(const EncodeJob& job) {
     return out.str();
 }
 
+static std::string encode_dds_guarded(const EncodeJob& job) {
+    try {
+        return encode_dds(job);
+    } catch (const std::exception& exc) {
+        record_caught_exception("batch_encode_item_exception", "encode_dds", exc.what());
+        return exception_item_json(job.input, job.output, "encode_dds", exc.what());
+    } catch (...) {
+        record_caught_exception("batch_encode_item_exception", "encode_dds", "unknown native exception");
+        return exception_item_json(job.input, job.output, "encode_dds", "unknown native exception");
+    }
+}
+
 static int batch_encode_json(const fs::path& job_file, const fs::path& report_file) {
     std::vector<EncodeJob> jobs = parse_encode_jobs(read_text_file(job_file));
     cdmw_native_diag::event("batch_encode_start", {{"job_file", cdmw_native_diag::path_to_utf8(job_file)}, {"report_file", cdmw_native_diag::path_to_utf8(report_file)}, {"batch_size", std::to_string(jobs.size())}});
@@ -709,7 +1004,7 @@ static int batch_encode_json(const fs::path& job_file, const fs::path& report_fi
     bool any_error = false;
     for (size_t index = 0; index < jobs.size(); ++index) {
         if (index) report << ",";
-        const std::string item = encode_dds(jobs[index]);
+        const std::string item = encode_dds_guarded(jobs[index]);
         if (item.find("\"status\":\"error\"") != std::string::npos) any_error = true;
         report << item;
     }
@@ -724,11 +1019,26 @@ static int batch_encode_json(const fs::path& job_file, const fs::path& report_fi
     return any_error ? 2 : 0;
 }
 
-int wmain(int argc, wchar_t** argv) {
-    CommonArgs common_args = parse_common_args(argc, argv);
-    cdmw_native_diag::init("cd-texture-dx", common_args.crash_dir, common_args.diagnostic_log);
+static int batch_encode_json_guarded(const fs::path& job_file, const fs::path& report_file) {
+    try {
+        return batch_encode_json(job_file, report_file);
+    } catch (const std::exception& exc) {
+        record_caught_exception("batch_encode_exception", "batch_encode_json", exc.what());
+        return write_batch_exception_report(report_file, "batch_encode_json", exc.what());
+    } catch (...) {
+        record_caught_exception("batch_encode_exception", "batch_encode_json", "unknown native exception");
+        return write_batch_exception_report(report_file, "batch_encode_json", "unknown native exception");
+    }
+}
+
+static int run_command(int argc, wchar_t** argv) {
     ComInitScope com_init;
     if (argc >= 2 && std::wstring(argv[1]) == L"self-test") {
+        if (!json_parser_self_test()) {
+            cdmw_native_diag::event("self_test_error", {{"component", "json_parser"}});
+            std::cout << "{\"event\":\"self_test\",\"ok\":false,\"backend\":\"directxtex_native_0.1\",\"component\":\"json_parser\"}\n";
+            return 2;
+        }
         cdmw_native_diag::event("self_test_ok");
         std::cout << "{\"event\":\"self_test\",\"ok\":true,\"backend\":\"directxtex_native_0.1\"}\n";
         return 0;
@@ -737,11 +1047,29 @@ int wmain(int argc, wchar_t** argv) {
         return inspect_json(argv[2]);
     }
     if (argc >= 4 && std::wstring(argv[1]) == L"batch-preview-json") {
-        return batch_preview_json(fs::path(argv[2]), fs::path(argv[3]));
+        return batch_preview_json_guarded(fs::path(argv[2]), fs::path(argv[3]));
     }
     if (argc >= 4 && std::wstring(argv[1]) == L"batch-encode-json") {
-        return batch_encode_json(fs::path(argv[2]), fs::path(argv[3]));
+        return batch_encode_json_guarded(fs::path(argv[2]), fs::path(argv[3]));
     }
     std::cerr << "usage: cd-texture-dx self-test | inspect-json <dds> | batch-preview-json <job.json> <report.json> | batch-encode-json <job.json> <report.json>\n";
     return 1;
+}
+
+int wmain(int argc, wchar_t** argv) {
+    try {
+        CommonArgs common_args = parse_common_args(argc, argv);
+        cdmw_native_diag::init("cd-texture-dx", common_args.crash_dir, common_args.diagnostic_log);
+        const std::string command = argc >= 2 && argv[1] ? wide_to_utf8(argv[1]) : "usage";
+        cdmw_native_diag::event("command_dispatch", {{"command", command}});
+        return run_command(argc, argv);
+    } catch (const std::exception& exc) {
+        record_caught_exception("native_cxx_exception_caught", "command_dispatch", exc.what());
+        std::fputs("{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"message\":\"native C++ exception caught\"}\n", stdout);
+        return 4;
+    } catch (...) {
+        record_caught_exception("native_cxx_exception_caught", "command_dispatch", "unknown native exception");
+        std::fputs("{\"status\":\"error\",\"backend\":\"directxtex_native_0.1\",\"message\":\"unknown native exception caught\"}\n", stdout);
+        return 4;
+    }
 }

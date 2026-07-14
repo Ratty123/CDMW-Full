@@ -86,6 +86,53 @@ Routing panel. The tab replays native part-picking enablement after preview
 load/reload and reports unavailable picker state in the workspace. UI code still
 delegates clone/delete/normals/texture work through `MeshEditorController` and
 `MeshService`.
+Production .NET stores separate `reference` (Original) and `editable`
+(Imported/Modify) presentation contexts over one document/resource owner.
+Placement can use any supported preview mode. Edit Mesh always presents only
+Imported/Modify, pins navigation to its editable camera context, and disables
+the Original selector. Entering Edit Mesh defaults its editable viewport to
+Wire + Vertices; leaving Edit Mesh restores the Builder's selected
+placement preview mode without restarting the resident renderer.
+When both roles exist it renders both contexts at once in separate rectangles,
+each with its own grid and independent camera/display state, inside one shared
+D3D11 viewport and swap chain. The divider is draggable and its ratio is shared
+with the Builder's persisted preview setting. Original is camera-only;
+Imported/Modify alone can select or mutate. Explicit Overlay remains a
+single-surface comparison mode. Outer Builder camera/Fit, display,
+quality/lighting, UV, grid/gizmo, highlight, visibility, routing, and part state
+use the correlated resident presentation lane and bypass legacy-only mutation
+while .NET owns the session. Placement gizmos render an exact provisional
+editable matrix at input cadence; Original never receives that transform. Role
+camera framing bounds and the world grid stay fixed through resident placement
+updates. Only an explicit, role-addressed Fit command reframes a pane, and
+camera command generations prevent persistent presentation replay from
+reapplying an earlier Fit or camera nudge.
+Preview Settings opened while .NET/Vortice owns the embedded session use an
+explicit .NET preview target. The dialog shows only controls with a resident
+renderer or camera consumer; Archive Browser texture-selection policy and
+tool-side simulation controls remain hidden. Each role pane keeps its own
+camera, and wheel zoom uses reciprocal steps with fit-relative bounds so a
+large mesh whose fitted zoom is below `1.0` can always zoom back out. The same
+wheel path is used in placement and Edit Mesh.
+Embedded .NET Mesh Edit screen payloads pair the active camera with a
+per-editable-submesh WVP built from the exact model matrix used to render that
+submesh. Brush, click, drag, and region selection therefore stay aligned with
+placed or transformed replacement geometry, and the source filter excludes
+hidden submeshes. Vertex click targets use a 14-pixel tolerance and the D3D11
+overlay expands vertex points to round 7-pixel screen-space markers. Smooth defaults
+to three iterations per dab, while Inflate and Pinch include native
+`screen_radius` amount context; brush tools paint under the cursor without a
+selection prerequisite.
+The three visible Preview Settings tabs are governed by one explicit support
+registry: General exposes texture/support-map toggles, culling, view mode,
+normal-Y, sampler addressing, material adjustments, and depth testing;
+Quality / Lighting exposes only sampler and HLSL lighting/tuning consumers;
+Controls exposes only resident orbit/pan input settings. A field must have a
+Python presentation payload key, a .NET parser,
+and a renderer or camera consumer before it can appear for .NET. Texture and
+view-mode choices synchronize across both role panes without merging their
+independent cameras, and the material-debug range covers every view mode shown
+by the dialog.
 Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route
 through `MeshEditorController`/`MeshService` as resident native-session
 `transform`/`brush` commands with `stroke_phase` and `stroke_id` payloads.
@@ -296,6 +343,30 @@ and deletes owned binary payloads on acknowledgement or shutdown. A concurrent
 Texture Editor mutation takes a copy-on-write cache instead of changing the
 emitted composite.
 Full DDS assignment remains the export-authoritative fallback.
+Resident material resources use the Python-owned criticality contract. Required
+concrete base resources block initial Ready on decode failure; optional normal,
+surface, emissive, height, and legacy/symbolic resources keep an explicit
+fallback plus diagnostic. Late original/reference textures use a render-only
+reference-role generation and never commit into the editable export session.
+glTF/green-up normal inputs carry `invert_green_for_directx` to the HLSL path;
+already-DirectX inputs preserve green.
+Source DDS paths take precedence over preview PNG paths. Supported 2D DDS
+resources keep their native DXGI format and full mip chain, with semantic
+sRGB/linear SRVs and per-resource upload diagnostics. Region painting remains
+copy-on-write and affects only its resource; its mutable BGRA resource keeps a
+full mip chain regenerated after each boxed upload. Shader-family, alpha, culling,
+opacity, and occlusion evidence are resident state; unproven layer, hair/fur,
+skin, and blended-alpha behavior is reported rather than approximated.
+
+Resident output import is prepare-then-commit. The worker prepares and validates
+an immutable replacement against a session/revision snapshot without touching
+the live service. Only the current UI result may enter the locked,
+noninterruptible commit; cancellation remains effective until that boundary and
+cannot suppress completion after mutation begins.
+
+Generate Icon requests a correlated 512x512 offscreen D3D11 replacement render
+inside the package output root. It excludes controls, grid, gizmo, selection,
+hover, and brush overlays and does not alter the visible camera or scene state.
 `shell_bridge.py` may forward action-bar signals to the active embedded builder
 handler and update shell status/active-tool state; it must not implement mesh
 edit commands. The embedded static builder handler may delegate selected-geometry
