@@ -304,7 +304,7 @@ Its focused facade/profile/output-safety/cache probe gate is:
 ## Services, Domain, And Workers
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_services.py tests/test_asset_authoring_service.py tests/test_asset_authoring_workers.py tests/test_diagnostics_service.py tests/test_diagnostic_bundle_async.py tests/test_workers.py tests/test_shell_context.py
+.\.venv\Scripts\python.exe -m pytest tests/test_services.py tests/test_asset_authoring_service.py tests/test_asset_authoring_openimageio.py tests/test_asset_authoring_workers.py tests/test_diagnostics_service.py tests/test_diagnostic_bundle_async.py tests/test_workers.py tests/test_shell_context.py
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-discovery --output "$env:TEMP\cdmw-asset-authoring-discovery"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-mesh-health --output "$env:TEMP\cdmw-asset-authoring-mesh-health"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario asset-authoring-uv-report --output "$env:TEMP\cdmw-asset-authoring-uv-report"
