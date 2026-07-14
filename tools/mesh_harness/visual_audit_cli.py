@@ -310,7 +310,59 @@ def _load_specs(path: Path) -> tuple[VisualAuditAssetSpec, ...]:
                 selection_reason=str(row.get("selection_reason", "") or "User-supplied corpus manifest."),
             )
         )
-    return tuple(specs)
+    result = tuple(specs)
+    _validate_manifest_constraints(payload, result)
+    return result
+
+
+def _validate_manifest_constraints(
+    payload: Mapping[str, object],
+    specs: Sequence[VisualAuditAssetSpec],
+) -> None:
+    raw_minimum = payload.get("minimum_asset_count", 0)
+    try:
+        minimum = int(raw_minimum or 0)
+    except (TypeError, ValueError, OverflowError) as exc:
+        raise ValueError("Visual-audit minimum_asset_count must be an integer.") from exc
+    if minimum < 0:
+        raise ValueError("Visual-audit minimum_asset_count cannot be negative.")
+    if len(specs) < minimum:
+        raise ValueError(
+            f"Visual-audit manifest requires at least {minimum} assets; found {len(specs)}."
+        )
+
+    excluded = {
+        str(value or "").replace("\\", "/").strip().casefold()
+        for value in tuple(payload.get("excluded_virtual_paths", ()) or ())
+        if str(value or "").strip()
+    }
+    overlap = sorted(
+        spec.virtual_path
+        for spec in specs
+        if spec.virtual_path.replace("\\", "/").strip().casefold() in excluded
+    )
+    if overlap:
+        raise ValueError(f"Visual-audit manifest reuses excluded PAC paths: {overlap}")
+
+    raw_required = payload.get("required_coverage", {})
+    if not isinstance(raw_required, Mapping):
+        raise ValueError("Visual-audit required_coverage must be an object.")
+    short: dict[str, tuple[int, int]] = {}
+    for raw_tag, raw_count in raw_required.items():
+        tag = str(raw_tag or "").strip()
+        try:
+            required_count = int(raw_count)
+        except (TypeError, ValueError, OverflowError) as exc:
+            raise ValueError(
+                f"Visual-audit coverage requirement for {tag or '<empty>'} must be an integer."
+            ) from exc
+        if not tag or required_count < 0:
+            raise ValueError("Visual-audit coverage tags must be non-empty with non-negative counts.")
+        actual_count = sum(tag in spec.coverage_tags for spec in specs)
+        if actual_count < required_count:
+            short[tag] = (actual_count, required_count)
+    if short:
+        raise ValueError(f"Visual-audit manifest coverage is incomplete: {short}")
 
 
 def _write_draft_review(

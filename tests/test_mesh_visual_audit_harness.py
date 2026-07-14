@@ -14,13 +14,20 @@ from tools.mesh_harness.visual_audit_corpus import (
     default_visual_audit_specs,
     validate_visual_audit_specs,
 )
-from tools.mesh_harness.visual_audit_cli import _visual_audit_temporary_root, _write_preparation_checkpoint
+from tools.mesh_harness.visual_audit_cli import (
+    _load_specs,
+    _visual_audit_temporary_root,
+    _write_preparation_checkpoint,
+)
 from tools.mesh_harness.visual_audit_report import build_visual_audit_composites
 from tools.mesh_harness.visual_audit_review import finalize_visual_audit_review
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DOTNET_ROOT = ROOT / "tools" / "dotnet_mesh_editor_experiment"
+FOLLOWUP_MANIFEST = (
+    ROOT / "tools" / "mesh_harness" / "visual_audit_followup_72.manifest.json"
+)
 
 
 def test_default_visual_audit_corpus_has_required_real_pac_coverage() -> None:
@@ -46,6 +53,60 @@ def test_default_visual_audit_corpus_has_required_real_pac_coverage() -> None:
         "hair_fur_feather": 5,
         "unusual": 4,
     }
+
+
+def test_followup_visual_audit_corpus_is_large_unique_and_excludes_original_corpus() -> None:
+    specs = _load_specs(FOLLOWUP_MANIFEST)
+    original_paths = {spec.virtual_path.casefold() for spec in default_visual_audit_specs()}
+
+    assert len(specs) == 72
+    assert len({spec.asset_id for spec in specs}) == 72
+    assert len({spec.virtual_path.casefold() for spec in specs}) == 72
+    assert not original_paths & {spec.virtual_path.casefold() for spec in specs}
+    assert validate_visual_audit_specs(specs) == {
+        "weapon": 15,
+        "sword": 5,
+        "armor": 14,
+        "body": 13,
+        "hair_fur_feather": 17,
+        "unusual": 20,
+    }
+    payload = json.loads(FOLLOWUP_MANIFEST.read_text(encoding="utf-8"))
+    for tag, minimum in payload["required_coverage"].items():
+        assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
+
+
+def test_visual_audit_manifest_constraints_reject_partial_overlap_and_missing_tags(
+    tmp_path: Path,
+) -> None:
+    original = default_visual_audit_specs()[0]
+    path = tmp_path / "manifest.json"
+    payload = {
+        "minimum_asset_count": 2,
+        "assets": [
+            {
+                "asset_id": "001-probe",
+                "virtual_path": original.virtual_path,
+                "model_category": "probe",
+                "coverage_tags": ["probe"],
+            }
+        ],
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="requires at least 2 assets"):
+        _load_specs(path)
+
+    payload["minimum_asset_count"] = 1
+    payload["excluded_virtual_paths"] = [original.virtual_path.upper().replace("/", "\\")]
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="reuses excluded PAC paths"):
+        _load_specs(path)
+
+    payload.pop("excluded_virtual_paths")
+    payload["required_coverage"] = {"shield_layer": 1}
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="coverage is incomplete"):
+        _load_specs(path)
 
 
 def test_visual_audit_runtime_paths_do_not_embed_long_evidence_or_asset_names(tmp_path: Path) -> None:
