@@ -13,6 +13,21 @@ from PySide6.QtWidgets import QApplication
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import MeshEditorDotNetProtocolMixin
 
 
+ROOT = Path(__file__).resolve().parents[1]
+DOTNET_EDITOR = ROOT / "tools" / "dotnet_mesh_editor_experiment"
+
+
+def _source(name: str) -> str:
+    return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
+
+
+def _source_family(stem: str) -> str:
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(DOTNET_EDITOR.glob(f"{stem}*.cs"))
+    )
+
+
 class _Harness(MeshEditorDotNetProtocolMixin, QObject):
     def __init__(self, output_dir: Path) -> None:
         QObject.__init__(self)
@@ -131,3 +146,21 @@ def test_dotnet_capture_resolves_relative_output_and_rejects_reparse_leaf() -> N
 
     assert "Path.GetFullPath(Path.Combine(outputRoot, requestedPath))" in source
     assert "return IsReparsePoint(outputPath);" in source
+
+
+def test_icon_capture_uses_deterministic_offscreen_d3d_target_without_visible_state_mutation() -> None:
+    capture = _source("D3D11MaterialViewport.Capture.cs")
+    renderer = _source_family("D3D11MaterialViewport")
+    protocol = _source("ExperimentForm.Protocol.cs")
+
+    assert "BindFlags.RenderTarget" in capture
+    assert "ResourceUsage.Staging" in capture
+    assert "CpuAccessFlags.Read" in capture
+    assert "CopyResource(stagingTexture, targetTexture)" in capture
+    assert "RenderFrame(present: false, includeOverlays: false, replacementOnly: true)" in capture
+    assert "bitmap.Save(temporaryPath, ImageFormat.Png)" in capture
+    assert "screen.grabWindow" not in capture
+    assert "replacementOnly && _scene.IsReference" in renderer
+    assert 'case "capture_request"' in protocol
+    assert '"visible_view_mutated"] = false' in protocol
+    assert "Capture output must remain inside the package output directory" in protocol

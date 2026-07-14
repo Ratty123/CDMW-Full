@@ -9,6 +9,91 @@ def _source(name: str) -> str:
     return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
 
 
+def _source_family(stem: str) -> str:
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(DOTNET_EDITOR.glob(f"{stem}*.cs"))
+    )
+
+
+def test_texture_criticality_blocks_required_ready_and_keeps_optional_fallbacks_diagnostic() -> None:
+    program = _source("Program.cs")
+    materials = _source("NetMaterialSet.Resident.cs")
+    material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
+    texture_set = _source("NetTextureSet.Incremental.cs")
+
+    assert program.index("FailedRequiredResources") < program.index("QueueReadyAfterFirstFrame")
+    assert 'WriteProtocolEvent("textures_error"' in program
+    assert '"optional_resource_failures"' in program
+    assert "bool Required" in materials
+    assert "string FallbackPolicy" in materials
+    assert '"required_texture_decode_failed"' in material_protocol
+    assert '"optional_resource_failures"' in material_protocol
+    assert "resourceGroups[index]" in texture_set
+
+
+def test_late_original_reference_completion_routes_to_resident_material_generation() -> None:
+    callback_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_remaining_callbacks.py"
+    ).read_text(encoding="utf-8")
+    helper_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_materials.py"
+    ).read_text(encoding="utf-8")
+    protocol_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_resources.py"
+    ).read_text(encoding="utf-8")
+
+    assert "preview_materials.apply_resolved_original_materials_to_resident_editor(" in callback_source
+    assert "_mesh_editor_embedded_apply_reference_material_resources" in helper_source
+    assert "apply_reference(preview_model)" in helper_source
+    assert 'role="original_reference"' in protocol_source
+    assert '"reason": "late_original_reference_resources"' in protocol_source
+    assert "standalone_dotnet_pending_reference_material_model" in protocol_source
+
+
+def test_late_modify_original_materials_also_route_to_the_exact_editable_clone() -> None:
+    callback_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_dialog_remaining_callbacks.py"
+    ).read_text(encoding="utf-8")
+    helper_source = (
+        ROOT / "cdmw" / "ui" / "archive_browser" / "static_replacement_preview_materials.py"
+    ).read_text(encoding="utf-8")
+    protocol_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_resources.py"
+    ).read_text(encoding="utf-8")
+
+    assert "modify_original_clone_mode=bool(modify_original_clone_mode)" in callback_source
+    assert "if modify_original_clone_mode:" in helper_source
+    assert "copy_dotnet_preview_material_bindings(" in helper_source
+    assert "_mesh_editor_embedded_apply_clone_material_resources" in helper_source
+    assert "def apply_resident_clone_material_resources(" in protocol_source
+    assert 'reason="late_exact_clone_resources"' in protocol_source
+    assert "standalone_dotnet_pending_clone_material_model" in protocol_source
+    launch_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_launch.py"
+    ).read_text(encoding="utf-8")
+    connect_source = (
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py"
+    ).read_text(encoding="utf-8")
+    assert launch_source.index("standalone_dotnet_pending_clone_material_model = None") < launch_source.index(
+        "standalone_dotnet_package_request_id += 1"
+    )
+    assert "standalone_dotnet_pending_clone_material_model = None" not in connect_source
+
+
+def test_required_and_optional_resource_policy_has_an_executable_runtime_probe() -> None:
+    probe = _source("MaterialResourcePolicyProbe.cs")
+    entry = _source("ProgramEntry.cs")
+
+    assert "NetMaterialSet.Load(manifestPath)" in probe
+    assert "textures.LoadAsync(materials).GetAwaiter().GetResult()" in probe
+    assert "FailedRequiredResources" in probe
+    assert "FailedOptionalResources" in probe
+    assert '"required_texture_decode_failed"' in probe
+    assert '"optional_texture_fallback_applied"' in probe
+    assert "MaterialResourcePolicyProbe.Run(args)" in entry
+
+
 def test_parameter_protocol_is_versioned_session_scoped_and_independently_ordered() -> None:
     protocol = _source("ExperimentForm.Protocol.cs")
     material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
@@ -73,7 +158,7 @@ def test_parameter_groups_validate_atomically_and_preserve_null_zero_semantics()
 
 
 def test_parameter_apply_updates_only_d3d_constants_and_exposes_counters_and_roles() -> None:
-    renderer = _source("D3D11MaterialViewport.cs")
+    renderer = _source_family("D3D11MaterialViewport")
     presentation = _source("D3D11MaterialViewport.PresentationSettings.cs")
     resources = _source("D3D11MaterialViewport.Resources.cs")
     metrics = _source("D3D11MaterialViewport.Metrics.cs")
@@ -175,7 +260,7 @@ def test_resident_material_state_replaces_parameter_snapshot_with_resource_state
 
 
 def test_hidden_gpu_smoke_proves_parameter_updates_do_not_churn_resources() -> None:
-    soak = _source("HeadlessGpuSparseSoak.cs")
+    soak = _source_family("HeadlessGpuSparseSoak")
 
     assert "ApplyMaterialParameterProof(materials, viewport)" in soak
     assert '"cdmw_mesh_material_parameters_v1"' in soak
