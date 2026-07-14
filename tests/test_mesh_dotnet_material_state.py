@@ -8,7 +8,14 @@ from types import SimpleNamespace
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.asset_replacement import infer_cd_texture_role_from_path
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
-from cdmw.services import mesh_dotnet_experiment
+from cdmw.services import (
+    mesh_dotnet_experiment,
+    mesh_dotnet_material_bindings,
+    mesh_dotnet_material_channels,
+    mesh_dotnet_material_payload,
+    mesh_dotnet_material_semantics,
+    mesh_dotnet_material_state,
+)
 from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
 from cdmw.services.mesh_dotnet_experiment import (
     build_mesh_dotnet_experiment_package,
@@ -16,6 +23,21 @@ from cdmw.services.mesh_dotnet_experiment import (
     mesh_dotnet_material_state_payload,
 )
 from tests.test_mesh_dotnet_experiment import _mesh
+
+
+def test_material_state_facade_reexports_exact_owner_objects() -> None:
+    assert mesh_dotnet_material_state.copy_dotnet_preview_material_bindings is (
+        mesh_dotnet_material_bindings.copy_dotnet_preview_material_bindings
+    )
+    assert mesh_dotnet_material_state.mesh_dotnet_material_input_signature is (
+        mesh_dotnet_material_semantics.mesh_dotnet_material_input_signature
+    )
+    assert mesh_dotnet_material_state.mesh_dotnet_material_state_payload is (
+        mesh_dotnet_material_payload.mesh_dotnet_material_state_payload
+    )
+    assert mesh_dotnet_material_state._dotnet_emissive_texture_is_scalar_mask_cached is (
+        mesh_dotnet_material_channels._dotnet_emissive_texture_is_scalar_mask_cached
+    )
 
 
 def test_dotnet_material_signature_changes_only_with_material_inputs(tmp_path: Path) -> None:
