@@ -38,6 +38,11 @@ internal static class Program
                 ApplicationConfiguration.Initialize();
                 return HeadlessGpuSparseSoak.Run(args);
             }
+            if (VisualAuditBatch.IsRequested(args))
+            {
+                ApplicationConfiguration.Initialize();
+                return VisualAuditBatch.Run(args);
+            }
             var options = LaunchOptions.Parse(args);
             long sourceParseCount = 0;
             var document = ObjDocument.Load(options.MeshPath);
@@ -75,6 +80,7 @@ internal static class Program
                 string.Equals(arg, "--embedded", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--visual-audit-batch", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--material-resource-policy-report", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));
             if (!suppressDialog)

@@ -776,6 +776,18 @@ class NativeD3D11PreviewHostFrame(QFrame):
             }
         )
 
+    def request_frame_capture(self, output_path: Path) -> bool:
+        """Capture the current renderer frame directly to an owned PNG path."""
+
+        path = Path(output_path).expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return self._send_host_json_command(
+            {
+                "command": "capture_frame",
+                "path": str(path),
+            }
+        )
+
     def clear_preview(self, status_file: Optional[Path] = None) -> bool:
         payload: Dict[str, object] = {"command": "clear_preview"}
         if status_file is not None:
