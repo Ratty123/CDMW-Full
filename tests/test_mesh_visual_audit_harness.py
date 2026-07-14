@@ -6,6 +6,10 @@ from pathlib import Path
 import pytest
 from PIL import Image
 
+from tools.mesh_editor_visual_audit_refresh_dotnet import (
+    _link_or_copy_tree,
+    _matching_source_assets,
+)
 from tools.mesh_harness.visual_audit_corpus import (
     VISUAL_AUDIT_VIEWS,
     VisualAuditAssetSpec,
@@ -28,6 +32,66 @@ DOTNET_ROOT = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 FOLLOWUP_MANIFEST = (
     ROOT / "tools" / "mesh_harness" / "visual_audit_followup_72.manifest.json"
 )
+
+
+def test_dotnet_refresh_reuses_only_exactly_matching_source_assets() -> None:
+    corpus = {
+        "assets": [
+            {
+                "asset_id": "001-test",
+                "virtual_path": "character/model/test.pac",
+            }
+        ]
+    }
+    state = {
+        "runtime_assets": [
+            {
+                "id": "001-test",
+                "virtual_path": "CHARACTER\\MODEL\\TEST.PAC",
+                "archive_package_dir": "archive-package",
+                "dotnet_package_dir": "dotnet-package",
+                "views": [],
+            }
+        ]
+    }
+
+    rows = _matching_source_assets(corpus, state)
+
+    assert len(rows) == 1
+    assert rows[0]["id"] == "001-test"
+    mismatched = json.loads(json.dumps(state))
+    mismatched["runtime_assets"][0]["virtual_path"] = "character/model/other.pac"
+    with pytest.raises(ValueError, match="virtual path mismatch"):
+        _matching_source_assets(corpus, mismatched)
+
+
+def test_dotnet_refresh_links_or_copies_immutable_archive_package(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    nested = source / "textures"
+    nested.mkdir(parents=True)
+    (source / "manifest.json").write_text('{"ok":true}', encoding="utf-8")
+    (nested / "base.png").write_bytes(b"image-bytes")
+    target = tmp_path / "target"
+
+    _link_or_copy_tree(source, target)
+
+    assert (target / "manifest.json").read_text(encoding="utf-8") == '{"ok":true}'
+    assert (target / "textures" / "base.png").read_bytes() == b"image-bytes"
+    assert (source / "textures" / "base.png").read_bytes() == b"image-bytes"
+
+
+def test_dotnet_refresh_tool_preserves_provenance_and_uses_production_paths() -> None:
+    source = (ROOT / "tools" / "mesh_editor_visual_audit_refresh_dotnet.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "_validate_prepared_state(" in source
+    assert "_validated_fingerprint_paths(" in source
+    assert "_hydrate_real_archive_mesh_materials(" in source
+    assert "build_mesh_dotnet_experiment_package(" in source
+    assert "_link_or_copy_tree(archive_source, archive_target)" in source
+    assert '"archive_packages_reused": True' in source
+    assert "--phase capture" in source
 
 
 def test_default_visual_audit_corpus_has_required_real_pac_coverage() -> None:
