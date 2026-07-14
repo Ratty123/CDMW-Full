@@ -156,7 +156,7 @@ internal sealed partial class D3D11MaterialViewport
             MaterialEmissiveOverrideFlags = new Vector4(
                 parameters.EmissiveColor.HasValue ? 1.0f : 0.0f,
                 parameters.EmissiveIntensity.HasValue ? 1.0f : 0.0f,
-                0.0f,
+                parameters.EmissiveScalarMask == true ? 1.0f : 0.0f,
                 0.0f),
             MaterialChannelSelectors = new Vector4(
                 _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "roughness"),

@@ -279,6 +279,24 @@ def test_parameter_sender_rejects_missing_capability_and_empty_groups(
     assert _parameter_writes(process) == []
 
 
+def test_parameter_sender_preserves_explicit_false_scalar_emissive_mask(
+    resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
+) -> None:
+    _app, tab, _builder, process = resident_parameter_tab
+
+    assert tab.apply_resident_material_parameters(({
+        "source_submesh_indices": [0],
+        "emissive_scalar_mask": False,
+    },))
+    assert _flush_parameter_update(tab)
+
+    payload = _parameter_writes(process)[-1]
+    assert payload["groups"] == [{
+        "source_submesh_indices": [0],
+        "emissive_scalar_mask": False,
+    }]
+
+
 def test_empty_source_scope_with_parameters_targets_all_batches(
     resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
 ) -> None:

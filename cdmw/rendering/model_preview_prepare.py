@@ -96,6 +96,8 @@ class ModelPreviewDrawBatch:
     material_decode_mode: int = 0
     height_texture_key: str = ""
     height_texture_dds_key: str = ""
+    emissive_texture_key: str = ""
+    emissive_texture_dds_key: str = ""
     support_maps_disabled: bool = False
     has_texture_coordinates: bool = False
     texture_wrap_repeat: bool = False
@@ -976,6 +978,9 @@ def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) ->
         height_texture_key = str(getattr(mesh, "preview_height_texture_path", "") or "").strip()
         if not height_texture_key and getattr(mesh, "preview_height_texture_image", None) is not None:
             height_texture_key = f"in_memory_height:{mesh_index}"
+        emissive_texture_key = str(getattr(mesh, "preview_emissive_texture_path", "") or "").strip()
+        if not emissive_texture_key and getattr(mesh, "preview_emissive_texture_image", None) is not None:
+            emissive_texture_key = f"in_memory_emissive:{mesh_index}"
         texture_flip_vertical = resolve_preview_texture_flip_vertical(
             getattr(mesh, "preview_texture_flip_vertical", None),
             source_format=getattr(model, "format", ""),
@@ -1019,6 +1024,8 @@ def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) ->
                 material_decode_mode=_material_decode_mode_for_semantics(material_texture_type, material_texture_subtype, material_texture_packed_channels),
                 height_texture_key=height_texture_key,
                 height_texture_dds_key=str(getattr(mesh, "preview_height_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(height_texture_key),
+                emissive_texture_key=emissive_texture_key,
+                emissive_texture_dds_key=str(getattr(mesh, "preview_emissive_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(emissive_texture_key),
                 support_maps_disabled=bool(getattr(mesh, "preview_debug_disable_support_maps", False)),
                 has_texture_coordinates=bool(raw_batch.get("has_texture_coordinates", False)),
                 texture_wrap_repeat=texture_wrap_repeat,
@@ -1309,6 +1316,9 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
         height_texture_key = str(getattr(mesh, "preview_height_texture_path", "") or "").strip()
         if not height_texture_key and getattr(mesh, "preview_height_texture_image", None) is not None:
             height_texture_key = f"in_memory_height:{mesh_index}"
+        emissive_texture_key = str(getattr(mesh, "preview_emissive_texture_path", "") or "").strip()
+        if not emissive_texture_key and getattr(mesh, "preview_emissive_texture_image", None) is not None:
+            emissive_texture_key = f"in_memory_emissive:{mesh_index}"
         texture_flip_vertical = resolve_preview_texture_flip_vertical(
             getattr(mesh, "preview_texture_flip_vertical", None),
             source_format=getattr(model, "format", ""),
@@ -1392,6 +1402,8 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
                 material_decode_mode=_material_decode_mode_for_semantics(material_texture_type, material_texture_subtype, material_texture_packed_channels),
                 height_texture_key=height_texture_key,
                 height_texture_dds_key=str(getattr(mesh, "preview_height_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(height_texture_key),
+                emissive_texture_key=emissive_texture_key,
+                emissive_texture_dds_key=str(getattr(mesh, "preview_emissive_texture_dds_path", "") or "").strip() or dds_source_path_for_preview_path(emissive_texture_key),
                 support_maps_disabled=bool(getattr(mesh, "preview_debug_disable_support_maps", False)),
                 has_texture_coordinates=has_texture_coordinates,
                 texture_wrap_repeat=texture_wrap_repeat,
@@ -1521,12 +1533,28 @@ def preview_material_texture_inputs_for_prepared_batch(
                 visualized=True,
             )
         )
+    if batch.emissive_texture_key:
+        emissive_name = str(getattr(mesh, "preview_emissive_texture_name", "") or batch.emissive_texture_key).strip()
+        inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind="emissive",
+                texture_name=emissive_name,
+                preview_texture_path=batch.emissive_texture_key,
+                source_texture_path=emissive_name,
+                source_dds_path=batch.emissive_texture_dds_key or dds_source_path_for_preview_path(batch.emissive_texture_key),
+                semantic_type="emissive",
+                semantic_subtype="emissive",
+                material_name=material_name,
+                confidence="prepared",
+                visualized=True,
+            )
+        )
     return tuple(inputs)
 
 
 def material_combiner_cache_dir(model: ModelPreviewData) -> Path:
     digest = hashlib.sha1()
-    digest.update(b"material-combiner-v7")
+    digest.update(b"material-combiner-v8")
     digest.update(str(getattr(model, "path", "") or "").encode("utf-8", errors="replace"))
     for mesh in tuple(getattr(model, "meshes", ()) or ()):
         for field_name in (
@@ -1536,14 +1564,17 @@ def material_combiner_cache_dir(model: ModelPreviewData) -> Path:
             "preview_normal_texture_path",
             "preview_material_texture_path",
             "preview_height_texture_path",
+            "preview_emissive_texture_path",
             "preview_texture_dds_path",
             "preview_normal_texture_dds_path",
             "preview_material_texture_dds_path",
             "preview_height_texture_dds_path",
+            "preview_emissive_texture_dds_path",
             "preview_material_texture_name",
             "preview_material_texture_type",
             "preview_material_texture_subtype",
             "preview_base_texture_default_name",
+            "preview_alpha_mode",
         ):
             path_text = str(getattr(mesh, field_name, "") or "").strip()
             digest.update(path_text.encode("utf-8", errors="replace"))
@@ -1635,6 +1666,7 @@ def apply_material_combiner(
                     texture_name=str(getattr(mesh, "texture_name", "") or ""),
                     texture_flip_vertical=False,
                     material_texture_inputs=inputs,
+                    alpha_mode=str(getattr(mesh, "preview_alpha_mode", "") or ""),
                     tangents_usable=bool(len(getattr(mesh, "texture_coordinates", ()) or ()) == len(getattr(mesh, "positions", ()) or ())),
                     normal_texture_strength=max(0.0, finite_float(getattr(mesh, "preview_normal_texture_strength", 0.0), 0.0)),
                 ),
@@ -1775,6 +1807,8 @@ def prepare_model_preview(
                 preview_material_texture_dds_path=batch.material_texture_dds_key or dds_source_path_for_preview_path(batch.material_texture_key),
                 preview_height_texture_path=batch.height_texture_key,
                 preview_height_texture_dds_path=batch.height_texture_dds_key or dds_source_path_for_preview_path(batch.height_texture_key),
+                preview_emissive_texture_path=batch.emissive_texture_key,
+                preview_emissive_texture_dds_path=batch.emissive_texture_dds_key or dds_source_path_for_preview_path(batch.emissive_texture_key),
                 preview_texture_flip_vertical=batch.texture_flip_vertical,
                 preview_texture_brightness=float(batch.texture_brightness or 1.0),
                 preview_texture_tint=tuple(batch.texture_tint or ()),

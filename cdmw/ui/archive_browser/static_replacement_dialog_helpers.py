@@ -568,6 +568,7 @@ def native_manifest_input_from_descriptor(
         sidecar_path=str(descriptor.get("sidecar_path", "") or ""),
         linked_mesh_path=str(descriptor.get("linked_mesh_path", "") or ""),
         srgb_mode=str(descriptor.get("srgb_mode", "") or ""),
+        normal_space=str(descriptor.get("normal_space", "") or ""),
         parameter_declared_by=str(descriptor.get("parameter_declared_by", "") or ""),
         material_output_quality=str(descriptor.get("material_output_quality", "") or "native-core"),
         layer_role=str(descriptor.get("layer_role", "") or ""),

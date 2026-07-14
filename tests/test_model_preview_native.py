@@ -82,6 +82,26 @@ def _vertex(
 
 
 class NativePreviewPayloadTests(unittest.TestCase):
+    def test_native_payload_carries_dedicated_emissive_source_without_explicit_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            emissive = Path(temp_dir) / "rune_emi.png"
+            emissive.write_bytes(b"preview")
+            prepared = PreparedModelPreviewData(
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=_vertex(0.0, 0.0, 0.0),
+                        index_count=1,
+                        preview_emissive_texture_path=str(emissive),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            payload = build_native_preview_payloads(prepared)[0]
+
+            self.assertTrue(payload.emissive_texture_source.endswith("rune_emi.png"))
+            self.assertEqual("emissive", payload.material_texture_inputs[0].slot_kind)
+
     def test_native_d3d11_mesh_edit_ack_echoes_packet_revision(self) -> None:
         source = d3d11_preview_source()
 
@@ -682,7 +702,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             temp = Path(temp_dir)
             base_path = temp / "axe_diffuse.png"
             base_image = QImage(2, 2, QImage.Format_RGBA8888)
-            base_image.fill(QColor(12, 10, 8, 255))
+            base_image.fill(QColor(12, 10, 8, 37))
             self.assertTrue(base_image.save(str(base_path), "PNG"))
             spec_gloss_path = temp / "axe_specularGlossiness.png"
             spec_gloss_image = QImage(2, 2, QImage.Format_RGBA8888)
@@ -695,6 +715,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
                     (),
                     {
                         "texture_flip_vertical": False,
+                        "alpha_mode": "BLEND",
                         "tangents_usable": False,
                         "normal_texture_strength": 0.0,
                         "material_texture_inputs": (
@@ -742,6 +763,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             self.assertGreater(color.red(), 120)
             self.assertGreater(color.green(), 90)
             self.assertGreater(color.blue(), 45)
+            self.assertEqual(37, color.alpha())
 
     def test_d3d11_package_splits_specular_glossiness_when_combiner_disabled(self) -> None:
         from PySide6.QtGui import QColor, QImage
@@ -2766,6 +2788,130 @@ class NativePreviewPayloadTests(unittest.TestCase):
             self.assertEqual(191, prepared_normal.pixelColor(0, 0).green())
             self.assertEqual("", combined.height_source)
             self.assertIn("height flat", "; ".join(combined.notes))
+
+    def test_material_combiner_preserves_cutout_base_alpha(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            base_path = temp / "hair_base.png"
+            base_image = QImage(2, 1, QImage.Format_RGBA8888)
+            base_image.setPixelColor(0, 0, QColor(90, 70, 50, 18))
+            base_image.setPixelColor(1, 0, QColor(100, 80, 60, 220))
+            self.assertTrue(base_image.save(str(base_path), "PNG"))
+            prepared = PreparedModelPreviewData(
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=b"".join((_vertex(0, 0, 0), _vertex(1, 0, 0), _vertex(0, 1, 0))),
+                        index_count=3,
+                        preview_texture_path=str(base_path),
+                        preview_alpha_mode="cutout",
+                        has_texture_coordinates=True,
+                    ),
+                )
+            )
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
+                payload,
+                temp / "out",
+                0,
+                settings=MaterialPreviewCombinerSettings(),
+            )
+
+            self.assertEqual("cutout", payload.alpha_mode)
+            prepared_base = QImage(QUrl(combined.base_source).toLocalFile())
+            self.assertEqual(18, prepared_base.pixelColor(0, 0).alpha())
+            self.assertEqual(220, prepared_base.pixelColor(1, 0).alpha())
+            self.assertIn("base alpha preserved:cutout", combined.notes)
+
+    def test_prepare_model_preview_preserves_cutout_alpha_through_material_combiner(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QColor, QImage
+
+        from cdmw.rendering import model_preview_prepare as prepare
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            base_path = temp / "hair_base.png"
+            base_image = QImage(2, 1, QImage.Format_RGBA8888)
+            base_image.setPixelColor(0, 0, QColor(90, 70, 50, 18))
+            base_image.setPixelColor(1, 0, QColor(100, 80, 60, 220))
+            self.assertTrue(base_image.save(str(base_path), "PNG"))
+            material_path = temp / "hair_ma.png"
+            material_image = QImage(2, 1, QImage.Format_RGBA8888)
+            material_image.fill(QColor(255, 128, 0, 255))
+            self.assertTrue(material_image.save(str(material_path), "PNG"))
+            model = ModelPreviewData(
+                path=str(temp / "hair.pac"),
+                meshes=[
+                    ModelPreviewMesh(
+                        material_name="hair",
+                        texture_name="hair_base.dds",
+                        positions=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                        texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+                        normals=[(0.0, 0.0, 1.0)] * 3,
+                        indices=[0, 1, 2],
+                        preview_texture_path=str(base_path),
+                        preview_material_texture_path=str(material_path),
+                        preview_material_texture_subtype="orm",
+                        preview_material_texture_packed_channels=("ao", "roughness", "metallic"),
+                        preview_alpha_mode="cutout",
+                    )
+                ],
+            )
+
+            with patch.object(prepare, "material_combiner_cache_dir", return_value=temp / "combined"):
+                cloned, prepared = prepare.prepare_model_preview(model, enable_material_combiner=True)
+
+            self.assertIsNotNone(prepared)
+            self.assertEqual("cutout", cloned.meshes[0].preview_alpha_mode)
+            prepared_url = prepared.batches[0].preview_texture_path  # type: ignore[union-attr]
+            prepared_path = QUrl(prepared_url).toLocalFile() or prepared_url
+            prepared_base = QImage(prepared_path)
+            self.assertEqual(18, prepared_base.pixelColor(0, 0).alpha())
+            self.assertEqual(220, prepared_base.pixelColor(1, 0).alpha())
+
+    def test_synthesized_albedo_preserves_selected_base_alpha(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        from cdmw.rendering.material_combiner_images import _generate_synthesized_albedo_map
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            base_path = temp / "base.png"
+            base_image = QImage(2, 1, QImage.Format_RGBA8888)
+            base_image.setPixelColor(0, 0, QColor(20, 30, 40, 63))
+            base_image.setPixelColor(1, 0, QColor(40, 50, 60, 191))
+            self.assertTrue(base_image.save(str(base_path), "PNG"))
+            layer_path = temp / "layer.png"
+            layer_image = QImage(2, 1, QImage.Format_RGBA8888)
+            layer_image.fill(QColor(180, 60, 40, 255))
+            self.assertTrue(layer_image.save(str(layer_path), "PNG"))
+
+            output, _note = _generate_synthesized_albedo_map(
+                base_image,
+                (
+                    PreviewMaterialTextureInput(
+                        slot_kind="material",
+                        preview_texture_path=str(layer_path),
+                        semantic_type="color",
+                        semantic_subtype="detail_diffuse",
+                        layer_role="detail",
+                        layer_channel="r",
+                    ),
+                ),
+                {},
+                temp / "out",
+                "layered",
+                flip_vertical=False,
+                max_dimension=64,
+                preserve_base_alpha=True,
+            )
+
+            synthesized = QImage(QUrl(output).toLocalFile())
+            self.assertEqual(63, synthesized.pixelColor(0, 0).alpha())
+            self.assertEqual(191, synthesized.pixelColor(1, 0).alpha())
 
     def test_decode_material_sample_matches_channel_order_modes(self) -> None:
         orm = decode_material_sample(0.25, 0.50, 1.0, 1.0, "orm")

@@ -444,7 +444,7 @@ def test_apply_source_material_preview_updates_slots_and_material_inputs() -> No
     )
     slots = {
         "base": SimpleNamespace(source_path=Path("C:/tmp/body_bc.dds")),
-        "normal": SimpleNamespace(source_path=Path("C:/tmp/body_n.png")),
+        "normal": SimpleNamespace(source_path=Path("C:/tmp/body_n.png"), normal_space="green_up"),
         "material": SimpleNamespace(source_path=Path("C:/tmp/body_mr.png")),
         "emissive": SimpleNamespace(source_path=Path("C:/tmp/body_e.dds")),
     }
@@ -483,6 +483,7 @@ def test_apply_source_material_preview_updates_slots_and_material_inputs() -> No
 
     inputs = tuple(mesh.preview_material_texture_inputs)
     assert [item.slot_kind for item in inputs] == ["base", "normal", "material", "emissive"]
+    assert inputs[1].normal_space == "green_up"
     assert inputs[2].parameter_name == "_metallicRoughnessTexture"
     assert inputs[2].material_parameters == (
         factor_param,

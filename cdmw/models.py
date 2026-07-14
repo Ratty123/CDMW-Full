@@ -1091,6 +1091,7 @@ class PreviewMaterialTextureInput:
     sidecar_path: str = ""
     linked_mesh_path: str = ""
     srgb_mode: str = ""
+    normal_space: str = ""
     parameter_declared_by: str = ""
     material_output_quality: str = ""
     layer_role: str = ""
@@ -1393,6 +1394,8 @@ class PreparedModelPreviewBatch:
     preview_material_texture_dds_path: str = ""
     preview_height_texture_path: str = ""
     preview_height_texture_dds_path: str = ""
+    preview_emissive_texture_path: str = ""
+    preview_emissive_texture_dds_path: str = ""
     preview_texture_flip_vertical: Optional[bool] = None
     preview_base_texture_quality: str = ""
     preview_texture_brightness: float = 1.0

@@ -5,7 +5,7 @@ import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.models import (
     ArchiveEntry,
@@ -378,6 +378,53 @@ def _assign_global_support_maps(state: _SupportAttachmentState) -> None:
                 continue
 
 
+def _mesh_declares_emissive_authority(mesh: ModelPreviewMesh) -> bool:
+    def positive_number(value: object) -> bool:
+        try:
+            return float(value) > 0.0
+        except (TypeError, ValueError, OverflowError):
+            return False
+
+    def nonblack_color(value: object) -> bool:
+        if isinstance(value, str):
+            text = value.strip().lstrip("#")
+            if len(text) in {6, 8} and re.fullmatch(r"[0-9a-fA-F]+", text):
+                return any(int(text[offset : offset + 2], 16) > 0 for offset in (0, 2, 4))
+            return any(positive_number(component) for component in re.findall(r"[-+]?\d*\.?\d+", value))
+        if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+            return any(positive_number(component) for component in tuple(value)[:3])
+        return False
+
+    family = str(getattr(mesh, "preview_sidecar_shader_family", "") or "").strip().casefold()
+    if "emissive" in family:
+        return True
+    overrides = getattr(mesh, "preview_native_material_overrides", {}) or {}
+    if isinstance(overrides, Mapping):
+        if positive_number(overrides.get("emissive_intensity")):
+            return True
+        if nonblack_color(overrides.get("emissive_color")):
+            return True
+    for texture_input in tuple(getattr(mesh, "preview_material_texture_inputs", ()) or ()):
+        if any(
+            "emissive" in str(getattr(texture_input, field_name, "") or "").strip().casefold()
+            for field_name in ("slot_kind", "semantic_type", "semantic_subtype", "parameter_name")
+        ):
+            return True
+    for parameter in tuple(getattr(mesh, "preview_material_parameters", ()) or ()):
+        name = str(getattr(parameter, "parameter_name", "") or "").strip().casefold()
+        if "emissiveintensity" in name and positive_number(
+            getattr(parameter, "numeric_value", None)
+            if getattr(parameter, "numeric_value", None) is not None
+            else getattr(parameter, "value", None)
+        ):
+            return True
+        if "emissivecolor" in name and nonblack_color(
+            getattr(parameter, "color_value", ()) or getattr(parameter, "value", None)
+        ):
+            return True
+    return False
+
+
 def _assign_fallback_support_maps(state: _SupportAttachmentState) -> None:
     for mesh in state.model_preview.meshes:
         raise_if_cancelled(state.stop_event)
@@ -387,6 +434,8 @@ def _assign_fallback_support_maps(state: _SupportAttachmentState) -> None:
             continue
         for slot in state.support_slots:
             if str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip():
+                continue
+            if slot == "emissive" and not _mesh_declares_emissive_authority(mesh):
                 continue
             entry, status = _resolve_model_texture_archive_entry(
                 state.source_entry, texture_name, material_name,

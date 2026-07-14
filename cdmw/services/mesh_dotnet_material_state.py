@@ -9,12 +9,15 @@ import math
 import os
 import re
 from collections.abc import Mapping, Sequence
+from functools import lru_cache
 from pathlib import Path
 
+from cdmw.core.dds_native import inspect_dds_native_path
 from cdmw.domain.mesh.material_resource_policy import (
     canonical_material_channel,
     mesh_material_resource_policy,
 )
+from cdmw.domain.mesh.normal_y_policy import resolve_preview_normal_y_policy
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.modding.asset_replacement import infer_cd_texture_role_from_path
 from cdmw.rendering.crimson_shader_registry import (
@@ -22,6 +25,7 @@ from cdmw.rendering.crimson_shader_registry import (
     infer_shader_family_contract,
     normalize_shader_family,
 )
+from cdmw.rendering.native_preview_material_contract import sidecar_preview_texture_tint_for_batch
 
 
 _COMPONENT_NAMES = ("r", "g", "b", "a")
@@ -275,6 +279,9 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
     setattr(target, "preview_double_sided", bool(batch.get("two_sided", batch.get("double_sided", False))))
     setattr(target, "preview_normal_y_policy", str(batch.get("normal_y_policy", "") or ""))
     setattr(target, "preview_texture_flip_vertical", bool(batch.get("texture_flip_vertical", False)))
+    texture_tint = _color3(batch.get("texture_tint"))
+    if texture_tint is not None:
+        setattr(target, "preview_texture_tint", texture_tint)
     try:
         setattr(target, "preview_normal_texture_strength", float(batch.get("normal_strength", 0.0) or 0.0))
     except (TypeError, ValueError, OverflowError):
@@ -516,55 +523,9 @@ def _dotnet_material_channel_components(source: object | None) -> dict[str, str]
 
 
 def _dotnet_material_normal_y_policy(source: object | None) -> str:
-    """Translate source normal-space evidence into one explicit shader policy."""
+    """Compatibility wrapper for the shared preview normal-space rule."""
 
-    if source is None:
-        return "preserve"
-    explicit_policy = str(getattr(source, "preview_normal_y_policy", "") or "").strip().casefold()
-    if explicit_policy in {"invert_green_for_directx", "shader_invert_legacy_compat"}:
-        return "invert_green_for_directx"
-    if explicit_policy in {"preserve", "directx", "legacy_no_flip"}:
-        return "preserve"
-    explicit = str(
-        getattr(source, "preview_normal_texture_space", "")
-        or getattr(source, "normal_space", "")
-        or ""
-    ).strip().casefold()
-    if explicit in {"green_up", "ogl"}:
-        return "invert_green_for_directx"
-    if explicit in {"directx", "green_down", "dx"}:
-        return "preserve"
-    for item in tuple(getattr(source, "preview_material_texture_inputs", ()) or ()):
-        values = item if isinstance(item, Mapping) else vars(item) if hasattr(item, "__dict__") else {}
-        semantic = str(
-            values.get("semantic_type", "")
-            or values.get("slot_kind", "")
-            or getattr(item, "semantic_type", "")
-            or getattr(item, "slot_kind", "")
-            or ""
-        ).strip().casefold()
-        if semantic != "normal":
-            continue
-        normal_space = str(
-            values.get("normal_space", "") or getattr(item, "normal_space", "") or ""
-        ).strip().casefold()
-        confidence = str(
-            values.get("confidence", "") or getattr(item, "confidence", "") or ""
-        ).strip().casefold()
-        path = str(
-            values.get("preview_texture_path", "")
-            or values.get("source_path", "")
-            or values.get("source_texture_path", "")
-            or getattr(item, "preview_texture_path", "")
-            or getattr(item, "source_path", "")
-            or getattr(item, "source_texture_path", "")
-            or ""
-        ).strip().casefold()
-        if normal_space in {"green_up", "ogl"} or confidence == "gltf" or "green_up" in path:
-            return "invert_green_for_directx"
-        if normal_space in {"directx", "green_down", "dx"} or "directx" in path or "_dx." in path:
-            return "preserve"
-    return "preserve"
+    return resolve_preview_normal_y_policy(source)
 
 
 def _material_parameter_value(source: object | None, parameter_name: str) -> object | None:
@@ -604,6 +565,42 @@ def _color3(value: object) -> tuple[float, float, float] | None:
     return components if all(component is not None for component in components) else None  # type: ignore[return-value]
 
 
+@lru_cache(maxsize=512)
+def _dotnet_emissive_texture_is_scalar_mask_cached(
+    path_text: str,
+    file_size: int,
+    modified_ns: int,
+) -> bool:
+    del file_size, modified_ns
+    try:
+        info = inspect_dds_native_path(path_text)
+    except (OSError, ValueError):
+        return False
+    return bool(
+        info is not None
+        and (
+            str(getattr(info, "compressed_family", "") or "").strip().casefold() == "bc4"
+            or str(getattr(info, "format_name", "") or "").strip().casefold().startswith("bc4")
+        )
+    )
+
+
+def _dotnet_emissive_texture_is_scalar_mask(path_text: str) -> bool:
+    path_text = str(path_text or "").strip()
+    if not path_text or Path(path_text).suffix.casefold() != ".dds":
+        return False
+    try:
+        source = Path(path_text).resolve()
+        stat = source.stat()
+    except OSError:
+        return False
+    return _dotnet_emissive_texture_is_scalar_mask_cached(
+        str(source),
+        int(stat.st_size),
+        int(getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000))),
+    )
+
+
 def _dotnet_initial_material_parameters(
     source: object | None,
     resolved_channels: Mapping[str, str],
@@ -611,11 +608,6 @@ def _dotnet_initial_material_parameters(
     if source is None:
         return {}
     result: dict[str, object] = {}
-    color = _color3(getattr(source, "preview_color", ()))
-    if color is not None and color != (1.0, 1.0, 1.0):
-        result["tint_color"] = list(color)
-    overrides = getattr(source, "preview_native_material_overrides", {})
-    overrides = overrides if isinstance(overrides, Mapping) else {}
     subtype, _packed = _material_texture_metadata(source)
     is_gltf = subtype in {
         "metallic_roughness",
@@ -633,6 +625,23 @@ def _dotnet_initial_material_parameters(
         ).startswith("_gltf")
         for item in tuple(getattr(source, "preview_material_parameters", ()) or ())
     )
+    texture_tint = _color3(getattr(source, "preview_texture_tint", ()))
+    if texture_tint is None or texture_tint == (1.0, 1.0, 1.0):
+        sidecar_tint = _color3(
+            sidecar_preview_texture_tint_for_batch(
+                source,
+                source_path=getattr(source, "preview_source_asset_path", ""),
+            )
+        )
+        texture_tint = sidecar_tint if sidecar_tint != (1.0, 1.0, 1.0) else None
+    if texture_tint is not None:
+        result["tint_color"] = list(texture_tint)
+    elif is_gltf or "base" not in resolved_channels:
+        fallback_color = _color3(getattr(source, "preview_color", ()))
+        if fallback_color is not None and fallback_color != (1.0, 1.0, 1.0):
+            result["tint_color"] = list(fallback_color)
+    overrides = getattr(source, "preview_native_material_overrides", {})
+    overrides = overrides if isinstance(overrides, Mapping) else {}
     roughness = _finite_float(
         overrides.get("roughness", _material_parameter_value(source, "_roughnessFactor")),
         minimum=0.0,
@@ -672,6 +681,9 @@ def _dotnet_initial_material_parameters(
         result["emissive_color"] = list(emissive_color)
     if emissive_intensity is not None:
         result["emissive_intensity"] = emissive_intensity
+    emissive_path = str(resolved_channels.get("emissive", "") or "").strip()
+    if emissive_path:
+        result["emissive_scalar_mask"] = _dotnet_emissive_texture_is_scalar_mask(emissive_path)
     return result
 
 

@@ -79,6 +79,7 @@ def _generate_synthesized_albedo_map(
     flip_vertical: bool,
     max_dimension: int,
     neutral_base_color: Tuple[float, float, float] = (),
+    preserve_base_alpha: bool = False,
 ) -> Tuple[str, str]:
     prepared_base = (
         QImage()
@@ -100,13 +101,19 @@ def _generate_synthesized_albedo_map(
     if not prepared_base.isNull():
         width = int(prepared_base.width())
         height = int(prepared_base.height())
-        target = prepared_base.convertToFormat(QImage.Format.Format_RGB888)
+        target = prepared_base.convertToFormat(
+            QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
+        )
         layer_start = 0
     elif len(neutral_base_color) >= 3 and source_layers:
         _first_item, first_image = source_layers[0]
         width = int(first_image.width())
         height = int(first_image.height())
-        target = QImage(width, height, QImage.Format.Format_RGB888)
+        target = QImage(
+            width,
+            height,
+            QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888,
+        )
         red, green, blue = (_byte(float(value)) for value in neutral_base_color[:3])
         target.fill(QColor(red, green, blue))
         layer_start = 0
@@ -114,7 +121,11 @@ def _generate_synthesized_albedo_map(
         first_item, first_image = source_layers[0]
         width = int(first_image.width())
         height = int(first_image.height())
-        target = QImage(width, height, QImage.Format.Format_RGB888)
+        target = QImage(
+            width,
+            height,
+            QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888,
+        )
         tint = _layer_tint(first_item)
         for y in range(height):
             for x in range(width):
@@ -124,7 +135,16 @@ def _generate_synthesized_albedo_map(
                     red *= tint[0]
                     green *= tint[1]
                     blue *= tint[2]
-                target.setPixelColor(x, y, QColor(_byte(red), _byte(green), _byte(blue)))
+                target.setPixelColor(
+                    x,
+                    y,
+                    QColor(
+                        _byte(red),
+                        _byte(green),
+                        _byte(blue),
+                        color.alpha() if preserve_base_alpha else 255,
+                    ),
+                )
         layer_start = 1
 
     prepared_masks: dict[str, QImage] = {}
@@ -167,7 +187,16 @@ def _generate_synthesized_albedo_map(
                 out_r = (base.redF() * (1.0 - alpha)) + (_clamp(red) * alpha)
                 out_g = (base.greenF() * (1.0 - alpha)) + (_clamp(green) * alpha)
                 out_b = (base.blueF() * (1.0 - alpha)) + (_clamp(blue) * alpha)
-                target.setPixelColor(x, y, QColor(_byte(out_r), _byte(out_g), _byte(out_b)))
+                target.setPixelColor(
+                    x,
+                    y,
+                    QColor(
+                        _byte(out_r),
+                        _byte(out_g),
+                        _byte(out_b),
+                        base.alpha() if preserve_base_alpha else 255,
+                    ),
+                )
         role_label = role if not channel else f"{role}:{channel}"
         if role_label not in roles_used:
             roles_used.append(role_label)
@@ -195,6 +224,7 @@ def _generate_spec_gloss_preview_albedo_map(
     *,
     flip_vertical: bool,
     max_dimension: int,
+    preserve_base_alpha: bool = False,
 ) -> Tuple[str, str]:
     spec_source = _support_source_image(spec_gloss_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
     if spec_source.isNull():
@@ -208,7 +238,11 @@ def _generate_spec_gloss_preview_albedo_map(
         base_source = base_source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
     spec_rgba = spec_source.convertToFormat(QImage.Format.Format_RGBA8888)
     base_rgba = base_source.convertToFormat(QImage.Format.Format_RGBA8888) if not base_source.isNull() else QImage()
-    target = QImage(width, height, QImage.Format.Format_RGB888)
+    target = QImage(
+        width,
+        height,
+        QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888,
+    )
     for y in range(height):
         for x in range(width):
             spec = spec_rgba.pixelColor(x, y)
@@ -225,7 +259,16 @@ def _generate_spec_gloss_preview_albedo_map(
                 out_r = max(base_r, spec_r * spec_weight)
                 out_g = max(base_g, spec_g * spec_weight)
                 out_b = max(base_b, spec_b * spec_weight)
-            target.setPixelColor(x, y, QColor(_byte(out_r), _byte(out_g), _byte(out_b)))
+            target.setPixelColor(
+                x,
+                y,
+                QColor(
+                    _byte(out_r),
+                    _byte(out_g),
+                    _byte(out_b),
+                    base.alpha() if preserve_base_alpha and not base_rgba.isNull() else 255,
+                ),
+            )
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_spec_gloss_albedo.png"
     if not target.save(str(output_path), "PNG"):

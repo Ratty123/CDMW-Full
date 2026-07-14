@@ -868,6 +868,7 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
         "specular": round(float(max(0.0, min(1.0, specular_hint * 0.72))), 4),
         "height_scale": round(float(max(0.0, min(1.0, max(height_values) if height_values else 0.0))), 4),
         "emissive_intensity": round(float(max(0.0, min(32.0, max(emissive_values) if emissive_values else 0.0))), 4),
+        "emissive_intensity_declared": bool(emissive_values),
         "emissive_color": emissive_colors[0] if emissive_colors else "",
         "emissive_active": bool(emissive_values and max(emissive_values) > 0.0),
         "source": "sidecar_parameters" if any((roughness_values, metalness_values, specular_values, height_values, emissive_values)) else "",
@@ -879,11 +880,15 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
             for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity"):
                 if key in override_hints:
                     hints[key] = round(float(max(0.0, min(32.0 if key == "emissive_intensity" else 1.0, _safe_float(override_hints.get(key), _safe_float(hints.get(key), 0.0))))), 4)
+                    if key == "emissive_intensity":
+                        hints["emissive_intensity_declared"] = True
             if str(override_hints.get("emissive_color", "") or "").strip():
                 hints["emissive_color"] = str(override_hints.get("emissive_color", "") or "").strip()
         for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity"):
             if key in overrides:
                 hints[key] = round(float(max(0.0, min(32.0 if key == "emissive_intensity" else 1.0, _safe_float(overrides.get(key), _safe_float(hints.get(key), 0.0))))), 4)
+                if key == "emissive_intensity":
+                    hints["emissive_intensity_declared"] = True
         if str(overrides.get("emissive_color", "") or "").strip():
             hints["emissive_color"] = str(overrides.get("emissive_color", "") or "").strip()
         if any(key in overrides for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity", "emissive_color")) or isinstance(override_hints, Mapping):
@@ -1093,7 +1098,7 @@ def _batch_weapon_masked_base_tint_should_stay_masked(batch: PreparedModelPrevie
     return False
 
 
-def _sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, source_path: object = "") -> Tuple[float, float, float]:
+def sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, source_path: object = "") -> Tuple[float, float, float]:
     descriptor = _material_input_descriptor(batch)
     if not _descriptor_prefers_sidecar_tint(source_path, descriptor):
         return ()
@@ -1540,6 +1545,8 @@ def _effective_emissive_intensity(
     dds_textures: Mapping[str, object],
 ) -> float:
     hinted = _safe_float(material_hints.get("emissive_intensity"), 0.0)
+    if bool(material_hints.get("emissive_intensity_declared", False)):
+        return max(0.0, hinted)
     if hinted > 0.0:
         return hinted
     if _slot_has_resolved_texture(textures, dds_textures, "emissive"):
@@ -1767,6 +1774,7 @@ def _material_base_policy_for_batch(
 
 _NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
     {
+        "alpha_cutoff",
         "alpha_threshold",
         "base_tint_strength",
         "height_amount",
@@ -1868,7 +1876,7 @@ __all__ = [
     "_resolved_batch_material_category_reason",
     "_resolved_batch_material_finish",
     "_sanitize_nonfile_manifest_source_paths",
-    "_sidecar_preview_texture_tint_for_batch",
+    "sidecar_preview_texture_tint_for_batch",
     "_slot_has_resolved_texture",
     "_source_or_descriptor_has_armor_equipment",
     "_source_or_descriptor_has_weapon_surface",

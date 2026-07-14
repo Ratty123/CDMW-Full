@@ -34,10 +34,12 @@ class NativePreviewBatchPayload:
     normal_texture_source: str = ""
     material_texture_source: str = ""
     height_texture_source: str = ""
+    emissive_texture_source: str = ""
     normal_texture_strength: float = 1.0
     material_texture_packed_channels: Tuple[str, ...] = ()
     material_texture_slots: Tuple[str, ...] = ()
     material_texture_inputs: Tuple[PreviewMaterialTextureInput, ...] = ()
+    alpha_mode: str = ""
     texture_flip_vertical: bool = False
     has_texture_coordinates: bool = False
     tangents_usable: bool = False
@@ -397,6 +399,19 @@ def _payload_material_inputs(batch: PreparedModelPreviewBatch) -> Tuple[PreviewM
                 visualized=True,
             )
         )
+    emissive_path = str(getattr(batch, "preview_emissive_texture_path", "") or "").strip()
+    if emissive_path:
+        inputs.append(
+            PreviewMaterialTextureInput(
+                slot_kind="emissive",
+                texture_name=Path(emissive_path).name,
+                preview_texture_path=emissive_path,
+                source_dds_path=str(getattr(batch, "preview_emissive_texture_dds_path", "") or ""),
+                semantic_type="emissive",
+                semantic_subtype="emissive",
+                visualized=True,
+            )
+        )
     return tuple(inputs)
 
 
@@ -479,12 +494,14 @@ def build_native_preview_payloads(
                 else "",
                 material_texture_source=_local_file_url(getattr(batch, "preview_material_texture_path", "")),
                 height_texture_source=_local_file_url(getattr(batch, "preview_height_texture_path", "")),
+                emissive_texture_source=_local_file_url(getattr(batch, "preview_emissive_texture_path", "")),
                 normal_texture_strength=float(getattr(batch, "preview_normal_texture_strength", 1.0) or 1.0)
                 if normal_texture_allowed
                 else 0.0,
                 material_texture_packed_channels=tuple(str(channel) for channel in material_channels),
                 material_texture_slots=_payload_material_slots(batch),
                 material_texture_inputs=_payload_material_inputs(batch),
+                alpha_mode=str(getattr(batch, "preview_alpha_mode", "") or ""),
                 texture_flip_vertical=bool(flip_value),
                 has_texture_coordinates=bool(getattr(batch, "has_texture_coordinates", False)),
                 tangents_usable=_batch_tangents_usable(batch, vertex_blob, vertex_count),

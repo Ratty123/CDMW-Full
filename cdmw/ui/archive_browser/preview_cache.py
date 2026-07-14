@@ -56,6 +56,7 @@ class ArchivePreviewCacheMixin:
             slots.append("material")
         if not bool(getattr(settings, "disable_height_map", False)):
             slots.append("height")
+        slots.append("emissive")
         return tuple(slots)
 
     def _archive_preview_cache_key(

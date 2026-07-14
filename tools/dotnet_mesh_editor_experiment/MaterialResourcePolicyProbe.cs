@@ -36,9 +36,11 @@ internal static class MaterialResourcePolicyProbe
                 ["ready_allowed"] = true,
                 ["diagnostic"] = "symbolic material name is not a concrete required resource",
             };
+            var residentParameterRefresh = EvaluateResidentParameterRefresh(root);
             var ok = required.GetValueOrDefault("ready_allowed") is false
                 && optional.GetValueOrDefault("ready_allowed") is true
-                && optional.GetValueOrDefault("fallback_policy") as string == "flat_normal";
+                && optional.GetValueOrDefault("fallback_policy") as string == "flat_normal"
+                && residentParameterRefresh.GetValueOrDefault("ok") is true;
             var report = new Dictionary<string, object?>
             {
                 ["schema"] = "cdmw_material_resource_policy_runtime_v1",
@@ -46,6 +48,7 @@ internal static class MaterialResourcePolicyProbe
                 ["required_failure"] = required,
                 ["optional_failure"] = optional,
                 ["symbolic_resource"] = symbolic,
+                ["resident_parameter_refresh"] = residentParameterRefresh,
             };
             File.WriteAllText(
                 reportPath,
@@ -63,6 +66,72 @@ internal static class MaterialResourcePolicyProbe
                 // The probe reports policy behavior; temp cleanup is best effort.
             }
         }
+    }
+
+    private static Dictionary<string, object?> EvaluateResidentParameterRefresh(string root)
+    {
+        var manifestPath = Path.Combine(root, "resident-parameter-initial.json");
+        var manifest = new Dictionary<string, object?>
+        {
+            ["schema"] = "cdmw_mesh_material_state_v2",
+            ["version"] = 2,
+            ["material_signature"] = "scalar-emissive",
+            ["material_slots"] = Array.Empty<object>(),
+            ["resources"] = Array.Empty<object>(),
+            ["submeshes"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["submesh_index"] = 0,
+                    ["material_slot_index"] = 0,
+                    ["material"] = "emissive-probe",
+                    ["resource_channels"] = new Dictionary<string, string>(),
+                    ["parameters"] = new Dictionary<string, object?>
+                    {
+                        ["emissive_scalar_mask"] = true,
+                    },
+                },
+            },
+        };
+        File.WriteAllText(manifestPath, JsonSerializer.Serialize(manifest));
+        var materials = NetMaterialSet.Load(manifestPath);
+        var initialScalar = materials.ParametersForSubmesh(0).EmissiveScalarMask is true;
+
+        var updatePayload = new Dictionary<string, object?>
+        {
+            ["schema"] = "cdmw_mesh_material_state_v2",
+            ["version"] = 2,
+            ["session_id"] = "resident-parameter-probe",
+            ["edit_revision"] = 1,
+            ["generation"] = 1,
+            ["material_signature"] = "rgb-emissive",
+            ["affected_submeshes"] = new[] { 0 },
+            ["resources"] = Array.Empty<object>(),
+            ["submeshes"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["submesh_index"] = 0,
+                    ["material_slot_index"] = 0,
+                    ["material"] = "emissive-probe",
+                    ["resource_channels"] = new Dictionary<string, string>(),
+                    ["parameters"] = new Dictionary<string, object?>
+                    {
+                        ["emissive_scalar_mask"] = false,
+                    },
+                },
+            },
+        };
+        using var document = JsonDocument.Parse(JsonSerializer.Serialize(updatePayload));
+        var update = materials.NormalizeStateUpdate(NetMaterialSet.ParseStateUpdate(document.RootElement));
+        materials.ReplaceState(materials.BuildState(update));
+        var refreshedRgb = materials.ParametersForSubmesh(0).EmissiveScalarMask is false;
+        return new Dictionary<string, object?>
+        {
+            ["initial_scalar_mask"] = initialScalar,
+            ["refreshed_rgb_mask"] = refreshedRgb,
+            ["ok"] = initialScalar && refreshedRgb,
+        };
     }
 
     private static Dictionary<string, object?> EvaluateMissingResource(

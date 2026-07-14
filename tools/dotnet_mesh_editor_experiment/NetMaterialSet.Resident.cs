@@ -15,7 +15,14 @@ internal sealed partial class NetMaterialSet
 
     public NetMaterialStateSnapshot CaptureState()
     {
-        return new NetMaterialStateSnapshot(Slots, Submeshes, Resources, ManifestDirectory, Signature, Generation);
+        return new NetMaterialStateSnapshot(
+            Slots,
+            Submeshes,
+            Resources,
+            ParameterStates,
+            ManifestDirectory,
+            Signature,
+            Generation);
     }
 
     public NetMaterialStateUpdate NormalizeStateUpdate(NetMaterialStateUpdate update)
@@ -53,10 +60,27 @@ internal sealed partial class NetMaterialSet
         resources = resources
             .Where(pair => activeResourceIds.Contains(pair.Key))
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+        var parameterStates = new Dictionary<int, NetMaterialParameters>(ParameterStates);
+        foreach (var submeshIndex in affected)
+        {
+            if (!update.ParameterStates.TryGetValue(submeshIndex, out var parameters))
+            {
+                continue;
+            }
+            if (parameters.IsEmpty)
+            {
+                parameterStates.Remove(submeshIndex);
+            }
+            else
+            {
+                parameterStates[submeshIndex] = parameters;
+            }
+        }
         return new NetMaterialStateSnapshot(
             Slots,
             submeshes.Values.OrderBy(binding => binding.SubmeshIndex).ToArray(),
             resources,
+            parameterStates,
             ManifestDirectory,
             update.MaterialSignature,
             update.Generation);
@@ -67,6 +91,7 @@ internal sealed partial class NetMaterialSet
         Slots = state.Slots;
         Submeshes = state.Submeshes;
         Resources = state.Resources;
+        ParameterStates = state.ParameterStates;
         ManifestDirectory = state.ManifestDirectory;
         Signature = state.Signature;
         Generation = state.Generation;
@@ -296,6 +321,7 @@ internal sealed partial class NetMaterialSet
 
         var resources = ParseResources(root);
         var submeshes = ParseResidentSubmeshes(root);
+        var parameterStates = ParseResidentParameterStates(root);
         var affected = JsonIntArray(root, "affected_submeshes");
         if (!root.TryGetProperty("affected_submeshes", out var affectedValue) || affectedValue.ValueKind != JsonValueKind.Array)
         {
@@ -308,7 +334,8 @@ internal sealed partial class NetMaterialSet
             JsonText(root, "material_signature"),
             affected,
             resources,
-            submeshes);
+            submeshes,
+            parameterStates);
     }
 
     private static IReadOnlyList<NetMaterialResource> ParseResources(JsonElement root)
@@ -411,6 +438,31 @@ internal sealed partial class NetMaterialSet
         return result;
     }
 
+    private static IReadOnlyDictionary<int, NetMaterialParameters> ParseResidentParameterStates(JsonElement root)
+    {
+        if (!root.TryGetProperty("submeshes", out var submeshes) || submeshes.ValueKind != JsonValueKind.Array)
+        {
+            return new Dictionary<int, NetMaterialParameters>();
+        }
+        var result = new Dictionary<int, NetMaterialParameters>();
+        foreach (var item in submeshes.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.Object
+                || !item.TryGetProperty("parameters", out var parameters)
+                || parameters.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+            var submeshIndex = (int)JsonLong(item, "submesh_index", -1);
+            if (submeshIndex < 0)
+            {
+                throw new InvalidDataException("Material parameter state requires a non-negative submesh_index.");
+            }
+            result[submeshIndex] = NetMaterialParameters.Empty.Apply(ParseParameterDelta(parameters));
+        }
+        return result;
+    }
+
     private static Dictionary<string, string> JsonMap(JsonElement root, string name)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -479,6 +531,7 @@ internal sealed record NetMaterialStateSnapshot(
     IReadOnlyList<NetMaterialSlot> Slots,
     IReadOnlyList<NetSubmeshMaterialBinding> Submeshes,
     IReadOnlyDictionary<string, NetMaterialResource> Resources,
+    IReadOnlyDictionary<int, NetMaterialParameters> ParameterStates,
     string ManifestDirectory,
     string Signature,
     long Generation);
@@ -490,7 +543,8 @@ internal sealed record NetMaterialStateUpdate(
     string MaterialSignature,
     IReadOnlyList<int> AffectedSubmeshes,
     IReadOnlyList<NetMaterialResource> Resources,
-    IReadOnlyList<NetSubmeshMaterialBinding> Submeshes)
+    IReadOnlyList<NetSubmeshMaterialBinding> Submeshes,
+    IReadOnlyDictionary<int, NetMaterialParameters> ParameterStates)
 {
     public IReadOnlySet<string> ResourceIdsForAffectedSubmeshes()
     {

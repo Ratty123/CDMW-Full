@@ -321,7 +321,7 @@ def _texture_original_texture_material_step_009(_state):
             normalized_visible_texture_mode = _state._normalize_model_visible_texture_mode(str(getattr(current_preview_render_settings, 'visible_texture_mode', '')))
             current_archive_preview_model = _state._current_archive_original_preview_model()
             companion_entry = _state.self._find_archive_preview_companion_entry(_state.entry) if callable(getattr(_state.self, '_find_archive_preview_companion_entry', None)) else None
-            support_texture_slots = _state.self._archive_preview_support_texture_slots(current_preview_render_settings) if callable(getattr(_state.self, '_archive_preview_support_texture_slots', None)) else ('normal', 'material', 'height')
+            support_texture_slots = _state.self._archive_preview_support_texture_slots(current_preview_render_settings) if callable(getattr(_state.self, '_archive_preview_support_texture_slots', None)) else ('normal', 'material', 'height', 'emissive')
             archive_texture_entries_by_normalized_path = getattr(_state.self, 'archive_entries_by_normalized_path', {})
             archive_texture_entries_by_basename = getattr(_state.self, 'archive_entries_by_basename', {})
             archive_sidecar_entries_by_texture_path = getattr(_state.self, 'archive_sidecar_entries_by_texture_path', {})

@@ -51,6 +51,19 @@ def _preview_model(face_count: int, *, fmt: str = "pac", lod_index: int = -1, lo
 
 
 class ProgressiveArchivePreviewTests(unittest.TestCase):
+    def test_archive_preview_support_slots_include_sparse_emissive_maps(self) -> None:
+        settings = SimpleNamespace(
+            disable_all_support_maps=False,
+            disable_normal_map=False,
+            disable_material_map=False,
+            disable_height_map=False,
+        )
+
+        self.assertEqual(
+            ("normal", "material", "height", "emissive"),
+            ArchivePreviewCacheMixin._archive_preview_support_texture_slots(settings),
+        )
+
     def test_native_model_preview_uses_longer_selection_dwell(self) -> None:
         self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pac", ".pac")))
         self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pam", ".pam")))

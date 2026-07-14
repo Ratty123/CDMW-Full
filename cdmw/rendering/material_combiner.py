@@ -193,6 +193,15 @@ def combine_preview_material(
     outputs: list[str] = []
     decode_modes: list[str] = []
     flip_vertical = bool(getattr(payload, "texture_flip_vertical", False))
+    alpha_mode = str(getattr(payload, "alpha_mode", "") or "").strip().casefold()
+    preserve_base_alpha = alpha_mode in {
+        "alpha_blend",
+        "alpha_cutout",
+        "blend",
+        "cutout",
+        "mask",
+        "transparent",
+    }
     inputs = tuple(getattr(payload, "material_texture_inputs", ()) or ())
     shader_rule = _shader_rule_for_inputs(inputs, payload)
     shader_families = tuple(
@@ -245,11 +254,13 @@ def combine_preview_material(
             output_dir,
             f"batch_{batch_index:03d}_base",
             flip_vertical=flip_vertical,
-            force_opaque=True,
+            force_opaque=not preserve_base_alpha,
             max_dimension=base_map_max_dimension,
         )
         if base_source:
             outputs.append("albedo")
+            if preserve_base_alpha:
+                notes.append(f"base alpha preserved:{alpha_mode}")
             break
 
     visible_layer_inputs = _select_visible_layer_inputs(inputs, selected_base=selected_base_item)
@@ -286,6 +297,7 @@ def combine_preview_material(
             flip_vertical=flip_vertical,
             max_dimension=min(base_map_max_dimension, 512),
             neutral_base_color=neutral_base_color,
+            preserve_base_alpha=preserve_base_alpha,
         )
         if synthesized_source:
             base_source = synthesized_source
@@ -320,6 +332,7 @@ def combine_preview_material(
                 f"batch_{batch_index:03d}",
                 flip_vertical=flip_vertical,
                 max_dimension=min(base_map_max_dimension, 512),
+                preserve_base_alpha=preserve_base_alpha,
             )
             if spec_gloss_base_source:
                 base_source = spec_gloss_base_source

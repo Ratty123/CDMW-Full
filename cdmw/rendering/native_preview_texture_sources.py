@@ -29,6 +29,7 @@ from cdmw.rendering.native_preview_payloads import (
     _input_texture_kind,
     _normal_texture_binding_allowed,
     _normal_texture_input_binding_allowed,
+    _payload_material_inputs,
     _safe_float,
     _technical_texture_kind,
 )
@@ -445,6 +446,8 @@ def _dds_textures_for_batch(
                 or _source_dds_for_preview_path(str(getattr(batch, "preview_material_texture_path", "") or "")),
                 "height": str(getattr(batch, "preview_height_texture_dds_path", "") or "")
                 or _source_dds_for_preview_path(str(getattr(batch, "preview_height_texture_path", "") or "")),
+                "emissive": str(getattr(batch, "preview_emissive_texture_dds_path", "") or "")
+                or _source_dds_for_preview_path(str(getattr(batch, "preview_emissive_texture_path", "") or "")),
             }
         )
     output: Dict[str, object] = {
@@ -470,7 +473,7 @@ def _dds_textures_for_batch(
         if material_input_kinds is None
         else {str(kind or "").strip().lower() for kind in set(material_input_kinds)}
     )
-    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+    for texture_input in _payload_material_inputs(batch):
         if not isinstance(texture_input, PreviewMaterialTextureInput):
             continue
         input_kind = _input_texture_kind(texture_input)
@@ -537,7 +540,7 @@ def _batch_dds_manifest_cache_key(
         else sorted(str(kind or "").strip().lower() for kind in set(material_input_kinds))
     )
     input_values = []
-    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+    for texture_input in _payload_material_inputs(batch):
         if not isinstance(texture_input, PreviewMaterialTextureInput):
             continue
         input_kind = _input_texture_kind(texture_input)
@@ -572,6 +575,8 @@ def _batch_dds_manifest_cache_key(
             "material_preview": str(getattr(batch, "preview_material_texture_path", "") or ""),
             "height_dds": str(getattr(batch, "preview_height_texture_dds_path", "") or ""),
             "height_preview": str(getattr(batch, "preview_height_texture_path", "") or ""),
+            "emissive_dds": str(getattr(batch, "preview_emissive_texture_dds_path", "") or ""),
+            "emissive_preview": str(getattr(batch, "preview_emissive_texture_path", "") or ""),
         },
         "inputs": input_values,
     }
@@ -795,11 +800,7 @@ def _texture_sources_for_batch(
         _dds_textures_for_batch(batch) if prefer_direct_dds else {}
     )
 
-    material_inputs: Tuple[PreviewMaterialTextureInput, ...] = tuple(
-        texture_input
-        for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
-        if isinstance(texture_input, PreviewMaterialTextureInput)
-    )
+    material_inputs = _payload_material_inputs(batch)
     normal_texture_allowed = _batch_normal_texture_binding_allowed(batch)
 
     def _direct_dds_entry_available(entry: object) -> bool:
@@ -1123,6 +1124,7 @@ def _texture_sources_for_batch(
                     source_path=source_path,
                 ),
                 material_texture_inputs=synthesized_inputs,
+                alpha_mode=str(getattr(batch, "preview_alpha_mode", "") or ""),
                 tangents_usable=bool(tangents_usable),
                 normal_texture_strength=max(0.0, _safe_float(getattr(batch, "preview_normal_texture_strength", 0.0), 0.0))
                 if normal_texture_allowed

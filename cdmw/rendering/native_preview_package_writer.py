@@ -23,6 +23,7 @@ from PySide6.QtGui import QColor, QImage
 from cdmw.core.dds_native import dds_native_report_dict, dds_source_path_from_report, inspect_dds_native_path
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.core.texture_native import read_native_texture_report_sidecar
+from cdmw.domain.mesh.normal_y_policy import resolve_preview_normal_y_policy
 from cdmw.modding.mesh_native_core import write_native_preview_identity_blob
 from cdmw.models import (
     ClothPreviewBatch,
@@ -111,7 +112,7 @@ from cdmw.rendering.native_preview_material_contract import (
     _resolved_batch_material_category_reason,
     _resolved_batch_material_finish,
     _sanitize_nonfile_manifest_source_paths,
-    _sidecar_preview_texture_tint_for_batch,
+    sidecar_preview_texture_tint_for_batch,
     _slot_has_resolved_texture,
     _source_or_descriptor_has_armor_equipment,
     _source_or_descriptor_has_weapon_surface,
@@ -1240,7 +1241,7 @@ def write_isolated_d3d11_preview_package(
         tint_active = len(texture_tint) >= 3 and any(abs(float(value) - 1.0) > 1e-4 for value in texture_tint)
         source_path_text = getattr(prepared_preview, "source_path", "") or getattr(model, "path", "")
         if not tint_active:
-            sidecar_texture_tint = _sidecar_preview_texture_tint_for_batch(batch, source_path=source_path_text)
+            sidecar_texture_tint = sidecar_preview_texture_tint_for_batch(batch, source_path=source_path_text)
             if sidecar_texture_tint:
                 texture_tint = sidecar_texture_tint
                 tint_active = True
@@ -1271,6 +1272,7 @@ def write_isolated_d3d11_preview_package(
                 "has_texture_coordinates": bool(getattr(batch, "has_texture_coordinates", False)),
                 "tangents_usable": tangents_usable,
                 "normal_strength": normal_strength,
+                "normal_y_policy": resolve_preview_normal_y_policy(batch),
                 "height_amount": height_amount,
                 "roughness": _safe_float(material_hints.get("roughness"), 0.55),
                 "metalness": _safe_float(material_hints.get("metalness"), 0.0),
@@ -1320,12 +1322,15 @@ def write_isolated_d3d11_preview_package(
                 "material_combiner_notes": list(tuple(combiner_metadata.get("notes", ()) or ())),
                 "material_inputs": [
                     _material_input_to_dict(texture_input)
-                    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
+                    for texture_input in _payload_material_inputs(batch)
                     if isinstance(texture_input, PreviewMaterialTextureInput)
                 ],
             }
         native_material_overrides = _native_material_overrides_for_batch(batch)
         if native_material_overrides:
+            alpha_cutoff = native_material_overrides.pop("alpha_cutoff", None)
+            if alpha_cutoff is not None and "alpha_threshold" not in native_material_overrides:
+                native_material_overrides["alpha_threshold"] = alpha_cutoff
             batch_payload.update(native_material_overrides)
             if str(material_category or "").strip().lower() in {"cloth", "leather", "wood", "skin", "hair", "stone", "tooth"}:
                 batch_payload["roughness"] = _safe_float(material_hints.get("roughness"), 0.55)

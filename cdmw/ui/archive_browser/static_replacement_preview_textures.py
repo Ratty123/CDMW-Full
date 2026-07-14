@@ -51,6 +51,7 @@ def add_preview_material_input(
     parameters: Sequence[PreviewMaterialParameterInput] = (),
     parameter_name: str = "",
     material_name: str = "",
+    normal_space: str = "",
 ) -> None:
     existing = list(getattr(mesh, "preview_material_texture_inputs", ()) or ())
     preview_path = source_preview_path(str(source_path))
@@ -119,6 +120,7 @@ def add_preview_material_input(
             shader_family=shader_family,
             confidence="source",
             visualized=True,
+            normal_space=str(normal_space or "").strip().lower(),
             material_parameters=tuple(parameters),
         )
     )
@@ -219,6 +221,7 @@ def apply_source_material_preview(
         shader_family: str = "",
         parameters: Sequence[PreviewMaterialParameterInput] = (),
         parameter_name: str = "",
+        normal_space: str = "",
     ) -> None:
         add_preview_material_input(
             mesh,
@@ -231,6 +234,7 @@ def apply_source_material_preview(
             parameters=parameters,
             parameter_name=parameter_name,
             material_name=material_name,
+            normal_space=normal_space,
         )
 
     base_slot = slots.get("base")
@@ -277,6 +281,7 @@ def apply_source_material_preview(
                 semantic_type="normal",
                 semantic_subtype="normal",
                 parameters=material_authority_parameters,
+                normal_space=str(getattr(normal_slot, "normal_space", "") or ""),
             )
 
     height_slot = slots.get("height")

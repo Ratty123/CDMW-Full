@@ -372,6 +372,7 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
                         index_count=3,
                         has_texture_coordinates=True,
                         preview_native_material_overrides={
+                            "alpha_cutoff": 0.37,
                             "material_category": "metal",
                             "material_category_confidence": 0.95,
                             "roughness": 0.42,
@@ -400,12 +401,80 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             batch = manifest["batches"][0]
 
         self.assertEqual("metal", batch["material_category"])
+        self.assertEqual(0.37, batch["alpha_threshold"])
+        self.assertNotIn("alpha_cutoff", batch)
         self.assertEqual("glossy_metal", batch["material_finish"])
         self.assertEqual(0.95, batch["material_category_confidence"])
         self.assertEqual(0.42, batch["roughness"])
         self.assertEqual(0.75, batch["metalness"])
         self.assertEqual("grime", batch["material_layers"][0]["layer_role"])
         self.assertIn("native material manifest overrides applied", batch["notes"])
+
+    def test_archive_normal_space_is_explicit_in_native_batch_manifest(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            prepared = PreparedModelPreviewData(
+                source_path="sword.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="blade",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="normal",
+                                semantic_type="normal",
+                                normal_space="green_up",
+                                confidence="resolved",
+                            ),
+                        ),
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="sword.pac"),
+                prepared,
+                output_root=Path(temp_dir) / "package",
+                use_textures=False,
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+
+        self.assertEqual("invert_green_for_directx", manifest["batches"][0]["normal_y_policy"])
+
+    def test_cutout_package_preserves_combined_base_alpha(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            base_path = temp_path / "hair_base.png"
+            base_image = QImage(2, 1, QImage.Format_RGBA8888)
+            base_image.setPixelColor(0, 0, QColor(90, 70, 50, 18))
+            base_image.setPixelColor(1, 0, QColor(100, 80, 60, 220))
+            self.assertTrue(base_image.save(str(base_path), "PNG"))
+            prepared = PreparedModelPreviewData(
+                source_path="hair.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_texture_path=str(base_path),
+                        preview_alpha_mode="cutout",
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="hair.pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            manifest = read_isolated_d3d11_preview_manifest(package_dir)
+            batch = manifest["batches"][0]
+            packaged_base = QImage(str(package_dir / batch["textures"]["base"]))
+
+        self.assertEqual("cutout", batch["alpha_mode"])
+        self.assertEqual(18, packaged_base.pixelColor(0, 0).alpha())
+        self.assertEqual(220, packaged_base.pixelColor(1, 0).alpha())
+        self.assertIn("base alpha preserved:cutout", batch["notes"])
 
     def test_writes_tool_side_pbd_cloth_runtime_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -2710,6 +2779,79 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual("emissive_texture_default", batch["native_material_hints"]["source"])
             self.assertEqual(4.0, material_contract["pbr_scalar_hints"]["emissive_intensity"])
             self.assertEqual(4.0, material_contract["decode_profile"]["pbr_scalar_hints"]["emissive_intensity"])
+
+    def test_emissive_texture_honors_explicit_zero_sidecar_intensity(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            emissive = temp_path / "disabled_emissive.png"
+            emissive_image = QImage(2, 2, QImage.Format_RGBA8888)
+            emissive_image.fill(QColor(255, 80, 20, 255))
+            self.assertTrue(emissive_image.save(str(emissive), "PNG"))
+            prepared = PreparedModelPreviewData(
+                source_path="disabled-glow.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="emissive",
+                                parameter_name="_emissiveTexture",
+                                preview_texture_path=str(emissive),
+                                semantic_type="emissive",
+                                material_parameters=(
+                                    PreviewMaterialParameterInput(
+                                        parameter_name="_EmissiveIntensity",
+                                        numeric_value=0.0,
+                                    ),
+                                ),
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="disabled-glow.pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+
+            self.assertTrue(batch["textures"]["emissive"])
+            self.assertEqual(0.0, batch["emissive_intensity"])
+            self.assertFalse(batch["native_material_hints"]["emissive_active"])
+            self.assertTrue(batch["native_material_hints"]["emissive_intensity_declared"])
+
+    def test_dedicated_emissive_source_survives_package_write_without_explicit_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            emissive = temp_path / "rune_emi.png"
+            emissive_image = QImage(2, 2, QImage.Format_RGBA8888)
+            emissive_image.fill(QColor(120, 220, 255, 255))
+            self.assertTrue(emissive_image.save(str(emissive), "PNG"))
+            prepared = PreparedModelPreviewData(
+                source_path="rune.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_emissive_texture_path=str(emissive),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="rune.pac"),
+                prepared,
+                output_root=temp_path / "package",
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+
+        self.assertTrue(batch["textures"]["emissive"])
+        self.assertEqual("emissive", batch["material_inputs"][0]["slot_kind"])
 
     def test_package_reuses_legacy_pbr_response_without_full_recombine(self) -> None:
         from PySide6.QtGui import QColor, QImage

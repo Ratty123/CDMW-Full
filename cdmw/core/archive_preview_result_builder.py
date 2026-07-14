@@ -116,7 +116,7 @@ def build_archive_preview_result(
     include_loose_preview_assets: bool = True,
     semantic_sidecar_texts: Sequence[str] = (),
     visible_texture_mode: str = "mesh_base_first",
-    support_texture_slots: Sequence[str] = ("normal", "material", "height"),
+    support_texture_slots: Sequence[str] = ("normal", "material", "height", "emissive"),
     quality_tier: str = "full",
     enable_hkx_visual_preview: bool = True,
     stop_event: Optional[threading.Event] = None,
@@ -1203,7 +1203,7 @@ def build_archive_preview_result(
                 }
                 normalized_support_texture_slots = tuple(
                     slot
-                    for slot in ("normal", "material", "height")
+                    for slot in ("normal", "material", "height", "emissive")
                     if slot in requested_support_texture_slots
                 )
                 if normalized_quality_tier != "fast" and normalized_support_texture_slots:

@@ -595,6 +595,7 @@ def _set_model_preview_texture_slot(
                     preview_texture_path=preview_path_text,
                     semantic_type="normal",
                     semantic_subtype="normal",
+                    normal_space="green_up",
                     material_name=str(getattr(mesh, "material_name", "") or "").strip(),
                     confidence="resolved",
                     visualized=True,

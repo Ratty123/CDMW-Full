@@ -21,6 +21,7 @@ from cdmw.models import (
     ModelPreviewData,
     ModelPreviewMesh,
     PreviewMaterialParameterInput,
+    PreviewMaterialTextureInput,
 )
 
 
@@ -137,6 +138,42 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         self.assertEqual("", model.meshes[0].preview_alpha_mode)
+
+    def test_sidecar_cutout_without_explicit_threshold_uses_pac_preview_default(self) -> None:
+        source_entry = _entry("character/model/cd_test_hair.pac")
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="CD_Test_Hair")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path="character/texture/missing_hair.dds",
+                parameter_name="_baseColorTexture",
+                submesh_name="CD_Test_Hair",
+                sidecar_kind="pac_xml",
+                shader_family="Hair",
+                material_parameters=(
+                    PreviewMaterialParameterInput(
+                        parameter_kind="uint",
+                        parameter_name="AlphaTest",
+                        value="1",
+                        numeric_value=1.0,
+                    ),
+                ),
+            ),
+        )
+
+        _attach_model_sidecar_texture_preview_paths(
+            None,
+            source_entry,
+            model,
+            parsed_mesh=None,
+            sidecar_texture_bindings=bindings,
+        )
+
+        mesh = model.meshes[0]
+        self.assertEqual("cutout", mesh.preview_alpha_mode)
+        self.assertEqual(0.12, mesh.preview_native_material_overrides["alpha_cutoff"])
 
     def test_texture_slot_detail_text_lists_part_to_dds_mapping(self) -> None:
         model = ModelPreviewData(
@@ -848,6 +885,7 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
                 ModelPreviewMesh(
                     material_name="CD_Test_Blade_0014",
                     texture_name="CD_Test_Blade_0014",
+                    preview_sidecar_shader_family="SkinnedMeshEmissive_Ver2",
                 ),
                 ModelPreviewMesh(
                     material_name="CD_Test_Handle_0014",
@@ -871,6 +909,115 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         self.assertEqual(f"preview://{blade_emissive}", model.meshes[0].preview_emissive_texture_path)
         self.assertEqual("", model.meshes[1].preview_emissive_texture_path)
+
+    def test_emissive_sibling_fallback_requires_declared_emissive_authority(self) -> None:
+        source_entry = _entry("character/model/cd_test_cloth.pac")
+        cloth_emissive = "character/texture/cd_test_cloth_0011_emi.dds"
+        by_normalized, by_basename = _texture_maps(cloth_emissive)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_Test_Cloth_0011",
+                    texture_name="CD_Test_Cloth_0011",
+                    preview_sidecar_shader_family="SkinnedMeshCloth_Ver2",
+                ),
+            ],
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("", model.meshes[0].preview_emissive_texture_path)
+
+    def test_emissive_sibling_fallback_rejects_zero_intensity_and_black_color(self) -> None:
+        source_entry = _entry("character/model/cd_test_cloth.pac")
+        cloth_emissive = "character/texture/cd_test_cloth_0011_emi.dds"
+        by_normalized, by_basename = _texture_maps(cloth_emissive)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_Test_Cloth_0011",
+                    texture_name="CD_Test_Cloth_0011",
+                    preview_native_material_overrides={
+                        "emissive_intensity": 0.0,
+                        "emissive_color": "#000000",
+                    },
+                    preview_material_parameters=(
+                        PreviewMaterialParameterInput(
+                            parameter_name="_EmissiveIntensity",
+                            numeric_value=0.0,
+                        ),
+                        PreviewMaterialParameterInput(
+                            parameter_name="_EmissiveColor",
+                            color_value=(0.0, 0.0, 0.0),
+                        ),
+                    ),
+                ),
+            ],
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("", model.meshes[0].preview_emissive_texture_path)
+
+    def test_emissive_sibling_fallback_accepts_declared_texture_binding(self) -> None:
+        source_entry = _entry("character/model/cd_test_rune.pac")
+        rune_emissive = "character/texture/cd_test_rune_0001_emi.dds"
+        by_normalized, by_basename = _texture_maps(rune_emissive)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_Test_Rune_0001",
+                    texture_name="CD_Test_Rune_0001",
+                    preview_material_texture_inputs=(
+                        PreviewMaterialTextureInput(
+                            slot_kind="emissive",
+                            parameter_name="_emissiveTexture",
+                            semantic_type="emissive",
+                        ),
+                    ),
+                ),
+            ],
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual(f"preview://{rune_emissive}", model.meshes[0].preview_emissive_texture_path)
 
     def test_anonymous_wrapper_order_does_not_spread_emissive_maps(self) -> None:
         source_entry = _entry("character/model/cd_test_sword.pac")
@@ -1104,6 +1251,10 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         self.assertEqual("character/texture/part_a_n.dds", model.meshes[0].preview_normal_texture_name)
         self.assertEqual("character/texture/part_b_n.dds", model.meshes[1].preview_normal_texture_name)
+        normal_input = next(
+            item for item in model.meshes[0].preview_material_texture_inputs if item.slot_kind == "normal"
+        )
+        self.assertEqual("green_up", normal_input.normal_space)
         self.assertEqual("character/texture/part_a_ma.dds", model.meshes[0].preview_material_texture_name)
         self.assertEqual("character/texture/part_b_disp.dds", model.meshes[1].preview_height_texture_name)
         self.assertIn("anonymous support-map", "\n".join(lines))

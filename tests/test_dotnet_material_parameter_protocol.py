@@ -161,6 +161,19 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     assert "MaterialEmissiveOverrideFlags.y > 0.5f ? MaterialEmissiveOverride.w : 1.0f" in shader
 
 
+def test_resident_material_state_replaces_parameter_snapshot_with_resource_state() -> None:
+    resident = _source("NetMaterialSet.Resident.cs")
+    probe = _source("MaterialResourcePolicyProbe.cs")
+
+    assert "ParseResidentParameterStates(root)" in resident
+    assert "update.ParameterStates.TryGetValue" in resident
+    assert "ParameterStates = state.ParameterStates;" in resident
+    assert "IReadOnlyDictionary<int, NetMaterialParameters> ParameterStates" in resident
+    assert '["emissive_scalar_mask"] = true' in probe
+    assert '["emissive_scalar_mask"] = false' in probe
+    assert 'materials.ReplaceState(materials.BuildState(update));' in probe
+
+
 def test_hidden_gpu_smoke_proves_parameter_updates_do_not_churn_resources() -> None:
     soak = _source("HeadlessGpuSparseSoak.cs")
 

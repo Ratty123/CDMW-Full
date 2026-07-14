@@ -413,7 +413,10 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float3 emissive = float3(0.0f, 0.0f, 0.0f);
     if (MaterialHasEmissive > 0.5f)
     {
-        emissive = EmissiveTexture.Sample(MaterialSampler, uv).rgb;
+        float4 emissiveSample = EmissiveTexture.Sample(MaterialSampler, uv);
+        emissive = MaterialEmissiveOverrideFlags.z > 0.5f
+            ? emissiveSample.rrr
+            : emissiveSample.rgb;
         if (MaterialEmissiveOverrideFlags.x > 0.5f)
         {
             emissive *= MaterialEmissiveOverride.rgb;

@@ -22,11 +22,26 @@ from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
     mapping_status_summary_badge,
     mesh_center_for_ui,
     model_bounds_x,
+    native_manifest_input_from_descriptor,
     rough_control_value_from_settings,
     tag_alignment_d3d11_workspace_model,
     texture_set_factor_parameters,
     translated_preview_model,
 )
+
+
+def test_native_manifest_input_preserves_normal_space() -> None:
+    material_input = native_manifest_input_from_descriptor(
+        {
+            "source_path": "C:/tmp/body_n.dds",
+            "slot": "normal",
+            "semantic_type": "normal",
+            "normal_space": "green_up",
+        }
+    )
+
+    assert material_input is not None
+    assert material_input.normal_space == "green_up"
 
 
 def test_mapping_status_summary_badge_escapes_label_and_value() -> None:

@@ -43,7 +43,7 @@ class MeshEditorDotNetMaterialParameterMixin:
                     "roughness_blend_target", "roughness_blend_strength",
                     "metalness_inverted", "metalness_scale", "metalness_min", "metalness_max",
                     "metalness_blend_target", "metalness_blend_strength",
-                    "emissive_intensity", "emissive_color", "material_role", "visible",
+                    "emissive_intensity", "emissive_color", "emissive_scalar_mask", "material_role", "visible",
                 )
             ):
                 continue

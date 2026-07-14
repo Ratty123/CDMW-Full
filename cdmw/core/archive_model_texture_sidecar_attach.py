@@ -10,6 +10,9 @@ from cdmw.models import (
     ModelPreviewData,
     ModelPreviewMesh,
 )
+
+
+_PAC_CUTOUT_ALPHA_CUTOFF = 0.12
 from cdmw.core.common import RunCancelled, raise_if_cancelled
 from cdmw.core.archive_model_references import (
     _ArchiveModelSidecarTextureBinding,
@@ -436,6 +439,8 @@ def _assign_sidecar_material_contracts(state: _SidecarAttachmentState) -> None:
             ),
             None,
         )
+        if alpha_mode == "cutout" and alpha_cutoff is None:
+            alpha_cutoff = _PAC_CUTOUT_ALPHA_CUTOFF
         if alpha_cutoff is not None:
             overrides = dict(getattr(mesh, "preview_native_material_overrides", {}) or {})
             if overrides.get("alpha_cutoff") != alpha_cutoff:
