@@ -19,7 +19,15 @@ if(NOT DirectXTex_FOUND AND CDMW_FETCH_DIRECTXTEX)
     FetchContent_MakeAvailable(directxtex)
 endif()
 
-add_executable(cd-texture-dx src/main.cpp)
+set(TEXTURE_DX_OWNER_SOURCES
+    src/common.cpp
+    src/preview.cpp
+    src/encode.cpp
+    src/texture_tool.h
+    src/texture_tool_internal.h
+)
+
+add_executable(cd-texture-dx src/main.cpp ${TEXTURE_DX_OWNER_SOURCES})
 target_compile_definitions(cd-texture-dx PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_link_libraries(cd-texture-dx PRIVATE windowscodecs)
 

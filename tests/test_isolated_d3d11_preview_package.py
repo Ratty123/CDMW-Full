@@ -8,7 +8,7 @@ import unittest
 
 from PySide6.QtGui import QColor, QImage
 
-from tests.native_source_text import d3d11_preview_source
+from tests.native_source_text import d3d11_preview_source, texture_dx_source
 
 from cdmw.models import (
     ClothPreviewBatch,
@@ -3226,7 +3226,7 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn("std::cin", source)
 
     def test_directxtex_helper_reports_dds_direct_upload_metadata(self) -> None:
-        source = Path("native/cd_texture_dx/src/main.cpp").read_text(encoding="utf-8")
+        source = texture_dx_source()
 
         self.assertIn("DirectX::LoadFromDDSFile", source)
         self.assertIn("DirectX::SaveToWICFile", source)

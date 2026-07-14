@@ -9,6 +9,7 @@ from unittest.mock import patch
 from cdmw.core import texture_native
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native, inspect_dds_native_path
 from cdmw.models import RunCancelled
+from tests.native_source_text import texture_dx_source
 
 _MINIMAL_PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
@@ -71,7 +72,7 @@ def _minimal_luminance_dds(*, width: int = 4, height: int = 4, bit_count: int = 
 
 class NativeTextureBackendTests(unittest.TestCase):
     def test_directxtex_helper_contains_structured_cxx_exception_boundaries(self) -> None:
-        source = Path("native/cd_texture_dx/src/main.cpp").read_text(encoding="utf-8")
+        source = texture_dx_source()
 
         self.assertNotIn("#include <regex>", source)
         self.assertNotIn("std::regex", source)
@@ -89,6 +90,30 @@ class NativeTextureBackendTests(unittest.TestCase):
         self.assertIn('"native_cxx_exception_caught"', source)
         self.assertIn("return run_command(argc, argv);", source)
         self.assertIn("catch (const std::exception& exc)", source)
+
+    def test_directxtex_helper_uses_bounded_linked_owner_sources(self) -> None:
+        root = Path("native/cd_texture_dx")
+        cmake = (root / "CMakeLists.txt").read_text(encoding="utf-8")
+        expected_sources = (
+            "src/common.cpp",
+            "src/preview.cpp",
+            "src/encode.cpp",
+            "src/texture_tool.h",
+            "src/texture_tool_internal.h",
+        )
+
+        self.assertIn("set(TEXTURE_DX_OWNER_SOURCES", cmake)
+        self.assertIn("add_executable(cd-texture-dx src/main.cpp ${TEXTURE_DX_OWNER_SOURCES})", cmake)
+        for relative in ("src/main.cpp", *expected_sources):
+            source = (root / relative).read_text(encoding="utf-8")
+            with self.subTest(relative=relative):
+                self.assertLessEqual(len(source.splitlines()), 800)
+                self.assertNotRegex(source, r'#include\s*["<][^">]+\.cpp[">]')
+
+        main = (root / "src/main.cpp").read_text(encoding="utf-8")
+        self.assertIn("return run_command(argc, argv);", main)
+        self.assertNotIn("DirectX::LoadFromDDSFile", main)
+        self.assertNotIn("DirectX::LoadFromWICFile", main)
 
     def test_directxtex_fetchcontent_builds_from_cached_source_offline(self) -> None:
         for relative in (

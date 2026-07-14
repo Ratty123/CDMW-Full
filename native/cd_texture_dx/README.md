@@ -2,6 +2,15 @@
 
 DirectXTex-backed DDS preview helper for CDMW.
 
+Implementation ownership:
+
+- `src/main.cpp` owns COM setup and CLI dispatch only.
+- `src/common.cpp` owns shared argument, JSON, diagnostics, and DXGI metadata helpers.
+- `src/preview.cpp` owns DDS inspection and PNG preview batches.
+- `src/encode.cpp` owns WIC-to-DDS encode batches.
+- `src/texture_tool.h` exposes the command surface; `src/texture_tool_internal.h`
+  carries only cross-owner implementation contracts.
+
 Build:
 
 ```powershell

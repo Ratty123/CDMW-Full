@@ -44,3 +44,8 @@ def preview_core_source() -> str:
 @lru_cache(maxsize=1)
 def d3d11_preview_source() -> str:
     return cmake_target_source("cdmw_d3d11_preview", "D3D_PREVIEW_OWNER_SOURCES").replace("Renderer::", "")
+
+
+@lru_cache(maxsize=1)
+def texture_dx_source() -> str:
+    return cmake_target_source("cd_texture_dx", "TEXTURE_DX_OWNER_SOURCES")
