@@ -21,4 +21,3 @@ int batch_encode_json_guarded(
     const std::filesystem::path& job_file,
     const std::filesystem::path& report_file
 );
-

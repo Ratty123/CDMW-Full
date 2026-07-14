@@ -159,7 +159,6 @@ static std::string encode_dds(const EncodeJob& job) {
         << "}";
     return out.str();
 }
-
 static std::string encode_dds_guarded(const EncodeJob& job) {
     try {
         return encode_dds(job);
@@ -206,4 +205,3 @@ int batch_encode_json_guarded(const fs::path& job_file, const fs::path& report_f
         return write_batch_exception_report(report_file, "batch_encode_json", "unknown native exception");
     }
 }
-

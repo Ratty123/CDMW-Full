@@ -23,7 +23,6 @@ static bool should_invert_green(const PreviewJob& job) {
     std::transform(normal_space.begin(), normal_space.end(), normal_space.begin(), ::tolower);
     return slot == "normal" && (normal_space == "green_up" || normal_space == "auto");
 }
-
 static void invert_green_channel(DirectX::ScratchImage& image) {
     const DirectX::Image* frame = image.GetImage(0, 0, 0);
     if (!frame || frame->format != DXGI_FORMAT_R8G8B8A8_UNORM) return;
@@ -206,4 +205,3 @@ int batch_preview_json_guarded(const fs::path& job_file, const fs::path& report_
         return write_batch_exception_report(report_file, "batch_preview_json", "unknown native exception");
     }
 }
-
