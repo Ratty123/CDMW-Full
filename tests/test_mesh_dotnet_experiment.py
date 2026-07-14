@@ -300,12 +300,15 @@ def test_dotnet_resident_material_resources_are_incremental() -> None:
 
 
 def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, monkeypatch) -> None:
+    export_names: list[str] = []
+
     def fake_export_obj(mesh: ParsedMesh, output_dir: str, name: str = "", **_kwargs: object) -> list[str]:
+        export_names.append(name)
         root = Path(output_dir)
         obj = root / f"{name}.obj"
         mtl = root / f"{name}.mtl"
         sidecar = root / f"{name}.obj.meta.json"
-        obj.write_text("o body\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n", encoding="utf-8")
+        obj.write_text(f"mtllib {name}.mtl\no body\nv 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n", encoding="utf-8")
         mtl.write_text("newmtl skin\n", encoding="utf-8")
         sidecar.write_text(
             json.dumps(
@@ -335,7 +338,13 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     )
     package = build_mesh_dotnet_experiment_package(mesh, output_root=tmp_path)
 
+    assert export_names == ["mesh"]
     assert package.mesh_path.name == "mesh.obj"
+    assert package.scene_mesh_path is not None
+    assert "mtllib scene.mtl" in package.scene_mesh_path.read_text(encoding="utf-8")
+    scene_sidecar = json.loads((package.package_dir / "scene.obj.meta.json").read_text(encoding="utf-8"))
+    assert scene_sidecar["export_path"] == "scene.obj"
+    assert scene_sidecar["companion_filename"] == "scene.mtl"
     assert package.cdmeta_path.read_text(encoding="utf-8") == package.obj_sidecar_path.read_text(encoding="utf-8")
     assert package.original_asset_hash_path.read_text(encoding="utf-8") == "abc123"
     launch = json.loads(package.launch_manifest_path.read_text(encoding="utf-8"))
@@ -397,6 +406,29 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
         developer_renderer_fallback=True,
     )
     assert "--developer-renderer-fallback" in developer_args
+
+
+def test_dotnet_obj_export_retries_native_service_failure_without_python_fallback(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    attempts: list[str] = []
+    shutdowns: list[bool] = []
+
+    def flaky_export(_mesh: ParsedMesh, _output_dir: str, name: str = "") -> list[str]:
+        attempts.append(name)
+        if len(attempts) == 1:
+            raise RuntimeError("native OBJ export failed and Python export fallback was blocked")
+        return [str(tmp_path / f"{name}.obj")]
+
+    monkeypatch.setattr(mesh_dotnet_experiment, "export_obj", flaky_export)
+    monkeypatch.setattr(mesh_dotnet_experiment, "_shutdown_dotnet_native_export_service", lambda: shutdowns.append(True))
+
+    exported = mesh_dotnet_experiment._export_dotnet_obj_paths(_mesh(), tmp_path, "mesh")
+
+    assert exported == (tmp_path / "mesh.obj",)
+    assert attempts == ["mesh", "mesh"]
+    assert shutdowns == [True]
 
 
 def test_dotnet_package_carries_resident_editable_and_original_scene(tmp_path: Path) -> None:

@@ -142,7 +142,8 @@ internal static class VisualAuditBatch
                 var name = SafeName(JsonRequiredString(view, "name"));
                 var yaw = JsonFloat(view, "yaw", 0.0f);
                 var pitch = JsonFloat(view, "pitch", 0.0f);
-                session.SetCamera(document, yaw, pitch);
+                var rendererYaw = -yaw;
+                session.SetCamera(document, rendererYaw, pitch);
                 Application.DoEvents();
                 var capturePath = Path.Combine(assetOutput, name + ".png");
                 File.Delete(capturePath);
@@ -158,6 +159,8 @@ internal static class VisualAuditBatch
                     ["name"] = name,
                     ["yaw"] = yaw,
                     ["pitch"] = pitch,
+                    ["renderer_yaw"] = rendererYaw,
+                    ["camera_mapping"] = "archive_to_dotnet_inverted_yaw",
                     ["ok"] = captured,
                     ["path"] = capturePath,
                     ["bytes"] = captured ? new FileInfo(capturePath).Length : 0L,
@@ -277,7 +280,7 @@ internal static class VisualAuditBatch
             var size = Math.Max(
                 bounds.Max.X - bounds.Min.X,
                 Math.Max(bounds.Max.Y - bounds.Min.Y, bounds.Max.Z - bounds.Min.Z));
-            var zoom = size > 0.0001f ? 380.0f / size : 220.0f;
+            var zoom = size > 0.0001f ? 500.0f / size : 220.0f;
             viewport.UpdateCamera(NetViewportCamera.Create(
                 center,
                 bounds,

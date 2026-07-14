@@ -129,6 +129,7 @@ def prepare_visual_audit_corpus(
     specs: Sequence[VisualAuditAssetSpec],
     *,
     progress: Callable[[int, int, str], None] | None = None,
+    checkpoint: Callable[[Mapping[str, object]], None] | None = None,
     allow_partial: bool = False,
 ) -> dict[str, object]:
     game_root = Path(game_root).resolve()
@@ -180,7 +181,7 @@ def prepare_visual_audit_corpus(
             texture_entries_by_basename=dict(entries_by_basename),
             include_loose_preview_assets=False,
             visible_texture_mode="mesh_base_first",
-            support_texture_slots=("normal", "material", "height"),
+            support_texture_slots=("normal", "material", "height", "emissive"),
             quality_tier="full",
         )
         if preview_result.status != "ok" or preview_result.preview_model is None:
@@ -191,7 +192,7 @@ def prepare_visual_audit_corpus(
         prepared_model, prepared_preview = prepare_model_preview(preview_result.preview_model)
         comparison_overlays = _remove_visual_audit_overlays(prepared_model)
         archive_prepare_ms = (time.perf_counter() - archive_started) * 1000.0
-        archive_package_dir = package_root / "archive-browser" / spec.asset_id
+        archive_package_dir = package_root / "archive-browser" / _archive_package_key(spec)
         archive_package_started = time.perf_counter()
         write_isolated_d3d11_preview_package(
             prepared_model,
@@ -265,6 +266,7 @@ def prepare_visual_audit_corpus(
             },
             "mesh_editor_package_ms": dotnet_package_ms,
             "metadata_ms": metadata_elapsed_ms,
+            "preparation_total_ms": (time.perf_counter() - started) * 1000.0,
         }
         rows.append(row)
         runtime_assets.append(
@@ -276,6 +278,23 @@ def prepare_visual_audit_corpus(
                 "views": [dict(view) for view in VISUAL_AUDIT_VIEWS],
             }
         )
+        if checkpoint is not None:
+            checkpoint(
+                {
+                    "schema": "cdmw_mesh_visual_audit_preparation_checkpoint_v1",
+                    "game_root": str(game_root),
+                    "pamt_path": str(pamt_path),
+                    "requested_asset_count": len(specs),
+                    "prepared_asset_count": len(rows),
+                    "coverage": coverage,
+                    "assets": list(rows),
+                    "runtime_assets": list(runtime_assets),
+                    "archive_fingerprint_paths": [
+                        str(path) for path in sorted(fingerprint_paths, key=lambda value: str(value).casefold())
+                    ],
+                    "complete": len(rows) == len(specs),
+                }
+            )
     return {
         "schema": "cdmw_mesh_visual_audit_corpus_v1",
         "game_root": str(game_root),
@@ -316,6 +335,11 @@ def _validate_visual_audit_identities(specs: Sequence[VisualAuditAssetSpec]) -> 
         parts = tuple(part for part in path.split("/") if part)
         if not path.casefold().endswith(".pac") or path.startswith("/") or ".." in parts:
             raise ValueError(f"Visual-audit virtual path must be a relative PAC path: {spec.virtual_path!r}")
+
+
+def _archive_package_key(spec: VisualAuditAssetSpec) -> str:
+    asset_key = hashlib.sha256(spec.asset_id.encode("utf-8")).hexdigest()[:8]
+    return f"{int(spec.index):03d}-{asset_key}"
 
 
 def _remove_visual_audit_overlays(model: object) -> dict[str, bool]:

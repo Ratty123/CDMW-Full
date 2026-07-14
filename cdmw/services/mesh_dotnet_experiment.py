@@ -326,6 +326,22 @@ def _build_dotnet_scene_mesh(mesh: ParsedMesh, reference_mesh: ParsedMesh | None
     return scene_mesh
 
 
+def _shutdown_dotnet_native_export_service() -> None:
+    from cdmw.modding.mesh_native_core import shutdown_native_mesh_core_service
+
+    shutdown_native_mesh_core_service()
+
+
+def _export_dotnet_obj_paths(mesh: ParsedMesh, package_dir: Path, name: str) -> tuple[Path, ...]:
+    try:
+        return tuple(Path(path) for path in export_obj(mesh, str(package_dir), name))
+    except RuntimeError as exc:
+        if str(exc) != "native OBJ export failed and Python export fallback was blocked":
+            raise
+        _shutdown_dotnet_native_export_service()
+        return tuple(Path(path) for path in export_obj(mesh, str(package_dir), name))
+
+
 def _write_dotnet_scene_manifest(
     path: Path,
     *,
@@ -508,7 +524,7 @@ def build_mesh_dotnet_experiment_package(
     package_dir = root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
     package_dir.mkdir(parents=True, exist_ok=False)
 
-    exported_paths = tuple(Path(path) for path in export_obj(mesh, str(package_dir), "mesh"))
+    exported_paths = _export_dotnet_obj_paths(mesh, package_dir, "mesh")
     mesh_path = package_dir / "mesh.obj"
     obj_sidecar_path = package_dir / "mesh.obj.meta.json"
     if mesh_path not in exported_paths or not mesh_path.is_file():
@@ -535,14 +551,28 @@ def build_mesh_dotnet_experiment_package(
     editable_submesh_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
     reference_submesh_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh is not None else 0
     scene_mesh = _build_dotnet_scene_mesh(mesh, reference_mesh)
-    scene_exported_paths = tuple(Path(path) for path in export_obj(scene_mesh, str(package_dir), "scene"))
     scene_mesh_path = package_dir / "scene.obj"
     scene_sidecar_path = package_dir / "scene.obj.meta.json"
-    if scene_mesh_path not in scene_exported_paths or not scene_mesh_path.is_file():
-        raise RuntimeError("Mesh .NET experiment package did not create scene.obj.")
-    if scene_sidecar_path not in scene_exported_paths or not scene_sidecar_path.is_file():
-        raise RuntimeError("Mesh .NET experiment package did not create scene.obj.meta.json.")
-    scene_sidecar_payload = json.loads(scene_sidecar_path.read_text(encoding="utf-8"))
+    if reference_mesh is None:
+        mesh_mtl_path = package_dir / "mesh.mtl"
+        scene_mtl_path = package_dir / "scene.mtl"
+        mesh_obj_text = mesh_path.read_text(encoding="utf-8")
+        atomic_write_text(
+            scene_mesh_path,
+            mesh_obj_text.replace("mtllib mesh.mtl", "mtllib scene.mtl", 1),
+        )
+        atomic_copy_file(mesh_mtl_path, scene_mtl_path)
+        scene_sidecar_payload = dict(sidecar_payload)
+        scene_sidecar_payload["export_path"] = scene_mesh_path.name
+        scene_sidecar_payload["companion_filename"] = scene_mtl_path.name
+        atomic_write_text(scene_sidecar_path, json.dumps(scene_sidecar_payload, indent=2))
+    else:
+        scene_exported_paths = _export_dotnet_obj_paths(scene_mesh, package_dir, "scene")
+        if scene_mesh_path not in scene_exported_paths or not scene_mesh_path.is_file():
+            raise RuntimeError("Mesh .NET experiment package did not create scene.obj.")
+        if scene_sidecar_path not in scene_exported_paths or not scene_sidecar_path.is_file():
+            raise RuntimeError("Mesh .NET experiment package did not create scene.obj.meta.json.")
+        scene_sidecar_payload = json.loads(scene_sidecar_path.read_text(encoding="utf-8"))
     if not isinstance(scene_sidecar_payload, dict):
         raise RuntimeError("Mesh .NET experiment scene sidecar is not a JSON object.")
     _write_dotnet_material_manifest(

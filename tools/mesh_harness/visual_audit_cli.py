@@ -56,12 +56,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.phase in {"all", "prepare"}:
         run_id = uuid4().hex
-        evidence_key = hashlib.sha256(str(evidence_root).casefold().encode("utf-8")).hexdigest()[:12]
-        temporary_root = (
-            Path(tempfile.gettempdir())
-            / "cdmw-mesh-editor-visual-audit"
-            / f"{evidence_root.name}-{evidence_key}-{run_id}"
-        ).resolve()
+        temporary_root = _visual_audit_temporary_root(evidence_root, run_id)
         temporary_root.mkdir(parents=True, exist_ok=True)
         specs = _load_specs(args.manifest) if args.manifest else default_visual_audit_specs()
         if args.limit > 0:
@@ -73,6 +68,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             specs,
             progress=lambda current, total, path: print(
                 f"[{current:03d}/{total:03d}] prepare {path}", flush=True
+            ),
+            checkpoint=lambda payload: _write_preparation_checkpoint(
+                runtime_root,
+                run_id=run_id,
+                temporary_root=temporary_root,
+                payload=payload,
             ),
             allow_partial=bool(args.limit > 0),
         )
@@ -165,7 +166,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         corpus,
         archive_report,
         dotnet_report,
-        temporary_root / "review",
+        evidence_root,
         final_root,
     )
     _atomic_write_json(runtime_root / "composites.json", {"assets": composite_rows})
@@ -256,6 +257,22 @@ def _validate_prepared_state(
             package_dir = Path(str(row.get(key, "") or "")).resolve()
             if not package_dir.is_dir() or not package_dir.is_relative_to(temporary_root):
                 raise ValueError(f"Prepared runtime asset has an invalid {key}.")
+
+
+def _write_preparation_checkpoint(
+    runtime_root: Path,
+    *,
+    run_id: str,
+    temporary_root: Path,
+    payload: Mapping[str, object],
+) -> None:
+    checkpoint = {
+        **dict(payload),
+        "run_id": run_id,
+        "temporary_root": str(temporary_root),
+        "updated_unix_seconds": time.time(),
+    }
+    _atomic_write_json(runtime_root / "preparation-checkpoint.json", checkpoint)
 
 
 def _payload_sha256(payload: Mapping[str, object]) -> str:
@@ -392,6 +409,13 @@ def _write_commands(evidence_root: Path, args: argparse.Namespace, temporary_roo
         command + " --limit 1",
         "```",
         "",
+        "Finalize directly inspected verdicts and selected angles:",
+        "",
+        "```powershell",
+        ".\\.venv\\Scripts\\python.exe tools\\mesh_editor_visual_audit_review.py "
+        f'--evidence "{evidence_root}" --verdicts "{evidence_root / "verdicts.json"}"',
+        "```",
+        "",
         f"Temporary packages and camera candidates: `{temporary_root}`",
         "",
         "The game root is read-only. The tool rejects evidence or temporary output beneath it.",
@@ -405,6 +429,15 @@ def _read_json(path: Path) -> dict[str, object]:
     except (OSError, ValueError):
         return {}
     return dict(payload) if isinstance(payload, Mapping) else {}
+
+
+def _visual_audit_temporary_root(evidence_root: Path, run_id: str) -> Path:
+    evidence_key = hashlib.sha256(str(Path(evidence_root).resolve()).casefold().encode("utf-8")).hexdigest()[:12]
+    return (
+        Path(tempfile.gettempdir())
+        / "cdmw-mesh-editor-visual-audit"
+        / f"{evidence_key}-{str(run_id).strip()}"
+    ).resolve()
 
 
 def _atomic_write_json(path: Path, payload: object) -> None:

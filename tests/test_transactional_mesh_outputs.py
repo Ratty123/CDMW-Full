@@ -10,6 +10,7 @@ from cdmw.core import atomic_file
 from cdmw.core.atomic_file import atomic_binary_writer, atomic_publish_directory, atomic_publish_files
 from cdmw.domain.mesh import MeshEditSelection
 from cdmw.modding import mesh_native_core_temp_paths
+from cdmw.modding import mesh_native_outputs
 from cdmw.modding.mesh_glb_interchange import export_glb
 from cdmw.modding.mesh_native_core import (
     dispose_native_mesh_history_delta,
@@ -156,6 +157,53 @@ class TransactionalMeshOutputTests(unittest.TestCase):
 
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             self.assertEqual(obj_path.name, manifest["export_path"])
+            self.assertEqual([], list(root.glob(".*.tmp")))
+
+    def test_native_obj_export_keeps_staging_names_compact_for_long_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            while len(str(root / "mesh.obj.meta.json")) < 220:
+                root /= "long-package-segment"
+            root.mkdir(parents=True)
+            obj_path = root / "mesh.obj"
+            manifest_path = root / "mesh.obj.meta.json"
+            staged_paths: list[Path] = []
+
+            def complete_job(_binary: Path, _command: str, payload: object, **_kwargs: object) -> dict[str, object]:
+                job = dict(payload)  # type: ignore[arg-type]
+                staged_obj = Path(str(job["output_path"]))
+                staged_manifest = Path(str(job["manifest_output_path"]))
+                staged_paths.extend((staged_obj, staged_manifest))
+                staged_obj.write_text("obj", encoding="utf-8")
+                staged_manifest.write_text("{}", encoding="utf-8")
+                return {"status": "ok", "operation": "obj_export", "submesh_count": 1}
+
+            with (
+                mock.patch.object(mesh_native_outputs, "find_native_mesh_core_binary", return_value=Path("native.exe")),
+                mock.patch.object(
+                    mesh_native_outputs,
+                    "_native_obj_submesh_payloads",
+                    return_value=((_mesh().submeshes[0],), [{"index": 0, "session_id": "session"}]),
+                ),
+                mock.patch.object(mesh_native_outputs, "_run_native_mesh_core_job", side_effect=complete_job),
+            ):
+                self.assertTrue(
+                    mesh_native_outputs.export_native_obj(
+                        _mesh(),
+                        obj_path,
+                        base_name="mesh",
+                        mtl_filename="mesh.mtl",
+                        manifest_path=manifest_path,
+                    )
+                )
+
+            self.assertEqual("obj", obj_path.read_text(encoding="utf-8"))
+            self.assertEqual("{}", manifest_path.read_text(encoding="utf-8"))
+            self.assertEqual(2, len(staged_paths))
+            for staged_path in staged_paths:
+                self.assertEqual(root, staged_path.parent)
+                self.assertNotIn(obj_path.name, staged_path.name)
+                self.assertLess(len(str(staged_path)), len(str(manifest_path)) + 50)
             self.assertEqual([], list(root.glob(".*.tmp")))
 
     def test_history_delta_ack_removes_only_tracked_payload(self) -> None:

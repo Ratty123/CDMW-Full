@@ -60,6 +60,12 @@ atomic_publish_files = _proxy("atomic_publish_files")
 find_native_mesh_core_binary = _proxy("find_native_mesh_core_binary")
 
 
+def _compact_staged_output_path(path: Path) -> Path:
+    """Return a same-directory staging path without repeating a long target name."""
+
+    return path.with_name(f".cdmw-{uuid4().hex}.tmp")
+
+
 def write_native_preview_identity_blob(
     output_path: Path | str,
     *,
@@ -310,10 +316,10 @@ def export_native_obj(
     if binary is None:
         return False
     path = Path(obj_path)
-    staged_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    staged_path = _compact_staged_output_path(path)
     final_manifest_path = Path(manifest_path) if manifest_path else None
     staged_manifest_path = (
-        final_manifest_path.with_name(f".{final_manifest_path.name}.{uuid4().hex}.tmp")
+        _compact_staged_output_path(final_manifest_path)
         if final_manifest_path is not None
         else None
     )
@@ -389,7 +395,7 @@ def write_native_obj_roundtrip_manifest(
     if binary is None:
         return False
     manifest_path = Path(f"{export_path}.meta.json")
-    staged_manifest_path = manifest_path.with_name(f".{manifest_path.name}.{uuid4().hex}.tmp")
+    staged_manifest_path = _compact_staged_output_path(manifest_path)
     try:
         manifest_path.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
@@ -546,7 +552,7 @@ def export_native_fbx(
     if binary is None:
         return False
     path = Path(fbx_path)
-    staged_path = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    staged_path = _compact_staged_output_path(path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
     except OSError:
