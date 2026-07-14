@@ -1,5 +1,6 @@
 .venv/
 .codex/*
+!.codex/config.toml
 .pytest_cache/
 .pytest-tmp/
 .pytest-tmp*/

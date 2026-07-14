@@ -1,0 +1,5 @@
+project_root_markers = [".git"]
+
+# Pin the global context guardrail for this large repository. This limits only
+# retained tool-result payloads; it does not change model reasoning or quality.
+tool_output_token_limit = 6000
