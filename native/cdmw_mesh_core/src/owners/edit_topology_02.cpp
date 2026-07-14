@@ -1,3 +1,23 @@
+std::map<int, int> mirror_pairs_from_json(const JsonValue* value, std::size_t vertex_count) {
+    std::map<int, int> result;
+    if (value == nullptr || value->type != JsonValue::Type::Array) {
+        return result;
+    }
+    for (const JsonValue& item : value->array_value) {
+        if (item.type != JsonValue::Type::Array || item.array_value.size() < 2) {
+            continue;
+        }
+        const int left = int_or(&item.array_value[0], -1);
+        const int right = int_or(&item.array_value[1], -1);
+        if (left >= 0 && right >= 0
+            && static_cast<std::size_t>(left) < vertex_count
+            && static_cast<std::size_t>(right) < vertex_count) {
+            result[left] = right;
+        }
+    }
+    return result;
+}
+
 std::map<int, int> build_x_mirror_pairs_native(const std::vector<Vec3>& vertices) {
     std::map<std::array<long long, 3>, std::vector<int>> buckets;
     const double scale = 10000.0;
