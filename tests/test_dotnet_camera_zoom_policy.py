@@ -11,6 +11,13 @@ def _source(name: str) -> str:
     return (DOTNET_ROOT / name).read_text(encoding="utf-8")
 
 
+def _source_family(pattern: str) -> str:
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(DOTNET_ROOT.glob(pattern))
+    )
+
+
 def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
     policy = _source("CameraZoomPolicy.cs")
     input_source = _source("MeshViewport.Input.cs")
@@ -42,7 +49,7 @@ def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
 
 
 def test_hidden_runtime_proof_covers_shared_reversible_zoom_policy() -> None:
-    soak = _source("HeadlessGpuSparseSoak.cs")
+    soak = _source_family("HeadlessGpuSparseSoak*.cs")
 
     assert "CameraZoomProof()" in soak
     assert 'gates["placement_and_mesh_edit_wheel_zoom_reversible"]' in soak

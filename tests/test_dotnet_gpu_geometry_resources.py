@@ -9,6 +9,13 @@ def _source(name: str) -> str:
     return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
 
 
+def _source_family(pattern: str) -> str:
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted(DOTNET_EDITOR.glob(pattern))
+    )
+
+
 def _method(source: str, signature: str, next_signature: str) -> str:
     return source.split(signature, maxsplit=1)[1].split(next_signature, maxsplit=1)[0]
 
@@ -128,7 +135,7 @@ def test_native_dds_mips_color_space_and_semantic_shading_are_explicit() -> None
 
 def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence() -> None:
     entry = _source("ProgramEntry.cs")
-    soak = _source("HeadlessGpuSparseSoak.cs")
+    soak = _source_family("HeadlessGpuSparseSoak*.cs")
     options = _source("HeadlessGpuSparseSoakOptions.cs")
     headless = _source("D3D11MaterialViewport.Headless.cs")
     metrics = _source("D3D11MaterialViewport.Metrics.cs")
@@ -198,7 +205,7 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
 def test_sparse_bounds_rebase_when_an_extremum_moves_inward() -> None:
     topology = _source("MeshViewport.Topology.cs")
     bounds = _source("MeshViewport.Bounds.cs")
-    soak = _source("HeadlessGpuSparseSoak.cs")
+    soak = _source_family("HeadlessGpuSparseSoak*.cs")
 
     assert "SparseBounds.Update(changedVertices);" in topology
     assert "ApplySparseBounds();" in topology
