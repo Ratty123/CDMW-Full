@@ -7,6 +7,7 @@ from unittest.mock import patch
 from cdmw.core import archive
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
+from cdmw.ui.archive_browser.preview_loading import ArchivePreviewLoadingMixin
 from cdmw.ui.archive_browser.workers import _archive_preview_debounce_ms
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 
@@ -14,8 +15,8 @@ from cdmw.workers.archive_preview_workers import ArchivePreviewWorker
 def _entry(path: str, extension: str) -> ArchiveEntry:
     return ArchiveEntry(
         path=path,
-        pamt_path="package.pamt",
-        paz_file="package_0.paz",
+        pamt_path=Path("package.pamt"),
+        paz_file=Path("package_0.paz"),
         offset=0,
         comp_size=100,
         orig_size=100,
@@ -56,6 +57,21 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pamlod", ".pamlod")))
         self.assertEqual(90, _archive_preview_debounce_ms(_entry("ui/texture/icon.dds", ".dds")))
         self.assertEqual(90, _archive_preview_debounce_ms(None))
+
+    def test_quick_preview_resolves_dot_xml_material_sidecar(self) -> None:
+        mesh = _entry("character/model/body.pac", ".pac")
+        sidecar = _entry("character/model/body.pac.xml", ".xml")
+        owner = SimpleNamespace(
+            archive_entries_by_basename={sidecar.basename.lower(): [sidecar]},
+            archive_sidecar_generation=7,
+        )
+
+        result = ArchivePreviewLoadingMixin._quick_archive_model_preview_result(owner, mesh)
+
+        self.assertIsNotNone(result)
+        self.assertEqual(7, result.sidecar_generation)
+        self.assertEqual(1, len(result.model_texture_references))
+        self.assertIs(sidecar, result.model_texture_references[0].resolved_entry)
 
     def test_native_preview_emits_quick_metadata_before_full_generation(self) -> None:
         worker = ArchivePreviewWorker(

@@ -282,6 +282,32 @@ class ArchiveBrowserActionMixin:
             return self.archive_filtered_entries[value]
         return None
 
+    def _add_archive_material_context_action(
+        self,
+        menu: QMenu,
+        menu_icons: dict[str, QIcon],
+        entry: ArchiveEntry,
+    ) -> None:
+        material_sidecar_entry = self._related_material_sidecar_entry_for_archive_entry(entry)
+        if entry.extension not in ARCHIVE_MESH_EXTENSIONS and not is_material_sidecar_entry(entry):
+            return
+        menu.addSection(menu_icons["texture"], "Material")
+        edit_material_action = menu.addAction(menu_icons["texture"], "Edit Material Values...")
+        edit_material_action.setEnabled(material_sidecar_entry is not None)
+        if material_sidecar_entry is None:
+            edit_material_action.setToolTip(
+                "Unavailable: no recognized companion .pac_xml/.pac.xml/.pam_xml/.pam.xml/"
+                ".pamlod_xml/.pamlod.xml/.pami material sidecar was found. Material values are "
+                "stored in the sidecar, not in the selected mesh bytes."
+            )
+            return
+        edit_material_action.setToolTip(
+            "Read recognized values from the selected or companion material sidecar and export edited values as a mod-ready package."
+        )
+        edit_material_action.triggered.connect(
+            lambda _checked=False, current_material_entry=material_sidecar_entry: self._open_material_sidecar_editor(current_material_entry)
+        )
+
     def _show_archive_tree_context_menu(self, position) -> None:
         context_started_at = time.perf_counter()
         item = self.archive_tree.itemAt(position)
@@ -407,10 +433,6 @@ class ArchiveBrowserActionMixin:
             modify_original_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._mesh_editor_modify_original_requested(current_entry)
             )
-            import_preview_action = menu.addAction(menu_icons["mesh"], "Import Mesh Preview...")
-            import_preview_action.triggered.connect(
-                lambda _checked=False, current_entry=entry: self._start_archive_mesh_import_preview(current_entry)
-            )
             import_patch_action = menu.addAction(menu_icons["mesh"], "Import Mesh...")
             import_patch_action.triggered.connect(
                 lambda _checked=False, current_entry=entry: self._start_archive_mesh_patch(current_entry)
@@ -475,16 +497,7 @@ class ArchiveBrowserActionMixin:
                 lambda _checked=False, current_entry=entry: self._edit_archive_structured_binary_sidecar(current_entry)
             )
 
-        material_sidecar_entry = self._related_material_sidecar_entry_for_archive_entry(entry)
-        if material_sidecar_entry is not None:
-            _add_menu_section("texture", "Material")
-            edit_material_action = menu.addAction(menu_icons["texture"], "Edit Material Values...")
-            edit_material_action.setToolTip(
-                "Read recognized values from the selected or companion material sidecar and export edited values as a mod-ready package."
-            )
-            edit_material_action.triggered.connect(
-                lambda _checked=False, current_material_entry=material_sidecar_entry: self._open_material_sidecar_editor(current_material_entry)
-            )
+        self._add_archive_material_context_action(menu, menu_icons, entry)
 
         if entry.extension in ARCHIVE_AUDIO_EXPORT_EXTENSIONS or entry.extension in ARCHIVE_AUDIO_PATCH_EXTENSIONS:
             _add_menu_section("audio", "Audio")

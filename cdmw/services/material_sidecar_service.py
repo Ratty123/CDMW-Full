@@ -17,6 +17,10 @@ _EXPORTS = {
         "is_material_sidecar_entry",
     )
 }
+_EXPORTS["material_sidecar_candidate_basenames_for_model"] = (
+    "cdmw.domain.archives.format",
+    "material_sidecar_candidate_basenames_for_model",
+)
 __all__ = tuple(_EXPORTS)
 
 

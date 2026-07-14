@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
 from typing import Optional
 
 from cdmw.constants import ARCHIVE_TEXT_PREVIEW_LIMIT
@@ -25,6 +26,20 @@ def is_material_sidecar_extension(extension: str, basename: str = "") -> bool:
         normalized_extension == ".xml"
         and normalized_basename.endswith((".pac.xml", ".pam.xml", ".pamlod.xml"))
     )
+
+
+def material_sidecar_candidate_basenames_for_model(model_path: str) -> tuple[str, ...]:
+    basename = PurePosixPath(str(model_path or "").replace("\\", "/").strip()).name.lower()
+    virtual_path = PurePosixPath(basename)
+    stem = virtual_path.stem
+    extension = virtual_path.suffix
+    if not stem or extension not in {".pac", ".pam", ".pamlod"}:
+        return ()
+    if extension == ".pac":
+        return (f"{stem}.pac_xml", f"{stem}.pac.xml")
+    if extension == ".pam":
+        return (f"{stem}.pami", f"{stem}.pam_xml", f"{stem}.pam.xml")
+    return (f"{stem}.pami", f"{stem}.pamlod_xml", f"{stem}.pamlod.xml")
 
 
 def normalize_archive_extension_filter(extension_filter: str) -> str:
@@ -73,6 +88,7 @@ __all__ = [
     "ARCHIVE_METADATA_XML_EXTENSIONS",
     "ARCHIVE_XML_LIKE_EXTENSIONS",
     "is_material_sidecar_extension",
+    "material_sidecar_candidate_basenames_for_model",
     "normalize_archive_extension_filter",
     "try_decode_text_like_archive_data",
 ]

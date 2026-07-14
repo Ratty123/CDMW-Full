@@ -32,6 +32,7 @@ from cdmw.services.material_sidecar_service import (
     discover_material_sidecar_preview_overrides_for_edits,
     discover_material_sidecar_values,
     is_material_sidecar_entry,
+    material_sidecar_candidate_basenames_for_model,
 )
 from cdmw.services.texture_workflow_service import normalize_texture_reference_for_sidecar_lookup
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
@@ -62,17 +63,7 @@ class ArchiveMaterialSidecarActionsMixin:
             return entry
         source_path = entry.path.replace("\\", "/").strip()
         source_virtual_path = PurePosixPath(source_path)
-        source_stem = source_virtual_path.stem
-        source_extension = str(entry.extension or "").strip().lower()
-        candidate_basenames: List[str] = []
-        if source_stem:
-            candidate_basenames.append(f"{source_stem}.xml")
-            if source_extension == ".pac":
-                candidate_basenames.append(f"{source_stem}.pac_xml")
-            elif source_extension == ".pam":
-                candidate_basenames.extend([f"{source_stem}.pami", f"{source_stem}.pam_xml"])
-            elif source_extension == ".pamlod":
-                candidate_basenames.extend([f"{source_stem}.pami", f"{source_stem}.pamlod_xml"])
+        candidate_basenames = material_sidecar_candidate_basenames_for_model(source_path)
         for basename in candidate_basenames:
             candidate_path = (source_virtual_path.parent / basename).as_posix()
             candidate = self._find_archive_entry_by_virtual_path(candidate_path)

@@ -13,6 +13,7 @@ from cdmw.services.archive_read_service import (
 )
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, ArchivePreviewResult, RelationConfidence, RelationKind
+from cdmw.services.material_sidecar_service import material_sidecar_candidate_basenames_for_model
 from cdmw.services.preview_rendering_service import shutdown_native_preview_core_service
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 
@@ -24,18 +25,7 @@ class ArchivePreviewLoadingMixin:
         if entry is None or entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             return None
         sidecar_refs: List[ArchiveModelTextureReference] = []
-        normalized_path = entry.path.replace("\\", "/").strip()
-        source_stem = PurePosixPath(normalized_path).stem.strip()
-        candidate_basenames: List[str] = []
-        if source_stem:
-            if entry.extension == ".pac":
-                candidate_basenames.append(f"{source_stem}.pac_xml")
-            elif entry.extension == ".pam":
-                candidate_basenames.append(f"{source_stem}.pami")
-                candidate_basenames.append(f"{source_stem}.pam_xml")
-            elif entry.extension == ".pamlod":
-                candidate_basenames.append(f"{source_stem}.pami")
-                candidate_basenames.append(f"{source_stem}.pamlod_xml")
+        candidate_basenames = material_sidecar_candidate_basenames_for_model(entry.path)
         seen_paths: set[str] = set()
         for basename in candidate_basenames:
             for related_entry in self.archive_entries_by_basename.get(basename.lower(), ()):

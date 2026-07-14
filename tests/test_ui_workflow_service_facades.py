@@ -32,6 +32,8 @@ assert hkx_edit_service.apply_hkx_editable_geometry_xml is archive_hkx.apply_hkx
 assert 'cdmw.core.material_sidecar_editor' not in sys.modules
 from cdmw.core import material_sidecar_editor
 assert material_sidecar_service.is_material_sidecar_entry is material_sidecar_editor.is_material_sidecar_entry
+from cdmw.domain.archives import format as archive_format
+assert material_sidecar_service.material_sidecar_candidate_basenames_for_model is archive_format.material_sidecar_candidate_basenames_for_model
 from cdmw.core import replace_assistant
 assert replace_assistant_service.build_replace_assistant_items is replace_assistant.build_replace_assistant_items
 from cdmw.core import startup_splash_protocol
