@@ -189,7 +189,13 @@ def prepare_visual_audit_corpus(
                 f"Archive Browser preview failed for {entry.path}: "
                 f"{preview_result.warning_text or preview_result.detail_text}"
             )
-        prepared_model, prepared_preview = prepare_model_preview(preview_result.preview_model)
+        # Package writing is the single material-combiner authority for this
+        # harness. Running it here as well repeats the same expensive graph
+        # synthesis without changing the captured package contract.
+        prepared_model, prepared_preview = prepare_model_preview(
+            preview_result.preview_model,
+            enable_material_combiner=False,
+        )
         comparison_overlays = _remove_visual_audit_overlays(prepared_model)
         archive_prepare_ms = (time.perf_counter() - archive_started) * 1000.0
         archive_package_dir = package_root / "archive-browser" / _archive_package_key(spec)

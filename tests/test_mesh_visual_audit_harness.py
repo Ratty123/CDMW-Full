@@ -201,6 +201,9 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     capture = (ROOT / "tools" / "mesh_harness" / "visual_audit_capture.py").read_text(
         encoding="utf-8"
     )
+    corpus = (ROOT / "tools" / "mesh_harness" / "visual_audit_corpus.py").read_text(
+        encoding="utf-8"
+    )
     native_host = (ROOT / "cdmw" / "ui" / "native_d3d11_preview_host.py").read_text(
         encoding="utf-8"
     )
@@ -227,6 +230,8 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert "completed.returncode == 0" in capture
     assert 'str(report.get("run_id", "")) == run_id' in capture
     assert '"command": "capture_frame"' in native_host
+    assert "enable_material_combiner=False" in corpus
+    assert "enable_material_combiner=True" in corpus
 
 
 def test_visual_audit_composites_preserve_source_pixels_without_resampling(tmp_path: Path) -> None:
