@@ -4,89 +4,40 @@ Last updated: 2026-07-14
 
 ## Repository rules
 
-- Continue the current restructure; never reset, clean, mass-format, stage, or
-  overwrite the dirty worktree. Modified and untracked source may be user work.
-- Use `apply_patch` for edits and the project virtual environment for Python:
-  `.\.venv\Scripts\python.exe`.
-- Keep entry points and facades thin. UI owns presentation, services own
-  orchestration and I/O, domain owns dependency-free rules/data, and workers own
-  long-running work. Core must not discover workspace/config dependencies.
-- UI code must not mutate archives directly. Route mutation through
-  `ArchiveMutationService`; source PAMT/PAZ files are read-only during tests.
-- Preserve public Python imports, CLI scenario names, executable names, profile
-  formats, wire schemas, and native package formats through cached lazy exports
-  or versioned adapters.
-- Keep `docs/plans/active/` to one current implementation plan. Delete completed
-  plans and architecture-map-only placeholder modules; durable behavior belongs
-  in owning docs, not completion logs.
-- Repo workflows live under `.agents/skills/`: `cdmw-validate-change`,
-  `cdmw-async-ui-work`, `cdmw-safe-archive-mutation`, and
-  `cdmw-verify-mesh-editor`. Keep stable invariants in `AGENTS.md`; keep detailed
-  commands and contracts in their owning docs/scripts instead of duplicating
-  them inside skills.
+- Continue the current restructure; never reset, clean, mass-format, stage, or overwrite the dirty worktree. Modified and untracked source may be user work.
+- Use `apply_patch` for edits and the project virtual environment for Python: `.\.venv\Scripts\python.exe`.
+- Keep entry points and facades thin. UI owns presentation, services own orchestration and I/O, domain owns dependency-free rules/data, and workers own long-running work. Core must not discover workspace/config dependencies.
+- UI code must not mutate archives directly. Route mutation through `ArchiveMutationService`; source PAMT/PAZ files are read-only during tests.
+- Preserve public Python imports, CLI scenario names, executable names, profile formats, wire schemas, and native package formats through cached lazy exports or versioned adapters.
+- Keep `docs/plans/active/` to one current implementation plan. Delete completed plans and architecture-map-only placeholder modules; durable behavior belongs in owning docs, not completion logs.
+- Repo workflows live under `.agents/skills/`: `cdmw-validate-change`, `cdmw-async-ui-work`, `cdmw-safe-archive-mutation`, and `cdmw-verify-mesh-editor`. Keep stable invariants in `AGENTS.md`; keep detailed commands and contracts in their owning docs/scripts instead of duplicating them inside skills.
 
 ## Validated restructure baseline
 
-- The whole-codebase repair phases and final validation passed on 2026-07-11;
-  the completed plan was removed from `docs/plans/active/`. Broad test, package,
-  startup, and real-game evidence lives in `docs/release-confidence-plan.md`.
-- Static-replacement callback/section facades and the mesh-edit factory pass
-  live globals/state into ordered bounded owners; preserve patch seams, public
-  callback signatures/identity, and signal order.
+- The whole-codebase repair phases and final validation passed on 2026-07-11; the completed plan was removed from `docs/plans/active/`. Broad test, package, startup, and real-game evidence lives in `docs/release-confidence-plan.md`.
+- Static-replacement callback/section facades and the mesh-edit factory pass live globals/state into ordered bounded owners; preserve patch seams, public callback signatures/identity, and signal order.
 
 ## Test and evidence contracts
 
-- Default pytest and `scripts/codex_check.ps1 -Area full` are headless and must
-  launch no visible native windows. Synthetic geometry is protocol/unit-only.
+- Default pytest and `scripts/codex_check.ps1 -Area full` are headless and must launch no visible native windows. Synthetic geometry is protocol/unit-only.
 - `scripts/codex_check.ps1 -Area mesh-unit` is nonvisual mesh coverage.
-- `scripts/codex_check.ps1 -Area mesh [-GameRoot PATH]` is the explicit visual
-  real-game gate. Root resolution is argument, `CDMW_GAME_ROOT`, then
-  `C:\games\Steam\steamapps\common\Crimson Desert`.
-- That gate requires the production .NET/Vortice renderer
-  `d3d11_vortice_shader` and resident edit backend `cdmw_mesh_core_0.1`.
-  Legacy `real-archive-mesh-editor-d3d11-*` scenarios are compatibility-only.
-- The real proof loads
-  `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` from
-  `0009\0.pamt`, uses production material/texture resolution, forbids checker or
-  synthetic fallback, runs the resident select/transform/material/texture/
-  UV/topology/undo/export sequence, reparses exported GLB/OBJ/DDS/sidecars, and
-  fingerprints source archives before/after.
-- The same proof must exercise acknowledged Vortice `textured`, `untextured_faces`,
-  `wire_vertices`, and `vertices` against the real PAC. Display-only changes
-  retain the process, package, buffers, textures, and SRVs. Neutral faces use
-  inverse-transpose, two-sided camera-relative shading with a fixed floor;
-  hidden front/back/oblique captures are synthetic evidence only, while the
-  real PAC remains visual proof.
-- Real-proof output is versioned JSON under an owned temporary root. It records
-  PAC/archive/texture provenance and hashes, backend, geometry selection,
-  captures, timings, fallback state, archive fingerprints, and individual gate
-  results.
+- `scripts/codex_check.ps1 -Area mesh [-GameRoot PATH]` is the explicit visual real-game gate. Root resolution is argument, `CDMW_GAME_ROOT`, then `C:\games\Steam\steamapps\common\Crimson Desert`.
+- That gate requires the production .NET/Vortice renderer `d3d11_vortice_shader` and resident edit backend `cdmw_mesh_core_0.1`. Legacy `real-archive-mesh-editor-d3d11-*` scenarios are compatibility-only.
+- The real proof loads `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` from `0009\0.pamt`, uses production material/texture resolution, forbids checker or synthetic fallback, runs the resident select/transform/material/texture/UV/topology/undo/export sequence, reparses exported GLB/OBJ/DDS/sidecars, and fingerprints source archives before/after.
+- The same proof must exercise acknowledged Vortice `textured`, `untextured_faces`, `wire_vertices`, and `vertices` against the real PAC. Display-only changes retain the process, package, buffers, textures, and SRVs. Neutral faces use inverse-transpose, two-sided camera-relative shading with a fixed floor; hidden front/back/oblique captures are synthetic evidence only, while the real PAC remains visual proof.
+- Real-proof output is versioned JSON under an owned temporary root. It records PAC/archive/texture provenance and hashes, backend, geometry selection, captures, timings, fallback state, archive fingerprints, and individual gate results.
 - Use a system temporary pytest base. Configured gates fail closed; full QA compiles `cdmw`, `tests`, and `tools`.
-- Corpus gates require complete classification, zero read errors/crashes, and
-  unchanged source-archive hashes; dated totals belong in
-  `docs/release-confidence-plan.md`.
+- Corpus gates require complete classification, zero read errors/crashes, and unchanged source-archive hashes; dated totals belong in `docs/release-confidence-plan.md`.
 
 ## Shared identities, I/O, and lifecycle
 
-- Archive scan preflight treats nested PAMT trees outside root-level, `NNNN/`,
-  `game_files/`, and `game_files/NNNN/` layouts as suspicious. It warns and lets
-  the user cancel, open the folder, or scan anyway; it never auto-excludes files.
-- Archive entries use one immutable identity: normalized virtual path, source
-  PAMT, PAZ index, and entry offset. Caches, selection, shell bridges, and
-  replacement flows must use all four parts.
-- File/package/report writes use a sibling temporary file or staging directory,
-  flush as appropriate, then atomic replacement/publication. Cancellation must
-  leave no partially published output.
-- ZIP/model ingestion is streaming and cancellable, validates member count,
-  expanded size, ratio, traversal, duplicate targets, free space, and time/byte
-  ceilings, then atomically publishes a content-fingerprinted fresh extraction.
-- Worker-owning UI follows one contract: immutable snapshot, cancellation token,
-  monotonic request ID, queued delivery, stale-result rejection, bounded
-  progress, `request_shutdown()`, and `iter_shutdown_workers()`.
-- Source-checkout workspace migration must never move the repository's `tools/`
-  tree into `workspace/`; `.git` plus `cdmw/` identifies a source checkout.
-- App-owned subprocesses get cooperative grace, then process-tree termination.
-  User-launched game and third-party applications remain user-owned.
+- Archive scan preflight treats nested PAMT trees outside root-level, `NNNN/`, `game_files/`, and `game_files/NNNN/` layouts as suspicious. It warns and lets the user cancel, open the folder, or scan anyway; it never auto-excludes files.
+- Archive entries use one immutable identity: normalized virtual path, source PAMT, PAZ index, and entry offset. Caches, selection, shell bridges, and replacement flows must use all four parts.
+- File/package/report writes use a sibling temporary file or staging directory, flush as appropriate, then atomic replacement/publication. Cancellation must leave no partially published output.
+- ZIP/model ingestion is streaming and cancellable, validates member count, expanded size, ratio, traversal, duplicate targets, free space, and time/byte ceilings, then atomically publishes a content-fingerprinted fresh extraction.
+- Worker-owning UI follows one contract: immutable snapshot, cancellation token, monotonic request ID, queued delivery, stale-result rejection, bounded progress, `request_shutdown()`, and `iter_shutdown_workers()`.
+- Source-checkout workspace migration must never move the repository's `tools/` tree into `workspace/`; `.git` plus `cdmw/` identifies a source checkout.
+- App-owned subprocesses get cooperative grace, then process-tree termination. User-launched game and third-party applications remain user-owned.
 
 ## Texture and cache contracts
 
@@ -158,6 +109,11 @@ Last updated: 2026-07-14
   regenerate lower mips after each boxed upload, and preserve the resident
   process/package/viewport contract. Real topology evidence scans the retained
   protocol tail when the bounded event buffer has pruned the original cursor.
+  The canonical paired visual audit keeps one native process and one .NET
+  process/device/viewport resident for an ordered PAC corpus, captures six fixed
+  angles, requires direct per-asset verdicts, and proves source archives
+  unchanged with before/after fingerprints. It is CDMW renderer-consistency
+  evidence, never licensed-game parity proof.
   The representative real hair corpus entry is `cd_ptm_00_hair_00_0003.pac`;
   it must resolve at least one source DDS instead of recording empty coverage.
   OpenImageIO is optional offline metadata/diff evidence, never runtime shading

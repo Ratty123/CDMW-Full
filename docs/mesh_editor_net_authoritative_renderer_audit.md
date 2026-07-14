@@ -18,6 +18,11 @@ Last updated: 2026-07-14
   prop, layered armor, fur, and one external model. It records source DDS
   format/mips, semantic/color-space transport, and unresolved inputs. Shader
   family graphs without capture evidence remain explicit non-claims.
+- The canonical paired visual audit uses an ordered 30-PAC corpus and six fixed
+  camera angles. Archive Browser and .NET/Vortice capture each keep one process
+  resident for the batch; .NET additionally keeps one device and viewport while
+  scenes swap in-process. Direct verdicts and before/after source-archive
+  fingerprints are required before a run can be called complete.
 
 ## Current .NET viewport implementation
 
@@ -65,6 +70,13 @@ Last updated: 2026-07-14
   multiplied with sampled alpha. PAC emissive ownership is exact per material
   or submesh; anonymous emissive inputs never leak across unrelated sword,
   handle, skin, or accessory materials.
+- PAC cutout aliases preserve source base alpha and use the evidence-backed
+  `0.12` fallback only when the PAC declares cutout behavior without an explicit
+  threshold. Emissive true-to-false transitions clear the resident binding and
+  parameter snapshot instead of retaining stale scene state.
+- Representative preview colors are diagnostic fallback colors, not automatic
+  multipliers for authoritative full textures. Normal-Y policy is shared across
+  the native and .NET package paths.
 - Registry-proven Crimson color-blending masks decode R as ambient occlusion,
   G as roughness, and B as metalness. `_mg` detail/grime remains a layer input
   and is never promoted to primary albedo or a packed PBR mask without evidence.
@@ -205,6 +217,18 @@ Implemented in this pass:
 - Added material debug channel toggles and renderer status parity metadata for base, normal, roughness, metallic, emissive, specular, and final output.
 - Kept host commit/import/material refresh unchanged.
 
+The 2026-07-14 paired visual-audit repair also:
+
+- made emissive transport explicit, removed guessed emissive siblings, handled
+  BC4 scalar resources conservatively, and synchronized resident parameter
+  snapshots on material replacement;
+- compacted generated OBJ/manifest/texture staging names and the audit package
+  root so valid files do not cross Win32's legacy 260-character boundary;
+- made sequential .NET scene replacement preserve the process, device, and
+  viewport, with rollback on a failed scene load; and
+- kept skeleton/cloth overlays out of material-parity captures while aligning
+  yaw and zoom between the two renderers.
+
 ### Remaining renderer work
 
 - Add evidence before enabling cubemap, array, volume, or uncommon legacy-mask
@@ -239,6 +263,20 @@ explicit evidence boundary.
 
 ## Real archive proof
 
+- The canonical 30-PAC paired visual audit completed on 2026-07-14 with 12
+  PASS, 12 CONCERN, and 6 FAIL verdicts after direct review of all 30 contact
+  sheets. Coverage was 8 weapons (6 swords), 8 armor/outfits, 5 body/skin, 5
+  hair/fur/feather/body-hair, and 4 unusual assets. The evidence contains 180
+  paired angle PNGs and 30 selected final comparisons. Both capture batches and
+  run integrity passed; the .NET session reported one device initialization,
+  one viewport creation, 30 resident scene loads, and zero reset attempts or
+  resets. Source PAMT/PAZ fingerprints were identical before and after.
+  Evidence: `workspace/mesh-editor-visual-audit/20260714-203649`.
+- The direct corpus review leaves shield/layered outfit/generic packed-mask
+  reconstruction, dark-fur response, and the spider's combined
+  cloth/hair/standard graph as explicit unsupported families. Five body PACs
+  also expose an Archive Browser two-sided/internal-face difference, while true
+  transmissive alpha-blend glass remains unproven by this corpus.
 - The 2026-07-14 deterministic OpenImageIO corpus covered nine representative
   assets and 68 readable texture resources. Two independent builds matched at
   fingerprint
