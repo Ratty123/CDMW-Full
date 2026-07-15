@@ -205,7 +205,10 @@ internal sealed partial class NetMaterialSet
             PostContrastBrightness = OptionalFloat(group, "post_contrast_brightness", 0.0f, 4.0f),
             Saturation = OptionalFloat(group, "saturation", 0.0f, 4.0f),
             Gamma = OptionalFloat(group, "gamma", 0.25f, 4.0f),
-            TintColor = OptionalColor(group, "tint_color", 0.0f, 4.0f, "tint"),
+            BaseTintColor = OptionalColor(group, "base_tint_color", 0.0f, 1.5f, "base_color"),
+            BaseTintStrength = OptionalFloat(group, "base_tint_strength", 0.0f, 1.0f),
+            BaseTintMetallic = OptionalBoolean(group, "base_tint_metallic"),
+            TintColor = OptionalColor(group, "texture_tint", 0.0f, 4.0f, "tint_color", "tint"),
             BaseColorLift = OptionalInteger(group, "base_color_lift", 0, 254),
             ValueMax = OptionalInteger(group, "value_max", 0, 255),
             AutoBalance = OptionalInteger(group, "auto_balance", 0, 100),
@@ -387,7 +390,9 @@ internal sealed partial class NetMaterialSet
             "source_submesh_indices", "submesh_indices", "affected_submeshes",
             "editor_role", "material_name", "texture_name",
             "texture_brightness", "brightness", "contrast", "post_contrast_brightness", "saturation", "gamma",
-            "tint_color", "tint", "base_color_lift", "value_max", "auto_balance", "shadow_lift",
+            "base_tint_color", "base_color", "base_tint_strength", "base_tint_metallic",
+            "texture_tint", "tint_color", "tint",
+            "base_color_lift", "value_max", "auto_balance", "shadow_lift",
             "roughness", "metalness", "metallic", "specular",
             "roughness_inverted", "roughness_invert", "metalness_inverted", "metallic_inverted", "metalness_invert", "metallic_invert",
             "roughness_scale", "roughness_min", "roughness_max",
@@ -424,6 +429,9 @@ internal readonly record struct NetMaterialParameterDelta
     public NetOptionalParameter<float> PostContrastBrightness { get; init; }
     public NetOptionalParameter<float> Saturation { get; init; }
     public NetOptionalParameter<float> Gamma { get; init; }
+    public NetOptionalParameter<Vector3> BaseTintColor { get; init; }
+    public NetOptionalParameter<float> BaseTintStrength { get; init; }
+    public NetOptionalParameter<bool> BaseTintMetallic { get; init; }
     public NetOptionalParameter<Vector3> TintColor { get; init; }
     public NetOptionalParameter<int> BaseColorLift { get; init; }
     public NetOptionalParameter<int> ValueMax { get; init; }
@@ -453,7 +461,9 @@ internal readonly record struct NetMaterialParameterDelta
 
     public bool HasChanges =>
         TextureBrightness.IsSpecified || Contrast.IsSpecified || PostContrastBrightness.IsSpecified
-        || Saturation.IsSpecified || Gamma.IsSpecified || TintColor.IsSpecified || BaseColorLift.IsSpecified
+        || Saturation.IsSpecified || Gamma.IsSpecified || BaseTintColor.IsSpecified || BaseTintStrength.IsSpecified
+        || BaseTintMetallic.IsSpecified
+        || TintColor.IsSpecified || BaseColorLift.IsSpecified
         || ValueMax.IsSpecified || AutoBalance.IsSpecified || ShadowLift.IsSpecified || Roughness.IsSpecified
         || Metalness.IsSpecified || Specular.IsSpecified || RoughnessInverted.IsSpecified || MetalnessInverted.IsSpecified
         || RoughnessScale.IsSpecified || RoughnessMin.IsSpecified || RoughnessMax.IsSpecified
@@ -471,6 +481,9 @@ internal readonly record struct NetMaterialParameters
     public float? PostContrastBrightness { get; init; }
     public float? Saturation { get; init; }
     public float? Gamma { get; init; }
+    public Vector3? BaseTintColor { get; init; }
+    public float? BaseTintStrength { get; init; }
+    public bool? BaseTintMetallic { get; init; }
     public Vector3? TintColor { get; init; }
     public int? BaseColorLift { get; init; }
     public int? ValueMax { get; init; }
@@ -510,6 +523,9 @@ internal readonly record struct NetMaterialParameters
             PostContrastBrightness = delta.PostContrastBrightness.Apply(PostContrastBrightness),
             Saturation = delta.Saturation.Apply(Saturation),
             Gamma = delta.Gamma.Apply(Gamma),
+            BaseTintColor = delta.BaseTintColor.Apply(BaseTintColor),
+            BaseTintStrength = delta.BaseTintStrength.Apply(BaseTintStrength),
+            BaseTintMetallic = delta.BaseTintMetallic.Apply(BaseTintMetallic),
             TintColor = delta.TintColor.Apply(TintColor),
             BaseColorLift = delta.BaseColorLift.Apply(BaseColorLift),
             ValueMax = delta.ValueMax.Apply(ValueMax),

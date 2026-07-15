@@ -4,13 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from cdmw.models import PreviewMaterialTextureInput
+from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.services import mesh_dotnet_material_state
 from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_state_payload
+from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
 from tests.test_mesh_dotnet_experiment import _mesh
 
 
-def test_textured_material_does_not_apply_representative_preview_color_as_tint(tmp_path: Path) -> None:
+def test_textured_material_carries_representative_preview_color_as_inactive_base_tint(tmp_path: Path) -> None:
     base = tmp_path / "lantern_base.dds"
     base.write_bytes(b"base")
     mesh = _mesh()
@@ -27,7 +28,10 @@ def test_textured_material_does_not_apply_representative_preview_color_as_tint(t
         generation=1,
     )
 
-    assert "tint_color" not in payload["submeshes"][0]["parameters"]
+    parameters = payload["submeshes"][0]["parameters"]
+    assert parameters["base_tint_color"] == [0.68, 0.60, 0.49]
+    assert parameters["base_tint_strength"] == 0.0
+    assert "texture_tint" not in parameters
 
 
 def test_textured_material_transports_explicit_texture_tint(tmp_path: Path) -> None:
@@ -48,7 +52,41 @@ def test_textured_material_transports_explicit_texture_tint(tmp_path: Path) -> N
         generation=1,
     )
 
-    assert payload["submeshes"][0]["parameters"]["tint_color"] == [0.73, 0.44, 0.24]
+    parameters = payload["submeshes"][0]["parameters"]
+    assert parameters["base_tint_color"] == [0.57, 0.39, 0.29]
+    assert parameters["base_tint_strength"] == 0.85
+    assert parameters["texture_tint"] == [0.73, 0.44, 0.24]
+
+
+def test_imported_gltf_base_color_factor_is_only_multiplicative_texture_tint(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "gltf_base.png"
+    base.write_bytes(b"base")
+    mesh = _mesh()
+    material = mesh.submeshes[0]
+    material.preview_color = (0.50, 0.25, 1.0)
+    material.preview_texture_tint = (0.50, 0.25, 1.0)
+    material.preview_texture_path = str(base)
+    material.preview_material_parameters = (
+        PreviewMaterialParameterInput(
+            parameter_kind="color",
+            parameter_name="_baseColorFactor",
+            color_value=(0.50, 0.25, 1.0),
+        ),
+    )
+
+    payload = mesh_dotnet_material_state_payload(
+        mesh,
+        session_id="gltf-base-color-factor",
+        edit_revision=0,
+        generation=1,
+    )
+
+    parameters = payload["submeshes"][0]["parameters"]
+    assert parameters["base_tint_color"] == [0.50, 0.25, 1.0]
+    assert parameters["base_tint_strength"] == 0.0
+    assert parameters["texture_tint"] == [0.50, 0.25, 1.0]
 
 
 def test_native_material_batch_binding_preserves_explicit_texture_tint(tmp_path: Path) -> None:
@@ -61,6 +99,9 @@ def test_native_material_batch_binding_preserves_explicit_texture_tint(tmp_path:
         target,
         {
             "dds_textures": {"base": {"source_path": str(base)}},
+            "base_color": [0.57, 0.39, 0.29],
+            "base_tint_strength": 0.35,
+            "material_category": "metal",
             "texture_tint": [0.73, 0.44, 0.24],
         },
     )
@@ -72,7 +113,46 @@ def test_native_material_batch_binding_preserves_explicit_texture_tint(tmp_path:
     )
 
     assert target.preview_texture_tint == (0.73, 0.44, 0.24)
-    assert payload["submeshes"][0]["parameters"]["tint_color"] == [0.73, 0.44, 0.24]
+    parameters = payload["submeshes"][0]["parameters"]
+    assert target.preview_color == (0.57, 0.39, 0.29)
+    assert parameters["base_tint_color"] == [0.57, 0.39, 0.29]
+    assert parameters["base_tint_strength"] == 0.35
+    assert parameters["base_tint_metallic"] is True
+    assert parameters["texture_tint"] == [0.73, 0.44, 0.24]
+
+
+def test_native_material_batches_preserve_per_submesh_category_without_name_inference() -> None:
+    model = _mesh()
+    model.submeshes.append(_mesh().submeshes[0])
+
+    applied = apply_dotnet_native_material_batch_bindings(
+        model,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 1},
+                "base_color": [0.31, 0.42, 0.53],
+                "base_tint_strength": 0.6,
+                "material_category": "leather",
+            },
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "base_color": [0.71, 0.62, 0.48],
+                "base_tint_strength": 0.4,
+                "material_category": "metal",
+            },
+        ),
+    )
+    payload = mesh_dotnet_material_state_payload(
+        model,
+        session_id="per-submesh-category",
+        edit_revision=0,
+        generation=1,
+    )
+
+    assert applied == 2
+    by_index = {row["submesh_index"]: row["parameters"] for row in payload["submeshes"]}
+    assert by_index[0]["base_tint_metallic"] is True
+    assert by_index[1]["base_tint_metallic"] is False
 
 
 def test_bc4_emissive_dds_is_tagged_as_scalar_mask(tmp_path: Path) -> None:

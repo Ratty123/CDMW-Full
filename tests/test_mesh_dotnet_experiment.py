@@ -6,6 +6,9 @@ import struct
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services import mesh_dotnet_experiment
 from cdmw.services.mesh_dotnet_reference_composite import (
@@ -46,6 +49,29 @@ def _mesh() -> ParsedMesh:
         total_faces=1,
         has_uvs=True,
     )
+
+
+def test_cancelled_material_manifest_removes_partial_dotnet_package(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_root = tmp_path / "cancelled-dotnet-package"
+
+    def cancel_manifest(path: Path, **_kwargs: object) -> None:
+        path.write_text("partial", encoding="utf-8")
+        raise RunCancelled("synthetic mid-manifest cancellation")
+
+    monkeypatch.setattr(
+        mesh_dotnet_experiment,
+        "_write_dotnet_material_manifest",
+        cancel_manifest,
+    )
+
+    with pytest.raises(RunCancelled, match="mid-manifest cancellation"):
+        build_mesh_dotnet_experiment_package(_mesh(), output_root=output_root)
+
+    assert output_root.is_dir()
+    assert not tuple(output_root.glob("package_*"))
 
 
 def _provenance_payload(executable: Path, shader: Path, *, mode: str, manifest_id: str) -> dict[str, object]:
@@ -637,7 +663,7 @@ def test_native_reference_direct_materials_use_native_identity_and_dds(tmp_path:
     assert direct.preview_texture_dds_path == str(tmp_path / "skin_base.dds")
     assert direct.preview_native_material_overrides["material_category"] == "skin"
     assert direct.preview_native_material_overrides["metalness"] == 0.0
-    assert not hasattr(direct, "preview_color")
+    assert direct.preview_color == (0.78, 0.62, 0.44)
 
     package = build_mesh_dotnet_experiment_package(
         _mesh(),
@@ -650,6 +676,8 @@ def test_native_reference_direct_materials_use_native_identity_and_dds(tmp_path:
     assert direct_material["shader_family"] == "skin"
     assert direct_material["parameters"]["roughness"] == 0.56
     assert direct_material["parameters"]["metalness"] == 0.0
+    assert direct_material["parameters"]["base_tint_color"] == [0.78, 0.62, 0.44]
+    assert direct_material["parameters"]["base_tint_strength"] == 0.0
     assert "base" in direct_material["resolved_channels"]
 
 
@@ -685,7 +713,8 @@ def test_native_reference_composite_keeps_prefab_separate_and_reference_only(tmp
     assert prefab_material["normal_y_policy"] == "invert_green_for_directx"
     assert prefab_material["parameters"]["roughness_scale"] == 0.48
     assert prefab_material["parameters"]["metalness_scale"] == 0.0
-    assert prefab_material["parameters"]["tint_color"] == [0.90, 0.83, 0.71]
+    assert prefab_material["parameters"]["base_tint_color"] == [0.90, 0.83, 0.71]
+    assert prefab_material["parameters"]["base_tint_strength"] == 0.0
     prefab_resources = [resource for resource in materials["resources"] if resource["submesh_index"] == 2]
     assert prefab_resources
     assert all(resource["role"] == "original_reference" for resource in prefab_resources)

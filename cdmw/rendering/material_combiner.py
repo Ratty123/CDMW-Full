@@ -1,7 +1,7 @@
 ﻿from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtGui import QImage
 
@@ -85,11 +85,7 @@ from cdmw.rendering.material_combiner_decode import (
 from cdmw.rendering.material_combiner_images import (
     _byte,
     _combine_material_slot_maps,
-    _derive_normal_from_height,
-    _generate_height_map,
-    _generate_legacy_pbr_response_map,
     _generate_material_maps,
-    _generate_normal_map,
     _generate_spec_gloss_preview_albedo_map,
     _generate_synthesized_albedo_map,
     _image_exceeds_dimension,
@@ -101,9 +97,16 @@ from cdmw.rendering.material_combiner_images import (
     _mask_alpha,
     _prepare_image,
     _read_generated_map,
+    _raise_if_material_combiner_cancelled,
     _rgba8888_mask_alpha,
     _source_url_local_path,
     _support_source_image,
+)
+from cdmw.rendering.material_combiner_support_maps import (
+    _derive_normal_from_height,
+    _generate_height_map,
+    _generate_legacy_pbr_response_map,
+    _generate_normal_map,
 )
 
 
@@ -188,7 +191,9 @@ def combine_preview_material(
     batch_index: int,
     *,
     settings: MaterialPreviewCombinerSettings,
+    cancelled: Callable[[], bool] | None = None,
 ) -> MaterialPreviewCombinerResult:
+    _raise_if_material_combiner_cancelled(cancelled)
     notes: list[str] = []
     outputs: list[str] = []
     decode_modes: list[str] = []
@@ -231,6 +236,7 @@ def combine_preview_material(
     selected_base_low_authority = False
     base_candidates = [item for item in inputs if str(item.slot_kind or "").strip().lower() in {"base", "color", "emissive"}]
     for item in base_candidates:
+        _raise_if_material_combiner_cancelled(cancelled)
         if _is_layer_only_base_color(item):
             notes.append(f"layer-only base rejected:{_texture_label(item.source_texture_path, item.texture_name)}")
             continue
@@ -257,6 +263,7 @@ def combine_preview_material(
             force_opaque=not preserve_base_alpha,
             max_dimension=base_map_max_dimension,
         )
+        _raise_if_material_combiner_cancelled(cancelled)
         if base_source:
             outputs.append("albedo")
             if preserve_base_alpha:
@@ -270,6 +277,7 @@ def combine_preview_material(
     )
     should_synthesize_albedo = bool(visible_layer_inputs and (not base_source or selected_base_low_authority or force_layer_synthesis))
     if should_synthesize_albedo:
+        _raise_if_material_combiner_cancelled(cancelled)
         neutral_base_color = ()
         neutral_metal_base = _should_seed_neutral_metal_base(
             payload,
@@ -298,6 +306,7 @@ def combine_preview_material(
             max_dimension=min(base_map_max_dimension, 512),
             neutral_base_color=neutral_base_color,
             preserve_base_alpha=preserve_base_alpha,
+            cancelled=cancelled,
         )
         if synthesized_source:
             base_source = synthesized_source
@@ -323,6 +332,7 @@ def combine_preview_material(
         None,
     )
     if spec_gloss_albedo_item is not None:
+        _raise_if_material_combiner_cancelled(cancelled)
         spec_gloss_image = _image_reader(str(spec_gloss_albedo_item.preview_texture_path or ""), max_dimension=base_map_max_dimension)
         if not spec_gloss_image.isNull():
             spec_gloss_base_source, spec_gloss_base_note = _generate_spec_gloss_preview_albedo_map(
@@ -333,6 +343,7 @@ def combine_preview_material(
                 flip_vertical=flip_vertical,
                 max_dimension=min(base_map_max_dimension, 512),
                 preserve_base_alpha=preserve_base_alpha,
+                cancelled=cancelled,
             )
             if spec_gloss_base_source:
                 base_source = spec_gloss_base_source
@@ -349,6 +360,7 @@ def combine_preview_material(
         notes.append("missing tangents")
     if tangents_usable:
         for item in normal_candidates:
+            _raise_if_material_combiner_cancelled(cancelled)
             image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
             if image.isNull():
                 notes.append(f"normal unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
@@ -361,6 +373,7 @@ def combine_preview_material(
                 f"batch_{batch_index:03d}",
                 flip_vertical=flip_vertical,
                 max_dimension=support_map_max_dimension,
+                cancelled=cancelled,
             )
             if normal_source:
                 configured_strength = _finite_float(getattr(payload, "normal_texture_strength", 0.0), 0.0)
@@ -403,6 +416,7 @@ def combine_preview_material(
     material_candidate_decode_modes = tuple(_decode_mode_for_input(candidate) for candidate in material_candidates)
     registry_authority_notes = []
     for candidate, mode in zip(material_candidates, material_candidate_decode_modes):
+        _raise_if_material_combiner_cancelled(cancelled)
         decode = _registry_decode_for_input(candidate)
         authority = str(decode.get("authority", "") or AUTHORITY_GUESS)
         source_kind = str(decode.get("source_kind", "") or "")
@@ -415,6 +429,7 @@ def combine_preview_material(
         for mode in material_candidate_decode_modes
     )
     for material_index, item in enumerate(material_candidates):
+        _raise_if_material_combiner_cancelled(cancelled)
         mode = material_candidate_decode_modes[material_index] if material_index < len(material_candidate_decode_modes) else _decode_mode_for_input(item)
         if mode == "opacity":
             notes.append(f"opacity ignored:{_texture_label(item.source_texture_path, item.texture_name)}")
@@ -480,6 +495,7 @@ def combine_preview_material(
             layer_weight=layer_weight,
             flip_vertical=flip_vertical,
             max_dimension=support_map_max_dimension,
+            cancelled=cancelled,
         )
         if generated_slots:
             source_by_slot = {
@@ -509,6 +525,7 @@ def combine_preview_material(
 
     blended_slots: list[str] = []
     for slot_name in ("occlusion", "roughness", "metalness", "specular"):
+        _raise_if_material_combiner_cancelled(cancelled)
         layers = material_slot_layers.get(slot_name, [])
         if not layers:
             continue
@@ -517,6 +534,7 @@ def combine_preview_material(
             layers,
             output_dir,
             f"batch_{batch_index:03d}_combined",
+            cancelled=cancelled,
         )
         if not combined_source:
             continue
@@ -549,6 +567,7 @@ def combine_preview_material(
             roughness_source=roughness_source,
             metalness_source=metalness_source,
             specular_source=specular_source,
+            cancelled=cancelled,
         )
         if legacy_material_source:
             outputs.append("legacy_material")
@@ -572,6 +591,7 @@ def combine_preview_material(
     selected_height_source = ""
     selected_height_item: Optional[PreviewMaterialTextureInput] = None
     for height_index, item in enumerate(height_candidates):
+        _raise_if_material_combiner_cancelled(cancelled)
         image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
         if image.isNull():
             notes.append(f"height unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
@@ -585,6 +605,7 @@ def combine_preview_material(
             f"batch_{batch_index:03d}_{height_index:02d}",
             flip_vertical=flip_vertical,
             max_dimension=support_map_max_dimension,
+            cancelled=cancelled,
         )
         if not height_source:
             notes.append(f"height flat:{contrast:.3f}")
@@ -618,6 +639,7 @@ def combine_preview_material(
             f"batch_{batch_index:03d}",
             flip_vertical=flip_vertical,
             max_dimension=support_map_max_dimension,
+            cancelled=cancelled,
         )
         if derived_normal_source:
             normal_source = derived_normal_source
@@ -627,6 +649,7 @@ def combine_preview_material(
         elif height_candidates:
             notes.append(f"height normal derivation skipped:{contrast:.3f}")
 
+    _raise_if_material_combiner_cancelled(cancelled)
     return MaterialPreviewCombinerResult(
         base_source=base_source,
         base_note=base_note,

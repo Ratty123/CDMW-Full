@@ -13,7 +13,7 @@ from cdmw.domain.mesh.material_resource_policy import canonical_material_channel
 from cdmw.domain.mesh.normal_y_policy import resolve_preview_normal_y_policy
 from cdmw.modding.asset_replacement import infer_cd_texture_role_from_path
 from cdmw.rendering.crimson_shader_registry import decode_crimson_texture_binding
-from cdmw.rendering.native_preview_material_contract import sidecar_preview_texture_tint_for_batch
+from cdmw.rendering.preview_tint_contract import resolve_preview_tint_contract
 
 
 _COMPONENT_NAMES = ("r", "g", "b", "a")
@@ -336,23 +336,33 @@ def _dotnet_initial_material_parameters(
         ).startswith("_gltf")
         for item in tuple(getattr(source, "preview_material_parameters", ()) or ())
     )
-    texture_tint = _color3(getattr(source, "preview_texture_tint", ()))
-    if texture_tint is None or texture_tint == (1.0, 1.0, 1.0):
-        sidecar_tint = _color3(
-            sidecar_preview_texture_tint_for_batch(
-                source,
-                source_path=getattr(source, "preview_source_asset_path", ""),
-            )
-        )
-        texture_tint = sidecar_tint if sidecar_tint != (1.0, 1.0, 1.0) else None
-    if texture_tint is not None:
-        result["tint_color"] = list(texture_tint)
-    elif is_gltf or "base" not in resolved_channels:
-        fallback_color = _color3(getattr(source, "preview_color", ()))
-        if fallback_color is not None and fallback_color != (1.0, 1.0, 1.0):
-            result["tint_color"] = list(fallback_color)
     overrides = getattr(source, "preview_native_material_overrides", {})
     overrides = overrides if isinstance(overrides, Mapping) else {}
+    base_color = _color3(getattr(source, "preview_color", ()))
+    tint_contract = resolve_preview_tint_contract(
+        source,
+        base_color=base_color or (),
+        base_tint_strength=overrides.get("base_tint_strength"),
+        source_path=getattr(source, "preview_source_asset_path", ""),
+    )
+    if len(tint_contract.base_color) >= 3:
+        result["base_tint_color"] = list(tint_contract.base_color)
+        result["base_tint_strength"] = tint_contract.base_tint_strength
+        material_category = str(overrides.get("material_category", "") or "").strip().casefold()
+        if material_category:
+            result["base_tint_metallic"] = material_category == "metal"
+    texture_tint = tint_contract.texture_tint
+    if (
+        len(texture_tint) < 3
+        and is_gltf
+        and base_color is not None
+        and any(str(resolved_channels.get(channel, "") or "") for channel in ("base", "albedo", "diffuse"))
+    ):
+        # glTF baseColorFactor multiplies a sampled base texture. It is not the
+        # Archive preview's luma-preserving base-tint policy.
+        texture_tint = base_color
+    if len(texture_tint) >= 3:
+        result["texture_tint"] = list(texture_tint)
     roughness = _finite_float(
         overrides.get("roughness", _material_parameter_value(source, "_roughnessFactor")),
         minimum=0.0,

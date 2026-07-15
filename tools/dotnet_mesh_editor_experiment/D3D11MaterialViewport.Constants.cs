@@ -86,6 +86,8 @@ internal struct D3D11CameraConstants
     public float MaterialDebugMode;
     public float MaterialNormalYInverted;
     public Vector4 MaterialBaseAdjustments;
+    public Vector4 MaterialBaseTint;
+    public Vector4 MaterialBaseTintPolicy;
     public Vector4 MaterialTint;
     public Vector4 MaterialBaseAdvanced;
     public Vector4 MaterialBasePost;

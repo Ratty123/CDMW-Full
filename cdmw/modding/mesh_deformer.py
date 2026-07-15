@@ -45,7 +45,7 @@ class MeshPartSplitResult:
 _EXTRA_SUBMESH_ATTRS = (
     "texture_slots",
     "preview_color",
-    "preview_role",
+    "preview_role", "preview_source_asset_path",
     "preview_texture_path",
     "preview_texture_name",
     "preview_texture_dds_path",

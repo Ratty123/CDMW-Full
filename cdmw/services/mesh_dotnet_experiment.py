@@ -2,19 +2,19 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import shutil
 import sys
 import tempfile
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from uuid import uuid4
 from dataclasses import dataclass, asdict, replace
 from pathlib import Path, PurePosixPath
 
 from cdmw.core.atomic_file import atomic_copy_file, atomic_write_text
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.domain.mesh.operations import (
     mesh_edit_operations_from_dicts,
     mesh_edit_operations_to_dicts,
@@ -44,6 +44,11 @@ from cdmw.services.mesh_dotnet_material_state import (
     _source_file_stat_key,
     mesh_dotnet_material_input_signature,
     mesh_dotnet_material_state_payload,
+)
+from cdmw.services.mesh_dotnet_material_package import (
+    _copy_dotnet_texture_channel_resources,
+    _dotnet_texture_channels,
+    _write_dotnet_material_manifest,
 )
 from cdmw.services.mesh_dotnet_runtime_status import (
     MESH_DOTNET_HELPER_MANIFEST_NAME,
@@ -95,208 +100,6 @@ class MeshDotNetExecutableResolution:
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
-
-
-def _safe_int(value: object, fallback: int) -> int:
-    try:
-        return int(value)
-    except (TypeError, ValueError, OverflowError):
-        return fallback
-
-
-def _texture_reference_with_suffix(texture: str, suffix: str) -> str:
-    normalized = str(texture or "").replace("\\", "/").strip()
-    if not normalized:
-        return ""
-    return normalized if Path(normalized).suffix else f"{normalized}{suffix}"
-
-
-def _texture_reference_variant(texture: str, suffix: str) -> str:
-    normalized = str(texture or "").replace("\\", "/").strip()
-    if not normalized:
-        return ""
-    base = Path(normalized).stem if Path(normalized).suffix else normalized
-    extension = Path(normalized).suffix or ".dds"
-    return f"{base}{suffix}{extension}"
-
-
-def _dotnet_texture_channels(texture: str) -> dict[str, object]:
-    base = _texture_reference_with_suffix(texture, ".dds")
-    return {
-        "base": base,
-        "albedo": base,
-        "diffuse": base,
-        "normal": _texture_reference_variant(texture, "_n"),
-        "specular": _texture_reference_variant(texture, "_s"),
-        "roughness": _texture_reference_variant(texture, "_r"),
-        "metallic": _texture_reference_variant(texture, "_m"),
-        "emissive": _texture_reference_variant(texture, "_e"),
-        "height": _texture_reference_variant(texture, "_h"),
-        "material": _texture_reference_variant(texture, "_mat"),
-    }
-
-
-def _link_or_copy_file(source: Path, target: Path) -> None:
-    target.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        os.link(source, target)
-    except OSError:
-        shutil.copy2(source, target)
-
-
-def _copy_dotnet_texture_channel_resources(
-    channels: Mapping[str, str],
-    package_dir: Path,
-    copy_cache: dict[str, str],
-) -> dict[str, str]:
-    textures_dir = package_dir / "textures"
-    result: dict[str, str] = {}
-    for channel, value in channels.items():
-        source = Path(str(value or "")).expanduser()
-        if not source.is_file():
-            continue
-        cache_key = _source_file_stat_key(source)
-        cached = copy_cache.get(cache_key)
-        if cached:
-            result[channel] = cached
-            continue
-        digest = hashlib.sha1(cache_key.encode("utf-8", errors="ignore")).hexdigest()[:10]
-        target = textures_dir / f"{channel}_{digest}_{source.name}"
-        if not target.is_file():
-            _link_or_copy_file(source, target)
-        relative = target.relative_to(package_dir).as_posix()
-        copy_cache[cache_key] = relative
-        result[channel] = relative
-    return result
-
-
-def _dotnet_material_slot_payload(slot: object, fallback_index: int) -> dict[str, object]:
-    slot_map = slot if isinstance(slot, Mapping) else {}
-    index = _safe_int(slot_map.get("index"), fallback_index)
-    name = str(slot_map.get("name", "") or "").strip()
-    texture = str(slot_map.get("texture", "") or "").strip()
-    channels = _dotnet_texture_channels(texture)
-    return {"index": index, "name": name, "texture": texture, "channels": channels}
-
-
-def _dotnet_submesh_material_payload(
-    submesh: object,
-    fallback_index: int,
-    *,
-    source_submesh: object | None = None,
-    source_asset_path: str = "",
-    package_dir: Path,
-    texture_copy_cache: dict[str, str],
-    resource_payloads: dict[str, dict[str, object]],
-    role: str = "replacement",
-) -> dict[str, object]:
-    submesh_map = submesh if isinstance(submesh, Mapping) else {}
-    texture = str(submesh_map.get("texture", "") or "").strip()
-    resolved_channels = _dotnet_resolved_texture_channels(source_submesh)
-    semantic_contract = _dotnet_material_semantic_contract(
-        source_submesh,
-        resolved_channels,
-        source_asset_path=source_asset_path,
-    )
-    packaged_channels = _copy_dotnet_texture_channel_resources(resolved_channels, package_dir, texture_copy_cache)
-    submesh_index = _safe_int(submesh_map.get("submesh_index"), fallback_index)
-    resource_channels, resources = _dotnet_manifest_resource_bindings(
-        resolved_channels,
-        packaged_channels,
-        source=source_submesh,
-        source_asset_path=source_asset_path,
-        submesh_index=submesh_index,
-        role=role,
-    )
-    for resource_id, resource in resources.items():
-        resource_payloads.setdefault(resource_id, resource)
-    return {
-        "submesh_index": submesh_index,
-        "name": str(submesh_map.get("name", "") or "").strip(),
-        "material_slot_index": _safe_int(submesh_map.get("material_slot_index"), fallback_index),
-        "material": str(submesh_map.get("material", "") or "").strip(),
-        "texture": texture,
-        "channels": _dotnet_texture_channels(texture),
-        "resolved_channels": resolved_channels,
-        "packaged_channels": packaged_channels,
-        "resource_channels": resource_channels,
-        "texture_flip_vertical": bool(
-            getattr(source_submesh, "preview_texture_flip_vertical", False)
-        ),
-        "normal_y_policy": _dotnet_material_normal_y_policy(source_submesh),
-        "channel_components": _dotnet_material_channel_components(source_submesh),
-        **semantic_contract,
-        "parameters": _dotnet_initial_material_parameters(source_submesh, resolved_channels),
-        "resolved_texture_count": len([value for value in resolved_channels.values() if value]),
-        "packaged_texture_count": len(packaged_channels),
-    }
-
-
-def _write_dotnet_material_manifest(
-    path: Path,
-    *,
-    mesh: ParsedMesh,
-    sidecar_payload: Mapping[str, object],
-    material_signature: str,
-    editable_submesh_count: int | None = None,
-) -> None:
-    raw_slots = sidecar_payload.get("material_slots", [])
-    slots = list(raw_slots) if isinstance(raw_slots, list) else []
-    if not slots:
-        slots = [
-            {"index": index, "name": str(submesh.material or submesh.name or ""), "texture": str(submesh.texture or "")}
-            for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ()))
-        ]
-    source_submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
-    raw_lods = sidecar_payload.get("lods", [])
-    lods = list(raw_lods) if isinstance(raw_lods, list) else []
-    first_lod = lods[0] if lods and isinstance(lods[0], Mapping) else {}
-    raw_submeshes = first_lod.get("submeshes", []) if isinstance(first_lod, Mapping) else []
-    submeshes = list(raw_submeshes) if isinstance(raw_submeshes, list) else []
-    if not submeshes:
-        submeshes = [
-            {
-                "submesh_index": index,
-                "name": str(submesh.name or ""),
-                "material_slot_index": index,
-                "material": str(submesh.material or ""),
-                "texture": str(submesh.texture or ""),
-            }
-            for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ()))
-        ]
-    texture_copy_cache: dict[str, str] = {}
-    resource_payloads: dict[str, dict[str, object]] = {}
-    source_asset_path = str(getattr(mesh, "path", "") or "").strip()
-    submesh_payloads = [
-        _dotnet_submesh_material_payload(
-            submesh,
-            index,
-            source_submesh=source_submeshes[index] if index < len(source_submeshes) else None,
-            source_asset_path=source_asset_path,
-            package_dir=path.parent,
-            texture_copy_cache=texture_copy_cache,
-            resource_payloads=resource_payloads,
-            role=(
-                "original_reference"
-                if editable_submesh_count is not None and index >= int(editable_submesh_count)
-                else "replacement"
-            ),
-        )
-        for index, submesh in enumerate(submeshes)
-    ]
-    payload = {
-        "format": "cdmw_mesh_dotnet_materials_v1",
-        "renderer_authority": "dotnet_mesh_editor",
-        "source": "mesh.cdmeta.json",
-        "texture_channels": ["base", "normal", "specular", "roughness", "metallic", "emissive", "height", "material"],
-        "material_slots": [_dotnet_material_slot_payload(slot, index) for index, slot in enumerate(slots)],
-        "resources": [resource_payloads[key] for key in sorted(resource_payloads)],
-        "submeshes": submesh_payloads,
-        "fallbacks": {"base": "neutral_checker", "normal": "flat_normal", "emissive": "black"},
-        "source_mesh": str(getattr(mesh, "path", "") or ""),
-        "material_signature": str(material_signature or ""),
-    }
-    atomic_write_text(path, json.dumps(payload, indent=2))
 
 
 def _mesh_scene_bounds(meshes: Sequence[ParsedMesh]) -> tuple[list[float], list[float]]:
@@ -518,6 +321,7 @@ def build_mesh_dotnet_experiment_package(
     scene_generation: int = 1,
     scene_session_id: str = "",
     selection_pivot_source: tuple[float, float, float] | None = None,
+    cancelled: Callable[[], bool] | None = None,
 ) -> MeshDotNetExperimentPackage:
     material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
@@ -541,12 +345,6 @@ def build_mesh_dotnet_experiment_package(
     original_asset_hash_path = package_dir / "original_asset_hash.txt"
     atomic_write_text(original_asset_hash_path, original_asset_hash)
     net_materials_path = package_dir / "net_materials.json"
-    _write_dotnet_material_manifest(
-        net_materials_path,
-        mesh=mesh,
-        sidecar_payload=sidecar_payload,
-        material_signature=material_signature,
-    )
 
     editable_submesh_count = len(tuple(getattr(mesh, "submeshes", ()) or ()))
     reference_submesh_count = len(tuple(getattr(reference_mesh, "submeshes", ()) or ())) if reference_mesh is not None else 0
@@ -575,26 +373,39 @@ def build_mesh_dotnet_experiment_package(
         scene_sidecar_payload = json.loads(scene_sidecar_path.read_text(encoding="utf-8"))
     if not isinstance(scene_sidecar_payload, dict):
         raise RuntimeError("Mesh .NET experiment scene sidecar is not a JSON object.")
-    _write_dotnet_material_manifest(
-        net_materials_path,
-        mesh=scene_mesh,
-        sidecar_payload=scene_sidecar_payload,
-        material_signature=material_signature,
-        editable_submesh_count=editable_submesh_count,
-    )
+    try:
+        _write_dotnet_material_manifest(
+            net_materials_path,
+            mesh=scene_mesh,
+            sidecar_payload=scene_sidecar_payload,
+            material_signature=material_signature,
+            editable_submesh_count=editable_submesh_count,
+            cancelled=cancelled,
+        )
+    except RunCancelled:
+        shutil.rmtree(package_dir, ignore_errors=True)
+        raise
+    if cancelled is not None and cancelled():
+        shutil.rmtree(package_dir, ignore_errors=True)
+        raise RunCancelled("Mesh .NET experiment package cancelled.")
     scene_manifest_path = package_dir / "dotnet_scene.json"
     target_frame_mesh = reference_mesh if reference_mesh is not None else mesh
-    scene_frame = build_authoritative_static_scene_frame(
-        target_frame_mesh,
-        mesh,
-        scene_transform
-        or StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
-        source_identity=static_scene_source_identity(mesh, reference_mesh),
-        scene_generation=scene_generation,
-        comparison_mode=comparison_mode,
-        interaction_mode=interaction_mode,
-        selection_pivot_source=selection_pivot_source,
-    )
+    try:
+        scene_frame = build_authoritative_static_scene_frame(
+            target_frame_mesh,
+            mesh,
+            scene_transform
+            or StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+            source_identity=static_scene_source_identity(mesh, reference_mesh),
+            scene_generation=scene_generation,
+            comparison_mode=comparison_mode,
+            interaction_mode=interaction_mode,
+            selection_pivot_source=selection_pivot_source,
+            cancelled=cancelled,
+        )
+    except RunCancelled:
+        shutil.rmtree(package_dir, ignore_errors=True)
+        raise
     if reference_mesh is None:
         empty_bounds = StaticWorldBounds((0.0, 0.0, 0.0), (0.0, 0.0, 0.0))
         scene_frame = replace(

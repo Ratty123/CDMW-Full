@@ -81,6 +81,7 @@ class MeshDeformerTests(unittest.TestCase):
         source.cdmw_source_material_name = "source_mat"
         source.cdmw_target_material_slot_index = 3
         source.cdmw_source_texture_set_key = "source_mat"
+        source.preview_source_asset_path = "character/model/source/part.pac"
         source.preview_native_material_overrides = {"roughness": 0.35, "metalness": 0.8}
         mesh = ParsedMesh(format="obj", submeshes=[source])
 
@@ -92,6 +93,7 @@ class MeshDeformerTests(unittest.TestCase):
         self.assertEqual("source_mat", cloned_submesh.cdmw_source_material_name)
         self.assertEqual(3, cloned_submesh.cdmw_target_material_slot_index)
         self.assertEqual("source_mat", cloned_submesh.cdmw_source_texture_set_key)
+        self.assertEqual("character/model/source/part.pac", cloned_submesh.preview_source_asset_path)
         self.assertEqual({"roughness": 0.35, "metalness": 0.8}, cloned_submesh.preview_native_material_overrides)
         self.assertIsNot(source.preview_native_material_overrides, cloned_submesh.preview_native_material_overrides)
 

@@ -1,0 +1,670 @@
+from __future__ import annotations
+
+import json
+from pathlib import Path
+
+import pytest
+from PySide6.QtGui import QColor, QImage
+
+from cdmw.models import ModelPreviewData, ModelPreviewMesh, PreviewMaterialTextureInput
+from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.rendering import material_combiner_images
+from cdmw.services import mesh_dotnet_material_package
+from cdmw.services.mesh_dotnet_material_bindings import (
+    apply_dotnet_native_material_batch_bindings,
+    copy_dotnet_preview_material_bindings,
+)
+
+
+def _image(
+    path: Path,
+    color: tuple[int, int, int, int],
+    *,
+    size: tuple[int, int] = (4, 4),
+) -> Path:
+    image = QImage(*size, QImage.Format.Format_RGBA8888)
+    image.fill(QColor(*color))
+    assert image.save(str(path), "PNG")
+    return path
+
+
+def _submesh(name: str = "part") -> SubMesh:
+    return SubMesh(
+        name=name,
+        material=name,
+        vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+        uvs=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+        faces=[(0, 1, 2)],
+    )
+
+
+def _write_manifest(
+    root: Path,
+    submeshes: list[SubMesh],
+    *,
+    cancelled=None,
+) -> dict[str, object]:
+    root.mkdir(parents=True, exist_ok=True)
+    path = root / "net_materials.json"
+    mesh_dotnet_material_package._write_dotnet_material_manifest(
+        path,
+        mesh=ParsedMesh(path="archive/test.pac", format="pac", submeshes=submeshes),
+        sidecar_payload={},
+        material_signature="stable-material-signature",
+        cancelled=cancelled,
+    )
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_package_preserves_authoritative_base_and_direct_normal_for_ordinary_pbr(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = _image(
+        tmp_path / "ordinary_base_2048.png",
+        (72, 96, 128, 255),
+        size=(2048, 1024),
+    )
+    normal = _image(
+        tmp_path / "ordinary_normal_2048.png",
+        (128, 160, 255, 255),
+        size=(2048, 1024),
+    )
+    roughness = _image(
+        tmp_path / "ordinary_roughness_2048.png",
+        (96, 96, 96, 255),
+        size=(2048, 1024),
+    )
+    submesh = _submesh("ordinary_pbr")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="baseColorTexture",
+            preview_texture_path=str(base),
+            source_dds_path=str(base),
+            semantic_type="color",
+            semantic_subtype="albedo",
+            confidence="gltf",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="normalTexture",
+            preview_texture_path=str(normal),
+            source_dds_path=str(normal),
+            semantic_type="normal",
+            semantic_subtype="normal",
+            confidence="gltf",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="roughnessTexture",
+            preview_texture_path=str(roughness),
+            source_dds_path=str(roughness),
+            semantic_type="roughness",
+            semantic_subtype="roughness",
+            confidence="gltf",
+            visualized=True,
+        ),
+    )
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("ordinary direct PBR inputs must not invoke the combiner")
+
+    monkeypatch.setattr(mesh_dotnet_material_package, "combine_preview_material", forbidden)
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    binding = payload["submeshes"][0]
+
+    assert binding["material_synthesis"] == {"attempted": False, "succeeded": False}
+    assert binding["resolved_channels"] == binding["raw_resolved_channels"]
+    assert binding["resolved_channels"]["base"] == str(base)
+    assert binding["resolved_channels"]["albedo"] == str(base)
+    assert binding["resolved_channels"]["diffuse"] == str(base)
+    assert binding["resolved_channels"]["normal"] == str(normal)
+    assert binding["resolved_channels"]["roughness"] == str(roughness)
+    for channel in ("base", "albedo", "diffuse", "normal", "roughness"):
+        resource = next(
+            item
+            for item in payload["resources"]
+            if item["resource_id"] == binding["resource_channels"][channel]
+        )
+        assert resource["semantic_authority"] != "synthesized_shared_combiner"
+
+
+@pytest.mark.parametrize(
+    (
+        "material_name",
+        "shader_family",
+        "layer_parameter",
+        "layer_role",
+        "mask_parameter",
+        "authoritative_layer_graph",
+    ),
+    (
+        ("shield_layer", "MultiTextured", "_colorTextureG", "", "_rgbTexture", True),
+        (
+            "outfit_dye",
+            "Standard",
+            "_dyeingColorTexture",
+            "dye",
+            "_dyeingMaskTexture",
+            False,
+        ),
+    ),
+)
+def test_package_only_replaces_base_for_authoritative_combiner_layer_graphs(
+    tmp_path: Path,
+    material_name: str,
+    shader_family: str,
+    layer_parameter: str,
+    layer_role: str,
+    mask_parameter: str,
+    authoritative_layer_graph: bool,
+) -> None:
+    base = _image(tmp_path / f"{material_name}_base.png", (48, 44, 42, 255))
+    layer = _image(tmp_path / f"{material_name}_layer.png", (120, 190, 95, 255))
+    mask = _image(tmp_path / f"{material_name}_mask.png", (0, 255, 0, 255))
+    submesh = _submesh(material_name)
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_baseColorTexture",
+            preview_texture_path=str(base),
+            semantic_type="color",
+            semantic_subtype="albedo",
+            shader_family=shader_family,
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name=layer_parameter,
+            preview_texture_path=str(layer),
+            semantic_type="color",
+            semantic_subtype="detail_diffuse",
+            shader_family=shader_family,
+            layer_role=layer_role,
+            layer_channel="g",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name=mask_parameter,
+            preview_texture_path=str(mask),
+            semantic_type="mask",
+            semantic_subtype="mask",
+            shader_family=shader_family,
+            layer_role="mask",
+            layer_channel="g",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    binding = payload["submeshes"][0]
+
+    assert payload["material_signature"] == "stable-material-signature"
+    assert "shader_family_layer_graph" in binding["unsupported_features"]
+    assert binding["raw_material_contract"]["layer_bindings"]
+    if not authoritative_layer_graph:
+        assert binding["material_synthesis"]["succeeded"] is False
+        assert binding["material_synthesis"]["generated_channels"] == []
+        assert binding["resolved_channels"] == binding["raw_resolved_channels"]
+        assert binding["resolved_features"] == []
+        return
+    assert binding["material_synthesis"]["succeeded"] is True
+    assert "base" in binding["material_synthesis"]["generated_channels"]
+    assert "preview_material_graph_baked" in binding["resolved_features"]
+    assert binding["resolved_channels"]["base"] != binding["raw_resolved_channels"]["base"]
+    assert binding["resource_channels"]["base"] == binding["resource_channels"]["albedo"]
+    assert binding["resource_channels"]["base"] == binding["resource_channels"]["diffuse"]
+    generated_resource = next(
+        resource
+        for resource in payload["resources"]
+        if resource["resource_id"] == binding["resource_channels"]["base"]
+    )
+    assert generated_resource["semantic_authority"] == "synthesized_shared_combiner"
+    assert (tmp_path / "package" / generated_resource["path"]).is_file()
+
+
+def test_package_expands_generic_packed_mask_into_individual_support_maps(tmp_path: Path) -> None:
+    base = _image(tmp_path / "generic_base.png", (52, 64, 78, 255))
+    normal = _image(tmp_path / "generic_normal.png", (128, 142, 255, 255))
+    height = _image(tmp_path / "generic_height.png", (32, 96, 180, 255))
+    packed = _image(tmp_path / "generic_orm.png", (220, 80, 190, 255))
+    submesh = _submesh("generic_packed")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="baseColorTexture",
+            preview_texture_path=str(base),
+            source_dds_path=str(base),
+            semantic_type="color",
+            semantic_subtype="albedo",
+            confidence="gltf",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="normalTexture",
+            preview_texture_path=str(normal),
+            source_dds_path=str(normal),
+            semantic_type="normal",
+            semantic_subtype="normal",
+            confidence="gltf",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="height",
+            parameter_name="heightTexture",
+            preview_texture_path=str(height),
+            source_dds_path=str(height),
+            semantic_type="height",
+            semantic_subtype="height",
+            confidence="gltf",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="metallicRoughnessTexture",
+            preview_texture_path=str(packed),
+            semantic_type="material",
+            semantic_subtype="metallic_roughness",
+            packed_channels=("occlusion", "roughness", "metallic"),
+            confidence="gltf",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    binding = payload["submeshes"][0]
+
+    generated = set(binding["material_synthesis"]["generated_channels"])
+    assert {"roughness", "metallic"}.issubset(generated)
+    assert generated <= {"occlusion", "roughness", "metallic", "specular"}
+    assert binding["resolved_channels"]["base"] == str(base)
+    assert binding["resolved_channels"]["normal"] == str(normal)
+    assert binding["resolved_channels"]["height"] == str(height)
+    changed_channels = {
+        channel
+        for channel in set(binding["raw_resolved_channels"]) | set(binding["resolved_channels"])
+        if binding["raw_resolved_channels"].get(channel)
+        != binding["resolved_channels"].get(channel)
+    }
+    assert changed_channels == generated
+    assert "preview_support_maps_baked" in binding["resolved_features"]
+    assert binding["channel_components"]["roughness"] == "r"
+    assert binding["channel_components"]["metallic"] == "r"
+    for channel in ("roughness", "metallic"):
+        resource_id = binding["resource_channels"][channel]
+        resource = next(item for item in payload["resources"] if item["resource_id"] == resource_id)
+        assert resource["semantic_authority"] == "synthesized_shared_combiner"
+        assert (tmp_path / "package" / resource["path"]).is_file()
+
+
+def test_package_combiner_failure_preserves_raw_channels_and_unsupported_reporting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    base = _image(tmp_path / "base.png", (60, 70, 80, 255))
+    layer = _image(tmp_path / "layer.png", (170, 90, 40, 255))
+    submesh = _submesh("fallback")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_baseColorTexture",
+            preview_texture_path=str(base),
+            semantic_type="color",
+            shader_family="MultiTextured",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_colorTextureR",
+            preview_texture_path=str(layer),
+            semantic_type="color",
+            shader_family="MultiTextured",
+            layer_role="layer",
+            layer_channel="r",
+            visualized=True,
+        ),
+    )
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError("synthetic combiner failure")
+
+    monkeypatch.setattr(mesh_dotnet_material_package, "combine_preview_material", fail)
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    binding = payload["submeshes"][0]
+
+    assert binding["material_synthesis"]["attempted"] is True
+    assert binding["material_synthesis"]["succeeded"] is False
+    assert "synthetic combiner failure" in binding["material_synthesis"]["failure"]
+    assert binding["resolved_channels"] == binding["raw_resolved_channels"]
+    assert binding["resolved_features"] == []
+    assert "shader_family_layer_graph" in binding["unsupported_features"]
+
+
+def test_cancelled_package_skips_new_synthesis_work_and_keeps_raw_fallback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packed = _image(tmp_path / "packed.png", (10, 120, 240, 255))
+    submesh = _submesh("cancelled")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            preview_texture_path=str(packed),
+            semantic_type="material",
+            semantic_subtype="metallic_roughness",
+            packed_channels=("roughness", "metallic"),
+            visualized=True,
+        ),
+    )
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("cancelled package must not start material synthesis")
+
+    monkeypatch.setattr(mesh_dotnet_material_package, "combine_preview_material", forbidden)
+    raw_channels = mesh_dotnet_material_package._dotnet_resolved_texture_channels(submesh)
+    raw_contract = mesh_dotnet_material_package._dotnet_material_semantic_contract(
+        submesh,
+        raw_channels,
+        source_asset_path="archive/test.pac",
+    )
+    resolved, synthesis, generated = (
+        mesh_dotnet_material_package._synthesize_dotnet_material_channels(
+            submesh,
+            raw_channels,
+            raw_contract,
+            output_dir=tmp_path / "cancelled-synthesis",
+            batch_index=0,
+            cancelled=lambda: True,
+        )
+    )
+
+    assert synthesis == {
+        "attempted": False,
+        "succeeded": False,
+        "skipped": "cancelled",
+    }
+    assert resolved == raw_channels
+    assert generated == ()
+
+
+def test_native_only_manifest_packed_inputs_are_typed_and_synthesized(
+    tmp_path: Path,
+) -> None:
+    packed = _image(tmp_path / "native_only_orm.png", (210, 72, 184, 255))
+    mesh = ParsedMesh(
+        path="archive/native-only.pac",
+        format="pac",
+        submeshes=[_submesh("native_only")],
+    )
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "dds_textures": {
+                    "material_inputs": [
+                        {
+                            "slot": "material",
+                            "source_path": str(packed),
+                            "semantic_type": "material",
+                            "semantic_subtype": "metallic_roughness",
+                            "packed_channels": ["occlusion", "roughness", "metallic"],
+                            "confidence": "native_manifest",
+                        }
+                    ]
+                },
+            },
+        ),
+    ) == 1
+    typed_inputs = mesh.submeshes[0].preview_material_texture_inputs
+    assert typed_inputs
+    assert all(isinstance(item, PreviewMaterialTextureInput) for item in typed_inputs)
+
+    payload = _write_manifest(tmp_path / "native-only-package", mesh.submeshes)
+    binding = payload["submeshes"][0]
+    assert binding["material_synthesis"]["succeeded"] is True
+    assert "failure" not in binding["material_synthesis"]
+    assert {"roughness", "metallic"}.issubset(
+        binding["material_synthesis"]["generated_channels"]
+    )
+
+
+def test_native_only_manifest_layer_inputs_are_typed_and_synthesized(
+    tmp_path: Path,
+) -> None:
+    base = _image(tmp_path / "native_layer_base.png", (42, 48, 54, 255))
+    layer = _image(tmp_path / "native_layer_color.png", (180, 110, 62, 255))
+    mask = _image(tmp_path / "native_layer_mask.png", (0, 255, 0, 255))
+    mesh = ParsedMesh(
+        path="archive/native-layer.pac",
+        format="pac",
+        submeshes=[_submesh("native_layer")],
+    )
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "dds_textures": {
+                    "material_inputs": [
+                        {
+                            "slot": "base",
+                            "source_path": str(base),
+                            "parameter_name": "_baseColorTexture",
+                            "semantic_type": "color",
+                            "semantic_subtype": "albedo",
+                            "shader_family": "MultiTextured",
+                        },
+                        {
+                            "slot": "material",
+                            "source_path": str(layer),
+                            "parameter_name": "_colorTextureG",
+                            "semantic_type": "color",
+                            "semantic_subtype": "detail_diffuse",
+                            "shader_family": "MultiTextured",
+                            "layer_role": "layer",
+                            "layer_channel": "g",
+                        },
+                        {
+                            "slot": "material",
+                            "source_path": str(mask),
+                            "parameter_name": "_rgbTexture",
+                            "semantic_type": "mask",
+                            "semantic_subtype": "mask",
+                            "shader_family": "MultiTextured",
+                            "layer_role": "mask",
+                            "layer_channel": "g",
+                        },
+                    ]
+                },
+            },
+        ),
+    ) == 1
+    assert all(
+        isinstance(item, PreviewMaterialTextureInput)
+        for item in mesh.submeshes[0].preview_material_texture_inputs
+    )
+
+    payload = _write_manifest(tmp_path / "native-layer-package", mesh.submeshes)
+    binding = payload["submeshes"][0]
+    assert binding["material_synthesis"]["succeeded"] is True
+    assert "base" in binding["material_synthesis"]["generated_channels"]
+
+
+def test_cancellation_during_material_pixel_synthesis_cleans_partial_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packed = _image(
+        tmp_path / "cancel_during_orm.png",
+        (210, 72, 184, 255),
+        size=(64, 64),
+    )
+    submesh = _submesh("cancel_during")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            preview_texture_path=str(packed),
+            source_dds_path=str(packed),
+            semantic_type="material",
+            semantic_subtype="metallic_roughness",
+            packed_channels=("occlusion", "roughness", "metallic"),
+            visualized=True,
+        ),
+    )
+    entered_pixel_loop = False
+    original_decode = material_combiner_images.decode_material_sample
+
+    def tracked_decode(*args, **kwargs):
+        nonlocal entered_pixel_loop
+        entered_pixel_loop = True
+        return original_decode(*args, **kwargs)
+
+    monkeypatch.setattr(material_combiner_images, "decode_material_sample", tracked_decode)
+    raw_channels = mesh_dotnet_material_package._dotnet_resolved_texture_channels(submesh)
+    raw_contract = mesh_dotnet_material_package._dotnet_material_semantic_contract(
+        submesh,
+        raw_channels,
+        source_asset_path="archive/test.pac",
+    )
+    output_dir = tmp_path / "cancelled-during-synthesis"
+
+    resolved, synthesis, generated = (
+        mesh_dotnet_material_package._synthesize_dotnet_material_channels(
+            submesh,
+            raw_channels,
+            raw_contract,
+            output_dir=output_dir,
+            batch_index=0,
+            cancelled=lambda: entered_pixel_loop,
+        )
+    )
+
+    assert entered_pixel_loop is True
+    assert resolved == raw_channels
+    assert synthesis == {
+        "attempted": True,
+        "succeeded": False,
+        "skipped": "cancelled_during_synthesis",
+    }
+    assert generated == ()
+    assert not output_dir.exists()
+
+
+def test_package_carries_archive_base_tint_and_texture_tint_separately(tmp_path: Path) -> None:
+    base = _image(tmp_path / "shield_base.png", (92, 104, 116, 255))
+    submesh = _submesh("shield")
+    submesh.preview_texture_path = str(base)
+    submesh.preview_color = (0.57, 0.39, 0.29)
+    submesh.preview_texture_tint = (0.73, 0.44, 0.24)
+    submesh.preview_native_material_overrides = {
+        "base_tint_strength": 0.42,
+        "material_category": "metal",
+    }
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    parameters = payload["submeshes"][0]["parameters"]
+
+    assert parameters["base_tint_color"] == [0.57, 0.39, 0.29]
+    assert parameters["base_tint_strength"] == 0.42
+    assert parameters["base_tint_metallic"] is True
+    assert parameters["texture_tint"] == [0.73, 0.44, 0.24]
+    assert "tint_color" not in parameters
+
+
+def test_native_batch_tint_preserves_prepared_typed_inputs_for_package_synthesis(
+    tmp_path: Path,
+) -> None:
+    base = _image(tmp_path / "shield_base.png", (48, 44, 42, 255))
+    layer = _image(tmp_path / "shield_layer.png", (120, 190, 95, 255))
+    mask = _image(tmp_path / "shield_mask.png", (0, 255, 0, 255))
+    prepared_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_baseColorTexture",
+            preview_texture_path=str(base),
+            semantic_type="color",
+            semantic_subtype="albedo",
+            shader_family="MultiTextured",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_colorTextureG",
+            preview_texture_path=str(layer),
+            semantic_type="color",
+            semantic_subtype="detail_diffuse",
+            shader_family="MultiTextured",
+            layer_channel="g",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_rgbTexture",
+            preview_texture_path=str(mask),
+            semantic_type="mask",
+            semantic_subtype="mask",
+            shader_family="MultiTextured",
+            layer_role="mask",
+            layer_channel="g",
+            visualized=True,
+        ),
+    )
+    mesh = ParsedMesh(
+        path="archive/shield.pac",
+        format="pac",
+        submeshes=[_submesh("shield")],
+    )
+    preview_model = ModelPreviewData(
+        path="archive/shield.pac",
+        meshes=[
+            ModelPreviewMesh(
+                source_submesh_index=0,
+                preview_color=(0.57, 0.39, 0.29),
+                preview_texture_path=str(base),
+                preview_material_texture_inputs=prepared_inputs,
+            )
+        ],
+    )
+    assert copy_dotnet_preview_material_bindings(mesh, preview_model) == 1
+    copied_inputs = mesh.submeshes[0].preview_material_texture_inputs
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "base_color": [0.57, 0.39, 0.29],
+                "base_tint_strength": 0.42,
+                "texture_tint": [0.73, 0.44, 0.24],
+                "material_category": "leather",
+                "material_shader_family": "MultiTextured",
+                "dds_textures": {
+                    "base": {"slot": "base", "source_path": str(base)},
+                    "material_inputs": [
+                        {"slot": "base", "source_path": str(base)},
+                        {"slot": "material", "source_path": str(layer)},
+                        {"slot": "material", "source_path": str(mask)},
+                    ],
+                },
+            },
+        ),
+    ) == 1
+    assert mesh.submeshes[0].preview_material_texture_inputs is copied_inputs
+    assert all(isinstance(item, PreviewMaterialTextureInput) for item in copied_inputs)
+
+    payload = _write_manifest(tmp_path / "package", mesh.submeshes)
+    binding = payload["submeshes"][0]
+    assert binding["material_synthesis"]["attempted"] is True
+    assert binding["material_synthesis"]["succeeded"] is True
+    assert binding["parameters"]["base_tint_strength"] == 0.42
+    assert binding["parameters"]["base_tint_metallic"] is False
+    assert binding["parameters"]["texture_tint"] == [0.73, 0.44, 0.24]

@@ -235,6 +235,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
                 scene_generation=self.scene_generation,
                 scene_session_id=self.session_id,
                 selection_pivot_source=selection_pivot,
+                cancelled=self.stop_event.is_set,
             )
             elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
             if self.stop_event.is_set():

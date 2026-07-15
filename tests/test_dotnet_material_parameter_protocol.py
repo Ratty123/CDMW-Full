@@ -130,6 +130,10 @@ def test_parameter_groups_validate_atomically_and_preserve_null_zero_semantics()
     assert "An all-submesh material parameter group must be the only group." in parse
     assert "affected.Order().ToArray()" in parse
     assert 'OptionalFloat(group, "metalness", 0.0f, 1.0f, "metallic")' in parse
+    assert 'OptionalColor(group, "base_tint_color", 0.0f, 1.5f, "base_color")' in parse
+    assert 'OptionalFloat(group, "base_tint_strength", 0.0f, 1.0f)' in parse
+    assert 'OptionalBoolean(group, "base_tint_metallic")' in parse
+    assert 'OptionalColor(group, "texture_tint", 0.0f, 4.0f, "tint_color", "tint")' in parse
     assert 'OptionalInteger(group, "base_color_lift", 0, 254)' in parse
     assert 'OptionalInteger(group, "value_max", 0, 255)' in parse
     assert 'OptionalInteger(group, "auto_balance", 0, 100)' in parse
@@ -175,6 +179,8 @@ def test_parameter_apply_updates_only_d3d_constants_and_exposes_counters_and_rol
     assert "ParametersForSubmesh(batch.SubmeshIndex)" in renderer
     assert "ParametersForSubmesh(batch.SubmeshIndex).Visible is false" in renderer
     assert "MaterialSurfaceOverrideFlags" in presentation
+    assert "MaterialBaseTint" in presentation
+    assert "MaterialBaseTintPolicy" in presentation
     assert "MaterialBaseAdvanced" in presentation
     assert "MaterialBasePost" in presentation
     assert "MaterialSurfaceTransforms" in presentation
@@ -199,6 +205,8 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
 
     for constant in (
         "MaterialBaseAdjustments",
+        "MaterialBaseTint",
+        "MaterialBaseTintPolicy",
         "MaterialTint",
         "MaterialBaseAdvanced",
         "MaterialBasePost",
@@ -214,7 +222,16 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     assert "roughness = MaterialSurfaceOverrides.x;" in shader
     assert "metallic = MaterialSurfaceOverrides.y;" in shader
     assert "specularColor *= saturate(MaterialSurfaceOverrides.z);" in shader
+    assert "float tintLuma = max(dot(previewTint" in shader
+    assert "float3 tintBias = clamp(" in shader
+    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f;" in shader
+    assert "float neutralMetalTint = earlyCategoryMetal" in shader
+    assert "float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f)" in shader
+    assert "float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);" in shader
+    assert "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);" in shader
+    assert "baseColor.rgb = lerp(baseColor.rgb, lerp(multiplied, colorized, colorizeStrength), strength);" in shader
     assert "baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x" in shader
+    base_tint = shader.index("float tintLuma = max(dot(previewTint")
     brightness = shader.index("baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x")
     tint = shader.index("baseColor.rgb *= max(MaterialTint.rgb")
     gamma = shader.index("baseColor.rgb = pow(")
@@ -225,7 +242,7 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     contrast = shader.index("baseColor.rgb = saturate((baseColor.rgb - 0.5f)")
     post_brightness = shader.index("baseColor.rgb = saturate(baseColor.rgb * max(MaterialBasePost.x")
     value_cap = shader.index("float valueCap =")
-    assert brightness < tint < gamma < lift < saturation < auto_balance < shadow_lift < contrast < post_brightness < value_cap
+    assert base_tint < brightness < tint < gamma < lift < saturation < auto_balance < shadow_lift < contrast < post_brightness < value_cap
     roughness_sample = shader.index("float roughness =")
     roughness_invert = shader.index("if (MaterialSurfaceTransforms.w > 0.5f)")
     roughness_scale = shader.index("roughness *=")

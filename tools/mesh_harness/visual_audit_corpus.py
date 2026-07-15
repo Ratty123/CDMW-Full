@@ -10,8 +10,13 @@ from typing import Callable, Mapping, Sequence
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
+from cdmw.rendering.native_preview_package import (
+    read_isolated_d3d11_preview_manifest,
+    write_isolated_d3d11_preview_package,
+)
 from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
+from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
 from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_state_payload
 from cdmw.services.mesh_service import MeshService
 from tools.mesh_harness.archive_provenance import (
@@ -25,6 +30,7 @@ from tools.mesh_harness.real_common import (
     _archive_key,
     _read_archive_payload,
 )
+from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,19 +165,6 @@ def prepare_visual_audit_corpus(
         started = time.perf_counter()
         payload = _read_archive_payload(entry)
         mesh = MeshService().load_mesh_bytes(payload, entry.path)
-        resolved_textures, material_diagnostics = _hydrate_real_archive_mesh_materials(
-            mesh,
-            entry,
-            entries_by_path,
-            entries_by_basename,
-        )
-        material_state = mesh_dotnet_material_state_payload(
-            mesh,
-            session_id=spec.asset_id,
-            edit_revision=0,
-            generation=1,
-        )
-        metadata_elapsed_ms = (time.perf_counter() - started) * 1000.0
         archive_started = time.perf_counter()
         preview_result = build_archive_preview_result(
             None,
@@ -189,6 +182,13 @@ def prepare_visual_audit_corpus(
                 f"Archive Browser preview failed for {entry.path}: "
                 f"{preview_result.warning_text or preview_result.detail_text}"
             )
+        resolved_textures, material_diagnostics = _hydrate_real_archive_mesh_materials(
+            mesh,
+            entry,
+            entries_by_path,
+            entries_by_basename,
+            preview_model=preview_result.preview_model,
+        )
         # Package writing is the single material-combiner authority for this
         # harness. Running it here as well repeats the same expensive graph
         # synthesis without changing the captured package contract.
@@ -197,10 +197,11 @@ def prepare_visual_audit_corpus(
             enable_material_combiner=False,
         )
         comparison_overlays = _remove_visual_audit_overlays(prepared_model)
+        copy_dotnet_preview_material_bindings(mesh, prepared_model)
         archive_prepare_ms = (time.perf_counter() - archive_started) * 1000.0
         archive_package_dir = package_root / "archive-browser" / _archive_package_key(spec)
         archive_package_started = time.perf_counter()
-        write_isolated_d3d11_preview_package(
+        archive_package = write_isolated_d3d11_preview_package(
             prepared_model,
             prepared_preview,
             output_root=archive_package_dir,
@@ -211,6 +212,16 @@ def prepare_visual_audit_corpus(
             display_mode="replacement_only",
             texture_cache_dir=texture_cache,
         )
+        archive_package_stability = stabilize_visual_audit_archive_package(archive_package)
+        archive_manifest = read_isolated_d3d11_preview_manifest(archive_package)
+        apply_dotnet_native_material_batch_bindings(mesh, archive_manifest.get("batches", ()))
+        material_state = mesh_dotnet_material_state_payload(
+            mesh,
+            session_id=spec.asset_id,
+            edit_revision=0,
+            generation=1,
+        )
+        metadata_elapsed_ms = (time.perf_counter() - started) * 1000.0
         archive_package_ms = (time.perf_counter() - archive_package_started) * 1000.0
         dotnet_started = time.perf_counter()
         dotnet_package = build_mesh_dotnet_experiment_package(
@@ -270,6 +281,7 @@ def prepare_visual_audit_corpus(
                 "prepare_ms": archive_prepare_ms,
                 "package_ms": archive_package_ms,
             },
+            "archive_package_stability": archive_package_stability,
             "mesh_editor_package_ms": dotnet_package_ms,
             "metadata_ms": metadata_elapsed_ms,
             "preparation_total_ms": (time.perf_counter() - started) * 1000.0,

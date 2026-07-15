@@ -18,6 +18,7 @@ from tools.mesh_harness.visual_audit_corpus import (
     default_visual_audit_specs,
     validate_visual_audit_specs,
 )
+from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 from tools.mesh_harness.visual_audit_cli import (
     _load_specs,
     _visual_audit_temporary_root,
@@ -80,6 +81,51 @@ def test_dotnet_refresh_links_or_copies_immutable_archive_package(tmp_path: Path
     assert (source / "textures" / "base.png").read_bytes() == b"image-bytes"
 
 
+def test_dotnet_refresh_rebases_stabilized_archive_texture_paths(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    transient = tmp_path / "transient"
+    source.mkdir()
+    transient.mkdir()
+    source_dds = transient / "base.dds"
+    source_dds.write_bytes(b"durable-dds")
+    (source / "manifest.json").write_text(
+        json.dumps(
+            {
+                "batches": [
+                    {
+                        "dds_textures": {
+                            "base": {
+                                "source_path": str(source_dds),
+                                "available": True,
+                                "direct_upload_candidate": True,
+                            }
+                        }
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    stabilize_visual_audit_archive_package(source)
+    source_manifest = json.loads((source / "manifest.json").read_text(encoding="utf-8"))
+    source_stable_dds = Path(
+        source_manifest["batches"][0]["dds_textures"]["base"]["source_path"]
+    )
+    target = tmp_path / "target"
+
+    _link_or_copy_tree(source, target)
+    stabilize_visual_audit_archive_package(target)
+    target_manifest = json.loads((target / "manifest.json").read_text(encoding="utf-8"))
+    target_stable_dds = Path(
+        target_manifest["batches"][0]["dds_textures"]["base"]["source_path"]
+    )
+
+    source_dds.unlink()
+    source_stable_dds.unlink()
+    assert target_stable_dds.is_relative_to(target.resolve())
+    assert target_stable_dds.read_bytes() == b"durable-dds"
+
+
 def test_dotnet_refresh_tool_preserves_provenance_and_uses_production_paths() -> None:
     source = (ROOT / "tools" / "mesh_editor_visual_audit_refresh_dotnet.py").read_text(
         encoding="utf-8"
@@ -90,8 +136,45 @@ def test_dotnet_refresh_tool_preserves_provenance_and_uses_production_paths() ->
     assert "_hydrate_real_archive_mesh_materials(" in source
     assert "build_mesh_dotnet_experiment_package(" in source
     assert "_link_or_copy_tree(archive_source, archive_target)" in source
+    assert "stabilize_visual_audit_archive_package(archive_target)" in source
+    assert "read_isolated_d3d11_preview_manifest(archive_target)" in source
+    assert "apply_dotnet_native_material_batch_bindings(" in source
+    stabilized = source.index("stabilize_visual_audit_archive_package(archive_target)")
+    manifest = source.index("read_isolated_d3d11_preview_manifest(archive_target)")
+    applied = source.index("apply_dotnet_native_material_batch_bindings(", manifest)
+    built = source.index("package = build_mesh_dotnet_experiment_package(")
+    assert stabilized < manifest < applied < built
     assert '"archive_packages_reused": True' in source
+    assert '"archive_packages_rebased": True' in source
     assert "--phase capture" in source
+
+
+def test_visual_audit_packages_the_exact_prepared_archive_material_bindings() -> None:
+    source = (ROOT / "tools" / "mesh_harness" / "visual_audit_corpus.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "preview_model=preview_result.preview_model" in source
+    prepared = source.index("prepared_model, prepared_preview = prepare_model_preview(")
+    stripped = source.index("comparison_overlays = _remove_visual_audit_overlays(prepared_model)")
+    copied = source.index("copy_dotnet_preview_material_bindings(mesh, prepared_model)")
+    archive_package = source.index("write_isolated_d3d11_preview_package(")
+    stabilized = source.index("stabilize_visual_audit_archive_package(archive_package)")
+    manifest = source.index("read_isolated_d3d11_preview_manifest(archive_package)")
+    applied = source.index("apply_dotnet_native_material_batch_bindings(")
+    state = source.index("material_state = mesh_dotnet_material_state_payload(")
+    dotnet_package = source.index("dotnet_package = build_mesh_dotnet_experiment_package(")
+    assert (
+        prepared
+        < stripped
+        < copied
+        < archive_package
+        < stabilized
+        < manifest
+        < applied
+        < state
+        < dotnet_package
+    )
 
 
 def test_default_visual_audit_corpus_has_required_real_pac_coverage() -> None:

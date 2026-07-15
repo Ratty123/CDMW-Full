@@ -79,6 +79,11 @@ behind compatibility wrappers.
   authority. Their normal cameras remain independent; explicit Overlay is the
   single-surface comparison exception. `Edit Mesh` changes mutation permission;
   it does not choose or restart the renderer.
+  Initial .NET material packages translate layered and packed source inputs in
+  `cdmw/services/mesh_dotnet_material_package.py` by calling the shared preview
+  material combiner from `MeshDotNetExperimentPackageWorker`. Generated preview base and
+  support maps are packaged with their raw source diagnostics; lightweight
+  resident material-state snapshots never run image synthesis or package I/O.
 
 ## Layer Rules
 

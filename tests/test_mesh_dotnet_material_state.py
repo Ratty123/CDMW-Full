@@ -532,7 +532,9 @@ def test_gltf_packed_channels_and_source_factors_survive_resident_snapshot(tmp_p
     assert "specular" not in binding["channels"]
     assert binding["channel_components"] == {"roughness": "g", "metallic": "b"}
     assert binding["parameters"] == {
-        "tint_color": [0.75, 0.5, 0.25],
+        "base_tint_color": [0.75, 0.5, 0.25],
+        "base_tint_strength": 0.0,
+        "texture_tint": [0.75, 0.5, 0.25],
         "roughness_scale": 0.8,
         "metalness_scale": 0.6,
         "emissive_color": [1.0, 64 / 255.0, 0.0],
@@ -644,7 +646,8 @@ def test_layer_only_albedo_is_not_promoted_over_native_tint_fallback(tmp_path: P
     binding = payload["submeshes"][0]
 
     assert not {"albedo", "base", "diffuse"}.intersection(binding["channels"])
-    assert binding["parameters"]["tint_color"] == [0.90, 0.83, 0.71]
+    assert binding["parameters"]["base_tint_color"] == [0.90, 0.83, 0.71]
+    assert binding["parameters"]["base_tint_strength"] == 0.0
     assert binding["parameters"]["roughness"] == 0.48
     assert binding["parameters"]["metalness"] == 0.0
     assert binding["shader_family"] == "cloth_v2"
@@ -766,7 +769,8 @@ def test_color_only_gltf_material_preserves_surface_and_emissive_factors(tmp_pat
     )
 
     assert payload["submeshes"][0]["parameters"] == {
-        "tint_color": [0.0, 1.0, 0.7911],
+        "base_tint_color": [0.0, 1.0, 0.7911],
+        "base_tint_strength": 0.0,
         "roughness": 0.920748,
         "emissive_color": [1.0, 0.0, 0.0],
         "emissive_intensity": 10.0,

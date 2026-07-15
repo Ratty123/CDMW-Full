@@ -40,7 +40,11 @@ $TestsByArea = @{
     "mesh-unit" = @(
         "tests/test_mesh_dotnet_experiment.py",
         "tests/test_mesh_dotnet_experiment_output.py",
+        "tests/test_mesh_dotnet_material_state.py",
+        "tests/test_mesh_dotnet_material_visual_parity.py",
+        "tests/test_mesh_dotnet_material_package.py",
         "tests/test_mesh_visual_audit_harness.py",
+        "tests/test_mesh_visual_audit_package.py",
         "tests/test_dotnet_mesh_editor_tool_protocol_source.py",
         "tests/test_dotnet_material_parameter_protocol.py",
         "tests/test_dotnet_icon_capture_protocol.py",

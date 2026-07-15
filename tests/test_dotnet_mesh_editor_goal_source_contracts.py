@@ -11,7 +11,10 @@ def test_dotnet_material_channels_and_embedded_panel_source_contracts() -> None:
     hlsl_source = (dotnet_root / "D3D11MaterialShaders.hlsl").read_text(encoding="utf-8")
 
     assert "MaterialChannelSelectors" in hlsl_source
+    assert "MaterialBaseTint.w > 0.5f" in hlsl_source
     assert "MaterialTint.w > 0.5f ? float4(1.0f, 1.0f, 1.0f, 1.0f)" in hlsl_source
+    assert "float tintLuma = max(dot(previewTint" in hlsl_source
+    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f;" in hlsl_source
     assert "roughnessSample[(int)MaterialChannelSelectors.x]" in hlsl_source
     assert "metallicSample[(int)MaterialChannelSelectors.y]" in hlsl_source
     assert "ChannelComponentIndexForSubmesh" in source

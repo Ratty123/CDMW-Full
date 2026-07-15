@@ -2,13 +2,7 @@ from __future__ import annotations
 
 from cdmw.models import ArchiveEntry
 from collections.abc import Mapping
-from cdmw.core.archive_mesh_import_scene_preview import parsed_mesh_to_preview_model
-from cdmw.core.archive_model_texture_sidecar_attach import (
-    _attach_model_sidecar_texture_preview_paths,
-)
-from cdmw.core.archive_model_texture_support_attach import (
-    _attach_model_support_texture_preview_paths,
-)
+from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 from cdmw.modding.mesh_parser import ParsedMesh
 from pathlib import Path
 from collections.abc import Sequence
@@ -126,6 +120,8 @@ def _hydrate_real_archive_mesh_materials(
     model_entry: ArchiveEntry,
     entries_by_path: Mapping[str, Sequence[ArchiveEntry]],
     entries_by_basename: Mapping[str, Sequence[ArchiveEntry]],
+    *,
+    preview_model: object | None = None,
 ) -> tuple[tuple[dict[str, object], ...], tuple[str, ...]]:
     """Apply production sidecar authority and resolve its DDS inputs locally.
 
@@ -136,40 +132,33 @@ def _hydrate_real_archive_mesh_materials(
     preview cache outside the install.
     """
 
-    preview_model = parsed_mesh_to_preview_model(mesh)
-    bindings, sidecar_paths, texts_by_path, texts_by_basename = (
+    _, sidecar_paths, _, _ = (
         extract_archive_model_sidecar_texture_references(
             model_entry,
             archive_entries_by_basename=dict(entries_by_basename),
         )
     )
     diagnostics: list[str] = []
-    if bindings:
-        diagnostics.extend(
-            _attach_model_sidecar_texture_preview_paths(
-                None,
-                model_entry,
-                preview_model,
-                parsed_mesh=mesh,
-                sidecar_texture_bindings=bindings,
-                texture_entries_by_normalized_path=dict(entries_by_path),
-                texture_entries_by_basename=dict(entries_by_basename),
-                sidecar_texts_by_normalized_path=texts_by_path,
-                sidecar_texts_by_basename=texts_by_basename,
-            )
-        )
-    diagnostics.extend(
-        _attach_model_support_texture_preview_paths(
+    if preview_model is None:
+        preview_result = build_archive_preview_result(
             None,
             model_entry,
-            preview_model,
-            parsed_mesh=mesh,
-            sidecar_texture_bindings=bindings,
+            (),
             texture_entries_by_normalized_path=dict(entries_by_path),
             texture_entries_by_basename=dict(entries_by_basename),
-            sidecar_texts_by_normalized_path=texts_by_path,
-            sidecar_texts_by_basename=texts_by_basename,
+            include_loose_preview_assets=False,
+            visible_texture_mode="mesh_base_first",
+            support_texture_slots=("normal", "material", "height", "emissive"),
+            quality_tier="full",
         )
+        if preview_result.status != "ok" or preview_result.preview_model is None:
+            raise RuntimeError(
+                f"Production Archive Browser material hydration failed for {model_entry.path}: "
+                f"{preview_result.warning_text or preview_result.detail_text}"
+            )
+        preview_model = preview_result.preview_model
+    diagnostics.append(
+        "Reused production Archive Browser base, sidecar, and support-map bindings for Mesh Editor material hydration."
     )
 
     rows: list[dict[str, object]] = []
@@ -178,6 +167,7 @@ def _hydrate_real_archive_mesh_materials(
     fingerprint_cache: dict[Path, str] = {}
     for preview_index, preview_mesh in enumerate(preview_model.meshes):
         submesh_index = int(getattr(preview_mesh, "source_submesh_index", preview_index) or 0)
+        resolved_direct_slots: set[str] = set()
         for material_input in tuple(getattr(preview_mesh, "preview_material_texture_inputs", ()) or ()):
             virtual_source = str(
                 getattr(material_input, "source_dds_path", "")
@@ -216,7 +206,14 @@ def _hydrate_real_archive_mesh_materials(
                 "height": "height",
                 "emissive": "emissive",
             }.get(semantic, "material")
-            setattr(preview_mesh, f"preview_{direct_slot}_texture_dds_path" if direct_slot != "base" else "preview_texture_dds_path", str(source_path))
+            if direct_slot not in resolved_direct_slots:
+                direct_attr = (
+                    f"preview_{direct_slot}_texture_dds_path"
+                    if direct_slot != "base"
+                    else "preview_texture_dds_path"
+                )
+                setattr(preview_mesh, direct_attr, str(source_path))
+                resolved_direct_slots.add(direct_slot)
             parameter_name = str(getattr(material_input, "parameter_name", "") or "")
             row_key = (submesh_index, str(source_path).casefold(), parameter_name.casefold(), semantic)
             if row_key in seen_rows:

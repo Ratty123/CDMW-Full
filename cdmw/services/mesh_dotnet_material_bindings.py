@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 from collections.abc import Mapping, Sequence
 
+from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.services.mesh_dotnet_material_channels import _color3
 
 
@@ -190,12 +191,73 @@ def _native_packed_channel_semantics(value: object) -> tuple[str, ...]:
     return tuple(item.strip() for item in text.split(",") if item.strip())
 
 
-def apply_dotnet_native_material_batch_binding(target: object, batch: object) -> bool:
-    """Apply a Native Preview Core material batch to a reference-only submesh.
+def _native_material_parameter_input(value: object) -> PreviewMaterialParameterInput | None:
+    if isinstance(value, PreviewMaterialParameterInput):
+        return copy.deepcopy(value)
+    if not isinstance(value, Mapping):
+        return None
+    fields = PreviewMaterialParameterInput.__dataclass_fields__
+    payload = {str(key): copy.deepcopy(item) for key, item in value.items() if key in fields}
+    color = payload.get("color_value")
+    if isinstance(color, Sequence) and not isinstance(color, (str, bytes, bytearray)):
+        payload["color_value"] = tuple(color)
+    return PreviewMaterialParameterInput(**payload)
 
-    This consumes the native classifier and resolved DDS evidence. It deliberately
-    uses ``base_color`` only for the manifest's explicit tint-only fallback so a
-    normal textured material cannot acquire the native debug batch color.
+
+def _native_material_texture_input(value: object) -> PreviewMaterialTextureInput | None:
+    """Hydrate a native-manifest descriptor into the production graph type."""
+
+    if isinstance(value, PreviewMaterialTextureInput):
+        return copy.deepcopy(value)
+    if not isinstance(value, Mapping):
+        return None
+    fields = PreviewMaterialTextureInput.__dataclass_fields__
+    payload = {str(key): copy.deepcopy(item) for key, item in value.items() if key in fields}
+    payload["slot_kind"] = str(
+        payload.get("slot_kind") or value.get("slot") or "material"
+    ).strip()
+    source_path = str(
+        value.get("source_path", "")
+        or payload.get("source_dds_path", "")
+        or payload.get("source_texture_path", "")
+        or payload.get("preview_texture_path", "")
+        or ""
+    ).strip()
+    if source_path:
+        for field_name in (
+            "source_dds_path",
+            "source_texture_path",
+            "preview_texture_path",
+        ):
+            if not str(payload.get(field_name, "") or "").strip():
+                payload[field_name] = source_path
+    for field_name in ("packed_channels", "blend_flags"):
+        raw_items = payload.get(field_name, ())
+        if isinstance(raw_items, Sequence) and not isinstance(
+            raw_items, (str, bytes, bytearray)
+        ):
+            payload[field_name] = tuple(str(item or "") for item in raw_items)
+        else:
+            payload[field_name] = ()
+    raw_parameters = value.get("material_parameters", ())
+    if isinstance(raw_parameters, Sequence) and not isinstance(
+        raw_parameters, (str, bytes, bytearray)
+    ):
+        payload["material_parameters"] = tuple(
+            parameter
+            for parameter in (
+                _native_material_parameter_input(item) for item in raw_parameters
+            )
+            if parameter is not None
+        )
+    return PreviewMaterialTextureInput(**payload)
+
+
+def apply_dotnet_native_material_batch_binding(target: object, batch: object) -> bool:
+    """Apply one authoritative Native Preview Core material batch to a submesh.
+
+    This consumes the native classifier, resolved DDS evidence, and distinct base
+    color/base-strength/texture-tint contract without reclassifying the material.
     """
 
     if target is None or not isinstance(batch, Mapping):
@@ -218,21 +280,35 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
 
     raw_inputs = dds_textures.get("material_inputs")
     material_inputs = tuple(
-        copy.deepcopy(dict(item))
-        for item in raw_inputs
-        if isinstance(item, Mapping)
+        typed
+        for typed in (
+            _native_material_texture_input(item)
+            for item in raw_inputs
+        )
+        if typed is not None
     ) if isinstance(raw_inputs, Sequence) and not isinstance(raw_inputs, (str, bytes, bytearray)) else ()
     if not material_inputs:
         material_inputs = tuple(
-            {
-                **copy.deepcopy(dict(descriptor)),
-                "slot": str(slot),
-                "slot_kind": str(slot),
-            }
+            typed
             for slot, descriptor in dds_textures.items()
             if slot != "material_inputs" and isinstance(descriptor, Mapping)
+            for typed in (
+                _native_material_texture_input(
+                    {
+                        **copy.deepcopy(dict(descriptor)),
+                        "slot": str(slot),
+                        "slot_kind": str(slot),
+                    }
+                ),
+            )
+            if typed is not None
         )
-    if material_inputs:
+    # Prepared preview inputs own the source material graph. Native-manifest
+    # descriptors are post-package transport evidence and must not replace it.
+    existing_material_inputs = tuple(
+        getattr(target, "preview_material_texture_inputs", ()) or ()
+    )
+    if material_inputs and not existing_material_inputs:
         setattr(target, "preview_material_texture_inputs", material_inputs)
 
     material_descriptor = dds_textures.get("material")
@@ -247,7 +323,8 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
             setattr(target, "preview_material_texture_packed_channels", packed)
 
     shader_family = str(
-        batch.get("shader_family", "")
+        batch.get("material_shader_family", "")
+        or batch.get("shader_family", "")
         or batch.get("material_category", "")
         or ""
     ).strip()
@@ -257,6 +334,9 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
     setattr(target, "preview_double_sided", bool(batch.get("two_sided", batch.get("double_sided", False))))
     setattr(target, "preview_normal_y_policy", str(batch.get("normal_y_policy", "") or ""))
     setattr(target, "preview_texture_flip_vertical", bool(batch.get("texture_flip_vertical", False)))
+    base_color = _color3(batch.get("base_color"))
+    if base_color is not None:
+        setattr(target, "preview_color", base_color)
     texture_tint = _color3(batch.get("texture_tint"))
     if texture_tint is not None:
         setattr(target, "preview_texture_tint", texture_tint)
@@ -278,12 +358,34 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         setattr(target, "preview_native_material_overrides", overrides)
 
     if bool(batch.get("base_tint_only_fallback", False)):
-        color = _color3(batch.get("base_color"))
-        if color is not None:
-            setattr(target, "preview_color", color)
         setattr(target, "preview_texture_path", "")
         setattr(target, "preview_texture_dds_path", "")
     return True
+
+
+def apply_dotnet_native_material_batch_bindings(mesh: object, batches: object) -> int:
+    """Apply direct native batches by authoritative local-submesh identity."""
+
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    if not submeshes or not isinstance(batches, Sequence) or isinstance(batches, (str, bytes, bytearray)):
+        return 0
+    applied: set[int] = set()
+    for fallback_index, batch in enumerate(batches):
+        if not isinstance(batch, Mapping):
+            continue
+        identity = batch.get("editor_identity")
+        identity = identity if isinstance(identity, Mapping) else {}
+        if bool(identity.get("prefab_component", False)) or _safe_int(identity.get("source_component_index", 0), 0) != 0:
+            continue
+        local_index = _safe_int(
+            identity.get("source_local_submesh_index", identity.get("source_submesh_index", fallback_index)),
+            fallback_index,
+        )
+        if local_index < 0 or local_index >= len(submeshes) or local_index in applied:
+            continue
+        if apply_dotnet_native_material_batch_binding(submeshes[local_index], batch):
+            applied.add(local_index)
+    return len(applied)
 
 
 def set_dotnet_preview_texture_flip_vertical(preview_model: object, flip_vertical: bool) -> int:

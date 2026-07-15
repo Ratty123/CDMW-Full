@@ -112,13 +112,13 @@ from cdmw.rendering.native_preview_material_contract import (
     _resolved_batch_material_category_reason,
     _resolved_batch_material_finish,
     _sanitize_nonfile_manifest_source_paths,
-    sidecar_preview_texture_tint_for_batch,
     _slot_has_resolved_texture,
     _source_or_descriptor_has_armor_equipment,
     _source_or_descriptor_has_weapon_surface,
     _texture_quality_summary,
     _texture_slot_state,
 )
+from cdmw.rendering.preview_tint_contract import resolve_preview_tint_contract
 from cdmw.rendering.native_preview_texture_sources import (
     _batch_dds_manifest_cache_key,
     _copy_texture,
@@ -1234,18 +1234,13 @@ def write_isolated_d3d11_preview_package(
         )
         while len(texture_uv_scale) < 2:
             texture_uv_scale = (*texture_uv_scale, 1.0)
-        texture_tint = tuple(
-            max(0.0, min(2.0, _safe_float(value, 1.0)))
-            for value in tuple(getattr(batch, "preview_texture_tint", ()) or ())[:3]
-        )
-        tint_active = len(texture_tint) >= 3 and any(abs(float(value) - 1.0) > 1e-4 for value in texture_tint)
         source_path_text = getattr(prepared_preview, "source_path", "") or getattr(model, "path", "")
-        if not tint_active:
-            sidecar_texture_tint = sidecar_preview_texture_tint_for_batch(batch, source_path=source_path_text)
-            if sidecar_texture_tint:
-                texture_tint = sidecar_texture_tint
-                tint_active = True
-                notes = tuple(notes) + ("sidecar tint promoted to preview base tint",)
+        tint_contract = resolve_preview_tint_contract(
+            batch, base_color=_batch_base_color(batch, usable_blob), source_path=source_path_text
+        )
+        if tint_contract.sidecar_texture_tint_promoted:
+            notes = tuple(notes) + ("sidecar tint promoted to preview base tint",)
+        tint_active = tint_contract.texture_tint_active
         if material_policy in {"original_reference_archive_parity", "modify_original_archive_parity"} and tint_active:
             notes = tuple(notes) + ("archive parity tint kept enabled",)
         batch_payload = {
@@ -1257,14 +1252,14 @@ def write_isolated_d3d11_preview_package(
                 "vertex_size": len(usable_blob),
                 "vertex_count": vertex_count,
                 "editor_identity": editor_identity,
-                "base_color": list(_batch_base_color(batch, usable_blob)),
+                "base_color": list(tint_contract.base_color),
                 "textures": textures,
                 "dds_textures": dds_textures,
                 "texture_flip_vertical": texture_flip_vertical,
                 "texture_brightness": texture_brightness,
                 "texture_uv_scale": list(texture_uv_scale),
-                "texture_tint": list(texture_tint),
-                "base_tint_strength": 0.85 if tint_active else 0.0,
+                "texture_tint": list(tint_contract.texture_tint),
+                "base_tint_strength": tint_contract.base_tint_strength,
                 "alpha_mode": native_alpha_mode,
                 "source_alpha_mode": raw_alpha_mode,
                 "double_sided": preview_double_sided,

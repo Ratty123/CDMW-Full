@@ -20,6 +20,8 @@ cbuffer CameraConstants : register(b0)
     float MaterialDebugMode;
     float MaterialNormalYInverted;
     float4 MaterialBaseAdjustments;
+    float4 MaterialBaseTint;
+    float4 MaterialBaseTintPolicy;
     float4 MaterialTint;
     float4 MaterialBaseAdvanced;
     float4 MaterialBasePost;
@@ -297,7 +299,9 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
 
     float4 baseColor = MaterialHasBase > 0.5f
         ? BaseTexture.Sample(MaterialSampler, uv)
-        : (MaterialTint.w > 0.5f ? float4(1.0f, 1.0f, 1.0f, 1.0f) : float4(0.55f, 0.62f, 0.72f, 1.0f));
+        : (MaterialBaseTint.w > 0.5f
+            ? float4(SrgbUiColorToLinear(saturate(MaterialBaseTint.rgb)), 1.0f)
+            : (MaterialTint.w > 0.5f ? float4(1.0f, 1.0f, 1.0f, 1.0f) : float4(0.55f, 0.62f, 0.72f, 1.0f)));
     float materialAlpha = MaterialAdditionalMaps.x > 0.5f
         ? OpacityTexture.Sample(MaterialSampler, uv)[(int)MaterialAdditionalMaps.z]
         : baseColor.a;
@@ -306,6 +310,29 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     if (MaterialAlphaPolicy.x > 0.5f && MaterialAlphaPolicy.x < 1.5f)
     {
         clip(baseColor.a - MaterialAlphaPolicy.y);
+    }
+    if (MaterialHasBase > 0.5f && MaterialBaseTintPolicy.x > 0.001f)
+    {
+        float3 previewTint = saturate(MaterialBaseTint.rgb);
+        float tintLuma = max(dot(previewTint, float3(0.299f, 0.587f, 0.114f)), 0.08f);
+        float3 tintBias = clamp(
+            previewTint / tintLuma,
+            float3(0.38f, 0.38f, 0.38f),
+            float3(1.72f, 1.72f, 1.72f));
+        float tintChroma = max(previewTint.r, max(previewTint.g, previewTint.b))
+            - min(previewTint.r, min(previewTint.g, previewTint.b));
+        bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f;
+        float neutralMetalTint = earlyCategoryMetal ? saturate((0.12f - tintChroma) * 8.0f) : 0.0f;
+        float strength = saturate(MaterialBaseTintPolicy.x
+            * (earlyCategoryMetal ? lerp(0.05f, 1.25f, neutralMetalTint) : 1.0f));
+        float albedoLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
+        float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f) + 0.10f * strength);
+        float3 multiplied = saturate(baseColor.rgb * tintBias);
+        float3 colorized = saturate(liftedLuma.xxx * tintBias);
+        float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);
+        colorized = lerp(colorized, saturate(neutralMetalLuma.xxx * tintBias), neutralMetalTint);
+        float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);
+        baseColor.rgb = lerp(baseColor.rgb, lerp(multiplied, colorized, colorizeStrength), strength);
     }
     baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x, 0.1f));
     baseColor.rgb *= max(MaterialTint.rgb, float3(0.0f, 0.0f, 0.0f));

@@ -49,6 +49,8 @@ internal sealed partial class D3D11MaterialViewport
         var parameters = _materials.ParametersForSubmesh(materialSubmeshIndex);
         var settings = _presentationSettings;
         var tint = settings.DisableTint ? Vector3.One : parameters.TintColor ?? Vector3.One;
+        var baseTint = parameters.BaseTintColor ?? Vector3.One;
+        var baseTintStrength = settings.DisableTint ? 0.0f : parameters.BaseTintStrength ?? 0.0f;
         var emissiveColor = parameters.EmissiveColor ?? Vector3.One;
         var azimuth = settings.LightAzimuthDegrees * MathF.PI / 180.0f;
         var elevation = settings.LightElevationDegrees * MathF.PI / 180.0f;
@@ -116,6 +118,12 @@ internal sealed partial class D3D11MaterialViewport
                 parameters.Contrast ?? 1.0f,
                 parameters.Saturation ?? 1.0f,
                 parameters.Gamma ?? 1.0f),
+            MaterialBaseTint = new Vector4(baseTint, parameters.BaseTintColor.HasValue ? 1.0f : 0.0f),
+            MaterialBaseTintPolicy = new Vector4(
+                baseTintStrength,
+                parameters.BaseTintMetallic == true ? 1.0f : 0.0f,
+                0.0f,
+                0.0f),
             MaterialTint = new Vector4(
                 tint,
                 !settings.DisableTint && parameters.TintColor.HasValue ? 1.0f : 0.0f),

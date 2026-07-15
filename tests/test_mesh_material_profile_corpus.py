@@ -6,7 +6,11 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
-from cdmw.models import ArchiveEntry, PreviewMaterialParameterInput
+from cdmw.models import (
+    ArchiveEntry,
+    PreviewMaterialParameterInput,
+    PreviewMaterialTextureInput,
+)
 from cdmw.modding.material_profiles import complete_swap_material_runtime_profiles
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.mesh_texture_sources import MeshTextureSourceResolution
@@ -98,15 +102,32 @@ def test_real_material_hydration_uses_sidecar_contract_and_local_dds(tmp_path: P
     )
     entries_by_path = {texture_entry.path: (texture_entry,)}
     entries_by_basename = {"body.dds": (texture_entry,)}
+    preview_model = SimpleNamespace(
+        path=model_entry.path,
+        meshes=[
+            SimpleNamespace(
+                source_submesh_index=0,
+                preview_material_texture_inputs=(
+                    PreviewMaterialTextureInput(
+                        slot_kind="base",
+                        source_texture_path=texture_entry.path,
+                        source_dds_path=texture_entry.path,
+                        semantic_type="color",
+                        material_name="Body",
+                        visualized=True,
+                    ),
+                ),
+                preview_sidecar_shader_family="Skin",
+                preview_alpha_mode="cutout",
+                preview_material_parameters=binding.material_parameters,
+            )
+        ],
+    )
 
     with (
         patch(
             "tools.mesh_harness.archive_provenance.extract_archive_model_sidecar_texture_references",
             return_value=((binding,), ("character/modelproperty/body.pac_xml",), {}, {}),
-        ),
-        patch(
-            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            return_value="preview://body.dds",
         ),
         patch(
             "tools.mesh_harness.archive_provenance.resolve_mesh_texture_source",
@@ -118,6 +139,7 @@ def test_real_material_hydration_uses_sidecar_contract_and_local_dds(tmp_path: P
             model_entry,
             entries_by_path,
             entries_by_basename,
+            preview_model=preview_model,
         )
 
     submesh = mesh.submeshes[0]
@@ -127,6 +149,119 @@ def test_real_material_hydration_uses_sidecar_contract_and_local_dds(tmp_path: P
     assert submesh.preview_material_texture_inputs[0].source_dds_path == str(source_dds.resolve())
     assert any(row["material_authority"] == "sidecar" for row in rows)
     assert any("sidecar" in line.casefold() for line in diagnostics)
+
+
+def test_real_material_hydration_keeps_primary_base_ahead_of_sidecar_overlay(
+    tmp_path: Path,
+) -> None:
+    base_dds = tmp_path / "shield.dds"
+    overlay_dds = tmp_path / "shield_o.dds"
+    base_dds.write_bytes(b"DDS primary base")
+    overlay_dds.write_bytes(b"DDS sidecar overlay")
+    model_entry = ArchiveEntry(
+        path="character/model/shield.pac",
+        pamt_path=tmp_path / "0.pamt",
+        paz_file=tmp_path / "0.paz",
+        offset=0,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
+    base_entry = ArchiveEntry(
+        path="character/texture/shield.dds",
+        pamt_path=tmp_path / "0.pamt",
+        paz_file=tmp_path / "0.paz",
+        offset=1,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
+    overlay_entry = ArchiveEntry(
+        path="character/texture/shield_o.dds",
+        pamt_path=tmp_path / "0.pamt",
+        paz_file=tmp_path / "0.paz",
+        offset=2,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
+    mesh = ParsedMesh(
+        path=model_entry.path,
+        format="pac",
+        submeshes=[
+            SubMesh(
+                name="Shield",
+                material="Shield",
+                texture=base_entry.path,
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )
+        ],
+    )
+    preview_model = SimpleNamespace(
+        path=model_entry.path,
+        meshes=[
+            SimpleNamespace(
+                source_submesh_index=0,
+                preview_material_texture_inputs=(
+                    PreviewMaterialTextureInput(
+                        slot_kind="base",
+                        source_texture_path=base_entry.path,
+                        source_dds_path=base_entry.path,
+                        semantic_type="color",
+                        material_name="Shield",
+                        visualized=True,
+                    ),
+                    PreviewMaterialTextureInput(
+                        slot_kind="base",
+                        parameter_name="_overlayColorTexture",
+                        source_texture_path=overlay_entry.path,
+                        source_dds_path=overlay_entry.path,
+                        semantic_type="color",
+                        layer_role="base",
+                        material_name="Shield",
+                        visualized=True,
+                    ),
+                ),
+            )
+        ],
+    )
+
+    def resolve(query: str, **_kwargs) -> MeshTextureSourceResolution:
+        is_overlay = str(query).casefold().endswith("shield_o.dds")
+        return MeshTextureSourceResolution(
+            source_path=overlay_dds if is_overlay else base_dds,
+            archive_entry=overlay_entry if is_overlay else base_entry,
+            archive_path=overlay_entry.path if is_overlay else base_entry.path,
+            status="archive",
+        )
+
+    with (
+        patch(
+            "tools.mesh_harness.archive_provenance.extract_archive_model_sidecar_texture_references",
+            return_value=((), ("character/modelproperty/shield.pac_xml",), {}, {}),
+        ),
+        patch(
+            "tools.mesh_harness.archive_provenance.resolve_mesh_texture_source",
+            side_effect=resolve,
+        ),
+    ):
+        _hydrate_real_archive_mesh_materials(
+            mesh,
+            model_entry,
+            {base_entry.path: (base_entry,), overlay_entry.path: (overlay_entry,)},
+            {"shield.dds": (base_entry,), "shield_o.dds": (overlay_entry,)},
+            preview_model=preview_model,
+        )
+
+    submesh = mesh.submeshes[0]
+    inputs = submesh.preview_material_texture_inputs
+    assert inputs[0].source_dds_path == str(base_dds.resolve())
+    assert inputs[1].source_dds_path == str(overlay_dds.resolve())
+    assert submesh.preview_texture_dds_path == str(base_dds.resolve())
 
 
 def test_supported_profile_corpus_records_every_deterministic_contract_dimension() -> None:
@@ -166,7 +301,8 @@ def test_asset_row_uses_content_fingerprints_not_temporary_paths(tmp_path: Path)
     assert first_row["expected_channels"] == ["base"]
     assert first_row["resources"][0]["criticality"] == "required"
     assert first_row["resources"][0]["profile"] == "material_authority_true_source"
-    assert first_row["submeshes"][0]["parameters"]["tint_color"] == [0.8, 0.7, 0.6]
+    assert first_row["submeshes"][0]["parameters"]["base_tint_color"] == [0.8, 0.7, 0.6]
+    assert first_row["submeshes"][0]["parameters"]["base_tint_strength"] == 0.0
     assert first_row["submeshes"][0]["shader_family_source"] == "unresolved"
     assert first_row["submeshes"][0]["shader_family_reason"]
     assert first_row["submeshes"][0]["alpha_authority"] == "guess"

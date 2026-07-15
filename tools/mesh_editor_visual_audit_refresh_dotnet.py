@@ -24,7 +24,11 @@ if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from cdmw.core.archive_format import parse_archive_pamt
+from cdmw.rendering.native_preview_package import read_isolated_d3d11_preview_manifest
 from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
+from cdmw.services.mesh_dotnet_material_bindings import (
+    apply_dotnet_native_material_batch_bindings,
+)
 from cdmw.services.mesh_service import MeshService
 from tools.mesh_harness.archive_provenance import (
     _archive_content_fingerprints,
@@ -42,6 +46,7 @@ from tools.mesh_harness.visual_audit_cli import (
     _validate_prepared_state,
     _visual_audit_temporary_root,
 )
+from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -106,6 +111,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         archive_source = Path(str(source_asset["archive_package_dir"])).resolve()
         archive_target = archive_root / archive_source.name
         _link_or_copy_tree(archive_source, archive_target)
+        archive_package_stability = stabilize_visual_audit_archive_package(archive_target)
+        archive_manifest = read_isolated_d3d11_preview_manifest(archive_target)
+        apply_dotnet_native_material_batch_bindings(
+            mesh,
+            archive_manifest.get("batches", ()),
+        )
         package = build_mesh_dotnet_experiment_package(
             mesh,
             output_root=dotnet_root,
@@ -122,6 +133,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "dotnet_package_dir": str(package.package_dir),
                 "views": [dict(value) for value in tuple(source_asset.get("views", ()) or ())],
                 "run_id": run_id,
+                "archive_package_stability": archive_package_stability,
             }
         )
         timings.append({"id": asset_id, "refresh_ms": elapsed_ms})
@@ -147,6 +159,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         "source_evidence_root": str(source_root),
         "source_run_id": str(source_state.get("run_id", "") or ""),
         "archive_packages_reused": True,
+        "archive_packages_rebased": True,
         "dotnet_packages_rebuilt": True,
         "asset_count": len(runtime_assets),
     }

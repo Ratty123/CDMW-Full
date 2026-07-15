@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Optional, Sequence, Tuple
+from typing import Callable, Optional, Sequence, Tuple
 
 from PySide6.QtCore import QSize, QUrl, Qt
 from PySide6.QtGui import QColor, QImage, QImageReader
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import PreviewMaterialTextureInput
 from cdmw.rendering.material_combiner_decode import (
     _apply_external_material_factors,
@@ -34,6 +35,14 @@ from cdmw.rendering.material_combiner_rules import (
     _texture_rule_for_input,
     _visible_layer_role,
 )
+
+
+def _raise_if_material_combiner_cancelled(
+    cancelled: Callable[[], bool] | None,
+) -> None:
+    if cancelled is not None and cancelled():
+        raise RunCancelled("Material preview synthesis cancelled.")
+
 
 def _byte(value: float) -> int:
     return max(0, min(255, int(round(_clamp(value) * 255.0))))
@@ -80,7 +89,9 @@ def _generate_synthesized_albedo_map(
     max_dimension: int,
     neutral_base_color: Tuple[float, float, float] = (),
     preserve_base_alpha: bool = False,
+    cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[str, str]:
+    _raise_if_material_combiner_cancelled(cancelled)
     prepared_base = (
         QImage()
         if len(neutral_base_color) >= 3
@@ -88,6 +99,7 @@ def _generate_synthesized_albedo_map(
     )
     source_layers: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
     for item in layer_inputs:
+        _raise_if_material_combiner_cancelled(cancelled)
         image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
         if image.isNull():
             continue
@@ -128,6 +140,7 @@ def _generate_synthesized_albedo_map(
         )
         tint = _layer_tint(first_item)
         for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
             for x in range(width):
                 color = first_image.pixelColor(x, y)
                 red, green, blue = color.redF(), color.greenF(), color.blueF()
@@ -149,6 +162,7 @@ def _generate_synthesized_albedo_map(
 
     prepared_masks: dict[str, QImage] = {}
     for role, item in mask_inputs.items():
+        _raise_if_material_combiner_cancelled(cancelled)
         image = _image_reader(str(getattr(item, "preview_texture_path", "") or ""), max_dimension=max_dimension)
         if image.isNull():
             continue
@@ -162,6 +176,7 @@ def _generate_synthesized_albedo_map(
     roles_used: list[str] = []
     has_base = not prepared_base.isNull()
     for item, image in source_layers[layer_start:]:
+        _raise_if_material_combiner_cancelled(cancelled)
         layer = image
         if int(layer.width()) != width or int(layer.height()) != height:
             layer = layer.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
@@ -173,6 +188,7 @@ def _generate_synthesized_albedo_map(
             continue
         tint = _layer_tint(item)
         for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
             for x in range(width):
                 base = target.pixelColor(x, y)
                 overlay = layer.pixelColor(x, y)
@@ -201,6 +217,7 @@ def _generate_synthesized_albedo_map(
         if role_label not in roles_used:
             roles_used.append(role_label)
 
+    _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_albedo.png"
     if not target.save(str(output_path), "PNG"):
@@ -225,7 +242,9 @@ def _generate_spec_gloss_preview_albedo_map(
     flip_vertical: bool,
     max_dimension: int,
     preserve_base_alpha: bool = False,
+    cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[str, str]:
+    _raise_if_material_combiner_cancelled(cancelled)
     spec_source = _support_source_image(spec_gloss_image, flip_vertical=flip_vertical, max_dimension=max_dimension)
     if spec_source.isNull():
         return "", ""
@@ -244,6 +263,7 @@ def _generate_spec_gloss_preview_albedo_map(
         QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888,
     )
     for y in range(height):
+        _raise_if_material_combiner_cancelled(cancelled)
         for x in range(width):
             spec = spec_rgba.pixelColor(x, y)
             base = base_rgba.pixelColor(x, y) if not base_rgba.isNull() else QColor(0, 0, 0)
@@ -269,6 +289,7 @@ def _generate_spec_gloss_preview_albedo_map(
                     base.alpha() if preserve_base_alpha and not base_rgba.isNull() else 255,
                 ),
             )
+    _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_spec_gloss_albedo.png"
     if not target.save(str(output_path), "PNG"):
@@ -395,7 +416,12 @@ def _rgba8888_mask_alpha(
         return 1.0
 
 
-def _image_luma_range(image: QImage) -> Tuple[float, float, float]:
+def _image_luma_range(
+    image: QImage,
+    *,
+    cancelled: Callable[[], bool] | None = None,
+) -> Tuple[float, float, float]:
+    _raise_if_material_combiner_cancelled(cancelled)
     if image.isNull():
         return 0.0, 0.0, 0.0
     converted = image.convertToFormat(QImage.Format.Format_RGBA8888)
@@ -406,6 +432,7 @@ def _image_luma_range(image: QImage) -> Tuple[float, float, float]:
     values: list[float] = []
     step = max(1, int(math.sqrt(max(1, (width * height) // 8192))))
     for y in range(0, height, step):
+        _raise_if_material_combiner_cancelled(cancelled)
         for x in range(0, width, step):
             color = converted.pixelColor(x, y)
             values.append((0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF()))
@@ -422,6 +449,7 @@ def _image_exceeds_dimension(image: QImage, max_dimension: int) -> bool:
         return False
     return max(int(image.width()), int(image.height())) > int(max_dimension)
 
+
 def _generate_material_maps(
     image: QImage,
     output_dir: Path,
@@ -436,7 +464,9 @@ def _generate_material_maps(
     layer_weight: float = 1.0,
     flip_vertical: bool,
     max_dimension: int,
+    cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[Tuple[str, ...], Tuple[str, str, str, str]]:
+    _raise_if_material_combiner_cancelled(cancelled)
     if image.isNull():
         return (), ("", "", "", "")
     source = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
@@ -519,6 +549,7 @@ def _generate_material_maps(
     spec_peak = 0.0
     contribution_peak = 1.0 if mask_source.isNull() else 0.0
     for y in range(height):
+        _raise_if_material_combiner_cancelled(cancelled)
         source_row = y * source_stride
         for x in range(width):
             source_offset = source_row + (x * 4)
@@ -600,6 +631,7 @@ def _generate_material_maps(
         del metal_view
     if spec_view is not None:
         del spec_view
+    _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[str] = []
     slots: list[str] = []
@@ -609,6 +641,7 @@ def _generate_material_maps(
         ("metalness", metal_image),
         ("specular", spec_image),
     ):
+        _raise_if_material_combiner_cancelled(cancelled)
         if generated.isNull():
             paths.append("")
             continue
@@ -638,9 +671,13 @@ def _combine_material_slot_maps(
     layers: Sequence[Tuple[int, str, str]],
     output_dir: Path,
     stem: str,
+    *,
+    cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[str, str]:
+    _raise_if_material_combiner_cancelled(cancelled)
     valid_layers: list[Tuple[int, str, str, QImage]] = []
     for priority, mode, source_url in layers:
+        _raise_if_material_combiner_cancelled(cancelled)
         image = _read_generated_map(source_url)
         if image.isNull():
             continue
@@ -657,6 +694,7 @@ def _combine_material_slot_maps(
         return "", ""
     normalized_layers: list[Tuple[int, str, QImage]] = []
     for priority, mode, _source_url, image in valid_layers:
+        _raise_if_material_combiner_cancelled(cancelled)
         source = image
         if int(source.width()) != base_width or int(source.height()) != base_height:
             source = source.scaled(base_width, base_height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
@@ -678,6 +716,7 @@ def _combine_material_slot_maps(
         return valid_layers[0][2], valid_layers[0][1]
     weight_total = max(1.0, sum(max(1.0, float(priority)) for priority, _mode, _image, _view, _stride in layer_views))
     for y in range(base_height):
+        _raise_if_material_combiner_cancelled(cancelled)
         target_row = y * target_stride
         for x in range(base_width):
             values: list[Tuple[float, float]] = []
@@ -709,6 +748,7 @@ def _combine_material_slot_maps(
             target_offset = target_row + (x * 3)
             target_view[target_offset : target_offset + 3] = bytes((grey_byte, grey_byte, grey_byte))
 
+    _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_{slot}.png"
     del target_view
@@ -716,184 +756,3 @@ def _combine_material_slot_maps(
     if not target.save(str(output_path), "PNG"):
         return valid_layers[0][2], valid_layers[0][1]
     return _local_file_url(output_path), "+".join(dict.fromkeys(mode for _priority, mode, _image in normalized_layers))
-
-
-def _generate_legacy_pbr_response_map(
-    output_dir: Path,
-    stem: str,
-    *,
-    occlusion_source: str = "",
-    roughness_source: str = "",
-    metalness_source: str = "",
-    specular_source: str = "",
-) -> str:
-    source_urls = [occlusion_source, roughness_source, metalness_source, specular_source]
-    source_images = [_read_generated_map(source_url) if source_url else QImage() for source_url in source_urls]
-    valid = [image for image in source_images if not image.isNull()]
-    if not valid:
-        return ""
-    width = int(valid[0].width())
-    height = int(valid[0].height())
-    if width <= 0 or height <= 0:
-        return ""
-
-    normalized: list[QImage] = []
-    for image in source_images:
-        if image.isNull():
-            normalized.append(QImage())
-            continue
-        source = image
-        if int(source.width()) != width or int(source.height()) != height:
-            source = source.scaled(width, height, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
-        normalized.append(source.convertToFormat(QImage.Format.Format_RGBA8888))
-
-    target = QImage(width, height, QImage.Format.Format_RGBA8888)
-    for y in range(height):
-        for x in range(width):
-            values: list[int] = []
-            for index, image in enumerate(normalized):
-                if image.isNull():
-                    if index == 0:
-                        values.append(255)
-                    elif index == 1:
-                        values.append(148)
-                    else:
-                        values.append(0)
-                    continue
-                color = image.pixelColor(x, y)
-                luma = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
-                values.append(_byte(luma))
-            ao, roughness, metalness, specular = (values + [255, 148, 0, 0])[:4]
-            target.setPixelColor(x, y, QColor(ao, roughness, metalness, specular))
-
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{stem}_legacy_pbr.png"
-    if not target.save(str(output_path), "PNG"):
-        return ""
-    return _local_file_url(output_path)
-
-
-def _generate_normal_map(
-    image: QImage,
-    output_dir: Path,
-    stem: str,
-    *,
-    flip_vertical: bool,
-    max_dimension: int,
-) -> Tuple[str, float]:
-    if image.isNull():
-        return "", 0.0
-    source = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-    if source.isNull():
-        return "", 0.0
-    width = int(source.width())
-    height = int(source.height())
-    if width <= 0 or height <= 0:
-        return "", 0.0
-    strength_total = 0.0
-    sample_count = 0
-    target = QImage(width, height, QImage.Format.Format_RGBA8888)
-    for y in range(height):
-        for x in range(width):
-            color = source.pixelColor(x, y)
-            red = color.red()
-            green = 255 - color.green()
-            blue = color.blue()
-            target.setPixelColor(x, y, QColor(red, green, blue, 255))
-            nx = (float(red) / 255.0) * 2.0 - 1.0
-            ny = (float(green) / 255.0) * 2.0 - 1.0
-            strength_total += min(1.0, math.sqrt((nx * nx) + (ny * ny)))
-            sample_count += 1
-    average_strength = strength_total / float(max(1, sample_count))
-    if average_strength <= 0.012:
-        return "", 0.0
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{stem}_normal.png"
-    if not target.save(str(output_path), "PNG"):
-        return "", 0.0
-    return _local_file_url(output_path), average_strength
-
-
-def _generate_height_map(
-    image: QImage,
-    output_dir: Path,
-    stem: str,
-    *,
-    flip_vertical: bool,
-    max_dimension: int,
-) -> Tuple[str, float]:
-    source = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-    if source.isNull():
-        return "", 0.0
-    low, high, contrast = _image_luma_range(source)
-    if contrast < 0.010:
-        return "", contrast
-    width = int(source.width())
-    height = int(source.height())
-    target = QImage(width, height, QImage.Format.Format_RGB888)
-    range_value = max(high - low, 0.001)
-    gain = min(4.0, max(1.0, 0.24 / max(contrast, 0.018)))
-    for y in range(height):
-        for x in range(width):
-            color = source.pixelColor(x, y)
-            luma = (0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF())
-            normalized = _clamp((luma - low) / range_value)
-            adjusted = _clamp(0.5 + ((normalized - 0.5) * gain))
-            grey = _byte(adjusted)
-            target.setPixelColor(x, y, QColor(grey, grey, grey))
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{stem}_height.png"
-    if not target.save(str(output_path), "PNG"):
-        return "", contrast
-    return _local_file_url(output_path), contrast
-
-
-def _derive_normal_from_height(
-    image: QImage,
-    output_dir: Path,
-    stem: str,
-    *,
-    flip_vertical: bool,
-    max_dimension: int,
-) -> Tuple[str, float]:
-    source = _support_source_image(image, flip_vertical=flip_vertical, max_dimension=max_dimension)
-    if source.isNull():
-        return "", 0.0
-    low, high, contrast = _image_luma_range(source)
-    if contrast < 0.018:
-        return "", contrast
-    width = int(source.width())
-    height = int(source.height())
-    if width <= 1 or height <= 1:
-        return "", contrast
-    luma_grid: list[list[float]] = []
-    for y in range(height):
-        row: list[float] = []
-        for x in range(width):
-            color = source.pixelColor(x, y)
-            row.append((0.2126 * color.redF()) + (0.7152 * color.greenF()) + (0.0722 * color.blueF()))
-        luma_grid.append(row)
-    target = QImage(width, height, QImage.Format.Format_RGBA8888)
-    range_value = max(high - low, 0.001)
-    scale = min(2.5, max(0.65, 0.08 / max(contrast, 0.018)))
-    for y in range(height):
-        ym = max(0, y - 1)
-        yp = min(height - 1, y + 1)
-        for x in range(width):
-            xm = max(0, x - 1)
-            xp = min(width - 1, x + 1)
-            dx = ((luma_grid[y][xp] - luma_grid[y][xm]) / range_value) * scale
-            dy = ((luma_grid[yp][x] - luma_grid[ym][x]) / range_value) * scale
-            nx = -dx
-            ny = -dy
-            nz = 1.0
-            length = max(0.001, math.sqrt((nx * nx) + (ny * ny) + (nz * nz)))
-            red = _byte((nx / length) * 0.5 + 0.5)
-            green = _byte((ny / length) * 0.5 + 0.5)
-            blue = _byte((nz / length) * 0.5 + 0.5)
-            target.setPixelColor(x, y, QColor(red, green, blue, 255))
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{stem}_normal_from_height.png"
-    if not target.save(str(output_path), "PNG"):
-        return "", contrast
-    return _local_file_url(output_path), contrast
