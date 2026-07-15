@@ -15,14 +15,20 @@ from tools.mesh_harness.visual_audit_corpus import (
     VisualAuditAssetSpec,
     _archive_package_key,
     _remove_visual_audit_overlays,
+    _resume_visual_audit_state,
     default_visual_audit_specs,
     validate_visual_audit_specs,
 )
 from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 from tools.mesh_harness.visual_audit_cli import (
+    _load_preparation_resume,
     _load_specs,
     _visual_audit_temporary_root,
     _write_preparation_checkpoint,
+)
+from tools.mesh_harness.visual_audit_capture import (
+    _DOTNET_AUDIT_PRESENTATION_PROFILE,
+    _dotnet_audit_presentation_is_safe,
 )
 from tools.mesh_harness.visual_audit_report import build_visual_audit_composites
 from tools.mesh_harness.visual_audit_review import finalize_visual_audit_review
@@ -32,6 +38,9 @@ ROOT = Path(__file__).resolve().parents[1]
 DOTNET_ROOT = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 FOLLOWUP_MANIFEST = (
     ROOT / "tools" / "mesh_harness" / "visual_audit_followup_72.manifest.json"
+)
+THIRD_PASS_MANIFEST = (
+    ROOT / "tools" / "mesh_harness" / "visual_audit_followup_90.manifest.json"
 )
 
 
@@ -223,6 +232,31 @@ def test_followup_visual_audit_corpus_is_large_unique_and_excludes_original_corp
         assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
 
 
+def test_third_visual_audit_corpus_is_diverse_unique_and_excludes_both_prior_corpora() -> None:
+    specs = _load_specs(THIRD_PASS_MANIFEST)
+    original_paths = {spec.virtual_path.casefold() for spec in default_visual_audit_specs()}
+    followup_paths = {spec.virtual_path.casefold() for spec in _load_specs(FOLLOWUP_MANIFEST)}
+    selected_paths = {spec.virtual_path.casefold() for spec in specs}
+
+    assert len(specs) == 90
+    assert len({spec.asset_id for spec in specs}) == 90
+    assert len(selected_paths) == 90
+    assert not (original_paths | followup_paths) & selected_paths
+    assert validate_visual_audit_specs(specs) == {
+        "weapon": 22,
+        "sword": 5,
+        "armor": 28,
+        "body": 5,
+        "hair_fur_feather": 5,
+        "unusual": 26,
+    }
+    payload = json.loads(THIRD_PASS_MANIFEST.read_text(encoding="utf-8"))
+    excluded_paths = {str(value).casefold() for value in payload["excluded_virtual_paths"]}
+    assert excluded_paths == original_paths | followup_paths
+    for tag, minimum in payload["required_coverage"].items():
+        assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
+
+
 def test_visual_audit_manifest_constraints_reject_partial_overlap_and_missing_tags(
     tmp_path: Path,
 ) -> None:
@@ -341,6 +375,103 @@ def test_visual_audit_preparation_checkpoint_is_incremental_and_run_correlated(t
     assert '"complete": false' in payload
 
 
+def test_visual_audit_preparation_resume_reuses_only_an_exact_manifest_prefix(tmp_path: Path) -> None:
+    spec = VisualAuditAssetSpec(
+        index=1,
+        asset_id="001-test",
+        virtual_path="character/model/test.pac",
+        model_category="test",
+        coverage_tags=("unusual",),
+        selection_reason="test",
+    )
+    game_root = tmp_path / "game"
+    pamt_path = game_root / "0009" / "0.pamt"
+    checkpoint = {
+        "schema": "cdmw_mesh_visual_audit_preparation_checkpoint_v1",
+        "game_root": str(game_root),
+        "pamt_path": str(pamt_path),
+        "requested_asset_count": 1,
+        "prepared_asset_count": 1,
+        "coverage": {"unusual": 1},
+        "assets": [{"asset_id": spec.asset_id, "virtual_path": spec.virtual_path}],
+        "runtime_assets": [{"id": spec.asset_id, "virtual_path": spec.virtual_path}],
+        "archive_fingerprint_paths": [str(pamt_path)],
+        "complete": True,
+    }
+
+    rows, runtime_assets, fingerprints = _resume_visual_audit_state(
+        checkpoint,
+        specs=(spec,),
+        game_root=game_root.resolve(),
+        pamt_path=pamt_path.resolve(),
+        coverage={"unusual": 1},
+    )
+
+    assert rows[0]["asset_id"] == spec.asset_id
+    assert runtime_assets[0]["id"] == spec.asset_id
+    assert fingerprints == {pamt_path.resolve()}
+    changed = VisualAuditAssetSpec(
+        index=1,
+        asset_id=spec.asset_id,
+        virtual_path="character/model/changed.pac",
+        model_category=spec.model_category,
+        coverage_tags=spec.coverage_tags,
+        selection_reason=spec.selection_reason,
+    )
+    with pytest.raises(ValueError, match="manifest prefix"):
+        _resume_visual_audit_state(
+            checkpoint,
+            specs=(changed,),
+            game_root=game_root.resolve(),
+            pamt_path=pamt_path.resolve(),
+            coverage={"unusual": 1},
+        )
+
+
+def test_visual_audit_preparation_resume_rejects_packages_outside_owned_temp(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    game_root = tmp_path / "game"
+    game_root.mkdir()
+    temporary_root = tmp_path / "cdmw-mesh-editor-visual-audit" / "run"
+    archive_package = temporary_root / "archive"
+    dotnet_package = temporary_root / "dotnet"
+    archive_package.mkdir(parents=True)
+    dotnet_package.mkdir()
+    monkeypatch.setattr("tools.mesh_harness.visual_audit_cli.tempfile.gettempdir", lambda: str(tmp_path))
+    _write_preparation_checkpoint(
+        runtime_root,
+        run_id="b" * 32,
+        temporary_root=temporary_root,
+        payload={
+            "runtime_assets": [
+                {
+                    "archive_package_dir": str(archive_package),
+                    "dotnet_package_dir": str(dotnet_package),
+                }
+            ]
+        },
+    )
+
+    run_id, resumed_root, _checkpoint = _load_preparation_resume(
+        runtime_root,
+        game_root=game_root.resolve(),
+    )
+
+    assert run_id == "b" * 32
+    assert resumed_root == temporary_root.resolve()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    payload = json.loads((runtime_root / "preparation-checkpoint.json").read_text(encoding="utf-8"))
+    payload["runtime_assets"][0]["dotnet_package_dir"] = str(outside)
+    (runtime_root / "preparation-checkpoint.json").write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError, match="invalid dotnet_package_dir"):
+        _load_preparation_resume(runtime_root, game_root=game_root.resolve())
+
+
 def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() -> None:
     batch = (DOTNET_ROOT / "VisualAuditBatch.cs").read_text(encoding="utf-8")
     entry = (DOTNET_ROOT / "ProgramEntry.cs").read_text(encoding="utf-8")
@@ -366,8 +497,10 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert "public void ReplaceResidentScene(" in d3d11
     assert "ResidentSceneLoadCount++" in d3d11
     assert '["device_initialization_count"] = _deviceInitializationCount' in batch
-    assert "var rendererYaw = -yaw;" in batch
-    assert '"archive_to_dotnet_inverted_yaw"' in batch
+    assert "var rendererYaw = 180.0f - yaw;" in batch
+    assert '"archive_to_dotnet_180_minus_yaw"' in batch
+    assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings());" in batch
+    assert '["presentation"] = viewport.PresentationEvidencePayload()' in batch
     assert "500.0f / size" in batch
     assert '"process_start_count": 1' in capture
     assert "host.load_package(" in capture
@@ -379,6 +512,37 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert '"command": "capture_frame"' in native_host
     assert "enable_material_combiner=False" in corpus
     assert "enable_material_combiner=True" in corpus
+
+
+@pytest.mark.parametrize(
+    ("overrides", "expected"),
+    [
+        ({}, True),
+        ({"cull_back_faces": True}, False),
+        ({"disable_depth_test": True}, False),
+        ({"tone_gamma": 1.2}, False),
+        ({"sampling_filter": "trilinear"}, False),
+        ({"profile": "custom"}, False),
+        ({"color_pipeline": "unknown"}, False),
+    ],
+)
+def test_visual_audit_rejects_noncanonical_or_unproven_dotnet_presentation(
+    overrides: dict[str, object], expected: bool
+) -> None:
+    presentation = {**_DOTNET_AUDIT_PRESENTATION_PROFILE, **overrides}
+    report = {"renderer_session": {"presentation": presentation}}
+
+    assert _dotnet_audit_presentation_is_safe(report) is expected
+
+
+def test_visual_audit_rejects_missing_dotnet_presentation_evidence() -> None:
+    assert _dotnet_audit_presentation_is_safe({"renderer_session": {}}) is False
+    assert (
+        _dotnet_audit_presentation_is_safe(
+            {"renderer_session": {"presentation": {"profile": "mesh_editor_default_v1"}}}
+        )
+        is False
+    )
 
 
 def test_visual_audit_composites_preserve_source_pixels_without_resampling(tmp_path: Path) -> None:

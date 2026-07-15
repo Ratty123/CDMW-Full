@@ -6,40 +6,88 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class D3D11MaterialViewport
 {
+    public bool CullBackFaces => _presentationSettings.CullBackFaces;
+    public bool DepthTestDisabled => _presentationSettings.DisableDepthTest;
+
     public void ApplyPresentationSettings(D3D11PresentationSettings settings)
     {
         _presentationSettings = settings ?? new D3D11PresentationSettings();
-        if (_device is not null)
-        {
-            _samplerState?.Dispose();
-            var anisotropy = _presentationSettings.HighQuality
-                ? Math.Clamp(_presentationSettings.MaxAnisotropy, 1, 16)
-                : 1;
-            var addressMode = string.Equals(_presentationSettings.TextureAddressMode, "clamp", StringComparison.OrdinalIgnoreCase)
-                ? TextureAddressMode.Clamp
-                : TextureAddressMode.Wrap;
-            var description = new SamplerDescription(
-                _presentationSettings.ForceNearestSampling
-                    ? Filter.MinMagMipPoint
-                    : anisotropy > 1 ? Filter.Anisotropic : Filter.MinMagMipLinear,
-                addressMode,
-                addressMode,
-                addressMode)
-            {
-                MaxAnisotropy = (uint)anisotropy,
-                MipLODBias = _presentationSettings.MipLodBias,
-            };
-            _samplerState = _device.CreateSamplerState(description);
-            _rasterizerState?.Dispose();
-            _doubleSidedRasterizerState?.Dispose();
-            _rasterizerState = _device.CreateRasterizerState(new RasterizerDescription(
-                _presentationSettings.CullBackFaces ? CullMode.Back : CullMode.None,
-                FillMode.Solid));
-            _doubleSidedRasterizerState = _device.CreateRasterizerState(new RasterizerDescription(
-                CullMode.None,
-                FillMode.Solid));
-        }
+        RebuildPresentationPipelineStates();
         Invalidate();
+    }
+
+    public Dictionary<string, object?> PresentationEvidencePayload()
+    {
+        var settings = _presentationSettings;
+        var anisotropy = settings.HighQuality ? Math.Clamp(settings.MaxAnisotropy, 1, 16) : 1;
+        return new Dictionary<string, object?>
+        {
+            ["profile"] = settings == new D3D11PresentationSettings()
+                ? D3D11PresentationSettings.DefaultProfile
+                : "custom",
+            ["high_quality"] = settings.HighQuality,
+            ["view_mode"] = settings.ViewMode,
+            ["cull_back_faces"] = settings.CullBackFaces,
+            ["disable_depth_test"] = settings.DisableDepthTest,
+            ["disable_tint"] = settings.DisableTint,
+            ["disable_brightness"] = settings.DisableBrightness,
+            ["disable_uv_scale"] = settings.DisableUvScale,
+            ["ao_strength"] = settings.AoStrength,
+            ["roughness_bias"] = settings.RoughnessBias,
+            ["metalness_scale"] = settings.MetalnessScale,
+            ["environment_strength"] = settings.EnvironmentStrength,
+            ["emissive_gain"] = settings.EmissiveGain,
+            ["tone_exposure"] = settings.ToneExposure,
+            ["tone_contrast"] = settings.ToneContrast,
+            ["tone_gamma"] = settings.ToneGamma,
+            ["sampling_filter"] = settings.ForceNearestSampling
+                ? "nearest"
+                : anisotropy > 1 ? "anisotropic" : "trilinear",
+            ["max_anisotropy"] = anisotropy,
+            ["mip_lod_bias"] = settings.MipLodBias,
+            ["texture_address_mode"] = settings.TextureAddressMode,
+            ["ambient_strength"] = settings.AmbientStrength,
+            ["diffuse_wrap_bias"] = settings.DiffuseWrapBias,
+            ["diffuse_light_scale"] = settings.DiffuseLightScale,
+            ["specular_base"] = settings.SpecularBase,
+            ["specular_max"] = settings.SpecularMax,
+            ["color_pipeline"] = "srgb_srv_linear_shader_srgb_rtv",
+        };
+    }
+
+    private void RebuildPresentationPipelineStates()
+    {
+        if (_device is null)
+        {
+            return;
+        }
+        _samplerState?.Dispose();
+        var anisotropy = _presentationSettings.HighQuality
+            ? Math.Clamp(_presentationSettings.MaxAnisotropy, 1, 16)
+            : 1;
+        var addressMode = string.Equals(_presentationSettings.TextureAddressMode, "clamp", StringComparison.OrdinalIgnoreCase)
+            ? TextureAddressMode.Clamp
+            : TextureAddressMode.Wrap;
+        var description = new SamplerDescription(
+            _presentationSettings.ForceNearestSampling
+                ? Filter.MinMagMipPoint
+                : anisotropy > 1 ? Filter.Anisotropic : Filter.MinMagMipLinear,
+            addressMode,
+            addressMode,
+            addressMode)
+        {
+            MaxAnisotropy = (uint)anisotropy,
+            MipLODBias = _presentationSettings.MipLodBias,
+        };
+        _samplerState = _device.CreateSamplerState(description);
+        _rasterizerState?.Dispose();
+        _doubleSidedRasterizerState?.Dispose();
+        _rasterizerState = _device.CreateRasterizerState(new RasterizerDescription(
+            _presentationSettings.CullBackFaces ? CullMode.Back : CullMode.None,
+            FillMode.Solid));
+        _doubleSidedRasterizerState = _device.CreateRasterizerState(new RasterizerDescription(
+            CullMode.None,
+            FillMode.Solid));
     }
 
     private D3D11CameraConstants BuildCameraConstants(D3D11SubmeshBatch batch)

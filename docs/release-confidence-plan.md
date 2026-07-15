@@ -50,6 +50,33 @@ keeps core user workflows working behind stable facades.
 
 2026-07-15:
 
+- The third visual/material parity corpus audited 90 additional read-only PACs
+  with run ID `218138b059e14854986a1c8cd1e2329d`. Archive Browser and the
+  production `.NET/Vortice` renderer each captured 90/90 assets at six paired
+  angles, producing 540 comparisons from 525 native material batches. The
+  structured review finalized every row as 27 PASS, 31 CONCERN, and 32 FAIL,
+  with zero unreviewed models. Capture integrity, presentation-contract checks,
+  and composite completeness passed; one .NET device/viewport served all 90
+  resident scene loads with zero device resets. Before/after fingerprints for
+  all 26 referenced PAMT/PAZ files were byte-identical. Evidence:
+  `workspace/mesh-editor-visual-audit/20260715-third-90/summary.json` and
+  `workspace/mesh-editor-visual-audit/20260715-third-90/review.md`.
+- This pass restored source tint as the normal production/audit default and
+  aligned the .NET luminance tone operator and contrast pivot with the native
+  Archive reference. A separate six-angle x-ray regression review confirmed
+  depth testing remained enabled and global back-face culling remained disabled
+  for mixed-winding PACs. The known 057 body, 064 harpy, and 069 standalone
+  upper-body cases now retain the same surface layout as Archive. The notably
+  skeletal 036 jacket is one opaque submesh whose open strip construction is
+  present in both renderers, not a transparency or lost-face regression.
+- End-state validation reported 45 focused visual-audit contract/parity tests
+  passed, `mesh-unit` reported 816 passed and 1 skipped, the selected
+  architecture hard-limit check passed, and the Release .NET build completed
+  with zero warnings and zero errors. The corpus still exposes substantial
+  dark/flat bright-material and per-region differences plus unsupported
+  authoritative emissive-color graphs. These CDMW comparisons are not
+  real-game visual proof, and static captures do not prove animation timing or
+  rendered deformation.
 - The non-overlapping visual/material follow-up audited 72 unique read-only
   PACs: 10 shields, 5 swords, 14 outfits, 5 bodies, 8 head/face assets,
   10 hair/fur assets, 8 spiders, 6 glass/alpha controls, and 6 unusual props.

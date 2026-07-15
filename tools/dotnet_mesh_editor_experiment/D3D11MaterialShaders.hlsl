@@ -96,6 +96,14 @@ float3 SrgbUiColorToLinear(float3 color)
     return lerp(upper, lower, step(color, float3(0.04045f, 0.04045f, 0.04045f)));
 }
 
+float3 AcesToneMap(float3 color)
+{
+    color = max(color, float3(0.0f, 0.0f, 0.0f));
+    return saturate(
+        (color * (2.51f * color + 0.03f))
+        / (color * (2.43f * color + 0.59f) + 0.14f));
+}
+
 VSOutput VSMain(VSInput input)
 {
     VSOutput output;
@@ -543,13 +551,17 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float3 finalColor = PresentationSurfaceTuning.w > 0.5f
         ? baseColor.rgb + emissive
         : litDiffuse + metallicSourceAnchor + spec + environmentSpecular + emissive;
-    finalColor *= max(PresentationToneTuning.x, 0.05f);
-    const float linearMiddleGray = 0.18f;
-    float finalLuma = dot(finalColor, float3(0.2126f, 0.7152f, 0.0722f));
-    float contrastedLuma = (finalLuma - linearMiddleGray)
-        * max(PresentationToneTuning.y, 0.01f) + linearMiddleGray;
-    contrastedLuma = max(contrastedLuma, finalLuma * 0.55f);
-    finalColor *= max(contrastedLuma, 0.0f) / max(finalLuma, 1e-5f);
+    float3 exposedColor = max(
+        finalColor * max(PresentationToneTuning.x, 0.05f),
+        float3(0.0f, 0.0f, 0.0f));
+    float exposedLuma = dot(exposedColor, float3(0.2126f, 0.7152f, 0.0722f));
+    float mappedLuma = AcesToneMap(exposedLuma.xxx).r;
+    finalColor = exposedColor * (mappedLuma / max(exposedLuma, 1e-5f));
+    float currentLuma = dot(finalColor, float3(0.2126f, 0.7152f, 0.0722f));
+    float contrastedLuma = (currentLuma - 0.5f)
+        * max(PresentationToneTuning.y, 0.01f) + 0.5f;
+    contrastedLuma = max(contrastedLuma, currentLuma * 0.55f);
+    finalColor *= max(contrastedLuma, 0.0f) / max(currentLuma, 1e-5f);
     finalColor = pow(saturate(finalColor), max(PresentationToneTuning.z, 0.01f));
     return float4(saturate(finalColor), baseColor.a);
 }

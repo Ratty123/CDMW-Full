@@ -10,6 +10,36 @@ from pathlib import Path
 from typing import Callable
 
 
+_DOTNET_AUDIT_PRESENTATION_PROFILE: dict[str, object] = {
+    "profile": "mesh_editor_default_v1",
+    "high_quality": True,
+    "view_mode": "lit",
+    "cull_back_faces": False,
+    "disable_depth_test": False,
+    "disable_tint": False,
+    "disable_brightness": True,
+    "disable_uv_scale": True,
+    "ao_strength": 0.45,
+    "roughness_bias": -0.04,
+    "metalness_scale": 1.45,
+    "environment_strength": 0.62,
+    "emissive_gain": 2.2,
+    "tone_exposure": 1.0,
+    "tone_contrast": 1.08,
+    "tone_gamma": 1.0,
+    "sampling_filter": "anisotropic",
+    "max_anisotropy": 16,
+    "mip_lod_bias": -2.0,
+    "texture_address_mode": "wrap",
+    "ambient_strength": 0.84,
+    "diffuse_wrap_bias": 0.58,
+    "diffuse_light_scale": 0.62,
+    "specular_base": 0.055,
+    "specular_max": 0.52,
+    "color_pipeline": "srgb_srv_linear_shader_srgb_rtv",
+}
+
+
 def run_archive_browser_capture_batch(
     runtime_assets: Sequence[Mapping[str, object]],
     output_root: Path,
@@ -286,6 +316,25 @@ def _capture_archive_browser_views(
     return captures, ""
 
 
+def _dotnet_audit_presentation_is_safe(report: Mapping[str, object]) -> bool:
+    session = report.get("renderer_session")
+    if not isinstance(session, Mapping):
+        return False
+    presentation = session.get("presentation")
+    if not isinstance(presentation, Mapping):
+        return False
+    for key, expected in _DOTNET_AUDIT_PRESENTATION_PROFILE.items():
+        actual = presentation.get(key)
+        if isinstance(expected, float):
+            if not isinstance(actual, (int, float)) or isinstance(actual, bool):
+                return False
+            if abs(float(actual) - expected) > 1e-6:
+                return False
+        elif actual != expected:
+            return False
+    return True
+
+
 def run_dotnet_capture_batch(
     runtime_assets: Sequence[Mapping[str, object]],
     output_root: Path,
@@ -343,15 +392,22 @@ def run_dotnet_capture_batch(
             for row in tuple(report.get("assets", ()) or ())
             if isinstance(row, Mapping)
         ]
+        presentation_contract_ok = _dotnet_audit_presentation_is_safe(report)
         current_ok = (
             completed.returncode == 0
             and report.get("ok") is True
             and str(report.get("run_id", "")) == run_id
             and actual_ids == expected_ids
+            and presentation_contract_ok
         )
         return {
             **report,
             "ok": current_ok,
+            "presentation_contract_ok": presentation_contract_ok,
+            "presentation_contract_error": "" if presentation_contract_ok else (
+                "Visual-audit capture did not prove the canonical Mesh Editor "
+                "presentation, sampling, depth, culling, and color-pipeline profile."
+            ),
             "command": command,
             "exit_code": int(completed.returncode),
             "wall_ms": (time.perf_counter() - started) * 1000.0,

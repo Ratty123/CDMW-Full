@@ -1,0 +1,1199 @@
+{
+  "schema": "cdmw_mesh_visual_audit_manifest_v1",
+  "name": "third-pass-90-diverse-non-overlapping-real-pac-corpus",
+  "minimum_asset_count": 90,
+  "required_coverage": {
+    "shield_variant": 10,
+    "weapon_diversity": 12,
+    "outfit_palette": 14,
+    "accessory_materials": 8,
+    "hair_head": 8,
+    "skin_body": 5,
+    "hair_fur": 1,
+    "monster_graphs": 10,
+    "npc_outfits": 6,
+    "riding_materials": 6,
+    "unusual_props": 10
+  },
+  "excluded_virtual_paths": [
+    "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_0150.pac",
+    "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0009.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0001.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0002.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0003.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_00_0039.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0001.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0004.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0021.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0054.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0083.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0110.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0165.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_bliss_redknight_ub_0001.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0001.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0002.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_uptail_00_0025.pac",
+    "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0414.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_00_0215_tear.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_sub_00_0001.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_sub_00_0005.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_4001.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_4001_hand_hair.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0005.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0036.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0053.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0166.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0014.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0034.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0039.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0007.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0097.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0100.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0101.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0119.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0122.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0133.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0006.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0119.pac",
+    "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0012.pac",
+    "character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0003.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_4001.pac",
+    "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0011.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_00_m0001_00_ub_belt_0001.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0001.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0010.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0048.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0050.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0083.pac",
+    "character/model/1_pc/14_ptm/head/hair/cd_ptm_00_hair_00_0003.pac",
+    "character/model/1_pc/14_ptm/head/head/cd_ptm_00_head_0003.pac",
+    "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac",
+    "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_01_0001.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0151.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0163.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_0055.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0007.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0010_01.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_base_00_0001.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_01_hair_uptail_00_0005.pac",
+    "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0005_tear.pac",
+    "character/model/1_pc/2_phw/head/head_sub/cd_phw_00_head_sub_00_0006.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0002.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0141.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0142.pac",
+    "character/model/1_pc/5_pom/head/head_sub/cd_pom_00_head_sub_00_0001.pac",
+    "character/model/1_pc/5_pom/nude/cd_pom_00_nude_00_0001.pac",
+    "character/model/1_pc/7_pdm/armor/40_glasses/cd_pdm_01_glasses_00_0001.pac",
+    "character/model/1_pc/7_pdm/nude/cd_pdm_00_nude_00_0001.pac",
+    "character/model/1_pc/9_pgm/armor/40_glasses/cd_pgm_01_glasses_00_0002.pac",
+    "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0012.pac",
+    "character/model/1_pc/9_pgm/head/head_sub/cd_pgm_00_head_sub_00_0004.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_beastman/cd_m0001_00_beastman_fur_0001.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_muscan/cd_m0001_00_muscan_fur_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_cropspider/cd_m0006_00_cropspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_glass_marblespider/cd_m0006_00_glassmarblespider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_glass_marblespider/cd_m0006_00_glassmarblespider_00_0002.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_potspider/cd_m0006_00_potspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_stonelampspider/cd_m0006_00_stonelampspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_webspider/cd_m0006_00_webspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_spider_boss/cd_m0006_00_spider_boss_00_0001.pac",
+    "character/model/2_mon/cd_m0024_00_spidermachine/cd_m0024_00_spidermachine_00_0001.pac",
+    "character/model/4_riding/cd_r0039_00_warrobot/cd_r0039_00_warrobot_lantern_0001.pac",
+    "character/model/6_object/object/t0081_doorstatue/cd_0081_doorstatue_mirror.pac",
+    "character/model/6_object/object/t0150_sandglass/cd_t0150_sandglass_0001.pac",
+    "character/model/6_object/object/t0254_dropitem/cd_gimmick_item_trade_fur_01.pac",
+    "character/model/6_object/object/t0254_dropitem/cd_gimmick_item_trade_fur_02.pac",
+    "character/model/6_object/object/t0263_harpyfeather/cd_t0263_harpyfeather_0001.pac",
+    "character/model/6_object/tools/cd_t0000_battery_0001.pac",
+    "character/model/6_object/tools/cd_t0000_breakbottle_0001.pac",
+    "character/model/6_object/tools/cd_t0000_bushdeerpelt_0001_01.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0001.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0002.pac",
+    "character/model/6_object/tools/cd_t0000_potion_0002.pac"
+  ],
+  "assets": [
+    {
+      "asset_id": "001-shield-tower-0104",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0104.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "002-shield-standard-0132",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0132.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "003-shield-standard-0136",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0136.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "004-shield-standard-0110",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0110.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "005-shield-standard-0056",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0056.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "006-shield-phw-0139",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0139.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "007-shield-phw-0136",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0136.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "008-shield-phw-0135",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0135.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "009-shield-kite-0126",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0126.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "010-shield-tower-0011",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0011.pac",
+      "model_category": "weapon_shield_variant",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "shield_variant",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass shield selected across standard, kite, tower, PHM, and PHW variants for layered, dye, packed-mask, and region-response evidence."
+    },
+    {
+      "asset_id": "011-weapon-bow-0003",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0003.pac",
+      "model_category": "weapon_bow_variant",
+      "coverage_tags": [
+        "weapon",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited weapon class selected to broaden material response beyond swords and the first 102 PACs."
+    },
+    {
+      "asset_id": "012-weapon-crossbow-0004",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/5_crossbow/cd_phm_05_crossbow_0004.pac",
+      "model_category": "weapon_crossbow",
+      "coverage_tags": [
+        "weapon",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited weapon class selected to broaden material response beyond swords and the first 102 PACs."
+    },
+    {
+      "asset_id": "013-weapon-musket-0001",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/8_musket/cd_phm_08_musket_0001.pac",
+      "model_category": "weapon_musket",
+      "coverage_tags": [
+        "weapon",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited weapon class selected to broaden material response beyond swords and the first 102 PACs."
+    },
+    {
+      "asset_id": "014-weapon-shotgun-0054",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/7_shotgun/cd_phm_07_shotgun_0054.pac",
+      "model_category": "weapon_shotgun",
+      "coverage_tags": [
+        "weapon",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited weapon class selected to broaden material response beyond swords and the first 102 PACs."
+    },
+    {
+      "asset_id": "015-weapon-pistol-0052",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/6_pistol/cd_phm_06_pst_0052.pac",
+      "model_category": "weapon_pistol",
+      "coverage_tags": [
+        "weapon",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited weapon class selected to broaden material response beyond swords and the first 102 PACs."
+    },
+    {
+      "asset_id": "016-weapon-pike-0034",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/12_pike/cd_phm_12_pike_0034.pac",
+      "model_category": "weapon_pike",
+      "coverage_tags": [
+        "weapon",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited weapon class selected to broaden material response beyond swords and the first 102 PACs."
+    },
+    {
+      "asset_id": "017-weapon-bomb-0009",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/10_thrownweapon/cd_phm_10_bomb_0009.pac",
+      "model_category": "weapon_thrown",
+      "coverage_tags": [
+        "weapon",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited weapon class selected to broaden material response beyond swords and the first 102 PACs."
+    },
+    {
+      "asset_id": "018-sword-onehand-0011",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0011.pac",
+      "model_category": "weapon_sword_variant",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited sword selected to retain the canonical weapon comparison while expanding layered and packed-material coverage."
+    },
+    {
+      "asset_id": "019-sword-onehand-0046",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0046.pac",
+      "model_category": "weapon_sword_variant",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited sword selected to retain the canonical weapon comparison while expanding layered and packed-material coverage."
+    },
+    {
+      "asset_id": "020-sword-onehand-0102",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0102.pac",
+      "model_category": "weapon_sword_variant",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited sword selected to retain the canonical weapon comparison while expanding layered and packed-material coverage."
+    },
+    {
+      "asset_id": "021-sword-phw-0008",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_sword_0008.pac",
+      "model_category": "weapon_sword_variant",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited sword selected to retain the canonical weapon comparison while expanding layered and packed-material coverage."
+    },
+    {
+      "asset_id": "022-sword-twohand-0012",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0012.pac",
+      "model_category": "weapon_sword_variant",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "weapon_diversity",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited sword selected to retain the canonical weapon comparison while expanding layered and packed-material coverage."
+    },
+    {
+      "asset_id": "023-outfit-phm-artis-upper",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_artis_ub_0001.pac",
+      "model_category": "armor_upperbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "024-outfit-phw-upper-0181",
+      "virtual_path": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0181.pac",
+      "model_category": "armor_upperbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "025-outfit-ptm-upper-0319",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_07_ub_00_0319.pac",
+      "model_category": "armor_upperbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "026-outfit-pgm-upper-0006",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0006.pac",
+      "model_category": "armor_upperbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "027-outfit-pom-greenorc-upper",
+      "virtual_path": "character/model/1_pc/5_pom/armor/9_upperbody/cd_pom_m0001_00_greenorc_ub_0007.pac",
+      "model_category": "armor_upperbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "028-outfit-phm-gears-lower",
+      "virtual_path": "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_m0001_00_gears_lb_0001.pac",
+      "model_category": "armor_lowerbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "029-outfit-phw-lower-0148",
+      "virtual_path": "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_00_0148.pac",
+      "model_category": "armor_lowerbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "030-outfit-ptm-lower-0370",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_00_0370.pac",
+      "model_category": "armor_lowerbody_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "031-outfit-phm-cloak-0447",
+      "virtual_path": "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_00_0447.pac",
+      "model_category": "armor_cloak_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "032-outfit-phw-cloak-0114",
+      "virtual_path": "character/model/1_pc/2_phw/armor/19_cloak/cd_phw_00_cloak_0114.pac",
+      "model_category": "armor_cloak_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "033-outfit-ptm-cloak-0052",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/19_cloak/cd_ptm_01_cloak_0052.pac",
+      "model_category": "armor_cloak_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "034-outfit-pgm-cloak-0001",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/19_cloak/cd_pgm_00_cloak_00_0001.pac",
+      "model_category": "armor_cloak_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "035-outfit-phm-vest-0047",
+      "virtual_path": "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0047.pac",
+      "model_category": "armor_vest_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "036-outfit-phm-jacket-0054",
+      "virtual_path": "character/model/1_pc/1_phm/armor/16_jacket/cd_phm_00_jacket_0054_03.pac",
+      "model_category": "armor_jacket_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "outfit_palette",
+        "third_pass"
+      ],
+      "selection_reason": "Third-pass player outfit component selected across character and armor families for palette, cloth, layer, and region evidence."
+    },
+    {
+      "asset_id": "037-accessory-phm-helmet-0193",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0193.pac",
+      "model_category": "armor_head_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "038-accessory-phw-helmet-0097",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0097_04.pac",
+      "model_category": "armor_head_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "039-accessory-ptm-helmet-0027",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0027.pac",
+      "model_category": "armor_head_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "040-accessory-pgm-helmet-0033",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_00_hel_0033.pac",
+      "model_category": "armor_head_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "041-accessory-phm-mask-0207",
+      "virtual_path": "character/model/1_pc/1_phm/armor/20_mask/cd_phm_00_mask_0207.pac",
+      "model_category": "armor_mask_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "042-accessory-phm-hand-belt-0022",
+      "virtual_path": "character/model/1_pc/1_phm/armor/11_hand/cd_phm_14_hand_belt_0022.pac",
+      "model_category": "armor_hand_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "043-accessory-phm-foot-0437",
+      "virtual_path": "character/model/1_pc/1_phm/armor/12_foot/cd_phm_00_foot_00_0437.pac",
+      "model_category": "armor_foot_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "044-accessory-pdm-bag-0041",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/18_acc/cd_pdm_01_bag_0041.pac",
+      "model_category": "armor_bag_accessory",
+      "coverage_tags": [
+        "armor",
+        "accessory",
+        "accessory_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited helmet, mask, hand, foot, or bag component selected for small-region, cutout, and mixed-material evidence."
+    },
+    {
+      "asset_id": "045-hair-phm-0036",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0036.pac",
+      "model_category": "hair_alpha_variant",
+      "coverage_tags": [
+        "hair",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "046-hair-phw-0008",
+      "virtual_path": "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0008.pac",
+      "model_category": "hair_alpha_variant",
+      "coverage_tags": [
+        "hair",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "047-hair-ptm-0024",
+      "virtual_path": "character/model/1_pc/14_ptm/head/hair/cd_ptm_01_hair_00_0024.pac",
+      "model_category": "hair_alpha_variant",
+      "coverage_tags": [
+        "hair",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "048-beard-phm-0105",
+      "virtual_path": "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0105.pac",
+      "model_category": "hair_beard_variant",
+      "coverage_tags": [
+        "hair",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "049-head-phm-0207",
+      "virtual_path": "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0207.pac",
+      "model_category": "head_skin_variant",
+      "coverage_tags": [
+        "head",
+        "skin",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "050-head-phw-0207",
+      "virtual_path": "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0207.pac",
+      "model_category": "head_skin_variant",
+      "coverage_tags": [
+        "head",
+        "skin",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "051-head-ptm-0001",
+      "virtual_path": "character/model/1_pc/14_ptm/head/head/cd_ptm_00_head_0001.pac",
+      "model_category": "head_skin_variant",
+      "coverage_tags": [
+        "head",
+        "skin",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "052-head-pgm-0005",
+      "virtual_path": "character/model/1_pc/9_pgm/head/head/cd_pgm_00_head_00_0005.pac",
+      "model_category": "head_skin_variant",
+      "coverage_tags": [
+        "head",
+        "skin",
+        "hair_head",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited hair, beard, or head asset selected for cutout, skin, culling, dark-response, and composition evidence."
+    },
+    {
+      "asset_id": "053-body-pgw-10",
+      "virtual_path": "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_10_0001.pac",
+      "model_category": "body_skin_variant",
+      "coverage_tags": [
+        "body",
+        "skin",
+        "skin_body",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited full body variant selected for static skin-family, tint, and material-region comparison."
+    },
+    {
+      "asset_id": "054-body-ppdm",
+      "virtual_path": "character/model/1_pc/19_ppdm/nude/cd_ppdm_00_nude_00_0001.pac",
+      "model_category": "body_skin_variant",
+      "coverage_tags": [
+        "body",
+        "skin",
+        "skin_body",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited full body variant selected for static skin-family, tint, and material-region comparison."
+    },
+    {
+      "asset_id": "055-body-phm-10",
+      "virtual_path": "character/model/1_pc/1_phm/nude/cd_phm_00_nude_10_0001.pac",
+      "model_category": "body_skin_variant",
+      "coverage_tags": [
+        "body",
+        "skin",
+        "skin_body",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited full body variant selected for static skin-family, tint, and material-region comparison."
+    },
+    {
+      "asset_id": "056-body-phw-4001",
+      "virtual_path": "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_4001.pac",
+      "model_category": "body_skin_variant",
+      "coverage_tags": [
+        "body",
+        "skin",
+        "skin_body",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited full body variant selected for static skin-family, tint, and material-region comparison."
+    },
+    {
+      "asset_id": "057-body-pow",
+      "virtual_path": "character/model/1_pc/6_pow/nude/cd_pow_00_nude_00_0001.pac",
+      "model_category": "body_skin_variant",
+      "coverage_tags": [
+        "body",
+        "skin",
+        "skin_body",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited full body variant selected for static skin-family, tint, and material-region comparison."
+    },
+    {
+      "asset_id": "058-fur-wolf-pelt",
+      "virtual_path": "character/model/6_object/tools/cd_t0000_wolfpelt_0001.pac",
+      "model_category": "fur_pelt_variant",
+      "coverage_tags": [
+        "hair",
+        "fur",
+        "hair_fur",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited pelt selected for fur-family, alpha, and dark-response evidence."
+    },
+    {
+      "asset_id": "059-monster-landspider-0026",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_00_0026.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "060-monster-spider-queen-body",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_spider_queen/cd_m0006_00_spider_queen_body_00_0001.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "061-monster-landspider-rock-0016",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_rock_00_0016.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "062-monster-wolf-dm03",
+      "virtual_path": "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_dog/cd_m0002_00_wolf/cd_m0002_00_wolf_00_0001_dm03.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "063-monster-stag",
+      "virtual_path": "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_reindeer/cd_m0002_00_stag/cd_m0002_00_stag_00_0001.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "064-monster-harpy",
+      "virtual_path": "character/model/2_mon/cd_m0003_00_bird/cd_m0003_00_harpy/cd_m0003_00_harpy_00_0001.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "065-monster-giant-octopus",
+      "virtual_path": "character/model/2_mon/cd_m0009_00_fish/cd_m0009_00_bass/cd_m0009_00_giantoctopus/cd_m0009_00_giantoctopus_00_0001.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "066-monster-dragon-upper",
+      "virtual_path": "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_dragon/cd_m0004_00_dragon_ub_00_0003.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "067-monster-machine-beetle",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_machinemosquito/cd_m0006_00_machinebeetle/cd_m0006_00_machinebeetle_00_0001.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "068-monster-seraphim",
+      "virtual_path": "character/model/2_mon/cd_m0063_00_seraphim/cd_m0063_00_seraphim_0001.pac",
+      "model_category": "monster_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "monster",
+        "monster_graphs",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited creature selected for complex multi-region, unusual shader, fur, foliage, emissive, or hard-surface comparison."
+    },
+    {
+      "asset_id": "069-npc-ndm-south-upper-00003",
+      "virtual_path": "character/model/3_npc/7_ndm/armor_south/9_upperbody/cd_ndm_00_so_ub_00003.pac",
+      "model_category": "npc_outfit_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "npc",
+        "npc_outfits",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited NPC outfit selected to broaden palette, cloth, and regional material coverage outside player-character families."
+    },
+    {
+      "asset_id": "070-npc-nhw-south-upper-00012",
+      "virtual_path": "character/model/3_npc/2_nhw/armor_south/9_upperbody/cd_nhw_00_so_ub_00012.pac",
+      "model_category": "npc_outfit_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "npc",
+        "npc_outfits",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited NPC outfit selected to broaden palette, cloth, and regional material coverage outside player-character families."
+    },
+    {
+      "asset_id": "071-npc-ntm-north-upper-00034",
+      "virtual_path": "character/model/3_npc/14_ntm/armor_north/9_upperbody/cd_ntm_00_no_ub_00034.pac",
+      "model_category": "npc_outfit_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "npc",
+        "npc_outfits",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited NPC outfit selected to broaden palette, cloth, and regional material coverage outside player-character families."
+    },
+    {
+      "asset_id": "072-npc-ndm-north-upper-10010",
+      "virtual_path": "character/model/3_npc/7_ndm/armor_north/9_upperbody/cd_ndm_00_no_ub_10010.pac",
+      "model_category": "npc_outfit_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "npc",
+        "npc_outfits",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited NPC outfit selected to broaden palette, cloth, and regional material coverage outside player-character families."
+    },
+    {
+      "asset_id": "073-npc-nhm-desert-upper-10081",
+      "virtual_path": "character/model/3_npc/1_nhm/armor_desert/9_upperbody/cd_nhm_00_de_ub_10081.pac",
+      "model_category": "npc_outfit_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "npc",
+        "npc_outfits",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited NPC outfit selected to broaden palette, cloth, and regional material coverage outside player-character families."
+    },
+    {
+      "asset_id": "074-npc-nom-desert-upper-00001",
+      "virtual_path": "character/model/3_npc/5_nom/armor_desert/9_upperbody/cd_nom_00_de_ub_00001.pac",
+      "model_category": "npc_outfit_variant",
+      "coverage_tags": [
+        "armor",
+        "outfit",
+        "npc",
+        "npc_outfits",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited NPC outfit selected to broaden palette, cloth, and regional material coverage outside player-character families."
+    },
+    {
+      "asset_id": "075-riding-moth",
+      "virtual_path": "character/model/4_riding/cd_r0016_00_moth/cd_r0016_00_moth_0001.pac",
+      "model_category": "riding_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "riding",
+        "riding_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited riding or vehicle asset selected for large-scale mixed-material, creature, machine, and emissive response."
+    },
+    {
+      "asset_id": "076-riding-airplane",
+      "virtual_path": "character/model/4_riding/cd_r0024_00_airplane/cd_r0024_00_airplane_0001_02.pac",
+      "model_category": "riding_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "riding",
+        "riding_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited riding or vehicle asset selected for large-scale mixed-material, creature, machine, and emissive response."
+    },
+    {
+      "asset_id": "077-riding-warrobot-upper",
+      "virtual_path": "character/model/4_riding/cd_r0039_00_warrobot/cd_r0039_00_warrobot_ub_0001.pac",
+      "model_category": "riding_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "riding",
+        "riding_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited riding or vehicle asset selected for large-scale mixed-material, creature, machine, and emissive response."
+    },
+    {
+      "asset_id": "078-riding-carmabirdsaurus",
+      "virtual_path": "character/model/4_riding/cd_r0035_00_carmabirdsaurus/cd_r0035_00_carmabirdsaurus_0001.pac",
+      "model_category": "riding_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "riding",
+        "riding_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited riding or vehicle asset selected for large-scale mixed-material, creature, machine, and emissive response."
+    },
+    {
+      "asset_id": "079-riding-elephant",
+      "virtual_path": "character/model/4_riding/cd_r0015_00_elephant/cd_r0015_00_elephant_0001.pac",
+      "model_category": "riding_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "riding",
+        "riding_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited riding or vehicle asset selected for large-scale mixed-material, creature, machine, and emissive response."
+    },
+    {
+      "asset_id": "080-riding-alpineibex",
+      "virtual_path": "character/model/4_riding/cd_r0002_00_fourfeet/cd_r0002_00_alpineibex/cd_r0002_00_alpineibex_0001.pac",
+      "model_category": "riding_multimaterial",
+      "coverage_tags": [
+        "unusual",
+        "riding",
+        "riding_materials",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited riding or vehicle asset selected for large-scale mixed-material, creature, machine, and emissive response."
+    },
+    {
+      "asset_id": "081-prop-lightsource",
+      "virtual_path": "character/model/6_object/object/t0089_lightsource/cd_t0089_lightsource_001.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "082-prop-flower-butterfly",
+      "virtual_path": "character/model/6_object/object/t0215_flowerbutterfly/cd_t0215_flowerbutterfly_0002.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "083-prop-flag-0004",
+      "virtual_path": "character/model/6_object/object/t0108_flag/cd_t0108_flag_0004.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "084-prop-seraphim-wing",
+      "virtual_path": "character/model/6_object/object/t0273_seraphim_wing/cd_t0273_seraphim_wing_0002.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "085-prop-stag-pelt",
+      "virtual_path": "character/model/6_object/tools/cd_t0000_stagpelt_0001.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "086-prop-gimmick-chain",
+      "virtual_path": "character/model/6_object/object/t0231_gimmickchain/cd_t0231_gimmickchain_05_45m_0001.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "087-prop-reflector",
+      "virtual_path": "character/model/6_object/object/t0083_reflector/cd_t0083_reflector_0001.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "088-prop-aircastle-core",
+      "virtual_path": "character/model/6_object/object/t0267_aircastlecore/cd_t0267_aircastlecore_0001.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "089-prop-seed-basket",
+      "virtual_path": "character/model/6_object/tools/cd_t0000_seed_basket_0001.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    },
+    {
+      "asset_id": "090-prop-lantern-0006",
+      "virtual_path": "character/model/6_object/tools/cd_t0000_lantern_0006.pac",
+      "model_category": "unusual_prop",
+      "coverage_tags": [
+        "unusual",
+        "prop",
+        "unusual_props",
+        "third_pass"
+      ],
+      "selection_reason": "Previously unaudited unusual prop selected for emissive, reflective, alpha, layered, cloth, or mixed-material response."
+    }
+  ]
+}

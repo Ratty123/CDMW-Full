@@ -137,6 +137,7 @@ def prepare_visual_audit_corpus(
     progress: Callable[[int, int, str], None] | None = None,
     checkpoint: Callable[[Mapping[str, object]], None] | None = None,
     allow_partial: bool = False,
+    resume_checkpoint: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     game_root = Path(game_root).resolve()
     temporary_root = Path(temporary_root).resolve()
@@ -150,13 +151,17 @@ def prepare_visual_audit_corpus(
     pamt_path = game_root / "0009" / "0.pamt"
     entries = parse_archive_pamt(pamt_path)
     entries_by_path, entries_by_basename = _archive_entry_indexes(entries)
-    rows: list[dict[str, object]] = []
-    runtime_assets: list[dict[str, object]] = []
-    fingerprint_paths: set[Path] = set()
+    rows, runtime_assets, fingerprint_paths = _resume_visual_audit_state(
+        resume_checkpoint,
+        specs=specs,
+        game_root=game_root,
+        pamt_path=pamt_path,
+        coverage=coverage,
+    )
     package_root = temporary_root / "packages"
     texture_cache = temporary_root / "archive-texture-cache"
     package_root.mkdir(parents=True, exist_ok=True)
-    for offset, spec in enumerate(specs, 1):
+    for offset, spec in enumerate(specs[len(rows) :], len(rows) + 1):
         if progress is not None:
             progress(offset, len(specs), spec.virtual_path)
         (
@@ -274,6 +279,58 @@ def prepare_visual_audit_corpus(
         "archive_fingerprint_paths": [str(path) for path in sorted(fingerprint_paths, key=lambda value: str(value).casefold())],
         "archive_fingerprints": _archive_content_fingerprints(tuple(fingerprint_paths)),
     }
+
+
+def _resume_visual_audit_state(
+    checkpoint: Mapping[str, object] | None,
+    *,
+    specs: Sequence[VisualAuditAssetSpec],
+    game_root: Path,
+    pamt_path: Path,
+    coverage: Mapping[str, int],
+) -> tuple[list[dict[str, object]], list[dict[str, object]], set[Path]]:
+    if checkpoint is None:
+        return [], [], set()
+    if str(checkpoint.get("schema", "")) != "cdmw_mesh_visual_audit_preparation_checkpoint_v1":
+        raise ValueError("Visual-audit resume checkpoint has an unsupported schema.")
+    if Path(str(checkpoint.get("game_root", "") or "")).resolve() != game_root:
+        raise ValueError("Visual-audit resume checkpoint belongs to a different game root.")
+    if Path(str(checkpoint.get("pamt_path", "") or "")).resolve() != pamt_path:
+        raise ValueError("Visual-audit resume checkpoint belongs to a different archive index.")
+    if int(checkpoint.get("requested_asset_count", 0) or 0) != len(specs):
+        raise ValueError("Visual-audit resume checkpoint has a different requested asset count.")
+    checkpoint_coverage = checkpoint.get("coverage")
+    if not isinstance(checkpoint_coverage, Mapping) or dict(checkpoint_coverage) != dict(coverage):
+        raise ValueError("Visual-audit resume checkpoint has different coverage requirements.")
+
+    asset_values = tuple(checkpoint.get("assets", ()) or ())
+    runtime_values = tuple(checkpoint.get("runtime_assets", ()) or ())
+    if len(asset_values) != len(runtime_values) or len(asset_values) > len(specs):
+        raise ValueError("Visual-audit resume checkpoint has inconsistent prepared assets.")
+    rows: list[dict[str, object]] = []
+    runtime_assets: list[dict[str, object]] = []
+    for index, (asset_value, runtime_value) in enumerate(zip(asset_values, runtime_values)):
+        if not isinstance(asset_value, Mapping) or not isinstance(runtime_value, Mapping):
+            raise ValueError("Visual-audit resume checkpoint contains an invalid prepared asset.")
+        spec = specs[index]
+        expected_path = spec.virtual_path.replace("\\", "/").casefold()
+        asset_path = str(asset_value.get("virtual_path", "")).replace("\\", "/").casefold()
+        runtime_path = str(runtime_value.get("virtual_path", "")).replace("\\", "/").casefold()
+        if (
+            str(asset_value.get("asset_id", "")).casefold() != spec.asset_id.casefold()
+            or str(runtime_value.get("id", "")).casefold() != spec.asset_id.casefold()
+            or asset_path != expected_path
+            or runtime_path != expected_path
+        ):
+            raise ValueError("Visual-audit resume checkpoint does not match the manifest prefix.")
+        rows.append(dict(asset_value))
+        runtime_assets.append(dict(runtime_value))
+
+    prepared_count = int(checkpoint.get("prepared_asset_count", -1) or 0)
+    if prepared_count != len(rows):
+        raise ValueError("Visual-audit resume checkpoint has an invalid prepared asset count.")
+    fingerprint_values = tuple(checkpoint.get("archive_fingerprint_paths", ()) or ())
+    return rows, runtime_assets, {Path(str(value)).resolve() for value in fingerprint_values}
 
 
 def _load_visual_audit_asset(

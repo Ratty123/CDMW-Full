@@ -142,7 +142,7 @@ internal static class VisualAuditBatch
                 var name = SafeName(JsonRequiredString(view, "name"));
                 var yaw = JsonFloat(view, "yaw", 0.0f);
                 var pitch = JsonFloat(view, "pitch", 0.0f);
-                var rendererYaw = -yaw;
+                var rendererYaw = 180.0f - yaw;
                 session.SetCamera(document, rendererYaw, pitch);
                 Application.DoEvents();
                 var capturePath = Path.Combine(assetOutput, name + ".png");
@@ -160,7 +160,7 @@ internal static class VisualAuditBatch
                     ["yaw"] = yaw,
                     ["pitch"] = pitch,
                     ["renderer_yaw"] = rendererYaw,
-                    ["camera_mapping"] = "archive_to_dotnet_inverted_yaw",
+                    ["camera_mapping"] = "archive_to_dotnet_180_minus_yaw",
                     ["ok"] = captured,
                     ["path"] = capturePath,
                     ["bytes"] = captured ? new FileInfo(capturePath).Length : 0L,
@@ -235,6 +235,7 @@ internal static class VisualAuditBatch
                 {
                     Dock = DockStyle.Fill,
                 };
+                viewport.ApplyPresentationSettings(new D3D11PresentationSettings());
                 _form.Controls.Add(viewport);
                 try
                 {
@@ -315,6 +316,7 @@ internal static class VisualAuditBatch
                 ["device_reset_attempt_count"] = viewport.DeviceResetAttemptCount,
                 ["device_reset_count"] = viewport.DeviceResetCount,
                 ["last_error"] = viewport.LastError,
+                ["presentation"] = viewport.PresentationEvidencePayload(),
                 ["resources"] = viewport.ResourceMetricsPayload(),
             };
         }

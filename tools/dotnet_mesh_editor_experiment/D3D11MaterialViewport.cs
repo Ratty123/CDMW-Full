@@ -383,9 +383,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         {
             return;
         }
-        _samplerState = _device.CreateSamplerState(new SamplerDescription(Filter.MinMagMipLinear, TextureAddressMode.Wrap, TextureAddressMode.Wrap, TextureAddressMode.Wrap));
-        _rasterizerState = _device.CreateRasterizerState(new RasterizerDescription(CullMode.Back, FillMode.Solid));
-        _doubleSidedRasterizerState = _device.CreateRasterizerState(new RasterizerDescription(CullMode.None, FillMode.Solid));
+        RebuildPresentationPipelineStates();
         _blendState = _device.CreateBlendState(BlendDescription.Opaque);
         _transparentBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);
         _overlayBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);

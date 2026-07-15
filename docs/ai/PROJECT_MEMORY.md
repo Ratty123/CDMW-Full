@@ -98,6 +98,10 @@ Last updated: 2026-07-15
   `_mg` remains layer-only. The production shader uses linear GGX/Smith/Schlick
   plus proven opacity/cutout/occlusion and per-material culling; blend draws are
   depth-read/no-write and sorted back-to-front by transformed submesh center.
+  Global fallback culling stays disabled because real PACs can mix winding;
+  enable culling only from proven material/submesh authority and keep depth
+  testing enabled. The production presentation keeps source tint active and
+  matches Archive's luminance ACES operator with a 0.5 contrast pivot.
   Its neutral studio environment anchors metallic reflections to source color,
   proven two-sided backfaces flip the tangent frame, and final contrast preserves
   luminance chromaticity. Hidden textured-metal captures must retain texture detail
@@ -111,9 +115,11 @@ Last updated: 2026-07-15
   protocol tail when the bounded event buffer has pruned the original cursor.
   The canonical paired visual audit keeps one native process and one .NET
   process/device/viewport resident for an ordered PAC corpus, captures six fixed
-  angles, requires direct per-asset verdicts, and proves source archives
-  unchanged with before/after fingerprints. It is CDMW renderer-consistency
-  evidence, never licensed-game parity proof.
+  angles, rejects culling/depth/tint/tone presentation drift, requires direct
+  per-asset verdicts, and proves source archives unchanged with before/after
+  fingerprints. Open card geometry and standalone neck/cuff/body boundaries
+  that match Archive are not by themselves x-ray regressions. It is CDMW
+  renderer-consistency evidence, never licensed-game parity proof.
   Prepared audit packages recursively own and rewrite every nested
   `source_path` the native role scan can select, even when a descriptor is not
   a direct-upload candidate, so cache eviction cannot invalidate later capture.

@@ -1705,7 +1705,7 @@ class ModelPreviewRenderSettings:
     texture_probe_source: str = "base"
     sampler_probe_mode: str = "normal"
     diffuse_swizzle_mode: str = "rgba"
-    disable_tint: bool = True
+    disable_tint: bool = False
     disable_brightness: bool = True
     disable_uv_scale: bool = True
     force_nearest_no_mipmaps: bool = False

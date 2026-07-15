@@ -112,7 +112,7 @@ def _builder_presentation_payloads() -> tuple[dict[str, object], dict[str, objec
         "high_quality_by_default": True,
         "disable_lighting": False,
         "disable_depth_test": False,
-        "disable_tint": True,
+        "disable_tint": False,
         "disable_brightness": True,
         "disable_uv_scale": False,
         "disable_normal_map": False,

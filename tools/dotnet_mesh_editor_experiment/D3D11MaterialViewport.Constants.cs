@@ -5,16 +5,18 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed record D3D11PresentationSettings
 {
+    public const string DefaultProfile = "mesh_editor_default_v1";
+
     public bool HighQuality { get; init; } = true;
     public string ViewMode { get; init; } = "lit";
     public bool GameOutdoorApprox { get; init; }
     public bool ForceNearestSampling { get; init; }
-    public bool CullBackFaces { get; init; } = true;
+    public bool CullBackFaces { get; init; }
     public bool DisableLighting { get; init; }
     public bool DisableDepthTest { get; init; }
     public bool DisableTint { get; init; }
-    public bool DisableBrightness { get; init; }
-    public bool DisableUvScale { get; init; }
+    public bool DisableBrightness { get; init; } = true;
+    public bool DisableUvScale { get; init; } = true;
     public bool DisableNormalMap { get; init; }
     public bool DisableMaterialMap { get; init; }
     public bool DisableHeightMap { get; init; }
@@ -22,25 +24,25 @@ internal sealed record D3D11PresentationSettings
     public bool FlipTextureV { get; init; }
     public float LightAzimuthDegrees { get; init; } = -10.0f;
     public float LightElevationDegrees { get; init; }
-    public float AoStrength { get; init; } = 1.0f;
-    public float RoughnessBias { get; init; }
-    public float MetalnessScale { get; init; } = 1.0f;
-    public float EnvironmentStrength { get; init; } = 1.0f;
-    public float EmissiveGain { get; init; } = 1.0f;
+    public float AoStrength { get; init; } = 0.45f;
+    public float RoughnessBias { get; init; } = -0.04f;
+    public float MetalnessScale { get; init; } = 1.45f;
+    public float EnvironmentStrength { get; init; } = 0.62f;
+    public float EmissiveGain { get; init; } = 2.2f;
     public float ToneExposure { get; init; } = 1.0f;
-    public float ToneContrast { get; init; } = 1.0f;
+    public float ToneContrast { get; init; } = 1.08f;
     public float ToneGamma { get; init; } = 1.0f;
     public int MaxAnisotropy { get; init; } = 16;
-    public float MipLodBias { get; init; }
+    public float MipLodBias { get; init; } = -2.0f;
     public string TextureAddressMode { get; init; } = "wrap";
     public string NormalYMode { get; init; } = "asset";
-    public float AmbientStrength { get; init; } = 1.0f;
-    public float DiffuseWrapBias { get; init; }
-    public float DiffuseLightScale { get; init; } = 1.0f;
+    public float AmbientStrength { get; init; } = 0.84f;
+    public float DiffuseWrapBias { get; init; } = 0.58f;
+    public float DiffuseLightScale { get; init; } = 0.62f;
     public float NormalStrengthCap { get; init; } = 1.0f;
     public float HeightEffectMax { get; init; } = 1.0f;
-    public float SpecularBase { get; init; } = 0.04f;
-    public float SpecularMax { get; init; } = 1.0f;
+    public float SpecularBase { get; init; } = 0.055f;
+    public float SpecularMax { get; init; } = 0.52f;
     public float ShininessMax { get; init; } = 152.0f;
     public float OrbitSensitivity { get; init; } = 0.22f;
     public float PanSensitivity { get; init; } = 0.60f;

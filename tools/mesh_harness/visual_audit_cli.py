@@ -32,6 +32,7 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path)
     parser.add_argument("--phase", choices=("all", "prepare", "capture"), default="all")
+    parser.add_argument("--resume-prepare", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--native-timeout", type=float, default=45.0)
     parser.add_argument("--dotnet-timeout", type=float, default=900.0)
@@ -72,6 +73,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _argument_parser()
     args = parser.parse_args(argv)
     game_root, evidence_root, runtime_root = _initialize_evidence_roots(args, parser)
+    if args.resume_prepare and args.phase == "capture":
+        parser.error("--resume-prepare requires the prepare or all phase.")
     final_root = evidence_root / "final"
     package_state_path = runtime_root / "package-state.json"
     corpus_path = evidence_root / "corpus.json"
@@ -80,48 +83,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     temporary_root = Path()
 
     if args.phase in {"all", "prepare"}:
-        run_id = uuid4().hex
-        temporary_root = _visual_audit_temporary_root(evidence_root, run_id)
-        temporary_root.mkdir(parents=True, exist_ok=True)
-        specs = _load_specs(args.manifest) if args.manifest else default_visual_audit_specs()
-        if args.limit > 0:
-            specs = specs[: max(1, args.limit)]
-        print(f"Preparing {len(specs)} real PAC assets through production preview paths...", flush=True)
-        prepared = prepare_visual_audit_corpus(
-            game_root,
-            temporary_root,
-            specs,
-            progress=lambda current, total, path: print(
-                f"[{current:03d}/{total:03d}] prepare {path}", flush=True
-            ),
-            checkpoint=lambda payload: _write_preparation_checkpoint(
-                runtime_root,
-                run_id=run_id,
-                temporary_root=temporary_root,
-                payload=payload,
-            ),
-            allow_partial=bool(args.limit > 0),
+        package_state, run_id, temporary_root = _prepare_visual_audit_run(
+            args,
+            parser,
+            game_root=game_root,
+            evidence_root=evidence_root,
+            runtime_root=runtime_root,
         )
-        prepared["run_id"] = run_id
-        runtime_assets = prepared.pop("runtime_assets")
-        for row in runtime_assets:
-            row["run_id"] = run_id
-        archive_fingerprint_paths = prepared.pop("archive_fingerprint_paths")
-        archive_fingerprints = prepared.pop("archive_fingerprints")
-        corpus_sha256 = _payload_sha256(prepared)
-        package_state = {
-            "schema": "cdmw_mesh_visual_audit_package_state_v1",
-            "run_id": run_id,
-            "evidence_root": str(evidence_root),
-            "temporary_root": str(temporary_root),
-            "corpus_sha256": corpus_sha256,
-            "asset_ids": [str(row["id"]) for row in runtime_assets],
-            "runtime_assets": runtime_assets,
-            "archive_fingerprint_paths": archive_fingerprint_paths,
-        }
-        _atomic_write_json(corpus_path, prepared)
-        _atomic_write_json(package_state_path, package_state)
-        _atomic_write_json(runtime_root / "archive-fingerprints-before.json", archive_fingerprints)
         if args.phase == "prepare":
             _write_commands(evidence_root, args, temporary_root)
             return 0
@@ -217,6 +185,71 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0 if ok else 1
 
 
+def _prepare_visual_audit_run(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    *,
+    game_root: Path,
+    evidence_root: Path,
+    runtime_root: Path,
+) -> tuple[dict[str, object], str, Path]:
+    specs = _load_specs(args.manifest) if args.manifest else default_visual_audit_specs()
+    if args.limit > 0:
+        specs = specs[: max(1, args.limit)]
+    resume_checkpoint: Mapping[str, object] | None = None
+    if args.resume_prepare:
+        if args.limit > 0:
+            parser.error("--resume-prepare cannot be combined with --limit.")
+        try:
+            run_id, temporary_root, resume_checkpoint = _load_preparation_resume(
+                runtime_root,
+                game_root=game_root,
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+    else:
+        run_id = uuid4().hex
+        temporary_root = _visual_audit_temporary_root(evidence_root, run_id)
+    temporary_root.mkdir(parents=True, exist_ok=True)
+    print(f"Preparing {len(specs)} real PAC assets through production preview paths...", flush=True)
+    prepared = prepare_visual_audit_corpus(
+        game_root,
+        temporary_root,
+        specs,
+        progress=lambda current, total, path: print(
+            f"[{current:03d}/{total:03d}] prepare {path}", flush=True
+        ),
+        checkpoint=lambda payload: _write_preparation_checkpoint(
+            runtime_root,
+            run_id=run_id,
+            temporary_root=temporary_root,
+            payload=payload,
+        ),
+        allow_partial=bool(args.limit > 0),
+        resume_checkpoint=resume_checkpoint,
+    )
+    prepared["run_id"] = run_id
+    runtime_assets = prepared.pop("runtime_assets")
+    for row in runtime_assets:
+        row["run_id"] = run_id
+    archive_fingerprint_paths = prepared.pop("archive_fingerprint_paths")
+    archive_fingerprints = prepared.pop("archive_fingerprints")
+    package_state = {
+        "schema": "cdmw_mesh_visual_audit_package_state_v1",
+        "run_id": run_id,
+        "evidence_root": str(evidence_root),
+        "temporary_root": str(temporary_root),
+        "corpus_sha256": _payload_sha256(prepared),
+        "asset_ids": [str(row["id"]) for row in runtime_assets],
+        "runtime_assets": runtime_assets,
+        "archive_fingerprint_paths": archive_fingerprint_paths,
+    }
+    _atomic_write_json(evidence_root / "corpus.json", prepared)
+    _atomic_write_json(runtime_root / "package-state.json", package_state)
+    _atomic_write_json(runtime_root / "archive-fingerprints-before.json", archive_fingerprints)
+    return package_state, run_id, temporary_root
+
+
 def _capture_integrity(
     *,
     run_id: str,
@@ -309,6 +342,39 @@ def _write_preparation_checkpoint(
         "updated_unix_seconds": time.time(),
     }
     _atomic_write_json(runtime_root / "preparation-checkpoint.json", checkpoint)
+
+
+def _load_preparation_resume(
+    runtime_root: Path,
+    *,
+    game_root: Path,
+) -> tuple[str, Path, dict[str, object]]:
+    checkpoint_path = runtime_root / "preparation-checkpoint.json"
+    if not checkpoint_path.is_file():
+        raise ValueError("No visual-audit preparation checkpoint exists to resume.")
+    checkpoint = _read_json(checkpoint_path)
+    run_id = str(checkpoint.get("run_id", "") or "")
+    if len(run_id) != 32 or any(character not in "0123456789abcdef" for character in run_id):
+        raise ValueError("Visual-audit preparation checkpoint has no valid run ID.")
+    temporary_root = Path(str(checkpoint.get("temporary_root", "") or "")).resolve()
+    expected_temp_parent = (Path(tempfile.gettempdir()) / "cdmw-mesh-editor-visual-audit").resolve()
+    if (
+        not temporary_root.is_dir()
+        or temporary_root.is_relative_to(game_root)
+        or not temporary_root.is_relative_to(expected_temp_parent)
+    ):
+        raise ValueError("Visual-audit preparation checkpoint has an invalid temporary root.")
+    runtime_assets = tuple(checkpoint.get("runtime_assets", ()) or ())
+    if not runtime_assets:
+        raise ValueError("Visual-audit preparation checkpoint contains no completed assets.")
+    for row in runtime_assets:
+        if not isinstance(row, Mapping):
+            raise ValueError("Visual-audit preparation checkpoint contains an invalid runtime asset.")
+        for key in ("archive_package_dir", "dotnet_package_dir"):
+            package_dir = Path(str(row.get(key, "") or "")).resolve()
+            if not package_dir.is_dir() or not package_dir.is_relative_to(temporary_root):
+                raise ValueError(f"Visual-audit preparation checkpoint has an invalid {key}.")
+    return run_id, temporary_root, checkpoint
 
 
 def _payload_sha256(payload: Mapping[str, object]) -> str:
