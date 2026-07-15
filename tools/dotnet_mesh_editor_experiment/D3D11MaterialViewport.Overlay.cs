@@ -8,7 +8,6 @@ namespace Cdmw.MeshEditorExperiment;
 internal sealed partial class D3D11MaterialViewport
 {
     private const int InitialOverlayVertexCapacity = 4096;
-    private const float VertexMarkerSizePixels = 7.0f;
     private const float SelectedVertexMarkerRadiusPixels = 7.0f;
     private static readonly Vector4 WireOverlayColor = OverlayColor(255, 112, 32, 210);
     private static readonly Vector4 XRayWireOverlayColor = OverlayColor(255, 112, 32, 230);
@@ -307,6 +306,7 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawD3D11WireOverlay()
     {
+        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
         var lines = new List<Vector3>();
         foreach (var edge in _overlayTopology.Edges)
         {
@@ -322,7 +322,9 @@ internal sealed partial class D3D11MaterialViewport
         DrawOverlayPrimitive(
             PrimitiveTopology.LineList,
             lines,
-            _overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor,
+            ScaleOverlayAlpha(
+                _overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor,
+                overlayStyle.WireOpacityScale),
             _camera.WorldViewProjection);
         if (lines.Count > 0)
         {
@@ -336,6 +338,7 @@ internal sealed partial class D3D11MaterialViewport
         {
             return;
         }
+        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
         var constants = new D3D11OverlayConstants
         {
             WorldViewProjection = _camera.WorldViewProjection,
@@ -343,7 +346,7 @@ internal sealed partial class D3D11MaterialViewport
             MarkerSettings = new Vector4(
                 Math.Max(1.0f, _camera.ViewportWidth),
                 Math.Max(1.0f, _camera.ViewportHeight),
-                VertexMarkerSizePixels,
+                overlayStyle.VertexMarkerSizePixels,
                 0.0f),
         };
         _context.UpdateSubresource(in constants, _overlayCameraBuffer);
@@ -674,6 +677,9 @@ internal sealed partial class D3D11MaterialViewport
             Math.Clamp(blue, 0, 255) * scale,
             Math.Clamp(alpha, 0, 255) * scale);
     }
+
+    private static Vector4 ScaleOverlayAlpha(Vector4 color, float opacityScale) =>
+        new(color.X, color.Y, color.Z, Math.Clamp(color.W * opacityScale, 0.0f, 1.0f));
 }
 
 [StructLayout(LayoutKind.Sequential)]

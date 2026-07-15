@@ -148,6 +148,7 @@ def test_dotnet_screen_edits_match_rendered_mesh_and_use_readable_hit_targets() 
     picking_source = _source("MeshViewport.SelectionPicking.cs")
     viewport_source = _source("D3D11MaterialViewport.cs")
     overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
+    overlay_policy_source = _source("FitRelativeOverlayPolicy.cs")
     shader_source = _source("D3D11MaterialShaders.hlsl")
     program_source = _source("Program.cs")
 
@@ -158,7 +159,9 @@ def test_dotnet_screen_edits_match_rendered_mesh_and_use_readable_hit_targets() 
     assert "SelectionClickRadiusPixels = 14.0" in picking_source
     assert "ScreenPayload(point, SelectionClickRadiusPixels)" in picking_source
 
-    assert "VertexMarkerSizePixels = 7.0f" in overlay_source
+    assert "FitVertexMarkerSizePixels = 7.0f" in overlay_policy_source
+    assert "MinimumVertexMarkerSizePixels = 2.0f" in overlay_policy_source
+    assert "FitRelativeOverlayPolicy.ForCamera(_camera)" in overlay_source
     assert "GSVertexMarker" in shader_source
     assert "_vertexMarkerGeometryShader" in viewport_source
     assert "GSSetShader(_vertexMarkerGeometryShader)" in overlay_source

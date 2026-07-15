@@ -314,6 +314,87 @@ internal static partial class HeadlessGpuSparseSoak
         };
     }
 
+    private static Dictionary<string, object?> FitRelativeOverlayProof()
+    {
+        const float fitZoom = 0.19f;
+        var expected = new (float Ratio, float MarkerSize, float WireOpacity)[]
+        {
+            (0.1f, 2.0f, 0.2f),
+            (0.25f, 2.0f, 0.25f),
+            (0.5f, 3.5f, 0.5f),
+            (0.75f, 5.25f, 0.75f),
+            (1.0f, 7.0f, 1.0f),
+            (1.5f, 7.0f, 1.0f),
+            (64.0f, 7.0f, 1.0f),
+        };
+        var rows = expected
+            .Select(item =>
+            {
+                var style = FitRelativeOverlayPolicy.ForZoom(fitZoom * item.Ratio, fitZoom);
+                return new Dictionary<string, object?>
+                {
+                    ["zoom_ratio"] = item.Ratio,
+                    ["vertex_marker_size_pixels"] = style.VertexMarkerSizePixels,
+                    ["wire_opacity_scale"] = style.WireOpacityScale,
+                    ["ok"] = NearlyEqual(style.ZoomRatio, item.Ratio)
+                        && NearlyEqual(style.VertexMarkerSizePixels, item.MarkerSize)
+                        && NearlyEqual(style.WireOpacityScale, item.WireOpacity),
+                };
+            })
+            .ToArray();
+        var fitScaleRows = new[] { 0.0005f, fitZoom, 226.707f }
+            .Select(candidateFit =>
+            {
+                var style = FitRelativeOverlayPolicy.ForZoom(candidateFit * 0.5f, candidateFit);
+                return new Dictionary<string, object?>
+                {
+                    ["fit_zoom"] = candidateFit,
+                    ["vertex_marker_size_pixels"] = style.VertexMarkerSizePixels,
+                    ["wire_opacity_scale"] = style.WireOpacityScale,
+                    ["ok"] = NearlyEqual(style.ZoomRatio, 0.5f)
+                        && NearlyEqual(style.VertexMarkerSizePixels, 3.5f)
+                        && NearlyEqual(style.WireOpacityScale, 0.5f),
+                };
+            })
+            .ToArray();
+        var bounds = (Min: new Vec3(-1.0f, -1.0f, -1.0f), Max: new Vec3(1.0f, 1.0f, 1.0f));
+        var camera = NetViewportCamera.Create(
+            new Vec3(0.0f, 0.0f, 0.0f),
+            bounds,
+            0.0f,
+            0.0f,
+            CameraZoomPolicy.FitZoomForSceneSize(2.0f) * 0.5f,
+            0.0f,
+            0.0f,
+            1280,
+            720);
+        var cameraStyle = FitRelativeOverlayPolicy.ForCamera(camera);
+        var invalidStyle = FitRelativeOverlayPolicy.ForZoom(float.NaN, float.NaN);
+        var expectedRowsExact = rows.All(row => row.GetValueOrDefault("ok") is true);
+        var fitScaleIndependent = fitScaleRows.All(row => row.GetValueOrDefault("ok") is true);
+        var cameraUsesSceneFit = NearlyEqual(cameraStyle.ZoomRatio, 0.5f)
+            && NearlyEqual(cameraStyle.VertexMarkerSizePixels, 3.5f)
+            && NearlyEqual(cameraStyle.WireOpacityScale, 0.5f);
+        var invalidValuesSafe = NearlyEqual(invalidStyle.ZoomRatio, 1.0f)
+            && NearlyEqual(invalidStyle.VertexMarkerSizePixels, 7.0f)
+            && NearlyEqual(invalidStyle.WireOpacityScale, 1.0f);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = expectedRowsExact
+                && fitScaleIndependent
+                && cameraUsesSceneFit
+                && invalidValuesSafe,
+            ["zoom_steps"] = rows,
+            ["fit_scale_rows"] = fitScaleRows,
+            ["expected_rows_exact"] = expectedRowsExact,
+            ["fit_scale_independent"] = fitScaleIndependent,
+            ["camera_uses_scene_fit"] = cameraUsesSceneFit,
+            ["invalid_values_safe"] = invalidValuesSafe,
+            ["minimum_vertex_marker_size_pixels"] = FitRelativeOverlayPolicy.MinimumVertexMarkerSizePixels,
+            ["minimum_wire_opacity_scale"] = FitRelativeOverlayPolicy.MinimumWireOpacityScale,
+        };
+    }
+
     private static Dictionary<string, object?> ProjectedCenterZoomProof(IReadOnlyList<float> zoomSteps)
     {
         var bounds = (Min: new Vec3(-4.0f, -2.0f, 3.0f), Max: new Vec3(8.0f, 10.0f, 15.0f));

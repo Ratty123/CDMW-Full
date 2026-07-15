@@ -9,6 +9,7 @@ internal sealed partial class D3D11MaterialViewport
 
     public Dictionary<string, object?> ResourceMetricsPayload()
     {
+        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
         var videoMemory = QueryLocalVideoMemory();
         _peakDxgiLocalUsageBytes = Math.Max(_peakDxgiLocalUsageBytes, videoMemory.CurrentUsage);
         var oldestGeometryAgeMs = _batches.Count == 0
@@ -39,7 +40,9 @@ internal sealed partial class D3D11MaterialViewport
             ["alpha_blend_pass"] = "back_to_front_submesh_depth_read_no_write",
             ["wire_overlay_draws"] = _wireOverlayDrawCount,
             ["vertex_overlay_batch_draws"] = _vertexOverlayBatchDrawCount,
-            ["vertex_marker_size_pixels"] = VertexMarkerSizePixels,
+            ["fit_relative_overlay_zoom_ratio"] = overlayStyle.ZoomRatio,
+            ["vertex_marker_size_pixels"] = overlayStyle.VertexMarkerSizePixels,
+            ["wire_overlay_opacity_scale"] = overlayStyle.WireOpacityScale,
             ["overlay_vertex_buffer_creates"] = _overlayVertexBufferCreateCount,
             ["overlay_vertex_buffer_maps"] = _overlayVertexBufferMapCount,
             ["overlay_vertex_buffer_no_overwrite_maps"] = _overlayVertexBufferNoOverwriteCount,

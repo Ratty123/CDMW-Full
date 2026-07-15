@@ -143,6 +143,7 @@ internal static partial class HeadlessGpuSparseSoak
         var placementProof = ResidentPlacementProof();
         var presentationModeProof = PresentationModeProof();
         var cameraZoomProof = CameraZoomProof();
+        var fitRelativeOverlayProof = FitRelativeOverlayProof();
         var topologyPacketProof = ResidentTopologyPacketProof();
         var gates = EvaluateGates(options, durations, cadence.Elapsed.TotalSeconds, workingSetBaseline, workingSetFinal, resourcesBefore, resourcesAfter, boundsProof);
         gates["production_d3d11_backend"] = viewport.IsInitialized
@@ -181,6 +182,8 @@ internal static partial class HeadlessGpuSparseSoak
             && paneIsolationProof.GetValueOrDefault("ok") is true;
         gates["programmatic_zoom_clamped_fit_relative"] =
             cameraZoomProof.GetValueOrDefault("programmatic_clamp_exact") is true;
+        gates["fit_relative_vertex_markers_and_wire"] =
+            fitRelativeOverlayProof.GetValueOrDefault("ok") is true;
         var ok = gates.Values.All(value => value);
         var report = BuildReport(
             options,
@@ -206,6 +209,7 @@ internal static partial class HeadlessGpuSparseSoak
         report["resident_placement_proof"] = placementProof;
         report["presentation_mode_proof"] = presentationModeProof;
         report["camera_zoom_proof"] = cameraZoomProof;
+        report["fit_relative_overlay_proof"] = fitRelativeOverlayProof;
         report["untextured_readability_proof"] = untexturedReadabilityProof;
         report["textured_metal_readability_proof"] = texturedMetalReadabilityProof;
         return (report, ok);

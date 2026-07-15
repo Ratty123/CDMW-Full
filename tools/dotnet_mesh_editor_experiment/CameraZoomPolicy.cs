@@ -27,6 +27,17 @@ internal static class CameraZoomPolicy
 
     internal static ReadOnlySpan<float> FitRelativeSteps => ArchiveBrowserZoomSteps;
 
+    internal static float FitZoomForSceneSize(float sceneSize) =>
+        float.IsFinite(sceneSize) && sceneSize > 0.0001f
+            ? 380.0f / sceneSize
+            : 220.0f;
+
+    internal static float FitRelativeRatio(float currentZoom, float fitZoom)
+    {
+        var safeFitZoom = SafeFitZoom(fitZoom);
+        return Clamp(currentZoom, safeFitZoom) / safeFitZoom;
+    }
+
     internal static float ApplyWheelDelta(float currentZoom, float fitZoom, int delta)
     {
         if (delta == 0)

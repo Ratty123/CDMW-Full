@@ -628,7 +628,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
   the dark viewport from front, back, and oblique cameras. It does not depend on
   texture/material brightness settings and does not restart or reload the
   resident scene. Wheel and programmatic zoom are clamped from `0.1x` through
-  `64x` the pane's fitted zoom.
+  `64x` the pane's fitted zoom. Ordinary vertex dots and wire visual weight are
+  also pane-local and fit-relative below `1x`: dots shrink from 7 pixels to a
+  2-pixel readability floor, while one-pixel D3D11 wire lines reduce opacity to
+  a 20% floor. Zooming in does not enlarge either overlay beyond its fitted
+  weight; selected markers, hover feedback, and picking tolerances stay
+  unchanged.
 - Initial external imports and appended parts share the same work-area fit
   helper. External imports are centered against the reference/work area and
   bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones

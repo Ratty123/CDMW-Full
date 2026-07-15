@@ -267,7 +267,7 @@ internal sealed partial class MeshViewport
         var size = Math.Max(
             bounds.Max.X - bounds.Min.X,
             Math.Max(bounds.Max.Y - bounds.Min.Y, bounds.Max.Z - bounds.Min.Z));
-        return size > 0.0001f ? 380.0f / size : 220.0f;
+        return CameraZoomPolicy.FitZoomForSceneSize(size);
     }
 
     private float FitZoomForContext(string contextId) =>
