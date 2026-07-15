@@ -73,12 +73,12 @@ class NativeLiveHistoryUnavailable(RuntimeError):
 
 _NATIVE_MATERIAL_OVERRIDE_KEYS = {
     "texture_brightness",
-    "roughness",
-    "metalness",
-    "specular",
+    "roughness", "roughness_hint_present",
+    "metalness", "metalness_hint_present",
+    "specular", "specular_hint_present",
     "height_scale",
     "emissive_intensity",
-    "emissive_color",
+    "emissive_color", "emissive_color_authoritative", "emissive_scalar_mask",
     "contrast",
     "saturation",
     "gamma",

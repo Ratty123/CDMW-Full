@@ -78,7 +78,9 @@ _DOTNET_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
         "base_tint_only_fallback",
         "base_tint_strength",
         "emissive_color",
+        "emissive_color_authoritative",
         "emissive_intensity",
+        "emissive_scalar_mask",
         "height_amount",
         "height_scale",
         "material_category",
@@ -94,7 +96,10 @@ _DOTNET_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
         "opacity",
         "primary_material_layer",
         "roughness",
+        "roughness_hint_present",
         "specular",
+        "specular_hint_present",
+        "metalness_hint_present",
     }
 )
 

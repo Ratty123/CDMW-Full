@@ -650,9 +650,10 @@ def _filter_dds_textures_for_preview_settings(
         )
 
     output: Dict[str, object] = {}
-    base_entry = dds_textures.get("base")
-    if _dds_manifest_entry_is_native_usable(base_entry) and not base_entry_is_layer_only_input(base_entry):
-        output["base"] = dict(base_entry)
+    for slot_name in ("base", "emissive"):
+        entry = dds_textures.get(slot_name)
+        if _dds_manifest_entry_is_native_usable(entry) and (slot_name != "base" or not base_entry_is_layer_only_input(entry)):
+            output[slot_name] = dict(entry)
     if support_enabled:
         for slot_name, disabled_attr in (
             ("normal", "disable_normal_map"),

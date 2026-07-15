@@ -23,6 +23,14 @@ class MeshEditorDotNetMaterialParameterMixin:
                 index_values = (group.get("source_submesh_index"),)
             else:
                 index_values = ()
+            for scalar_name in ("roughness", "metalness", "specular"):
+                presence_name = f"{scalar_name}_hint_present"
+                if presence_name not in group:
+                    continue
+                hint_present = bool(group.pop(presence_name))
+                scalar_value = group.pop(scalar_name, None)
+                if hint_present and scalar_value is not None:
+                    group.setdefault(f"{scalar_name}_hint", scalar_value)
             indices: set[int] = set()
             for raw_index in index_values:
                 if isinstance(raw_index, bool):
@@ -39,11 +47,12 @@ class MeshEditorDotNetMaterialParameterMixin:
                     "texture_brightness", "contrast", "saturation", "gamma", "tint_color",
                     "post_contrast_brightness", "base_color_lift", "value_max", "auto_balance", "shadow_lift",
                     "roughness", "metalness", "metallic", "specular", "height_scale",
+                    "roughness_hint", "metalness_hint", "specular_hint",
                     "roughness_inverted", "roughness_scale", "roughness_min", "roughness_max",
                     "roughness_blend_target", "roughness_blend_strength",
                     "metalness_inverted", "metalness_scale", "metalness_min", "metalness_max",
                     "metalness_blend_target", "metalness_blend_strength",
-                    "emissive_intensity", "emissive_color", "emissive_scalar_mask", "material_role", "visible",
+                    "emissive_intensity", "emissive_color", "emissive_color_authoritative", "emissive_scalar_mask", "material_role", "visible",
                 )
             ):
                 continue

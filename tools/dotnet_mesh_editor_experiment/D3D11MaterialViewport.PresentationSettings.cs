@@ -9,6 +9,13 @@ internal sealed partial class D3D11MaterialViewport
     public bool CullBackFaces => _presentationSettings.CullBackFaces;
     public bool DepthTestDisabled => _presentationSettings.DisableDepthTest;
 
+    internal static float MaterialHintPresenceMask(NetMaterialParameters parameters)
+    {
+        return (parameters.RoughnessHint.HasValue ? 1.0f : 0.0f)
+            + (parameters.MetalnessHint.HasValue ? 2.0f : 0.0f)
+            + (parameters.SpecularHint.HasValue ? 4.0f : 0.0f);
+    }
+
     public void ApplyPresentationSettings(D3D11PresentationSettings settings)
     {
         _presentationSettings = settings ?? new D3D11PresentationSettings();
@@ -99,6 +106,20 @@ internal sealed partial class D3D11MaterialViewport
         var tint = settings.DisableTint ? Vector3.One : parameters.TintColor ?? Vector3.One;
         var baseTint = parameters.BaseTintColor ?? Vector3.One;
         var baseTintStrength = settings.DisableTint ? 0.0f : parameters.BaseTintStrength ?? 0.0f;
+        var materialCategoryCode = _materials.MaterialCategoryCodeForSubmesh(materialSubmeshIndex);
+        if (materialCategoryCode < 0.5f && parameters.BaseTintMetallic == true)
+        {
+            materialCategoryCode = 1.0f;
+        }
+        var materialRoughnessHint = Math.Clamp(
+            parameters.RoughnessHint ?? 0.0f,
+            0.0f,
+            1.0f);
+        var materialMetalnessHint = Math.Clamp(
+            parameters.MetalnessHint ?? 0.0f,
+            0.0f,
+            1.0f);
+        var materialSpecularHint = Math.Clamp(parameters.SpecularHint ?? 0.0f, 0.0f, 1.0f);
         var azimuth = settings.LightAzimuthDegrees * MathF.PI / 180.0f;
         var elevation = settings.LightElevationDegrees * MathF.PI / 180.0f;
         var cosElevation = MathF.Cos(elevation);
@@ -158,9 +179,9 @@ internal sealed partial class D3D11MaterialViewport
             MaterialBaseTint = new Vector4(baseTint, parameters.BaseTintColor.HasValue ? 1.0f : 0.0f),
             MaterialBaseTintPolicy = new Vector4(
                 baseTintStrength,
-                parameters.BaseTintMetallic == true ? 1.0f : 0.0f,
-                0.0f,
-                0.0f),
+                materialCategoryCode,
+                _materials.MaterialCategoryConfidenceForSubmesh(materialSubmeshIndex),
+                _materials.MaterialResponsePromotedForSubmesh(materialSubmeshIndex) ? 1.0f : 0.0f),
             MaterialTint = new Vector4(
                 tint,
                 !settings.DisableTint && parameters.TintColor.HasValue ? 1.0f : 0.0f),
@@ -169,7 +190,11 @@ internal sealed partial class D3D11MaterialViewport
                 (parameters.ValueMax ?? 255) / 255.0f,
                 (parameters.AutoBalance ?? 0) / 100.0f,
                 (parameters.ShadowLift ?? 0) / 100.0f),
-            MaterialBasePost = new Vector4(parameters.PostContrastBrightness ?? 1.0f, 0.0f, 0.0f, 0.0f),
+            MaterialBasePost = new Vector4(
+                parameters.PostContrastBrightness ?? 1.0f,
+                materialRoughnessHint,
+                materialMetalnessHint,
+                materialSpecularHint),
         };
         ApplyMaterialSurfaceConstants(ref constants, parameters, materialSubmeshIndex);
         ApplyPresentationConstants(ref constants, settings, batch, materials, materialSubmeshIndex);
@@ -181,6 +206,7 @@ internal sealed partial class D3D11MaterialViewport
         NetMaterialParameters parameters,
         int materialSubmeshIndex)
     {
+        var materialHintPresence = MaterialHintPresenceMask(parameters);
         constants.MaterialSurfaceOverrides = new Vector4(
             parameters.Roughness ?? 0.0f,
             parameters.Metalness ?? 0.0f,
@@ -213,12 +239,12 @@ internal sealed partial class D3D11MaterialViewport
             parameters.EmissiveColor.HasValue ? 1.0f : 0.0f,
             parameters.EmissiveIntensity.HasValue ? 1.0f : 0.0f,
             parameters.EmissiveScalarMask == true ? 1.0f : 0.0f,
-            0.0f);
+            parameters.EmissiveColorAuthoritative == true ? 1.0f : 0.0f);
         constants.MaterialChannelSelectors = new Vector4(
             _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "roughness"),
             _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "metallic"),
             _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "layer_mask"),
-            0.0f);
+            materialHintPresence);
     }
 
     private void ApplyPresentationConstants(
@@ -228,6 +254,17 @@ internal sealed partial class D3D11MaterialViewport
         D3D11MaterialResources materials,
         int materialSubmeshIndex)
     {
+        var shaderFamily = _materials.ShaderFamilyForSubmesh(materialSubmeshIndex);
+        var materialFamilyCode = shaderFamily switch
+        {
+            "skin" => 1.0f,
+            "hair" => 2.0f,
+            "cloth" or "cloth_v2" => 3.0f,
+            "standard" or "standard_v2" => 4.0f,
+            "static_standard" or "static_multitextured" => 5.0f,
+            "emissive" or "emissive_v2" => 6.0f,
+            _ => 0.0f,
+        };
         constants.PresentationUvScaleOffset = new Vector4(
             settings.DisableUvScale ? 1.0f : settings.UvScale.X,
             settings.DisableUvScale ? 1.0f : settings.UvScale.Y,
@@ -266,7 +303,7 @@ internal sealed partial class D3D11MaterialViewport
             batch.SubmeshIndex,
             settings.SpecularBase,
             materials.LayerMask is null ? 0.0f : 1.0f,
-            0.0f);
+            materialFamilyCode);
         constants.MaterialAlphaPolicy = BuildAlphaPolicy(materialSubmeshIndex);
         constants.MaterialAdditionalMaps = new Vector4(
             materials.Opacity is null ? 0.0f : 1.0f,
@@ -274,7 +311,7 @@ internal sealed partial class D3D11MaterialViewport
             _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "opacity"),
             _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "occlusion"));
         // Stable inspection fallback; not a claim of full Crimson shader parity.
-        constants.MaterialFamilyPolicy = _materials.ShaderFamilyForSubmesh(materialSubmeshIndex) switch
+        constants.MaterialFamilyPolicy = shaderFamily switch
         {
             "skin" => new Vector4(1.0f, 0.30f, 0.34f, 0.40f),
             "cloth" or "cloth_v2" => new Vector4(1.0f, 0.48f, 0.28f, 0.46f),

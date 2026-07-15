@@ -122,7 +122,8 @@ def test_native_dds_mips_color_space_and_semantic_shading_are_explicit() -> None
     assert "roughness = max(roughness, MaterialFamilyPolicy.y)" in shader
     assert "if (MaterialFamilyPolicy.x > 0.5f)" in shader
     assert "specularColor = min(neutralSpecular, MaterialFamilyPolicy.z).xxx" in shader
-    assert "float stableDepth = lerp(1.0f, familyLitDepth, saturate(MaterialFamilyPolicy.w))" in shader
+    assert "float diffuseDepth = saturate(" in shader
+    assert "diffuseDepth = lerp(1.0f, diffuseDepth, depthAuthority);" in shader
     assert "DistributionGGX" in shader
     assert "GeometrySmith" in shader
     assert "FresnelSchlick" in shader
@@ -138,6 +139,7 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
     soak = _source_family("HeadlessGpuSparseSoak*.cs")
     options = _source("HeadlessGpuSparseSoakOptions.cs")
     headless = _source("D3D11MaterialViewport.Headless.cs")
+    viewport = _source("D3D11MaterialViewport.cs")
     metrics = _source("D3D11MaterialViewport.Metrics.cs")
     readability = _source("D3D11UntexturedReadabilityProof.cs")
     textured_metal_readability = _source("D3D11TexturedMetalReadabilityProof.cs")
@@ -173,6 +175,9 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
     assert '"vertex_marker_size_pixels"' in metrics
     assert "TryRunHeadlessFrame" in headless
     assert "RenderFrame()" in headless
+    assert "_lastDrawnMaterialAuthority.Clear();" in viewport
+    assert "_lastDrawnMaterialAuthority[batch.MaterialSubmeshIndex] = constants.MaterialBaseTintPolicy;" in viewport
+    assert "TryGetLastDrawnMaterialAuthority" in viewport
     assert '"geometry_buffer_identity"' in metrics
     assert '"dxgi_local_memory_current_usage_bytes"' in metrics
     assert '"material_binding_array_identity"' in metrics
@@ -186,8 +191,26 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
     assert "MaximumCenterBackgroundFraction" in readability
     assert "TryCaptureReplacementPng" in readability
     assert "IsWindowVisible(viewport.Handle)" in readability
-    assert '"cdmw_textured_metal_readability_v2"' in textured_metal_readability
+    assert '"cdmw_textured_metal_readability_v3"' in textured_metal_readability
     assert '"hidden_synthetic_gpu_regression"' in textured_metal_readability
+    assert '["material_category"] = "metal"' in textured_metal_readability
+    assert '["material_category_confidence"] = 1.0' in textured_metal_readability
+    assert '["material_response_promoted"] = true' in textured_metal_readability
+    assert "materials.MaterialCategoryCodeForSubmesh(0)" in textured_metal_readability
+    assert "materials.MaterialCategoryConfidenceForSubmesh(0)" in textured_metal_readability
+    assert "materials.MaterialResponsePromotedForSubmesh(0)" in textured_metal_readability
+    assert "runtimeMaterialCategoryCode > 0.5f" in textured_metal_readability
+    assert "runtimeMaterialCategoryCode < 1.5f" in textured_metal_readability
+    assert '["runtime_material_category_is_metal"] = runtimeMetalCategoryBranch' in textured_metal_readability
+    assert '["runtime_material_category_confident"] = runtimeMaterialCategoryConfidence >= 0.99f' in textured_metal_readability
+    assert '["runtime_material_response_promoted"] = runtimeMaterialResponsePromoted' in textured_metal_readability
+    assert '["runtime_material_authority"]' in textured_metal_readability
+    assert "TryGetLastDrawnMaterialAuthority(0, out drawnMaterialAuthority)" in textured_metal_readability
+    assert '["captured_draw_material_authority"]' in textured_metal_readability
+    assert '["captured_draw_material_authority_recorded"]' in textured_metal_readability
+    assert '["captured_draw_material_category_is_metal"]' in textured_metal_readability
+    assert '["captured_draw_material_category_confident"]' in textured_metal_readability
+    assert '["captured_draw_material_response_promoted"]' in textured_metal_readability
     assert '["metalness"] = 1.0' in textured_metal_readability
     assert '["double_sided"] = true' in textured_metal_readability
     assert 'textures.BitmapForPath(texturePath) is not null' in textured_metal_readability

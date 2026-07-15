@@ -314,12 +314,32 @@ def _dotnet_material_semantic_contract(
     double_sided_contract = _dotnet_material_double_sided_contract(
         source, shader_family, family_authority
     )
+    material_category = str(overrides.get("material_category", "generic") or "generic").strip().casefold()
+    material_category_confidence = _finite_float(
+        overrides.get("material_category_confidence", 0.35),
+        minimum=0.0,
+        maximum=1.0,
+    )
+    raw_material_response_promoted = overrides.get("material_response_promoted", False)
+    material_response_promoted = (
+        raw_material_response_promoted.strip().casefold() in {"1", "true", "yes", "on"}
+        if isinstance(raw_material_response_promoted, str)
+        else bool(raw_material_response_promoted)
+    )
     return {
         "shader_family": shader_family,
         "shader_technique": raw_family,
         "shader_authority": family_authority,
         "shader_family_source": str(family_contract.get("source", "") or ""),
         "shader_family_reason": str(family_contract.get("reason", "") or ""),
+        "material_category": material_category,
+        "material_category_confidence": (
+            0.35 if material_category_confidence is None else material_category_confidence
+        ),
+        "material_category_reason": str(
+            overrides.get("material_category_reason", "") or ""
+        ).strip(),
+        "material_response_promoted": material_response_promoted,
         "channel_color_spaces": dict(sorted(color_spaces.items())),
         "channel_authorities": dict(sorted(channel_authorities.items())),
         **alpha_contract,

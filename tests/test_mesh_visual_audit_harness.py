@@ -474,6 +474,9 @@ def test_visual_audit_preparation_resume_rejects_packages_outside_owned_temp(
 
 def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() -> None:
     batch = (DOTNET_ROOT / "VisualAuditBatch.cs").read_text(encoding="utf-8")
+    dotnet_capture = (DOTNET_ROOT / "D3D11MaterialViewport.Capture.cs").read_text(
+        encoding="utf-8"
+    )
     entry = (DOTNET_ROOT / "ProgramEntry.cs").read_text(encoding="utf-8")
     d3d11 = (DOTNET_ROOT / "D3D11MaterialViewport.ResidentScene.cs").read_text(encoding="utf-8")
     capture = (ROOT / "tools" / "mesh_harness" / "visual_audit_capture.py").read_text(
@@ -485,6 +488,22 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     native_host = (ROOT / "cdmw" / "ui" / "native_d3d11_preview_host.py").read_text(
         encoding="utf-8"
     )
+    native_lifecycle = (
+        ROOT
+        / "native"
+        / "cdmw_d3d11_preview"
+        / "src"
+        / "owners"
+        / "renderer_lifecycle.cpp"
+    ).read_text(encoding="utf-8")
+    native_render = (
+        ROOT
+        / "native"
+        / "cdmw_d3d11_preview"
+        / "src"
+        / "owners"
+        / "renderer_render_alignment.cpp"
+    ).read_text(encoding="utf-8")
 
     assert "VisualAuditBatch.IsRequested(args)" in entry
     assert '["process_start_count"] = 1' in batch
@@ -498,9 +517,20 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert "ResidentSceneLoadCount++" in d3d11
     assert '["device_initialization_count"] = _deviceInitializationCount' in batch
     assert "var rendererYaw = 180.0f - yaw;" in batch
-    assert '"archive_to_dotnet_180_minus_yaw"' in batch
+    assert "var rendererPitch = -pitch;" in batch
+    assert "session.SetCamera(document, rendererYaw, rendererPitch);" in batch
+    assert '["renderer_pitch"] = rendererPitch' in batch
+    assert '"archive_to_dotnet_180_minus_yaw_negate_pitch"' in batch
+    assert '["rendered_camera"] = new Dictionary<string, object?>' in batch
+    assert "D3D11RenderedCameraEvidence" in dotnet_capture
+    assert "cameraForCapture.WorldViewProjectionRowMajorArray()" in dotnet_capture
     assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings());" in batch
     assert '["presentation"] = viewport.PresentationEvidencePayload()' in batch
+    assert "_form.CreateControl();" in batch
+    assert "viewport.CreateControl();" in batch
+    assert "_form.Show();" not in batch
+    assert '["capture_mode"] = "hidden_hwnd_no_show"' in batch
+    assert '["native_windows_remained_hidden"] = nativeWindowsRemainedHidden' in batch
     assert "500.0f / size" in batch
     assert '"process_start_count": 1' in capture
     assert "host.load_package(" in capture
@@ -510,6 +540,8 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert "completed.returncode == 0" in capture
     assert 'str(report.get("run_id", "")) == run_id' in capture
     assert '"command": "capture_frame"' in native_host
+    assert r'\"rendered_camera\"' in native_lifecycle
+    assert "last_rendered_camera_evidence_.world_view_projection" in native_render
     assert "enable_material_combiner=False" in corpus
     assert "enable_material_combiner=True" in corpus
 
@@ -530,7 +562,13 @@ def test_visual_audit_rejects_noncanonical_or_unproven_dotnet_presentation(
     overrides: dict[str, object], expected: bool
 ) -> None:
     presentation = {**_DOTNET_AUDIT_PRESENTATION_PROFILE, **overrides}
-    report = {"renderer_session": {"presentation": presentation}}
+    report = {
+        "renderer_session": {
+            "capture_mode": "hidden_hwnd_no_show",
+            "native_windows_remained_hidden": True,
+            "presentation": presentation,
+        }
+    }
 
     assert _dotnet_audit_presentation_is_safe(report) is expected
 

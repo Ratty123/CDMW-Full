@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
+from cdmw.ui.mesh_editor.material_override_payloads import material_override_groups_for_native_triangle_groups
 from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder, _FakeProcess
 
 
@@ -295,6 +296,32 @@ def test_parameter_sender_preserves_explicit_false_scalar_emissive_mask(
         "source_submesh_indices": [0],
         "emissive_scalar_mask": False,
     }]
+
+
+def test_parameter_sender_translates_hint_presence_to_dotnet_parser_fields(
+    resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
+) -> None:
+    _app, tab, _builder, process = resident_parameter_tab
+
+    groups = material_override_groups_for_native_triangle_groups(({
+        "source_submesh_index": 0,
+        "material_name": "cloth_probe",
+        "roughness": 0.0,
+        "roughness_hint_present": True,
+        "metalness": 0.0,
+        "metalness_hint_present": False,
+        "specular": 0.25,
+        "specular_hint_present": True,
+    },))
+    assert tab.apply_resident_material_parameters(groups)
+    assert _flush_parameter_update(tab)
+
+    group = _parameter_writes(process)[-1]["groups"][0]
+    assert group["roughness_hint"] == 0.0
+    assert group["specular_hint"] == 0.25
+    assert "metalness" not in group
+    assert "metalness_hint" not in group
+    assert not any(key.endswith("_hint_present") for key in group)
 
 
 def test_empty_source_scope_with_parameters_targets_all_batches(

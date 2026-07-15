@@ -382,9 +382,14 @@ static void parse_manifest_batch_material(
         batch.roughness_hint = std::clamp(json_float_field(object, "roughness", 0.0f), 0.0f, 1.0f);
         batch.metalness_hint = std::clamp(json_float_field(object, "metalness", 0.0f), 0.0f, 1.0f);
         batch.specular_hint = std::clamp(json_float_field(object, "specular", 0.0f), 0.0f, 1.0f);
+        batch.roughness_hint_present = json_bool_field(object, "roughness_hint_present", json_has_field(object, "roughness"));
+        batch.metalness_hint_present = json_bool_field(object, "metalness_hint_present", json_has_field(object, "metalness"));
+        batch.specular_hint_present = json_bool_field(object, "specular_hint_present", json_has_field(object, "specular"));
         batch.height_scale_hint = std::clamp(json_float_field(object, "height_scale", 0.0f), 0.0f, 1.0f);
         batch.emissive_intensity = std::clamp(json_float_field(object, "emissive_intensity", 0.0f), 0.0f, 32.0f);
         parse_float3_array_field(object, "emissive_color", batch.emissive_color);
+        batch.emissive_color_authoritative = json_bool_field(object, "emissive_color_authoritative", false);
+        batch.emissive_scalar_mask = json_bool_field(object, "emissive_scalar_mask", false);
         batch.highlight_strength = std::clamp(json_float_field(object, "highlight_strength", 0.0f), 0.0f, 1.0f);
         batch.base_tint_strength = std::clamp(json_float_field(object, "base_tint_strength", 0.0f), 0.0f, 1.0f);
         batch.texture_brightness = std::clamp(json_float_field(object, "texture_brightness", 1.0f), 0.1f, 3.0f);

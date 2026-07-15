@@ -90,6 +90,40 @@ class MeshHarnessPreviewPayloadTests(unittest.TestCase):
         self.assertEqual([[0, 3]], _edge_descriptor_values(loose_edge_selection_groups[0]))
         self.assertEqual([0, 3], _i32_descriptor_values(loose_edge_selection_groups[0], "source_vertex_indices", "source_vertex_indices_binary"))
 
+    def test_live_material_payload_preserves_scalar_emissive_and_rejects_invalid_color_authority(self) -> None:
+        mesh = build_synthetic_mesh()
+        mesh.submeshes[0].preview_native_material_overrides = {
+            "emissive_scalar_mask": True,
+            "emissive_color": ["invalid", 0.4, 0.6],
+            "emissive_color_authoritative": True,
+        }
+
+        incremental = mesh_edit_material_override_groups(mesh, (0,))
+        refresh = mesh_edit_material_override_groups(mesh, (0,), include_defaults=True)
+
+        self.assertEqual(1, len(incremental))
+        self.assertNotIn("emissive_color", incremental[0])
+        self.assertFalse(incremental[0]["emissive_color_authoritative"])
+        self.assertTrue(incremental[0]["emissive_scalar_mask"])
+        self.assertEqual([0.35, 0.68, 1.0], refresh[0]["emissive_color"])
+        self.assertFalse(refresh[0]["emissive_color_authoritative"])
+        self.assertTrue(refresh[0]["emissive_scalar_mask"])
+
+        mesh.submeshes[0].preview_native_material_overrides = {
+            "emissive_color": ["invalid", 0.4, 0.6],
+        }
+        self.assertEqual([], mesh_edit_material_override_groups(mesh, (0,)))
+        implicit_refresh = mesh_edit_material_override_groups(mesh, (0,), include_defaults=True)
+        self.assertEqual([0.35, 0.68, 1.0], implicit_refresh[0]["emissive_color"])
+        self.assertFalse(implicit_refresh[0]["emissive_color_authoritative"])
+
+        mesh.submeshes[0].preview_native_material_overrides = {
+            "emissive_color": [0.2, 0.4, 0.6],
+        }
+        valid = mesh_edit_material_override_groups(mesh, (0,))
+        self.assertEqual([0.2, 0.4, 0.6], valid[0]["emissive_color"])
+        self.assertTrue(valid[0]["emissive_color_authoritative"])
+
     def test_live_vertex_update_groups_forward_native_binary_descriptors(self) -> None:
         mesh = build_synthetic_mesh()
         mesh.submeshes[0].cdmw_native_preview_vertex_update_group = {

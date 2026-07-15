@@ -21,6 +21,7 @@ from tools.mesh_harness.visual_audit_corpus import (
     default_visual_audit_specs,
     prepare_visual_audit_corpus,
 )
+from tools.mesh_harness.visual_audit_integrity import _capture_integrity
 from tools.mesh_harness.visual_audit_report import build_visual_audit_composites
 
 
@@ -250,39 +251,6 @@ def _prepare_visual_audit_run(
     return package_state, run_id, temporary_root
 
 
-def _capture_integrity(
-    *,
-    run_id: str,
-    expected_ids: list[str],
-    archive_report: Mapping[str, object],
-    dotnet_report: Mapping[str, object],
-    composite_rows: Sequence[Mapping[str, object]],
-) -> dict[str, object]:
-    integrity = {
-        "schema": "cdmw_mesh_visual_audit_integrity_v1",
-        "run_id": run_id,
-        "expected_asset_ids": expected_ids,
-        "archive_asset_ids": _report_asset_ids(archive_report),
-        "dotnet_asset_ids": _report_asset_ids(dotnet_report),
-        "composite_asset_ids": [str(row.get("id", "")) for row in composite_rows],
-        "archive_run_matches": str(archive_report.get("run_id", "")) == run_id,
-        "dotnet_run_matches": str(dotnet_report.get("run_id", "")) == run_id,
-        "composites_complete": all(
-            row.get("archive_browser_capture_ok") is True and row.get("mesh_editor_capture_ok") is True
-            for row in composite_rows
-        ),
-    }
-    integrity["ok"] = (
-        integrity["archive_run_matches"]
-        and integrity["dotnet_run_matches"]
-        and integrity["archive_asset_ids"] == expected_ids
-        and integrity["dotnet_asset_ids"] == expected_ids
-        and integrity["composite_asset_ids"] == expected_ids
-        and integrity["composites_complete"]
-    )
-    return integrity
-
-
 def _validate_prepared_state(
     corpus: Mapping[str, object],
     package_state: Mapping[str, object],
@@ -380,14 +348,6 @@ def _load_preparation_resume(
 def _payload_sha256(payload: Mapping[str, object]) -> str:
     encoded = json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
-
-
-def _report_asset_ids(report: Mapping[str, object]) -> list[str]:
-    return [
-        str(row.get("id", ""))
-        for row in tuple(report.get("assets", ()) or ())
-        if isinstance(row, Mapping)
-    ]
 
 
 def _load_specs(path: Path) -> tuple[VisualAuditAssetSpec, ...]:

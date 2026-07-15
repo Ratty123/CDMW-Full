@@ -599,6 +599,7 @@ private:
     float pan_y_ = 0.0f;
     float pan_z_ = 0.0f;
     PreviewCameraState reference_camera_;
+    PreviewRenderedCameraEvidence last_rendered_camera_evidence_;
     std::string display_mode_ = "replacement_only";
     float side_by_side_split_ratio_ = 0.5f;
     bool side_by_side_split_drag_active_ = false;

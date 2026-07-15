@@ -293,14 +293,18 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float specular = 0.15;
     float metalness = 0.0;
     float user_metalness_scale = max(render_tuning3.z, 0.0);
-    bool explicit_material_authority_hint = material_hints.x > 0.02 || material_hints.y > 0.02 || material_hints.z > 0.02 || material_hints.w > 0.02;
-    if (material_hints.x > 0.02) {
+    uint material_hint_presence = (uint)round(material_value_params.w);
+    bool has_material_roughness_hint = (material_hint_presence & 1u) != 0u;
+    bool has_material_metalness_hint = (material_hint_presence & 2u) != 0u;
+    bool has_material_specular_hint = (material_hint_presence & 4u) != 0u;
+    bool explicit_material_authority_hint = has_material_roughness_hint || has_material_metalness_hint || has_material_specular_hint || material_hints.w > 0.02;
+    if (has_material_roughness_hint) {
         roughness = lerp(roughness, material_hints.x, 0.72);
     }
-    if (material_hints.y > 0.02) {
+    if (has_material_metalness_hint && material_hints.y > 0.02) {
         metalness = max(metalness, saturate(material_hints.y * user_metalness_scale));
     }
-    if (material_hints.z > 0.02) {
+    if (has_material_specular_hint && material_hints.z > 0.02) {
         specular = max(specular, material_hints.z);
     }
     float family_code = flags4.w;
@@ -354,13 +358,19 @@ float4 ps_main(VSOut input) : SV_TARGET {
     float category_env_scale = category_metal ? 0.94 : (category_glass ? 0.26 : (category_gem ? 0.30 : (category_eye ? 0.24 : (category_leather ? 0.06 : (category_wood ? 0.06 : (category_cloth ? 0.025 : (category_skin ? 0.075 : (category_hair ? 0.08 : (category_stone ? 0.04 : (category_tooth ? 0.08 : 0.08))))))))));
     float category_roughness_floor = category_metal ? 0.16 : (category_glass ? 0.30 : (category_gem ? 0.26 : (category_eye ? 0.30 : (category_leather ? 0.76 : (category_wood ? 0.70 : (category_cloth ? 0.84 : (category_skin ? 0.58 : (category_hair ? 0.64 : (category_stone ? 0.82 : (category_tooth ? 0.58 : 0.66))))))))));
     if (explicit_material_authority_hint && !conservative_nonmetal) {
-        float gloss_hint = saturate((1.0 - material_hints.x) * 0.85 + material_hints.z * 0.45);
-        category_specular_cap = max(category_specular_cap, max(material_hints.z, gloss_hint));
-        category_env_scale = max(category_env_scale, lerp(0.12, 0.42, gloss_hint));
-        category_roughness_floor = min(category_roughness_floor, lerp(0.08, 0.42, saturate(material_hints.x)));
+        float gloss_hint = saturate(
+            (has_material_roughness_hint ? (1.0 - material_hints.x) * 0.85 : 0.0)
+            + (has_material_specular_hint ? material_hints.z * 0.45 : 0.0));
+        if (gloss_hint > 0.001 || (has_material_specular_hint && material_hints.z > 0.001)) {
+            category_specular_cap = max(category_specular_cap, max(has_material_specular_hint ? material_hints.z : 0.0, gloss_hint));
+            category_env_scale = max(category_env_scale, lerp(0.12, 0.42, gloss_hint));
+        }
+        if (has_material_roughness_hint) {
+            category_roughness_floor = min(category_roughness_floor, lerp(0.08, 0.42, saturate(material_hints.x)));
+        }
     }
     float category_metal_fallback = category_metal ? saturate(lerp(0.28, 0.62, category_confidence) * user_metalness_scale) : 0.0;
-    if (category_metal && material_hints.y <= 0.02 && flags.z <= 0.5 && flags2.z <= 0.5) {
+    if (category_metal && (!has_material_metalness_hint || material_hints.y <= 0.02) && flags.z <= 0.5 && flags2.z <= 0.5) {
         metalness = max(metalness, category_metal_fallback);
         specular = max(specular, lerp(0.34, 0.62, category_confidence));
         roughness = min(roughness, lerp(0.46, 0.28, category_confidence));
@@ -419,10 +429,10 @@ float4 ps_main(VSOut input) : SV_TARGET {
     APPLY_MATERIAL_LAYER(3, layer3_material_tex)
 #undef APPLY_MATERIAL_LAYER
     if (explicit_material_authority_hint) {
-        if (material_hints.x > 0.02) {
+        if (has_material_roughness_hint) {
             roughness = lerp(roughness, material_hints.x, 0.55);
         }
-        if (material_hints.z > 0.02) {
+        if (has_material_specular_hint && material_hints.z > 0.02) {
             specular = max(specular, material_hints.z);
         }
     }
@@ -430,7 +440,7 @@ float4 ps_main(VSOut input) : SV_TARGET {
         return float4(saturate(ao), saturate(roughness), saturate(specular), 1.0);
     }
     bool promoted_material_response = flags5.z > 0.5;
-    bool direct_metal_response = category_metal && (metalness > 0.12 || material_hints.y > 0.16 || flags2.z > 0.5 || promoted_material_response);
+    bool direct_metal_response = category_metal && (metalness > 0.12 || (has_material_metalness_hint && material_hints.y > 0.16) || flags2.z > 0.5 || promoted_material_response);
     if (direct_metal_response) {
         category_metal_cap = max(category_metal_cap, 0.96);
         category_env_scale = max(category_env_scale, 0.86);
@@ -515,7 +525,7 @@ static const char kShaderSourcePixelLighting[] = R"(
             material_reference_albedo * (1.0 + relief_edge * saturate(material_hints.w) * 0.24)
             - (1.0 - relief_edge) * saturate(material_hints.w) * 0.018);
     }
-    if (explicit_material_authority_hint && material_hints.x > 0.62 && !conservative_nonmetal) {
+    if (has_material_roughness_hint && material_hints.x > 0.62 && !conservative_nonmetal) {
         float matte_preview = saturate((material_hints.x - 0.62) * 2.63);
         float luma = dot(material_reference_albedo, float3(0.299, 0.587, 0.114));
         float3 flattened = lerp(material_reference_albedo, luma.xxx, 0.42);
@@ -542,7 +552,10 @@ static const char kShaderSourcePixelLighting[] = R"(
     float metal_cue = category_metal ? saturate(metalness * lerp(0.18, 0.58, smoothness)) : 0.0;
     float glossy_cue = glossy_nonmetal ? saturate(specular * lerp(0.06, 0.20, smoothness)) : 0.0;
     float authority_gloss_cue = (explicit_material_authority_hint && !conservative_nonmetal)
-        ? saturate((1.0 - material_hints.x) * 0.55 + material_hints.z * 0.75 + material_hints.y * 0.35)
+        ? saturate(
+            (has_material_roughness_hint ? (1.0 - material_hints.x) * 0.55 : 0.0)
+            + (has_material_specular_hint ? material_hints.z * 0.75 : 0.0)
+            + (has_material_metalness_hint ? material_hints.y * 0.35 : 0.0))
         : 0.0;
     float nonmetal_texture_scale = conservative_nonmetal ? 1.03 : 1.0;
     float metal_strength = category_metal ? saturate(metalness) : 0.0;
@@ -571,16 +584,23 @@ static const char kShaderSourcePixelLighting[] = R"(
     if (emissive_params.a > 0.001) {
         float encoded_emissive = emissive_params.a;
         bool has_emissive_tex = encoded_emissive > 1.5;
+        bool emissive_color_authoritative = material_params.z > 0.5;
+        bool emissive_scalar_mask = material_params.w > 0.5;
         float emissive_intensity = saturate(has_emissive_tex ? encoded_emissive - 2.0 : encoded_emissive);
-        float emissive_mask = 1.0;
         float3 emissive_color = emissive_params.rgb;
+        float3 emissive = emissive_color * emissive_intensity;
         if (has_emissive_tex) {
             float4 emissive_sample = emissive_tex.Sample(preview_sampler, uv);
-            emissive_mask = max(emissive_sample.r, max(emissive_sample.g, emissive_sample.b));
-            emissive_color = max(emissive_color, emissive_sample.rgb);
+            if (emissive_scalar_mask) {
+                emissive = emissive_color * saturate(emissive_sample.r) * emissive_intensity;
+            } else if (emissive_color_authoritative) {
+                emissive = saturate(emissive_sample.rgb) * emissive_color * emissive_intensity;
+            } else {
+                float emissive_mask = max(emissive_sample.r, max(emissive_sample.g, emissive_sample.b));
+                emissive = max(emissive_color, emissive_sample.rgb) * saturate(emissive_mask) * emissive_intensity;
+            }
         }
-        float emissive_strength = emissive_intensity * saturate(emissive_mask) * render_tuning4.x;
-        color += emissive_color * emissive_strength * 0.85;
+        color += emissive * render_tuning4.x * 0.85;
     }
     color = lerp(color, editor_tint.rgb, saturate(editor_tint.a));
     float tone_exposure = max(render_tuning4.y, 0.05);

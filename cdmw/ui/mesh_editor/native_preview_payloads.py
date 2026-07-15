@@ -14,46 +14,13 @@ from typing import Iterable, Mapping, Sequence
 from cdmw.domain.mesh import MeshEditSelection
 from cdmw.models import PreparedModelPreviewBatch, PreparedModelPreviewData
 from cdmw.services.mesh_workflow_service import ParsedMesh
+from cdmw.ui.mesh_editor.material_override_payloads import (
+    DEFAULT_MATERIAL_OVERRIDES as _DEFAULT_NATIVE_MATERIAL_OVERRIDES,
+    MATERIAL_OVERRIDE_KEYS as _NATIVE_MATERIAL_OVERRIDE_KEYS,
+    sanitized_material_override_values as _sanitized_material_override_values,
+)
 
 _VERTEX_STRUCT = struct.Struct("<23f")
-_NATIVE_MATERIAL_OVERRIDE_KEYS = (
-    "texture_brightness",
-    "roughness",
-    "metalness",
-    "specular",
-    "height_scale",
-    "emissive_intensity",
-    "emissive_color",
-    "contrast",
-    "saturation",
-    "gamma",
-    "tint_color",
-)
-_NATIVE_MATERIAL_SCALAR_OVERRIDE_KEYS = (
-    "texture_brightness",
-    "roughness",
-    "metalness",
-    "specular",
-    "height_scale",
-    "emissive_intensity",
-    "contrast",
-    "saturation",
-    "gamma",
-)
-_NATIVE_MATERIAL_COLOR_OVERRIDE_KEYS = ("emissive_color", "tint_color")
-_DEFAULT_NATIVE_MATERIAL_OVERRIDES: Mapping[str, object] = {
-    "texture_brightness": 1.0,
-    "roughness": 0.0,
-    "metalness": 0.0,
-    "specular": 0.0,
-    "height_scale": 0.0,
-    "emissive_intensity": 0.0,
-    "emissive_color": [0.35, 0.68, 1.0],
-    "contrast": 1.0,
-    "saturation": 1.0,
-    "gamma": 1.0,
-    "tint_color": [1.0, 1.0, 1.0],
-}
 
 def mesh_to_native_preview(mesh: ParsedMesh) -> PreparedModelPreviewData:
     native_preview = _mesh_to_native_preview_native(mesh)
@@ -1376,37 +1343,6 @@ def _coerce_index(value: object) -> int | None:
         return int(value)  # type: ignore[arg-type]
     except (TypeError, ValueError, OverflowError):
         return None
-
-
-def _sanitized_material_override_values(overrides: Mapping[str, object], *, include_defaults: bool) -> dict[str, object]:
-    values: dict[str, object] = {}
-    defaults = _DEFAULT_NATIVE_MATERIAL_OVERRIDES if include_defaults else {}
-    for key in _NATIVE_MATERIAL_SCALAR_OVERRIDE_KEYS:
-        if key not in overrides:
-            continue
-        parsed = _finite_float_or_none(overrides[key])
-        if parsed is not None:
-            values[key] = parsed
-        elif key in defaults:
-            values[key] = defaults[key]
-    for key in _NATIVE_MATERIAL_COLOR_OVERRIDE_KEYS:
-        if key not in overrides:
-            continue
-        parsed_color = _finite_color(overrides[key])
-        if parsed_color is not None:
-            values[key] = parsed_color
-        elif key in defaults:
-            values[key] = list(defaults[key]) if isinstance(defaults[key], list) else defaults[key]
-    return values
-
-
-def _finite_color(value: object) -> list[float] | None:
-    if not isinstance(value, (tuple, list)) or len(value) < 3:
-        return None
-    parsed = [_finite_float_or_none(component) for component in value[:3]]
-    if any(component is None for component in parsed):
-        return None
-    return [float(component) for component in parsed if component is not None]
 
 
 def _valid_selected_edges_for_submesh(submesh: object, edges: set[tuple[int, int]]) -> set[tuple[int, int]]:

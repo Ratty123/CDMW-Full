@@ -265,9 +265,14 @@ def _finite_float(value: object, *, minimum: float, maximum: float) -> float | N
 
 
 def _color3(value: object) -> tuple[float, float, float] | None:
-    if isinstance(value, str) and len(value.strip()) == 7 and value.strip().startswith("#"):
+    if isinstance(value, str):
+        text = value.strip()
+        if text.startswith("#"):
+            text = text[1:]
+        if len(text) not in {6, 8}:
+            return None
         try:
-            return tuple(int(value.strip()[offset : offset + 2], 16) / 255.0 for offset in (1, 3, 5))  # type: ignore[return-value]
+            return tuple(int(text[offset : offset + 2], 16) / 255.0 for offset in (0, 2, 4))  # type: ignore[return-value]
         except ValueError:
             return None
     if not isinstance(value, Sequence) or isinstance(value, (str, bytes)) or len(value) < 3:
@@ -338,6 +343,8 @@ def _dotnet_initial_material_parameters(
     )
     overrides = getattr(source, "preview_native_material_overrides", {})
     overrides = overrides if isinstance(overrides, Mapping) else {}
+    native_hints_value = overrides.get("native_material_hints")
+    native_hints = native_hints_value if isinstance(native_hints_value, Mapping) else None
     base_color = _color3(getattr(source, "preview_color", ()))
     tint_contract = resolve_preview_tint_contract(
         source,
@@ -363,12 +370,30 @@ def _dotnet_initial_material_parameters(
         texture_tint = base_color
     if len(texture_tint) >= 3:
         result["texture_tint"] = list(texture_tint)
-    roughness = _finite_float(
+    if native_hints is not None:
+        for parameter_name in ("roughness", "metalness", "specular"):
+            presence_key = f"{parameter_name}_hint_present"
+            hint_present = bool(
+                overrides.get(
+                    presence_key,
+                    native_hints.get(presence_key, parameter_name in native_hints),
+                )
+            )
+            if not hint_present:
+                continue
+            hint = _finite_float(
+                overrides.get(parameter_name, native_hints.get(parameter_name)),
+                minimum=0.0,
+                maximum=1.0,
+            )
+            if hint is not None:
+                result[f"{parameter_name}_hint"] = hint
+    roughness = None if native_hints is not None else _finite_float(
         overrides.get("roughness", _material_parameter_value(source, "_roughnessFactor")),
         minimum=0.0,
         maximum=1.0,
     )
-    metallic = _finite_float(
+    metallic = None if native_hints is not None else _finite_float(
         overrides.get("metalness", overrides.get("metallic", _material_parameter_value(source, "_metallicFactor"))),
         minimum=0.0,
         maximum=1.0,
@@ -377,7 +402,7 @@ def _dotnet_initial_material_parameters(
         roughness = 1.0
     if is_gltf and metallic is None and "metallic" not in resolved_channels:
         metallic = 1.0
-    specular = _finite_float(
+    specular = None if native_hints is not None else _finite_float(
         overrides.get("specular", _material_parameter_value(source, "_specularFactor")),
         minimum=0.0,
         maximum=1.0,
@@ -393,6 +418,15 @@ def _dotnet_initial_material_parameters(
     emissive_color = _color3(
         overrides.get("emissive_color", _material_parameter_value(source, "_emissiveColor"))
     )
+    emissive_color_authoritative_value = overrides.get(
+        "emissive_color_authoritative",
+        native_hints.get("emissive_color_authoritative") if native_hints is not None else None,
+    )
+    emissive_color_authoritative = (
+        bool(emissive_color_authoritative_value)
+        if emissive_color_authoritative_value is not None
+        else emissive_color is not None
+    )
     emissive_intensity = _finite_float(
         overrides.get("emissive_intensity", _material_parameter_value(source, "_emissiveIntensity")),
         minimum=0.0,
@@ -400,11 +434,17 @@ def _dotnet_initial_material_parameters(
     )
     if emissive_color is not None:
         result["emissive_color"] = list(emissive_color)
+        result["emissive_color_authoritative"] = emissive_color_authoritative
     if emissive_intensity is not None:
         result["emissive_intensity"] = emissive_intensity
     emissive_path = str(resolved_channels.get("emissive", "") or "").strip()
     if emissive_path:
-        result["emissive_scalar_mask"] = _dotnet_emissive_texture_is_scalar_mask(emissive_path)
+        result["emissive_scalar_mask"] = bool(
+            overrides.get(
+                "emissive_scalar_mask",
+                _dotnet_emissive_texture_is_scalar_mask(emissive_path),
+            )
+        )
     return result
 
 

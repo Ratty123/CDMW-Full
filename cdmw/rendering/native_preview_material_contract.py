@@ -808,6 +808,28 @@ def _material_hex_color_rgb(value: object) -> Tuple[float, float, float]:
         return ()
 
 
+def _preview_material_authority_fields(
+    material_hints: Mapping[str, object],
+    emissive_descriptor: object,
+) -> Tuple[Tuple[float, float, float], Dict[str, bool]]:
+    declared_emissive_color = _material_hex_color_rgb(material_hints.get("emissive_color", ""))
+    authority_fields = {
+        "roughness_hint_present": bool(material_hints.get("roughness_hint_present", False)),
+        "metalness_hint_present": bool(material_hints.get("metalness_hint_present", False)),
+        "specular_hint_present": bool(material_hints.get("specular_hint_present", False)),
+        "emissive_color_authoritative": bool(declared_emissive_color)
+        and bool(material_hints.get("emissive_color_authoritative", True)),
+        "emissive_scalar_mask": bool(
+            isinstance(emissive_descriptor, Mapping)
+            and (
+                str(emissive_descriptor.get("compressed_family", "") or "").strip().casefold() == "bc4"
+                or str(emissive_descriptor.get("format", "") or "").strip().casefold().startswith("bc4")
+            )
+        ),
+    }
+    return declared_emissive_color or (0.35, 0.68, 1.0), authority_fields
+
+
 def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[str, object]:
     inputs = tuple(
         texture_input
@@ -866,17 +888,25 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
     roughness_hint = max(roughness_values) if roughness_values else 0.0
     metalness_hint = max(metalness_values) if metalness_values else 0.0
     specular_hint = max(specular_values) if specular_values else 0.0
+    roughness_hint_present = bool(roughness_values)
+    metalness_hint_present = bool(metalness_values)
+    specular_hint_present = bool(specular_values)
     if metalness_hint > 0.02:
         specular_hint = max(specular_hint, 0.14 + (metalness_hint * 0.32))
+        specular_hint_present = True
     hints: Dict[str, object] = {
         "shader_families": list(shader_families[:4]),
         "roughness": round(float(max(0.0, min(1.0, roughness_hint))), 4),
+        "roughness_hint_present": roughness_hint_present,
         "metalness": round(float(max(0.0, min(1.0, metalness_hint * 0.42))), 4),
+        "metalness_hint_present": metalness_hint_present,
         "specular": round(float(max(0.0, min(1.0, specular_hint * 0.72))), 4),
+        "specular_hint_present": specular_hint_present,
         "height_scale": round(float(max(0.0, min(1.0, max(height_values) if height_values else 0.0))), 4),
         "emissive_intensity": round(float(max(0.0, min(32.0, max(emissive_values) if emissive_values else 0.0))), 4),
         "emissive_intensity_declared": bool(emissive_values),
         "emissive_color": emissive_colors[0] if emissive_colors else "",
+        "emissive_color_authoritative": bool(emissive_colors),
         "emissive_active": bool(emissive_values and max(emissive_values) > 0.0),
         "source": "sidecar_parameters" if any((roughness_values, metalness_values, specular_values, height_values, emissive_values)) else "",
     }
@@ -887,17 +917,41 @@ def _native_material_hints_for_batch(batch: PreparedModelPreviewBatch) -> Dict[s
             for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity"):
                 if key in override_hints:
                     hints[key] = round(float(max(0.0, min(32.0 if key == "emissive_intensity" else 1.0, _safe_float(override_hints.get(key), _safe_float(hints.get(key), 0.0))))), 4)
+                    if key in {"roughness", "metalness", "specular"}:
+                        hints[f"{key}_hint_present"] = True
                     if key == "emissive_intensity":
                         hints["emissive_intensity_declared"] = True
+            for key in ("roughness", "metalness", "specular"):
+                presence_key = f"{key}_hint_present"
+                if presence_key in override_hints:
+                    hints[presence_key] = bool(override_hints.get(presence_key))
+            if "emissive_color_authoritative" in override_hints:
+                hints["emissive_color_authoritative"] = bool(
+                    override_hints.get("emissive_color_authoritative")
+                )
             if str(override_hints.get("emissive_color", "") or "").strip():
                 hints["emissive_color"] = str(override_hints.get("emissive_color", "") or "").strip()
+                if "emissive_color_authoritative" not in override_hints:
+                    hints["emissive_color_authoritative"] = True
         for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity"):
             if key in overrides:
                 hints[key] = round(float(max(0.0, min(32.0 if key == "emissive_intensity" else 1.0, _safe_float(overrides.get(key), _safe_float(hints.get(key), 0.0))))), 4)
+                if key in {"roughness", "metalness", "specular"}:
+                    hints[f"{key}_hint_present"] = True
                 if key == "emissive_intensity":
                     hints["emissive_intensity_declared"] = True
+        for key in ("roughness", "metalness", "specular"):
+            presence_key = f"{key}_hint_present"
+            if presence_key in overrides:
+                hints[presence_key] = bool(overrides.get(presence_key))
+        if "emissive_color_authoritative" in overrides:
+            hints["emissive_color_authoritative"] = bool(
+                overrides.get("emissive_color_authoritative")
+            )
         if str(overrides.get("emissive_color", "") or "").strip():
             hints["emissive_color"] = str(overrides.get("emissive_color", "") or "").strip()
+            if "emissive_color_authoritative" not in overrides:
+                hints["emissive_color_authoritative"] = True
         if any(key in overrides for key in ("roughness", "metalness", "specular", "height_scale", "emissive_intensity", "emissive_color")) or isinstance(override_hints, Mapping):
             hints["source"] = "native_material_overrides"
             hints["emissive_active"] = bool(_safe_float(hints.get("emissive_intensity"), 0.0) > 0.0)

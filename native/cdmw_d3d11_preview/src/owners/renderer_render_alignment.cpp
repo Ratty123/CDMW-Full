@@ -8,9 +8,21 @@ void Renderer::draw_render_view(const PreviewRenderView& view) {
         context_->RSSetViewports(1, &view.viewport);
         context_->RSSetState(view.wireframe && wireframe_rasterizer_ ? wireframe_rasterizer_.Get() : (render_tuning_.cull_back_faces && cull_rasterizer_ ? cull_rasterizer_.Get() : rasterizer_.Get()));
         context_->OMSetDepthStencilState(view.no_depth && overlay_depth_state_ ? overlay_depth_state_.Get() : depth_state_.Get(), 0);
-        const DirectX::XMMATRIX camera_world = world_matrix_for_view_role(view.role);
-        const DirectX::XMMATRIX view_projection = view_projection_matrix_for_viewport(view.viewport, distance_for_view_role(view.role));
+        const PreviewCameraState rendered_camera = camera_for_view_role(view.role);
+        const DirectX::XMMATRIX camera_world = world_matrix_for_camera(rendered_camera);
+        const DirectX::XMMATRIX view_projection = view_projection_matrix_for_viewport(view.viewport, rendered_camera.distance);
         const DirectX::XMMATRIX world_view_projection = camera_world * view_projection;
+        const bool replacement_camera_view = view.role != PreviewViewRole::Reference;
+        if (replacement_camera_view) {
+            last_rendered_camera_evidence_.valid = true;
+            last_rendered_camera_evidence_.role = view.role;
+            last_rendered_camera_evidence_.camera = rendered_camera;
+            last_rendered_camera_evidence_.viewport = view.viewport;
+            DirectX::XMStoreFloat4x4(
+                &last_rendered_camera_evidence_.world_view_projection,
+                world_view_projection);
+            last_rendered_camera_evidence_.solid_draw_count = 0;
+        }
         if (!view.wireframe && !icon_capture_mode_ && !(display_mode_ == "overlay" && view.role == PreviewViewRole::Reference)) {
             draw_workspace_grid(view, world_view_projection);
         }
@@ -45,6 +57,9 @@ void Renderer::draw_render_view(const PreviewRenderView& view) {
             const bool mesh_edit_active = mesh_edit_batch_editable_in_view(batch, view);
             const bool mesh_edit_flat = mesh_edit_active && !mesh_edit_preserve_materials_for_batch(batch);
             draw_preview_batch(batch, batch_world * view_projection, batch_world, tint, mesh_edit_flat);
+            if (replacement_camera_view && batch.vertex_buffer && batch.vertex_count > 0) {
+                ++last_rendered_camera_evidence_.solid_draw_count;
+            }
         }
         draw_highlight_bounds_overlay(view);
         draw_cloth_debug_overlays(view, world_view_projection);

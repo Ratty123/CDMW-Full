@@ -1257,7 +1257,7 @@ class MeshEditorControllerTests(unittest.TestCase):
                     "source_submesh_indices": [0],
                     "material_name": "ignored_by_host_override",
                     "roughness": 0.4,
-                    "metalness": 0.2,
+                    "metalness": 0.2, "emissive_scalar_mask": True,
                 },
             ),
             replace_all_triangles=True,
@@ -1269,7 +1269,7 @@ class MeshEditorControllerTests(unittest.TestCase):
         self.assertEqual(["vertices", "triangles", "material", "selection"], [name for name, _payload in host.calls])
         self.assertEqual(True, host.calls[1][1][1])
         self.assertEqual((), host.calls[1][1][2])
-        self.assertEqual({"source_submesh_indices": (0,), "roughness": 0.4, "metalness": 0.2}, host.calls[2][1])
+        self.assertEqual({"source_submesh_indices": (0,), "roughness": 0.4, "metalness": 0.2, "emissive_scalar_mask": True}, host.calls[2][1])
         self.assertEqual(update.selection_groups, host.calls[3][1])
 
     def test_native_update_dispatcher_stops_after_failed_preview_command(self) -> None:

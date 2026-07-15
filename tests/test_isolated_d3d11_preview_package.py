@@ -2078,6 +2078,11 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             self.assertEqual(0.42, batch["specular"])
             self.assertEqual(2.0, batch["emissive_intensity"])
             self.assertEqual([18 / 255.0, 52 / 255.0, 86 / 255.0], batch["emissive_color"])
+            self.assertTrue(batch["emissive_color_authoritative"])
+            self.assertFalse(batch["emissive_scalar_mask"])
+            self.assertTrue(batch["roughness_hint_present"])
+            self.assertTrue(batch["metalness_hint_present"])
+            self.assertTrue(batch["specular_hint_present"])
             self.assertEqual(0.35, hints["roughness"])
             self.assertEqual(0.8, hints["metalness"])
             self.assertEqual(0.42, hints["specular"])
@@ -2775,10 +2780,43 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
 
             self.assertTrue((package_dir / textures["emissive"]).is_file())
             self.assertEqual(4.0, batch["emissive_intensity"])
+            self.assertFalse(batch["emissive_color_authoritative"])
+            self.assertFalse(batch["emissive_scalar_mask"])
             self.assertTrue(batch["native_material_hints"]["emissive_active"])
             self.assertEqual("emissive_texture_default", batch["native_material_hints"]["source"])
             self.assertEqual(4.0, material_contract["pbr_scalar_hints"]["emissive_intensity"])
             self.assertEqual(4.0, material_contract["decode_profile"]["pbr_scalar_hints"]["emissive_intensity"])
+
+    def test_direct_bc4_emissive_dds_preserves_scalar_mask_without_material_inputs(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            emissive_dds = temp_path / "rune_emissive.dds"
+            emissive_dds.write_bytes(_minimal_bc_dds(b"BC4U"))
+            prepared = PreparedModelPreviewData(
+                source_path="scalar-glow.pac",
+                batches=(
+                    PreparedModelPreviewBatch(
+                        material_name="scalar_glow",
+                        vertex_blob=_vertex(0, 0, 0) + _vertex(1, 0, 0) + _vertex(0, 1, 0),
+                        index_count=3,
+                        preview_emissive_texture_dds_path=str(emissive_dds),
+                        has_texture_coordinates=True,
+                    ),
+                ),
+            )
+
+            package_dir = write_isolated_d3d11_preview_package(
+                ModelPreviewData(path="scalar-glow.pac"),
+                prepared,
+                output_root=temp_path / "package",
+                prefer_direct_dds=True,
+            )
+            batch = read_isolated_d3d11_preview_manifest(package_dir)["batches"][0]
+
+            self.assertEqual("bc4", batch["dds_textures"]["emissive"]["compressed_family"])
+            self.assertEqual(str(emissive_dds), batch["dds_textures"]["emissive"]["source_path"])
+            self.assertTrue(batch["emissive_scalar_mask"])
+            self.assertEqual("", batch["textures"]["emissive"])
 
     def test_emissive_texture_honors_explicit_zero_sidecar_intensity(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

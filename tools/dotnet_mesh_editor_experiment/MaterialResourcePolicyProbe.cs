@@ -126,11 +126,36 @@ internal static class MaterialResourcePolicyProbe
         var update = materials.NormalizeStateUpdate(NetMaterialSet.ParseStateUpdate(document.RootElement));
         materials.ReplaceState(materials.BuildState(update));
         var refreshedRgb = materials.ParametersForSubmesh(0).EmissiveScalarMask is false;
+        var parameterPayload = new Dictionary<string, object?>
+        {
+            ["schema"] = "cdmw_mesh_material_parameters_v1",
+            ["version"] = 1,
+            ["session_id"] = "resident-parameter-probe",
+            ["edit_revision"] = 1,
+            ["parameter_generation"] = 1,
+            ["groups"] = new[]
+            {
+                new Dictionary<string, object?>
+                {
+                    ["source_submesh_indices"] = new[] { 0 },
+                    ["editor_role"] = "replacement_preview",
+                    ["roughness_hint"] = 0.0f,
+                    ["specular_hint"] = 0.25f,
+                },
+            },
+        };
+        using var parameterDocument = JsonDocument.Parse(JsonSerializer.Serialize(parameterPayload));
+        materials.ApplyParameterUpdate(NetMaterialSet.ParseParameterUpdate(parameterDocument.RootElement));
+        var parameters = materials.ParametersForSubmesh(0);
+        var hintTransportAccepted = parameters.RoughnessHint is 0.0f
+            && parameters.MetalnessHint is null
+            && parameters.SpecularHint is 0.25f;
         return new Dictionary<string, object?>
         {
             ["initial_scalar_mask"] = initialScalar,
             ["refreshed_rgb_mask"] = refreshedRgb,
-            ["ok"] = initialScalar && refreshedRgb,
+            ["hint_transport_accepted"] = hintTransportAccepted,
+            ["ok"] = initialScalar && refreshedRgb && hintTransportAccepted,
         };
     }
 

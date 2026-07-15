@@ -216,6 +216,9 @@ internal sealed partial class NetMaterialSet
             Roughness = OptionalFloat(group, "roughness", 0.0f, 1.0f),
             Metalness = OptionalFloat(group, "metalness", 0.0f, 1.0f, "metallic"),
             Specular = OptionalFloat(group, "specular", 0.0f, 1.0f),
+            RoughnessHint = OptionalFloat(group, "roughness_hint", 0.0f, 1.0f),
+            MetalnessHint = OptionalFloat(group, "metalness_hint", 0.0f, 1.0f),
+            SpecularHint = OptionalFloat(group, "specular_hint", 0.0f, 1.0f),
             RoughnessInverted = OptionalBoolean(group, "roughness_inverted", "roughness_invert"),
             MetalnessInverted = OptionalBoolean(group, "metalness_inverted", "metallic_inverted", "metalness_invert", "metallic_invert"),
             RoughnessScale = OptionalFloat(group, "roughness_scale", 0.0f, 4.0f),
@@ -231,6 +234,7 @@ internal sealed partial class NetMaterialSet
             HeightScale = OptionalFloat(group, "height_scale", 0.0f, 1.0f, "height"),
             EmissiveIntensity = OptionalFloat(group, "emissive_intensity", 0.0f, 32.0f),
             EmissiveColor = OptionalColor(group, "emissive_color", 0.0f, 2.0f),
+            EmissiveColorAuthoritative = OptionalBoolean(group, "emissive_color_authoritative"),
             EmissiveScalarMask = OptionalBoolean(group, "emissive_scalar_mask"),
             MaterialRole = OptionalMaterialRole(group),
             Visible = OptionalBoolean(group, "visible"),
@@ -394,12 +398,13 @@ internal sealed partial class NetMaterialSet
             "texture_tint", "tint_color", "tint",
             "base_color_lift", "value_max", "auto_balance", "shadow_lift",
             "roughness", "metalness", "metallic", "specular",
+            "roughness_hint", "metalness_hint", "specular_hint",
             "roughness_inverted", "roughness_invert", "metalness_inverted", "metallic_inverted", "metalness_invert", "metallic_invert",
             "roughness_scale", "roughness_min", "roughness_max",
             "metalness_scale", "metallic_scale", "metalness_min", "metallic_min", "metalness_max", "metallic_max",
             "roughness_blend_target", "roughness_blend_strength",
             "metalness_blend_target", "metallic_blend_target", "metalness_blend_strength", "metallic_blend_strength",
-            "height_scale", "height", "emissive_intensity", "emissive_color", "emissive_scalar_mask", "material_role", "visible",
+            "height_scale", "height", "emissive_intensity", "emissive_color", "emissive_color_authoritative", "emissive_scalar_mask", "material_role", "visible",
         };
         var unsupported = group.EnumerateObject()
             .Select(property => property.Name)
@@ -440,6 +445,9 @@ internal readonly record struct NetMaterialParameterDelta
     public NetOptionalParameter<float> Roughness { get; init; }
     public NetOptionalParameter<float> Metalness { get; init; }
     public NetOptionalParameter<float> Specular { get; init; }
+    public NetOptionalParameter<float> RoughnessHint { get; init; }
+    public NetOptionalParameter<float> MetalnessHint { get; init; }
+    public NetOptionalParameter<float> SpecularHint { get; init; }
     public NetOptionalParameter<bool> RoughnessInverted { get; init; }
     public NetOptionalParameter<bool> MetalnessInverted { get; init; }
     public NetOptionalParameter<float> RoughnessScale { get; init; }
@@ -455,6 +463,7 @@ internal readonly record struct NetMaterialParameterDelta
     public NetOptionalParameter<float> HeightScale { get; init; }
     public NetOptionalParameter<float> EmissiveIntensity { get; init; }
     public NetOptionalParameter<Vector3> EmissiveColor { get; init; }
+    public NetOptionalParameter<bool> EmissiveColorAuthoritative { get; init; }
     public NetOptionalParameter<bool> EmissiveScalarMask { get; init; }
     public NetOptionalTextParameter MaterialRole { get; init; }
     public NetOptionalParameter<bool> Visible { get; init; }
@@ -465,12 +474,15 @@ internal readonly record struct NetMaterialParameterDelta
         || BaseTintMetallic.IsSpecified
         || TintColor.IsSpecified || BaseColorLift.IsSpecified
         || ValueMax.IsSpecified || AutoBalance.IsSpecified || ShadowLift.IsSpecified || Roughness.IsSpecified
-        || Metalness.IsSpecified || Specular.IsSpecified || RoughnessInverted.IsSpecified || MetalnessInverted.IsSpecified
+        || Metalness.IsSpecified || Specular.IsSpecified
+        || RoughnessHint.IsSpecified || MetalnessHint.IsSpecified || SpecularHint.IsSpecified
+        || RoughnessInverted.IsSpecified || MetalnessInverted.IsSpecified
         || RoughnessScale.IsSpecified || RoughnessMin.IsSpecified || RoughnessMax.IsSpecified
         || MetalnessScale.IsSpecified || MetalnessMin.IsSpecified || MetalnessMax.IsSpecified
         || RoughnessBlendTarget.IsSpecified || RoughnessBlendStrength.IsSpecified
         || MetalnessBlendTarget.IsSpecified || MetalnessBlendStrength.IsSpecified
-        || HeightScale.IsSpecified || EmissiveIntensity.IsSpecified || EmissiveColor.IsSpecified || EmissiveScalarMask.IsSpecified
+        || HeightScale.IsSpecified || EmissiveIntensity.IsSpecified || EmissiveColor.IsSpecified
+        || EmissiveColorAuthoritative.IsSpecified || EmissiveScalarMask.IsSpecified
         || MaterialRole.IsSpecified || Visible.IsSpecified;
 }
 
@@ -492,6 +504,9 @@ internal readonly record struct NetMaterialParameters
     public float? Roughness { get; init; }
     public float? Metalness { get; init; }
     public float? Specular { get; init; }
+    public float? RoughnessHint { get; init; }
+    public float? MetalnessHint { get; init; }
+    public float? SpecularHint { get; init; }
     public bool? RoughnessInverted { get; init; }
     public bool? MetalnessInverted { get; init; }
     public float? RoughnessScale { get; init; }
@@ -507,6 +522,7 @@ internal readonly record struct NetMaterialParameters
     public float? HeightScale { get; init; }
     public float? EmissiveIntensity { get; init; }
     public Vector3? EmissiveColor { get; init; }
+    public bool? EmissiveColorAuthoritative { get; init; }
     public bool? EmissiveScalarMask { get; init; }
     public string? MaterialRole { get; init; }
     public bool? Visible { get; init; }
@@ -534,6 +550,9 @@ internal readonly record struct NetMaterialParameters
             Roughness = delta.Roughness.Apply(Roughness),
             Metalness = delta.Metalness.Apply(Metalness),
             Specular = delta.Specular.Apply(Specular),
+            RoughnessHint = delta.RoughnessHint.Apply(RoughnessHint),
+            MetalnessHint = delta.MetalnessHint.Apply(MetalnessHint),
+            SpecularHint = delta.SpecularHint.Apply(SpecularHint),
             RoughnessInverted = delta.RoughnessInverted.Apply(RoughnessInverted),
             MetalnessInverted = delta.MetalnessInverted.Apply(MetalnessInverted),
             RoughnessScale = delta.RoughnessScale.Apply(RoughnessScale),
@@ -549,6 +568,7 @@ internal readonly record struct NetMaterialParameters
             HeightScale = delta.HeightScale.Apply(HeightScale),
             EmissiveIntensity = delta.EmissiveIntensity.Apply(EmissiveIntensity),
             EmissiveColor = delta.EmissiveColor.Apply(EmissiveColor),
+            EmissiveColorAuthoritative = delta.EmissiveColorAuthoritative.Apply(EmissiveColorAuthoritative),
             EmissiveScalarMask = delta.EmissiveScalarMask.Apply(EmissiveScalarMask),
             MaterialRole = delta.MaterialRole.Apply(MaterialRole),
             Visible = delta.Visible.Apply(Visible),

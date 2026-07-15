@@ -87,7 +87,6 @@ from cdmw.rendering.native_preview_material_contract import (
     _material_contract_shader_family,
     _material_decode_policy,
     _material_decode_profile,
-    _material_hex_color_rgb,
     _material_input_contract_slots,
     _material_input_descriptor,
     _material_input_slot_state,
@@ -101,6 +100,7 @@ from cdmw.rendering.native_preview_material_contract import (
     _normalized_material_key,
     _normalized_material_texture_slot_states,
     _normalized_shader_family,
+    _preview_material_authority_fields,
     _preview_material_family_keys,
     _preview_material_keys_match,
     _preview_texture_family_key,
@@ -1214,9 +1214,8 @@ def write_isolated_d3d11_preview_package(
                 code = str(diagnostic.get("code", "") or "")
                 if code:
                     notes = tuple(notes) + (code,)
-        emissive_color = _material_hex_color_rgb(material_hints.get("emissive_color", ""))
-        if not emissive_color:
-            emissive_color = (0.35, 0.68, 1.0)
+        emissive_color, material_authority = _preview_material_authority_fields(material_hints, dds_textures.get("emissive"))
+        material_hints["emissive_color_authoritative"] = material_authority["emissive_color_authoritative"]
         texture_quality = _texture_quality_summary(
             textures=textures,
             dds_textures=dds_textures,
@@ -1275,6 +1274,7 @@ def write_isolated_d3d11_preview_package(
                 "height_scale": _safe_float(material_hints.get("height_scale"), 0.0),
                 "emissive_intensity": _safe_float(material_hints.get("emissive_intensity"), 0.0),
                 "emissive_color": list(emissive_color),
+                **material_authority,
                 "native_material_hints": material_hints,
                 "material_contract": material_contract,
                 "material_shader_family": str(material_contract.get("shader_family", "generic") or "generic"),

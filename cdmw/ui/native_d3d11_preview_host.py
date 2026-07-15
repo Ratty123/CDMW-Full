@@ -890,9 +890,14 @@ class NativeD3D11PreviewHostFrame(QFrame):
         roughness: Optional[float] = None,
         metalness: Optional[float] = None,
         specular: Optional[float] = None,
+        roughness_hint_present: Optional[bool] = None,
+        metalness_hint_present: Optional[bool] = None,
+        specular_hint_present: Optional[bool] = None,
         height_scale: Optional[float] = None,
         emissive_intensity: Optional[float] = None,
         emissive_color: Sequence[float] = (),
+        emissive_color_authoritative: Optional[bool] = None,
+        emissive_scalar_mask: Optional[bool] = None,
         contrast: Optional[float] = None,
         saturation: Optional[float] = None,
         gamma: Optional[float] = None,
@@ -916,8 +921,18 @@ class NativeD3D11PreviewHostFrame(QFrame):
         ):
             if value is not None:
                 payload[key] = float(value)
+        for key, value in (
+            ("roughness_hint_present", roughness_hint_present),
+            ("metalness_hint_present", metalness_hint_present),
+            ("specular_hint_present", specular_hint_present),
+            ("emissive_scalar_mask", emissive_scalar_mask),
+        ):
+            if value is not None:
+                payload[key] = bool(value)
         if emissive_color:
             payload["emissive_color"] = [float(value) for value in tuple(emissive_color or ())[:3]]
+        if emissive_color_authoritative is not None:
+            payload["emissive_color_authoritative"] = bool(emissive_color_authoritative)
         if tint_color:
             payload["tint_color"] = [float(value) for value in tuple(tint_color or ())[:3]]
         return self._send_host_json_command(payload)

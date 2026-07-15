@@ -223,9 +223,14 @@ struct PreviewBatch {
     float roughness_hint = 0.0f;
     float metalness_hint = 0.0f;
     float specular_hint = 0.0f;
+    bool roughness_hint_present = false;
+    bool metalness_hint_present = false;
+    bool specular_hint_present = false;
     float height_scale_hint = 0.0f;
     float emissive_intensity = 0.0f;
     float emissive_color[3] = {0.35f, 0.68f, 1.0f};
+    bool emissive_color_authoritative = false;
+    bool emissive_scalar_mask = false;
     float base_tint_strength = 0.0f;
     float texture_brightness = 1.0f;
     float texture_contrast = 1.0f;
@@ -629,6 +634,15 @@ struct PreviewCameraState {
     float pan_x = 0.0f;
     float pan_y = 0.0f;
     float pan_z = 0.0f;
+};
+
+struct PreviewRenderedCameraEvidence {
+    bool valid = false;
+    PreviewViewRole role = PreviewViewRole::All;
+    PreviewCameraState camera;
+    D3D11_VIEWPORT viewport{};
+    DirectX::XMFLOAT4X4 world_view_projection{};
+    std::uint64_t solid_draw_count = 0;
 };
 
 struct RenderTuning {

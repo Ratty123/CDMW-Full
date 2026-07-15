@@ -196,6 +196,42 @@ internal sealed partial class NetMaterialSet
         return string.IsNullOrWhiteSpace(family) ? "generic" : family.Trim().ToLowerInvariant();
     }
 
+    public float MaterialCategoryCodeForSubmesh(int submeshIndex)
+    {
+        var category = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
+            ?.MaterialCategory.Trim().ToLowerInvariant();
+        return category switch
+        {
+            "metal" => 1.0f,
+            "leather" => 2.0f,
+            "wood" => 3.0f,
+            "cloth" => 4.0f,
+            "skin" => 5.0f,
+            "hair" => 6.0f,
+            "glass" => 7.0f,
+            "gem" => 8.0f,
+            "stone" => 9.0f,
+            "eye" => 10.0f,
+            "tooth" => 11.0f,
+            _ => 0.0f,
+        };
+    }
+
+    public float MaterialCategoryConfidenceForSubmesh(int submeshIndex)
+    {
+        return Math.Clamp(
+            Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
+                ?.MaterialCategoryConfidence ?? 0.35f,
+            0.0f,
+            1.0f);
+    }
+
+    public bool MaterialResponsePromotedForSubmesh(int submeshIndex)
+    {
+        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
+            ?.MaterialResponsePromoted == true;
+    }
+
     public bool NormalYInvertedForSubmesh(int submeshIndex)
     {
         var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
@@ -250,6 +286,12 @@ internal sealed partial class NetMaterialSet
                 ["shader_authority"] = binding.ShaderAuthority,
                 ["shader_family_source"] = binding.ShaderFamilySource,
                 ["shader_family_reason"] = binding.ShaderFamilyReason,
+                ["material_category"] = string.IsNullOrWhiteSpace(binding.MaterialCategory)
+                    ? "generic"
+                    : binding.MaterialCategory,
+                ["material_category_confidence"] = binding.MaterialCategoryConfidence,
+                ["material_category_reason"] = binding.MaterialCategoryReason,
+                ["material_response_promoted"] = binding.MaterialResponsePromoted,
                 ["channel_color_spaces"] = binding.ChannelColorSpaces,
                 ["channel_authorities"] = binding.ChannelAuthorities,
                 ["channel_components"] = binding.ChannelComponents,
@@ -422,6 +464,10 @@ internal sealed partial class NetMaterialSet
                 JsonText(item, "shader_authority"),
                 JsonText(item, "shader_family_source"),
                 JsonText(item, "shader_family_reason"),
+                JsonText(item, "material_category"),
+                JsonFloat(item, "material_category_confidence", 0.35f),
+                JsonText(item, "material_category_reason"),
+                JsonBoolean(item, "material_response_promoted"),
                 JsonMap(item, "channel_color_spaces"),
                 JsonMap(item, "channel_authorities"),
                 JsonText(item, "alpha_mode"),

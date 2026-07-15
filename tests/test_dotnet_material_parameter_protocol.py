@@ -130,9 +130,13 @@ def test_parameter_groups_validate_atomically_and_preserve_null_zero_semantics()
     assert "An all-submesh material parameter group must be the only group." in parse
     assert "affected.Order().ToArray()" in parse
     assert 'OptionalFloat(group, "metalness", 0.0f, 1.0f, "metallic")' in parse
+    assert 'OptionalFloat(group, "roughness_hint", 0.0f, 1.0f)' in parse
+    assert 'OptionalFloat(group, "metalness_hint", 0.0f, 1.0f)' in parse
+    assert 'OptionalFloat(group, "specular_hint", 0.0f, 1.0f)' in parse
     assert 'OptionalColor(group, "base_tint_color", 0.0f, 1.5f, "base_color")' in parse
     assert 'OptionalFloat(group, "base_tint_strength", 0.0f, 1.0f)' in parse
     assert 'OptionalBoolean(group, "base_tint_metallic")' in parse
+    assert 'OptionalBoolean(group, "emissive_color_authoritative")' in parse
     assert 'OptionalColor(group, "texture_tint", 0.0f, 4.0f, "tint_color", "tint")' in parse
     assert 'OptionalInteger(group, "base_color_lift", 0, 254)' in parse
     assert 'OptionalInteger(group, "value_max", 0, 255)' in parse
@@ -183,6 +187,15 @@ def test_parameter_apply_updates_only_d3d_constants_and_exposes_counters_and_rol
     assert "MaterialBaseTintPolicy" in presentation
     assert "MaterialBaseAdvanced" in presentation
     assert "MaterialBasePost" in presentation
+    assert "var materialRoughnessHint = Math.Clamp(" in presentation
+    assert "parameters.RoughnessHint ?? 0.0f" in presentation
+    assert "var materialMetalnessHint = Math.Clamp(" in presentation
+    assert "parameters.MetalnessHint ?? 0.0f" in presentation
+    assert "var materialSpecularHint = Math.Clamp(parameters.SpecularHint ?? 0.0f, 0.0f, 1.0f);" in presentation
+    base_post = presentation.index("MaterialBasePost = new Vector4(")
+    assert base_post < presentation.index("materialRoughnessHint,", base_post)
+    assert base_post < presentation.index("materialMetalnessHint,", base_post)
+    assert base_post < presentation.index("materialSpecularHint),", base_post)
     assert "MaterialSurfaceTransforms" in presentation
     assert "MaterialSurfaceTransforms2" in presentation
     assert "MaterialSurfaceBlends" in presentation
@@ -224,7 +237,8 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     assert "specularColor *= saturate(MaterialSurfaceOverrides.z);" in shader
     assert "float tintLuma = max(dot(previewTint" in shader
     assert "float3 tintBias = clamp(" in shader
-    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f;" in shader
+    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f" in shader
+    assert "MaterialBaseTintPolicy.y < 1.5f" in shader
     assert "float neutralMetalTint = earlyCategoryMetal" in shader
     assert "float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f)" in shader
     assert "float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);" in shader
@@ -260,7 +274,20 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     metalness_override = shader.index("metallic = MaterialSurfaceOverrides.y;")
     assert metalness_sample < metalness_invert < metalness_scale < metalness_min < metalness_max < metalness_blend < metalness_override
     assert "MaterialHasEmissive > 0.5f" in shader
-    assert "MaterialEmissiveOverrideFlags.y > 0.5f ? MaterialEmissiveOverride.w : 1.0f" in shader
+    assert "float emissiveIntensity = saturate(" in shader
+    assert "MaterialHasEmissive > 0.5f ? 4.0f : 0.0f" in shader
+    assert "/ 12.0f);" in shader
+    assert "float3(2.0f, 2.0f, 2.0f)" in shader
+    assert "emissive = emissiveColor" in shader
+    assert "* saturate(emissiveSample.r)" in shader
+    assert "MaterialEmissiveOverrideFlags.w > 0.5f" in shader
+    assert "emissive = saturate(emissiveSample.rgb)" in shader
+    assert "* emissiveColor" in shader
+    assert "float emissiveMask = max(" in shader
+    assert "max(emissiveColor, emissiveSample.rgb)" in shader
+    assert "* saturate(emissiveMask)" in shader
+    assert "else if (MaterialEmissiveOverrideFlags.y > 0.5f)" in shader
+    assert "max(PresentationSurfaceTuning.z, 0.0f) * 0.85f" in shader
 
 
 def test_resident_material_state_replaces_parameter_snapshot_with_resource_state() -> None:
@@ -273,6 +300,9 @@ def test_resident_material_state_replaces_parameter_snapshot_with_resource_state
     assert "IReadOnlyDictionary<int, NetMaterialParameters> ParameterStates" in resident
     assert '["emissive_scalar_mask"] = true' in probe
     assert '["emissive_scalar_mask"] = false' in probe
+    assert '["roughness_hint"] = 0.0f' in probe
+    assert '["specular_hint"] = 0.25f' in probe
+    assert '["hint_transport_accepted"] = hintTransportAccepted' in probe
     assert 'materials.ReplaceState(materials.BuildState(update));' in probe
 
 

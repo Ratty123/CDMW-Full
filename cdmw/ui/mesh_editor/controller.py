@@ -26,6 +26,12 @@ from cdmw.services.mesh_workflow_service import MeshRebuildReport
 from cdmw.services.mesh_service import MeshService
 from cdmw.ui.mesh_editor.actions import MeshEditorAction, NATIVE_EDITOR_SESSION_COMMANDS, mesh_editor_actions_by_key
 from cdmw.ui.mesh_editor.controller_topology import final_submesh_count, shrink_source_indices
+from cdmw.ui.mesh_editor.material_override_payloads import (
+    DEFAULT_MATERIAL_OVERRIDES as _DEFAULT_MATERIAL_OVERRIDES,
+    MATERIAL_OVERRIDE_KEYS as _MATERIAL_OVERRIDE_KEYS,
+    coerce_source_index as _coerce_source_index,
+    material_override_groups_for_native_triangle_groups as _material_override_groups_for_native_triangle_groups,
+)
 from cdmw.ui.mesh_editor.native_preview_payloads import (
     mesh_edit_material_override_groups,
     mesh_edit_selection_groups,
@@ -53,32 +59,6 @@ class MeshEditorActionExecution:
     native_update: MeshEditorNativeUpdate
 
 
-_MATERIAL_OVERRIDE_KEYS = (
-    "texture_brightness",
-    "roughness",
-    "metalness",
-    "specular",
-    "height_scale",
-    "emissive_intensity",
-    "emissive_color",
-    "contrast",
-    "saturation",
-    "gamma",
-    "tint_color",
-)
-_DEFAULT_MATERIAL_OVERRIDES: Mapping[str, object] = {
-    "texture_brightness": 1.0,
-    "roughness": 0.0,
-    "metalness": 0.0,
-    "specular": 0.0,
-    "height_scale": 0.0,
-    "emissive_intensity": 0.0,
-    "emissive_color": [0.35, 0.68, 1.0],
-    "contrast": 1.0,
-    "saturation": 1.0,
-    "gamma": 1.0,
-    "tint_color": [1.0, 1.0, 1.0],
-}
 _NATIVE_ACTIONS_WITHOUT_PREVIEW_PAYLOAD = frozenset({"generate_tangents"})
 _LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})
 
@@ -805,29 +785,6 @@ def _result_has_native_editor_metrics(result: MeshEditResult) -> bool:
     )
 
 
-def _material_override_groups_for_native_triangle_groups(
-    triangle_groups: Sequence[Mapping[str, object]],
-) -> tuple[Mapping[str, object], ...]:
-    groups: list[Mapping[str, object]] = []
-    for triangle_group in triangle_groups:
-        source_index = _coerce_source_index(triangle_group.get("source_submesh_index"))
-        if source_index is None or source_index < 0:
-            continue
-        group: dict[str, object] = {"source_submesh_indices": [source_index], "editor_role": "replacement_preview"}
-        if "material_name" in triangle_group:
-            group["material_name"] = triangle_group["material_name"]
-        if "texture_name" in triangle_group:
-            group["texture_name"] = triangle_group["texture_name"]
-        if "material_name" in group or "texture_name" in group:
-            group.update(_DEFAULT_MATERIAL_OVERRIDES)
-        for key in _MATERIAL_OVERRIDE_KEYS:
-            if key in triangle_group:
-                group[key] = triangle_group[key]
-        if len(group) > 2:
-            groups.append(group)
-    return tuple(groups)
-
-
 def _native_selection_groups_for_result(result: MeshEditResult) -> tuple[Mapping[str, object], ...]:
     raw_groups = getattr(result, "native_selection_groups", ()) or ()
     return tuple(dict(group) for group in raw_groups if isinstance(group, Mapping))
@@ -898,15 +855,6 @@ def _topology_refresh_source_indices(mesh: ParsedMesh, result: MeshEditResult) -
         if source_index is not None and 0 <= source_index < len(mesh.submeshes):
             affected.add(source_index)
     return tuple(sorted(affected)), requested
-
-
-def _coerce_source_index(value: object) -> int | None:
-    if isinstance(value, bool):
-        return None
-    try:
-        return int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError, OverflowError):
-        return None
 
 
 __all__ = ["MeshEditorActionExecution", "MeshEditorController", "MeshEditorNativeUpdate", "apply_native_update_to_host"]

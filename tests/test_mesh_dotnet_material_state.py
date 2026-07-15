@@ -538,6 +538,7 @@ def test_gltf_packed_channels_and_source_factors_survive_resident_snapshot(tmp_p
         "roughness_scale": 0.8,
         "metalness_scale": 0.6,
         "emissive_color": [1.0, 64 / 255.0, 0.0],
+        "emissive_color_authoritative": True,
         "emissive_intensity": 2.0,
     }
 
@@ -773,6 +774,7 @@ def test_color_only_gltf_material_preserves_surface_and_emissive_factors(tmp_pat
         "base_tint_strength": 0.0,
         "roughness": 0.920748,
         "emissive_color": [1.0, 0.0, 0.0],
+        "emissive_color_authoritative": True,
         "emissive_intensity": 10.0,
     }
     assert payload["submeshes"][0]["shader_family"] == "emissive"

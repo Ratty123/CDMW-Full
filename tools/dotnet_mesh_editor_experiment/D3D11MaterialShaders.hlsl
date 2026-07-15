@@ -298,13 +298,6 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         uv.x * PresentationUvRotationFlip.x - uv.y * PresentationUvRotationFlip.y,
         uv.x * PresentationUvRotationFlip.y + uv.y * PresentationUvRotationFlip.x);
     uv += float2(0.5f, 0.5f) + PresentationUvScaleOffset.zw;
-    if (MaterialHasHeight > 0.5f)
-    {
-        float height = HeightTexture.Sample(MaterialSampler, uv).r - 0.5f;
-        float3 viewDirection = normalize(CameraPosition - input.WorldPosition);
-        uv += viewDirection.xy * height * MaterialHeightScale;
-    }
-
     float4 baseColor = MaterialHasBase > 0.5f
         ? BaseTexture.Sample(MaterialSampler, uv)
         : (MaterialBaseTint.w > 0.5f
@@ -329,7 +322,8 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             float3(1.72f, 1.72f, 1.72f));
         float tintChroma = max(previewTint.r, max(previewTint.g, previewTint.b))
             - min(previewTint.r, min(previewTint.g, previewTint.b));
-        bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f;
+        bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f
+            && MaterialBaseTintPolicy.y < 1.5f;
         float neutralMetalTint = earlyCategoryMetal ? saturate((0.12f - tintChroma) * 8.0f) : 0.0f;
         float strength = saturate(MaterialBaseTintPolicy.x
             * (earlyCategoryMetal ? lerp(0.05f, 1.25f, neutralMetalTint) : 1.0f));
@@ -373,6 +367,35 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         input.Bitangent = -input.Bitangent;
     }
     float3 normal = SampleNormal(input, uv);
+    float heightValue = 0.5f;
+    float heightStrength = 0.0f;
+    if (MaterialHasHeight > 0.5f)
+    {
+        heightValue = HeightTexture.Sample(MaterialSampler, uv).r;
+        float2 heightUvX = ddx(uv);
+        float2 heightUvY = ddy(uv);
+        if (dot(heightUvX, heightUvX) < 1e-8f)
+        {
+            heightUvX = float2(1.0f / 1024.0f, 0.0f);
+        }
+        if (dot(heightUvY, heightUvY) < 1e-8f)
+        {
+            heightUvY = float2(0.0f, 1.0f / 1024.0f);
+        }
+        float heightX = HeightTexture.Sample(MaterialSampler, uv + heightUvX).r
+            - HeightTexture.Sample(MaterialSampler, uv - heightUvX).r;
+        float heightY = HeightTexture.Sample(MaterialSampler, uv + heightUvY).r
+            - HeightTexture.Sample(MaterialSampler, uv - heightUvY).r;
+        float declaredHeight = MaterialSurfaceOverrideFlags.w > 0.5f
+            ? MaterialSurfaceOverrides.w
+            : 0.0f;
+        heightStrength = saturate((MaterialHeightScale + declaredHeight * 0.04f) * 8.0f);
+        float3 heightNormal = normalize(
+            normal
+            - normalize(input.Tangent) * heightX * heightStrength * 2.4f
+            + normalize(input.Bitangent) * heightY * heightStrength * 2.4f);
+        normal = normalize(lerp(normal, heightNormal, heightStrength));
+    }
     float3 lightDirection = normalize(LightDirection);
     float3 viewDirection = normalize(CameraPosition - input.WorldPosition);
     float3 halfVector = normalize(lightDirection + viewDirection);
@@ -416,53 +439,400 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     {
         metallic = 0.0f;
     }
+    float materialCategoryCode = MaterialBaseTintPolicy.y;
+    float materialCategoryConfidence = saturate(MaterialBaseTintPolicy.z);
+    bool hasSourceCategory = materialCategoryCode > 0.5f;
+    bool categoryMetal = materialCategoryCode > 0.5f && materialCategoryCode < 1.5f;
+    bool categoryLeather = materialCategoryCode > 1.5f && materialCategoryCode < 2.5f;
+    bool categoryWood = materialCategoryCode > 2.5f && materialCategoryCode < 3.5f;
+    bool sourceCategoryCloth = materialCategoryCode > 3.5f && materialCategoryCode < 4.5f;
+    bool sourceCategorySkin = materialCategoryCode > 4.5f && materialCategoryCode < 5.5f;
+    bool sourceCategoryHair = materialCategoryCode > 5.5f && materialCategoryCode < 6.5f;
+    bool categoryGlass = materialCategoryCode > 6.5f && materialCategoryCode < 7.5f;
+    bool categoryGem = materialCategoryCode > 7.5f && materialCategoryCode < 8.5f;
+    bool categoryStone = materialCategoryCode > 8.5f && materialCategoryCode < 9.5f;
+    bool categoryEye = materialCategoryCode > 9.5f && materialCategoryCode < 10.5f;
+    bool categoryTooth = materialCategoryCode > 10.5f && materialCategoryCode < 11.5f;
+    float materialFamilyCode = PresentationDiagnosticTuning.w;
+    float familyMetalScale = 1.0f;
+    float familySpecularScale = 1.0f;
+    float familyRoughnessBias = 0.0f;
+    if (materialFamilyCode > 0.5f && materialFamilyCode < 1.5f)
+    {
+        familyMetalScale = 0.12f;
+        familySpecularScale = 1.20f;
+        familyRoughnessBias = 0.06f;
+    }
+    else if (materialFamilyCode > 1.5f && materialFamilyCode < 2.5f)
+    {
+        familyMetalScale = 0.05f;
+        familySpecularScale = 1.45f;
+        familyRoughnessBias = -0.08f;
+    }
+    else if (materialFamilyCode > 2.5f && materialFamilyCode < 3.5f)
+    {
+        familyMetalScale = 0.28f;
+        familySpecularScale = 0.95f;
+        familyRoughnessBias = 0.10f;
+    }
+    else if (materialFamilyCode > 3.5f && materialFamilyCode < 4.5f)
+    {
+        familyMetalScale = 1.15f;
+        familySpecularScale = 1.35f;
+        familyRoughnessBias = -0.04f;
+    }
+    else if (materialFamilyCode > 4.5f && materialFamilyCode < 5.5f)
+    {
+        familyMetalScale = 1.05f;
+        familySpecularScale = 1.20f;
+        familyRoughnessBias = -0.02f;
+    }
+    else if (materialFamilyCode > 5.5f && materialFamilyCode < 6.5f)
+    {
+        familyMetalScale = 0.55f;
+        familySpecularScale = 1.15f;
+        familyRoughnessBias = -0.03f;
+    }
+    if (MaterialSurfaceOverrideFlags.y < 0.5f)
+    {
+        metallic = saturate(metallic * familyMetalScale);
+    }
+    bool categorySkin = sourceCategorySkin || (!hasSourceCategory
+        && materialFamilyCode > 0.5f && materialFamilyCode < 1.5f);
+    bool categoryHair = sourceCategoryHair || (!hasSourceCategory
+        && materialFamilyCode > 1.5f && materialFamilyCode < 2.5f);
+    bool categoryCloth = sourceCategoryCloth || (!hasSourceCategory
+        && materialFamilyCode > 2.5f && materialFamilyCode < 3.5f);
+    bool glossyNonmetal = categoryGlass || categoryGem || categoryEye;
+    bool conservativeNonmetal = categoryLeather || categoryWood || categoryCloth
+        || categorySkin || categoryHair || categoryStone || categoryTooth
+        || (!hasSourceCategory && MaterialFamilyPolicy.x > 0.5f);
+    bool knownNonmetal = conservativeNonmetal || glossyNonmetal;
+    float categoryMetalCap = categoryMetal
+        ? 1.0f
+        : (knownNonmetal ? 0.0f : lerp(0.12f, 0.32f, materialCategoryConfidence));
+    float categorySpecularCap = categoryMetal
+        ? 1.0f
+        : (categoryGlass ? 0.42f
+            : (categoryGem ? 0.48f
+                : (categoryEye ? 0.44f
+                    : (categoryLeather ? 0.14f
+                        : (categoryWood ? 0.16f
+                            : (categoryCloth ? 0.055f
+                                : (categorySkin ? 0.20f
+                                    : (categoryHair ? 0.22f
+                                        : (categoryStone ? 0.10f
+                                            : (categoryTooth ? 0.18f : 0.18f))))))))));
+    float categoryRoughnessFloor = categoryMetal
+        ? 0.16f
+        : (categoryGlass ? 0.30f
+            : (categoryGem ? 0.26f
+                : (categoryEye ? 0.30f
+                    : (categoryLeather ? 0.76f
+                        : (categoryWood ? 0.70f
+                            : (categoryCloth ? 0.84f
+                                : (categorySkin ? 0.58f
+                                    : (categoryHair ? 0.64f
+                                        : (categoryStone ? 0.82f
+                                            : (categoryTooth ? 0.58f : 0.66f))))))))));
+    float categoryEnvironmentScale = categoryMetal
+        ? 0.94f
+        : (categoryGlass ? 0.26f
+            : (categoryGem ? 0.30f
+                : (categoryEye ? 0.24f
+                    : (categoryLeather ? 0.06f
+                        : (categoryWood ? 0.06f
+                            : (categoryCloth ? 0.025f
+                                : (categorySkin ? 0.075f
+                                    : (categoryHair ? 0.08f
+                                        : (categoryStone ? 0.04f
+                                            : (categoryTooth ? 0.08f : 0.08f))))))))));
+    float materialRoughnessHint = saturate(MaterialBasePost.y);
+    float materialMetalnessHint = saturate(MaterialBasePost.z);
+    float materialSpecularHint = saturate(MaterialBasePost.w);
+    uint materialHintPresence = (uint)round(MaterialChannelSelectors.w);
+    bool hasMaterialRoughnessHint = (materialHintPresence & 1u) != 0u;
+    bool hasMaterialMetalnessHint = (materialHintPresence & 2u) != 0u;
+    bool hasMaterialSpecularHint = (materialHintPresence & 4u) != 0u;
+    if (hasMaterialMetalnessHint && materialMetalnessHint > 0.02f)
+    {
+        metallic = max(
+            metallic,
+            saturate(materialMetalnessHint * max(PresentationSurfaceTuning.y, 0.0f)));
+    }
+    bool explicitMaterialAuthorityHint = hasMaterialRoughnessHint
+        || hasMaterialMetalnessHint
+        || hasMaterialSpecularHint
+        || (MaterialSurfaceOverrideFlags.w > 0.5f && MaterialSurfaceOverrides.w > 0.02f);
+    if (explicitMaterialAuthorityHint && !conservativeNonmetal)
+    {
+        float glossHint = saturate(
+            (hasMaterialRoughnessHint ? (1.0f - materialRoughnessHint) * 0.85f : 0.0f)
+            + (hasMaterialSpecularHint ? materialSpecularHint * 0.45f : 0.0f));
+        if (glossHint > 0.001f || (hasMaterialSpecularHint && materialSpecularHint > 0.001f))
+        {
+            categorySpecularCap = max(
+                categorySpecularCap,
+                max(hasMaterialSpecularHint ? materialSpecularHint : 0.0f, glossHint));
+            categoryEnvironmentScale = max(
+                categoryEnvironmentScale,
+                lerp(0.12f, 0.42f, glossHint));
+        }
+        if (hasMaterialRoughnessHint)
+        {
+            categoryRoughnessFloor = min(
+                categoryRoughnessFloor,
+                lerp(0.08f, 0.42f, materialRoughnessHint));
+        }
+    }
+    if (hasMaterialRoughnessHint)
+    {
+        roughness = lerp(roughness, materialRoughnessHint, 0.55f);
+    }
+    roughness = saturate(roughness + familyRoughnessBias);
+    float textureLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
+    float materialLift = categoryMetal ? 0.020f : (categorySkin ? 0.025f : (categoryHair ? 0.035f : 0.030f));
+    float clothHighLumaGuard = categoryCloth ? saturate((textureLuma - 0.82f) * 4.0f) : 0.0f;
+    float clothTextureBoost = categoryCloth ? lerp(0.03f, -0.02f, clothHighLumaGuard) : 0.0f;
+    float3 materialReferenceAlbedo = saturate(
+        baseColor.rgb * (1.03f + clothTextureBoost)
+        + materialLift.xxx * saturate(1.0f - textureLuma));
+    if (categorySkin)
+    {
+        materialReferenceAlbedo = saturate(
+            materialReferenceAlbedo * 1.04f + float3(0.004f, 0.002f, 0.001f));
+    }
+    if (categoryCloth && clothHighLumaGuard > 0.001f)
+    {
+        float3 clothHighlightCap = float3(0.94f, 0.91f, 0.84f);
+        materialReferenceAlbedo = lerp(
+            materialReferenceAlbedo,
+            min(materialReferenceAlbedo, clothHighlightCap),
+            clothHighLumaGuard * 0.35f);
+    }
+    if (
+        MaterialHasHeight < 0.5f
+        && MaterialSurfaceOverrideFlags.w > 0.5f
+        && MaterialSurfaceOverrides.w > 0.02f)
+    {
+        float reliefEdge = saturate(
+            (abs(ddx(textureLuma)) + abs(ddy(textureLuma))) * 34.0f);
+        float reliefStrength = saturate(MaterialSurfaceOverrides.w);
+        materialReferenceAlbedo = saturate(
+            materialReferenceAlbedo * (1.0f + reliefEdge * reliefStrength * 0.24f)
+            - (1.0f - reliefEdge) * reliefStrength * 0.018f);
+    }
+    if (
+        hasMaterialRoughnessHint
+        && materialRoughnessHint > 0.62f
+        && !conservativeNonmetal)
+    {
+        float mattePreview = saturate((materialRoughnessHint - 0.62f) * 2.63f);
+        float matteLuma = dot(
+            materialReferenceAlbedo,
+            float3(0.299f, 0.587f, 0.114f));
+        float3 flattenedMaterial = lerp(
+            materialReferenceAlbedo,
+            matteLuma.xxx,
+            0.42f);
+        materialReferenceAlbedo = lerp(
+            materialReferenceAlbedo,
+            flattenedMaterial * 0.88f + 0.018f.xxx,
+            mattePreview * 0.58f);
+    }
+    if (categoryMetal)
+    {
+        float3 metalTint = saturate(MaterialBaseTint.rgb);
+        float metalTintLuma = max(
+            dot(metalTint, float3(0.299f, 0.587f, 0.114f)),
+            0.08f);
+        float3 metalTintBias = clamp(
+            metalTint / metalTintLuma,
+            float3(0.58f, 0.58f, 0.58f),
+            float3(1.42f, 1.42f, 1.42f));
+        materialReferenceAlbedo = saturate(lerp(
+            materialReferenceAlbedo,
+            materialReferenceAlbedo * metalTintBias,
+            0.34f));
+    }
+    float categoryMetalFallback = categoryMetal
+        ? saturate(lerp(0.28f, 0.62f, materialCategoryConfidence)
+            * max(PresentationSurfaceTuning.y, 0.0f))
+        : 0.0f;
+    bool hasMetalResponseInput = MaterialHasMetallic > 0.5f
+        || (MaterialSurfaceOverrideFlags.y > 0.5f && MaterialSurfaceOverrides.y > 0.02f)
+        || (hasMaterialMetalnessHint && materialMetalnessHint > 0.02f);
+    if (categoryMetal && !hasMetalResponseInput)
+    {
+        metallic = max(metallic, categoryMetalFallback);
+        roughness = min(roughness, lerp(0.46f, 0.28f, materialCategoryConfidence));
+    }
+    bool directMetalResponse = categoryMetal && (
+        metallic > 0.12f
+        || (hasMaterialMetalnessHint && materialMetalnessHint > 0.16f)
+        || MaterialHasMetallic > 0.5f
+        || MaterialBaseTintPolicy.w > 0.5f);
+    if (directMetalResponse)
+    {
+        metallic = max(metallic, categoryMetalFallback);
+        roughness = min(roughness, lerp(0.34f, 0.16f, materialCategoryConfidence));
+        categoryRoughnessFloor = min(categoryRoughnessFloor, 0.08f);
+    }
+    roughness = max(roughness, categoryRoughnessFloor);
+    metallic = min(metallic, categoryMetalCap);
+    if (MaterialHasHeight > 0.5f)
+    {
+        float heightRelief = (heightValue - 0.5f)
+            * saturate(MaterialHeightScale * 10.0f);
+        roughness = saturate(roughness - heightRelief * 0.10f);
+    }
+    if (conservativeNonmetal)
+    {
+        roughness = max(roughness, categoryRoughnessFloor);
+        metallic = min(metallic, categoryMetalCap);
+    }
     float dielectricSpecular = saturate(PresentationDiagnosticTuning.y);
     float3 specularColor = MaterialHasSpecular > 0.5f
         ? SpecularTexture.Sample(MaterialSampler, uv).rgb
         : lerp(dielectricSpecular.xxx, baseColor.rgb, metallic);
     specularColor *= saturate(PresentationMaterialTuning.y);
+    if (MaterialHasSpecular > 0.5f)
+    {
+        specularColor *= familySpecularScale;
+    }
     if (MaterialSurfaceOverrideFlags.z > 0.5f)
     {
         specularColor *= saturate(MaterialSurfaceOverrides.z);
+    }
+    if (hasMaterialSpecularHint && materialSpecularHint > 0.02f)
+    {
+        specularColor = max(specularColor, materialSpecularHint.xxx);
     }
     if (MaterialFamilyPolicy.w > 0.0f)
     {
         float neutralSpecular = dot(specularColor, float3(0.2126f, 0.7152f, 0.0722f));
         specularColor = min(neutralSpecular, MaterialFamilyPolicy.z).xxx;
     }
+    if (!categoryMetal)
+    {
+        specularColor = min(specularColor, categorySpecularCap.xxx);
+    }
+    float3 sourceStableF0 = lerp(
+        float3(0.035f, 0.035f, 0.035f),
+        materialReferenceAlbedo,
+        metallic);
+    float3 resolvedSurfaceF0 = sourceStableF0;
+    if (categoryMetal)
+    {
+        // Match the Archive reference's source-stable metal Fresnel: a
+        // grayscale response map must not replace the source albedo that
+        // colors the reflection.
+        specularColor = resolvedSurfaceF0;
+    }
 
     float ndotl = WrappedNdotL(normal, lightDirection, PresentationLightingTuning.y);
     float ndotv = max(saturate(dot(normal, viewDirection)), 1e-4f);
-    float3 fresnel = SourceStableFresnel(
-        saturate(dot(halfVector, viewDirection)),
-        specularColor,
-        metallic);
-    float distribution = DistributionGGX(normal, halfVector, roughness);
-    float geometry = GeometrySmith(normal, viewDirection, lightDirection, roughness);
-    float3 specularBrdf = distribution * geometry * fresnel / max(4.0f * ndotv * max(ndotl, 1e-4f), 1e-4f);
-    float3 diffuseWeight = (1.0f - fresnel) * (1.0f - metallic);
-    float3 diffuseBrdf = diffuseWeight * baseColor.rgb / CdmwPi;
-    float3 diffuse = diffuseBrdf * LightColor * ndotl;
-    float metalInspectionSpecularScale = lerp(1.0f, 0.35f, metallic);
-    float3 spec = specularBrdf * LightColor * ndotl * metalInspectionSpecularScale;
+    float3 spec = float3(0.0f, 0.0f, 0.0f);
+    if (categoryMetal)
+    {
+        float metalSmoothness = saturate(1.0f - roughness);
+        float metalCameraShape = saturate(abs(dot(normal, viewDirection)));
+        float metalRimShape = pow(
+            saturate(1.0f - metalCameraShape),
+            lerp(2.4f, 1.2f, metalSmoothness));
+        float metalNdotH = saturate(dot(normal, halfVector));
+        float metalSpecularPower = lerp(
+            28.0f,
+            max(PresentationMaterialTuning.z, 28.0f),
+            metalSmoothness);
+        float metalDirectLobe = pow(metalNdotH, metalSpecularPower)
+            * saturate(ndotl * 1.25f);
+        float broadMetalLobe = pow(
+            metalNdotH,
+            lerp(7.0f, 22.0f, metalSmoothness))
+            * saturate(ndotl * 0.85f + metalRimShape * 0.45f);
+        float3 sourceStableMetalFresnel = SourceStableFresnel(
+            metalCameraShape,
+            specularColor,
+            metallic);
+        float metalDirectSpecularScale = 0.45f + metallic * 0.30f;
+        spec = sourceStableMetalFresnel
+            * (metalDirectLobe + broadMetalLobe * 1.05f)
+            * saturate(PresentationMaterialTuning.y)
+            * metalDirectSpecularScale;
+    }
+    else
+    {
+        float nonmetalSmoothness = saturate(1.0f - roughness);
+        float nonmetalCameraShape = saturate(abs(dot(normal, viewDirection)));
+        float nonmetalNdotH = saturate(dot(normal, halfVector));
+        float nonmetalSpecularPower = lerp(
+            28.0f,
+            max(PresentationMaterialTuning.z, 28.0f),
+            nonmetalSmoothness);
+        float nonmetalDirectLobe = pow(nonmetalNdotH, nonmetalSpecularPower)
+            * saturate(ndotl * 1.25f);
+        float nonmetalDirectSpecularScale = glossyNonmetal
+            ? 0.18f
+            : (conservativeNonmetal ? 0.025f : 0.08f);
+        spec = SourceStableFresnel(
+            nonmetalCameraShape,
+            resolvedSurfaceF0,
+            metallic)
+            * nonmetalDirectLobe
+            * saturate(PresentationMaterialTuning.y)
+            * nonmetalDirectSpecularScale;
+    }
     float3 emissive = float3(0.0f, 0.0f, 0.0f);
+    float emissiveIntensity = saturate(
+        (MaterialEmissiveOverrideFlags.y > 0.5f
+            ? MaterialEmissiveOverride.w
+            : (MaterialHasEmissive > 0.5f ? 4.0f : 0.0f))
+        / 12.0f);
+    float3 emissiveColor = MaterialEmissiveOverrideFlags.x > 0.5f
+        ? clamp(
+            MaterialEmissiveOverride.rgb,
+            float3(0.0f, 0.0f, 0.0f),
+            float3(2.0f, 2.0f, 2.0f))
+        : float3(0.35f, 0.68f, 1.0f);
     if (MaterialHasEmissive > 0.5f)
     {
         float4 emissiveSample = EmissiveTexture.Sample(MaterialSampler, uv);
-        emissive = MaterialEmissiveOverrideFlags.z > 0.5f
-            ? emissiveSample.rrr
-            : emissiveSample.rgb;
-        if (MaterialEmissiveOverrideFlags.x > 0.5f)
+        if (MaterialEmissiveOverrideFlags.z > 0.5f)
         {
-            emissive *= MaterialEmissiveOverride.rgb;
+            // Scalar emissive textures are masks and need either the explicit
+            // source color or the preview fallback color.
+            emissive = emissiveColor
+                * saturate(emissiveSample.r)
+                * emissiveIntensity;
         }
-        emissive *= MaterialEmissiveOverrideFlags.y > 0.5f ? MaterialEmissiveOverride.w : 1.0f;
+        else
+        {
+            if (MaterialEmissiveOverrideFlags.w > 0.5f)
+            {
+                // An authoritative source color is a multiplicative tint.
+                emissive = saturate(emissiveSample.rgb)
+                    * emissiveColor
+                    * emissiveIntensity;
+            }
+            else
+            {
+                // When the source graph exposes no authoritative tint, retain
+                // the Archive renderer's deliberate blue fallback heuristic.
+                float emissiveMask = max(
+                    emissiveSample.r,
+                    max(emissiveSample.g, emissiveSample.b));
+                emissive = max(emissiveColor, emissiveSample.rgb)
+                    * saturate(emissiveMask)
+                    * emissiveIntensity;
+            }
+        }
     }
-    else if (MaterialEmissiveOverrideFlags.x > 0.5f && MaterialEmissiveOverrideFlags.y > 0.5f)
+    else if (MaterialEmissiveOverrideFlags.y > 0.5f)
     {
-        emissive = MaterialEmissiveOverride.rgb * MaterialEmissiveOverride.w;
+        emissive = emissiveColor * emissiveIntensity;
     }
-    emissive *= max(PresentationSurfaceTuning.z, 0.0f);
+    emissive *= max(PresentationSurfaceTuning.z, 0.0f) * 0.85f;
     if (MaterialDebugMode > 0.5f && MaterialDebugMode < 1.5f)
     {
         return baseColor;
@@ -511,43 +881,89 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float ambientOcclusionSample = MaterialAdditionalMaps.y > 0.5f
         ? OcclusionTexture.Sample(MaterialSampler, uv)[(int)MaterialAdditionalMaps.w]
         : 1.0f;
-    float ambientOcclusion = lerp(1.0f, ambientOcclusionSample, saturate(PresentationLightingTuning.x));
+    float aoWeight = saturate(PresentationLightingTuning.x)
+        * (categoryMetal ? 1.0f : (glossyNonmetal ? 0.82f
+            : (categorySkin ? 0.58f : (conservativeNonmetal ? 0.62f : 0.78f))));
+    float ambientOcclusion = lerp(1.0f, ambientOcclusionSample, aoWeight);
     float3 reflectedView = SafeNormalize(
         reflect(-viewDirection, normal),
         float3(0.0f, 0.0f, -1.0f));
     float environmentIntensity = PreviewEnvironmentIntensity(reflectedView, roughness);
     float smoothness = saturate(1.0f - roughness);
-    float environmentMaterialScale = lerp(
-        0.08f,
-        0.55f + metallic * lerp(0.45f, 1.10f, smoothness),
-        metallic);
-    float3 environmentFresnel = SourceStableFresnel(ndotv, specularColor, metallic);
+    float authorityGlossCue = (explicitMaterialAuthorityHint && !conservativeNonmetal)
+        ? saturate(
+            (hasMaterialRoughnessHint ? (1.0f - materialRoughnessHint) * 0.55f : 0.0f)
+            + (hasMaterialSpecularHint ? materialSpecularHint * 0.75f : 0.0f)
+            + (hasMaterialMetalnessHint ? materialMetalnessHint * 0.35f : 0.0f))
+        : 0.0f;
+    float environmentMaterialScale = categoryMetal
+        ? 0.55f + metallic * lerp(0.45f, 1.10f, smoothness)
+        : (glossyNonmetal ? 0.18f : (conservativeNonmetal ? 0.018f : 0.08f));
+    environmentMaterialScale = max(environmentMaterialScale, authorityGlossCue * 0.32f);
+    float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0, metallic);
     float3 environmentSpecular = environmentIntensity
         * environmentFresnel
         * max(PresentationToneTuning.w, 0.0f)
-        * environmentMaterialScale
-        * ambientOcclusion;
+        * categoryEnvironmentScale
+        * environmentMaterialScale;
+    if (categoryMetal)
+    {
+        float metalCameraShape = saturate(abs(dot(normal, viewDirection)));
+        float metalEnvironmentScale = 0.55f
+            + metallic * lerp(0.45f, 1.10f, smoothness);
+        environmentSpecular = environmentIntensity
+            * SourceStableFresnel(metalCameraShape, sourceStableF0, metallic)
+            * max(PresentationToneTuning.w, 0.0f)
+            * categoryEnvironmentScale
+            * metalEnvironmentScale;
+    }
     if (MaterialDebugMode > 5.5f && MaterialDebugMode < 6.5f)
     {
         return float4(saturate(spec + environmentSpecular), 1.0f);
     }
-    float3 ambient = baseColor.rgb * AmbientColor * (1.0f - metallic) * ambientOcclusion;
-    float3 metallicSourceAnchor = baseColor.rgb
+    float3 keyDirection = SafeNormalize(LightDirection, float3(-0.18f, 0.35f, -0.92f));
+    float3 fillDirection = SafeNormalize(
+        float3(-keyDirection.x * 0.55f, 0.55f, -0.80f),
+        float3(0.35f, 0.45f, -0.82f));
+    float keyLight = WrappedNdotL(normal, keyDirection, PresentationLightingTuning.y);
+    float fillLight = WrappedNdotL(normal, fillDirection, 0.82f);
+    float cameraShape = saturate(abs(dot(normal, viewDirection)));
+    float rimShape = pow(saturate(1.0f - cameraShape), lerp(2.4f, 1.2f, smoothness));
+    float ambientFloor = categoryMetal ? 0.24f : (categorySkin ? 0.60f : (conservativeNonmetal ? 0.58f : 0.52f));
+    float diffuseDepth = saturate(
+        ambientFloor * PresentationLightingTuning.w
+        + PresentationLightingTuning.z * (keyLight * 0.58f + fillLight * 0.30f + rimShape * 0.12f));
+    float depthAuthority = categoryMetal
+        ? 1.0f
+        : (glossyNonmetal ? 0.72f
+            : (categorySkin ? 0.40f
+                : (categoryHair ? 0.38f
+                    : (categoryCloth ? 0.46f
+                        : (categoryLeather ? 0.52f : 0.50f)))));
+    diffuseDepth = lerp(1.0f, diffuseDepth, depthAuthority);
+    float nonmetalTextureScale = conservativeNonmetal ? 1.03f : 1.0f;
+    float metalDiffuseScale = lerp(1.0f, 0.34f, saturate(metallic));
+    float3 litDiffuse = materialReferenceAlbedo
+        * ambientOcclusion
+        * nonmetalTextureScale
+        * diffuseDepth
+        * metalDiffuseScale;
+    float metalCue = categoryMetal
+        ? saturate(metallic * lerp(0.18f, 0.58f, smoothness))
+        : 0.0f;
+    float resolvedSpecular = max(specularColor.r, max(specularColor.g, specularColor.b));
+    float glossyCue = glossyNonmetal
+        ? saturate(resolvedSpecular * lerp(0.06f, 0.20f, smoothness))
+        : 0.0f;
+    litDiffuse += materialReferenceAlbedo * metalCue * 0.16f;
+    litDiffuse += materialReferenceAlbedo * glossyCue * 0.22f;
+    litDiffuse += materialReferenceAlbedo
+        * authorityGlossCue
+        * (0.035f + rimShape * 0.16f);
+    float3 metallicSourceAnchor = materialReferenceAlbedo
         * metallic
         * (0.14f + roughness * 0.06f + (1.0f - ndotv) * 0.30f)
         * ambientOcclusion;
-    float3 litDiffuse = ambient + diffuse;
-    if (MaterialFamilyPolicy.w > 0.0f)
-    {
-        // The native reference shader keeps classified nonmetal hue stable and
-        // lets lighting describe depth. Collapse colored studio light to a
-        // scalar, then blend its depth with the source albedo using the same
-        // skin/cloth/hair authority values supplied by the host.
-        float sourceLuma = max(dot(baseColor.rgb, float3(0.2126f, 0.7152f, 0.0722f)), 1e-4f);
-        float familyLitDepth = saturate(dot(litDiffuse, float3(0.2126f, 0.7152f, 0.0722f)) / sourceLuma);
-        float stableDepth = lerp(1.0f, familyLitDepth, saturate(MaterialFamilyPolicy.w));
-        litDiffuse = baseColor.rgb * ambientOcclusion * stableDepth;
-    }
     float3 finalColor = PresentationSurfaceTuning.w > 0.5f
         ? baseColor.rgb + emissive
         : litDiffuse + metallicSourceAnchor + spec + environmentSpecular + emissive;

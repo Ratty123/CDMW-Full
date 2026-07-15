@@ -192,6 +192,154 @@ def test_dotnet_material_tone_mapping_matches_native_reference_operator() -> Non
     assert "float contrastedLuma = (currentLuma - 0.5f)" in shader
 
 
+def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> None:
+    shader = _source("D3D11MaterialShaders.hlsl")
+    viewport = _source("D3D11MaterialViewport.PresentationSettings.cs")
+
+    assert '"standard" or "standard_v2" => 4.0f' in viewport
+    assert '"emissive" or "emissive_v2" => 6.0f' in viewport
+    assert "materialFamilyCode);" in viewport
+    assert "float materialCategoryCode = MaterialBaseTintPolicy.y;" in shader
+    assert "float categoryMetalCap = categoryMetal" in shader
+    assert "float categorySpecularCap = categoryMetal" in shader
+    assert "float categoryRoughnessFloor = categoryMetal" in shader
+    assert "float categoryEnvironmentScale = categoryMetal" in shader
+    assert "parameters.RoughnessHint ?? 0.0f" in viewport
+    assert "parameters.MetalnessHint ?? 0.0f" in viewport
+    assert "parameters.SpecularHint ?? 0.0f" in viewport
+    packed_hints = viewport[
+        viewport.index("var materialRoughnessHint =") : viewport.index("var azimuth =")
+    ]
+    assert "RoughnessScale" not in packed_hints
+    assert "MetalnessScale" not in packed_hints
+    assert "float materialRoughnessHint = saturate(MaterialBasePost.y);" in shader
+    assert "saturate(materialMetalnessHint * max(PresentationSurfaceTuning.y, 0.0f))" in shader
+    assert "MaterialHintPresenceMask(NetMaterialParameters parameters)" in viewport
+    assert "parameters.RoughnessHint.HasValue ? 1.0f : 0.0f" in viewport
+    assert "parameters.MetalnessHint.HasValue ? 2.0f : 0.0f" in viewport
+    assert "parameters.SpecularHint.HasValue ? 4.0f : 0.0f" in viewport
+    assert "uint materialHintPresence = (uint)round(MaterialChannelSelectors.w);" in shader
+    assert "bool hasMaterialRoughnessHint = (materialHintPresence & 1u) != 0u;" in shader
+    assert "bool hasMaterialMetalnessHint = (materialHintPresence & 2u) != 0u;" in shader
+    assert "bool hasMaterialSpecularHint = (materialHintPresence & 4u) != 0u;" in shader
+    assert "bool explicitMaterialAuthorityHint = hasMaterialRoughnessHint" in shader
+    authority_contract = shader[
+        shader.index("bool explicitMaterialAuthorityHint =") :
+        shader.index("if (explicitMaterialAuthorityHint && !conservativeNonmetal)")
+    ]
+    assert "MaterialSurfaceOverrideFlags.w > 0.5f" in authority_contract
+    assert "MaterialSurfaceOverrides.w > 0.02f" in authority_contract
+    assert "MaterialHeightScale" not in authority_contract
+    assert "float glossHint = saturate(" in shader
+    assert "lerp(roughness, materialRoughnessHint, 0.55f)" in shader
+    assert "roughness = saturate(roughness + familyRoughnessBias);" in shader
+    assert "metallic = saturate(metallic * familyMetalScale);" in shader
+    assert "specularColor *= familySpecularScale;" in shader
+    for expected_family_operator in (
+        "familyMetalScale = 1.15f;",
+        "familySpecularScale = 1.35f;",
+        "familyRoughnessBias = -0.04f;",
+        "familyMetalScale = 1.05f;",
+        "familyMetalScale = 0.55f;",
+    ):
+        assert expected_family_operator in shader
+    assert "float mattePreview = saturate((materialRoughnessHint - 0.62f) * 2.63f);" in shader
+    assert "float authorityGlossCue = (explicitMaterialAuthorityHint && !conservativeNonmetal)" in shader
+    assert "environmentMaterialScale = max(environmentMaterialScale, authorityGlossCue * 0.32f);" in shader
+    assert "float3 sourceStableF0 = lerp(" in shader
+    assert "float3 resolvedSurfaceF0 = sourceStableF0;" in shader
+    assert "float3 resolvedSurfaceF0 = categoryMetal" not in shader
+    assert "SourceStableFresnel(ndotv, resolvedSurfaceF0, metallic)" in shader
+    assert "float glossyCue = glossyNonmetal" in shader
+    assert "litDiffuse += materialReferenceAlbedo * glossyCue * 0.22f;" in shader
+    for expected_scale in (
+        "categoryGlass ? 0.26f",
+        "categoryGem ? 0.30f",
+        "categoryEye ? 0.24f",
+        "categoryLeather ? 0.06f",
+        "categoryWood ? 0.06f",
+        "categoryCloth ? 0.025f",
+        "categorySkin ? 0.075f",
+        "categoryHair ? 0.08f",
+        "categoryStone ? 0.04f",
+        "categoryTooth ? 0.08f",
+    ):
+        assert expected_scale in shader
+    assert "roughness = max(roughness, categoryRoughnessFloor);" in shader
+    assert "metallic = min(metallic, categoryMetalCap);" in shader
+    assert "categoryRoughnessFloor = min(categoryRoughnessFloor, 0.08f);" in shader
+    assert "|| (hasMaterialMetalnessHint && materialMetalnessHint > 0.16f)" in shader
+    assert "specularColor = min(specularColor, categorySpecularCap.xxx);" in shader
+    assert "float3 materialReferenceAlbedo = saturate(" in shader
+    assert "float3 heightNormal = normalize(" in shader
+    assert "float reliefEdge = saturate(" in shader
+    assert "float heightRelief = (heightValue - 0.5f)" in shader
+    assert "saturate(MaterialHeightScale * 10.0f)" in shader
+    assert "uv += viewDirection.xy * height * MaterialHeightScale;" not in shader
+    assert "float3 metalTintBias = clamp(" in shader
+    assert "materialReferenceAlbedo * metalTintBias" in shader
+    assert "float ambientFloor = categoryMetal ? 0.24f" in shader
+    assert "float diffuseDepth = saturate(" in shader
+    assert "float depthAuthority = categoryMetal" in shader
+    assert "glossyNonmetal ? 0.72f" in shader
+    assert "categoryLeather ? 0.52f" in shader
+    assert "MaterialFamilyPolicy.w > 0.0f ? MaterialFamilyPolicy.w" not in shader
+    assert "float nonmetalTextureScale = conservativeNonmetal ? 1.03f : 1.0f;" in shader
+    assert "float3 litDiffuse = materialReferenceAlbedo" in shader
+    assert "float metalDirectLobe = pow(metalNdotH, metalSpecularPower)" in shader
+    assert "float broadMetalLobe = pow(" in shader
+    assert "float metalDirectSpecularScale = 0.45f + metallic * 0.30f;" in shader
+    assert "float nonmetalDirectSpecularScale = glossyNonmetal" in shader
+    assert "conservativeNonmetal ? 0.025f : 0.08f" in shader
+    assert "float3 sourceStableF0 = lerp(" in shader
+    assert "float environmentMaterialScale = categoryMetal" in shader
+    assert "glossyNonmetal ? 0.18f" in shader
+    assert "conservativeNonmetal ? 0.018f" in shader
+    assert "* categoryEnvironmentScale" in shader
+    assert "float metalCue = categoryMetal" in shader
+    assert "if (categoryMetal)" in shader
+    assert "float3(0.035f, 0.035f, 0.035f)" in shader
+    assert "materialReferenceAlbedo," in shader
+    assert "float3 spec = float3(0.0f, 0.0f, 0.0f);" in shader
+    assert "float3 fresnel = SourceStableFresnel(" not in shader
+    assert "float3 ambient = baseColor.rgb * AmbientColor" not in shader
+
+
+def test_dotnet_material_category_authority_reaches_native_response_fallback() -> None:
+    shader = _source("D3D11MaterialShaders.hlsl")
+    viewport = _source("D3D11MaterialViewport.PresentationSettings.cs")
+    material_set = _source("NetMaterialSet.cs")
+    resident_material_set = _source("NetMaterialSet.Resident.cs")
+
+    for field in (
+        '"material_category"',
+        '"material_category_confidence"',
+        '"material_category_reason"',
+        '"material_response_promoted"',
+    ):
+        assert field in material_set
+        assert field in resident_material_set
+    assert "MaterialCategoryCodeForSubmesh" in viewport
+    assert "MaterialCategoryConfidenceForSubmesh" in viewport
+    assert "MaterialResponsePromotedForSubmesh" in viewport
+    assert "parameters.BaseTintMetallic == true" in viewport
+    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f" in shader
+    assert "MaterialBaseTintPolicy.y < 1.5f" in shader
+    assert "float categoryMetalFallback = categoryMetal" in shader
+    assert "metallic = max(metallic, categoryMetalFallback);" in shader
+    assert "|| MaterialHasMetallic > 0.5f" in shader
+    assert "MaterialBaseTintPolicy.w > 0.5f" in shader
+    source_fresnel = shader.index("float3 sourceStableF0 = lerp(")
+    sampled_specular = shader.index("SpecularTexture.Sample(MaterialSampler, uv).rgb")
+    metal_fresnel_use = shader.index("float3 sourceStableMetalFresnel = SourceStableFresnel(")
+    environment_fresnel_use = shader.index(
+        "float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0, metallic);"
+    )
+    assert sampled_specular < source_fresnel < metal_fresnel_use < environment_fresnel_use
+    assert "SourceStableFresnel(\n            nonmetalCameraShape,\n            resolvedSurfaceF0," in shader
+    assert "float3 resolvedSurfaceF0 = sourceStableF0;" in shader
+
+
 def test_untextured_faces_use_angle_safe_two_sided_workbench_lighting() -> None:
     shader = _source("D3D11MaterialShaders.hlsl")
     constants = _source("D3D11MaterialViewport.Constants.cs")

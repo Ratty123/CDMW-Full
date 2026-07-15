@@ -168,8 +168,13 @@ bool Renderer::handle_material_commands(const std::string& command, const std::s
             const bool has_roughness = json_has_field(payload, "roughness");
             const bool has_metalness = json_has_field(payload, "metalness");
             const bool has_specular = json_has_field(payload, "specular");
+            const bool has_roughness_hint_present = json_has_field(payload, "roughness_hint_present");
+            const bool has_metalness_hint_present = json_has_field(payload, "metalness_hint_present");
+            const bool has_specular_hint_present = json_has_field(payload, "specular_hint_present");
             const bool has_height_scale = json_has_field(payload, "height_scale");
             const bool has_emissive_intensity = json_has_field(payload, "emissive_intensity");
+            const bool has_emissive_color_authoritative = json_has_field(payload, "emissive_color_authoritative");
+            const bool has_emissive_scalar_mask = json_has_field(payload, "emissive_scalar_mask");
             const bool has_contrast = json_has_field(payload, "contrast");
             const bool has_saturation = json_has_field(payload, "saturation");
             const bool has_gamma = json_has_field(payload, "gamma");
@@ -181,9 +186,21 @@ bool Renderer::handle_material_commands(const std::string& command, const std::s
                 if (!requested_role.empty() && requested_role != "all" && role != requested_role) continue;
                 if (scoped_sources && requested_sources.find(batch.source_submesh_index) == requested_sources.end()) continue;
                 if (has_brightness) batch.texture_brightness = std::clamp(json_float_field(payload, "texture_brightness", batch.texture_brightness), 0.1f, 3.0f);
-                if (has_roughness) batch.roughness_hint = std::clamp(json_float_field(payload, "roughness", batch.roughness_hint), 0.0f, 1.0f);
-                if (has_metalness) batch.metalness_hint = std::clamp(json_float_field(payload, "metalness", batch.metalness_hint), 0.0f, 1.0f);
-                if (has_specular) batch.specular_hint = std::clamp(json_float_field(payload, "specular", batch.specular_hint), 0.0f, 1.0f);
+                if (has_roughness) {
+                    batch.roughness_hint = std::clamp(json_float_field(payload, "roughness", batch.roughness_hint), 0.0f, 1.0f);
+                    batch.roughness_hint_present = true;
+                }
+                if (has_metalness) {
+                    batch.metalness_hint = std::clamp(json_float_field(payload, "metalness", batch.metalness_hint), 0.0f, 1.0f);
+                    batch.metalness_hint_present = true;
+                }
+                if (has_specular) {
+                    batch.specular_hint = std::clamp(json_float_field(payload, "specular", batch.specular_hint), 0.0f, 1.0f);
+                    batch.specular_hint_present = true;
+                }
+                if (has_roughness_hint_present) batch.roughness_hint_present = json_bool_field(payload, "roughness_hint_present", batch.roughness_hint_present);
+                if (has_metalness_hint_present) batch.metalness_hint_present = json_bool_field(payload, "metalness_hint_present", batch.metalness_hint_present);
+                if (has_specular_hint_present) batch.specular_hint_present = json_bool_field(payload, "specular_hint_present", batch.specular_hint_present);
                 if (has_height_scale) batch.height_scale_hint = std::clamp(json_float_field(payload, "height_scale", batch.height_scale_hint), 0.0f, 1.0f);
                 if (has_emissive_intensity) batch.emissive_intensity = std::clamp(json_float_field(payload, "emissive_intensity", batch.emissive_intensity), 0.0f, 32.0f);
                 if (has_contrast) batch.texture_contrast = std::clamp(json_float_field(payload, "contrast", batch.texture_contrast), 0.25f, 2.5f);
@@ -194,6 +211,8 @@ bool Renderer::handle_material_commands(const std::string& command, const std::s
                     batch.emissive_color[1] = std::clamp(emissive_color[1], 0.0f, 2.0f);
                     batch.emissive_color[2] = std::clamp(emissive_color[2], 0.0f, 2.0f);
                 }
+                if (has_emissive_color_authoritative) batch.emissive_color_authoritative = json_bool_field(payload, "emissive_color_authoritative", batch.emissive_color_authoritative);
+                if (has_emissive_scalar_mask) batch.emissive_scalar_mask = json_bool_field(payload, "emissive_scalar_mask", batch.emissive_scalar_mask);
                 if (tint_color.size() >= 3) {
                     batch.texture_tint[0] = std::clamp(tint_color[0], 0.0f, 4.0f);
                     batch.texture_tint[1] = std::clamp(tint_color[1], 0.0f, 4.0f);

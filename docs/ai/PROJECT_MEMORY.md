@@ -117,9 +117,11 @@ Last updated: 2026-07-15
   process/device/viewport resident for an ordered PAC corpus, captures six fixed
   angles, rejects culling/depth/tint/tone presentation drift, requires direct
   per-asset verdicts, and proves source archives unchanged with before/after
-  fingerprints. Open card geometry and standalone neck/cuff/body boundaries
-  that match Archive are not by themselves x-ray regressions. It is CDMW
-  renderer-consistency evidence, never licensed-game parity proof.
+  fingerprints. Hidden automation creates the HWND without calling `Show`, proves both
+  host and viewport remain invisible, and records that proof in the capture report.
+  Open card geometry and standalone neck/cuff/body boundaries that match Archive are not by themselves x-ray regressions.
+  Preserve per-hint presence and RGB-versus-scalar emissive authority across package, live UI,
+  native protocol, and .NET shader boundaries. It is CDMW renderer-consistency evidence, never licensed-game parity proof.
   Prepared audit packages recursively own and rewrite every nested
   `source_path` the native role scan can select, even when a descriptor is not
   a direct-upload candidate, so cache eviction cannot invalidate later capture.

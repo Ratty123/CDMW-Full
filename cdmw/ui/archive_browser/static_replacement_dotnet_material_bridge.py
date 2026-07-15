@@ -45,6 +45,8 @@ _PARAMETER_KEYS = (
     "height_scale",
     "emissive_intensity",
     "emissive_color",
+    "emissive_color_authoritative",
+    "emissive_scalar_mask",
     "material_role",
     "visible",
 )
@@ -226,8 +228,13 @@ def source_role_material_parameter_values(
     values = {key: evaluated[key] for key in ("emissive_intensity", "emissive_color") if key in evaluated}
     values["material_role"] = role or ("emissive" if emissive_enabled else None)
     values["emissive_color"] = tuple(values["emissive_color"]) if "emissive_color" in values else None
+    values["emissive_color_authoritative"] = values["emissive_color"] is not None
     if not emissive_enabled or (hasattr(profile, "emissive_mode") and not profile_source_emissive_enabled(profile)):
-        values.update(emissive_intensity=None, emissive_color=None)
+        values.update(
+            emissive_intensity=None,
+            emissive_color=None,
+            emissive_color_authoritative=None,
+        )
     else:
         values.setdefault("emissive_color", None)
     return resident_material_parameter_group(

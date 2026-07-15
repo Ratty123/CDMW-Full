@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Windows.Forms;
 
@@ -143,7 +144,8 @@ internal static class VisualAuditBatch
                 var yaw = JsonFloat(view, "yaw", 0.0f);
                 var pitch = JsonFloat(view, "pitch", 0.0f);
                 var rendererYaw = 180.0f - yaw;
-                session.SetCamera(document, rendererYaw, pitch);
+                var rendererPitch = -pitch;
+                session.SetCamera(document, rendererYaw, rendererPitch);
                 Application.DoEvents();
                 var capturePath = Path.Combine(assetOutput, name + ".png");
                 File.Delete(capturePath);
@@ -153,19 +155,31 @@ internal static class VisualAuditBatch
                     width,
                     height,
                     out var sha256,
-                    out var captureError);
+                    out var captureError,
+                    out var renderedCamera);
                 captures.Add(new Dictionary<string, object?>
                 {
                     ["name"] = name,
                     ["yaw"] = yaw,
                     ["pitch"] = pitch,
                     ["renderer_yaw"] = rendererYaw,
-                    ["camera_mapping"] = "archive_to_dotnet_180_minus_yaw",
+                    ["renderer_pitch"] = rendererPitch,
+                    ["camera_mapping"] = "archive_to_dotnet_180_minus_yaw_negate_pitch",
                     ["ok"] = captured,
                     ["path"] = capturePath,
                     ["bytes"] = captured ? new FileInfo(capturePath).Length : 0L,
                     ["sha256"] = sha256,
                     ["capture_ms"] = phase.Elapsed.TotalMilliseconds,
+                    ["rendered_camera"] = new Dictionary<string, object?>
+                    {
+                        ["role"] = renderedCamera.Role,
+                        ["yaw_degrees"] = renderedCamera.YawDegrees,
+                        ["pitch_degrees"] = renderedCamera.PitchDegrees,
+                        ["viewport_width"] = renderedCamera.ViewportWidth,
+                        ["viewport_height"] = renderedCamera.ViewportHeight,
+                        ["world_view_projection"] = renderedCamera.WorldViewProjection,
+                        ["solid_draw_count"] = renderedCamera.SolidDrawCount,
+                    },
                     ["error"] = captureError,
                 });
                 if (!captured)
@@ -239,7 +253,10 @@ internal static class VisualAuditBatch
                 _form.Controls.Add(viewport);
                 try
                 {
-                    _form.Show();
+                    _form.CreateControl();
+                    _ = _form.Handle;
+                    viewport.CreateControl();
+                    _ = viewport.Handle;
                     Application.DoEvents();
                     if (!viewport.IsInitialized && !viewport.TryInitialize(out var error))
                     {
@@ -300,16 +317,40 @@ internal static class VisualAuditBatch
             int width,
             int height,
             out string sha256,
-            out string error) =>
-            RequireViewport().TryCaptureReplacementPng(outputPath, width, height, out sha256, out error);
+            out string error,
+            out D3D11RenderedCameraEvidence renderedCamera) =>
+            RequireViewport().TryCaptureReplacementPng(
+                outputPath,
+                width,
+                height,
+                out sha256,
+                out error,
+                out renderedCamera);
 
         public Dictionary<string, object?> StatusPayload()
         {
             var viewport = RequireViewport();
+            var nativeWindowsRemainedHidden = _form.IsHandleCreated
+                && viewport.IsHandleCreated
+                && !_form.Visible
+                && !viewport.Visible
+                && !IsWindowVisible(_form.Handle)
+                && !IsWindowVisible(viewport.Handle)
+                && !_form.ShowInTaskbar;
             return new Dictionary<string, object?>
             {
                 ["backend"] = viewport.BackendName,
                 ["initialized"] = viewport.IsInitialized,
+                ["capture_mode"] = "hidden_hwnd_no_show",
+                ["native_windows_remained_hidden"] = nativeWindowsRemainedHidden,
+                ["host_hwnd_created"] = _form.IsHandleCreated,
+                ["viewport_hwnd_created"] = viewport.IsHandleCreated,
+                ["host_visible"] = _form.Visible,
+                ["viewport_visible"] = viewport.Visible,
+                ["host_is_window_visible"] = _form.IsHandleCreated && IsWindowVisible(_form.Handle),
+                ["viewport_is_window_visible"] = viewport.IsHandleCreated && IsWindowVisible(viewport.Handle),
+                ["show_called"] = false,
+                ["show_in_taskbar"] = _form.ShowInTaskbar,
                 ["resident_scene_load_count"] = viewport.ResidentSceneLoadCount,
                 ["viewport_create_count"] = _viewportCreateCount,
                 ["device_initialization_count"] = _deviceInitializationCount,
@@ -334,6 +375,10 @@ internal static class VisualAuditBatch
             _activeTextures?.Dispose();
             _activeTextures = null;
         }
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool IsWindowVisible(IntPtr hWnd);
     }
 
     private static IEnumerable<JsonElement> AssetViews(JsonElement asset)

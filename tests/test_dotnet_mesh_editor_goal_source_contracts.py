@@ -14,7 +14,8 @@ def test_dotnet_material_channels_and_embedded_panel_source_contracts() -> None:
     assert "MaterialBaseTint.w > 0.5f" in hlsl_source
     assert "MaterialTint.w > 0.5f ? float4(1.0f, 1.0f, 1.0f, 1.0f)" in hlsl_source
     assert "float tintLuma = max(dot(previewTint" in hlsl_source
-    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f;" in hlsl_source
+    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f" in hlsl_source
+    assert "MaterialBaseTintPolicy.y < 1.5f" in hlsl_source
     assert "roughnessSample[(int)MaterialChannelSelectors.x]" in hlsl_source
     assert "metallicSample[(int)MaterialChannelSelectors.y]" in hlsl_source
     assert "ChannelComponentIndexForSubmesh" in source
@@ -44,7 +45,9 @@ def test_builder_presentation_fields_are_consumed_by_the_vortice_renderer() -> N
     assert "PresentationLightingTuning" in hlsl_source
     assert "PresentationMaterialTuning" in hlsl_source
     assert "NormalTexture.Sample(MaterialSampler, uv)" in hlsl_source
-    assert "finalColor *= max(PresentationToneTuning.x, 0.05f)" in hlsl_source
+    assert "float3 exposedColor = max(" in hlsl_source
+    assert "finalColor * max(PresentationToneTuning.x, 0.05f)" in hlsl_source
+    assert "finalColor = exposedColor * (mappedLuma / max(exposedLuma, 1e-5f));" in hlsl_source
     assert "PreviewEnvironmentIntensity" in hlsl_source
     assert "SourceStableFresnel" in hlsl_source
     assert "environmentSpecular" in hlsl_source
@@ -52,5 +55,5 @@ def test_builder_presentation_fields_are_consumed_by_the_vortice_renderer() -> N
     assert "MaterialAlphaPolicy.z > 0.5f && !isFrontFace" in hlsl_source
     assert "materialAlpha *= saturate(MaterialAlphaPolicy.w)" in hlsl_source
     assert "OpacityFactorForSubmesh" in source
-    assert "const float linearMiddleGray = 0.18f" in hlsl_source
-    assert "contrastedLuma = max(contrastedLuma, finalLuma * 0.55f)" in hlsl_source
+    assert "float mappedLuma = AcesToneMap(exposedLuma.xxx).r;" in hlsl_source
+    assert "contrastedLuma = max(contrastedLuma, currentLuma * 0.55f)" in hlsl_source

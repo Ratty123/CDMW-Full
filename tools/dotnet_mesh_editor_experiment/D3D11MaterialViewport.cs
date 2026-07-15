@@ -23,6 +23,7 @@ internal sealed partial class D3D11MaterialViewport : Control
     private NetSceneState _scene;
     private readonly List<D3D11SubmeshBatch> _batches = new();
     private readonly Dictionary<string, D3D11TextureSrvCacheEntry> _textureSrvCache = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<int, Vector4> _lastDrawnMaterialAuthority = new();
     private ID3D11Device? _device;
     private ID3D11DeviceContext? _context;
     private IDXGISwapChain1? _swapChain;
@@ -123,6 +124,11 @@ internal sealed partial class D3D11MaterialViewport : Control
         StringComparison.OrdinalIgnoreCase) ? 0u : 1u;
     public uint MaximumFrameLatency => _maximumFrameLatency;
     public string PresentationModel => _swapChain is null ? "unavailable" : "flip_discard";
+
+    internal bool TryGetLastDrawnMaterialAuthority(int materialSubmeshIndex, out Vector4 authority)
+    {
+        return _lastDrawnMaterialAuthority.TryGetValue(materialSubmeshIndex, out authority);
+    }
 
     public void UpdateOverlay(
         NetEdgeTopology topology,
@@ -461,6 +467,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         {
             throw new InvalidOperationException("Forced DXGI device lost during Present for D3D11 recovery testing.");
         }
+        _lastDrawnMaterialAuthority.Clear();
         BeginOverlayFrame();
         // The render target is sRGB. Supply the workbench background in linear
         // space so enabling correct material output does not brighten the UI.
@@ -591,6 +598,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _context.IASetVertexBuffer(0u, batch.VertexBuffer, D3D11SubmeshBatch.VertexStride);
         _context.IASetIndexBuffer(batch.IndexBuffer, Format.R32_UInt, 0);
         _context.DrawIndexed((uint)batch.IndexCount, 0, 0);
+        _lastDrawnMaterialAuthority[batch.MaterialSubmeshIndex] = constants.MaterialBaseTintPolicy;
         if (TexturesEnabled)
         {
             _texturedSolidBatchDrawCount++;

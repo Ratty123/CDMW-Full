@@ -477,8 +477,8 @@ void Renderer::draw_preview_batch(
         constants.material_params = DirectX::XMFLOAT4(
             mesh_edit_flat ? 0.0f : batch.normal_strength,
             mesh_edit_flat ? 0.0f : batch.height_amount,
-            0.0f,
-            0.0f);
+            mesh_edit_flat || !batch.emissive_color_authoritative ? 0.0f : 1.0f,
+            mesh_edit_flat || !batch.emissive_scalar_mask ? 0.0f : 1.0f);
         constants.material_hints = DirectX::XMFLOAT4(
             mesh_edit_flat ? 0.0f : batch.roughness_hint,
             mesh_edit_flat ? 0.0f : batch.metalness_hint,
@@ -544,7 +544,9 @@ void Renderer::draw_preview_batch(
                 std::clamp(batch.texture_uv_scale[0], 0.05f, 64.0f),
                 std::clamp(batch.texture_uv_scale[1], 0.05f, 64.0f),
                 std::clamp(batch.texture_brightness, 0.1f, 3.0f),
-                0.0f);
+                (batch.roughness_hint_present ? 1.0f : 0.0f)
+                    + (batch.metalness_hint_present ? 2.0f : 0.0f)
+                    + (batch.specular_hint_present ? 4.0f : 0.0f));
         constants.material_color_params = mesh_edit_flat
             ? DirectX::XMFLOAT4(1.0f, 1.0f, 1.0f, 0.0f)
             : DirectX::XMFLOAT4(

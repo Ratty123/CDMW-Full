@@ -136,7 +136,21 @@ std::string Renderer::capture_back_buffer_to_png(const fs::path& output) {
             return out.str();
         }
         std::ostringstream out;
-        out << "{\"event\":\"frame_capture\",\"ok\":true,\"path\":\"" << json_escape(cdmw_native_diag::path_to_utf8(output)) << "\"}";
+        out << "{\"event\":\"frame_capture\",\"ok\":true,\"path\":\""
+            << json_escape(cdmw_native_diag::path_to_utf8(output)) << "\"";
+        if (last_rendered_camera_evidence_.valid) {
+            const PreviewRenderedCameraEvidence& evidence = last_rendered_camera_evidence_;
+            out << ",\"rendered_camera\":{"
+                << "\"role\":\"" << preview_view_role_name(evidence.role) << "\""
+                << ",\"yaw_degrees\":" << evidence.camera.yaw
+                << ",\"pitch_degrees\":" << evidence.camera.pitch
+                << ",\"viewport_width\":" << evidence.viewport.Width
+                << ",\"viewport_height\":" << evidence.viewport.Height
+                << ",\"world_view_projection\":" << matrix4x4_json(evidence.world_view_projection)
+                << ",\"solid_draw_count\":" << evidence.solid_draw_count
+                << "}";
+        }
+        out << "}";
         return out.str();
     }
 
@@ -676,6 +690,7 @@ void Renderer::render() {
             if (render_requested_ && hwnd_) InvalidateRect(hwnd_, nullptr, FALSE);
             return;
         }
+        last_rendered_camera_evidence_ = PreviewRenderedCameraEvidence{};
         step_cloth_simulation();
         flush_pending_mesh_edit_vertex_uploads();
         if (!first_frame_started_) {

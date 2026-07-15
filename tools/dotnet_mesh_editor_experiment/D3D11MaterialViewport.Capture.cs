@@ -10,6 +10,15 @@ namespace Cdmw.MeshEditorExperiment;
 
 #pragma warning disable CS8625
 
+internal readonly record struct D3D11RenderedCameraEvidence(
+    string Role,
+    double YawDegrees,
+    double PitchDegrees,
+    int ViewportWidth,
+    int ViewportHeight,
+    double[] WorldViewProjection,
+    long SolidDrawCount);
+
 internal sealed partial class D3D11MaterialViewport
 {
     public bool TryCaptureReplacementPng(
@@ -17,10 +26,26 @@ internal sealed partial class D3D11MaterialViewport
         int requestedWidth,
         int requestedHeight,
         out string sha256,
-        out string error)
+        out string error) =>
+        TryCaptureReplacementPng(
+            outputPath,
+            requestedWidth,
+            requestedHeight,
+            out sha256,
+            out error,
+            out _);
+
+    public bool TryCaptureReplacementPng(
+        string outputPath,
+        int requestedWidth,
+        int requestedHeight,
+        out string sha256,
+        out string error,
+        out D3D11RenderedCameraEvidence renderedCamera)
     {
         sha256 = string.Empty;
         error = string.Empty;
+        renderedCamera = default;
         if (!EnsureDeviceReady() || _device is null || _context is null)
         {
             error = "D3D11 capture requires an initialized production renderer.";
@@ -74,6 +99,8 @@ internal sealed partial class D3D11MaterialViewport
         var previousDepth = _depthStencilView;
         var previousWidth = _renderWidth;
         var previousHeight = _renderHeight;
+        var cameraForCapture = _camera;
+        var solidDrawCountBefore = _texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount;
         var mapped = false;
         try
         {
@@ -126,6 +153,14 @@ internal sealed partial class D3D11MaterialViewport
                 }
             }
             sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fullPath))).ToLowerInvariant();
+            renderedCamera = new D3D11RenderedCameraEvidence(
+                "editable",
+                cameraForCapture.Yaw * 180.0 / Math.PI,
+                cameraForCapture.Pitch * 180.0 / Math.PI,
+                width,
+                height,
+                cameraForCapture.WorldViewProjectionRowMajorArray(),
+                (_texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount) - solidDrawCountBefore);
             return true;
         }
         catch (Exception ex)

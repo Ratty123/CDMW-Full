@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 
@@ -41,6 +42,11 @@ internal static class D3D11TexturedMetalReadabilityProof
                 (bounds.Min.Y + bounds.Max.Y) * 0.5f,
                 (bounds.Min.Z + bounds.Max.Z) * 0.5f);
             var materials = NetMaterialSet.Load(manifestPath);
+            var runtimeMaterialCategoryCode = materials.MaterialCategoryCodeForSubmesh(0);
+            var runtimeMaterialCategoryConfidence = materials.MaterialCategoryConfidenceForSubmesh(0);
+            var runtimeMaterialResponsePromoted = materials.MaterialResponsePromotedForSubmesh(0);
+            var runtimeMetalCategoryBranch = runtimeMaterialCategoryCode > 0.5f
+                && runtimeMaterialCategoryCode < 1.5f;
             using var textures = NetTextureSet.Load(materials);
             textures.LoadAsync(materials).GetAwaiter().GetResult();
             using var host = CreateHiddenHost();
@@ -110,6 +116,12 @@ internal static class D3D11TexturedMetalReadabilityProof
                     CaptureSize,
                     out var sha256,
                     out var captureError);
+                var drawnMaterialAuthority = Vector4.Zero;
+                var drawnMaterialAuthorityRecorded = captured
+                    && viewport.TryGetLastDrawnMaterialAuthority(0, out drawnMaterialAuthority);
+                var drawnMetalCategoryBranch = drawnMaterialAuthorityRecorded
+                    && drawnMaterialAuthority.Y > 0.5f
+                    && drawnMaterialAuthority.Y < 1.5f;
                 var metrics = captured
                     ? CenterPatchMetrics(capturePath)
                     : new Dictionary<string, object?>();
@@ -129,6 +141,11 @@ internal static class D3D11TexturedMetalReadabilityProof
                     ["error"] = captureError,
                     ["metrics"] = metrics,
                     ["readable"] = readable,
+                    ["drawn_material_authority_recorded"] = drawnMaterialAuthorityRecorded,
+                    ["drawn_material_category_code"] = drawnMaterialAuthority.Y,
+                    ["drawn_material_category_confidence"] = drawnMaterialAuthority.Z,
+                    ["drawn_material_response_promoted"] = drawnMaterialAuthority.W > 0.5f,
+                    ["drawn_material_category_is_metal"] = drawnMetalCategoryBranch,
                 });
             }
 
@@ -150,6 +167,18 @@ internal static class D3D11TexturedMetalReadabilityProof
                 ["native_windows_remained_hidden"] = windowsHidden,
                 ["base_texture_decoded"] = textures.BitmapForPath(texturePath) is not null
                     && textures.TextureLoadFailureCount == 0,
+                ["runtime_material_category_is_metal"] = runtimeMetalCategoryBranch,
+                ["runtime_material_category_confident"] = runtimeMaterialCategoryConfidence >= 0.99f,
+                ["runtime_material_response_promoted"] = runtimeMaterialResponsePromoted,
+                ["captured_draw_material_authority_recorded"] = rows.Count == views.Length
+                    && rows.All(row => row.GetValueOrDefault("drawn_material_authority_recorded") is true),
+                ["captured_draw_material_category_is_metal"] = rows.Count == views.Length
+                    && rows.All(row => row.GetValueOrDefault("drawn_material_category_is_metal") is true),
+                ["captured_draw_material_category_confident"] = rows.Count == views.Length
+                    && rows.All(row => row.GetValueOrDefault("drawn_material_category_confidence") is float confidence
+                        && confidence >= 0.99f),
+                ["captured_draw_material_response_promoted"] = rows.Count == views.Length
+                    && rows.All(row => row.GetValueOrDefault("drawn_material_response_promoted") is true),
                 ["textured_metal_front_back_and_oblique_readable"] = rows.Count == views.Length
                     && rows.All(row => row.GetValueOrDefault("readable") is true),
                 ["double_sided_opposite_views_balanced"] = frontBackRatio >= MinimumOppositeViewLumaRatio
@@ -162,7 +191,7 @@ internal static class D3D11TexturedMetalReadabilityProof
             };
             return new Dictionary<string, object?>
             {
-                ["schema"] = "cdmw_textured_metal_readability_v2",
+                ["schema"] = "cdmw_textured_metal_readability_v3",
                 ["evidence_class"] = "hidden_synthetic_gpu_regression",
                 ["material_contract"] = new Dictionary<string, object?>
                 {
@@ -171,6 +200,22 @@ internal static class D3D11TexturedMetalReadabilityProof
                     ["metalness"] = 1.0,
                     ["double_sided"] = true,
                 },
+                ["runtime_material_authority"] = new Dictionary<string, object?>
+                {
+                    ["submesh_index"] = 0,
+                    ["category_code"] = runtimeMaterialCategoryCode,
+                    ["category_confidence"] = runtimeMaterialCategoryConfidence,
+                    ["response_promoted"] = runtimeMaterialResponsePromoted,
+                    ["metal_category_branch"] = runtimeMetalCategoryBranch,
+                },
+                ["captured_draw_material_authority"] = rows.Select(row => new Dictionary<string, object?>
+                {
+                    ["view"] = row.GetValueOrDefault("name"),
+                    ["recorded"] = row.GetValueOrDefault("drawn_material_authority_recorded"),
+                    ["category_code"] = row.GetValueOrDefault("drawn_material_category_code"),
+                    ["category_confidence"] = row.GetValueOrDefault("drawn_material_category_confidence"),
+                    ["response_promoted"] = row.GetValueOrDefault("drawn_material_response_promoted"),
+                }).ToArray(),
                 ["minimum_center_mean_luma"] = MinimumCenterMeanLuma,
                 ["minimum_center_p10_luma"] = MinimumCenterP10Luma,
                 ["minimum_center_luma_deviation"] = MinimumCenterLumaDeviation,
@@ -193,7 +238,7 @@ internal static class D3D11TexturedMetalReadabilityProof
         {
             return new Dictionary<string, object?>
             {
-                ["schema"] = "cdmw_textured_metal_readability_v2",
+                ["schema"] = "cdmw_textured_metal_readability_v3",
                 ["evidence_class"] = "hidden_synthetic_gpu_regression",
                 ["captures"] = rows,
                 ["ok"] = false,
@@ -262,6 +307,10 @@ internal static class D3D11TexturedMetalReadabilityProof
                     },
                     ["alpha_mode"] = "opaque",
                     ["double_sided"] = true,
+                    ["material_category"] = "metal",
+                    ["material_category_confidence"] = 1.0,
+                    ["material_category_reason"] = "hidden-gpu-proof-explicit-metal",
+                    ["material_response_promoted"] = true,
                     ["parameters"] = new Dictionary<string, object?>
                     {
                         ["roughness"] = 0.38,

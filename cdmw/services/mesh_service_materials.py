@@ -16,7 +16,8 @@ _RESIDENT_MATERIAL_PARAMETER_KEYS = frozenset(
         "roughness_blend_target", "roughness_blend_strength", "metalness", "metallic",
         "metalness_inverted", "metalness_scale", "metalness_min", "metalness_max",
         "metalness_blend_target", "metalness_blend_strength", "specular", "height_scale",
-        "emissive_intensity", "emissive_color", "material_role", "visible",
+        "emissive_intensity", "emissive_color", "emissive_color_authoritative", "emissive_scalar_mask",
+        "material_role", "visible",
     }
 )
 

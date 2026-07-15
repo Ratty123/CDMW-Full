@@ -4,6 +4,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import pytest
+
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.services import mesh_dotnet_material_state
 from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_state_payload
@@ -102,6 +104,9 @@ def test_native_material_batch_binding_preserves_explicit_texture_tint(tmp_path:
             "base_color": [0.57, 0.39, 0.29],
             "base_tint_strength": 0.35,
             "material_category": "metal",
+            "material_category_confidence": 0.91,
+            "material_category_reason": "metal:authoritative-test-evidence",
+            "material_response_promoted": True,
             "texture_tint": [0.73, 0.44, 0.24],
         },
     )
@@ -113,12 +118,140 @@ def test_native_material_batch_binding_preserves_explicit_texture_tint(tmp_path:
     )
 
     assert target.preview_texture_tint == (0.73, 0.44, 0.24)
-    parameters = payload["submeshes"][0]["parameters"]
+    binding = payload["submeshes"][0]
+    parameters = binding["parameters"]
     assert target.preview_color == (0.57, 0.39, 0.29)
+    assert binding["material_category"] == "metal"
+    assert binding["material_category_confidence"] == 0.91
+    assert binding["material_category_reason"] == "metal:authoritative-test-evidence"
+    assert binding["material_response_promoted"] is True
     assert parameters["base_tint_color"] == [0.57, 0.39, 0.29]
     assert parameters["base_tint_strength"] == 0.35
     assert parameters["base_tint_metallic"] is True
     assert parameters["texture_tint"] == [0.73, 0.44, 0.24]
+
+
+def test_native_material_hints_remain_distinct_from_texture_transforms(tmp_path: Path) -> None:
+    roughness = tmp_path / "reference_roughness.dds"
+    roughness.write_bytes(b"roughness")
+    model = _mesh()
+    target = model.submeshes[0]
+    target.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(semantic_type="roughness", source_dds_path=str(roughness)),
+    )
+
+    assert mesh_dotnet_material_state.apply_dotnet_native_material_batch_binding(
+        target,
+        {
+            "roughness": 0.38,
+            "metalness": 0.72,
+            "specular": 0.24,
+            "native_material_hints": {
+                "roughness": 0.38,
+                "metalness": 0.72,
+                "specular": 0.24,
+            },
+        },
+    )
+    payload = mesh_dotnet_material_state_payload(
+        model,
+        session_id="native-reference-hints",
+        edit_revision=0,
+        generation=1,
+    )
+
+    parameters = payload["submeshes"][0]["parameters"]
+    assert parameters["roughness_hint"] == 0.38
+    assert parameters["metalness_hint"] == 0.72
+    assert parameters["specular_hint"] == 0.24
+    assert "roughness" not in parameters
+    assert "roughness_scale" not in parameters
+    assert "metalness" not in parameters
+    assert "metalness_scale" not in parameters
+    assert "specular" not in parameters
+
+
+def test_native_material_hint_presence_distinguishes_omitted_and_explicit_zero() -> None:
+    model = _mesh()
+    target = model.submeshes[0]
+
+    assert mesh_dotnet_material_state.apply_dotnet_native_material_batch_binding(
+        target,
+        {
+            "roughness": 0.0,
+            "roughness_hint_present": False,
+            "metalness": 0.0,
+            "metalness_hint_present": False,
+            "specular": 0.24,
+            "specular_hint_present": True,
+            "native_material_hints": {
+                "roughness": 0.0,
+                "roughness_hint_present": False,
+                "metalness": 0.0,
+                "metalness_hint_present": False,
+                "specular": 0.24,
+                "specular_hint_present": True,
+            },
+        },
+    )
+    specular_only = mesh_dotnet_material_state_payload(
+        model,
+        session_id="specular-only-hint",
+        edit_revision=0,
+        generation=1,
+    )["submeshes"][0]["parameters"]
+
+    assert "roughness_hint" not in specular_only
+    assert "metalness_hint" not in specular_only
+    assert specular_only["specular_hint"] == 0.24
+
+    target.preview_native_material_overrides["roughness_hint_present"] = True
+    target.preview_native_material_overrides["native_material_hints"]["roughness_hint_present"] = True
+    explicit_zero = mesh_dotnet_material_state_payload(
+        model,
+        session_id="explicit-zero-roughness-hint",
+        edit_revision=1,
+        generation=2,
+    )["submeshes"][0]["parameters"]
+
+    assert explicit_zero["roughness_hint"] == 0.0
+    assert explicit_zero["specular_hint"] == 0.24
+
+
+def test_native_emissive_color_authority_survives_numeric_and_pac_hex_transport() -> None:
+    model = _mesh()
+    target = model.submeshes[0]
+
+    assert mesh_dotnet_material_state.apply_dotnet_native_material_batch_binding(
+        target,
+        {
+            "emissive_color": [0.35, 0.68, 1.0],
+            "emissive_color_authoritative": False,
+            "emissive_intensity": 4.0,
+        },
+    )
+    fallback = mesh_dotnet_material_state_payload(
+        model,
+        session_id="fallback-emissive-color",
+        edit_revision=0,
+        generation=1,
+    )["submeshes"][0]["parameters"]
+    assert fallback["emissive_color"] == [0.35, 0.68, 1.0]
+    assert fallback["emissive_color_authoritative"] is False
+
+    target.preview_native_material_overrides = {
+        "emissive_color": "4e9838ff",
+        "emissive_color_authoritative": True,
+        "emissive_intensity": 1.0,
+    }
+    authoritative = mesh_dotnet_material_state_payload(
+        model,
+        session_id="authoritative-emissive-color",
+        edit_revision=1,
+        generation=2,
+    )["submeshes"][0]["parameters"]
+    assert authoritative["emissive_color"] == pytest.approx([0x4E / 255, 0x98 / 255, 0x38 / 255])
+    assert authoritative["emissive_color_authoritative"] is True
 
 
 def test_native_material_batches_preserve_per_submesh_category_without_name_inference() -> None:
@@ -176,6 +309,33 @@ def test_bc4_emissive_dds_is_tagged_as_scalar_mask(tmp_path: Path) -> None:
         mesh_dotnet_material_state._dotnet_emissive_texture_is_scalar_mask_cached.cache_clear()
 
     assert payload["submeshes"][0]["parameters"]["emissive_scalar_mask"] is True
+
+
+def test_emissive_texture_distinguishes_undeclared_intensity_from_explicit_zero(tmp_path: Path) -> None:
+    emissive = tmp_path / "rune_emissive.png"
+    emissive.write_bytes(b"emissive")
+    mesh = _mesh()
+    material = mesh.submeshes[0]
+    material.preview_emissive_texture_path = str(emissive)
+
+    texture_default_payload = mesh_dotnet_material_state_payload(
+        mesh,
+        session_id="emissive-texture-default",
+        edit_revision=0,
+        generation=1,
+    )
+    material.preview_native_material_overrides = {"emissive_intensity": 0.0}
+    explicit_zero_payload = mesh_dotnet_material_state_payload(
+        mesh,
+        session_id="emissive-explicit-zero",
+        edit_revision=1,
+        generation=2,
+    )
+
+    texture_default = texture_default_payload["submeshes"][0]["parameters"]
+    explicit_zero = explicit_zero_payload["submeshes"][0]["parameters"]
+    assert "emissive_intensity" not in texture_default
+    assert explicit_zero["emissive_intensity"] == 0.0
 
 
 def test_emissive_scalar_mask_refreshes_and_emits_false_after_same_path_format_change(tmp_path: Path) -> None:

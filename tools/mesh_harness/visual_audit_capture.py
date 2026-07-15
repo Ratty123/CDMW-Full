@@ -320,6 +320,11 @@ def _dotnet_audit_presentation_is_safe(report: Mapping[str, object]) -> bool:
     session = report.get("renderer_session")
     if not isinstance(session, Mapping):
         return False
+    if (
+        session.get("capture_mode") != "hidden_hwnd_no_show"
+        or session.get("native_windows_remained_hidden") is not True
+    ):
+        return False
     presentation = session.get("presentation")
     if not isinstance(presentation, Mapping):
         return False
