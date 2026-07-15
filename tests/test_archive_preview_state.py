@@ -16,14 +16,14 @@ def test_archive_model_preview_refresh_tooltip_preserves_copy() -> None:
     )
 
 
-def test_archive_model_initial_view_state_is_straight_on_and_fitted() -> None:
+def test_archive_model_initial_view_state_is_overhead_and_fitted() -> None:
     assert archive_model_initial_view_state() == {
         "role": "replacement",
-        "reason": "archive_model_initial_front",
+        "reason": "archive_model_initial_overhead",
         "zoom_factor": 1.0,
         "fit_to_view": True,
         "yaw": 0.0,
-        "pitch": 0.0,
+        "pitch": -89.0,
         "pan": (0.0, 0.0, 0.0),
     }
 

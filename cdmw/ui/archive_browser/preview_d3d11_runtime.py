@@ -14,15 +14,15 @@ from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as 
 
 
 def archive_model_initial_view_state() -> dict[str, object]:
-    """Return the straight-on fitted camera used for a newly selected archive model."""
+    """Return the fitted overhead camera used for a newly selected archive model."""
 
     return {
         "role": "replacement",
-        "reason": "archive_model_initial_front",
+        "reason": "archive_model_initial_overhead",
         "zoom_factor": 1.0,
         "fit_to_view": True,
         "yaw": 0.0,
-        "pitch": 0.0,
+        "pitch": -89.0,
         "pan": (0.0, 0.0, 0.0),
     }
 

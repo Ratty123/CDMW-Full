@@ -133,7 +133,7 @@ Last updated: 2026-07-15
   `std::regex`; archive/icon warmup can leave the parent near 1.7 GiB private
   memory. Its executable self-test owns JSON escape and alias coverage.
 - External OBJ/DAE/glTF/GLB missing/incomplete UVs use cancellable xatlas and report review-required. Shared UV transforms bake before the V flip; differing sets use sampler/color-space-correct raster baking, native tangents, normal-basis conversion, gutters, and atomic hashes. Unsupported input blocks safely; PAC/PAM is never auto-unwrapped.
-- External ZIP import uses verified extraction; geometry fits the original frame, centers and Y-grounds, and overlay/side-by-side share one grid. Exact `cd_phm_01_sword_0016.pac` plus `wolf_gravestone_sword_free (1).zip` uses archive-resolved original textures and ZIP-owned imported textures. Archive Browser switches to a different mesh package at a fitted front camera (`yaw=0`, `pitch=0`); refreshing the same model preserves its camera.
+- External ZIP import uses verified extraction; geometry fits the original frame, centers and Y-grounds, and overlay/side-by-side share one grid. Exact `cd_phm_01_sword_0016.pac` plus `wolf_gravestone_sword_free (1).zip` uses archive-resolved original textures and ZIP-owned imported textures. Archive Browser switches to a different mesh package at a fitted overhead camera (`yaw=0`, `pitch=-89`); refreshing the same model preserves its camera.
 - Hardware soak must cover production-scale sparse updates, tail shrink,
   material lineage, handler time, and post-warmup RSS; dated results belong in
   `docs/release-confidence-plan.md`.

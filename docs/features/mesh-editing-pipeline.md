@@ -633,8 +633,8 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
 - Model Library D3D11 preview derives high-quality texture packaging from the
   active render setting and logs the actual value instead of forcing low-quality
   packages.
-- Archive Browser starts each newly selected mesh package in a fitted,
-  straight-on front view. Refreshing the same model preserves its current
+- Archive Browser starts each newly selected mesh package in a fitted overhead
+  view (`yaw=0`, `pitch=-89`). Refreshing the same model preserves its current
   camera; the initial framing is presentation-only and never changes mesh or
   export transforms.
 - Exact import proof uses
