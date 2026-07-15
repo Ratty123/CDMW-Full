@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-14
+Last reviewed: 2026-07-15
 
 ## Goal
 
@@ -47,6 +47,46 @@ keeps core user workflows working behind stable facades.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-15:
+
+- The non-overlapping visual/material follow-up audited 72 unique read-only
+  PACs: 10 shields, 5 swords, 14 outfits, 5 bodies, 8 head/face assets,
+  10 hair/fur assets, 8 spiders, 6 glass/alpha controls, and 6 unusual props.
+  Archive Browser and the production `.NET/Vortice` renderer each captured
+  72/72 assets at six paired angles. Direct inspection classified 15 PASS,
+  40 CONCERN, and 17 FAIL with no unreviewed rows. One native process and one
+  .NET process/device/viewport stayed resident, with zero restarts or device
+  resets and 72 resident scene loads. Before/after archive fingerprints were
+  identical at
+  `0947119118ACBBAFD8555E9BFBEFEA9DC8D453E2FF712CA35F0660EC28D7BAC7`.
+  Evidence:
+  `workspace/mesh-editor-visual-audit/20260715-final-72/summary.json` and
+  `workspace/mesh-editor-visual-audit/20260715-final-72/review.md`.
+- Shared repairs moved expensive material composition into the cancellable
+  package worker, preserved raw diagnostics and exact native material batches,
+  and stopped resident state snapshots from synthesizing images. Audit package
+  stabilization now recursively owns and rewrites every `source_path` that the
+  native role scan can select, including nested specular/detail descriptors and
+  non-direct candidates. A fresh capture-only rerun then completed in 77.3
+  seconds with no missing selectable texture sources.
+- The corpus did not close shield-layer, outfit palette/dye, generic
+  packed-mask, dark-fur, or combined cloth/hair/standard spider graphs. It did
+  not contain a true transmissive alpha-blend glass shader; all six glass/alpha
+  rows were opaque or cutout controls. Hair/fur anisotropy, full skin response,
+  separately composed head/face behavior, visual animation playback, and
+  deformation remain outside this static renderer-consistency audit. The
+  separate animation/rigging smokes prove parser, binding, and in-memory pose
+  changes only, not game timing or rendered deformation.
+- Final verification reported 805 passed and 1 skipped from `mesh-unit`; the
+  focused visual-audit harness/package group reported 17 passed, and the
+  Release .NET build completed with zero warnings and zero errors. Architecture
+  hard limits pass. The eight originally oversized repair owners are all below
+  800 lines and absent from the size baseline, so the prior "eight stale files"
+  description is resolved. The repository-wide ratchet remains red on 12 other
+  pre-existing/concurrent file-growth entries, 10 new oversized functions, and
+  5 grown oversized functions; none is an owner introduced or left oversized
+  by this visual-audit goal.
 
 2026-07-14:
 

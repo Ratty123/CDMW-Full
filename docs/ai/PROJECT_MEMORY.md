@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 ## Repository rules
 
@@ -114,6 +114,9 @@ Last updated: 2026-07-14
   angles, requires direct per-asset verdicts, and proves source archives
   unchanged with before/after fingerprints. It is CDMW renderer-consistency
   evidence, never licensed-game parity proof.
+  Prepared audit packages recursively own and rewrite every nested
+  `source_path` the native role scan can select, even when a descriptor is not
+  a direct-upload candidate, so cache eviction cannot invalidate later capture.
   The representative real hair corpus entry is `cd_ptm_00_hair_00_0003.pac`;
   it must resolve at least one source DDS instead of recording empty coverage.
   OpenImageIO is optional offline metadata/diff evidence, never runtime shading
