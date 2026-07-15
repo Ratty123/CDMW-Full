@@ -67,7 +67,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/archive_browser/mod_ready_export.py': 'e20bef23616e7fc3ee94f00324ef5f7a38264992c79d24b5f73d8dd88e6a3824',
     'cdmw/ui/archive_browser/patch_actions.py': '8cea853e1692afbd0d3df62ae36e414a71248667191c7535bb978d213323a113',
     'cdmw/ui/archive_browser/prefab_json_actions.py': 'cc4e8ca3e07af354b81535ebb40dbc9a0fc1e6a5b38a7e56a7887653cca03dce',
-    'cdmw/ui/archive_browser/preview_cache.py': '86bcdea02306755adcbf16647bfeed6d7e086ae9894a8733c5c67af089738df9',
+    'cdmw/ui/archive_browser/preview_cache.py': '91b8fa91b49262253a555c57d3a8ed1170270f103d597b1d65bb74678f1f024e',
     'cdmw/ui/archive_browser/preview_d3d11_parts.py': 'b21980b7ba29838473c6627349da238f5232c8f183aaedd760517ceff3f50095',
     'cdmw/ui/archive_browser/preview_d3d11_process.py': '40c203c2dc44c1effe0310a1105d59d0dce244a24a9910615757cc8f6b32bcdb',
     'cdmw/ui/archive_browser/preview_d3d11_runtime.py': 'b537e708fe07e53875c783c0adb844fc4761a16a62b30da8a6e9788045c2256f',
