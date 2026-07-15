@@ -1,11 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Iterator, MutableMapping, Sequence
 import hashlib
 import json
 import os
 import shutil
 from pathlib import Path
-from typing import MutableMapping
 
 
 _LAYER_SOURCE_KEYS = (
@@ -15,6 +15,24 @@ _LAYER_SOURCE_KEYS = (
     "normal_source",
     "height_source",
 )
+
+
+def _iter_available_source_path_descriptors(
+    value: object,
+) -> Iterator[MutableMapping[str, object]]:
+    """Yield batch descriptors the native material-role scan can select."""
+
+    if isinstance(value, MutableMapping):
+        if str(value.get("source_path", "") or "").strip() and bool(
+            value.get("available", True)
+        ):
+            yield value
+        for child in value.values():
+            yield from _iter_available_source_path_descriptors(child)
+        return
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        for child in value:
+            yield from _iter_available_source_path_descriptors(child)
 
 
 def stabilize_visual_audit_archive_package(package_dir: Path) -> dict[str, object]:
@@ -41,6 +59,10 @@ def stabilize_visual_audit_archive_package(package_dir: Path) -> dict[str, objec
             source_path = package_dir / source_path
         source_path = source_path.resolve()
         if source_path.is_relative_to(package_dir):
+            if not source_path.is_file():
+                raise FileNotFoundError(
+                    f"Visual-audit package references a missing owned texture: {source_path}"
+                )
             return
         if not source_path.is_file():
             raise FileNotFoundError(
@@ -73,16 +95,8 @@ def stabilize_visual_audit_archive_package(package_dir: Path) -> dict[str, objec
     for batch in tuple(manifest.get("batches", ()) or ()):
         if not isinstance(batch, dict):
             continue
-        dds_textures = batch.get("dds_textures")
-        if isinstance(dds_textures, dict):
-            for descriptor in dds_textures.values():
-                if not isinstance(descriptor, dict):
-                    continue
-                if not bool(descriptor.get("available", True)):
-                    continue
-                if not bool(descriptor.get("direct_upload_candidate", True)):
-                    continue
-                stabilize_field(descriptor, "source_path")
+        for descriptor in _iter_available_source_path_descriptors(batch):
+            stabilize_field(descriptor, "source_path")
         for container_name in ("material_layers", "active_material_layers"):
             for layer in tuple(batch.get(container_name, ()) or ()):
                 if isinstance(layer, dict):
