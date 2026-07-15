@@ -78,6 +78,53 @@ def _mask_alpha(
     return _clamp(values[index] if index < len(values) else values[0])
 
 
+def _initialize_synthesized_albedo_target(
+    prepared_base: QImage,
+    source_layers: Sequence[Tuple[PreviewMaterialTextureInput, QImage]],
+    neutral_base_color: Tuple[float, float, float],
+    *,
+    preserve_base_alpha: bool,
+    cancelled: Callable[[], bool] | None,
+) -> tuple[QImage, int, int, int]:
+    target_format = QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
+    if not prepared_base.isNull():
+        return (
+            prepared_base.convertToFormat(target_format),
+            int(prepared_base.width()),
+            int(prepared_base.height()),
+            0,
+        )
+    _first_item, first_image = source_layers[0]
+    width = int(first_image.width())
+    height = int(first_image.height())
+    target = QImage(width, height, target_format)
+    if len(neutral_base_color) >= 3:
+        red, green, blue = (_byte(float(value)) for value in neutral_base_color[:3])
+        target.fill(QColor(red, green, blue))
+        return target, width, height, 0
+    tint = _layer_tint(_first_item)
+    for y in range(height):
+        _raise_if_material_combiner_cancelled(cancelled)
+        for x in range(width):
+            color = first_image.pixelColor(x, y)
+            red, green, blue = color.redF(), color.greenF(), color.blueF()
+            if tint:
+                red *= tint[0]
+                green *= tint[1]
+                blue *= tint[2]
+            target.setPixelColor(
+                x,
+                y,
+                QColor(
+                    _byte(red),
+                    _byte(green),
+                    _byte(blue),
+                    color.alpha() if preserve_base_alpha else 255,
+                ),
+            )
+    return target, width, height, 1
+
+
 def _generate_synthesized_albedo_map(
     base_image: QImage,
     layer_inputs: Sequence[PreviewMaterialTextureInput],
@@ -110,55 +157,13 @@ def _generate_synthesized_albedo_map(
     if prepared_base.isNull() and not source_layers and len(neutral_base_color) < 3:
         return "", ""
 
-    if not prepared_base.isNull():
-        width = int(prepared_base.width())
-        height = int(prepared_base.height())
-        target = prepared_base.convertToFormat(
-            QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
-        )
-        layer_start = 0
-    elif len(neutral_base_color) >= 3 and source_layers:
-        _first_item, first_image = source_layers[0]
-        width = int(first_image.width())
-        height = int(first_image.height())
-        target = QImage(
-            width,
-            height,
-            QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888,
-        )
-        red, green, blue = (_byte(float(value)) for value in neutral_base_color[:3])
-        target.fill(QColor(red, green, blue))
-        layer_start = 0
-    else:
-        first_item, first_image = source_layers[0]
-        width = int(first_image.width())
-        height = int(first_image.height())
-        target = QImage(
-            width,
-            height,
-            QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888,
-        )
-        tint = _layer_tint(first_item)
-        for y in range(height):
-            _raise_if_material_combiner_cancelled(cancelled)
-            for x in range(width):
-                color = first_image.pixelColor(x, y)
-                red, green, blue = color.redF(), color.greenF(), color.blueF()
-                if tint:
-                    red *= tint[0]
-                    green *= tint[1]
-                    blue *= tint[2]
-                target.setPixelColor(
-                    x,
-                    y,
-                    QColor(
-                        _byte(red),
-                        _byte(green),
-                        _byte(blue),
-                        color.alpha() if preserve_base_alpha else 255,
-                    ),
-                )
-        layer_start = 1
+    target, width, height, layer_start = _initialize_synthesized_albedo_target(
+        prepared_base,
+        source_layers,
+        neutral_base_color,
+        preserve_base_alpha=preserve_base_alpha,
+        cancelled=cancelled,
+    )
 
     prepared_masks: dict[str, QImage] = {}
     for role, item in mask_inputs.items():
@@ -631,24 +636,37 @@ def _generate_material_maps(
         del metal_view
     if spec_view is not None:
         del spec_view
+    return _save_material_maps(
+        output_dir,
+        stem,
+        images=(ao_image, rough_image, metal_image, spec_image),
+        metal_peak=metal_peak,
+        spec_peak=spec_peak,
+        cancelled=cancelled,
+    )
+
+
+def _save_material_maps(
+    output_dir: Path,
+    stem: str,
+    *,
+    images: tuple[QImage, QImage, QImage, QImage],
+    metal_peak: float,
+    spec_peak: float,
+    cancelled: Callable[[], bool] | None,
+) -> Tuple[Tuple[str, ...], Tuple[str, str, str, str]]:
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     paths: list[str] = []
     slots: list[str] = []
-    for slot, generated in (
-        ("occlusion", ao_image),
-        ("roughness", rough_image),
-        ("metalness", metal_image),
-        ("specular", spec_image),
-    ):
+    for slot, generated in zip(("occlusion", "roughness", "metalness", "specular"), images):
         _raise_if_material_combiner_cancelled(cancelled)
-        if generated.isNull():
-            paths.append("")
-            continue
-        if slot == "metalness" and metal_peak <= 0.015:
-            paths.append("")
-            continue
-        if slot == "specular" and spec_peak <= 0.015:
+        suppressed = (
+            generated.isNull()
+            or (slot == "metalness" and metal_peak <= 0.015)
+            or (slot == "specular" and spec_peak <= 0.015)
+        )
+        if suppressed:
             paths.append("")
             continue
         output_path = output_dir / f"{stem}_{slot}.png"

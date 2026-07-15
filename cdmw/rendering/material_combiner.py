@@ -185,6 +185,104 @@ def synthesize_material_texture_inputs(batch: object) -> Tuple[PreviewMaterialTe
     return tuple(inputs)
 
 
+def _apply_spec_gloss_albedo(
+    inputs: Sequence[PreviewMaterialTextureInput],
+    *,
+    selected_base_image: QImage,
+    output_dir: Path,
+    batch_index: int,
+    flip_vertical: bool,
+    base_map_max_dimension: int,
+    preserve_base_alpha: bool,
+    base_source: str,
+    base_note: str,
+    notes: list[str],
+    outputs: list[str],
+    cancelled: Callable[[], bool] | None,
+) -> tuple[str, str]:
+    item = next(
+        (
+            candidate
+            for candidate in inputs
+            if _decode_mode_for_input(candidate) == "specular_glossiness"
+            and (
+                _material_parameter_color_luma(candidate, "specularfactor", "specularcolorfactor") is None
+                or (_material_parameter_color_luma(candidate, "specularfactor", "specularcolorfactor") or 0.0) > 0.02
+            )
+        ),
+        None,
+    )
+    if item is None:
+        return base_source, base_note
+    _raise_if_material_combiner_cancelled(cancelled)
+    image = _image_reader(str(item.preview_texture_path or ""), max_dimension=base_map_max_dimension)
+    if image.isNull():
+        return base_source, base_note
+    generated_source, generated_note = _generate_spec_gloss_preview_albedo_map(
+        selected_base_image,
+        image,
+        output_dir,
+        f"batch_{batch_index:03d}",
+        flip_vertical=flip_vertical,
+        max_dimension=min(base_map_max_dimension, 512),
+        preserve_base_alpha=preserve_base_alpha,
+        cancelled=cancelled,
+    )
+    if not generated_source:
+        return base_source, base_note
+    if "albedo" not in outputs:
+        outputs.append("albedo")
+    notes.append(generated_note)
+    return generated_source, generated_note
+
+
+def _prepare_normal_source(
+    payload: object,
+    inputs: Sequence[PreviewMaterialTextureInput],
+    *,
+    settings: MaterialPreviewCombinerSettings,
+    output_dir: Path,
+    batch_index: int,
+    tangents_usable: bool,
+    flip_vertical: bool,
+    support_map_max_dimension: int,
+    notes: list[str],
+    outputs: list[str],
+    cancelled: Callable[[], bool] | None,
+) -> tuple[str, float]:
+    candidates = [item for item in inputs if str(item.slot_kind or "").strip().lower() == "normal"]
+    if candidates and not tangents_usable:
+        notes.append("missing tangents")
+    if not tangents_usable:
+        return "", 0.0
+    for item in candidates:
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
+        if image.isNull():
+            notes.append(f"normal unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
+            continue
+        if _image_exceeds_dimension(image, support_map_max_dimension):
+            notes.append(f"support maps capped:{support_map_max_dimension}px")
+        source, average_strength = _generate_normal_map(
+            image,
+            output_dir,
+            f"batch_{batch_index:03d}",
+            flip_vertical=flip_vertical,
+            max_dimension=support_map_max_dimension,
+            cancelled=cancelled,
+        )
+        if not source:
+            continue
+        configured_strength = _finite_float(getattr(payload, "normal_texture_strength", 0.0), 0.0)
+        if configured_strength <= 0.0:
+            configured_strength = max(settings.normal_strength_floor, average_strength)
+        strength = _clamp(configured_strength, settings.normal_strength_floor, settings.normal_strength_cap)
+        outputs.append("normal")
+        notes.append("normal green inverted")
+        return source, strength
+    return "", 0.0
+
+
 def combine_preview_material(
     payload: object,
     output_dir: Path,
@@ -319,70 +417,35 @@ def combine_preview_material(
     if not base_source and base_candidates:
         notes.append("no reliable base DDS")
 
-    spec_gloss_albedo_item = next(
-        (
-            item
-            for item in inputs
-            if _decode_mode_for_input(item) == "specular_glossiness"
-            and (
-                _material_parameter_color_luma(item, "specularfactor", "specularcolorfactor") is None
-                or (_material_parameter_color_luma(item, "specularfactor", "specularcolorfactor") or 0.0) > 0.02
-            )
-        ),
-        None,
+    base_source, base_note = _apply_spec_gloss_albedo(
+        inputs,
+        selected_base_image=selected_base_image,
+        output_dir=output_dir,
+        batch_index=batch_index,
+        flip_vertical=flip_vertical,
+        base_map_max_dimension=base_map_max_dimension,
+        preserve_base_alpha=preserve_base_alpha,
+        base_source=base_source,
+        base_note=base_note,
+        notes=notes,
+        outputs=outputs,
+        cancelled=cancelled,
     )
-    if spec_gloss_albedo_item is not None:
-        _raise_if_material_combiner_cancelled(cancelled)
-        spec_gloss_image = _image_reader(str(spec_gloss_albedo_item.preview_texture_path or ""), max_dimension=base_map_max_dimension)
-        if not spec_gloss_image.isNull():
-            spec_gloss_base_source, spec_gloss_base_note = _generate_spec_gloss_preview_albedo_map(
-                selected_base_image,
-                spec_gloss_image,
-                output_dir,
-                f"batch_{batch_index:03d}",
-                flip_vertical=flip_vertical,
-                max_dimension=min(base_map_max_dimension, 512),
-                preserve_base_alpha=preserve_base_alpha,
-                cancelled=cancelled,
-            )
-            if spec_gloss_base_source:
-                base_source = spec_gloss_base_source
-                base_note = spec_gloss_base_note
-                if "albedo" not in outputs:
-                    outputs.append("albedo")
-                notes.append(spec_gloss_base_note)
 
-    normal_source = ""
-    normal_strength = 0.0
     tangents_usable = bool(getattr(payload, "tangents_usable", False))
-    normal_candidates = [item for item in inputs if str(item.slot_kind or "").strip().lower() == "normal"]
-    if normal_candidates and not tangents_usable:
-        notes.append("missing tangents")
-    if tangents_usable:
-        for item in normal_candidates:
-            _raise_if_material_combiner_cancelled(cancelled)
-            image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
-            if image.isNull():
-                notes.append(f"normal unreadable:{_texture_label(item.preview_texture_path, item.texture_name)}")
-                continue
-            if _image_exceeds_dimension(image, support_map_max_dimension):
-                notes.append(f"support maps capped:{support_map_max_dimension}px")
-            normal_source, normal_average_strength = _generate_normal_map(
-                image,
-                output_dir,
-                f"batch_{batch_index:03d}",
-                flip_vertical=flip_vertical,
-                max_dimension=support_map_max_dimension,
-                cancelled=cancelled,
-            )
-            if normal_source:
-                configured_strength = _finite_float(getattr(payload, "normal_texture_strength", 0.0), 0.0)
-                if configured_strength <= 0.0:
-                    configured_strength = max(settings.normal_strength_floor, normal_average_strength)
-                normal_strength = _clamp(configured_strength, settings.normal_strength_floor, settings.normal_strength_cap)
-                outputs.append("normal")
-                notes.append("normal green inverted")
-                break
+    normal_source, normal_strength = _prepare_normal_source(
+        payload,
+        inputs,
+        settings=settings,
+        output_dir=output_dir,
+        batch_index=batch_index,
+        tangents_usable=tangents_usable,
+        flip_vertical=flip_vertical,
+        support_map_max_dimension=support_map_max_dimension,
+        notes=notes,
+        outputs=outputs,
+        cancelled=cancelled,
+    )
 
     occlusion_source = ""
     roughness_source = ""

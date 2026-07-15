@@ -70,153 +70,19 @@ def run_archive_browser_capture_batch(
         for index, asset in enumerate(runtime_assets, 1):
             if progress is not None:
                 progress(index, len(runtime_assets), str(asset["virtual_path"]))
-            asset_started = time.perf_counter()
-            asset_id = str(asset["id"])
-            status_path = output_root / f"{asset_id}-status.json"
-            load_started = time.perf_counter()
-            if index > 1:
-                status_path.unlink(missing_ok=True)
-                if not host.load_package(
-                    Path(str(asset["archive_package_dir"])),
-                    status_path,
-                    reset_view=True,
-                ):
-                    rows.append(_native_failure_row(asset, "Resident load_package command was rejected."))
-                    continue
-            loaded_status: dict[str, object] = {}
-
-            def loaded() -> bool:
-                nonlocal loaded_status
-                loaded_status = _read_json(status_path)
-                return str(loaded_status.get("event", "")).casefold() in {"resources_loaded", "loaded", "error"}
-
-            if not _wait_until(
-                app,
-                loaded,
-                timeout_seconds,
-                process=process,
-                output_tail=stdout_tail,
-            ):
-                rows.append(_native_failure_row(asset, "Archive Browser package readiness timed out."))
-                continue
-            if str(loaded_status.get("event", "")).casefold() == "error":
-                rows.append(
-                    _native_failure_row(
-                        asset,
-                        str(loaded_status.get("message", "") or "Archive Browser renderer load failed."),
-                        status=loaded_status,
-                    )
-                )
-                continue
-            load_ms = (time.perf_counter() - load_started) * 1000.0
-            captures: list[dict[str, object]] = []
-            asset_error = ""
-            for view in tuple(asset.get("views", ()) or ()):
-                if not isinstance(view, Mapping):
-                    continue
-                view_name = str(view.get("name", "") or "view")
-                yaw = float(view.get("yaw", 0.0) or 0.0)
-                pitch = float(view.get("pitch", 0.0) or 0.0)
-                cursor = len(events)
-                camera_started = time.perf_counter()
-                if not host.set_view(yaw=yaw, pitch=pitch, fit_to_view=True, pan=(0.0, 0.0, 0.0)):
-                    asset_error = f"Camera command was rejected for {view_name}."
-                    break
-                camera_event: dict[str, object] = {}
-
-                def camera_acknowledged() -> bool:
-                    nonlocal camera_event
-                    for event in events[cursor:]:
-                        if str(event.get("event", "")).casefold() != "view_state":
-                            continue
-                        try:
-                            if abs(float(event.get("yaw", 9999.0)) - yaw) <= 0.05 and abs(
-                                float(event.get("pitch", 9999.0)) - pitch
-                            ) <= 0.05:
-                                camera_event = dict(event)
-                                return True
-                        except (TypeError, ValueError):
-                            continue
-                    return False
-
-                if not _wait_until(
-                    app,
-                    camera_acknowledged,
-                    min(8.0, timeout_seconds),
-                    process=process,
-                    output_tail=stdout_tail,
-                ):
-                    asset_error = f"Camera acknowledgement timed out for {view_name}."
-                    break
-                camera_ms = (time.perf_counter() - camera_started) * 1000.0
-                capture_path = output_root / asset_id / f"{view_name}.png"
-                capture_path.unlink(missing_ok=True)
-                capture_cursor = len(events)
-                capture_started = time.perf_counter()
-                if not host.request_frame_capture(capture_path):
-                    asset_error = f"Frame capture command was rejected for {view_name}."
-                    break
-                capture_event: dict[str, object] = {}
-
-                def capture_completed() -> bool:
-                    nonlocal capture_event
-                    for event in events[capture_cursor:]:
-                        if str(event.get("event", "")).casefold() != "frame_capture":
-                            continue
-                        if event.get("ok") is False:
-                            capture_event = dict(event)
-                            return True
-                        event_path = str(event.get("path", "") or "")
-                        if not event_path or Path(event_path).resolve() != capture_path.resolve():
-                            continue
-                        capture_event = dict(event)
-                        return True
-                    return False
-
-                if not _wait_until(
-                    app,
-                    capture_completed,
-                    min(12.0, timeout_seconds),
-                    process=process,
-                    output_tail=stdout_tail,
-                ) or capture_event.get("ok") is not True or not capture_path.is_file():
-                    asset_error = str(
-                        capture_event.get("message", "")
-                        or f"Direct renderer capture timed out or failed for {view_name}."
-                    )
-                    break
-                captures.append(
-                    {
-                        "name": view_name,
-                        "yaw": yaw,
-                        "pitch": pitch,
-                        "ok": capture_event.get("ok", True) is not False,
-                        "path": str(capture_path),
-                        "bytes": capture_path.stat().st_size,
-                        "sha256": _sha256_file(capture_path),
-                        "camera_ms": camera_ms,
-                        "capture_ms": (time.perf_counter() - capture_started) * 1000.0,
-                        "camera_ack": camera_event,
-                        "capture_event": capture_event,
-                    }
-                )
             rows.append(
-                {
-                    "id": asset_id,
-                    "virtual_path": str(asset["virtual_path"]),
-                    "ok": (
-                        not asset_error
-                        and len(captures) == len(tuple(asset.get("views", ()) or ()))
-                        and all(row.get("ok") is True for row in captures)
-                    ),
-                    "backend": str(loaded_status.get("backend", "") or ""),
-                    "process_id": process_pid,
-                    "load_ms": load_ms,
-                    "total_ms": (time.perf_counter() - asset_started) * 1000.0,
-                    "status": loaded_status,
-                    "captures": captures,
-                    "error": asset_error,
-                }
+                _capture_archive_browser_asset(
+                    app=app,
+                    host=host,
+                    process=process,
+                    asset=asset,
+                    output_root=output_root,
+                    events=events,
+                    stdout_tail=stdout_tail,
+                    timeout_seconds=timeout_seconds,
+                    process_pid=process_pid,
+                    initial_asset=index == 1,
+                )
             )
         return {
             "schema": "cdmw_mesh_visual_audit_archive_browser_batch_v1",
@@ -241,6 +107,183 @@ def run_archive_browser_capture_batch(
         host.close()
         host.deleteLater()
         app.processEvents()
+
+
+def _capture_archive_browser_asset(
+    *,
+    app: object,
+    host: object,
+    process: object,
+    asset: Mapping[str, object],
+    output_root: Path,
+    events: list[dict[str, object]],
+    stdout_tail: bytearray,
+    timeout_seconds: float,
+    process_pid: int,
+    initial_asset: bool,
+) -> dict[str, object]:
+    asset_started = time.perf_counter()
+    asset_id = str(asset["id"])
+    status_path = output_root / f"{asset_id}-status.json"
+    load_started = time.perf_counter()
+    if not initial_asset:
+        status_path.unlink(missing_ok=True)
+        if not host.load_package(
+            Path(str(asset["archive_package_dir"])),
+            status_path,
+            reset_view=True,
+        ):
+            return _native_failure_row(asset, "Resident load_package command was rejected.")
+    loaded_status: dict[str, object] = {}
+
+    def loaded() -> bool:
+        nonlocal loaded_status
+        loaded_status = _read_json(status_path)
+        return str(loaded_status.get("event", "")).casefold() in {"resources_loaded", "loaded", "error"}
+
+    if not _wait_until(
+        app,
+        loaded,
+        timeout_seconds,
+        process=process,
+        output_tail=stdout_tail,
+    ):
+        return _native_failure_row(asset, "Archive Browser package readiness timed out.")
+    if str(loaded_status.get("event", "")).casefold() == "error":
+        return _native_failure_row(
+            asset,
+            str(loaded_status.get("message", "") or "Archive Browser renderer load failed."),
+            status=loaded_status,
+        )
+    load_ms = (time.perf_counter() - load_started) * 1000.0
+    captures, asset_error = _capture_archive_browser_views(
+        app=app,
+        host=host,
+        process=process,
+        asset=asset,
+        output_root=output_root,
+        events=events,
+        stdout_tail=stdout_tail,
+        timeout_seconds=timeout_seconds,
+    )
+    return {
+        "id": asset_id,
+        "virtual_path": str(asset["virtual_path"]),
+        "ok": (
+            not asset_error
+            and len(captures) == len(tuple(asset.get("views", ()) or ()))
+            and all(row.get("ok") is True for row in captures)
+        ),
+        "backend": str(loaded_status.get("backend", "") or ""),
+        "process_id": process_pid,
+        "load_ms": load_ms,
+        "total_ms": (time.perf_counter() - asset_started) * 1000.0,
+        "status": loaded_status,
+        "captures": captures,
+        "error": asset_error,
+    }
+
+
+def _capture_archive_browser_views(
+    *,
+    app: object,
+    host: object,
+    process: object,
+    asset: Mapping[str, object],
+    output_root: Path,
+    events: list[dict[str, object]],
+    stdout_tail: bytearray,
+    timeout_seconds: float,
+) -> tuple[list[dict[str, object]], str]:
+    captures: list[dict[str, object]] = []
+    asset_id = str(asset["id"])
+    for view in tuple(asset.get("views", ()) or ()):
+        if not isinstance(view, Mapping):
+            continue
+        view_name = str(view.get("name", "") or "view")
+        yaw = float(view.get("yaw", 0.0) or 0.0)
+        pitch = float(view.get("pitch", 0.0) or 0.0)
+        cursor = len(events)
+        camera_started = time.perf_counter()
+        if not host.set_view(yaw=yaw, pitch=pitch, fit_to_view=True, pan=(0.0, 0.0, 0.0)):
+            return captures, f"Camera command was rejected for {view_name}."
+        camera_event: dict[str, object] = {}
+
+        def camera_acknowledged() -> bool:
+            nonlocal camera_event
+            for event in events[cursor:]:
+                if str(event.get("event", "")).casefold() != "view_state":
+                    continue
+                try:
+                    if abs(float(event.get("yaw", 9999.0)) - yaw) <= 0.05 and abs(
+                        float(event.get("pitch", 9999.0)) - pitch
+                    ) <= 0.05:
+                        camera_event = dict(event)
+                        return True
+                except (TypeError, ValueError):
+                    continue
+            return False
+
+        if not _wait_until(
+            app,
+            camera_acknowledged,
+            min(8.0, timeout_seconds),
+            process=process,
+            output_tail=stdout_tail,
+        ):
+            return captures, f"Camera acknowledgement timed out for {view_name}."
+        camera_ms = (time.perf_counter() - camera_started) * 1000.0
+        capture_path = output_root / asset_id / f"{view_name}.png"
+        capture_path.unlink(missing_ok=True)
+        capture_cursor = len(events)
+        capture_started = time.perf_counter()
+        if not host.request_frame_capture(capture_path):
+            return captures, f"Frame capture command was rejected for {view_name}."
+        capture_event: dict[str, object] = {}
+
+        def capture_completed() -> bool:
+            nonlocal capture_event
+            for event in events[capture_cursor:]:
+                if str(event.get("event", "")).casefold() != "frame_capture":
+                    continue
+                if event.get("ok") is False:
+                    capture_event = dict(event)
+                    return True
+                event_path = str(event.get("path", "") or "")
+                if not event_path or Path(event_path).resolve() != capture_path.resolve():
+                    continue
+                capture_event = dict(event)
+                return True
+            return False
+
+        capture_ok = _wait_until(
+            app,
+            capture_completed,
+            min(12.0, timeout_seconds),
+            process=process,
+            output_tail=stdout_tail,
+        )
+        if not capture_ok or capture_event.get("ok") is not True or not capture_path.is_file():
+            return captures, str(
+                capture_event.get("message", "")
+                or f"Direct renderer capture timed out or failed for {view_name}."
+            )
+        captures.append(
+            {
+                "name": view_name,
+                "yaw": yaw,
+                "pitch": pitch,
+                "ok": capture_event.get("ok", True) is not False,
+                "path": str(capture_path),
+                "bytes": capture_path.stat().st_size,
+                "sha256": _sha256_file(capture_path),
+                "camera_ms": camera_ms,
+                "capture_ms": (time.perf_counter() - capture_started) * 1000.0,
+                "camera_ack": camera_event,
+                "capture_event": capture_event,
+            }
+        )
+    return captures, ""
 
 
 def run_dotnet_capture_batch(

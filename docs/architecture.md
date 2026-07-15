@@ -286,10 +286,17 @@ The Mesh Editor developer harness keeps its legacy CLI/import surface in
 `tools/mesh_editor_dev_harness.py`; scenario metadata, synthetic fixtures,
 native protocol/Qt probes, real-archive workflows, and evidence generation live
 under `tools/mesh_harness/`. Synthetic D3D window scenarios are visual opt-ins.
+The paired material audit keeps phase orchestration in `visual_audit_cli.py`,
+production package/checkpoint preparation in `visual_audit_corpus.py`, and the
+resident process, per-asset, and per-view capture contracts in
+`visual_audit_capture.py`; direct verdict finalization remains a separate step.
 Normal/full QA runs the split nonvisual tests and never substitutes synthetic
 checker geometry for the explicit read-only real-game proof. The canonical
 user-facing scenario is `real-archive-mesh-editor-dotnet-edit-smoke`; legacy
 `real-archive-mesh-editor-d3d11-*` scenarios remain compatibility-only.
+Preview-material data classes are owned by `cdmw/domain/model_preview_materials.py`
+and re-exported from `cdmw.models`; focused geometry-preparation, material-manifest,
+and native-host protocol helpers retain their existing compatibility imports.
 The Vortice viewport owns acknowledged resident display modes for production
 textures, neutral untextured faces, wireframe, and resident-buffer vertices.
 Mode changes reuse the same process, mesh buffers, decoded resources, and SRVs;

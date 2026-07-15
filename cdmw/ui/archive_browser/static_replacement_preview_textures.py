@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from functools import partial
 from pathlib import Path
 
 from cdmw.models import (
@@ -211,31 +212,7 @@ def apply_source_material_preview(
     def source_slot_preview_semantics(source_slot: object | None, source_path: Path) -> tuple[str, str, Sequence[str], str]:
         return replacement_texture_slot_preview_semantics(source_slot, source_path=source_path)
 
-    def add_material_input(
-        *,
-        slot_kind: str,
-        source_path: Path,
-        semantic_type: str,
-        semantic_subtype: str,
-        packed_channels: Sequence[str] = (),
-        shader_family: str = "",
-        parameters: Sequence[PreviewMaterialParameterInput] = (),
-        parameter_name: str = "",
-        normal_space: str = "",
-    ) -> None:
-        add_preview_material_input(
-            mesh,
-            slot_kind=slot_kind,
-            source_path=source_path,
-            semantic_type=semantic_type,
-            semantic_subtype=semantic_subtype,
-            packed_channels=packed_channels,
-            shader_family=shader_family,
-            parameters=parameters,
-            parameter_name=parameter_name,
-            material_name=material_name,
-            normal_space=normal_space,
-        )
+    add_material_input = partial(add_preview_material_input, mesh, material_name=material_name)
 
     base_slot = slots.get("base")
     if base_slot is not None:

@@ -159,35 +159,19 @@ def prepare_visual_audit_corpus(
     for offset, spec in enumerate(specs, 1):
         if progress is not None:
             progress(offset, len(specs), spec.virtual_path)
-        entry = next(iter(entries_by_path.get(_archive_key(spec.virtual_path), ())), None)
-        if entry is None:
-            raise FileNotFoundError(f"Visual-audit PAC is missing: {spec.virtual_path}")
-        started = time.perf_counter()
-        payload = _read_archive_payload(entry)
-        mesh = MeshService().load_mesh_bytes(payload, entry.path)
-        archive_started = time.perf_counter()
-        preview_result = build_archive_preview_result(
-            None,
+        (
             entry,
-            (),
-            texture_entries_by_normalized_path=dict(entries_by_path),
-            texture_entries_by_basename=dict(entries_by_basename),
-            include_loose_preview_assets=False,
-            visible_texture_mode="mesh_base_first",
-            support_texture_slots=("normal", "material", "height", "emissive"),
-            quality_tier="full",
-        )
-        if preview_result.status != "ok" or preview_result.preview_model is None:
-            raise RuntimeError(
-                f"Archive Browser preview failed for {entry.path}: "
-                f"{preview_result.warning_text or preview_result.detail_text}"
-            )
-        resolved_textures, material_diagnostics = _hydrate_real_archive_mesh_materials(
+            payload,
             mesh,
-            entry,
-            entries_by_path,
-            entries_by_basename,
-            preview_model=preview_result.preview_model,
+            preview_result,
+            resolved_textures,
+            material_diagnostics,
+            started,
+            archive_started,
+        ) = _load_visual_audit_asset(
+            spec,
+            entries_by_path=entries_by_path,
+            entries_by_basename=entries_by_basename,
         )
         # Package writing is the single material-combiner authority for this
         # harness. Running it here as well repeats the same expensive graph
@@ -232,21 +216,6 @@ def prepare_visual_audit_corpus(
             scene_session_id=spec.asset_id,
         )
         dotnet_package_ms = (time.perf_counter() - dotnet_started) * 1000.0
-        submeshes = [
-            dict(value)
-            for value in tuple(material_state.get("submeshes", ()) or ())
-            if isinstance(value, Mapping)
-        ]
-        texture_rows = _texture_rows(resolved_textures)
-        material_families = sorted({str(row.get("shader_family", "") or "unknown") for row in submeshes})
-        expected_channels = sorted(
-            {
-                str(channel)
-                for row in submeshes
-                for channel in (row.get("channels", {}) if isinstance(row.get("channels"), Mapping) else {})
-            }
-        )
-        alpha_modes = sorted({str(row.get("alpha_mode", "opaque") or "opaque") for row in submeshes})
         provenance = _archive_entry_provenance(entry)
         fingerprint_paths.update((Path(entry.pamt_path), Path(entry.paz_file)))
         for texture in resolved_textures:
@@ -255,37 +224,23 @@ def prepare_visual_audit_corpus(
                 for key in ("pamt_path", "paz_path"):
                     if str(texture_provenance.get(key, "")).strip():
                         fingerprint_paths.add(Path(str(texture_provenance[key])))
-        row = {
-            **asdict(spec),
-            "archive_provenance": provenance,
-            "payload_bytes": len(payload),
-            "payload_sha256": hashlib.sha256(payload).hexdigest(),
-            "submesh_count": len(mesh.submeshes),
-            "vertex_count": sum(len(submesh.vertices) for submesh in mesh.submeshes),
-            "face_count": sum(len(submesh.faces) for submesh in mesh.submeshes),
-            "expected_material_families": material_families,
-            "shader_profile_classification": material_families,
-            "expected_texture_channels": expected_channels,
-            "alpha_modes": alpha_modes,
-            "double_sided_submesh_count": sum(bool(row.get("double_sided")) for row in submeshes),
-            "resolved_texture_count": len(texture_rows),
-            "resolved_textures": texture_rows,
-            "material_resolution_diagnostics": list(material_diagnostics),
-            "comparison_presentation": {
-                "skeleton_overlay_disabled": comparison_overlays["skeleton_overlay_disabled"],
-                "cloth_overlay_disabled": comparison_overlays["cloth_overlay_disabled"],
-                "reason": "Material-parity captures exclude non-material editor overlays.",
-            },
-            "archive_browser_timings": {
-                **dict(preview_result.timings or {}),
-                "prepare_ms": archive_prepare_ms,
-                "package_ms": archive_package_ms,
-            },
-            "archive_package_stability": archive_package_stability,
-            "mesh_editor_package_ms": dotnet_package_ms,
-            "metadata_ms": metadata_elapsed_ms,
-            "preparation_total_ms": (time.perf_counter() - started) * 1000.0,
-        }
+        row = _visual_audit_corpus_row(
+            spec=spec,
+            entry_provenance=provenance,
+            payload=payload,
+            mesh=mesh,
+            material_state=material_state,
+            resolved_textures=resolved_textures,
+            material_diagnostics=material_diagnostics,
+            comparison_overlays=comparison_overlays,
+            preview_timings=preview_result.timings,
+            archive_prepare_ms=archive_prepare_ms,
+            archive_package_ms=archive_package_ms,
+            archive_package_stability=archive_package_stability,
+            dotnet_package_ms=dotnet_package_ms,
+            metadata_elapsed_ms=metadata_elapsed_ms,
+            started=started,
+        )
         rows.append(row)
         runtime_assets.append(
             {
@@ -298,20 +253,15 @@ def prepare_visual_audit_corpus(
         )
         if checkpoint is not None:
             checkpoint(
-                {
-                    "schema": "cdmw_mesh_visual_audit_preparation_checkpoint_v1",
-                    "game_root": str(game_root),
-                    "pamt_path": str(pamt_path),
-                    "requested_asset_count": len(specs),
-                    "prepared_asset_count": len(rows),
-                    "coverage": coverage,
-                    "assets": list(rows),
-                    "runtime_assets": list(runtime_assets),
-                    "archive_fingerprint_paths": [
-                        str(path) for path in sorted(fingerprint_paths, key=lambda value: str(value).casefold())
-                    ],
-                    "complete": len(rows) == len(specs),
-                }
+                _visual_audit_checkpoint(
+                    game_root=game_root,
+                    pamt_path=pamt_path,
+                    requested_asset_count=len(specs),
+                    coverage=coverage,
+                    rows=rows,
+                    runtime_assets=runtime_assets,
+                    fingerprint_paths=fingerprint_paths,
+                )
             )
     return {
         "schema": "cdmw_mesh_visual_audit_corpus_v1",
@@ -323,6 +273,146 @@ def prepare_visual_audit_corpus(
         "runtime_assets": runtime_assets,
         "archive_fingerprint_paths": [str(path) for path in sorted(fingerprint_paths, key=lambda value: str(value).casefold())],
         "archive_fingerprints": _archive_content_fingerprints(tuple(fingerprint_paths)),
+    }
+
+
+def _load_visual_audit_asset(
+    spec: VisualAuditAssetSpec,
+    *,
+    entries_by_path: Mapping[str, Sequence[object]],
+    entries_by_basename: Mapping[str, Sequence[object]],
+) -> tuple[object, bytes, object, object, Sequence[Mapping[str, object]], Sequence[object], float, float]:
+    entry = next(iter(entries_by_path.get(_archive_key(spec.virtual_path), ())), None)
+    if entry is None:
+        raise FileNotFoundError(f"Visual-audit PAC is missing: {spec.virtual_path}")
+    started = time.perf_counter()
+    payload = _read_archive_payload(entry)
+    mesh = MeshService().load_mesh_bytes(payload, entry.path)
+    archive_started = time.perf_counter()
+    preview_result = build_archive_preview_result(
+        None,
+        entry,
+        (),
+        texture_entries_by_normalized_path=dict(entries_by_path),
+        texture_entries_by_basename=dict(entries_by_basename),
+        include_loose_preview_assets=False,
+        visible_texture_mode="mesh_base_first",
+        support_texture_slots=("normal", "material", "height", "emissive"),
+        quality_tier="full",
+    )
+    if preview_result.status != "ok" or preview_result.preview_model is None:
+        raise RuntimeError(
+            f"Archive Browser preview failed for {entry.path}: "
+            f"{preview_result.warning_text or preview_result.detail_text}"
+        )
+    resolved_textures, material_diagnostics = _hydrate_real_archive_mesh_materials(
+        mesh,
+        entry,
+        entries_by_path,
+        entries_by_basename,
+        preview_model=preview_result.preview_model,
+    )
+    return (
+        entry,
+        payload,
+        mesh,
+        preview_result,
+        resolved_textures,
+        material_diagnostics,
+        started,
+        archive_started,
+    )
+
+
+def _visual_audit_corpus_row(
+    *,
+    spec: VisualAuditAssetSpec,
+    entry_provenance: Mapping[str, object],
+    payload: bytes,
+    mesh: object,
+    material_state: Mapping[str, object],
+    resolved_textures: Sequence[Mapping[str, object]],
+    material_diagnostics: Sequence[object],
+    comparison_overlays: Mapping[str, bool],
+    preview_timings: Mapping[str, object] | None,
+    archive_prepare_ms: float,
+    archive_package_ms: float,
+    archive_package_stability: Mapping[str, object],
+    dotnet_package_ms: float,
+    metadata_elapsed_ms: float,
+    started: float,
+) -> dict[str, object]:
+    submeshes = [
+        dict(value)
+        for value in tuple(material_state.get("submeshes", ()) or ())
+        if isinstance(value, Mapping)
+    ]
+    texture_rows = _texture_rows(resolved_textures)
+    material_families = sorted({str(row.get("shader_family", "") or "unknown") for row in submeshes})
+    expected_channels = sorted(
+        {
+            str(channel)
+            for row in submeshes
+            for channel in (row.get("channels", {}) if isinstance(row.get("channels"), Mapping) else {})
+        }
+    )
+    alpha_modes = sorted({str(row.get("alpha_mode", "opaque") or "opaque") for row in submeshes})
+    return {
+        **asdict(spec),
+        "archive_provenance": dict(entry_provenance),
+        "payload_bytes": len(payload),
+        "payload_sha256": hashlib.sha256(payload).hexdigest(),
+        "submesh_count": len(mesh.submeshes),
+        "vertex_count": sum(len(submesh.vertices) for submesh in mesh.submeshes),
+        "face_count": sum(len(submesh.faces) for submesh in mesh.submeshes),
+        "expected_material_families": material_families,
+        "shader_profile_classification": material_families,
+        "expected_texture_channels": expected_channels,
+        "alpha_modes": alpha_modes,
+        "double_sided_submesh_count": sum(bool(row.get("double_sided")) for row in submeshes),
+        "resolved_texture_count": len(texture_rows),
+        "resolved_textures": texture_rows,
+        "material_resolution_diagnostics": list(material_diagnostics),
+        "comparison_presentation": {
+            "skeleton_overlay_disabled": comparison_overlays["skeleton_overlay_disabled"],
+            "cloth_overlay_disabled": comparison_overlays["cloth_overlay_disabled"],
+            "reason": "Material-parity captures exclude non-material editor overlays.",
+        },
+        "archive_browser_timings": {
+            **dict(preview_timings or {}),
+            "prepare_ms": archive_prepare_ms,
+            "package_ms": archive_package_ms,
+        },
+        "archive_package_stability": dict(archive_package_stability),
+        "mesh_editor_package_ms": dotnet_package_ms,
+        "metadata_ms": metadata_elapsed_ms,
+        "preparation_total_ms": (time.perf_counter() - started) * 1000.0,
+    }
+
+
+def _visual_audit_checkpoint(
+    *,
+    game_root: Path,
+    pamt_path: Path,
+    requested_asset_count: int,
+    coverage: Mapping[str, int],
+    rows: Sequence[Mapping[str, object]],
+    runtime_assets: Sequence[Mapping[str, object]],
+    fingerprint_paths: set[Path],
+) -> dict[str, object]:
+    return {
+        "schema": "cdmw_mesh_visual_audit_preparation_checkpoint_v1",
+        "game_root": str(game_root),
+        "pamt_path": str(pamt_path),
+        "requested_asset_count": requested_asset_count,
+        "prepared_asset_count": len(rows),
+        "coverage": dict(coverage),
+        "assets": list(rows),
+        "runtime_assets": list(runtime_assets),
+        "archive_fingerprint_paths": [
+            str(path) for path in sorted(fingerprint_paths, key=lambda value: str(value).casefold())
+        ],
+        "complete": len(rows) == requested_asset_count,
     }
 
 

@@ -26,6 +26,12 @@ from cdmw.models import (
     RunCancelled,
     clamp_model_preview_render_settings,
 )
+from cdmw.rendering.model_preview_geometry_support import (
+    finite_tuple3 as _finite_tuple3,
+    int_tuple as _int_tuple,
+    int_value as _int_value,
+    preview_texture_key as _preview_texture_key,
+)
 
 
 FIT_DISTANCE = 3.25
@@ -913,32 +919,6 @@ def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) ->
     if not isinstance(raw_batches, list):
         return None
 
-    def tuple3(value: object, fallback: Tuple[float, float, float]) -> Tuple[float, float, float]:
-        if not isinstance(value, (tuple, list)) or len(value) < 3:
-            return fallback
-        return (
-            finite_float(value[0], fallback[0]),
-            finite_float(value[1], fallback[1]),
-            finite_float(value[2], fallback[2]),
-        )
-
-    def int_tuple(value: object) -> Tuple[int, ...]:
-        if not isinstance(value, (tuple, list)):
-            return ()
-        result: list[int] = []
-        for item in value:
-            try:
-                result.append(int(item))
-            except (TypeError, ValueError, OverflowError):
-                continue
-        return tuple(result)
-
-    def int_value(value: object, default: int = -1) -> int:
-        try:
-            return int(value)
-        except (TypeError, ValueError, OverflowError):
-            return default
-
     for raw_batch in raw_batches:
         if not isinstance(raw_batch, Mapping):
             continue
@@ -952,12 +932,12 @@ def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) ->
             return None
         if mesh_index < 0 or mesh_index >= len(meshes) or batch_vertex_count <= 0:
             continue
-        source_vertex_range_start = int_value(raw_batch.get("source_vertex_start"), -1)
-        source_vertex_range_count = max(0, int_value(raw_batch.get("source_vertex_count"), 0))
+        source_vertex_range_start = _int_value(raw_batch.get("source_vertex_start"), -1)
+        source_vertex_range_count = max(0, _int_value(raw_batch.get("source_vertex_count"), 0))
         if source_vertex_range_start < 0:
             source_vertex_range_count = 0
-        source_face_range_start = int_value(raw_batch.get("source_face_start"), -1)
-        source_face_range_count = max(0, int_value(raw_batch.get("source_face_count"), 0))
+        source_face_range_start = _int_value(raw_batch.get("source_face_start"), -1)
+        source_face_range_count = max(0, _int_value(raw_batch.get("source_face_count"), 0))
         if source_face_range_start < 0:
             source_face_range_count = 0
         batch_identity_blob = b""
@@ -966,21 +946,11 @@ def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) ->
             if identity_end <= len(identity_blob):
                 batch_identity_blob = identity_blob[identity_offset:identity_end]
         mesh = meshes[mesh_index]
-        texture_key = str(getattr(mesh, "preview_texture_path", "") or "").strip()
-        if not texture_key and getattr(mesh, "preview_texture_image", None) is not None:
-            texture_key = f"in_memory:{mesh_index}"
-        normal_texture_key = str(getattr(mesh, "preview_normal_texture_path", "") or "").strip()
-        if not normal_texture_key and getattr(mesh, "preview_normal_texture_image", None) is not None:
-            normal_texture_key = f"in_memory_normal:{mesh_index}"
-        material_texture_key = str(getattr(mesh, "preview_material_texture_path", "") or "").strip()
-        if not material_texture_key and getattr(mesh, "preview_material_texture_image", None) is not None:
-            material_texture_key = f"in_memory_material:{mesh_index}"
-        height_texture_key = str(getattr(mesh, "preview_height_texture_path", "") or "").strip()
-        if not height_texture_key and getattr(mesh, "preview_height_texture_image", None) is not None:
-            height_texture_key = f"in_memory_height:{mesh_index}"
-        emissive_texture_key = str(getattr(mesh, "preview_emissive_texture_path", "") or "").strip()
-        if not emissive_texture_key and getattr(mesh, "preview_emissive_texture_image", None) is not None:
-            emissive_texture_key = f"in_memory_emissive:{mesh_index}"
+        texture_key = _preview_texture_key(mesh, path_attribute="preview_texture_path", image_attribute="preview_texture_image", memory_prefix="in_memory", mesh_index=mesh_index)
+        normal_texture_key = _preview_texture_key(mesh, path_attribute="preview_normal_texture_path", image_attribute="preview_normal_texture_image", memory_prefix="in_memory_normal", mesh_index=mesh_index)
+        material_texture_key = _preview_texture_key(mesh, path_attribute="preview_material_texture_path", image_attribute="preview_material_texture_image", memory_prefix="in_memory_material", mesh_index=mesh_index)
+        height_texture_key = _preview_texture_key(mesh, path_attribute="preview_height_texture_path", image_attribute="preview_height_texture_image", memory_prefix="in_memory_height", mesh_index=mesh_index)
+        emissive_texture_key = _preview_texture_key(mesh, path_attribute="preview_emissive_texture_path", image_attribute="preview_emissive_texture_image", memory_prefix="in_memory_emissive", mesh_index=mesh_index)
         texture_flip_vertical = resolve_preview_texture_flip_vertical(
             getattr(mesh, "preview_texture_flip_vertical", None),
             source_format=getattr(model, "format", ""),
@@ -1034,9 +1004,9 @@ def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) ->
                 texture_brightness=max(0.1, min(3.0, finite_float(getattr(mesh, "preview_texture_brightness", 1.0), 1.0))),
                 texture_tint=texture_tint,
                 texture_uv_scale=texture_uv_scale,
-                base_color=tuple3(raw_batch.get("base_color"), (0.78, 0.48, 0.34)),
-                bounds_min=tuple3(raw_batch.get("bounds_min"), (0.0, 0.0, 0.0)),
-                bounds_max=tuple3(raw_batch.get("bounds_max"), (0.0, 0.0, 0.0)),
+                base_color=_finite_tuple3(raw_batch.get("base_color"), (0.78, 0.48, 0.34)),
+                bounds_min=_finite_tuple3(raw_batch.get("bounds_min"), (0.0, 0.0, 0.0)),
+                bounds_max=_finite_tuple3(raw_batch.get("bounds_max"), (0.0, 0.0, 0.0)),
                 normal_finite_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("normal_finite_ratio", 1.0), 1.0))),
                 normal_repair_count=max(0, int(raw_batch.get("normal_repair_count", 0) or 0)),
                 tangent_finite_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("tangent_finite_ratio", 1.0), 1.0))),
@@ -1046,8 +1016,8 @@ def _build_vertex_blob_native(model: object, *, flip_texture_v: bool = False) ->
                 smooth_normal_ratio=max(0.0, min(1.0, finite_float(raw_batch.get("smooth_normal_ratio", 0.0), 0.0))),
                 position_y_min=finite_float(raw_batch.get("position_y_min", 0.0), 0.0),
                 position_y_max=finite_float(raw_batch.get("position_y_max", 0.0), 0.0),
-                source_vertex_indices=int_tuple(raw_batch.get("source_vertex_indices")),
-                source_face_indices=int_tuple(raw_batch.get("source_face_indices")),
+                source_vertex_indices=_int_tuple(raw_batch.get("source_vertex_indices")),
+                source_face_indices=_int_tuple(raw_batch.get("source_face_indices")),
                 source_vertex_indices_binary=_model_preview_binary_descriptor(
                     raw_batch.get("source_vertex_indices_binary"),
                     components=1,
@@ -1304,21 +1274,11 @@ def _build_vertex_blob_impl(model: object, *, flip_texture_v: bool = False, use_
             continue
         vertex_chunks.append(vertex_blob)
         vertex_count += batch_vertex_count
-        texture_key = str(getattr(mesh, "preview_texture_path", "") or "").strip()
-        if not texture_key and getattr(mesh, "preview_texture_image", None) is not None:
-            texture_key = f"in_memory:{mesh_index}"
-        normal_texture_key = str(getattr(mesh, "preview_normal_texture_path", "") or "").strip()
-        if not normal_texture_key and getattr(mesh, "preview_normal_texture_image", None) is not None:
-            normal_texture_key = f"in_memory_normal:{mesh_index}"
-        material_texture_key = str(getattr(mesh, "preview_material_texture_path", "") or "").strip()
-        if not material_texture_key and getattr(mesh, "preview_material_texture_image", None) is not None:
-            material_texture_key = f"in_memory_material:{mesh_index}"
-        height_texture_key = str(getattr(mesh, "preview_height_texture_path", "") or "").strip()
-        if not height_texture_key and getattr(mesh, "preview_height_texture_image", None) is not None:
-            height_texture_key = f"in_memory_height:{mesh_index}"
-        emissive_texture_key = str(getattr(mesh, "preview_emissive_texture_path", "") or "").strip()
-        if not emissive_texture_key and getattr(mesh, "preview_emissive_texture_image", None) is not None:
-            emissive_texture_key = f"in_memory_emissive:{mesh_index}"
+        texture_key = _preview_texture_key(mesh, path_attribute="preview_texture_path", image_attribute="preview_texture_image", memory_prefix="in_memory", mesh_index=mesh_index)
+        normal_texture_key = _preview_texture_key(mesh, path_attribute="preview_normal_texture_path", image_attribute="preview_normal_texture_image", memory_prefix="in_memory_normal", mesh_index=mesh_index)
+        material_texture_key = _preview_texture_key(mesh, path_attribute="preview_material_texture_path", image_attribute="preview_material_texture_image", memory_prefix="in_memory_material", mesh_index=mesh_index)
+        height_texture_key = _preview_texture_key(mesh, path_attribute="preview_height_texture_path", image_attribute="preview_height_texture_image", memory_prefix="in_memory_height", mesh_index=mesh_index)
+        emissive_texture_key = _preview_texture_key(mesh, path_attribute="preview_emissive_texture_path", image_attribute="preview_emissive_texture_image", memory_prefix="in_memory_emissive", mesh_index=mesh_index)
         texture_flip_vertical = resolve_preview_texture_flip_vertical(
             getattr(mesh, "preview_texture_flip_vertical", None),
             source_format=getattr(model, "format", ""),
@@ -1732,21 +1692,15 @@ def prepare_model_preview(
     prepared_batches: List[PreparedModelPreviewBatch] = []
     cloth_preview = getattr(cloned_model, "cloth_preview", None)
 
-    def int_or_default(value: object, default: int = -1) -> int:
-        try:
-            return int(value)
-        except (TypeError, ValueError, OverflowError):
-            return default
-
     cloth_by_mesh_index = {
-        int_or_default(getattr(batch, "mesh_index", -1), -1): batch
+        _int_value(getattr(batch, "mesh_index", -1), -1): batch
         for batch in tuple(getattr(cloth_preview, "batches", ()) or ())
-        if int_or_default(getattr(batch, "mesh_index", -1), -1) >= 0
+        if _int_value(getattr(batch, "mesh_index", -1), -1) >= 0
     }
     cloth_by_source_submesh = {
-        int_or_default(getattr(batch, "source_submesh_index", -1), -1): batch
+        _int_value(getattr(batch, "source_submesh_index", -1), -1): batch
         for batch in tuple(getattr(cloth_preview, "batches", ()) or ())
-        if int_or_default(getattr(batch, "source_submesh_index", -1), -1) >= 0
+        if _int_value(getattr(batch, "source_submesh_index", -1), -1) >= 0
     }
     floats_per_vertex = 23
     bytes_per_vertex = floats_per_vertex * 4
@@ -1755,15 +1709,15 @@ def prepare_model_preview(
             raise RunCancelled("Model preview preparation cancelled.")
         start = int(batch.first_vertex) * bytes_per_vertex
         end = start + (int(batch.vertex_count) * bytes_per_vertex)
-        mesh_source_submesh_index = int_or_default(getattr(mesh, "source_submesh_index", -1), -1)
+        mesh_source_submesh_index = _int_value(getattr(mesh, "source_submesh_index", -1), -1)
         emitted_source_vertices = tuple(int(index) for index in (batch.source_vertex_indices or ()))
         emitted_source_faces = tuple(int(index) for index in (batch.source_face_indices or ()))
-        source_vertex_range_start = int_or_default(getattr(batch, "source_vertex_range_start", -1), -1)
-        source_vertex_range_count = max(0, int_or_default(getattr(batch, "source_vertex_range_count", 0), 0))
+        source_vertex_range_start = _int_value(getattr(batch, "source_vertex_range_start", -1), -1)
+        source_vertex_range_count = max(0, _int_value(getattr(batch, "source_vertex_range_count", 0), 0))
         if source_vertex_range_start < 0:
             source_vertex_range_count = 0
-        source_face_range_start = int_or_default(getattr(batch, "source_face_range_start", -1), -1)
-        source_face_range_count = max(0, int_or_default(getattr(batch, "source_face_range_count", 0), 0))
+        source_face_range_start = _int_value(getattr(batch, "source_face_range_start", -1), -1)
+        source_face_range_count = max(0, _int_value(getattr(batch, "source_face_range_count", 0), 0))
         if source_face_range_start < 0:
             source_face_range_count = 0
         has_source_vertex_range = source_vertex_range_count > 0

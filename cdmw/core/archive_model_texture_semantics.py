@@ -610,11 +610,8 @@ def _set_model_preview_texture_slot(
             mesh.preview_material_texture_name = texture_path_text
             mesh.preview_material_texture_type = str(semantic_type or "").strip().lower()
             mesh.preview_material_texture_subtype = str(semantic_subtype or "").strip().lower()
-            mesh.preview_material_texture_packed_channels = tuple(
-                str(channel or "").strip().lower()
-                for channel in packed_channels
-                if str(channel or "").strip()
-            )
+            normalized_packed_channels = _normalized_packed_channels(packed_channels)
+            mesh.preview_material_texture_packed_channels = normalized_packed_channels
             _append_model_preview_material_input(
                 mesh,
                 PreviewMaterialTextureInput(
@@ -625,11 +622,7 @@ def _set_model_preview_texture_slot(
                     preview_texture_path=preview_path_text,
                     semantic_type=str(semantic_type or "material").strip().lower(),
                     semantic_subtype=str(semantic_subtype or "").strip().lower(),
-                    packed_channels=tuple(
-                        str(channel or "").strip().lower()
-                        for channel in packed_channels
-                        if str(channel or "").strip()
-                    ),
+                    packed_channels=normalized_packed_channels,
                     material_name=str(getattr(mesh, "material_name", "") or "").strip(),
                     confidence="resolved",
                     visualized=True,
@@ -712,6 +705,14 @@ def _set_model_preview_texture_slot(
             ),
         )
     return changed
+
+def _normalized_packed_channels(packed_channels: Sequence[str]) -> tuple[str, ...]:
+    return tuple(
+        str(channel or "").strip().lower()
+        for channel in packed_channels
+        if str(channel or "").strip()
+    )
+
 
 def _append_model_preview_material_input(
     mesh: ModelPreviewMesh,

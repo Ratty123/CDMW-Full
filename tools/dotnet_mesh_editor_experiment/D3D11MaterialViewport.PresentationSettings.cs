@@ -51,7 +51,6 @@ internal sealed partial class D3D11MaterialViewport
         var tint = settings.DisableTint ? Vector3.One : parameters.TintColor ?? Vector3.One;
         var baseTint = parameters.BaseTintColor ?? Vector3.One;
         var baseTintStrength = settings.DisableTint ? 0.0f : parameters.BaseTintStrength ?? 0.0f;
-        var emissiveColor = parameters.EmissiveColor ?? Vector3.One;
         var azimuth = settings.LightAzimuthDegrees * MathF.PI / 180.0f;
         var elevation = settings.LightElevationDegrees * MathF.PI / 180.0f;
         var cosElevation = MathF.Cos(elevation);
@@ -72,17 +71,7 @@ internal sealed partial class D3D11MaterialViewport
             ? Matrix4x4.Transpose(inverseWorld)
             : Matrix4x4.Identity;
         var cameraDistance = Math.Max(10.0f, _camera.SceneSize * 4.0f + 10.0f);
-        // Mirrors the native preview's conservative nonmetal limits and
-        // family depth authority. This is a stable inspection fallback, not a
-        // claim that the captured Crimson shader family is fully reproduced.
-        var materialFamilyPolicy = _materials.ShaderFamilyForSubmesh(materialSubmeshIndex) switch
-        {
-            "skin" => new Vector4(1.0f, 0.30f, 0.34f, 0.40f),
-            "cloth" or "cloth_v2" => new Vector4(1.0f, 0.48f, 0.28f, 0.46f),
-            "hair" => new Vector4(1.0f, 0.36f, 0.46f, 0.38f),
-            _ => Vector4.Zero,
-        };
-        return new D3D11CameraConstants
+        var constants = new D3D11CameraConstants
         {
             WorldViewProjection = ActivePaneModelMatrix(batch.SubmeshIndex) * _camera.WorldViewProjection,
             World = world,
@@ -133,100 +122,132 @@ internal sealed partial class D3D11MaterialViewport
                 (parameters.AutoBalance ?? 0) / 100.0f,
                 (parameters.ShadowLift ?? 0) / 100.0f),
             MaterialBasePost = new Vector4(parameters.PostContrastBrightness ?? 1.0f, 0.0f, 0.0f, 0.0f),
-            MaterialSurfaceOverrides = new Vector4(
-                parameters.Roughness ?? 0.0f,
-                parameters.Metalness ?? 0.0f,
-                parameters.Specular ?? 0.0f,
-                parameters.HeightScale ?? 0.0f),
-            MaterialSurfaceOverrideFlags = new Vector4(
-                parameters.Roughness.HasValue ? 1.0f : 0.0f,
-                parameters.Metalness.HasValue ? 1.0f : 0.0f,
-                parameters.Specular.HasValue ? 1.0f : 0.0f,
-                parameters.HeightScale.HasValue ? 1.0f : 0.0f),
-            MaterialSurfaceTransforms = new Vector4(
-                parameters.RoughnessScale ?? 1.0f,
-                (parameters.RoughnessMin ?? 0) / 255.0f,
-                (parameters.RoughnessMax ?? 255) / 255.0f,
-                parameters.RoughnessInverted == true ? 1.0f : 0.0f),
-            MaterialSurfaceTransforms2 = new Vector4(
-                parameters.MetalnessScale ?? 1.0f,
-                (parameters.MetalnessMin ?? 0) / 255.0f,
-                (parameters.MetalnessMax ?? 255) / 255.0f,
-                parameters.MetalnessInverted == true ? 1.0f : 0.0f),
-            MaterialSurfaceBlends = new Vector4(
-                parameters.RoughnessBlendTarget ?? 0.0f,
-                parameters.RoughnessBlendStrength ?? 0.0f,
-                parameters.MetalnessBlendTarget ?? 0.0f,
-                parameters.MetalnessBlendStrength ?? 0.0f),
-            MaterialEmissiveOverride = new Vector4(
-                emissiveColor,
-                parameters.EmissiveIntensity ?? 1.0f),
-            MaterialEmissiveOverrideFlags = new Vector4(
-                parameters.EmissiveColor.HasValue ? 1.0f : 0.0f,
-                parameters.EmissiveIntensity.HasValue ? 1.0f : 0.0f,
-                parameters.EmissiveScalarMask == true ? 1.0f : 0.0f,
-                0.0f),
-            MaterialChannelSelectors = new Vector4(
-                _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "roughness"),
-                _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "metallic"),
-                _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "layer_mask"),
-                0.0f),
-            PresentationUvScaleOffset = new Vector4(
-                settings.DisableUvScale ? 1.0f : settings.UvScale.X,
-                settings.DisableUvScale ? 1.0f : settings.UvScale.Y,
-                settings.UvOffset.X,
-                settings.UvOffset.Y),
-            PresentationUvRotationFlip = new Vector4(
-                MathF.Cos(settings.UvRotationDegrees * MathF.PI / 180.0f),
-                MathF.Sin(settings.UvRotationDegrees * MathF.PI / 180.0f),
-                settings.FlipU ? -1.0f : 1.0f,
-                settings.FlipV
-                    ^ settings.FlipTextureV
-                    ^ _materials.TextureFlipVerticalForSubmesh(materialSubmeshIndex)
-                    ? -1.0f
-                    : 1.0f),
-            PresentationSurfaceTuning = new Vector4(
-                settings.RoughnessBias,
-                settings.MetalnessScale,
-                settings.EmissiveGain,
-                settings.DisableLighting ? 1.0f : 0.0f),
-            PresentationToneTuning = new Vector4(
-                settings.ToneExposure * (settings.GameOutdoorApprox ? 1.06f : 1.0f),
-                settings.ToneContrast,
-                settings.ToneGamma,
-                settings.EnvironmentStrength),
-            PresentationLightingTuning = new Vector4(
-                settings.AoStrength,
-                settings.DiffuseWrapBias,
-                settings.DiffuseLightScale,
-                settings.AmbientStrength),
-            PresentationMaterialTuning = new Vector4(
-                settings.HeightEffectMax,
-                settings.SpecularMax,
-                settings.ShininessMax,
-                settings.NormalStrengthCap),
-            PresentationDiagnosticTuning = new Vector4(
-                batch.SubmeshIndex,
-                settings.SpecularBase,
-                materials.LayerMask is null ? 0.0f : 1.0f,
-                0.0f),
-            MaterialAlphaPolicy = new Vector4(
-                _materials.AlphaModeForSubmesh(materialSubmeshIndex) switch
-                {
-                    "cutout" => 1.0f,
-                    "blend" => 2.0f,
-                    _ => 0.0f,
-                },
-                _materials.AlphaCutoffForSubmesh(materialSubmeshIndex),
-                _materials.DoubleSidedForSubmesh(materialSubmeshIndex) ? 1.0f : 0.0f,
-                _materials.OpacityFactorForSubmesh(materialSubmeshIndex)),
-            MaterialAdditionalMaps = new Vector4(
-                materials.Opacity is null ? 0.0f : 1.0f,
-                materials.Occlusion is null ? 0.0f : 1.0f,
-                _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "opacity"),
-                _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "occlusion")),
-            MaterialFamilyPolicy = materialFamilyPolicy,
         };
+        ApplyMaterialSurfaceConstants(ref constants, parameters, materialSubmeshIndex);
+        ApplyPresentationConstants(ref constants, settings, batch, materials, materialSubmeshIndex);
+        return constants;
+    }
+
+    private void ApplyMaterialSurfaceConstants(
+        ref D3D11CameraConstants constants,
+        NetMaterialParameters parameters,
+        int materialSubmeshIndex)
+    {
+        constants.MaterialSurfaceOverrides = new Vector4(
+            parameters.Roughness ?? 0.0f,
+            parameters.Metalness ?? 0.0f,
+            parameters.Specular ?? 0.0f,
+            parameters.HeightScale ?? 0.0f);
+        constants.MaterialSurfaceOverrideFlags = new Vector4(
+            parameters.Roughness.HasValue ? 1.0f : 0.0f,
+            parameters.Metalness.HasValue ? 1.0f : 0.0f,
+            parameters.Specular.HasValue ? 1.0f : 0.0f,
+            parameters.HeightScale.HasValue ? 1.0f : 0.0f);
+        constants.MaterialSurfaceTransforms = new Vector4(
+            parameters.RoughnessScale ?? 1.0f,
+            (parameters.RoughnessMin ?? 0) / 255.0f,
+            (parameters.RoughnessMax ?? 255) / 255.0f,
+            parameters.RoughnessInverted == true ? 1.0f : 0.0f);
+        constants.MaterialSurfaceTransforms2 = new Vector4(
+            parameters.MetalnessScale ?? 1.0f,
+            (parameters.MetalnessMin ?? 0) / 255.0f,
+            (parameters.MetalnessMax ?? 255) / 255.0f,
+            parameters.MetalnessInverted == true ? 1.0f : 0.0f);
+        constants.MaterialSurfaceBlends = new Vector4(
+            parameters.RoughnessBlendTarget ?? 0.0f,
+            parameters.RoughnessBlendStrength ?? 0.0f,
+            parameters.MetalnessBlendTarget ?? 0.0f,
+            parameters.MetalnessBlendStrength ?? 0.0f);
+        constants.MaterialEmissiveOverride = new Vector4(
+            parameters.EmissiveColor ?? Vector3.One,
+            parameters.EmissiveIntensity ?? 1.0f);
+        constants.MaterialEmissiveOverrideFlags = new Vector4(
+            parameters.EmissiveColor.HasValue ? 1.0f : 0.0f,
+            parameters.EmissiveIntensity.HasValue ? 1.0f : 0.0f,
+            parameters.EmissiveScalarMask == true ? 1.0f : 0.0f,
+            0.0f);
+        constants.MaterialChannelSelectors = new Vector4(
+            _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "roughness"),
+            _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "metallic"),
+            _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "layer_mask"),
+            0.0f);
+    }
+
+    private void ApplyPresentationConstants(
+        ref D3D11CameraConstants constants,
+        D3D11PresentationSettings settings,
+        D3D11SubmeshBatch batch,
+        D3D11MaterialResources materials,
+        int materialSubmeshIndex)
+    {
+        constants.PresentationUvScaleOffset = new Vector4(
+            settings.DisableUvScale ? 1.0f : settings.UvScale.X,
+            settings.DisableUvScale ? 1.0f : settings.UvScale.Y,
+            settings.UvOffset.X,
+            settings.UvOffset.Y);
+        constants.PresentationUvRotationFlip = new Vector4(
+            MathF.Cos(settings.UvRotationDegrees * MathF.PI / 180.0f),
+            MathF.Sin(settings.UvRotationDegrees * MathF.PI / 180.0f),
+            settings.FlipU ? -1.0f : 1.0f,
+            settings.FlipV
+                ^ settings.FlipTextureV
+                ^ _materials.TextureFlipVerticalForSubmesh(materialSubmeshIndex)
+                ? -1.0f
+                : 1.0f);
+        constants.PresentationSurfaceTuning = new Vector4(
+            settings.RoughnessBias,
+            settings.MetalnessScale,
+            settings.EmissiveGain,
+            settings.DisableLighting ? 1.0f : 0.0f);
+        constants.PresentationToneTuning = new Vector4(
+            settings.ToneExposure * (settings.GameOutdoorApprox ? 1.06f : 1.0f),
+            settings.ToneContrast,
+            settings.ToneGamma,
+            settings.EnvironmentStrength);
+        constants.PresentationLightingTuning = new Vector4(
+            settings.AoStrength,
+            settings.DiffuseWrapBias,
+            settings.DiffuseLightScale,
+            settings.AmbientStrength);
+        constants.PresentationMaterialTuning = new Vector4(
+            settings.HeightEffectMax,
+            settings.SpecularMax,
+            settings.ShininessMax,
+            settings.NormalStrengthCap);
+        constants.PresentationDiagnosticTuning = new Vector4(
+            batch.SubmeshIndex,
+            settings.SpecularBase,
+            materials.LayerMask is null ? 0.0f : 1.0f,
+            0.0f);
+        constants.MaterialAlphaPolicy = BuildAlphaPolicy(materialSubmeshIndex);
+        constants.MaterialAdditionalMaps = new Vector4(
+            materials.Opacity is null ? 0.0f : 1.0f,
+            materials.Occlusion is null ? 0.0f : 1.0f,
+            _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "opacity"),
+            _materials.ChannelComponentIndexForSubmesh(materialSubmeshIndex, "occlusion"));
+        // Stable inspection fallback; not a claim of full Crimson shader parity.
+        constants.MaterialFamilyPolicy = _materials.ShaderFamilyForSubmesh(materialSubmeshIndex) switch
+        {
+            "skin" => new Vector4(1.0f, 0.30f, 0.34f, 0.40f),
+            "cloth" or "cloth_v2" => new Vector4(1.0f, 0.48f, 0.28f, 0.46f),
+            "hair" => new Vector4(1.0f, 0.36f, 0.46f, 0.38f),
+            _ => Vector4.Zero,
+        };
+    }
+
+    private Vector4 BuildAlphaPolicy(int materialSubmeshIndex)
+    {
+        var alphaMode = _materials.AlphaModeForSubmesh(materialSubmeshIndex) switch
+        {
+            "cutout" => 1.0f,
+            "blend" => 2.0f,
+            _ => 0.0f,
+        };
+        return new Vector4(
+            alphaMode,
+            _materials.AlphaCutoffForSubmesh(materialSubmeshIndex),
+            _materials.DoubleSidedForSubmesh(materialSubmeshIndex) ? 1.0f : 0.0f,
+            _materials.OpacityFactorForSubmesh(materialSubmeshIndex));
     }
 
 }

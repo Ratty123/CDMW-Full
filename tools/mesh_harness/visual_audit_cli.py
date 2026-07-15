@@ -24,7 +24,7 @@ from tools.mesh_harness.visual_audit_corpus import (
 from tools.mesh_harness.visual_audit_report import build_visual_audit_composites
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Capture matched multi-angle real-PAC Archive Browser and .NET/Vortice evidence."
     )
@@ -36,18 +36,43 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--native-timeout", type=float, default=45.0)
     parser.add_argument("--dotnet-timeout", type=float, default=900.0)
     parser.add_argument("--dotnet-assembly", type=Path)
-    args = parser.parse_args(argv)
+    return parser
 
+
+def _initialize_evidence_roots(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+) -> tuple[Path, Path, Path]:
     game_root = args.game_root.resolve()
     evidence_root = args.output.resolve()
     if evidence_root.is_relative_to(game_root):
         parser.error("Evidence output must be outside the game root.")
     evidence_root.mkdir(parents=True, exist_ok=True)
-    final_root = evidence_root / "final"
-    comparisons_root = evidence_root / "comparisons"
-    runtime_root = evidence_root / "runtime"
-    for path in (final_root, comparisons_root, runtime_root):
+    for path in (
+        evidence_root / "final",
+        evidence_root / "comparisons",
+        evidence_root / "runtime",
+    ):
         path.mkdir(parents=True, exist_ok=True)
+    return game_root, evidence_root, evidence_root / "runtime"
+
+
+def _dotnet_assembly_path(args: argparse.Namespace) -> Path:
+    return args.dotnet_assembly or (
+        Path(__file__).resolve().parents[1]
+        / "dotnet_mesh_editor_experiment"
+        / "bin"
+        / "Release"
+        / "net8.0-windows"
+        / "cdmw-mesh-dotnet-editor.dll"
+    )
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = _argument_parser()
+    args = parser.parse_args(argv)
+    game_root, evidence_root, runtime_root = _initialize_evidence_roots(args, parser)
+    final_root = evidence_root / "final"
     package_state_path = runtime_root / "package-state.json"
     corpus_path = evidence_root / "corpus.json"
     package_state: dict[str, object] = {}
@@ -139,14 +164,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     _atomic_write_json(runtime_root / "archive-browser-capture.json", archive_report)
 
-    assembly_path = args.dotnet_assembly or (
-        Path(__file__).resolve().parents[1]
-        / "dotnet_mesh_editor_experiment"
-        / "bin"
-        / "Release"
-        / "net8.0-windows"
-        / "cdmw-mesh-dotnet-editor.dll"
-    )
+    assembly_path = _dotnet_assembly_path(args)
     if not assembly_path.is_file():
         parser.error(
             "The Release .NET renderer is not built. Run: "
@@ -182,6 +200,31 @@ def main(argv: Sequence[str] | None = None) -> int:
         for row in tuple(corpus.get("assets", ()) or ())
         if isinstance(row, Mapping)
     ]
+    integrity = _capture_integrity(
+        run_id=run_id,
+        expected_ids=expected_ids,
+        archive_report=archive_report,
+        dotnet_report=dotnet_report,
+        composite_rows=composite_rows,
+    )
+    _atomic_write_json(runtime_root / "integrity.json", integrity)
+    ok = (
+        archive_report.get("ok") is True
+        and dotnet_report.get("ok") is True
+        and unchanged
+        and integrity["ok"] is True
+    )
+    return 0 if ok else 1
+
+
+def _capture_integrity(
+    *,
+    run_id: str,
+    expected_ids: list[str],
+    archive_report: Mapping[str, object],
+    dotnet_report: Mapping[str, object],
+    composite_rows: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
     integrity = {
         "schema": "cdmw_mesh_visual_audit_integrity_v1",
         "run_id": run_id,
@@ -204,14 +247,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         and integrity["composite_asset_ids"] == expected_ids
         and integrity["composites_complete"]
     )
-    _atomic_write_json(runtime_root / "integrity.json", integrity)
-    ok = (
-        archive_report.get("ok") is True
-        and dotnet_report.get("ok") is True
-        and unchanged
-        and integrity["ok"] is True
-    )
-    return 0 if ok else 1
+    return integrity
 
 
 def _validate_prepared_state(
