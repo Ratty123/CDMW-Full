@@ -315,6 +315,7 @@ class ShellWindowRuntimeStateMixin:
         self.archive_preview_fit_to_view = True
         self.archive_d3d11_view_state: Dict[str, object] = {}
         self.archive_d3d11_has_view_state = False
+        self.archive_d3d11_pending_view_state: Dict[str, object] = {}
         self.archive_d3d11_active_model_key = ""
         self.archive_d3d11_pending_model_key = ""
         self.mesh_editor_d3d11_session_key = ""

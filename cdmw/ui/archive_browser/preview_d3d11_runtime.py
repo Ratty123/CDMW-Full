@@ -13,6 +13,20 @@ from cdmw.models import ArchivePreviewResult
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
 
 
+def archive_model_initial_view_state() -> dict[str, object]:
+    """Return the straight-on fitted camera used for a newly selected archive model."""
+
+    return {
+        "role": "replacement",
+        "reason": "archive_model_initial_front",
+        "zoom_factor": 1.0,
+        "fit_to_view": True,
+        "yaw": 0.0,
+        "pitch": 0.0,
+        "pan": (0.0, 0.0, 0.0),
+    }
+
+
 def _archive_status_reports_device_loss(payload: Mapping[str, object]) -> bool:
     reason = str(payload.get("reason", "") or "").strip().lower()
     event = str(payload.get("event", "") or "").strip().lower()
@@ -21,6 +35,15 @@ def _archive_status_reports_device_loss(payload: Mapping[str, object]) -> bool:
 
 class ArchivePreviewD3D11RuntimeMixin:
     """Start, poll, and shut down native D3D11 preview processes."""
+
+    def _restore_archive_d3d11_pending_view_state(self) -> bool:
+        state = getattr(self, "archive_d3d11_pending_view_state", {})
+        if not isinstance(state, Mapping) or not state:
+            return False
+        if not self.archive_d3d11_preview_host.restore_view_state(state):
+            return False
+        self.archive_d3d11_pending_view_state = {}
+        return True
 
     def _record_archive_d3d11_runtime_event(self, event: str, **fields: object) -> None:
         recorder = getattr(self, "_record_runtime_event", None)
@@ -87,6 +110,20 @@ class ArchivePreviewD3D11RuntimeMixin:
         next_model_key = self._d3d11_preview_package_model_key(package_dir)
         active_model_key = str(getattr(self, "archive_d3d11_active_model_key", "") or "").strip()
         same_d3d11_model = bool(next_model_key and active_model_key and next_model_key == active_model_key)
+        view_state_for_load = (
+            self._sanitize_d3d11_view_state_for_restore(self.archive_d3d11_view_state)
+            if same_d3d11_model and bool(getattr(self, "archive_d3d11_has_view_state", False))
+            else archive_model_initial_view_state()
+        )
+        if same_d3d11_model and view_state_for_load and bool(view_state_for_load.get("fit_to_view", True)):
+            # Same model refresh: keep camera feel while allowing the package to refit its center.
+            view_state_for_load["pan"] = (0.0, 0.0, 0.0)
+            view_state_for_load["zoom_factor"] = 1.0
+            view_state_for_load["fit_to_view"] = True
+        if not same_d3d11_model:
+            self.archive_d3d11_view_state = {}
+            self.archive_d3d11_has_view_state = False
+        self.archive_d3d11_pending_view_state = dict(view_state_for_load)
         self.archive_isolated_renderer_status_file = status_file
         self.archive_isolated_renderer_status_signature = (0, 0)
         self.archive_isolated_renderer_status_payload_text = ""
@@ -115,30 +152,13 @@ class ArchivePreviewD3D11RuntimeMixin:
                 "Native D3D11 Preview: loading the next package while the current preview remains visible."
             )
             self.archive_isolated_renderer_status_timer.start()
-            preserved_view_state = (
-                self._sanitize_d3d11_view_state_for_restore(self.archive_d3d11_view_state)
-                if same_d3d11_model and bool(getattr(self, "archive_d3d11_has_view_state", False))
-                else {}
-            )
-            if preserved_view_state and bool(preserved_view_state.get("fit_to_view", True)):
-                # Same model refresh: keep camera feel while allowing the package to refit its center.
-                preserved_view_state["pan"] = (0.0, 0.0, 0.0)
-                preserved_view_state["zoom_factor"] = 1.0
-                preserved_view_state["fit_to_view"] = True
-            if not same_d3d11_model:
-                self.archive_d3d11_view_state = {}
-                self.archive_d3d11_has_view_state = False
             if self.archive_d3d11_preview_host.load_package(
                 package_dir,
                 status_file,
                 reset_view=not same_d3d11_model,
             ):
                 self.archive_d3d11_preview_host.set_render_tuning(self._current_model_preview_render_settings())
-                if preserved_view_state:
-                    QTimer.singleShot(
-                        0,
-                        lambda state=preserved_view_state: self.archive_d3d11_preview_host.restore_view_state(state),
-                    )
+                QTimer.singleShot(0, self._restore_archive_d3d11_pending_view_state)
                 QTimer.singleShot(
                     10000,
                     lambda expected_status=status_file: self._check_archive_isolated_renderer_start_timeout(expected_status),
@@ -336,6 +356,7 @@ class ArchivePreviewD3D11RuntimeMixin:
         )
         if event == "loaded":
             self._promote_archive_d3d11_pending_package_if_loaded(status_file)
+            self._restore_archive_d3d11_pending_view_state()
             self.archive_d3d11_preview_host.set_render_tuning(self._current_model_preview_render_settings())
             self._cleanup_archive_isolated_renderer_packages(include_active=False)
             self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
