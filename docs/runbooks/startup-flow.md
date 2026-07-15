@@ -40,8 +40,9 @@ Keep the provider manifest synchronized with:
 .\.venv\Scripts\python.exe scripts\generate_window_feature_provider_members.py --check
 ```
 
-Release packaging runs the full metadata check before PyInstaller. Lazy method
-callbacks are stable methods on a QObject receiver owned by `MainWindow`, so
+Release packaging regenerates the provider manifest, verifies the generated
+metadata, and only then starts PyInstaller. Lazy method callbacks are stable
+methods on a QObject receiver owned by `MainWindow`, so
 signals emitted by worker threads arrive on the UI thread without importing the
 provider early. Do not replace these callbacks with lambdas or plain callable
 objects across a thread boundary; connection flags alone do not give those

@@ -22,10 +22,11 @@ behind compatibility wrappers.
   explicit class-body bridges into that controller. Lazy method callbacks are
   QObject-bound to preserve UI-thread signal delivery without importing the
   provider before first use. Its
-  generated member manifest is refreshed with
-  `scripts/generate_window_feature_provider_members.py`; `--check` detects
-  changed provider sources without importing the full UI graph. New behavior
-  belongs in focused controllers, not new window bases.
+  generated member manifest is refreshed automatically before packaging or
+  manually with `scripts/generate_window_feature_provider_members.py`; the
+  subsequent `--check` detects changed provider sources without importing the
+  full UI graph. New behavior belongs in focused controllers, not new window
+  bases.
 - `cdmw/ui/<feature>/`: feature UI packages such as archive browser, texture
   workflow, mesh editor, model library, item icons, research, and text search.
 - `cdmw/ui/tools/`: utility tools that do not belong to a feature workspace,

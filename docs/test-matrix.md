@@ -29,9 +29,10 @@ Use `$env:TEMP` for pytest temp dirs when `.pytest-tmp` is locked.
 .\scripts\codex_check.ps1 -Area stability
 ```
 
-After adding, removing, renaming, or changing a shell feature-provider member,
-regenerate the manifest with
-`.\.venv\Scripts\python.exe scripts/generate_window_feature_provider_members.py`.
+Packaging regenerates the shell feature-provider manifest and then verifies it
+before PyInstaller. For development checks outside packaging, regenerate it with
+`.\.venv\Scripts\python.exe scripts/generate_window_feature_provider_members.py`
+after adding, removing, renaming, or changing a provider member.
 `test_window_feature_controller.py` also proves that lazy callbacks connected to
 worker signals execute on the owning QApplication thread.
 

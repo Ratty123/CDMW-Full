@@ -686,12 +686,6 @@ if (-not (Test-Path -LiteralPath $specPath)) {
     throw "PyInstaller spec file not found: $specPath"
 }
 
-Write-BuildProgress -Percent 3 -Stage "Checking generated feature metadata"
-& $pythonExe $providerMetadataGenerator --check
-if ($LASTEXITCODE -ne 0) {
-    throw "Generated MainWindow feature metadata is stale. Run scripts\generate_window_feature_provider_members.py before packaging."
-}
-
 $appVersion = (& $pythonExe -c "from cdmw.constants import APP_VERSION; print(APP_VERSION)").Trim()
 if (-not $appVersion) {
     throw "Could not determine app version from cdmw.constants.APP_VERSION"
@@ -716,6 +710,18 @@ Write-BuildProgress -Percent 2 -Stage "Build plan ready"
 
 if ($DescribeOnly) {
     return
+}
+
+Write-BuildProgress -Percent 3 -Stage "Refreshing generated feature metadata"
+& $pythonExe $providerMetadataGenerator
+if ($LASTEXITCODE -ne 0) {
+    throw "Failed to regenerate MainWindow feature metadata before packaging."
+}
+
+Write-BuildProgress -Percent 3 -Stage "Verifying generated feature metadata"
+& $pythonExe $providerMetadataGenerator --check
+if ($LASTEXITCODE -ne 0) {
+    throw "Generated MainWindow feature metadata failed verification after regeneration."
 }
 
 if ($BuildProfile -eq "release") {

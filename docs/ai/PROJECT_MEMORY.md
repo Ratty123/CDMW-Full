@@ -159,8 +159,8 @@ Last updated: 2026-07-15
   QObject teardown publish `clean_shutdown: true`. A finished parentless Python
   worker returns to the UI thread before its QThread quits; UI-side cleanup then
   defer-deletes both objects after that same fence.
-- Release builds reject stale provider metadata. The configured-archive gate
-  loads 1.67M entries, paints, filters, and requires a clean shutdown.
+- Release builds regenerate and verify provider metadata before PyInstaller. The
+  configured-archive gate loads 1.67M entries, paints, filters, and requires a clean shutdown.
 - Startup benchmark evidence is owned by
   `docs/reference/app-startup-benchmark-phase5.json` and
   `docs/reference/app-startup-benchmark-phase6.json`; dated timing summaries

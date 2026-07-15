@@ -85,6 +85,14 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert packaged_smoke in source
     assert 'Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"' in source
     assert '$Mode -eq "onedir"' in source
+    describe_only_return = 'if ($DescribeOnly) {\n    return\n}'
+    metadata_refresh = 'Stage "Refreshing generated feature metadata"'
+    metadata_check = 'Stage "Verifying generated feature metadata"'
+    assert "& $pythonExe $providerMetadataGenerator\n" in source
+    assert "& $pythonExe $providerMetadataGenerator --check" in source
+    assert source.index(describe_only_return) < source.index(metadata_refresh)
+    assert source.index(metadata_refresh) < source.index(metadata_check)
+    assert source.index(metadata_check) < source.index("Starting PyInstaller")
     assert source.index(packaged_smoke) < source.index('Stage "Verifying packaged startup"')
     assert source.index("Verifying packaged startup") < source.index("Publishing build output")
     assert source.index("generate_window_feature_provider_members.py") < source.index("Starting PyInstaller")
