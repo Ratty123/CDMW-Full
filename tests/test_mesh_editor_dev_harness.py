@@ -583,10 +583,20 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
                 True,
             ),
         }
+        zoom_proof = {
+            "ok": True,
+            "renderer_backend": "d3d11_vortice_shader",
+            "edit_backend": "cdmw_mesh_core_0.1",
+            "source_archives_unchanged": True,
+            "camera_zoom": {"ok": True},
+        }
         with tempfile.TemporaryDirectory() as temp_dir, patch(
             "tools.mesh_harness.real_dotnet.run_real_archive_mesh_editor_dotnet_edit_smoke",
             return_value=proof,
-        ) as run_dotnet:
+        ) as run_dotnet, patch(
+            "tools.mesh_harness.real_dotnet.run_real_archive_mesh_editor_dotnet_zoom_smoke",
+            return_value=zoom_proof,
+        ) as run_zoom:
             output_dir = Path(temp_dir) / "out"
             game_root = Path(temp_dir) / "game"
             result = run_scenario(
@@ -597,8 +607,14 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
             evidence = json.loads((output_dir / "evidence_report.json").read_text(encoding="utf-8"))
 
         run_dotnet.assert_called_once_with(game_root, output_dir, timeout_seconds=180.0)
+        run_zoom.assert_called_once_with(
+            game_root,
+            output_dir / "camera_zoom",
+            timeout_seconds=180.0,
+        )
         self.assertTrue(result["ok"])
         self.assertTrue(result["real_archive_mesh_editor_dotnet_edit"]["backend_gate_ok"])
+        self.assertTrue(result["real_archive_mesh_editor_dotnet_zoom"]["backend_gate_ok"])
         self.assertTrue(evidence["real_game_proof"]["ok"])
 
     def test_real_archive_mesh_editor_drag_smoke_uses_multistep_mouse_moves(self) -> None:

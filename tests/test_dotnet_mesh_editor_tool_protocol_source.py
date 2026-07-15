@@ -605,6 +605,7 @@ def test_embedded_dotnet_exposes_its_tool_panel_in_mesh_edit_mode() -> None:
     protocol_source = _source("ExperimentForm.Protocol.cs")
     material_source = _source("ExperimentForm.MaterialProtocol.cs")
     input_source = _source("MeshViewport.Input.cs")
+    split_view_source = _source("MeshViewport.SplitView.cs")
     topology_source = _source("MeshViewport.Topology.cs")
 
     assert 'Name = "DotNetMeshEditorLayout"' in program_source
@@ -630,7 +631,8 @@ def test_embedded_dotnet_exposes_its_tool_panel_in_mesh_edit_mode() -> None:
     assert '_selectionTarget.SelectedItem = "Part";' in program_source
     assert "RefreshSubmeshList();" in protocol_source
     assert material_source.count("RefreshSubmeshList();") >= 2
-    assert "CameraZoomPolicy.ApplyWheelDelta(" in input_source
+    assert "ApplyWheelZoomToPane(paneId, e.Delta)" in input_source
+    assert "CameraZoomPolicy.ApplyWheelDelta(" in split_view_source
     assert "Math.Clamp(_zoom, 1.0f, 500000.0f)" not in input_source
     assert topology_source.count("var viewCenter = _center;") == 2
     assert topology_source.count("_center = viewCenter;") == 2
@@ -744,8 +746,18 @@ def test_codex_mesh_checks_use_real_game_pac_and_keep_unit_runs_non_visual() -> 
     assert '-m "not visual and not real_game"' in pytest_config
 
 
-def test_real_dotnet_edit_harness_declares_mesh_edit_scene_mode() -> None:
+def test_real_dotnet_harness_has_dedicated_resident_side_by_side_zoom_proof() -> None:
     source = (ROOT / "tools" / "mesh_harness" / "real_dotnet.py").read_text(encoding="utf-8")
+    input_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py").read_text(
+        encoding="utf-8"
+    )
 
-    assert '"_mesh_editor_embedded_comparison_mode", lambda: "replacement_only"' in source
-    assert '"_mesh_editor_embedded_interaction_mode", lambda: "mesh_edit"' in source
+    assert "def run_real_archive_mesh_editor_dotnet_zoom_smoke(" in source
+    assert "_start_embedded_editor(state, side_by_side_camera=True)" in source
+    assert 'lambda: "side_by_side" if side_by_side_camera else "replacement_only"' in source
+    assert 'lambda: "placement" if side_by_side_camera else "mesh_edit"' in source
+    assert "exercise_side_by_side_wheel_zoom(" in source
+    assert "_send_mouse_wheel_input(-1)" in input_source
+    assert "_send_mouse_wheel_input(1)" in input_source
+    assert '"non_target_camera_unchanged"' in input_source
+    assert '"inverse_camera_restored_exactly"' in input_source

@@ -209,25 +209,262 @@ internal static partial class HeadlessGpuSparseSoak
     private static Dictionary<string, object?> CameraZoomProof()
     {
         const float fitZoom = 0.19f;
+        var expectedSteps = new[]
+        {
+            0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f,
+            6.0f, 8.0f, 12.0f, 16.0f, 24.0f, 32.0f, 48.0f, 64.0f,
+        };
+        var actualSteps = CameraZoomPolicy.FitRelativeSteps.ToArray();
+        var stepRows = new List<Dictionary<string, object?>>();
+        for (var index = 0; index < expectedSteps.Length - 1; index++)
+        {
+            var current = fitZoom * expectedSteps[index];
+            var next = CameraZoomPolicy.ApplyWheelDelta(current, fitZoom, 120);
+            var previous = CameraZoomPolicy.ApplyWheelDelta(next, fitZoom, -120);
+            stepRows.Add(new Dictionary<string, object?>
+            {
+                ["from_ratio"] = expectedSteps[index],
+                ["to_ratio"] = next / fitZoom,
+                ["restored_ratio"] = previous / fitZoom,
+                ["ok"] = NearlyEqual(next, fitZoom * expectedSteps[index + 1])
+                    && NearlyEqual(previous, current),
+            });
+        }
+        var fitScaleRows = new[] { 0.0005f, fitZoom, 226.707f }
+            .Select(candidateFit => new Dictionary<string, object?>
+            {
+                ["fit_zoom"] = candidateFit,
+                ["minimum"] = CameraZoomPolicy.MinimumZoom(candidateFit),
+                ["maximum"] = CameraZoomPolicy.MaximumZoom(candidateFit),
+                ["ok"] = NearlyEqual(CameraZoomPolicy.MinimumZoom(candidateFit), candidateFit * 0.1f)
+                    && NearlyEqual(CameraZoomPolicy.MaximumZoom(candidateFit), candidateFit * 64.0f),
+            })
+            .ToArray();
         var zoomedIn = CameraZoomPolicy.ApplyWheelDelta(fitZoom, fitZoom, 120);
         var restored = CameraZoomPolicy.ApplyWheelDelta(zoomedIn, fitZoom, -120);
         var zoomedOut = CameraZoomPolicy.ApplyWheelDelta(fitZoom, fitZoom, -120);
         var minimum = CameraZoomPolicy.MinimumZoom(fitZoom);
+        var maximum = CameraZoomPolicy.MaximumZoom(fitZoom);
         var reciprocalError = Math.Abs(restored - fitZoom);
+        var boundariesExact = NearlyEqual(
+                CameraZoomPolicy.ApplyWheelDelta(minimum, fitZoom, -120),
+                minimum)
+            && NearlyEqual(
+                CameraZoomPolicy.ApplyWheelDelta(maximum, fitZoom, 120),
+                maximum);
+        var highResolutionDeltaSingleStep = NearlyEqual(
+                CameraZoomPolicy.ApplyWheelDelta(fitZoom, fitZoom, 1),
+                zoomedIn)
+            && NearlyEqual(
+                CameraZoomPolicy.ApplyWheelDelta(fitZoom, fitZoom, 1200),
+                zoomedIn)
+            && NearlyEqual(
+                CameraZoomPolicy.ApplyWheelDelta(fitZoom, fitZoom, -1),
+                zoomedOut)
+            && NearlyEqual(
+                CameraZoomPolicy.ApplyWheelDelta(fitZoom, fitZoom, -1200),
+                zoomedOut);
+        var invalidValuesSafe = NearlyEqual(
+                CameraZoomPolicy.ApplyZoomFactor(float.NaN, fitZoom, float.NaN),
+                fitZoom)
+            && NearlyEqual(CameraZoomPolicy.MinimumZoom(float.NaN), 0.1f)
+            && NearlyEqual(CameraZoomPolicy.MaximumZoom(float.PositiveInfinity), 64.0f);
+        var programmaticClampExact = NearlyEqual(
+                CameraZoomPolicy.ApplyZoomFactor(fitZoom, fitZoom, 0.0001f),
+                minimum)
+            && NearlyEqual(
+                CameraZoomPolicy.ApplyZoomFactor(fitZoom, fitZoom, 1000.0f),
+                maximum);
+        var projectedCenterProof = ProjectedCenterZoomProof(expectedSteps);
+        var paneIsolationProof = PaneZoomIsolationProof();
+        var stepTableExact = actualSteps.SequenceEqual(expectedSteps);
+        var stepTransitionsExact = stepRows.All(row => row.GetValueOrDefault("ok") is true);
+        var fitRelativeBoundsExact = fitScaleRows.All(row => row.GetValueOrDefault("ok") is true);
         return new Dictionary<string, object?>
         {
-            ["ok"] = reciprocalError <= 0.00001f
+            ["ok"] = stepTableExact
+                && stepTransitionsExact
+                && fitRelativeBoundsExact
+                && boundariesExact
+                && highResolutionDeltaSingleStep
+                && invalidValuesSafe
+                && programmaticClampExact
+                && projectedCenterProof.GetValueOrDefault("ok") is true
+                && paneIsolationProof.GetValueOrDefault("ok") is true
+                && reciprocalError <= 0.00001f
                 && zoomedOut < fitZoom
                 && minimum < fitZoom,
+            ["archive_browser_step_table_exact"] = stepTableExact,
+            ["step_transitions"] = stepRows,
+            ["fit_scale_bounds"] = fitScaleRows,
+            ["boundaries_exact"] = boundariesExact,
+            ["high_resolution_delta_single_step"] = highResolutionDeltaSingleStep,
+            ["invalid_values_safe"] = invalidValuesSafe,
+            ["programmatic_clamp_exact"] = programmaticClampExact,
+            ["projected_center_proof"] = projectedCenterProof,
+            ["pane_isolation_proof"] = paneIsolationProof,
             ["fit_zoom"] = fitZoom,
             ["zoomed_in"] = zoomedIn,
             ["restored"] = restored,
             ["zoomed_out"] = zoomedOut,
             ["minimum"] = minimum,
+            ["maximum"] = maximum,
             ["reciprocal_error"] = reciprocalError,
             ["shared_interaction_modes"] = new[] { "placement", "mesh_edit" },
         };
     }
+
+    private static Dictionary<string, object?> ProjectedCenterZoomProof(IReadOnlyList<float> zoomSteps)
+    {
+        var bounds = (Min: new Vec3(-4.0f, -2.0f, 3.0f), Max: new Vec3(8.0f, 10.0f, 15.0f));
+        var center = new Vec3(2.0f, 4.0f, 9.0f);
+        const float fitZoom = 31.666666f;
+        var angles = new (string Name, float Yaw, float Pitch)[]
+        {
+            ("front", 0.0f, 0.0f),
+            ("back", MathF.PI, 0.0f),
+            ("top", 0.0f, -89.0f * MathF.PI / 180.0f),
+            ("side", MathF.PI * 0.5f, 0.0f),
+            ("oblique", -35.0f * MathF.PI / 180.0f, 20.0f * MathF.PI / 180.0f),
+        };
+        var pans = new (string Name, float X, float Y)[]
+        {
+            ("centered", 0.0f, 0.0f),
+            ("panned", 47.0f, -31.0f),
+        };
+        var rows = new List<Dictionary<string, object?>>();
+        foreach (var angle in angles)
+        {
+            foreach (var pan in pans)
+            {
+                var baseline = NetViewportCamera.Create(
+                    center,
+                    bounds,
+                    angle.Yaw,
+                    angle.Pitch,
+                    fitZoom,
+                    pan.X,
+                    pan.Y,
+                    1280,
+                    720).Project(center);
+                var maximumDelta = 0.0;
+                foreach (var step in zoomSteps)
+                {
+                    var projected = NetViewportCamera.Create(
+                        center,
+                        bounds,
+                        angle.Yaw,
+                        angle.Pitch,
+                        fitZoom * step,
+                        pan.X,
+                        pan.Y,
+                        1280,
+                        720).Project(center);
+                    maximumDelta = Math.Max(
+                        maximumDelta,
+                        Math.Sqrt(
+                            Math.Pow(projected.X - baseline.X, 2.0)
+                            + Math.Pow(projected.Y - baseline.Y, 2.0)));
+                }
+                rows.Add(new Dictionary<string, object?>
+                {
+                    ["angle"] = angle.Name,
+                    ["pan"] = pan.Name,
+                    ["baseline"] = new[] { baseline.X, baseline.Y },
+                    ["maximum_pixel_delta"] = maximumDelta,
+                    ["ok"] = maximumDelta <= 0.002,
+                });
+            }
+        }
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = rows.All(row => row.GetValueOrDefault("ok") is true),
+            ["angles"] = rows,
+            ["center_lock_tolerance_pixels"] = 0.002,
+        };
+    }
+
+    private static Dictionary<string, object?> PaneZoomIsolationProof()
+    {
+        var editable = new NetViewPresentationContext
+        {
+            Id = "editable",
+            RoleFilter = "editable",
+            Yaw = 0.25f,
+            Pitch = -0.35f,
+            Zoom = 19.0f,
+            PanX = 13.0f,
+            PanY = -7.0f,
+            CameraMinimum = new Vec3(-10.0f, -4.0f, -2.0f),
+            CameraMaximum = new Vec3(10.0f, 6.0f, 8.0f),
+        };
+        var reference = new NetViewPresentationContext
+        {
+            Id = "reference",
+            RoleFilter = "reference",
+            Yaw = -0.8f,
+            Pitch = 0.45f,
+            Zoom = 38.0f,
+            PanX = -21.0f,
+            PanY = 11.0f,
+            CameraMinimum = new Vec3(-3.0f, -5.0f, -4.0f),
+            CameraMaximum = new Vec3(7.0f, 5.0f, 6.0f),
+        };
+        const string activeContext = "editable";
+        var editableBefore = CameraInvariantValues(editable);
+        var referenceBefore = CameraInvariantValues(reference);
+        var editableZoomBefore = editable.Zoom;
+        var referenceZoomBefore = reference.Zoom;
+
+        MeshViewport.ApplyWheelZoomToContext(reference, 120);
+        var referenceChangedOnlyZoom = CameraInvariantValues(reference).SequenceEqual(referenceBefore)
+            && NearlyEqual(reference.Zoom, referenceZoomBefore * 1.5f);
+        var editableUntouched = CameraInvariantValues(editable).SequenceEqual(editableBefore)
+            && NearlyEqual(editable.Zoom, editableZoomBefore);
+        MeshViewport.ApplyWheelZoomToContext(reference, -120);
+        var referenceRestored = NearlyEqual(reference.Zoom, referenceZoomBefore);
+
+        MeshViewport.ApplyWheelZoomToContext(editable, -120);
+        var editableChangedOnlyZoom = CameraInvariantValues(editable).SequenceEqual(editableBefore)
+            && NearlyEqual(editable.Zoom, editableZoomBefore * 0.75f);
+        var referenceUntouched = CameraInvariantValues(reference).SequenceEqual(referenceBefore)
+            && NearlyEqual(reference.Zoom, referenceZoomBefore);
+        MeshViewport.ApplyWheelZoomToContext(editable, 120);
+        var editableRestored = NearlyEqual(editable.Zoom, editableZoomBefore);
+        var activeContextUnchanged = activeContext == "editable";
+
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = referenceChangedOnlyZoom
+                && editableUntouched
+                && referenceRestored
+                && editableChangedOnlyZoom
+                && referenceUntouched
+                && editableRestored
+                && activeContextUnchanged,
+            ["reference_changed_only_zoom"] = referenceChangedOnlyZoom,
+            ["editable_untouched_when_reference_targeted"] = editableUntouched,
+            ["reference_inverse_restored"] = referenceRestored,
+            ["editable_changed_only_zoom"] = editableChangedOnlyZoom,
+            ["reference_untouched_when_editable_targeted"] = referenceUntouched,
+            ["editable_inverse_restored"] = editableRestored,
+            ["active_context_unchanged"] = activeContextUnchanged,
+        };
+    }
+
+    private static float[] CameraInvariantValues(NetViewPresentationContext context) => new[]
+    {
+        context.Yaw,
+        context.Pitch,
+        context.PanX,
+        context.PanY,
+        context.CameraMinimum.X,
+        context.CameraMinimum.Y,
+        context.CameraMinimum.Z,
+        context.CameraMaximum.X,
+        context.CameraMaximum.Y,
+        context.CameraMaximum.Z,
+    };
 
     private static bool ApplyPlacementProofFrame(
         NetSceneState state,

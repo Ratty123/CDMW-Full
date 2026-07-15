@@ -454,6 +454,45 @@ def _send_left_button_input(*, down: bool) -> bool:
         return False
     return True
 
+
+def _send_mouse_wheel_input(delta: int) -> bool:
+    if os.name != "nt":
+        return False
+
+    class MouseInput(ctypes.Structure):
+        _fields_ = [
+            ("dx", ctypes.c_long),
+            ("dy", ctypes.c_long),
+            ("mouse_data", ctypes.c_ulong),
+            ("flags", ctypes.c_ulong),
+            ("time", ctypes.c_ulong),
+            ("extra_info", ctypes.c_size_t),
+        ]
+
+    class InputUnion(ctypes.Union):
+        _fields_ = [("mouse", MouseInput)]
+
+    class Input(ctypes.Structure):
+        _anonymous_ = ("payload",)
+        _fields_ = [("input_type", ctypes.c_ulong), ("payload", InputUnion)]
+
+    wheel_input = Input(
+        input_type=0,
+        mouse=MouseInput(
+            dx=0,
+            dy=0,
+            mouse_data=ctypes.c_ulong(int(delta) & 0xFFFFFFFF).value,
+            flags=0x0800,
+            time=0,
+            extra_info=0,
+        ),
+    )
+    try:
+        sent = ctypes.windll.user32.SendInput(1, ctypes.byref(wheel_input), ctypes.sizeof(Input))
+    except OSError:
+        return False
+    return int(sent) == 1
+
 def _close_process(process: subprocess.Popen[bytes]) -> None:
     try:
         hwnd = _find_host_window(process.pid)

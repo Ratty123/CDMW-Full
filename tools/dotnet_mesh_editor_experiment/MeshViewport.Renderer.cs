@@ -41,7 +41,7 @@ internal sealed partial class MeshViewport
             viewport.MouseDown += (_, e) => OnMouseDown(e);
             viewport.MouseUp += (_, e) => OnMouseUp(e);
             viewport.MouseMove += (_, e) => OnMouseMove(e);
-            viewport.MouseWheel += (_, e) => OnMouseWheel(e);
+            viewport.MouseWheel += (_, e) => ForwardRendererMouseWheel(e);
             viewport.MouseEnter += (_, _) => OnMouseEnter(EventArgs.Empty);
             viewport.MouseLeave += (_, _) => OnMouseLeave(EventArgs.Empty);
             viewport.BackendUnavailable += HandleD3D11BackendUnavailable;
@@ -91,7 +91,7 @@ internal sealed partial class MeshViewport
             _gpuHost.MouseDown += (_, e) => OnMouseDown(e);
             _gpuHost.MouseUp += (_, e) => OnMouseUp(e);
             _gpuHost.MouseMove += (_, e) => OnMouseMove(e);
-            _gpuHost.MouseWheel += (_, e) => OnMouseWheel(e);
+            _gpuHost.MouseWheel += (_, e) => ForwardRendererMouseWheel(e);
             _gpuHost.MouseEnter += (_, _) => OnMouseEnter(EventArgs.Empty);
             _gpuHost.MouseLeave += (_, _) => OnMouseLeave(EventArgs.Empty);
             Controls.Add(_gpuHost);
@@ -107,6 +107,15 @@ internal sealed partial class MeshViewport
             _gpuHost = null;
             StatusRequested?.Invoke($"WPF GPU material viewport unavailable; using software fallback: {ex.Message}");
             return false;
+        }
+    }
+
+    private void ForwardRendererMouseWheel(MouseEventArgs e)
+    {
+        OnMouseWheel(e);
+        if (e is HandledMouseEventArgs handled)
+        {
+            handled.Handled = true;
         }
     }
 

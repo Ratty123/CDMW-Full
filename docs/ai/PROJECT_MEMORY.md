@@ -142,7 +142,10 @@ Last updated: 2026-07-15
   never changes the alignment basis, and duplicate/delete are resident actions.
 - Embedded .NET Preview Settings expose only fields with Python transport and a .NET renderer/camera consumer; their getter must read the live Builder accessor, not the setup factory's initial object.
   Side by Side alone creates two role panes; Overlay is one comparison surface, and each Only mode is one full-viewport role. Texture/view state syncs across roles while cameras stay independent.
-  Wheel zoom uses reciprocal steps and fit-relative bounds so fitted values below `1.0` remain reachable.
+  Wheel zoom uses Archive Browser's exact `0.1..64x` fit-relative ladder, stays
+  center-locked, and updates only the side-by-side pane under the pointer. Native
+  renderer children must mark forwarded wheel events handled so one physical
+  event cannot bubble into a second parent zoom step.
 
 ## Startup and packaging contracts
 

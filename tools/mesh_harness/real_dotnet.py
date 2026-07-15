@@ -58,7 +58,10 @@ from tools.mesh_harness.real_dotnet_flow import (
     production_flow_gates,
     record_flow_step,
 )
-from tools.mesh_harness.real_dotnet_input import drive_viewport_stroke
+from tools.mesh_harness.real_dotnet_input import (
+    drive_viewport_stroke,
+    exercise_side_by_side_wheel_zoom,
+)
 from tools.mesh_harness.real_dotnet_display import (
     exercise_builder_presentation_controls,
     exercise_geometry_display_modes,
@@ -121,6 +124,7 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "production_flow": list(getattr(state, "production_flow", ()) or ()),
         "geometry_display": dict(getattr(state, "geometry_display_evidence", {}) or {}),
         "builder_presentation": dict(getattr(state, "builder_presentation_evidence", {}) or {}),
+        "camera_zoom": dict(getattr(state, "camera_zoom_evidence", {}) or {}),
         "linked_texture_updates": dict(getattr(state, "texture_flow_evidence", {}) or {}),
         "lifecycle_counts": dict(
             getattr(getattr(state, "tab", None), "standalone_dotnet_lifecycle_counts", {}) or {}
@@ -301,7 +305,11 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
     state.tab._handle_dotnet_live_stroke_completed = record_completed
 
 
-def _start_embedded_editor(state: SimpleNamespace) -> dict[str, object] | None:
+def _start_embedded_editor(
+    state: SimpleNamespace,
+    *,
+    side_by_side_camera: bool = False,
+) -> dict[str, object] | None:
     os.environ["QT_QPA_PLATFORM"] = "windows"
     from PySide6.QtCore import QSettings, Qt, QTimer
     from PySide6.QtWidgets import QApplication, QFrame, QVBoxLayout, QWidget
@@ -326,8 +334,18 @@ def _start_embedded_editor(state: SimpleNamespace) -> dict[str, object] | None:
     state.dotnet_ready_callback = False
     state.dotnet_failed = ""
     setattr(state.builder, "_mesh_editor_embedded_controller", lambda: state.controller)
-    setattr(state.builder, "_mesh_editor_embedded_comparison_mode", lambda: "replacement_only")
-    setattr(state.builder, "_mesh_editor_embedded_interaction_mode", lambda: "mesh_edit")
+    if side_by_side_camera:
+        setattr(state.builder, "_mesh_editor_embedded_reference_mesh", lambda: state.mesh)
+    setattr(
+        state.builder,
+        "_mesh_editor_embedded_comparison_mode",
+        lambda: "side_by_side" if side_by_side_camera else "replacement_only",
+    )
+    setattr(
+        state.builder,
+        "_mesh_editor_embedded_interaction_mode",
+        lambda: "placement" if side_by_side_camera else "mesh_edit",
+    )
     setattr(state.builder, "_mesh_editor_embedded_dotnet_ready", lambda: setattr(state, "dotnet_ready_callback", True))
     setattr(
         state.builder,
@@ -624,6 +642,7 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         "resident_material_parameter_update": material_parameter_evidence(state),
         "geometry_display": dict(state.geometry_display_evidence),
         "builder_presentation": dict(state.builder_presentation_evidence),
+        "camera_zoom": dict(getattr(state, "camera_zoom_evidence", {}) or {}),
         "production_flow": list(state.production_flow),
         "linked_texture_updates": dict(state.texture_flow_evidence),
         "resident_mesh_edits": dict(state.edit_flow_evidence),
@@ -795,4 +814,94 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
             state.settings.sync()
 
 
-__all__ = ["run_real_archive_mesh_editor_dotnet_edit_smoke"]
+def run_real_archive_mesh_editor_dotnet_zoom_smoke(
+    game_root: Path,
+    output_dir: Path,
+    *,
+    timeout_seconds: float = 45.0,
+) -> dict[str, object]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    prepared = _prepare_real_asset(Path(game_root), Path(output_dir), timeout_seconds)
+    if isinstance(prepared, dict):
+        return prepared
+    state = prepared
+    state.tab = state.controller = state.heartbeat_timer = state.process = None
+    try:
+        error = _start_embedded_editor(state, side_by_side_camera=True)
+        if error is not None:
+            return error
+        state.camera_zoom_evidence = exercise_side_by_side_wheel_zoom(
+            state,
+            pump_for=_pump_for,
+            pump_until=_pump_until,
+            capture_viewport=_capture_viewport,
+        )
+        state.archive_sources_after = _archive_source_file_snapshot(state.entries)
+        state.archive_content_fingerprints_after = _archive_content_fingerprints(
+            state.fingerprint_paths
+        )
+        state.archive_sources_unchanged = (
+            state.archive_sources_before == state.archive_sources_after
+        )
+        state.archive_source_content_unchanged = (
+            state.archive_content_fingerprints_before
+            == state.archive_content_fingerprints_after
+        )
+        state.source_payload_unchanged = (
+            sha256(_read_archive_payload(state.model_entry)).hexdigest()
+            == state.source_payload_sha256
+        )
+        gates = {
+            "camera_zoom": bool(state.camera_zoom_evidence.get("ok")),
+            "renderer_backend": state.renderer_backend == _DOTNET_RENDERER_BACKEND,
+            "source_archives_unchanged": bool(
+                state.archive_sources_unchanged
+                and state.archive_source_content_unchanged
+                and state.source_payload_unchanged
+            ),
+        }
+        return {
+            "ok": all(gates.values()),
+            "read_only": gates["source_archives_unchanged"],
+            "backend": "dotnet",
+            "renderer_backend": state.renderer_backend,
+            "edit_backend": NATIVE_MESH_CORE_BACKEND_ID if native_mesh_core_available() else "",
+            "game_root": str(state.game_root),
+            "model_path": state.model_entry.path,
+            "camera_zoom": dict(state.camera_zoom_evidence),
+            "archive_content_fingerprints_before": state.archive_content_fingerprints_before,
+            "archive_content_fingerprints_after": state.archive_content_fingerprints_after,
+            "source_payload_unchanged": state.source_payload_unchanged,
+            "source_archives_unchanged": gates["source_archives_unchanged"],
+            "gates": gates,
+        }
+    except Exception as exc:
+        return _base_error(state, f"{type(exc).__name__}: {exc}")
+    finally:
+        if state.heartbeat_timer is not None:
+            state.heartbeat_timer.stop()
+        if state.tab is not None:
+            try:
+                state.tab._stop_standalone_dotnet_editor_process()
+                _pump_until(
+                    state,
+                    lambda: not state.tab._standalone_dotnet_editor_process_running(),
+                    5.0,
+                )
+                state.tab.deleteLater()
+                state.app.processEvents()
+            except Exception:
+                pass
+        if state.controller is not None:
+            try:
+                state.controller.close_active_session()
+            except Exception:
+                pass
+        if hasattr(state, "settings"):
+            state.settings.sync()
+
+
+__all__ = [
+    "run_real_archive_mesh_editor_dotnet_edit_smoke",
+    "run_real_archive_mesh_editor_dotnet_zoom_smoke",
+]

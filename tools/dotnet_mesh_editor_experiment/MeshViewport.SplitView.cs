@@ -82,6 +82,31 @@ internal sealed partial class MeshViewport
         Invalidate();
     }
 
+    private bool ApplyWheelZoomToPane(string view, int delta)
+    {
+        InitializePresentationContexts();
+        SaveActivePresentationContext();
+        var contextId = NormalizePaneId(view);
+        if (!_presentationContexts.TryGetValue(contextId, out var context))
+        {
+            return false;
+        }
+        ApplyWheelZoomToContext(context, delta);
+        if (string.Equals(contextId, _activeCameraContextId, StringComparison.OrdinalIgnoreCase))
+        {
+            _zoom = context.Zoom;
+        }
+        return true;
+    }
+
+    internal static void ApplyWheelZoomToContext(NetViewPresentationContext context, int delta)
+    {
+        context.Zoom = CameraZoomPolicy.ApplyWheelDelta(
+            context.Zoom,
+            FitZoomForBounds((context.CameraMinimum, context.CameraMaximum)),
+            delta);
+    }
+
     private static string NormalizePaneId(string? view) =>
         (view ?? string.Empty).Trim().ToLowerInvariant() is "original" or "reference" or "original_only"
             ? "reference"

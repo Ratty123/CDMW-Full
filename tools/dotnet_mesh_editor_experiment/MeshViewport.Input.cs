@@ -286,13 +286,10 @@ internal sealed partial class MeshViewport
         {
             return;
         }
-        FocusPresentationPane(paneId);
-        e = PaneMouseEvent(e, paneId);
-        _zoom = CameraZoomPolicy.ApplyWheelDelta(
-            _zoom,
-            FitZoomForContext(_activeCameraContextId),
-            e.Delta);
-        SaveActivePresentationContext();
+        if (!ApplyWheelZoomToPane(paneId, e.Delta))
+        {
+            return;
+        }
         UpdateGpuViewport();
         base.OnMouseWheel(e);
     }

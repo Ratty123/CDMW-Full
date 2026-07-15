@@ -2,13 +2,30 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal static class CameraZoomPolicy
 {
-    private const float MouseWheelDeltaPerNotch = 120.0f;
-    private const float WheelZoomPerNotch = 1.1f;
-    private const float AbsoluteMinimumZoom = 0.001f;
-    private const float LegacyMinimumZoom = 1.0f;
-    private const float MinimumFitZoomRatio = 0.05f;
-    private const float LegacyMaximumZoom = 500000.0f;
-    private const float MaximumFitZoomRatio = 100.0f;
+    private const float MinimumFitZoomRatio = 0.1f;
+    private const float MaximumFitZoomRatio = 64.0f;
+    private static readonly float[] ArchiveBrowserZoomSteps =
+    {
+        0.1f,
+        0.25f,
+        0.5f,
+        0.75f,
+        1.0f,
+        1.5f,
+        2.0f,
+        3.0f,
+        4.0f,
+        6.0f,
+        8.0f,
+        12.0f,
+        16.0f,
+        24.0f,
+        32.0f,
+        48.0f,
+        64.0f,
+    };
+
+    internal static ReadOnlySpan<float> FitRelativeSteps => ArchiveBrowserZoomSteps;
 
     internal static float ApplyWheelDelta(float currentZoom, float fitZoom, int delta)
     {
@@ -16,9 +33,24 @@ internal static class CameraZoomPolicy
         {
             return Clamp(currentZoom, fitZoom);
         }
-        var wheelNotches = delta / MouseWheelDeltaPerNotch;
-        var zoomFactor = MathF.Pow(WheelZoomPerNotch, wheelNotches);
-        return ApplyZoomFactor(currentZoom, fitZoom, zoomFactor);
+        var safeFitZoom = SafeFitZoom(fitZoom);
+        var currentRatio = Clamp(currentZoom, safeFitZoom) / safeFitZoom;
+        var nearestIndex = 0;
+        var nearestDistance = Math.Abs(currentRatio - ArchiveBrowserZoomSteps[0]);
+        for (var index = 1; index < ArchiveBrowserZoomSteps.Length; index++)
+        {
+            var distance = Math.Abs(currentRatio - ArchiveBrowserZoomSteps[index]);
+            if (distance < nearestDistance)
+            {
+                nearestIndex = index;
+                nearestDistance = distance;
+            }
+        }
+        var targetIndex = Math.Clamp(
+            nearestIndex + (delta > 0 ? 1 : -1),
+            0,
+            ArchiveBrowserZoomSteps.Length - 1);
+        return Clamp(safeFitZoom * ArchiveBrowserZoomSteps[targetIndex], safeFitZoom);
     }
 
     internal static float ApplyZoomFactor(float currentZoom, float fitZoom, float zoomFactor)
@@ -36,15 +68,13 @@ internal static class CameraZoomPolicy
     internal static float MinimumZoom(float fitZoom)
     {
         var safeFitZoom = SafeFitZoom(fitZoom);
-        return Math.Max(
-            AbsoluteMinimumZoom,
-            Math.Min(LegacyMinimumZoom, safeFitZoom * MinimumFitZoomRatio));
+        return Math.Max(float.Epsilon, safeFitZoom * MinimumFitZoomRatio);
     }
 
     internal static float MaximumZoom(float fitZoom)
     {
         var safeFitZoom = SafeFitZoom(fitZoom);
-        return Math.Max(LegacyMaximumZoom, safeFitZoom * MaximumFitZoomRatio);
+        return Math.Max(MinimumZoom(safeFitZoom), safeFitZoom * MaximumFitZoomRatio);
     }
 
     private static float Clamp(float zoom, float fitZoom)
@@ -56,6 +86,6 @@ internal static class CameraZoomPolicy
 
     private static float SafeFitZoom(float fitZoom) =>
         float.IsFinite(fitZoom) && fitZoom > 0.0f
-            ? Math.Max(AbsoluteMinimumZoom, fitZoom)
-            : LegacyMinimumZoom;
+            ? fitZoom
+            : 1.0f;
 }

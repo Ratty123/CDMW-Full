@@ -171,6 +171,16 @@ internal static partial class HeadlessGpuSparseSoak
             (bool)presentationModeProof["ok"]!;
         gates["placement_and_mesh_edit_wheel_zoom_reversible"] =
             (bool)cameraZoomProof["ok"]!;
+        gates["archive_browser_zoom_step_parity"] =
+            cameraZoomProof.GetValueOrDefault("archive_browser_step_table_exact") is true;
+        gates["wheel_zoom_projected_center_stable"] =
+            cameraZoomProof.GetValueOrDefault("projected_center_proof") is Dictionary<string, object?> projectedCenterProof
+            && projectedCenterProof.GetValueOrDefault("ok") is true;
+        gates["side_by_side_wheel_zoom_target_isolated"] =
+            cameraZoomProof.GetValueOrDefault("pane_isolation_proof") is Dictionary<string, object?> paneIsolationProof
+            && paneIsolationProof.GetValueOrDefault("ok") is true;
+        gates["programmatic_zoom_clamped_fit_relative"] =
+            cameraZoomProof.GetValueOrDefault("programmatic_clamp_exact") is true;
         var ok = gates.Values.All(value => value);
         var report = BuildReport(
             options,

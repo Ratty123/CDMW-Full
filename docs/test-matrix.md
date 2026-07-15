@@ -100,8 +100,12 @@ opens the actual body mesh in the embedded .NET/Vortice D3D11 viewport, routes
 edits through `cdmw_mesh_core`, then proves selection/transform, scalar state,
 two linked texture strokes, committed DDS assignment, UV/topology edits,
 undo/redo, coherent export, and GLB/OBJ/DDS/sidecar readback. Evidence stays
-under the temp directory. It also requires an initially empty Parts selection
-and proves face/vertex selection does not select or highlight a part.
+under the temp directory. A second isolated resident session loads the same real
+PAC side by side and physically proves Archive Browser wheel-step parity,
+center-locked zoom, exact inverse restoration, per-pane ownership, and unchanged
+archive fingerprints without contaminating the edit session's resource-lifetime
+counters. The edit proof also requires an initially empty Parts selection and
+proves face/vertex selection does not select or highlight a part.
 `mesh-unit` excludes visual scenarios, so it never opens the synthetic legacy
 checker-square window. Its visual-audit harness coverage is nonvisual: corpus
 validation, stale-result guards, resident-device source contracts, comparison

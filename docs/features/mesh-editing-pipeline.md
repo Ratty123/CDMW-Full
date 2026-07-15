@@ -356,9 +356,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
   links to the editable comparison camera without duplicating resources or
   launching a second helper. Left-dragging the
   viewport in placement mode updates the authoritative Builder TRS controls.
-  Placement and Edit Mesh share the same reciprocal, fit-relative wheel zoom;
-  fitted zoom values below `1.0` can zoom outward and return exactly after an
-  inverse wheel step.
+  Placement and Edit Mesh use Archive Browser's fit-relative wheel ladder:
+  `0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64`.
+  Each wheel event moves one slot based on current zoom divided by fitted zoom,
+  regardless of wheel-delta magnitude, and an inverse step restores the exact
+  prior slot. Zoom remains locked to the projected framing center, including
+  after pan. In Side by Side, only the pane beneath the pointer changes; the
+  other pane's camera and the active camera context remain untouched.
   Every camera, stroke, gizmo, selection-rectangle, divider, or wheel state
   change queues at most one latest-wins invalidation rather than rendering from
   the 16 ms WinForms maintenance timer. A completed Present never schedules
@@ -623,8 +627,8 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
   shaping, and a fixed illumination floor keep projected faces distinct from
   the dark viewport from front, back, and oblique cameras. It does not depend on
   texture/material brightness settings and does not restart or reload the
-  resident scene. Wheel zoom accepts the resident range `1.0` through
-  `500000.0`.
+  resident scene. Wheel and programmatic zoom are clamped from `0.1x` through
+  `64x` the pane's fitted zoom.
 - Initial external imports and appended parts share the same work-area fit
   helper. External imports are centered against the reference/work area and
   bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones

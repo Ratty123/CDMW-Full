@@ -97,7 +97,10 @@ def run_scenario(
         app_result = run_real_archive_app_workflow_smoke(Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT, output_dir)
         result = {'scenario': scenario, 'ok': bool(app_result.get('ok')), 'real_archive_app': app_result}
     elif scenario == _REAL_MESH_EDITOR_VISUAL_SCENARIO:
-        from tools.mesh_harness.real_dotnet import run_real_archive_mesh_editor_dotnet_edit_smoke
+        from tools.mesh_harness.real_dotnet import (
+            run_real_archive_mesh_editor_dotnet_edit_smoke,
+            run_real_archive_mesh_editor_dotnet_zoom_smoke,
+        )
 
         edit_result = _apply_backend_gate(
             run_real_archive_mesh_editor_dotnet_edit_smoke(
@@ -108,10 +111,20 @@ def run_scenario(
             expected_renderer_backend=metadata.expected_renderer_backend,
             expected_edit_backend=metadata.expected_edit_backend,
         )
+        zoom_result = _apply_backend_gate(
+            run_real_archive_mesh_editor_dotnet_zoom_smoke(
+                Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+                output_dir / 'camera_zoom',
+                timeout_seconds=metadata.timeout_seconds,
+            ),
+            expected_renderer_backend=metadata.expected_renderer_backend,
+            expected_edit_backend=metadata.expected_edit_backend,
+        )
         result = {
             'scenario': scenario,
-            'ok': bool(edit_result.get('ok')),
+            'ok': bool(edit_result.get('ok') and zoom_result.get('ok')),
             'real_archive_mesh_editor_dotnet_edit': edit_result,
+            'real_archive_mesh_editor_dotnet_zoom': zoom_result,
         }
     elif scenario == 'real-archive-mesh-editor-d3d11-edit-smoke':
         edit_result = run_real_archive_mesh_editor_d3d11_edit_smoke(Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT, output_dir, timeout_seconds=metadata.timeout_seconds)

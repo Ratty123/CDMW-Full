@@ -27,27 +27,37 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
     width, height = int(right - x), int(bottom - y)
     if width < 32 or height < 32:
         return {"ok": False, "error": "Invalid .NET viewport capture geometry."}
-    state.tab.raise_()
-    state.tab.activateWindow()
-    try:
-        ctypes.windll.user32.SetForegroundWindow(ctypes.c_void_p(int(state.tab.winId())))
-    except Exception:
-        pass
-    activated = _activate_window_for_input(
-        int(state.viewport_hwnd),
-        root_hwnd=int(state.form_hwnd),
-    )
-    state.app.processEvents()
-    time.sleep(0.08)
-    visible_hwnd = _window_at_screen_point(x + width // 2, y + height // 2)
-    visible_pid = _window_process_id(visible_hwnd)
     expected_pid = int(state.production_process_pid)
-    if (
-        not activated
-        or not _foreground_window_matches(int(state.form_hwnd))
-        or visible_pid != expected_pid
-        or not _window_is_same_or_child(int(state.viewport_hwnd), visible_hwnd)
-    ):
+    foreground_root_hwnd = int(state.tab.winId())
+    activated = False
+    visible_hwnd = 0
+    visible_pid = 0
+    ownership_ok = False
+    for _attempt in range(4):
+        state.tab.raise_()
+        state.tab.activateWindow()
+        try:
+            ctypes.windll.user32.SetForegroundWindow(ctypes.c_void_p(int(state.tab.winId())))
+        except Exception:
+            pass
+        activated = _activate_window_for_input(
+            int(state.viewport_hwnd),
+            root_hwnd=foreground_root_hwnd,
+        )
+        state.app.processEvents()
+        time.sleep(0.08)
+        visible_hwnd = _window_at_screen_point(x + width // 2, y + height // 2)
+        visible_pid = _window_process_id(visible_hwnd)
+        ownership_ok = bool(
+            activated
+            and _foreground_window_matches(foreground_root_hwnd)
+            and visible_pid == expected_pid
+            and _window_is_same_or_child(int(state.viewport_hwnd), visible_hwnd)
+        )
+        if ownership_ok:
+            break
+        time.sleep(0.08)
+    if not ownership_ok:
         return {
             "ok": False,
             "error": "The .NET viewport was not the foreground visible capture target.",
