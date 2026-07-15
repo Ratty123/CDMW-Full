@@ -10,6 +10,9 @@ internal sealed partial class D3D11MaterialViewport
     private const int InitialOverlayVertexCapacity = 4096;
     private const float VertexMarkerSizePixels = 7.0f;
     private const float SelectedVertexMarkerRadiusPixels = 7.0f;
+    private static readonly Vector4 WireOverlayColor = OverlayColor(255, 112, 32, 210);
+    private static readonly Vector4 XRayWireOverlayColor = OverlayColor(255, 112, 32, 230);
+    private static readonly Vector4 VertexOverlayColor = OverlayColor(255, 174, 40, 255);
     private static readonly uint OverlayVertexStride = (uint)Marshal.SizeOf<D3D11OverlayVertex>();
     private ID3D11Buffer? _overlayVertexBuffer;
     private int _overlayVertexCapacity;
@@ -316,7 +319,11 @@ internal sealed partial class D3D11MaterialViewport
             }
             AddEdgeLineVertices(edge, lines);
         }
-        DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(120, 170, 220, _overlayShowXRay ? 125 : 95), _camera.WorldViewProjection);
+        DrawOverlayPrimitive(
+            PrimitiveTopology.LineList,
+            lines,
+            _overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor,
+            _camera.WorldViewProjection);
         if (lines.Count > 0)
         {
             _wireOverlayDrawCount++;
@@ -332,7 +339,7 @@ internal sealed partial class D3D11MaterialViewport
         var constants = new D3D11OverlayConstants
         {
             WorldViewProjection = _camera.WorldViewProjection,
-            Color = OverlayColor(110, 215, 255, 235),
+            Color = VertexOverlayColor,
             MarkerSettings = new Vector4(
                 Math.Max(1.0f, _camera.ViewportWidth),
                 Math.Max(1.0f, _camera.ViewportHeight),

@@ -68,6 +68,11 @@ def test_dotnet_experiment_renderer_source_contract() -> None:
     assert "FrameRendered" in d3d_source
     assert "BackendUnavailable" in d3d_source
     assert "DrawD3D11WireOverlay" in d3d_overlay_source
+    assert "WireOverlayColor = OverlayColor(255, 112, 32, 210)" in d3d_overlay_source
+    assert "XRayWireOverlayColor = OverlayColor(255, 112, 32, 230)" in d3d_overlay_source
+    assert "VertexOverlayColor = OverlayColor(255, 174, 40, 255)" in d3d_overlay_source
+    assert "_overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor" in d3d_overlay_source
+    assert "Color = VertexOverlayColor" in d3d_overlay_source
     assert "DrawSelectedFacesOverlay" in d3d_overlay_source
     assert "DrawSelectedSourcesOverlay" in d3d_overlay_source
     assert "overlayDepthDescription.DepthFunc = ComparisonFunction.LessEqual" in d3d_source
