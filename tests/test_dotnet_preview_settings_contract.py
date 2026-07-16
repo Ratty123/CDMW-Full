@@ -361,6 +361,13 @@ def test_untextured_faces_use_angle_safe_two_sided_workbench_lighting() -> None:
     assert "CameraPosition = new Vector3(0.0f, 0.0f, -cameraDistance)" in settings
 
 
+def test_textured_material_lighting_uses_the_orthographic_view_direction() -> None:
+    shader = _source("D3D11MaterialShaders.hlsl")
+
+    assert "const float3 viewDirection = float3(0.0f, 0.0f, -1.0f);" in shader
+    assert "normalize(CameraPosition - input.WorldPosition)" not in shader
+
+
 def test_texture_toggle_and_view_mode_are_synchronized_across_resident_role_panes() -> None:
     presentation = _source("MeshViewport.Presentation.cs")
     settings = _source("MeshViewport.PresentationSettings.cs")

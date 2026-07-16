@@ -438,7 +438,10 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         normal = normalize(lerp(normal, heightNormal, heightStrength));
     }
     float3 lightDirection = normalize(LightDirection);
-    float3 viewDirection = normalize(CameraPosition - input.WorldPosition);
+    // The preview camera is orthographic and orbits by rotating the model.
+    // Keep one view direction across the surface so material response matches
+    // the native Archive renderer instead of introducing perspective Fresnel.
+    const float3 viewDirection = float3(0.0f, 0.0f, -1.0f);
     float3 halfVector = normalize(lightDirection + viewDirection);
 
     float4 roughnessSample = MaterialHasRoughness > 0.5f
