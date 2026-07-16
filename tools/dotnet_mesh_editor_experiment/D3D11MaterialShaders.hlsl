@@ -177,6 +177,47 @@ void GSVertexMarker(point OverlayVSOutput input[1], inout TriangleStream<Overlay
     }
 }
 
+[maxvertexcount(4)]
+void GSWireLine(line OverlayVSOutput input[2], inout TriangleStream<OverlayVSOutput> stream)
+{
+    float2 viewport = max(OverlayMarkerSettings.xy, float2(1.0f, 1.0f));
+    float startW = input[0].Position.w;
+    float endW = input[1].Position.w;
+    if (abs(startW) < 0.00001f || abs(endW) < 0.00001f)
+    {
+        return;
+    }
+
+    float2 startNdc = input[0].Position.xy / startW;
+    float2 endNdc = input[1].Position.xy / endW;
+    float2 deltaPixels = (endNdc - startNdc) * viewport * 0.5f;
+    float lengthPixels = length(deltaPixels);
+    if (lengthPixels < 0.001f)
+    {
+        return;
+    }
+
+    float halfWidthPixels = max(OverlayMarkerSettings.z * 0.5f, 0.5f);
+    float2 perpendicularPixels = float2(-deltaPixels.y, deltaPixels.x) / lengthPixels;
+    float2 clipPerPixel = 2.0f / viewport;
+    float2 startOffset = perpendicularPixels * halfWidthPixels * clipPerPixel * startW;
+    float2 endOffset = perpendicularPixels * halfWidthPixels * clipPerPixel * endW;
+
+    OverlayVSOutput output = input[0];
+    output.MarkerOffset = float2(0.0f, 0.0f);
+    output.Position.xy = input[0].Position.xy - startOffset;
+    stream.Append(output);
+    output.Position.xy = input[0].Position.xy + startOffset;
+    stream.Append(output);
+
+    output = input[1];
+    output.MarkerOffset = float2(0.0f, 0.0f);
+    output.Position.xy = input[1].Position.xy - endOffset;
+    stream.Append(output);
+    output.Position.xy = input[1].Position.xy + endOffset;
+    stream.Append(output);
+}
+
 float4 PSOverlay(OverlayVSOutput input) : SV_Target
 {
     clip(1.0f - dot(input.MarkerOffset, input.MarkerOffset));

@@ -35,6 +35,7 @@ internal sealed partial class D3D11MaterialViewport : Control
     private ID3D11VertexShader? _vertexShader;
     private ID3D11PixelShader? _pixelShader;
     private ID3D11VertexShader? _overlayVertexShader;
+    private ID3D11GeometryShader? _wireGeometryShader;
     private ID3D11GeometryShader? _vertexMarkerGeometryShader;
     private ID3D11PixelShader? _overlayPixelShader;
     private ID3D11InputLayout? _inputLayout;
@@ -346,6 +347,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         Compiler.CompileFromFile(shaderPath, null, null, "VSMain", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var vsBlob, out var vsError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "PSMain", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var psBlob, out var psError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "VSOverlay", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayVsBlob, out var overlayVsError).CheckError();
+        Compiler.CompileFromFile(shaderPath, null, null, "GSWireLine", "gs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var wireGsBlob, out var wireGsError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "GSVertexMarker", "gs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var markerGsBlob, out var markerGsError).CheckError();
         Compiler.CompileFromFile(shaderPath, null, null, "PSOverlay", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayPsBlob, out var overlayPsError).CheckError();
         using (vsBlob)
@@ -353,15 +355,18 @@ internal sealed partial class D3D11MaterialViewport : Control
         using (vsError)
         using (psError)
         using (overlayVsBlob)
+        using (wireGsBlob)
         using (markerGsBlob)
         using (overlayPsBlob)
         using (overlayVsError)
+        using (wireGsError)
         using (markerGsError)
         using (overlayPsError)
         {
             _vertexShader = _device.CreateVertexShader(vsBlob.BufferPointer.ToPointer(), vsBlob.BufferSize, null);
             _pixelShader = _device.CreatePixelShader(psBlob.BufferPointer.ToPointer(), psBlob.BufferSize, null);
             _overlayVertexShader = _device.CreateVertexShader(overlayVsBlob.BufferPointer.ToPointer(), overlayVsBlob.BufferSize, null);
+            _wireGeometryShader = _device.CreateGeometryShader(wireGsBlob.BufferPointer.ToPointer(), wireGsBlob.BufferSize, null);
             _vertexMarkerGeometryShader = _device.CreateGeometryShader(markerGsBlob.BufferPointer.ToPointer(), markerGsBlob.BufferSize, null);
             _overlayPixelShader = _device.CreatePixelShader(overlayPsBlob.BufferPointer.ToPointer(), overlayPsBlob.BufferSize, null);
             var elements = new[]
@@ -835,6 +840,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayInputLayout?.Dispose();
         _pixelShader?.Dispose();
         _overlayPixelShader?.Dispose();
+        _wireGeometryShader?.Dispose();
         _vertexMarkerGeometryShader?.Dispose();
         _vertexShader?.Dispose();
         _overlayVertexShader?.Dispose();
@@ -867,6 +873,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayInputLayout = null;
         _pixelShader = null;
         _overlayPixelShader = null;
+        _wireGeometryShader = null;
         _vertexMarkerGeometryShader = null;
         _vertexShader = null;
         _overlayVertexShader = null;

@@ -9,8 +9,9 @@ internal sealed partial class D3D11MaterialViewport
 {
     private const int InitialOverlayVertexCapacity = 4096;
     private const float SelectedVertexMarkerRadiusPixels = 7.0f;
-    private static readonly Vector4 WireOverlayColor = OverlayColor(255, 112, 32, 210);
-    private static readonly Vector4 XRayWireOverlayColor = OverlayColor(255, 112, 32, 230);
+    private const float WireOverlayWidthPixels = 1.35f;
+    private static readonly Vector4 WireOverlayColor = OverlayColor(0, 0, 0, 225);
+    private static readonly Vector4 XRayWireOverlayColor = OverlayColor(0, 0, 0, 240);
     private static readonly Vector4 VertexOverlayColor = OverlayColor(255, 174, 40, 255);
     private static readonly uint OverlayVertexStride = (uint)Marshal.SizeOf<D3D11OverlayVertex>();
     private ID3D11Buffer? _overlayVertexBuffer;
@@ -90,6 +91,7 @@ internal sealed partial class D3D11MaterialViewport
             || _device is null
             || _overlayInputLayout is null
             || _overlayVertexShader is null
+            || _wireGeometryShader is null
             || _vertexMarkerGeometryShader is null
             || _overlayPixelShader is null
             || _overlayCameraBuffer is null)
@@ -404,7 +406,8 @@ internal sealed partial class D3D11MaterialViewport
             ScaleOverlayAlpha(
                 _overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor,
                 overlayStyle.WireOpacityScale),
-            _camera.WorldViewProjection);
+            _camera.WorldViewProjection,
+            lineWidthPixels: WireOverlayWidthPixels);
         if (cache.Lines.Count > 0)
         {
             _wireOverlayDrawCount++;
@@ -787,7 +790,12 @@ internal sealed partial class D3D11MaterialViewport
     private static Vector3 TransformVertex(Vec3 vertex, Matrix4x4 model) =>
         Vector3.Transform(new Vector3(vertex.X, vertex.Y, vertex.Z), model);
 
-    private unsafe void DrawOverlayPrimitive(PrimitiveTopology topology, IReadOnlyList<Vector3> positions, Vector4 color, Matrix4x4 worldViewProjection)
+    private unsafe void DrawOverlayPrimitive(
+        PrimitiveTopology topology,
+        IReadOnlyList<Vector3> positions,
+        Vector4 color,
+        Matrix4x4 worldViewProjection,
+        float lineWidthPixels = 0.0f)
     {
         if (positions.Count == 0 || _device is null || _context is null || _overlayCameraBuffer is null)
         {
@@ -804,7 +812,8 @@ internal sealed partial class D3D11MaterialViewport
             positions.Count,
             color,
             worldViewProjection,
-            _overlayCommandDepthMode));
+            _overlayCommandDepthMode,
+            lineWidthPixels));
     }
 
     private unsafe void FlushOverlayPrimitives()
@@ -853,6 +862,7 @@ internal sealed partial class D3D11MaterialViewport
         _context.GSSetShader(null);
         _context.PSSetShader(_overlayPixelShader);
         _context.VSSetConstantBuffer(1u, _overlayCameraBuffer);
+        _context.GSSetConstantBuffer(1u, _overlayCameraBuffer);
         _context.PSSetConstantBuffer(1u, _overlayCameraBuffer);
         if (vertexBuffer is not null)
         {
@@ -885,12 +895,22 @@ internal sealed partial class D3D11MaterialViewport
             {
                 WorldViewProjection = command.WorldViewProjection,
                 Color = command.Color,
+                MarkerSettings = new Vector4(
+                    Math.Max(1.0f, _camera.ViewportWidth),
+                    Math.Max(1.0f, _camera.ViewportHeight),
+                    command.LineWidthPixels,
+                    0.0f),
             };
             _context.UpdateSubresource(in constants, _overlayCameraBuffer);
+            _context.GSSetShader(
+                command.Topology == PrimitiveTopology.LineList && command.LineWidthPixels > 1.0f
+                    ? _wireGeometryShader
+                    : null);
             _context.IASetPrimitiveTopology(command.Topology);
             _context.Draw((uint)command.VertexCount, (uint)command.StartVertex);
             _overlayBatchedDrawCount++;
         }
+        _context.GSSetShader(null);
         _overlayFrameVertices.Clear();
         _overlayDrawCommands.Clear();
     }
@@ -919,6 +939,7 @@ internal readonly record struct D3D11OverlayDrawCommand(
     Vector4 Color,
     Matrix4x4 WorldViewProjection,
     byte DepthMode,
+    float LineWidthPixels = 0.0f,
     bool DrawSceneVertices = false);
 
 internal readonly record struct D3D11OverlayGeometryGenerationKey(

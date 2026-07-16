@@ -89,6 +89,7 @@ internal sealed partial class D3D11MaterialViewport
             ["fit_relative_overlay_zoom_ratio"] = overlayStyle.ZoomRatio,
             ["vertex_marker_size_pixels"] = overlayStyle.VertexMarkerSizePixels,
             ["wire_overlay_opacity_scale"] = overlayStyle.WireOpacityScale,
+            ["wire_overlay_width_pixels"] = WireOverlayWidthPixels,
             ["overlay_vertex_buffer_creates"] = _overlayVertexBufferCreateCount,
             ["overlay_vertex_buffer_maps"] = _overlayVertexBufferMapCount,
             ["overlay_vertex_buffer_no_overwrite_maps"] = 0L,
