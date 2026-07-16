@@ -123,6 +123,16 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'ActiveTool is "grab" or "smooth" or "inflate" or "pinch"' in all_source
     assert "DrawBrushCursorOverlay();" in d3d_source
     assert '_statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"' in _source("ExperimentForm.Controls.cs")
+    controls_source = _source("ExperimentForm.Controls.cs")
+    toggle_source = controls_source.split("private void ToggleTool", maxsplit=1)[1].split(
+        "private void ActivateTool", maxsplit=1
+    )[0]
+    assert 'button.Click += (_, _) => ToggleTool(tool, text);' in controls_source
+    assert '!string.Equals(tool, "orbit", StringComparison.OrdinalIgnoreCase)' in toggle_source
+    assert 'string.Equals(_viewport.ActiveTool, tool, StringComparison.OrdinalIgnoreCase)' in toggle_source
+    assert 'ActivateTool("orbit", "Orbit");' in toggle_source
+    assert "ActivateTool(tool, text);" in toggle_source
+    assert "ActivateTool(tool, tool[..1].ToUpperInvariant() + tool[1..]);" in host_state_source
 
 
 def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_shortcut_driven() -> None:

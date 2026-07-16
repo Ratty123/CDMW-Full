@@ -243,8 +243,19 @@ internal sealed partial class ExperimentForm
     {
         var button = StyledButton(text);
         _toolButtons[tool] = button;
-        button.Click += (_, _) => ActivateTool(tool, text);
+        button.Click += (_, _) => ToggleTool(tool, text);
         return button;
+    }
+
+    private void ToggleTool(string tool, string text)
+    {
+        if (!string.Equals(tool, "orbit", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_viewport.ActiveTool, tool, StringComparison.OrdinalIgnoreCase))
+        {
+            ActivateTool("orbit", "Orbit");
+            return;
+        }
+        ActivateTool(tool, text);
     }
 
     private void ActivateTool(string tool, string text)

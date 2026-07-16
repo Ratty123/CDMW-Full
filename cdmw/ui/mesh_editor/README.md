@@ -132,7 +132,10 @@ Python presentation payload key, a .NET parser,
 and a renderer or camera consumer before it can appear for .NET. Texture and
 view-mode choices synchronize across both role panes without merging their
 independent cameras, and the material-debug range covers every view mode shown
-by the dialog.
+by the dialog. In Edit Mesh, clicking the currently active Select, Move, Grab,
+or brush-tool button again returns the viewport to Orbit navigation. Host
+`tool_state` synchronization still applies its requested tool directly and does
+not toggle it off during resident-state replay.
 Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route
 through `MeshEditorController`/`MeshService` as resident native-session
 `transform`/`brush` commands with `stroke_phase` and `stroke_id` payloads.
