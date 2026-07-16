@@ -11,6 +11,12 @@ authorized.
 
 ## Current verdict
 
+- The metallic equipment follow-up now renders authoritative gold, bronze,
+  steel, dark iron, and colored armor as view-dependent metal instead of flat
+  neutral paint. The fixed shader uses an RGB studio environment, physical
+  Schlick Fresnel, GGX/Smith direct response, and source-colored metal F0.
+  Category-gated behavior preserves wood, cloth, leather, hair, and generic
+  controls.
 - The originally reported sword is no longer white, blown out, transparent, or
   texture-starved. The yellow section in the supplied .NET screenshot was the
   editor selection overlay, not source material color.
@@ -48,8 +54,52 @@ authorized.
   rolled capture matrices in integrity validation.
 - `c3101d9`, `9fd45a3`, and `918aba8` repair visual-audit invocation, validate
   the .NET DLL input, and permit bounded preparation resume.
+- `75a83fc` resolves immutable external material factors once per synthesized
+  texture instead of rescanning normalized parameter names for every pixel.
+  Exact generated pixels are unchanged.
+- `6a57863` implements the physical colored-metal response and upgrades the
+  hidden textured-metal proof to v4 with four same-material specular-debug
+  camera captures and bounded/view-varying response gates.
 
 ## Current evidence
+
+### Metallic equipment physical-response proof
+
+Manifest:
+`workspace/mesh-editor-visual-audit/manifest-metallic-equipment-15.json`
+
+Untouched baseline:
+`workspace/mesh-editor-visual-audit/20260716-metallic-equipment-15-baseline`
+
+Current-code evidence:
+`workspace/mesh-editor-visual-audit/20260716-metallic-equipment-15-after`
+
+- Baseline run `9bcbeb6e310e449e80b7a43d19fa3a54` completed before
+  the implementation/build changed. Current-code run
+  `50ec9b59d53d4d8fa5b68beb39fd4373` rebuilt and recaptured the identical 15
+  real PACs.
+- Final structured review: 15 PASS, 0 CONCERN, 0 FAIL; all 90 paired views were
+  directly inspected and `unreviewed_count` is zero. Gold sword 0070 retains
+  warm gold/bronze authority with moving highlights; axes, helmets, upper
+  armor, and promoted-metal boots show bounded response. Wood, cloth, hair,
+  generic armor, and generic boots remain nonmetal controls.
+- One hidden production .NET process/device/viewport handled all 15 resident
+  scene loads with zero restarts or device resets. Backend is
+  `d3d11_vortice_shader`, capture mode is `hidden_hwnd_no_show`, depth remains
+  enabled, and no X-ray/no-depth behavior was observed.
+- OpenImageIO 3.1.15.0 compared all six exact same-camera baseline/current
+  views for representative sword, axe, helmet, two armor assets, and metal
+  boots: 36 reports, 36 amplified difference PNGs, zero blockers, and zero
+  camera-matrix mismatches. The nonmetal hard-surface control remained
+  effectively pixel-stable (average RMS `0.000276`, maximum error `0.007843`),
+  while intended metal assets changed without object clipping. Evidence is in
+  the current-code root under `evidence/oiio-before-after/`.
+- Red Knight package preparation fell from `459.47 s` to `21.56 s`; its full
+  preparation total fell from `912.52 s` to `50.02 s`. The deterministic
+  96x96 material-combiner benchmark improved from `6400.52 ms` to `33.99 ms`
+  while all roughness/metalness/specular output hashes stayed identical.
+- Before/after fingerprints for all 17 referenced PAMT/PAZ files are
+  byte-identical in both runs. No archive was written or restored.
 
 ### Affected-family material/runtime proof
 
@@ -159,12 +209,21 @@ global x-ray behavior or texture downscaling.
 
 ## Validation state
 
+- Metallic-response focused validation passed the complete 61-test
+  native-preview module, five owned physical-shader/proof tests, and two
+  existing external-factor regression tests.
+- Fresh physical-metal proof v4: all response/completeness/bounds gates passed;
+  all-view luma ratio was `0.7050`, specular-debug mean span was `27.847`, and
+  white fraction was zero.
+- Fresh full-scale hidden Vortice soak: 1,000,000 vertices and 1,000 updates,
+  release-gate eligible, `0.1647 ms` handler p95, `0.3067 ms` maximum, zero
+  working-set growth, and no failed gates.
 - Focused current-change suite:
   `tests/test_mesh_dotnet_material_visual_parity.py`,
   `tests/test_mesh_visual_audit_harness.py`, and
   `tests/test_mesh_visual_audit_integrity.py`: 49 passed.
 - Fresh .NET Release build: succeeded with 0 warnings and 0 errors.
-- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 888 passed, 1 skipped.
+- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 889 passed, 1 skipped.
 - Dedicated real-PAC chain proof: paired-camera integrity passed.
 - Final 16-model structured review: 11 PASS, 5 CONCERN, 0 FAIL.
 - Final nine-family structured review: 8 PASS, 1 CONCERN, 0 FAIL.
@@ -176,8 +235,8 @@ global x-ray behavior or texture downscaling.
 ## Durable continuation point
 
 This audit pass is complete. Future texture/material-parity work should start
-from the two finalized evidence roots above, not from the older mirrored-camera
-captures.
+from the three finalized current-code evidence roots above, including the
+15-model metallic equipment root, not from older mirrored-camera captures.
 
 Highest-value remaining work:
 
@@ -193,7 +252,7 @@ Highest-value remaining work:
    when real PAC examples are identified; current moth, foliage, hair, and
    eye-cover assets are only cutout/thin-surface proxies.
 
-To refresh either completed visual ledger after a renderer change, rerun its
+To refresh a completed visual ledger after a renderer change, rerun its
 manifest into a new evidence root, inspect all six paired views per model, then
 run `tools/mesh_editor_visual_audit_review.py`. Do not reuse a prepared package
 set across a material-semantic change, and do not run the visible/licensed

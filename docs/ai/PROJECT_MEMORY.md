@@ -96,64 +96,20 @@ Last updated: 2026-07-16
 - Native/.NET renderers retain mesh/GPU buffers, corner mappings, SRV arrays, and immutable draw resources. Sparse edits update affected ranges; topology edits rebuild affected batches and preserve original material lineage. Active .NET interaction uses ordered non-droppable controls plus one latest pending immutable update, and texture patches coalesce to one upload/mip pass per presented frame with exact final acknowledgement. Present never self-schedules another frame. VSync and maximum frame latency one remain, and FPS comes from completion intervals with render/Present/GPU p95/p99 reported separately. Overlay primitives use one reusable dynamic vertex buffer; static and selected geometry is retained by generation. The additive `performance_capture_v1`/`cdmw_dotnet_preview_performance_v1` path uses precommitted fixed rings, delayed D3D11 queries, a capture-only balanced 1 ms timer-resolution request, and Vortice 3.8.3 on .NET 8. Continuous Qt-parent resize remains a distinct DWM/hosting hard gate even when all non-resize segments sustain 144 Hz. While the D3D11 child exists, parent paint must return before the CPU/GDI face loop; DXGI uses flip-discard, and camera drags skip gizmo hover work.
 - Mesh Editor normal wire and vertex colors are locally persisted and user-selectable. X-Ray is independent per presentation context, automatically uses white wire plus magenta vertices, and renders both overlay types without depth rejection; the hidden D3D11 smoke owns the corresponding draw-counter proof.
 - Preview packages use singleflight, leases, atomic publication, consume/ack cleanup, and safe pruning. Source-stamped PAMT indexes have parse fallback; per-job material maps release while bounded decoded entries remain reusable.
+- External material factors are immutable per synthesized texture: normalize and scan material parameters once, then apply the resolved factors per pixel. Preserve byte-identical roughness/metalness/specular outputs and cancellation checks.
 - .NET helper-authored OBJ/package/operation paths and generated sidecars stay under the package output root after canonical link-aware resolution. Archive Preview expected stops are keyed by exact process plus generation; unmatched nonzero exits and device loss remain failures.
 - The .NET/Vortice editor is the production embedded/standalone presentation child; Python/C++ retain data authority. One resident document/resource owner backs separate Original and Imported/Modify contexts with independent normal cameras and explicit linked comparison. Edit Mesh forces Replacement Only and pins the editable camera context across scene/presentation replay; leaving it restores the selected placement preview mode without restarting the renderer. Builder presentation is correlated; placement previews locally at input cadence with an exact provisional editable matrix while Original, role camera frames, and the resident world grid stay fixed. Camera Fit/nudge commands are role-addressed and generation-gated so persistent presentation replay is state-only. Authority requests coalesce at approximately 30 Hz with an exact final transform, and close uses acknowledged deactivation plus one final sync.
-- Resident material protocol v2 updates shader parameters, texture resources,
-  and affected bindings in-process. Python owns resource criticality; required
-  failures block Ready, optional failures use declared fallbacks, and late
-  reference generations are render-only. Source DDS wins over preview PNG;
-  supported 2D DDS preserves native format and mips through semantic sRGB/linear
-  SRVs. PAC shader/alpha/two-sided contracts do not depend on successful DDS
-  resolution. glTF green-up normals invert in HLSL and base alpha remains a
-  constant opacity factor. Exact PAC emissive ownership prevents cross-material
-  leakage; proven color-blending masks use R=AO, G=roughness, B=metalness while
-  `_mg` remains layer-only. The production shader uses linear GGX/Smith/Schlick
-  plus proven opacity/cutout/occlusion and per-material culling; blend draws are
-  depth-read/no-write and sorted back-to-front by transformed submesh center.
-  Global fallback culling stays disabled because real PACs can mix winding;
-  enable culling only from proven material/submesh authority and keep depth
-  testing enabled. The production presentation keeps source tint active and
-  matches Archive's luminance ACES operator with a 0.5 contrast pivot.
-  Its neutral studio environment anchors metallic reflections to source color,
-  proven two-sided backfaces flip the tangent frame, and final contrast preserves
-  luminance chromaticity. Hidden textured-metal captures must retain texture detail
-  with bounded angle-driven chromaticity and brightness drift. Wrong-family
-  generic layer albedo may fall back to decoded sidecar tint while retaining
-  same-family technical maps. Unproven layer, hair/fur, skin,
-  and blend ordering stays diagnostic. Mutable
-  region edits copy only the affected resource to a full BGRA mip chain,
-  regenerate lower mips after each boxed upload, and preserve the resident
-  process/package/viewport contract. Real topology evidence scans the retained
-  protocol tail when the bounded event buffer has pruned the original cursor.
-  The canonical paired visual audit keeps one native process and one .NET
-  process/device/viewport resident, captures six fixed angles, requires direct
-  verdicts, and fingerprints source archives. Its audit-only camera uses
-  Archive's `T(-center) * Rx(pitch) * Ry(yaw)` object basis; integrity compares
-  normalized screen-right/up/view axes so mirrored or rolled captures fail.
-  Archive remains perspective and .NET orthographic, so fit/foreshortening is
-  not texture-resolution evidence. Hidden automation creates the HWND without
-  `Show`; open cards or standalone boundaries also seen in Archive are not
-  x-ray regressions. Preserve RGB-versus-scalar emissive authority end to end:
-  zero intensity combined with non-authoritative fallback color is not family
-  evidence, while active intensity/color/role/channel remains authoritative;
-  current nine-family real-PAC evidence matched 130/130 batches. The finalized
-  corrected-camera ledgers are 11 PASS/5 CONCERN/0 FAIL across 16 broad models
-  and 8 PASS/1 CONCERN/0 FAIL across the affected nine; both retain depth, use
-  no X-ray/no-depth passes, and preserve byte-identical archive-fingerprint
-  manifests. Direct authoritative DDS bytes, formats, dimensions, and mips stay
-  identical to source; fit, source atlases, capped synthesized material
-  outputs, or unsupported response can still soften the image. This is CDMW
-  renderer-consistency evidence, never licensed-game parity proof.
-  Prepared audit packages recursively own and rewrite every nested
-  `source_path` the native role scan can select, even when a descriptor is not
-  a direct-upload candidate, so cache eviction cannot invalidate later capture.
-  The representative real hair corpus entry is `cd_ptm_00_hair_00_0003.pac`;
-  it must resolve at least one source DDS instead of recording empty coverage.
-  OpenImageIO is optional offline metadata/diff evidence, never runtime shading
-  or DDS authority; identical corpus inputs must yield an identical fingerprint.
-  `cd-texture-dx` batch JSON parsing must stay allocation-light and must not use
-  `std::regex`; archive/icon warmup can leave the parent near 1.7 GiB private
-  memory. Its executable self-test owns JSON escape and alias coverage.
+- Resident material protocol v2 updates parameters, resources, and bindings in-process. Python owns criticality: required failures block Ready, optional failures use declared fallbacks, and late reference generations are render-only. Source DDS wins over preview PNG and preserves supported 2D formats/mips through semantic sRGB/linear SRVs; PAC shader/alpha/two-sided contracts remain independent of DDS resolution.
+- glTF green-up normals invert in HLSL and base alpha is constant opacity. Exact PAC ownership prevents emissive leakage; proven color-blending masks use R=AO, G=roughness, B=metalness while `_mg` stays layer-only. Zero intensity plus non-authoritative fallback color is not emissive-family evidence; active intensity/color/role/channel is authoritative.
+- Production shading uses linear GGX/Smith/Schlick, proven opacity/cutout/occlusion, and authority-gated culling. Blend draws are depth-read/no-write and sorted by transformed submesh center; global fallback culling stays disabled for mixed PAC winding, and depth stays enabled. Source tint and Archive's luminance ACES operator with a 0.5 contrast pivot remain active.
+- The RGB warm-front/cool-side environment anchors reflections to source-colored F0; physical Fresnel and GGX/Smith replace the flattened grayscale/ad-hoc metal path. Two-sided backfaces flip the tangent frame and final contrast preserves luminance chromaticity. Hidden textured-metal proof v4 retains texture detail and captures four same-material specular-debug views whose brightness/color response is complete, varying, and bounded.
+- Wrong-family generic layer albedo may fall back to decoded sidecar tint while keeping same-family technical maps; unproven layer, hair/fur, skin, and blend ordering stays diagnostic. Mutable region edits copy only the affected resource to a full BGRA mip chain, regenerate lower mips after boxed uploads, and retain the resident process/package/viewport. Topology evidence scans the retained protocol tail after event pruning.
+- The canonical paired audit keeps one native process and one .NET process/device/viewport resident, captures six fixed angles, requires direct verdicts, and fingerprints source archives. Its camera uses Archive's `T(-center) * Rx(pitch) * Ry(yaw)` object basis; normalized right/up/view axes reject mirrored or rolled captures. Archive perspective versus .NET orthographic fit is not resolution evidence. Hidden automation never calls `Show`; Archive-matching open cards/boundaries are not x-ray regressions.
+- Final corrected-camera ledgers are 11 PASS/5 CONCERN/0 FAIL across 16 broad models, 8 PASS/1 CONCERN/0 FAIL across nine emissive-affected models (130/130 material batches), and 15 PASS/0 CONCERN/0 FAIL across metallic equipment. All retain depth, avoid X-ray/no-depth passes, and preserve byte-identical archive fingerprints; the metallic ledger adds 36 exact same-camera OpenImageIO reports/diffs and a pixel-stable nonmetal control.
+- Direct authoritative DDS bytes, formats, dimensions, and mips stay identical to source. Fit, source atlases, capped synthesized outputs, or unsupported response can still soften images. This is CDMW renderer-consistency evidence, never licensed-game parity proof.
+- Prepared audit packages own and rewrite every nested selectable `source_path`, including non-direct candidates, so cache eviction cannot invalidate capture. Representative hair PAC `cd_ptm_00_hair_00_0003.pac` must resolve at least one source DDS.
+- OpenImageIO is offline metadata/diff evidence only, never runtime shading or DDS authority. Shader comparisons require exact same-camera captures and retained amplified diffs; identical corpus inputs require identical fingerprints.
+- `cd-texture-dx` batch JSON parsing stays allocation-light without `std::regex`; archive/icon warmup can leave the parent near 1.7 GiB private memory. Its executable self-test owns JSON escape and alias coverage.
 - External OBJ/DAE/glTF/GLB missing/incomplete UVs use cancellable xatlas and report review-required. Shared UV transforms bake before the V flip; differing sets use sampler/color-space-correct raster baking, native tangents, normal-basis conversion, gutters, and atomic hashes. Unsupported input blocks safely; PAC/PAM is never auto-unwrapped.
 - External ZIP import uses verified extraction; geometry fits the original frame, centers and Y-grounds, and overlay/side-by-side share one grid. Exact `cd_phm_01_sword_0016.pac` plus `wolf_gravestone_sword_free (1).zip` uses archive-resolved original textures and ZIP-owned imported textures. Archive Browser switches to a different mesh package at a fitted overhead camera (`yaw=0`, `pitch=-89`); refreshing the same model preserves its camera.
 - Hardware soak must cover production-scale sparse updates, tail shrink,

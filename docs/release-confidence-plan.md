@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-15
+Last reviewed: 2026-07-16
 
 ## Goal
 
@@ -47,6 +47,39 @@ keeps core user workflows working behind stable facades.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-16:
+
+- The physical colored-metal follow-up replaced the flat grayscale metal
+  environment and suppressed Fresnel path with RGB warm/cool environment
+  radiance, Schlick Fresnel, and GGX/Smith direct response while retaining
+  source-colored F0. The hidden textured-metal proof is now v4 and adds four
+  same-material specular-debug camera captures. Its fresh smoke passed every
+  response/completeness/bounds gate with `0.7050` all-view luma ratio,
+  `27.847` specular mean span, and zero white fraction.
+- The identical 15-PAC sword/axe/helmet/armor/boots baseline and current-code
+  runs are complete. Current run `50ec9b59d53d4d8fa5b68beb39fd4373`
+  finalized at 15 PASS, 0 CONCERN, 0 FAIL across 90 directly inspected paired
+  views. One hidden production process/device/viewport handled all 15 resident
+  loads with zero restarts/resets, and all 17 referenced PAMT/PAZ fingerprints
+  remained byte-identical. Evidence:
+  `workspace/mesh-editor-visual-audit/20260716-metallic-equipment-15-after/summary.json`
+  and the adjacent `review.md`.
+- OpenImageIO 3.1.15.0 produced 36 exact same-camera baseline/current reports
+  and 36 amplified diff PNGs for representative gold sword, axe, helmet, two
+  armor assets, and promoted-metal boots. All comparisons executed with zero
+  blockers and zero camera-matrix mismatches. The nonmetal hard-surface control
+  remained effectively stable at average RMS `0.000276` and maximum error
+  `0.007843`; intended metal assets changed without object clipping. Evidence
+  is under the current-code root at `evidence/oiio-before-after/`.
+- Immutable external material factors are now resolved once per synthesized
+  texture instead of once per pixel. Deterministic 96x96 synthesis improved
+  from `6400.52 ms` to `33.99 ms` with identical output hashes; Red Knight
+  package time fell from `459.47 s` to `21.56 s`. The .NET Release build passed
+  with zero warnings/errors, the full hidden 1,000,000-vertex/1,000-update soak
+  passed with `0.1647 ms` handler p95 and zero working-set growth, and
+  `mesh-unit` passed 889 tests with 1 skip. Visible/licensed real-game proof was
+  not run or claimed.
 
 2026-07-15:
 
