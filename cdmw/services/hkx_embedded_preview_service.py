@@ -19,7 +19,6 @@ class HkxEmbeddedPreviewRequest:
     entry_key: ArchiveEntryIdentity
     model_entry: ArchiveEntry
     companion_entry: ArchiveEntry | None
-    texconv_path: Path | None
     texture_entries_by_normalized_path: Mapping[str, Sequence[ArchiveEntry]]
     texture_entries_by_basename: Mapping[str, Sequence[ArchiveEntry]]
     sidecar_entries_by_texture_path: Mapping[str, Sequence[ArchiveEntry]]
@@ -34,11 +33,7 @@ def build_hkx_embedded_preview(
     stop_event: threading.Event | None = None,
 ) -> tuple[ArchiveEntryIdentity, str, ArchivePreviewResult]:
     raise_if_cancelled(stop_event, "Embedded HKX preview stopped by user.")
-    texconv_path = request.texconv_path
-    if texconv_path is not None and not texconv_path.is_file():
-        texconv_path = None
     preview_result = build_archive_preview_result(
-        texconv_path,
         request.model_entry,
         companion_entry=request.companion_entry,
         texture_entries_by_normalized_path=request.texture_entries_by_normalized_path,

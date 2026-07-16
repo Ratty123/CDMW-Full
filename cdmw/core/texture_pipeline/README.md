@@ -2,8 +2,8 @@
 
 Owns no-UI texture workflow helpers: runtime config, workspace paths, DDS/PNG
 inspection, discovery, planning, preflight summaries, preview generation,
-manifest tracking, logging, package export defaults, and cancellable `texconv`
-execution.
+manifest tracking, logging, package export defaults, and cancellable native
+DirectXTex execution through the bundled `cd-texture-dx.exe` helper.
 
 Keep PySide controls and user interaction outside this package. Pure texture
 rules belong in `cdmw/domain/textures/`; UI panels belong in

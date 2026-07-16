@@ -703,8 +703,6 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 return
             d3d11_state["request_id"] = int(d3d11_state.get("request_id", 0) or 0) + 1
             request_id = int(d3d11_state["request_id"])
-            texconv_text_snapshot = self.texconv_path_edit.text().strip()
-            texconv_path_snapshot = Path(texconv_text_snapshot).expanduser() if texconv_text_snapshot else None
             preview_settings_snapshot = self._current_model_preview_render_settings()
             texture_entries_by_normalized_path_snapshot = self.archive_entries_by_normalized_path
             texture_entries_by_basename_snapshot = self.archive_entries_by_basename
@@ -713,7 +711,6 @@ class ArchiveAttachmentSafePlacementDialogMixin:
 
             def _task() -> dict:
                 target_preview = build_archive_preview_result(
-                    texconv_path_snapshot,
                     target_model_entry,
                     texture_entries_by_normalized_path=texture_entries_by_normalized_path_snapshot,
                     texture_entries_by_basename=texture_entries_by_basename_snapshot,
@@ -724,7 +721,6 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 donor_preview = None
                 if isinstance(donor_model_entry, ArchiveEntry):
                     donor_preview = build_archive_preview_result(
-                        texconv_path_snapshot,
                         donor_model_entry,
                         texture_entries_by_normalized_path=texture_entries_by_normalized_path_snapshot,
                         texture_entries_by_basename=texture_entries_by_basename_snapshot,

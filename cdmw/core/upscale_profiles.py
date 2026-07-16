@@ -10,7 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from cdmw.constants import (
-    SUPPORTED_TEXCONV_FORMAT_CHOICES,
+    SUPPORTED_DDS_FORMAT_CHOICES,
     UPSCALE_TEXTURE_PRESET_ALL,
     UPSCALE_TEXTURE_PRESET_BALANCED,
     UPSCALE_TEXTURE_PRESET_COLOR_UI,
@@ -1534,12 +1534,12 @@ def _infer_family_semantics(
 def _infer_preview_semantics(
     preview_sample: TexturePreviewSample,
     *,
-    original_texconv_format: str,
+    original_dds_format: str,
     has_alpha: bool,
     family_members: Sequence[str],
 ) -> Optional[Tuple[str, str, int, str]]:
     del has_alpha
-    original_upper = original_texconv_format.strip().upper()
+    original_upper = original_dds_format.strip().upper()
     sibling_types = {classify_texture_type(member) for member in family_members}
     sibling_types.discard("unknown")
     mean_rg = abs(preview_sample.mean_r - preview_sample.mean_g)
@@ -1573,7 +1573,7 @@ def infer_texture_semantics(
     path_value: str | Path,
     *,
     sidecar_texts: Sequence[str] = (),
-    original_texconv_format: str = "",
+    original_dds_format: str = "",
     has_alpha: bool = False,
     family_members: Sequence[str] = (),
     preview_sample: Optional[TexturePreviewSample] = None,
@@ -1588,7 +1588,7 @@ def infer_texture_semantics(
     packed_channels: List[str] = []
     evidence: List[str] = []
     combined_sidecar_text = "\n".join(text.lower() for text in sidecar_texts if text).lower()
-    original_upper = original_texconv_format.strip().upper()
+    original_upper = original_dds_format.strip().upper()
     exact_sidecar_hint = _select_exact_sidecar_semantic_hint(path_text, sidecar_texts)
 
     if exact_sidecar_hint is not None:
@@ -1886,7 +1886,7 @@ def infer_texture_semantics(
     if texture_type == "unknown" and preview_sample is not None:
         preview_hint = _infer_preview_semantics(
             preview_sample,
-            original_texconv_format=original_texconv_format,
+            original_dds_format=original_dds_format,
             has_alpha=has_alpha,
             family_members=family_members,
         )
@@ -1925,7 +1925,7 @@ def suggest_texture_upscale_decision(
     path_value: str | Path,
     *,
     preset: str = UPSCALE_TEXTURE_PRESET_BALANCED,
-    original_texconv_format: str = "",
+    original_dds_format: str = "",
     has_alpha: bool = False,
     sidecar_texts: Sequence[str] = (),
     enable_automatic_rules: bool = True,
@@ -1935,7 +1935,7 @@ def suggest_texture_upscale_decision(
     semantic = infer_texture_semantics(
         path_value,
         sidecar_texts=sidecar_texts,
-        original_texconv_format=original_texconv_format,
+        original_dds_format=original_dds_format,
         has_alpha=has_alpha,
         family_members=family_members,
         preview_sample=preview_sample,
@@ -1945,7 +1945,7 @@ def suggest_texture_upscale_decision(
     notes: List[str] = []
     color_space = "unknown"
     format_strategy = "match_original"
-    recommended_texconv_format = original_texconv_format.strip().upper()
+    recommended_dds_format = original_dds_format.strip().upper()
     preserve_alpha = has_alpha
     preserve_original_due_to_intermediate = False
     intermediate_policy = "png_ok"
@@ -1955,7 +1955,7 @@ def suggest_texture_upscale_decision(
     if texture_type in {"color", "ui", "emissive", "impostor"}:
         color_space = "srgb"
         format_strategy = "bc7_srgb"
-        recommended_texconv_format = "BC7_UNORM_SRGB"
+        recommended_dds_format = "BC7_UNORM_SRGB"
         notes.append("Treat as color data and keep sRGB handling enabled.")
         if texture_type == "ui":
             notes.append("UI textures should avoid linear-color conversion.")
@@ -1963,56 +1963,56 @@ def suggest_texture_upscale_decision(
         color_space = "linear"
         if has_alpha:
             format_strategy = "normal_with_alpha_linear"
-            recommended_texconv_format = "BC7_UNORM"
+            recommended_dds_format = "BC7_UNORM"
             preserve_alpha = True
             notes.append("Normal map appears to use alpha, so an alpha-capable linear format is safer than BC5.")
         else:
             format_strategy = "bc5_linear"
-            recommended_texconv_format = "BC5_UNORM"
+            recommended_dds_format = "BC5_UNORM"
             preserve_alpha = False
             notes.append("Normal maps should stay linear and usually compress to BC5.")
     elif texture_type == "height":
         color_space = "linear"
         format_strategy = "preserve_linear_scalar"
-        if original_texconv_format.strip().upper().startswith("R") and "FLOAT" in original_texconv_format.strip().upper():
-            recommended_texconv_format = original_texconv_format.strip().upper()
+        if original_dds_format.strip().upper().startswith("R") and "FLOAT" in original_dds_format.strip().upper():
+            recommended_dds_format = original_dds_format.strip().upper()
         else:
-            recommended_texconv_format = "BC4_UNORM"
+            recommended_dds_format = "BC4_UNORM"
         preserve_alpha = False
         notes.append(f"{semantic.semantic_subtype.replace('_', ' ')} maps are technical grayscale data and should stay linear.")
         notes.append("PNG intermediates can lose precision for these maps, so safer presets leave them unchanged.")
     elif texture_type == "vector":
         color_space = "linear"
         format_strategy = "preserve_vector_precision"
-        recommended_texconv_format = original_texconv_format.strip().upper() or "BC5_UNORM"
+        recommended_dds_format = original_dds_format.strip().upper() or "BC5_UNORM"
         preserve_alpha = False
         notes.append(f"{semantic.semantic_subtype.replace('_', ' ')} maps often store signed or high-precision data and should stay linear.")
         notes.append("PNG intermediates can quantize vector data, so safer presets leave them unchanged.")
     elif texture_type == "roughness":
         color_space = "linear"
         format_strategy = "bc4_linear"
-        recommended_texconv_format = "BC4_UNORM"
+        recommended_dds_format = "BC4_UNORM"
         preserve_alpha = False
         notes.append("Roughness/gloss maps are usually safest as single-channel linear data.")
     elif texture_type == "mask":
         color_space = "linear"
         if semantic.semantic_subtype in {"orm", "rma", "mra", "arm", "packed_mask"}:
             format_strategy = "preserve_packed_channels"
-            recommended_texconv_format = original_texconv_format.strip().upper() or ("BC7_UNORM" if has_alpha else "BC1_UNORM")
+            recommended_dds_format = original_dds_format.strip().upper() or ("BC7_UNORM" if has_alpha else "BC1_UNORM")
             preserve_alpha = has_alpha
             notes.append("Packed channel maps should preserve exact channel meaning and stay linear.")
         elif semantic.semantic_subtype == "opacity_mask":
             format_strategy = "alpha_mask_linear"
-            recommended_texconv_format = "BC7_UNORM" if has_alpha else "BC4_UNORM"
+            recommended_dds_format = "BC7_UNORM" if has_alpha else "BC4_UNORM"
             preserve_alpha = has_alpha
             notes.append("Opacity/alpha masks should stay linear and preserve alpha semantics.")
         else:
             format_strategy = "bc7_linear" if has_alpha else "bc4_linear"
-            recommended_texconv_format = "BC7_UNORM" if has_alpha else "BC4_UNORM"
+            recommended_dds_format = "BC7_UNORM" if has_alpha else "BC4_UNORM"
             notes.append("Packed or mask maps should stay linear; keep alpha if the source uses it.")
     else:
-        if recommended_texconv_format not in SUPPORTED_TEXCONV_FORMAT_CHOICES:
-            recommended_texconv_format = original_texconv_format.strip().upper() or "MATCH_ORIGINAL"
+        if recommended_dds_format not in SUPPORTED_DDS_FORMAT_CHOICES:
+            recommended_dds_format = original_dds_format.strip().upper() or "MATCH_ORIGINAL"
         notes.append("Unknown textures should be reviewed before forcing a new format.")
 
     if semantic.alpha_mode == "cutout":
@@ -2024,17 +2024,17 @@ def suggest_texture_upscale_decision(
     elif semantic.alpha_mode == "channel_data":
         notes.append("Alpha appears to be channel data rather than transparency; separate-alpha mip handling may be safer.")
 
-    if original_texconv_format:
-        original_upper = original_texconv_format.strip().upper()
+    if original_dds_format:
+        original_upper = original_dds_format.strip().upper()
         if "FLOAT" in original_upper or "SNORM" in original_upper:
             precision_sensitive = True
-        if original_upper in SUPPORTED_TEXCONV_FORMAT_CHOICES and original_upper != recommended_texconv_format:
+        if original_upper in SUPPORTED_DDS_FORMAT_CHOICES and original_upper != recommended_dds_format:
             notes.append(f"Source format is {original_upper}; compare it against the suggested output format before changing it.")
-        elif texture_type in {"height", "vector"} and original_upper and original_upper != recommended_texconv_format:
+        elif texture_type in {"height", "vector"} and original_upper and original_upper != recommended_dds_format:
             notes.append(f"Source format is {original_upper}; preserve it if this map carries precision-sensitive technical data.")
 
     if enable_automatic_rules:
-        original_upper = original_texconv_format.strip().upper()
+        original_upper = original_dds_format.strip().upper()
         if "FLOAT" in original_upper or "SNORM" in original_upper:
             precision_sensitive = True
             preserve_original_due_to_intermediate = True
@@ -2056,7 +2056,7 @@ def suggest_texture_upscale_decision(
             preserve_original_due_to_intermediate = True
             intermediate_policy = "preserve_original"
             notes.append("Automatic rules will preserve the original DDS for mask, support, and packed-channel maps.")
-        elif is_png_intermediate_high_risk(texture_type, original_texconv_format):
+        elif is_png_intermediate_high_risk(texture_type, original_dds_format):
             intermediate_policy = "risky_png"
             notes.append("PNG intermediates are risky for this texture type or source format.")
 
@@ -2073,7 +2073,7 @@ def suggest_texture_upscale_decision(
         should_upscale=should_upscale,
         recommended_colorspace=color_space,
         format_strategy=format_strategy,
-        recommended_texconv_format=recommended_texconv_format,
+        recommended_dds_format=recommended_dds_format,
         preserve_alpha=preserve_alpha,
         alpha_mode=semantic.alpha_mode,
         packed_channels=semantic.packed_channels,
@@ -2089,10 +2089,10 @@ def build_texture_upscale_decisions(
     paths: Sequence[str | Path],
     *,
     preset: str = UPSCALE_TEXTURE_PRESET_BALANCED,
-    original_texconv_format: str = "",
+    original_dds_format: str = "",
 ) -> List[TextureUpscaleDecision]:
     return [
-        suggest_texture_upscale_decision(str(path), preset=preset, original_texconv_format=original_texconv_format)
+        suggest_texture_upscale_decision(str(path), preset=preset, original_dds_format=original_dds_format)
         for path in paths
     ]
 

@@ -49,8 +49,8 @@ class TextureWorkflowPlan:
 _VISIBLE_COLOR_TEXTURE_TYPES = frozenset({"color", "ui", "emissive", "impostor"})
 
 
-def _dds_colorspace_intent_from_format(texconv_format: str) -> str:
-    normalized = str(texconv_format or "").strip().upper()
+def _dds_colorspace_intent_from_format(dds_format: str) -> str:
+    normalized = str(dds_format or "").strip().upper()
     if normalized.endswith("_SRGB"):
         return "srgb"
     if normalized:
@@ -103,7 +103,7 @@ def _infer_profile_key(
     if explicit_profile:
         return _profile_for_key(explicit_profile).key
 
-    if decision.precision_sensitive or decision.texture_type == "vector" or "FLOAT" in dds_info.texconv_format.upper() or "SNORM" in dds_info.texconv_format.upper():
+    if decision.precision_sensitive or decision.texture_type == "vector" or "FLOAT" in dds_info.dds_format.upper() or "SNORM" in dds_info.dds_format.upper():
         return "float_or_vector_preserve_only"
     if alpha_policy == "premultiplied":
         return "premultiplied_alpha_review_required"
@@ -260,7 +260,7 @@ def _decision_with_texture_rule_overrides(
 
     if rule.colorspace_value:
         colorspace_value = str(rule.colorspace_value).strip().lower()
-        target_colorspace = _dds_colorspace_intent_from_format(dds_info.texconv_format) if colorspace_value == "match_source" else colorspace_value
+        target_colorspace = _dds_colorspace_intent_from_format(dds_info.dds_format) if colorspace_value == "match_source" else colorspace_value
         next_decision = replace(next_decision, recommended_colorspace=target_colorspace or next_decision.recommended_colorspace)
         notes.append(f"texture rule overrides colorspace policy to {target_colorspace or 'match_source'}.")
 
@@ -539,7 +539,7 @@ def _build_texture_processing_plan_entry(
     preserve_reason = _plan_preserve_reason(decision, profile, path_kind, backend_capability, rule)
     lossy_warning = _lossy_intermediate_warning(decision, path_kind)
 
-    dds_info.colorspace_intent = _dds_colorspace_intent_from_format(dds_info.texconv_format)
+    dds_info.colorspace_intent = _dds_colorspace_intent_from_format(dds_info.dds_format)
     dds_info.precision_sensitive = dds_info.precision_sensitive or decision.precision_sensitive
     dds_info.packed_channel_risk = bool(decision.packed_channels) or decision.semantic_subtype in {"orm", "rma", "mra", "arm", "packed_mask", "material_mask", "material_response"}
     dds_info.preserve_only_source = bool(preserve_reason) or profile.preserve_only

@@ -1008,7 +1008,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         preview_worker_source = (REPO_ROOT / "cdmw" / "workers" / "preview_workers.py").read_text(encoding="utf-8")
         self.assertIn("class VisualPlacementPreviewWorker(QObject)", preview_worker_source)
         self.assertNotIn("Loading placement preview", visual_dialog_source)
-        self.assertIn("texconv_text_snapshot = self.texconv_path_edit.text().strip()", source)
+        self.assertNotIn("tex" + "conv", source.lower())
         self.assertNotIn("Placement body context resolved, lazy preview disabled for startup stability", visual_dialog_source)
         self.assertNotIn("Building placement body context model:", visual_dialog_source)
         self.assertIn("body_vertex_budget = 80_000", source)

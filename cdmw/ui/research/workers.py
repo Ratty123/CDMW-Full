@@ -50,7 +50,6 @@ class ResearchRefreshWorker(QObject):
         sidecar_source_entries: Sequence[object],
         original_root: Optional[Path],
         output_root: Optional[Path],
-        texconv_path: Optional[Path],
         app_config: Optional[AppConfig] = None,
         archive_snapshot_payload: Optional[Dict[str, object]] = None,
         ui_constraint_related_paths: Sequence[str] = (),
@@ -61,7 +60,6 @@ class ResearchRefreshWorker(QObject):
         self.sidecar_source_entries = sidecar_source_entries
         self.original_root = original_root
         self.output_root = output_root
-        self.texconv_path = texconv_path
         self.app_config = app_config
         self.archive_snapshot_payload = dict(archive_snapshot_payload or {})
         self.ui_constraint_related_paths = [str(path) for path in ui_constraint_related_paths if isinstance(path, str)]
@@ -121,7 +119,6 @@ class ResearchRefreshWorker(QObject):
                     mip_rows = research_service.texture_analysis.analyze_mips(
                         self.original_root,
                         self.output_root,
-                        texconv_path=self.texconv_path,
                         processing_plan_lookup=processing_plan_lookup,
                         stop_event=self.stop_event,
                         family_members_by_path=mip_family_members_by_path,
@@ -138,7 +135,6 @@ class ResearchRefreshWorker(QObject):
                     research_service.texture_analysis.validate_normals(
                         self.original_root,
                         root_label="Original DDS root",
-                        texconv_path=self.texconv_path,
                         processing_plan_lookup=processing_plan_lookup,
                         stop_event=self.stop_event,
                     )
@@ -148,7 +144,6 @@ class ResearchRefreshWorker(QObject):
                     research_service.texture_analysis.validate_normals(
                         self.output_root,
                         root_label="Output root",
-                        texconv_path=self.texconv_path,
                         processing_plan_lookup=processing_plan_lookup,
                         stop_event=self.stop_event,
                     )
@@ -290,12 +285,10 @@ class UnknownResolverPreviewWorker(QObject):
     def __init__(
         self,
         request_id: int,
-        texconv_path: Optional[Path],
         entry: Optional[ArchiveEntry],
     ) -> None:
         super().__init__()
         self.request_id = request_id
-        self.texconv_path = texconv_path
         self.entry = entry
         self.stop_event = threading.Event()
 
@@ -308,7 +301,6 @@ class UnknownResolverPreviewWorker(QObject):
             if self.stop_event.is_set():
                 return
             payload = research_service.preview.build_archive_preview(
-                self.texconv_path,
                 self.entry,
                 stop_event=self.stop_event,
             )

@@ -665,8 +665,6 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             material_effects_active = bool(material_preview_edits)
             preview_generation["value"] += 1
             generation = preview_generation["value"]
-            texconv_text = self.texconv_path_edit.text().strip()
-            texconv_path = Path(texconv_text).expanduser() if texconv_text else None
             companion_entry = self._find_archive_preview_companion_entry(preview_model_entry)
             preview_settings = _material_value_preview_render_settings(material_effects_active=material_effects_active)
             base_cache_key = f"{preview_model_entry.path}|{preview_settings.visible_texture_mode}"
@@ -695,7 +693,6 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 preview_model_entry=preview_model_entry,
                 sidecar_entry=entry,
                 companion_entry=companion_entry,
-                texconv_path=texconv_path,
                 preview_sidecar_text=preview_sidecar_text,
                 material_preview_edits=dict(material_preview_edits),
                 include_texture_edits=include_texture_edits,

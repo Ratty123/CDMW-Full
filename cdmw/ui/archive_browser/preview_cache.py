@@ -62,7 +62,6 @@ class ArchivePreviewCacheMixin:
     def _archive_preview_cache_key(
         self,
         entry: Optional[ArchiveEntry],
-        texconv_path: Optional[Path],
         loose_search_roots: Sequence[Path],
         *,
         include_loose_preview_assets: bool = False,
@@ -77,7 +76,6 @@ class ArchivePreviewCacheMixin:
         # textures.
         if include_loose_preview_assets:
             return ""
-        texconv_key = str(texconv_path).strip().lower() if texconv_path is not None else ""
         preview_settings = self._current_model_preview_render_settings()
         support_slots_key = ",".join(self._archive_preview_support_texture_slots(preview_settings))
         renderer_backend_key = str(self._archive_model_renderer_backend() or "").strip().lower()
@@ -104,7 +102,7 @@ class ArchivePreviewCacheMixin:
                 str(entry.flags),
                 str(entry.paz_index),
                 f"renderer:{renderer_backend_key}",
-                texconv_key,
+                "texture:native-v2",
                 f"sidecars:{self.archive_sidecar_generation if sidecar_generation is None else int(sidecar_generation)}",
                 str(preview_settings.visible_texture_mode),
                 f"texdim:{int(preview_settings.preview_texture_max_dimension)}",
@@ -171,7 +169,6 @@ class ArchivePreviewCacheMixin:
         self,
         entry: Optional[ArchiveEntry],
         companion_entry: Optional[ArchiveEntry],
-        texconv_path: Optional[Path],
         loose_search_roots: Sequence[Path],
         *,
         include_loose_preview_assets: bool = False,
@@ -182,7 +179,6 @@ class ArchivePreviewCacheMixin:
         binary_signature = NativePreviewCoreServiceClient.resolve_binary_signature(binary) if binary is not None else (0, 0)
         base_key = self._archive_preview_cache_key(
             entry,
-            texconv_path,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
@@ -535,7 +531,6 @@ class ArchivePreviewCacheMixin:
         *,
         entry: Optional[ArchiveEntry],
         companion_entry: Optional[ArchiveEntry],
-        texconv_path: Optional[Path],
         loose_search_roots: Sequence[Path],
         include_loose_preview_assets: bool,
     ) -> Optional[ArchivePreviewResult]:
@@ -551,7 +546,6 @@ class ArchivePreviewCacheMixin:
         cache_key = self._archive_native_preview_package_cache_key(
             entry,
             companion_entry,
-            texconv_path,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
         )

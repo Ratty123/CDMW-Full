@@ -32,7 +32,7 @@ from cdmw.constants import (
     REALESRGAN_NCNN_SCALE,
     REALESRGAN_NCNN_TILE_SIZE,
     RETRY_SMALLER_TILE_ON_FAILURE,
-    SUPPORTED_TEXCONV_FORMAT_CHOICES,
+    SUPPORTED_DDS_FORMAT_CHOICES,
     UPSCALE_BACKEND_CHAINNER,
     UPSCALE_BACKEND_NONE,
     UPSCALE_BACKEND_REALESRGAN_NCNN,
@@ -122,7 +122,6 @@ def normalize_config_for_planning(config: AppConfig) -> NormalizedConfig:
     texture_editor_png_root = normalize_optional_path(getattr(config, "texture_editor_png_root", ""))
     output_root = normalize_required_path(config.output_root, "Output root")
     dds_staging_root = normalize_optional_path(config.dds_staging_root)
-    texconv_path = normalize_optional_path(config.texconv_path)
     csv_log_path = normalize_optional_path(config.csv_log_path) if config.csv_log_enabled else None
     chainner_exe_path = normalize_optional_path(config.chainner_exe_path)
     chainner_chain_path = normalize_optional_path(config.chainner_chain_path)
@@ -145,7 +144,6 @@ def normalize_config_for_planning(config: AppConfig) -> NormalizedConfig:
         texture_editor_png_root=texture_editor_png_root,
         output_root=output_root,
         dds_staging_root=dds_staging_root,
-        texconv_path=texconv_path,
         dds_format_mode=str(config.dds_format_mode or DEFAULT_DDS_FORMAT_MODE).strip().lower() or DEFAULT_DDS_FORMAT_MODE,
         dds_custom_format=str(config.dds_custom_format or DEFAULT_DDS_CUSTOM_FORMAT).strip() or DEFAULT_DDS_CUSTOM_FORMAT,
         dds_size_mode=str(config.dds_size_mode or DEFAULT_DDS_SIZE_MODE).strip().lower() or DEFAULT_DDS_SIZE_MODE,
@@ -212,7 +210,6 @@ def normalize_config(config: AppConfig, *, validate_backend_runtime: bool = True
     ):
         ensure_existing_dir(png_root, "PNG root")
     output_root = normalize_required_path(config.output_root, "Output root")
-    texconv_path = normalize_optional_path(config.texconv_path)
 
     csv_log_path: Optional[Path] = None
     if config.csv_log_enabled:
@@ -347,7 +344,7 @@ def normalize_config(config: AppConfig, *, validate_backend_runtime: bool = True
     )
 
     dds_custom_format = config.dds_custom_format.strip() or DEFAULT_DDS_CUSTOM_FORMAT
-    if dds_format_mode == DDS_FORMAT_MODE_CUSTOM and dds_custom_format not in SUPPORTED_TEXCONV_FORMAT_CHOICES:
+    if dds_format_mode == DDS_FORMAT_MODE_CUSTOM and dds_custom_format not in SUPPORTED_DDS_FORMAT_CHOICES:
         raise ValueError(f"Unsupported custom DDS format: {dds_custom_format}")
 
     dds_custom_width = int(config.dds_custom_width)
@@ -365,7 +362,6 @@ def normalize_config(config: AppConfig, *, validate_backend_runtime: bool = True
         texture_editor_png_root=texture_editor_png_root,
         output_root=output_root,
         dds_staging_root=dds_staging_root,
-        texconv_path=texconv_path,
         dds_format_mode=dds_format_mode,
         dds_custom_format=dds_custom_format,
         dds_size_mode=dds_size_mode,

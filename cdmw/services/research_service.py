@@ -144,7 +144,6 @@ class ResearchClassificationService:
         selected_member_path: str,
         *,
         entries_by_path: Dict[str, ArchiveEntry],
-        texconv_path: Optional[Path] = None,
     ) -> str:
         from cdmw.core.research_classification import build_unknown_resolver_detail
 
@@ -152,7 +151,6 @@ class ResearchClassificationService:
             group,
             selected_member_path,
             entries_by_path=entries_by_path,
-            texconv_path=texconv_path,
         )
 
 
@@ -163,7 +161,6 @@ class ResearchTextureAnalysisService:
         original_root: Path,
         rebuilt_root: Path,
         *,
-        texconv_path: Optional[Path] = None,
         limit: int = 3000,
         processing_plan_lookup: Optional[Dict[str, TextureProcessingPlan]] = None,
         stop_event: Optional[object] = None,
@@ -174,7 +171,6 @@ class ResearchTextureAnalysisService:
         return analyze_mip_behavior(
             original_root,
             rebuilt_root,
-            texconv_path=texconv_path,
             limit=limit,
             processing_plan_lookup=processing_plan_lookup,
             stop_event=stop_event,
@@ -243,7 +239,6 @@ class ResearchTextureAnalysisService:
         root: Path,
         *,
         root_label: Optional[str] = None,
-        texconv_path: Optional[Path] = None,
         limit: int = 1500,
         processing_plan_lookup: Optional[Dict[str, TextureProcessingPlan]] = None,
         stop_event: Optional[object] = None,
@@ -253,7 +248,6 @@ class ResearchTextureAnalysisService:
         return validate_normal_maps(
             root,
             root_label=root_label,
-            texconv_path=texconv_path,
             limit=limit,
             processing_plan_lookup=processing_plan_lookup,
             stop_event=stop_event,
@@ -265,7 +259,6 @@ class ResearchTextureAnalysisService:
         rebuilt_root: Path,
         row: MipAnalysisRow,
         *,
-        texconv_path: Optional[Path] = None,
         family_members_by_path: Optional[Dict[str, Tuple[str, ...]]] = None,
         stop_event: Optional[object] = None,
     ) -> str:
@@ -275,7 +268,6 @@ class ResearchTextureAnalysisService:
             original_root,
             rebuilt_root,
             row,
-            texconv_path=texconv_path,
             family_members_by_path=family_members_by_path,
             stop_event=stop_event,
         )
@@ -285,12 +277,11 @@ class ResearchTextureAnalysisService:
         root: Path,
         row: NormalValidationRow,
         *,
-        texconv_path: Optional[Path] = None,
         stop_event: Optional[object] = None,
     ) -> str:
         from cdmw.core.research_texture_analysis import build_normal_validation_detail
 
-        return build_normal_validation_detail(root, row, texconv_path=texconv_path, stop_event=stop_event)
+        return build_normal_validation_detail(root, row, stop_event=stop_event)
 
     def export_report(
         self,
@@ -322,14 +313,13 @@ class ResearchTextureAnalysisService:
 class ResearchPreviewService:
     def build_archive_preview(
         self,
-        texconv_path: Optional[Path],
         entry: Optional[ArchiveEntry],
         *,
         stop_event: Optional[threading.Event] = None,
     ) -> ArchivePreviewResult:
         from cdmw.services.archive_preview_service import build_archive_preview_result
 
-        return build_archive_preview_result(texconv_path, entry, [], stop_event=stop_event)
+        return build_archive_preview_result(entry, [], stop_event=stop_event)
 
 
 @dataclass(slots=True)

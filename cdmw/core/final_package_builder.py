@@ -277,7 +277,6 @@ def build_final_package_preview(
     supplemental_file_specs: Optional[Sequence[MeshImportSupplementalFileSpec]] = None,
     source_path: str | Path = "",
     export_options: object = None,
-    texconv_path: Optional[Path] = None,
     original_dds_resolver: Optional[Callable[[str], Optional[Path]]] = None,
     original_dds_basename_resolver: Optional[Callable[[str], Sequence[Path]]] = None,
     package_root: Optional[Path] = None,
@@ -524,7 +523,7 @@ def build_final_package_preview(
                     except Exception as exc:
                         warnings.append(f"Original DDS resolver failed for {final_texture_path or texture_path}: {exc}")
                 if isinstance(original_path, Path) and original_path.expanduser().is_file():
-                    preview_texture_path, decode_error = _preview_texture_path_for_original(original_path, texconv_path=texconv_path)
+                    preview_texture_path, decode_error = _preview_texture_path_for_original(original_path)
                     if decode_error:
                         status = FINAL_PREVIEW_DECODE_FAILED
                         detail = f"Original archive DDS exists at the exact final sidecar path but could not be decoded for preview: {decode_error}"
@@ -556,7 +555,7 @@ def build_final_package_preview(
                     resolved_texture_path = ""
                     preview_texture_path = ""
             else:
-                preview_texture_path, decode_error = _preview_texture_path_for_payload(payload, texconv_path=texconv_path)
+                preview_texture_path, decode_error = _preview_texture_path_for_payload(payload)
                 if decode_error:
                     status = FINAL_PREVIEW_DECODE_FAILED
                     detail = f"Generated/copied DDS exists but could not be decoded for preview: {decode_error}"

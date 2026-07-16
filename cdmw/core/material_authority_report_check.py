@@ -535,7 +535,7 @@ def check_material_authority_report(
             status = str(validation.get("status", "") or "")
             texture_status_counts[status or "missing"] += 1
             finding_codes = _finding_codes(validation.get("findings", ()))
-            texconv_format = str(validation.get("texconv_format", "") or "").strip()
+            dds_format = str(validation.get("dds_format", "") or "").strip()
             try:
                 width = int(validation.get("width", 0) or 0)
                 height = int(validation.get("height", 0) or 0)
@@ -550,9 +550,9 @@ def check_material_authority_report(
             if width <= 0 or height <= 0:
                 derived_risk_flags.append("missing_dds_dimensions")
                 warnings.append(f"DDS validation is missing dimensions for {target_path}.")
-            if not texconv_format:
+            if not dds_format:
                 derived_risk_flags.append("missing_dds_format")
-                warnings.append(f"DDS validation is missing texconv format for {target_path}.")
+                warnings.append(f"DDS validation is missing a DDS format for {target_path}.")
             if "missing_mips" in finding_codes:
                 derived_risk_flags.append("missing_dds_mips")
             if "payload_truncated" in finding_codes:
@@ -946,8 +946,8 @@ def _texture_requires_channel_visualization(texture: Mapping[str, object]) -> bo
     validation = texture.get("dds_validation")
     if not isinstance(validation, Mapping):
         return False
-    texconv_format = str(validation.get("texconv_format", "") or "").strip()
-    if not texconv_format:
+    dds_format = str(validation.get("dds_format", "") or "").strip()
+    if not dds_format:
         return False
     parts = [
         str(texture.get("target_path", "") or ""),
@@ -991,8 +991,8 @@ def _texture_is_normal_output(texture: Mapping[str, object]) -> bool:
     validation = texture.get("dds_validation")
     if not isinstance(validation, Mapping):
         return False
-    texconv_format = str(validation.get("texconv_format", "") or "").strip()
-    if not texconv_format:
+    dds_format = str(validation.get("dds_format", "") or "").strip()
+    if not dds_format:
         return False
     parts = [
         str(texture.get("target_path", "") or ""),

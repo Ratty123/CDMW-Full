@@ -45,7 +45,7 @@ class TextureUpscaleDecision:
     should_upscale: bool
     recommended_colorspace: str
     format_strategy: str
-    recommended_texconv_format: str
+    recommended_dds_format: str
     preserve_alpha: bool
     alpha_mode: str
     packed_channels: Tuple[str, ...] = ()
@@ -73,8 +73,8 @@ def is_technical_texture_type(texture_type: str) -> bool:
     return texture_type in _TECHNICAL_TEXTURE_TYPES
 
 
-def is_png_intermediate_high_risk(texture_type: str, original_texconv_format: str = "") -> bool:
-    original_upper = str(original_texconv_format or "").strip().upper()
+def is_png_intermediate_high_risk(texture_type: str, original_dds_format: str = "") -> bool:
+    original_upper = str(original_dds_format or "").strip().upper()
     return texture_type in _LOSSY_PNG_RISK_TYPES or "FLOAT" in original_upper or "SNORM" in original_upper
 
 

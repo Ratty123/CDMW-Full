@@ -86,35 +86,26 @@ def test_directxtex_same_key_concurrency_invokes_helper_once(tmp_path: Path) -> 
     assert results[0] is not None and texture_native._cached_preview_is_valid(results[0])
 
 
-def test_texconv_same_key_concurrency_invokes_helper_once(tmp_path: Path) -> None:
-    texconv = tmp_path / "texconv.exe"
+def test_obsolete_preview_argument_warns_and_uses_native_backend(tmp_path: Path) -> None:
+    obsolete_backend = tmp_path / "texconv.exe"
     source = tmp_path / "shared.dds"
-    texconv.write_bytes(b"stub")
+    native_preview = tmp_path / "shared.png"
+    obsolete_backend.write_bytes(b"stub")
     source.write_bytes(_minimal_dds())
-    calls = 0
-    calls_lock = threading.Lock()
+    native_preview.write_bytes(_MINIMAL_PNG)
 
-    def fake_run(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
-        nonlocal calls
-        with calls_lock:
-            calls += 1
-        time.sleep(0.05)
-        output_dir = Path(command[command.index("-o") + 1])
-        (output_dir / "shared.png").write_bytes(_MINIMAL_PNG)
-        return 0, "", ""
+    with patch.object(texture_native, "ensure_native_dds_preview_png", return_value=native_preview) as native_decode:
+        with pytest.warns(DeprecationWarning, match="obsolete and ignored"):
+            result = preview.ensure_dds_preview_png(obsolete_backend, source)
 
-    with (
-        patch.object(texture_native, "ensure_native_dds_preview_png", return_value=None),
-        patch.object(preview, "run_process_with_cancellation", side_effect=fake_run),
-        patch.object(preview, "app_temp_cache_path", side_effect=lambda category, key: _cache_path(tmp_path, category, key)),
-        patch.object(preview, "request_app_temp_cache_prune"),
-        ThreadPoolExecutor(max_workers=8) as pool,
-    ):
-        results = list(pool.map(lambda _index: preview.ensure_dds_preview_png(texconv, source), range(8)))
-
-    assert calls == 1
-    assert all(path == results[0] for path in results)
-    assert preview_sidecar_path(results[0]).is_file()
+    assert result == native_preview
+    native_decode.assert_called_once_with(
+        source.resolve(),
+        max_dimension=4096,
+        slot_kind="base",
+        normal_space="auto",
+        stop_event=None,
+    )
 
 
 def test_failed_atomic_preview_publication_exposes_no_partial_pair(tmp_path: Path) -> None:

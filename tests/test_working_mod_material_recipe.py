@@ -1,4 +1,4 @@
-﻿import json
+import json
 from pathlib import Path
 from types import SimpleNamespace
 import tempfile
@@ -177,7 +177,6 @@ class WorkingModMaterialRecipeTests(unittest.TestCase):
                 original_texture_refs=(),
                 original_sidecars=((target_entry, _target_sidecar()),),
                 submesh_mappings=[StaticSubmeshMapping(0, "target_blade", [0], 0)],
-                texconv_path=None,
                 read_original_texture_bytes=lambda _entry: b"",
                 original_texture_source_path=lambda _entry: Path(),
                 donor_material_plans=(plan,),

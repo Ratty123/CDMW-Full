@@ -110,7 +110,7 @@ class RecolorVariantTests(unittest.TestCase):
             self.assertFalse(by_path["character/texture/blade_n.dds"].editable)
             self.assertIn("not a visible color slot", by_path["character/texture/blade_n.dds"].locked_reason)
             self.assertFalse(by_path["character/texture/blade_ma.dds"].editable)
-            self.assertEqual("BC1_UNORM", by_path["character/texture/blade_basecolor.dds"].texconv_format)
+            self.assertEqual("BC1_UNORM", by_path["character/texture/blade_basecolor.dds"].dds_format)
             self.assertTrue(any(target.target_kind == "material_color" and target.parameter_name == "_tintColorR" for target in analysis.targets))
 
     def test_selected_texture_preview_renders_before_after_pngs(self) -> None:
@@ -121,7 +121,7 @@ class RecolorVariantTests(unittest.TestCase):
             target = next(target for target in analysis.targets if target.game_path == "character/texture/blade_basecolor.dds")
             original_source_bytes = (source / "files" / "character" / "texture" / "blade_basecolor.dds").read_bytes()
 
-            def _fake_display_preview(_texconv_path: object, _dds_path: Path, **_kwargs: object) -> Path:
+            def _fake_display_preview(_dds_path: Path, **_kwargs: object) -> Path:
                 return _fake_preview_png(root / "display_preview.png")
 
             with mock.patch("cdmw.core.recolor_variants.ensure_dds_display_preview_png", side_effect=_fake_display_preview):
@@ -319,7 +319,7 @@ class RecolorVariantTests(unittest.TestCase):
             analysis = analyze_recolor_variant_package(zip_path)
             target = next(target for target in analysis.targets if target.game_path == "character/texture/blade_basecolor.dds")
 
-            def _fake_display_preview(_texconv_path: object, _dds_path: Path, **_kwargs: object) -> Path:
+            def _fake_display_preview(_dds_path: Path, **_kwargs: object) -> Path:
                 return _fake_preview_png(root / "zip_display_preview.png")
 
             with mock.patch("cdmw.core.recolor_variants.ensure_dds_display_preview_png", side_effect=_fake_display_preview):

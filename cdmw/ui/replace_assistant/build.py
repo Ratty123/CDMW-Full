@@ -19,8 +19,6 @@ from cdmw.ui.replace_assistant.workers import ReplaceAssistantBuildWorker
 
 class ReplaceAssistantBuildMixin:
     def _current_build_options(self) -> ReplaceAssistantBuildOptions:
-        texconv_text = self.get_texconv_path().strip()
-        texconv_path = Path(texconv_text).expanduser()
         ncnn_exe_text = self.ncnn_exe_path_edit.text().strip()
         ncnn_exe_path = Path(ncnn_exe_text).expanduser() if ncnn_exe_text else None
         ncnn_model_dir_text = self.ncnn_model_dir_edit.text().strip()
@@ -43,7 +41,6 @@ class ReplaceAssistantBuildMixin:
             create_no_encrypt_file=self.create_no_encrypt_checkbox.isChecked(),
             build_mode=self._combo_value(self.build_mode_combo),
             size_mode=self._combo_value(self.size_mode_combo),
-            texconv_path=texconv_path,
             ncnn_exe_path=ncnn_exe_path,
             ncnn_model_dir=ncnn_model_dir,
             ncnn_model_name=self._combo_value(self.ncnn_model_combo),
@@ -225,9 +222,7 @@ class ReplaceAssistantBuildMixin:
     def _open_review_dialog(self, review_items: Sequence[ReplaceAssistantReviewItem]) -> None:
         if self.review_dialog is not None:
             self.review_dialog.close()
-        texconv_text = self.get_texconv_path().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-        dialog = ReplaceAssistantReviewDialog(texconv_path, review_items, self)
+        dialog = ReplaceAssistantReviewDialog(review_items, self)
         self.review_dialog = dialog
         dialog.finished.connect(self._clear_review_dialog_ref)
         dialog.show()

@@ -52,28 +52,43 @@ class DdsNativeInfo:
 
 
 _DXGI_COMPRESSED_FORMATS: Dict[int, Tuple[str, str, int, bool, bool]] = {
-    70: ("BC1_UNORM", "bc1", 8, False, True),
-    71: ("BC1_UNORM_SRGB", "bc1", 8, True, True),
-    72: ("BC2_UNORM", "bc2", 16, False, True),
-    73: ("BC2_UNORM_SRGB", "bc2", 16, True, True),
-    74: ("BC3_UNORM", "bc3", 16, False, True),
-    75: ("BC3_UNORM_SRGB", "bc3", 16, True, True),
-    76: ("BC4_UNORM", "bc4", 8, False, False),
-    77: ("BC4_SNORM", "bc4", 8, False, False),
-    80: ("BC5_UNORM", "bc5", 16, False, False),
-    83: ("BC5_SNORM", "bc5", 16, False, False),
-    94: ("BC6H_UF16", "bc6h", 16, False, False),
-    95: ("BC6H_SF16", "bc6h", 16, False, False),
+    71: ("BC1_UNORM", "bc1", 8, False, True),
+    72: ("BC1_UNORM_SRGB", "bc1", 8, True, True),
+    74: ("BC2_UNORM", "bc2", 16, False, True),
+    75: ("BC2_UNORM_SRGB", "bc2", 16, True, True),
+    77: ("BC3_UNORM", "bc3", 16, False, True),
+    78: ("BC3_UNORM_SRGB", "bc3", 16, True, True),
+    80: ("BC4_UNORM", "bc4", 8, False, False),
+    81: ("BC4_SNORM", "bc4", 8, False, False),
+    83: ("BC5_UNORM", "bc5", 16, False, False),
+    84: ("BC5_SNORM", "bc5", 16, False, False),
+    95: ("BC6H_UF16", "bc6h", 16, False, False),
+    96: ("BC6H_SF16", "bc6h", 16, False, False),
     98: ("BC7_UNORM", "bc7", 16, False, True),
     99: ("BC7_UNORM_SRGB", "bc7", 16, True, True),
 }
 
 _DXGI_UNCOMPRESSED_FORMATS: Dict[int, Tuple[str, str, int, bool, bool]] = {
+    2: ("R32G32B32A32_FLOAT", "rgba32f", 16, False, True),
+    10: ("R16G16B16A16_FLOAT", "rgba16f", 8, False, True),
+    11: ("R16G16B16A16_UNORM", "rgba16", 8, False, True),
+    13: ("R16G16B16A16_SNORM", "rgba16s", 8, False, True),
+    16: ("R32G32_FLOAT", "rg32f", 8, False, False),
+    24: ("R10G10B10A2_UNORM", "rgb10a2", 4, False, True),
+    25: ("R10G10B10A2_UINT", "rgb10a2u", 4, False, True),
     28: ("R8G8B8A8_UNORM", "rgba8", 4, False, True),
     29: ("R8G8B8A8_UNORM_SRGB", "rgba8", 4, True, True),
-    56: ("R16_UNORM", "r16", 2, False, False),
+    30: ("R8G8B8A8_UINT", "rgba8u", 4, False, True),
+    31: ("R8G8B8A8_SNORM", "rgba8s", 4, False, True),
+    34: ("R16G16_FLOAT", "rg16f", 4, False, False),
+    41: ("R32_FLOAT", "r32f", 4, False, False),
+    43: ("R32_UINT", "r32u", 4, False, False),
     49: ("R8G8_UNORM", "rg8", 2, False, False),
+    54: ("R16_FLOAT", "r16f", 2, False, False),
+    56: ("R16_UNORM", "r16", 2, False, False),
     61: ("R8_UNORM", "r8", 1, False, False),
+    62: ("R8_UINT", "r8u", 1, False, False),
+    65: ("A8_UNORM", "a8", 1, False, True),
     87: ("B8G8R8A8_UNORM", "bgra8", 4, False, True),
     88: ("B8G8R8X8_UNORM", "bgrx8", 4, False, False),
     91: ("B8G8R8A8_UNORM_SRGB", "bgra8", 4, True, True),
@@ -92,6 +107,16 @@ _FOURCC_COMPRESSED_FORMATS: Dict[bytes, Tuple[str, str, int, bool, bool]] = {
     b"ATI2": ("BC5_UNORM", "bc5", 16, False, False),
     b"BC5U": ("BC5_UNORM", "bc5", 16, False, False),
     b"BC5S": ("BC5_SNORM", "bc5", 16, False, False),
+}
+
+_NUMERIC_FOURCC_UNCOMPRESSED_FORMATS: Dict[int, Tuple[str, str, int, bool, bool]] = {
+    110: ("R16G16B16A16_SNORM", "rgba16s", 8, False, True),
+    111: ("R16_FLOAT", "r16f", 2, False, False),
+    112: ("R16G16_FLOAT", "rg16f", 4, False, False),
+    113: ("R16G16B16A16_FLOAT", "rgba16f", 8, False, True),
+    114: ("R32_FLOAT", "r32f", 4, False, False),
+    115: ("R32G32_FLOAT", "rg32f", 8, False, False),
+    116: ("R32G32B32A32_FLOAT", "rgba32f", 16, False, True),
 }
 
 
@@ -186,6 +211,11 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
                 is_compressed = False
         else:
             format_tuple = _FOURCC_COMPRESSED_FORMATS.get(fourcc_bytes)
+            if format_tuple is None:
+                numeric_fourcc = _read_u32(data, pixel_format_offset + 8)
+                format_tuple = _NUMERIC_FOURCC_UNCOMPRESSED_FORMATS.get(numeric_fourcc)
+                if format_tuple is not None:
+                    is_compressed = False
     elif pf_flags & DDS_LUMINANCE:
         if rgb_bit_count == 8 and red_mask == 0x000000FF:
             dxgi_format = 61
@@ -198,8 +228,10 @@ def inspect_dds_native(data: bytes, *, payload_size: Optional[int] = None) -> Dd
         masks = (red_mask, green_mask, blue_mask, alpha_mask)
         if rgb_bit_count == 32 and masks == (0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000):
             dxgi_format = 28
-        elif rgb_bit_count == 32 and masks[:3] == (0x00FF0000, 0x0000FF00, 0x000000FF):
+        elif rgb_bit_count == 32 and masks == (0x00FF0000, 0x0000FF00, 0x000000FF, 0xFF000000):
             dxgi_format = 87
+        elif rgb_bit_count == 32 and masks == (0x00FF0000, 0x0000FF00, 0x000000FF, 0x00000000):
+            dxgi_format = 88
         if dxgi_format:
             format_tuple = _DXGI_UNCOMPRESSED_FORMATS.get(dxgi_format)
             is_compressed = False

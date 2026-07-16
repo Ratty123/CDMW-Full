@@ -148,7 +148,6 @@ def exercise_linked_texture_strokes(
     try:
         normalized = normalize_texture_editor_source_to_png(
             source,
-            texconv_path=None,
             output_dir=state.output_dir / "texture-editor-normalized",
             output_stem="real-archive-linked-texture",
         )

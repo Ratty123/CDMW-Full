@@ -48,7 +48,6 @@ class TextureWorkflowConfigCollectionMixin:
             texture_editor_png_root=self.texture_editor_png_root_edit.text().strip(),
             dds_staging_root=self.dds_staging_root_edit.text().strip(),
             output_root=self.output_root_edit.text().strip(),
-            texconv_path=self.texconv_path_edit.text().strip(),
             dds_format_mode=self._combo_value(self.dds_format_mode_combo),
             dds_custom_format=self._combo_value(self.dds_custom_format_combo),
             dds_size_mode=self._combo_value(self.dds_size_mode_combo),

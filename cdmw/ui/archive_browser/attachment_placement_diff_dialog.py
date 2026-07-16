@@ -2720,10 +2720,8 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                     else:
                         log("Patch character socket XML: no selected socket transform changes were produced.")
                 if custom_icon_spec is not None:
-                    texconv_text = self.texconv_path_edit.text().strip()
                     generated_icon_spec = self._build_custom_item_icon_supplemental_spec(
                         custom_icon_spec,
-                        texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                         on_log=log,
                     )
                     target_icon_entry = generated_icon_spec.target_entry

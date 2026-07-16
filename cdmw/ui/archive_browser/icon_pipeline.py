@@ -11,6 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtCore import QObject, QRectF, Qt, QThread, QTimer, Slot
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
+from cdmw.core.texture_native import native_texture_backend_identity
 from cdmw.domain.archives.format import normalize_archive_extension_filter
 from cdmw.workers.archive_workers import ArchiveItemIconWarmupWorker
 
@@ -148,16 +149,16 @@ class ArchiveIconPipelineMixin:
         size: int,
     ) -> Tuple[Tuple[str, ...], int, str]:
         icon_paths = tuple(self._archive_asset_catalog_row_values(row, "icon_paths"))
-        texconv_key = self.texconv_path_edit.text().strip()
-        return icon_paths, max(1, int(size)), texconv_key
+        native_backend_key = native_texture_backend_identity()
+        return icon_paths, max(1, int(size)), native_backend_key
 
     def _archive_asset_catalog_prepared_icon_cache_key(
         self,
         row: Mapping[str, object],
     ) -> Tuple[Tuple[str, ...], str]:
         icon_paths = tuple(self._archive_asset_catalog_row_values(row, "icon_paths"))
-        texconv_key = self.texconv_path_edit.text().strip()
-        return icon_paths, texconv_key
+        native_backend_key = native_texture_backend_identity()
+        return icon_paths, native_backend_key
 
     def _current_archive_package_root(self) -> Path:
         text = str(self.archive_package_root_edit.text() or "").strip()
@@ -167,13 +168,13 @@ class ArchiveIconPipelineMixin:
         self,
         prepared_key: Tuple[Tuple[str, ...], str],
     ) -> bool:
-        icon_paths, texconv_key = prepared_key
+        icon_paths, native_backend_key = prepared_key
         return any(
             cached_icon_paths == icon_paths
-            and cached_texconv_key == texconv_key
+            and cached_native_backend_key == native_backend_key
             and cached_pixmap is not None
             and not cached_pixmap.isNull()
-            for (cached_icon_paths, _size, cached_texconv_key), (cached_pixmap, _note)
+            for (cached_icon_paths, _size, cached_native_backend_key), (cached_pixmap, _note)
             in self.archive_item_icon_pixmap_cache.items()
         )
 
@@ -209,11 +210,11 @@ class ArchiveIconPipelineMixin:
         self,
         prepared_key: Tuple[Tuple[str, ...], str],
     ) -> None:
-        icon_paths, texconv_key = prepared_key
+        icon_paths, native_backend_key = prepared_key
         stale_keys = [
             cache_key
             for cache_key in self.archive_item_icon_pixmap_cache
-            if cache_key[0] == icon_paths and cache_key[2] == texconv_key
+            if cache_key[0] == icon_paths and cache_key[2] == native_backend_key
         ]
         for cache_key in stale_keys:
             self.archive_item_icon_pixmap_cache.pop(cache_key, None)
@@ -248,7 +249,7 @@ class ArchiveIconPipelineMixin:
         allow_sync_prepare: bool = False,
     ) -> Tuple[Optional[QPixmap], str]:
         cache_key = self._archive_asset_catalog_icon_cache_key(row, size)
-        icon_paths, requested_size, texconv_key = cache_key
+        icon_paths, requested_size, native_backend_key = cache_key
         if not icon_paths:
             return None, "No recovered inventory icon could be resolved for this row."
         cached = self.archive_item_icon_pixmap_cache.get(cache_key)
@@ -259,15 +260,15 @@ class ArchiveIconPipelineMixin:
             else:
                 self.archive_item_icon_pixmap_cache.move_to_end(cache_key)
                 return cached
-        prepared_key = (icon_paths, texconv_key)
-        for (cached_icon_paths, _cached_size, cached_texconv_key), cached_value in reversed(
+        prepared_key = (icon_paths, native_backend_key)
+        for (cached_icon_paths, _cached_size, cached_native_backend_key), cached_value in reversed(
             list(self.archive_item_icon_pixmap_cache.items())
         ):
-            if cached_icon_paths != icon_paths or cached_texconv_key != texconv_key:
+            if cached_icon_paths != icon_paths or cached_native_backend_key != native_backend_key:
                 continue
             cached_pixmap, cached_note = cached_value
             if cached_pixmap is None or cached_pixmap.isNull():
-                self.archive_item_icon_pixmap_cache.pop((cached_icon_paths, _cached_size, cached_texconv_key), None)
+                self.archive_item_icon_pixmap_cache.pop((cached_icon_paths, _cached_size, cached_native_backend_key), None)
                 continue
             scaled_value = (
                 cached_pixmap.scaled(requested_size, requested_size, Qt.KeepAspectRatio, Qt.SmoothTransformation),
@@ -395,7 +396,7 @@ class ArchiveIconPipelineMixin:
             if not isinstance(row, Mapping):
                 continue
             prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
-            icon_paths, _texconv_key = prepared_key
+            icon_paths, _native_backend_key = prepared_key
             if not icon_paths:
                 continue
             if self._archive_item_icon_prepared_pixmap_available(prepared_key):
@@ -484,7 +485,7 @@ class ArchiveIconPipelineMixin:
             if not isinstance(row, Mapping):
                 continue
             prepared_key = self._archive_asset_catalog_prepared_icon_cache_key(row)
-            icon_paths, _texconv_key = prepared_key
+            icon_paths, _native_backend_key = prepared_key
             if not icon_paths or prepared_key in existing_keys:
                 continue
             if self._archive_item_icon_prepared_pixmap_available(prepared_key):
@@ -514,8 +515,6 @@ class ArchiveIconPipelineMixin:
             return
         batch = self.archive_item_icon_priority_queue[:16]
         del self.archive_item_icon_priority_queue[:16]
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         package_root = self._current_archive_package_root()
         generation = self.archive_item_icon_warmup_generation
         worker = ArchiveItemIconWarmupWorker(
@@ -525,8 +524,6 @@ class ArchiveIconPipelineMixin:
             self.archive_entries_by_basename,
             package_root,
             self.archive_cache_root,
-            texconv_key=texconv_text,
-            texconv_path=texconv_path,
             max_dimension=120,
         )
         thread = QThread(self)
@@ -569,8 +566,6 @@ class ArchiveIconPipelineMixin:
         self.archive_item_icon_preload_next_index += len(batch)
         if visible_remaining > 0:
             self.archive_item_icon_visible_warmup_remaining = max(0, visible_remaining - len(batch))
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         package_root = self._current_archive_package_root()
         generation = self.archive_item_icon_warmup_generation
         self.archive_item_icon_warmup_user_visible = visible_remaining > 0
@@ -581,8 +576,6 @@ class ArchiveIconPipelineMixin:
             self.archive_entries_by_basename,
             package_root,
             self.archive_cache_root,
-            texconv_key=texconv_text,
-            texconv_path=texconv_path,
             max_dimension=120,
         )
         thread = QThread(self)
@@ -614,10 +607,10 @@ class ArchiveIconPipelineMixin:
             return
         if not isinstance(prepared_key, tuple) or len(prepared_key) != 2:
             return
-        icon_paths_raw, texconv_key_raw = prepared_key
+        icon_paths_raw, native_backend_key_raw = prepared_key
         if not isinstance(icon_paths_raw, tuple):
             return
-        cache_key = (tuple(str(value) for value in icon_paths_raw), str(texconv_key_raw or ""))
+        cache_key = (tuple(str(value) for value in icon_paths_raw), str(native_backend_key_raw or ""))
         if not preview_path or not isinstance(image, QImage) or image.isNull():
             self._remember_archive_item_icon_negative(cache_key, note)
             for callback in tuple(getattr(self, "archive_item_icon_prepared_callbacks", ()) or ()):

@@ -36,7 +36,7 @@ The format is intentionally simple:
 - Added native D3D11 alignment controls for mesh replacement and editing, including move/rotate handles, hover/selection, part picking, source-part picking, brush/vertex stroke transport, view modes, live texture flip, and package caching so visual edits can refresh without rebuilding everything.
 - Added native backend services that move performance-critical archive, DDS, mesh preview, D3D11 rendering, and HKX work out of Python and into compiled helpers, including C++ archive/texture/preview/D3D11 components and the native HKX backend.
 - Added a native preview core path that can parse supported PAC/PAM/PAMLOD data and generate D3D11 preview packages without the older Python mesh-preparation path when supported.
-- Added native DDS and DirectX texture helper paths for preview, staging, and rebuild workflows, with `texconv` kept as an optional legacy fallback instead of the primary requirement.
+- Added native DDS and DirectX texture helper paths for preview, staging, and rebuild workflows, with the former external DDS converter kept as an optional legacy fallback instead of the primary requirement.
 - Added archive shard caches for scan data, basic indexes, and deferred name-search indexes. Changed PAMT shards can rescan independently, PAZ-only changes can reuse existing scan/index shards, and cache health is surfaced in the dashboard/performance flow.
 - Added archive item-icon thumbnail caching so item-icon discovery and preview can warm in the background and stay responsive on large archive sets.
 - Added `Model Library` for local/importable model discovery, mirror-catalogue search, ZIP/importable model detection, model preview, companion texture/sidecar discovery, and routing compatible models into Archive Browser mesh-import setup.
@@ -78,7 +78,7 @@ The format is intentionally simple:
 - Changed final-package preview/export behavior to better separate generated DDS payloads, copied source files, original archive references, diagnostic JSON, manager metadata, and actual mod payloads.
 - Changed Archive Browser actions into a broader asset workbench surface with copy filename, family filtering/export, source-mix building, character dependency export, material editing, HKX editing, sidecar inspection, loose-mod import, and backup restore available from the selected asset context.
 - Changed settings/profile coverage to include appearance, language, startup, performance, preview, Texture Replacer, Texture Editor, safety, window/layout, D3D11, and archive-cache preferences.
-- Changed DDS handling so normal preview/rebuild paths prefer bundled native helpers and broader DXGI format handling, while optional `texconv` remains available for legacy fallback cases.
+- Changed DDS handling so normal preview/rebuild paths prefer bundled native helpers and broader DXGI format handling, while the former external DDS converter remained available for legacy fallback cases.
 - Changed archive search, item discovery, and relationship views to use broader item-name/icon/model family evidence without forcing every inferred companion into a recommended include target.
 - Changed preview guidance and help text around Material Authority, D3D11 preview, package retrofit, model import, icon creation, cache health, and archive mutation safety.
 
@@ -490,19 +490,19 @@ The format is intentionally simple:
 - `Research` mip analysis and normal validation now include planner-path-aware warnings, making suspicious visible-color routing, suspicious high-precision routing, and scalar-format mismatches easier to catch during QA.
 - The app no longer fails on startup when refreshing `chaiNNer` chain info, because the UI chain-analysis path now passes the staging PNG root expected by the planner-aware `chaiNNer` validator.
 - Rebuild format precedence now respects manual `Match original DDS format` when automatic color/format rules are disabled, so visible color textures no longer get silently promoted to planner profile formats such as `BC7_UNORM_SRGB`.
-- Automatic texture safety rules no longer inject extra texconv sRGB conversion flags for visible textures, which reduces the darker output shifts some users were seeing when the safety checkbox was enabled.
+- Automatic texture safety rules no longer inject extra external-converter sRGB flags for visible textures, which reduces the darker output shifts some users were seeing when the safety checkbox was enabled.
 - `Source Match Balanced` and `Source Match Extended` no longer skip obviously color-like textures just because their semantic hint stayed `unknown`, as long as the planner already routed them through a visible-color profile.
 - Browsing rebuilt DDS files in `Compare` is more responsive because compare preview application now avoids eagerly materializing full preview pixmaps on the UI thread, and rapid compare-row changes are briefly debounced before preview startup.
 - Large DDS files in `Compare` now use a lighter display-preview cache capped for pane browsing, which reduces the lag from cold 4K preview generation/loading without changing the higher-detail preview path used by `Research` analysis.
-- Archive Browser DDS preview no longer fails with `Preview failed: 'NoneType' object is not iterable` after the recent compare-preview refactor, because the shared preview command builder now always returns a valid texconv command.
+- Archive Browser DDS preview no longer fails with `Preview failed: 'NoneType' object is not iterable` after the recent compare-preview refactor, because the shared preview command builder now always returns a valid converter command.
 - Archive Browser DDS preview now uses the lighter display-preview cache for pane browsing too, reducing freezes or long stalls when selecting larger DDS files.
-- DDS staging for direct backend runs now passes the source DDS path correctly to texconv again, fixing cases where staging appeared to run but the NCNN stage immediately failed with `Expected planner-selected PNG does not exist`.
+- DDS staging for direct backend runs now passes the source DDS path correctly to the converter again, fixing cases where staging appeared to run but the NCNN stage immediately failed with `Expected planner-selected PNG does not exist`.
 - Compare preview shutdown is now safer because queued preview work no longer respawns while the window is closing.
 - Settings persistence and `chaiNNer` chain inspection are now debounced in the UI, reducing stalls from keystroke-by-keystroke disk syncs and chain revalidation.
 - Preserve-only direct `NCNN` runs now skip the backend stage cleanly instead of scanning unrelated stale PNGs in `PNG root`.
 - `Retry with smaller tile` now steps down correctly from a `tile size 0` full-frame attempt into real smaller tiles.
 - `Research -> Mip Analysis` now only reports DDS files that exist in both Original and Output roots, instead of turning unmatched files into broken comparison rows.
-- DDS preview cache invalidation now includes the active `texconv.exe`, so Compare and Research previews are refreshed when the texconv binary changes.
+- DDS preview cache invalidation now includes the active converter identity, so Compare and Research previews are refreshed when the converter binary changes.
 - Family-aware classification now upgrades base files such as `cd_wood_planks_02.dds` to color/albedo when sibling variants like `cd_wood_planks_02b.dds` and `cd_wood_planks_02c.dds` indicate a visible color texture family.
 - Family-aware classification now also upgrades trailing-letter variant-only sets such as `cd_wood_planks_02a.dds` and `cd_wood_planks_02b.dds` to color/albedo variants even when the plain base file is missing from that package.
 - Bare `rough` in names such as `cd_wood_rough_06.dds` is no longer treated as a hard roughness-map token, so material-name families can fall back to family/preview evidence instead of being misclassified as roughness.
@@ -516,7 +516,7 @@ The format is intentionally simple:
 ## [0.4.1] - 2026-04-11
 
 ### Changed
-- Setup download actions for `chaiNNer`, `texconv`, and `Real-ESRGAN NCNN` now open the official external pages in the user browser instead of downloading files inside the app.
+- Setup download actions for `chaiNNer`, the former external DDS converter, and `Real-ESRGAN NCNN` now open the official external pages in the user browser instead of downloading files inside the app.
 - `NCNN Model Catalog` now exposes source/model pages and opens non-downloading external browser pages instead of downloading selected model files inside the app.
 - `Research` refresh now computes archive-side grouping, classification, and heatmap data in one shared snapshot pass, and repeated refreshes can reuse that archive snapshot while the current archive view is unchanged.
 
@@ -594,7 +594,7 @@ The format is intentionally simple:
 - Archive related-set extraction prompts now state the destination path up front, explain that the extract root may be created automatically, and make overwrite-vs-keep-both behavior clearer before the extraction starts.
 - `Archive Browser -> DDS To Workflow` now respects explicit archive selection first. If files or folders are selected, only selected DDS files are extracted to the workflow root; the filtered DDS view is used only when nothing is selected.
 - `Research -> Texture Analysis` now explains where each result set comes from, what each panel requires, and shows the selected-row details in the right-side pane where `Archive Files` normally sits, so mip-analysis details have more room when that subtab is active.
-- `Research -> Texture Analysis` now exposes richer texture QA details for matching DDS pairs, including file-size drift, color-space changes, preview-based alpha/brightness/channel checks when texconv previews are available, and extra texture-specific warnings for normals, packed masks, and grayscale technical maps.
+- `Research -> Texture Analysis` now exposes richer texture QA details for matching DDS pairs, including file-size drift, color-space changes, preview-based alpha/brightness/channel checks when converter previews are available, and extra texture-specific warnings for normals, packed masks, and grayscale technical maps.
 - `Workflow -> Upscaling` now keeps the backend-specific area sized to the current backend page instead of inheriting the tallest backend page, reducing the wasted empty space when direct NCNN pages are selected.
 - Texture classification is now more tolerant of Crimson Desert-style texture sets by recognizing suffixes and explicit names such as `_cd`, `_sp`, `_m`, `_ma`, `_mg`, `_o`, `_disp`, `_dmap`, `_dr`, `_op`, `_wn`, `_emc`, `_emi`, `_subsurface`, `_color`, `_normal`, digit-letter variants like `63a`, family companions, and preview-based fallback hints when names are still ambiguous; `_d` is no longer treated as a strong diffuse/color signal and is instead handled as lower-confidence grayscale/support data.
 - `Research`, `Texture Analysis`, normal validation, mip-detail hints, and `Archive Browser` role/exclude filtering now use the same updated suffix semantics, so technical companions such as `_wn`, `_ma`, `_mg`, `_o`, `_dmap`, `_dr`, `_op`, `_emc`, `_emi`, and `_subsurface` are less likely to be mistaken for base/albedo textures.
@@ -670,7 +670,7 @@ The format is intentionally simple:
 - Read-only `.pamt` / `.paz` archive browser with selective DDS extraction.
 - Archive cache for faster repeated archive scans.
 - Loose DDS scan/filter workflow.
-- Optional DDS-to-PNG conversion with `texconv`.
+- Optional DDS-to-PNG conversion with the legacy external converter.
 - Optional external `chaiNNer` stage before DDS rebuild.
 - DDS rebuild with configurable format, size, and mip behavior.
 - Side-by-side DDS compare view with zoom and pan.

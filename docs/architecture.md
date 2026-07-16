@@ -387,8 +387,8 @@ Dialog folder scans use the same bounded scanner through a shell-owned,
 latest-wins controller; result paths reach widgets in small queued batches.
 Archive cache pruning keeps the current package root's cache artifacts and only
 evicts older cache files or cache directories for other package roots.
-DirectXTex and texconv preview caches use a fixed-size striped singleflight
-registry. Cache misses are rechecked after lock acquisition; helpers write PNGs
+Native DirectXTex preview caches use a fixed-size striped singleflight registry.
+Cache misses are rechecked after lock acquisition; helpers write PNGs
 only into unique staging directories, then validated PNG/report pairs publish
 sidecar-first and PNG-last with rollback. Failed or corrupt outputs are never
 returned as cache hits, and native failure diagnostics retain only the newest

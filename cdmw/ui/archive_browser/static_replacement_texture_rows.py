@@ -228,7 +228,6 @@ def resolve_dds_detail_preview_path(
     raw_path: object,
     slot_kind: object = "base",
     *,
-    texconv_path: object | None,
     parse_dds_file: Callable[[Path], object],
     ensure_dds_display_preview: Callable[..., object],
     stop_event: threading.Event | None = None,
@@ -241,7 +240,6 @@ def resolve_dds_detail_preview_path(
         return None, f"Preview source is not a local file: {raw_text}"
     if candidate.suffix.lower() != ".dds":
         return candidate, "Visible thumbnail from the source image."
-    texconv_candidate = Path(str(texconv_path)).expanduser() if texconv_path else None
     try:
         dds_info = None
         try:
@@ -256,7 +254,6 @@ def resolve_dds_detail_preview_path(
         if stop_event is not None:
             preview_kwargs["stop_event"] = stop_event
         preview_path = ensure_dds_display_preview(
-            texconv_candidate if texconv_candidate is not None and texconv_candidate.is_file() else None,
             candidate,
             **preview_kwargs,
         )

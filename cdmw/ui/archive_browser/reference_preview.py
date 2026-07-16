@@ -626,8 +626,6 @@ class ArchiveReferencePreviewMixin:
 
         def _task(log: Callable[[str], None]) -> ArchivePreviewResult:
             log(f"Preparing referenced-file preview for {resolved_entry.path}...")
-            texconv_text = self.texconv_path_edit.text().strip()
-            texconv_path = Path(texconv_text).expanduser() if texconv_text else None
             preview_settings = self._current_model_preview_render_settings()
             if (
                 self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
@@ -692,7 +690,6 @@ class ArchiveReferencePreviewMixin:
                     preferred_view="details",
                 )
             result = build_archive_preview_result(
-                texconv_path,
                 resolved_entry,
                 texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
                 texture_entries_by_basename=self.archive_entries_by_basename,

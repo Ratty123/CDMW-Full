@@ -3391,7 +3391,6 @@ def test_texture_editor_export_tasks_copy_and_write_files(tmp_path: Path) -> Non
     saved_document = save_texture_editor_project_task(document, snapshot, tmp_path / "project.ctfedit.json")
     opened_document, opened_pixels = create_texture_editor_source_document_task(
         flattened_path,
-        texconv_path=None,
         workspace_root=tmp_path / "open-workspace",
         binding=TextureEditorSourceBinding(launch_origin="file"),
     )

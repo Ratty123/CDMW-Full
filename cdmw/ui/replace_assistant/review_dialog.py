@@ -24,9 +24,8 @@ from cdmw.ui.widgets import PreviewLabel, PreviewScrollArea, build_responsive_sp
 
 
 class ReplaceAssistantReviewDialog(QDialog):
-    def __init__(self, texconv_path: Optional[Path], review_items: Sequence[ReplaceAssistantReviewItem], parent: Optional[QWidget] = None) -> None:
+    def __init__(self, review_items: Sequence[ReplaceAssistantReviewItem], parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
-        self.texconv_path = texconv_path
         self.review_items = list(review_items)
         self.request_id = 0
         self.worker: Optional[ReplaceAssistantReviewCompareWorker] = None
@@ -149,7 +148,7 @@ class ReplaceAssistantReviewDialog(QDialog):
             if self.worker is not None:
                 self.worker.stop()
             return
-        worker = ReplaceAssistantReviewCompareWorker(request_id, self.texconv_path, item)
+        worker = ReplaceAssistantReviewCompareWorker(request_id, item)
         thread = QThread(self)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)

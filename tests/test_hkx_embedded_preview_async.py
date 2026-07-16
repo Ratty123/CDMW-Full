@@ -26,7 +26,6 @@ def _request(tmp_path: Path) -> service.HkxEmbeddedPreviewRequest:
         ArchiveEntryIdentity("character/test.pac", "0.pamt", 0, 4),
         _entry(),
         None,
-        tmp_path / "missing-texconv.exe",
         {},
         {},
         {},
@@ -44,9 +43,8 @@ def test_hkx_embedded_preview_passes_cancellation_to_build_and_prepare(
     seen: list[tuple[str, object]] = []
     model = ModelPreviewData(path="character/test.pac")
 
-    def fake_build(texconv_path: Path | None, _entry: ArchiveEntry, **kwargs: object) -> ArchivePreviewResult:
+    def fake_build(_entry: ArchiveEntry, **kwargs: object) -> ArchivePreviewResult:
         seen.append(("build", kwargs["stop_event"]))
-        assert texconv_path is None
         return ArchivePreviewResult(status="ok", preview_model=model)
 
     def fake_prepare(preview_model: object, **kwargs: object) -> tuple[object, None]:

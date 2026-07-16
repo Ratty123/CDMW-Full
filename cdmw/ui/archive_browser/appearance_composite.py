@@ -445,8 +445,6 @@ class ArchiveAppearanceCompositeMixin:
         if lookup_indexes is None:
             return
         path_index, basename_index = lookup_indexes
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         preview_settings = self._current_model_preview_render_settings()
 
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> object:
@@ -455,7 +453,6 @@ class ArchiveAppearanceCompositeMixin:
                 plan,
                 selected_component_indexes=selected_indexes,
                 model_overrides=model_overrides,
-                texconv_path=texconv_path,
                 path_index=path_index,
                 basename_index=basename_index,
                 stop_event=stop_event,

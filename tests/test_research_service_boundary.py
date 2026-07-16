@@ -84,23 +84,22 @@ def test_unknown_preview_worker_routes_preview_through_research_service(
 
     def fake_preview(
         _self: ResearchPreviewService,
-        texconv_path: object,
         entry: object,
         *,
         stop_event: object,
     ) -> ArchivePreviewResult:
-        calls.append((texconv_path, entry))
+        calls.append(("native", entry))
         assert stop_event is not None
         return ArchivePreviewResult(status="ok", title="real preview")
 
     monkeypatch.setattr(ResearchPreviewService, "build_archive_preview", fake_preview)
-    worker = UnknownResolverPreviewWorker(12, None, None)
+    worker = UnknownResolverPreviewWorker(12, None)
     completed: list[tuple[int, ArchivePreviewResult]] = []
     worker.completed.connect(lambda request_id, result: completed.append((request_id, result)))
 
     worker.run()
 
-    assert calls == [(None, None)]
+    assert calls == [("native", None)]
     assert completed[0][0] == 12
     assert completed[0][1].title == "real preview"
 

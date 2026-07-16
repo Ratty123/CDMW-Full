@@ -74,7 +74,6 @@ def refresh_research(self) -> None:
     full_archive_key = cached_archive_snapshot_cache_key(archive_entries, self._archive_snapshot_key_cache)
     original_root = Path(self.get_original_root()).expanduser() if self.get_original_root().strip() else None
     output_root = Path(self.get_output_root()).expanduser() if self.get_output_root().strip() else None
-    texconv_path = Path(self.get_texconv_path()).expanduser() if self.get_texconv_path().strip() else None
     working_archive_key = cached_archive_snapshot_cache_key(working_entries, self._archive_snapshot_key_cache)
     archive_snapshot_cache_key = f"{working_archive_key}|sidecars:{full_archive_key}"
     cached_archive_snapshot = self.archive_snapshot_cache.get(archive_snapshot_cache_key)
@@ -88,7 +87,6 @@ def refresh_research(self) -> None:
         sidecar_source_entries=archive_entries,
         original_root=original_root,
         output_root=output_root,
-        texconv_path=texconv_path,
         app_config=self.get_app_config(),
         archive_snapshot_payload=cached_archive_snapshot,
         ui_constraint_related_paths=ui_constraint_related_paths,

@@ -49,7 +49,6 @@ def build_texture_editor_document_root(workspace_root: Path, title: str) -> Path
 def normalize_texture_editor_source_to_png(
     source_path: Path,
     *,
-    texconv_path: Optional[Path],
     output_dir: Path,
     output_stem: str = "",
 ) -> Path:
@@ -59,9 +58,7 @@ def normalize_texture_editor_source_to_png(
     stem = output_stem.strip() or resolved.stem
     output_path = output_dir / f"{stem}.png"
     if suffix == ".dds":
-        resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.exists() else None
         preview_path = ensure_dds_display_preview_png(
-            resolved_texconv,
             resolved,
             dds_info=parse_dds(resolved),
             max_dimension=0,
@@ -95,7 +92,7 @@ def derive_texture_editor_binding(
     try:
         if original_dds and original_dds.exists():
             dds_info = parse_dds(original_dds)
-            source_binding.original_texconv_format = dds_info.texconv_format
+            source_binding.original_dds_format = dds_info.dds_format
     except Exception:
         dds_info = None
 
@@ -103,7 +100,7 @@ def derive_texture_editor_binding(
     semantic = infer_texture_semantics(
         semantic_path,
         sidecar_texts=tuple(str(text or "") for text in getattr(source_binding, "semantic_sidecar_texts", ()) if text),
-        original_texconv_format=source_binding.original_texconv_format,
+        original_dds_format=source_binding.original_dds_format,
     )
     source_binding.texture_type = semantic.texture_type
     source_binding.semantic_subtype = semantic.semantic_subtype
@@ -124,7 +121,6 @@ def derive_texture_editor_binding(
 def create_texture_editor_document_from_source(
     source_path: Path,
     *,
-    texconv_path: Optional[Path],
     workspace_root: Path,
     binding: Optional[TextureEditorSourceBinding] = None,
 ) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray], Path]:
@@ -133,7 +129,6 @@ def create_texture_editor_document_from_source(
     document_root = build_texture_editor_document_root(workspace_root, resolved.stem)
     normalized_png = normalize_texture_editor_source_to_png(
         resolved,
-        texconv_path=texconv_path,
         output_dir=document_root / "normalized",
         output_stem=resolved.stem,
     )

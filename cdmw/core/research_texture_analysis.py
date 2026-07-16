@@ -212,7 +212,7 @@ def build_texture_budget_analysis(
         rebuilt_pixels = max(1, rebuilt_dds.width * rebuilt_dds.height)
         pixel_ratio = rebuilt_pixels / original_pixels
         mip_delta = rebuilt_dds.mip_count - original_dds.mip_count
-        format_changed = original_dds.texconv_format != rebuilt_dds.texconv_format
+        format_changed = original_dds.dds_format != rebuilt_dds.dds_format
         changed = bool(
             byte_delta
             or original_dds.width != rebuilt_dds.width
@@ -271,8 +271,8 @@ def build_texture_budget_analysis(
                 original_mips=original_dds.mip_count,
                 rebuilt_mips=rebuilt_dds.mip_count,
                 mip_delta=mip_delta,
-                original_format=original_dds.texconv_format,
-                rebuilt_format=rebuilt_dds.texconv_format,
+                original_format=original_dds.dds_format,
+                rebuilt_format=rebuilt_dds.dds_format,
                 format_changed=format_changed,
                 changed=changed,
                 explicit_ui_constraint=explicit_ui_constraint,
@@ -633,8 +633,8 @@ def _planner_path_specific_mip_warnings(
 
     warnings: List[str] = []
     path_kind = str(plan_entry.path_kind or "").strip().lower()
-    rebuilt_format = rebuilt_dds.texconv_format.upper()
-    original_format = original_dds.texconv_format.upper()
+    rebuilt_format = rebuilt_dds.dds_format.upper()
+    original_format = original_dds.dds_format.upper()
     semantic_subtype = str(getattr(plan_entry.decision, "semantic_subtype", "") or "").strip().lower()
     scalar_friendly_semantic = (
         texture_type in {"height", "roughness"}
@@ -673,7 +673,7 @@ def _planner_path_specific_normal_warnings(
         warnings.append("Normal map was routed to the generic visible-color path, which is suspicious.")
     if plan_entry.alpha_policy == "premultiplied":
         warnings.append("Normal map is marked premultiplied, which usually indicates incorrect semantic routing.")
-    if ("FLOAT" in info.texconv_format.upper() or "SNORM" in info.texconv_format.upper()) and path_kind != "technical_preserve_path":
+    if ("FLOAT" in info.dds_format.upper() or "SNORM" in info.dds_format.upper()) and path_kind != "technical_preserve_path":
         warnings.append("Precision-sensitive normal format is not on the technical preserve path; verify planner routing.")
     return warnings
 
@@ -810,7 +810,6 @@ def build_mip_analysis_detail(
     rebuilt_root: Path,
     row: MipAnalysisRow,
     *,
-    texconv_path: Optional[Path] = None,
     family_members_by_path: Optional[Dict[str, Tuple[str, ...]]] = None,
     stop_event: Optional[object] = None,
 ) -> str:
@@ -877,7 +876,6 @@ def build_mip_analysis_detail(
     try:
         original_preview = _collect_preview_stats(
             ensure_dds_preview_png(
-                texconv_path if texconv_path is not None and texconv_path.exists() else None,
                 original_path,
                 stop_event=stop_event,
             )
@@ -891,7 +889,6 @@ def build_mip_analysis_detail(
     try:
         rebuilt_preview = _collect_preview_stats(
             ensure_dds_preview_png(
-                texconv_path if texconv_path is not None and texconv_path.exists() else None,
                 rebuilt_path,
                 stop_event=stop_event,
             )
@@ -918,11 +915,11 @@ def build_mip_analysis_detail(
             original_info = None
             rebuilt_info = None
         if original_info is not None and rebuilt_info is not None:
-            if original_info.texconv_format.endswith("_SRGB") != rebuilt_info.texconv_format.endswith("_SRGB"):
+            if original_info.dds_format.endswith("_SRGB") != rebuilt_info.dds_format.endswith("_SRGB"):
                 detail_lines.append("")
                 detail_lines.append("Color-space check:")
                 detail_lines.append("- sRGB/linear usage changed between original and rebuilt DDS.")
-            elif original_info.texconv_format != rebuilt_info.texconv_format:
+            elif original_info.dds_format != rebuilt_info.dds_format:
                 detail_lines.append("")
                 detail_lines.append("Color-space check:")
                 detail_lines.append("- DDS format changed; verify that color handling still matches the source.")
@@ -950,7 +947,6 @@ def build_normal_validation_detail(
     root: Path,
     row: NormalValidationRow,
     *,
-    texconv_path: Optional[Path] = None,
     stop_event: Optional[object] = None,
 ) -> str:
     raise_if_cancelled(stop_event, "Normal validation detail cancelled.")
@@ -965,7 +961,7 @@ def build_normal_validation_detail(
         f"Root label: {row.root_label}",
         f"Source root: {root}",
         f"Source path: {source_path}",
-        f"Format: {row.texconv_format}",
+        f"Format: {row.dds_format}",
         f"Size: {row.size_text}",
         f"Planner profile: {row.planner_profile or 'unavailable'}",
         f"Planner path: {row.planner_path_kind or 'unavailable'}",
@@ -980,7 +976,6 @@ def build_normal_validation_detail(
         try:
             preview_stats = _collect_preview_stats(
                 ensure_dds_preview_png(
-                    texconv_path if texconv_path is not None and texconv_path.exists() else None,
                     source_path,
                     stop_event=stop_event,
                 )
@@ -1024,7 +1019,7 @@ def build_normal_validation_detail(
         detail_lines.append("")
         detail_lines.append("Validation issues: none detected.")
 
-    if "FLOAT" in row.texconv_format.upper() or "SNORM" in row.texconv_format.upper():
+    if "FLOAT" in row.dds_format.upper() or "SNORM" in row.dds_format.upper():
         detail_lines.append("")
         detail_lines.append("Precision note:")
         detail_lines.append("- This texture type or source format is sensitive to PNG intermediates; compare carefully after rebuild.")
@@ -1036,7 +1031,6 @@ def analyze_mip_behavior(
     original_root: Path,
     rebuilt_root: Path,
     *,
-    texconv_path: Optional[Path] = None,
     limit: int = 3000,
     processing_plan_lookup: Optional[Dict[str, TextureProcessingPlan]] = None,
     stop_event: Optional[object] = None,
@@ -1113,7 +1107,7 @@ def analyze_mip_behavior(
                 warnings.append("Rebuilt DDS is substantially smaller than the original, which can indicate format or mip loss.")
             elif size_ratio > 1.50:
                 warnings.append("Rebuilt DDS is substantially larger than the original, which can indicate format or mip growth.")
-        if original_dds.texconv_format.endswith("_SRGB") != rebuilt_dds.texconv_format.endswith("_SRGB"):
+        if original_dds.dds_format.endswith("_SRGB") != rebuilt_dds.dds_format.endswith("_SRGB"):
             warnings.append("sRGB/linear usage changed between original and rebuilt DDS.")
         rebuilt_max = max_mips_for_size(rebuilt_dds.width, rebuilt_dds.height)
         if rebuilt_dds.mip_count < original_dds.mip_count:
@@ -1126,7 +1120,7 @@ def analyze_mip_behavior(
             warnings.append(f"Rebuilt size supports up to {rebuilt_max} mips, but only {rebuilt_dds.mip_count} are present.")
         if rebuilt_dds.width < original_dds.width or rebuilt_dds.height < original_dds.height:
             warnings.append("Rebuilt dimensions are smaller than the original DDS.")
-        if original_dds.texconv_format != rebuilt_dds.texconv_format:
+        if original_dds.dds_format != rebuilt_dds.dds_format:
             warnings.append("DDS format changed between original and rebuilt output.")
         if original_dds.has_alpha != rebuilt_dds.has_alpha:
             warnings.append("Alpha capability changed between original and rebuilt DDS.")
@@ -1143,20 +1137,19 @@ def analyze_mip_behavior(
                 texture_type,
             )
         )
-        if is_png_intermediate_high_risk(texture_type, original_dds.texconv_format):
+        if is_png_intermediate_high_risk(texture_type, original_dds.dds_format):
             if plan_entry is not None and str(plan_entry.path_kind).strip().lower() == "technical_high_precision_path":
                 warnings.append("Source format is precision-sensitive; the high-precision path reduces generic PNG loss risk, but careful review is still required.")
             else:
                 warnings.append("Source format is precision-sensitive; PNG intermediates can hide detail loss.")
         original_preview: Optional[TexturePreviewStats]
         rebuilt_preview: Optional[TexturePreviewStats]
-        resolved_texconv = texconv_path if texconv_path is not None and texconv_path.exists() else None
         try:
-            original_preview = _collect_preview_stats(ensure_dds_preview_png(resolved_texconv, original_path, stop_event=stop_event))
+            original_preview = _collect_preview_stats(ensure_dds_preview_png(original_path, stop_event=stop_event))
         except Exception:
             original_preview = None
         try:
-            rebuilt_preview = _collect_preview_stats(ensure_dds_preview_png(resolved_texconv, rebuilt_path, stop_event=stop_event))
+            rebuilt_preview = _collect_preview_stats(ensure_dds_preview_png(rebuilt_path, stop_event=stop_event))
         except Exception:
             rebuilt_preview = None
         warnings.extend(
@@ -1179,8 +1172,8 @@ def analyze_mip_behavior(
         rows.append(
             MipAnalysisRow(
                 relative_path=relative_path.as_posix(),
-                original_format=original_dds.texconv_format,
-                rebuilt_format=rebuilt_dds.texconv_format,
+                original_format=original_dds.dds_format,
+                rebuilt_format=rebuilt_dds.dds_format,
                 original_size=f"{original_dds.width}x{original_dds.height}",
                 rebuilt_size=f"{rebuilt_dds.width}x{rebuilt_dds.height}",
                 original_mips=original_dds.mip_count,
@@ -1237,7 +1230,6 @@ def validate_normal_maps(
     root: Path,
     *,
     root_label: Optional[str] = None,
-    texconv_path: Optional[Path] = None,
     limit: int = 1500,
     processing_plan_lookup: Optional[Dict[str, TextureProcessingPlan]] = None,
     stop_event: Optional[object] = None,
@@ -1306,7 +1298,7 @@ def validate_normal_maps(
                     path=relative_path,
                     root_label=display_root_label,
                     root_path=str(root),
-                    texconv_format="-",
+                    dds_format="-",
                     size_text="-",
                     issue_count=1,
                     planner_profile=plan_entry.profile.key if plan_entry is not None else "",
@@ -1319,15 +1311,15 @@ def validate_normal_maps(
             )
             continue
 
-        if info.texconv_format in NORMAL_SUSPICIOUS_FORMATS:
-            issues.append(f"Format {info.texconv_format} is unusual for a normal map.")
-        elif info.texconv_format not in NORMAL_FRIENDLY_FORMATS:
-            issues.append(f"Format {info.texconv_format} may be valid, but is not a common normal-map choice.")
-        if "SRGB" in info.texconv_format:
+        if info.dds_format in NORMAL_SUSPICIOUS_FORMATS:
+            issues.append(f"Format {info.dds_format} is unusual for a normal map.")
+        elif info.dds_format not in NORMAL_FRIENDLY_FORMATS:
+            issues.append(f"Format {info.dds_format} may be valid, but is not a common normal-map choice.")
+        if "SRGB" in info.dds_format:
             issues.append("sRGB normal maps are usually suspicious.")
         if not _is_power_of_two(info.width) or not _is_power_of_two(info.height):
             issues.append("Dimensions are not power-of-two.")
-        if ("BC" in info.texconv_format or info.texconv_format.startswith("R")) and (info.width % 4 != 0 or info.height % 4 != 0):
+        if ("BC" in info.dds_format or info.dds_format.startswith("R")) and (info.width % 4 != 0 or info.height % 4 != 0):
             issues.append("Compressed DDS dimensions are not aligned to a 4x4 block size.")
         issues.extend(_planner_path_specific_normal_warnings(plan_entry, info))
 
@@ -1355,7 +1347,7 @@ def validate_normal_maps(
 
         if preview_stats_used < preview_stats_budget:
             try:
-                preview_path = ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, dds_path)
+                preview_path = ensure_dds_preview_png(dds_path)
                 stats = _collect_preview_stats(preview_path)
                 if stats is not None:
                     preview_stats_used += 1
@@ -1369,7 +1361,7 @@ def validate_normal_maps(
                         issues.append("Normal preview shows alpha variation; verify whether alpha stores packed data or should be preserved.")
                     if (stats.max_r - stats.min_r) < 12 and (stats.max_g - stats.min_g) < 12:
                         issues.append("Red/green channel range is narrow; precision may have been reduced.")
-                    if "FLOAT" in info.texconv_format.upper() or "SNORM" in info.texconv_format.upper():
+                    if "FLOAT" in info.dds_format.upper() or "SNORM" in info.dds_format.upper():
                         issues.append("Precision-sensitive normal format detected; PNG intermediates can hide detail loss.")
             except Exception:
                 pass
@@ -1379,7 +1371,7 @@ def validate_normal_maps(
                 path=relative_path,
                 root_label=display_root_label,
                 root_path=str(root),
-                texconv_format=info.texconv_format,
+                dds_format=info.dds_format,
                 size_text=f"{info.width}x{info.height}",
                 issue_count=len(issues),
                 planner_profile=plan_entry.profile.key if plan_entry is not None else "",
@@ -1430,7 +1422,6 @@ def _estimate_grid_signal(image_path: Path) -> int:
 def detect_texture_atlases(
     root: Path,
     *,
-    texconv_path: Optional[Path] = None,
     limit: int = 500,
 ) -> List[AtlasDetectionRow]:
     dds_files = collect_dds_files(root, ())
@@ -1463,7 +1454,7 @@ def detect_texture_atlases(
 
         if preview_grid_used < preview_grid_budget:
             try:
-                preview_path = ensure_dds_preview_png(texconv_path if texconv_path is not None and texconv_path.exists() else None, dds_path)
+                preview_path = ensure_dds_preview_png(dds_path)
                 grid_signal = _estimate_grid_signal(preview_path)
                 preview_grid_used += 1
                 if grid_signal >= 8:

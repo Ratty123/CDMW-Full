@@ -4,6 +4,7 @@ from pathlib import Path
 import struct
 import tempfile
 import unittest
+from unittest.mock import patch
 import zipfile
 
 from cdmw.core.archive_modding import MeshImportPreviewResult, MeshImportSupplementalFileSpec
@@ -232,6 +233,14 @@ def _write_misrouted_material_gltf(path: Path) -> None:
 
 
 class FinalPackagePreviewTests(unittest.TestCase):
+    def setUp(self) -> None:
+        preview_patch = patch(
+            "cdmw.core.texture_pipeline.preview.ensure_dds_display_preview_png",
+            side_effect=lambda dds_path, **_kwargs: Path(f"{Path(dds_path)}.preview.png"),
+        )
+        preview_patch.start()
+        self.addCleanup(preview_patch.stop)
+
     def test_generated_sidecar_resolves_generated_dds_and_binds_base_texture(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1793,7 +1802,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
             self.assertEqual(("packed_material_mask",), tuple(mask_conversion["channel_visualization_kinds"]))
             self.assertEqual(["ao", "roughness", "metallic", "alpha"], [row["semantic"] for row in mask_visualization["channels"]])
             self.assertIn("uncompressed_channel_order", {row["code"] for row in outputs["character/texture/blade_rgba.dds"]["role_diagnostics"]})
-            self.assertEqual("BC1_UNORM", outputs["character/texture/blade_n.dds"]["dds_validation"]["texconv_format"])
+            self.assertEqual("BC1_UNORM", outputs["character/texture/blade_n.dds"]["dds_validation"]["dds_format"])
             self.assertIn("normal_y_policy", normal_diagnostics)
             self.assertIn("normal_y_policy_unconfirmed", normal_diagnostics)
             self.assertIn("normal_y_policy", report["preview_settings"])
@@ -1844,7 +1853,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
             output = result.material_authority_report.to_dict()["texture_outputs"][0]
             diagnostic_codes = {row["code"] for row in output["role_diagnostics"]}
             flags = set(result.material_authority_report.to_dict()["risk_flags"])
-            self.assertEqual("BC5_UNORM", output["dds_validation"]["texconv_format"])
+            self.assertEqual("BC5_UNORM", output["dds_validation"]["dds_format"])
             self.assertEqual(("emissive_control",), tuple(output["conversion_policy"]["bound_role_classes"]))
             self.assertEqual(("emissive_control",), tuple(output["conversion_policy"]["channel_visualization_kinds"]))
             self.assertEqual("emissive_control", output["channel_visualization"][0]["kind"])
@@ -1982,7 +1991,7 @@ class FinalPackagePreviewTests(unittest.TestCase):
 
             output = result.material_authority_report.to_dict()["texture_outputs"][0]
             visualization = output["channel_visualization"][0]
-            self.assertEqual("B8G8R8A8_UNORM", output["dds_validation"]["texconv_format"])
+            self.assertEqual("B8G8R8A8_UNORM", output["dds_validation"]["dds_format"])
             self.assertEqual("bgra", output["dds_validation"]["channel_order"])
             self.assertEqual("bgra", output["conversion_policy"]["channel_order"])
             self.assertEqual("visible_color", visualization["kind"])
@@ -3087,7 +3096,6 @@ Connections:  {
             result = build_final_package_preview(
                 preview,
                 supplemental_file_specs=specs,
-                texconv_path=None,
                 original_dds_resolver=lambda path: original if path == "character/texture/blade_base.dds" else None,
             )
 

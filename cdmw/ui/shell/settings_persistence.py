@@ -153,7 +153,6 @@ class SettingsPersistenceMixin:
         self.settings.setValue("paths/texture_editor_png_root", self.texture_editor_png_root_edit.text())
         self.settings.setValue("paths/dds_staging_root", self.dds_staging_root_edit.text())
         self.settings.setValue("paths/output_root", self.output_root_edit.text())
-        self.settings.setValue("paths/texconv_path", self.texconv_path_edit.text())
         if self.asset_authoring_section.is_body_built():
             self.settings.setValue("asset_authoring/material_maker_project_path", self.material_maker_project_edit.text())
             self.settings.setValue("asset_authoring/material_maker_export_dir", self.material_maker_export_dir_edit.text())
@@ -313,7 +312,6 @@ class SettingsPersistenceMixin:
         )
         self.dds_staging_root_edit.setText(self.settings.value("paths/dds_staging_root", defaults.dds_staging_root))
         self.output_root_edit.setText(self.settings.value("paths/output_root", defaults.output_root))
-        self.texconv_path_edit.setText(self.settings.value("paths/texconv_path", defaults.texconv_path))
         if self.asset_authoring_section.is_body_built():
             load_asset_authoring_panel_settings(self, defaults)
         self.archive_package_root_edit.setText(self.settings.value("archive/package_root", defaults.archive_package_root))

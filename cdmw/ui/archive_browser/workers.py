@@ -172,12 +172,9 @@ class ArchivePreviewWorkerMixin:
             self._defer_archive_preview_refresh_for_builder(entry)
             return
 
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         loose_search_roots = self._collect_archive_preview_loose_roots()
         cache_key = self._archive_preview_cache_key(
             entry,
-            texconv_path,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
@@ -188,7 +185,6 @@ class ArchivePreviewWorkerMixin:
         companion_entry = self._find_archive_preview_companion_entry(entry)
         fast_cache_key = self._archive_preview_cache_key(
             entry,
-            texconv_path,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
@@ -253,7 +249,6 @@ class ArchivePreviewWorkerMixin:
 
         self._start_archive_preview_worker(
             request_id,
-            texconv_path,
             entry,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
@@ -271,7 +266,6 @@ class ArchivePreviewWorkerMixin:
     def _start_archive_preview_worker(
         self,
         request_id: int,
-        texconv_path: Optional[Path],
         entry: Optional[ArchiveEntry],
         loose_search_roots: Sequence[Path],
         *,
@@ -298,7 +292,6 @@ class ArchivePreviewWorkerMixin:
             native_package_cache_key = self._archive_native_preview_package_cache_key(
                 entry,
                 companion_entry,
-                texconv_path,
                 loose_search_roots,
                 include_loose_preview_assets=include_loose_preview_assets,
             )
@@ -314,7 +307,6 @@ class ArchivePreviewWorkerMixin:
         )
         worker = ArchivePreviewWorker(
             request_id,
-            texconv_path,
             entry,
             companion_entry,
             self.archive_entries_by_normalized_path,
@@ -549,12 +541,9 @@ class ArchivePreviewWorkerMixin:
             return
         request_id, entry, include_loose_preview_assets = self.pending_archive_preview_request
         self.pending_archive_preview_request = None
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         loose_search_roots = self._collect_archive_preview_loose_roots()
         cache_key = self._archive_preview_cache_key(
             entry,
-            texconv_path,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
@@ -562,7 +551,6 @@ class ArchivePreviewWorkerMixin:
         )
         fast_cache_key = self._archive_preview_cache_key(
             entry,
-            texconv_path,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
@@ -577,7 +565,6 @@ class ArchivePreviewWorkerMixin:
         }
         self._start_archive_preview_worker(
             request_id,
-            texconv_path,
             entry,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,

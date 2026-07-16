@@ -431,7 +431,6 @@ class ResearchTab(QWidget):
         get_filtered_archive_entries: Callable[[], Sequence[object]],
         get_original_root: Callable[[], str],
         get_output_root: Callable[[], str],
-        get_texconv_path: Callable[[], str],
         get_app_config: Callable[[], AppConfig],
         get_current_archive_path: Callable[[], str],
         get_current_text_search_path: Callable[[], str],
@@ -447,7 +446,6 @@ class ResearchTab(QWidget):
         self.get_filtered_archive_entries = get_filtered_archive_entries
         self.get_original_root = get_original_root
         self.get_output_root = get_output_root
-        self.get_texconv_path = get_texconv_path
         self.get_app_config = get_app_config
         self.get_current_archive_path = get_current_archive_path
         self.get_current_text_search_path = get_current_text_search_path

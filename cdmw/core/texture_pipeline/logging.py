@@ -21,7 +21,7 @@ def write_csv_log(log_path: Path, results: Sequence[JobResult]) -> None:
                 "height",
                 "original_mips",
                 "used_mips",
-                "texconv_format",
+                "dds_format",
                 "status",
                 "note",
             ],

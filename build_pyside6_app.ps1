@@ -333,6 +333,159 @@ print(f"Validated all {validated} embedded archive members.")
     }
 }
 
+function Invoke-TextureBackendSelfTest {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ExecutablePath,
+        [Parameter(Mandatory = $true)]
+        [string]$Context
+    )
+
+    if (-not (Test-Path -LiteralPath $ExecutablePath -PathType Leaf)) {
+        throw "Native texture backend $Context helper is missing: $ExecutablePath"
+    }
+    $selfTestOutput = & $ExecutablePath self-test 2>&1
+    $exitCode = $LASTEXITCODE
+    $selfTestText = ($selfTestOutput | Out-String).Trim()
+    if ($exitCode -ne 0 -or $selfTestText -notmatch '"ok"\s*:\s*true') {
+        if (-not $selfTestText) {
+            $selfTestText = "No self-test output was returned."
+        }
+        throw "Native texture backend $Context self-test failed with exit code $exitCode. $selfTestText"
+    }
+    Write-Host "Native texture backend $Context self-test passed."
+}
+
+function Test-OnedirTextureBackend {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$OnedirPath
+    )
+
+    if (-not (Test-Path -LiteralPath $OnedirPath -PathType Container)) {
+        throw "Cannot validate packaged onedir texture backend because the directory is missing: $OnedirPath"
+    }
+    $retiredExecutableName = "tex" + "conv.exe"
+    $retiredPayloads = @(
+        Get-ChildItem -LiteralPath $OnedirPath -Recurse -File -ErrorAction Stop |
+            Where-Object { $_.Name -ieq $retiredExecutableName }
+    )
+    if ($retiredPayloads.Count -gt 0) {
+        $paths = ($retiredPayloads | ForEach-Object { $_.FullName }) -join ", "
+        throw "Packaged onedir contains retired texture executables: $paths"
+    }
+    $helperPath = Join-Path $OnedirPath "_internal\native\cd-texture-dx.exe"
+    Invoke-TextureBackendSelfTest -ExecutablePath $helperPath -Context "packaged onedir"
+}
+
+function Test-OnefileTextureBackend {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PythonExe,
+        [Parameter(Mandatory = $true)]
+        [string]$ExePath
+    )
+
+    if (-not (Test-Path -LiteralPath $ExePath -PathType Leaf)) {
+        throw "Cannot validate packaged onefile texture backend because the EXE is missing: $ExePath"
+    }
+
+$validationScript = @'
+from __future__ import annotations
+
+import hashlib
+import json
+from pathlib import Path, PurePosixPath
+import subprocess
+import sys
+import tempfile
+
+from PyInstaller.archive.readers import CArchiveReader
+
+exe_path = Path(sys.argv[1])
+archive = CArchiveReader(str(exe_path))
+names = sorted(name for name in archive.toc if name)
+normalized = {name: name.replace("\\", "/") for name in names}
+retired_leaf = ("tex" + "conv.exe").casefold()
+retired = [
+    name
+    for name, normalized_name in normalized.items()
+    if PurePosixPath(normalized_name).name.casefold() == retired_leaf
+]
+if retired:
+    raise RuntimeError(f"Onefile archive contains retired texture executables: {retired}")
+
+helper_names = [
+    name
+    for name, normalized_name in normalized.items()
+    if normalized_name.casefold().endswith("native/cd-texture-dx.exe")
+]
+if len(helper_names) != 1:
+    raise RuntimeError(
+        f"Expected exactly one bundled cd-texture-dx.exe, found {len(helper_names)}: {helper_names}"
+    )
+
+helper_member = helper_names[0]
+helper_data = archive.extract(helper_member)
+if not helper_data:
+    raise RuntimeError(f"Bundled helper extracted as empty data: {helper_member}")
+
+runtime_leaves = {
+    "concrt140.dll",
+    "msvcp140.dll",
+    "vcomp140.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+}
+with tempfile.TemporaryDirectory(prefix="cdmw-packaged-texture-") as temp_dir:
+    root = Path(temp_dir)
+    helper_path = root / "cd-texture-dx.exe"
+    helper_path.write_bytes(helper_data)
+    for name, normalized_name in normalized.items():
+        leaf = PurePosixPath(normalized_name).name.casefold()
+        if leaf not in runtime_leaves:
+            continue
+        runtime_data = archive.extract(name)
+        if runtime_data:
+            (root / PurePosixPath(normalized_name).name).write_bytes(runtime_data)
+    completed = subprocess.run(
+        [str(helper_path), "self-test"],
+        cwd=root,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        timeout=180,
+        check=False,
+    )
+    if completed.returncode != 0 or '"ok":true' not in completed.stdout.replace(" ", ""):
+        raise RuntimeError(
+            "Extracted onefile texture backend self-test failed "
+            f"with exit code {completed.returncode}. "
+            f"STDOUT: {completed.stdout.strip()} STDERR: {completed.stderr.strip()}"
+        )
+    print(
+        json.dumps(
+            {
+                "ok": True,
+                "helper_member": helper_member,
+                "helper_sha256": hashlib.sha256(helper_data).hexdigest(),
+            },
+            sort_keys=True,
+        )
+    )
+'@
+
+    $validationOutput = $validationScript | & $PythonExe - $ExePath 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        $details = ($validationOutput | Out-String).Trim()
+        if (-not $details) {
+            $details = "No validation details were returned."
+        }
+        throw "Packaged onefile texture backend validation failed for '$ExePath'. $details"
+    }
+    Write-Host ($validationOutput | Out-String).Trim()
+}
+
 function Invoke-PyInstallerBuild {
     param(
         [Parameter(Mandatory = $true)]
@@ -817,6 +970,14 @@ if ($Mode -eq "onefile" -and $BuildProfile -ne "fast") {
 }
 
 if ($BuildProfile -eq "release") {
+    Write-BuildProgress -Percent 94 -Stage "Verifying packaged native texture backend"
+    if ($Mode -eq "onefile") {
+        $packagedOnefile = Join-Path $pyInstallerDistDir "$appName.exe"
+        Test-OnefileTextureBackend -PythonExe $pythonExe -ExePath $packagedOnefile
+    } else {
+        $packagedOnedir = Join-Path $pyInstallerDistDir $appName
+        Test-OnedirTextureBackend -OnedirPath $packagedOnedir
+    }
     if ($Mode -eq "onedir") {
         Write-BuildProgress -Percent 95 -Stage "Verifying packaged .NET Mesh Editor GPU backend"
         $packagedDotNetHelper = Join-Path $pyInstallerDistDir "$appName\_internal\native\cdmw-mesh-dotnet-editor.exe"

@@ -163,7 +163,6 @@ class ReplaceAssistantTab(
         base_dir: Path,
         get_archive_entries: Callable[[], Sequence[ArchiveEntry]],
         get_original_root: Callable[[], str],
-        get_texconv_path: Callable[[], str],
         get_current_config: Callable[[], object],
         parent: Optional[QWidget] = None,
     ) -> None:
@@ -172,7 +171,6 @@ class ReplaceAssistantTab(
         self.base_dir = base_dir
         self.get_archive_entries = get_archive_entries
         self.get_original_root = get_original_root
-        self.get_texconv_path = get_texconv_path
         self.get_current_config = get_current_config
 
         self.archive_entries: List[ArchiveEntry] = []

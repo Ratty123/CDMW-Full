@@ -215,7 +215,6 @@ def _build_manual_texture_slot_override_payloads(
     texture_slot_overrides: Sequence[object],
     reference_by_target_path: Mapping[str, object],
     texture_sets: Mapping[str, ReplacementTextureSet],
-    texconv_path: Optional[Path],
     read_original_texture_bytes: Callable[[object], bytes],
     original_texture_source_path: Callable[[object], Path],
     report: TextureReplacementReport,
@@ -272,7 +271,6 @@ def _build_manual_texture_slot_override_payloads(
             payload = _build_texture_payload(
                 source_slot,
                 target_entry=target_entry,
-                texconv_path=texconv_path,
                 read_original_texture_bytes=read_original_texture_bytes,
                 original_texture_source_path=original_texture_source_path,
                 report=report,
@@ -533,7 +531,6 @@ def _build_missing_base_color_parameter_payloads(
     original_texture_refs: Sequence[object],
     target_to_source_material: Mapping[str, str],
     existing_slot_mappings: Sequence[TextureSlotMapping],
-    texconv_path: Optional[Path],
     read_original_texture_bytes: Callable[[object], bytes],
     original_texture_source_path: Callable[[object], Path],
     report: TextureReplacementReport,
@@ -578,7 +575,6 @@ def _build_missing_base_color_parameter_payloads(
             payload = _build_texture_payload(
                 base_slot,
                 target_entry=getattr(template_reference, "resolved_entry", None),
-                texconv_path=texconv_path,
                 read_original_texture_bytes=read_original_texture_bytes,
                 original_texture_source_path=original_texture_source_path,
                 report=report,
@@ -625,6 +621,8 @@ def _build_missing_base_color_parameter_payloads(
 
 
 def _base_color_template_reference(original_texture_refs: Sequence[object]) -> Optional[object]:
+    from .material_texture_routing import _is_shared_material_layer_texture, _reference_target_path
+
     best: Optional[object] = None
     best_score = -1
     for reference in original_texture_refs:
@@ -649,6 +647,8 @@ def _base_color_template_reference(original_texture_refs: Sequence[object]) -> O
 
 
 def _reference_target_parent(reference: object) -> str:
+    from .material_texture_routing import _reference_target_path
+
     target_path = _reference_target_path(reference)
     parent = PurePosixPath(target_path.replace("\\", "/")).parent
     return "" if str(parent) in {"", "."} else parent.as_posix()
@@ -967,7 +967,6 @@ def _build_texture_payload(
     source_slot: ReplacementTextureSlot,
     *,
     target_entry: object,
-    texconv_path: Optional[Path],
     read_original_texture_bytes: Callable[[object], bytes],
     original_texture_source_path: Callable[[object], Path],
     report: TextureReplacementReport,
@@ -976,9 +975,7 @@ def _build_texture_payload(
 ) -> bytes:
     from cdmw.core.texture_native import encode_dds_with_directxtex
     from cdmw.core.texture_pipeline.inspection import parse_dds, read_png_dimensions
-    from cdmw.core.texture_pipeline.texconv import build_texconv_command
     from cdmw.domain.textures.output import max_mips_for_size
-    from cdmw.core.common import run_process_with_cancellation
 
     def _source_image_dimensions(path: Path) -> tuple[int, int]:
         if path.suffix.lower() == ".png":
@@ -1004,8 +1001,8 @@ def _build_texture_payload(
             mismatch_parts.append(
                 f"size {source_info.width}x{source_info.height} != original {original_info.width}x{original_info.height}"
             )
-        if source_info.texconv_format != original_info.texconv_format:
-            mismatch_parts.append(f"format {source_info.texconv_format} != original {original_info.texconv_format}")
+        if source_info.dds_format != original_info.dds_format:
+            mismatch_parts.append(f"format {source_info.dds_format} != original {original_info.dds_format}")
         if int(source_info.mip_count or 1) != int(original_info.mip_count or 1):
             mismatch_parts.append(f"mips {source_info.mip_count or 1} != original {original_info.mip_count or 1}")
         if mismatch_parts:
@@ -1020,7 +1017,6 @@ def _build_texture_payload(
         )
     original_source = original_texture_source_path(target_entry)
     original_info = parse_dds(original_source)
-    resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     with tempfile.TemporaryDirectory(prefix="cdmw_static_texture_") as temp_text:
         temp_dir = Path(temp_text)
         source_png = _source_slot_png_with_base_color_factor_path(source_slot)
@@ -1050,7 +1046,7 @@ def _build_texture_payload(
                 f"{source_png.name}: output DDS size {output_width}x{output_height} is smaller than source "
                 f"{source_width}x{source_height}."
             )
-        output_format = str(original_info.texconv_format or "").strip() or "BC7_UNORM"
+        output_format = str(original_info.dds_format or "").strip() or "BC7_UNORM"
         if str(source_slot.slot_kind or "").strip().lower() == "normal":
             if output_format.upper() not in {"BC5_UNORM", "BC5_SNORM"}:
                 _warn_once(
@@ -1081,8 +1077,8 @@ def _build_texture_payload(
                 native_encode_error = str(exc) or exc.__class__.__name__
                 _warn_once(
                     report,
-                    f"{source_png.name}: DirectXTex native DDS encode produced an invalid DDS "
-                    f"({native_encode_error}); falling back to texconv.",
+                    f"{source_png.name}: native DDS encode produced an invalid DDS "
+                    f"({native_encode_error}).",
                 )
                 try:
                     produced.unlink()
@@ -1092,25 +1088,8 @@ def _build_texture_payload(
             if on_log:
                 on_log(f"Encoded {source_png.name} with DirectXTex native DDS encode.")
         else:
-            if resolved_texconv is None:
-                detail = f": {native_encode_error}" if native_encode_error else ""
-                raise FileNotFoundError(
-                    "DirectXTex native DDS encode failed or produced an invalid DDS"
-                    f"{detail}; no optional legacy texconv fallback is configured."
-                )
-            cmd = build_texconv_command(
-                resolved_texconv,
-                prepared_png,
-                out_dir,
-                output_format,
-                mip_count,
-                output_width,
-                output_height,
-                overwrite_existing_dds=True,
-            )
-            return_code, stdout, stderr = run_process_with_cancellation(cmd)
-            if return_code != 0:
-                raise RuntimeError(stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}")
+            detail = f": {native_encode_error}" if native_encode_error else ""
+            raise RuntimeError(f"Native DDS encode failed or produced an invalid DDS{detail}.")
         if not produced.is_file():
             raise FileNotFoundError(f"DDS encoder did not produce {produced.name}")
         target_vpath = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()

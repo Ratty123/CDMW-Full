@@ -5,7 +5,7 @@ ARCHIVE_EXPORTS_3: dict[str, tuple[str, str]] = {
     '_structured_field_type_hint': ('cdmw.core.archive_binary_preview', '_structured_field_type_hint'),
     '_sub32': ('cdmw.core.archive_format', '_sub32'),
     '_summarize_physics_attachment_xml': ('cdmw.core.archive_structured_preview', '_summarize_physics_attachment_xml'),
-    '_texconv_identity_signature': ('cdmw.core.archive_model_references', '_texconv_identity_signature'),
+    '_native_texture_helper_identity_signature': ('cdmw.core.archive_model_references', '_native_texture_helper_identity_signature'),
     '_texture_reference_relation_metadata': ('cdmw.core.archive_model_textures', '_texture_reference_relation_metadata'),
     '_tokenize_archive_search_text': ('cdmw.core.archive_name_search', '_tokenize_archive_search_text'),
     '_try_build_archive_name_search_index_native': ('cdmw.core.archive_name_search', '_try_build_archive_name_search_index_native'),

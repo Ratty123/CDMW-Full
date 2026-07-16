@@ -2001,7 +2001,6 @@ def _build_source_driven_pac_material_payloads(
     original_sidecars: Sequence[tuple[object, str]],
     active_target_names: Sequence[str],
     target_to_source_material: Mapping[str, str],
-    texconv_path: Optional[Path],
     read_original_texture_bytes: Callable[[object], bytes],
     original_texture_source_path: Callable[[object], Path],
     report: TextureReplacementReport,
@@ -2331,7 +2330,6 @@ def _build_source_driven_pac_material_payloads(
                 texture_parent=texture_parent,
                 texture_prefix=texture_prefix,
                 emitted_paths=emitted_paths,
-                texconv_path=texconv_path,
                 read_original_texture_bytes=read_original_texture_bytes,
                 original_texture_source_path=original_texture_source_path,
                 report=report,
@@ -2429,7 +2427,6 @@ def _build_source_driven_pac_material_payloads(
                     payload_data = _build_texture_payload(
                         source_slot,
                         target_entry=target_entry,
-                        texconv_path=texconv_path,
                         read_original_texture_bytes=read_original_texture_bytes,
                         original_texture_source_path=original_texture_source_path,
                         report=report,

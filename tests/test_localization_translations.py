@@ -82,8 +82,8 @@ def test_packaged_language_catalogue_contains_known_key_without_source_tree() ->
     with patch.object(Path, "rglob", side_effect=AssertionError("runtime source scan")):
         translations = collect_translatable_source_strings((Path("missing-packaged-source"),))
 
-    assert "Open DirectXTex / texconv Page" in translations
-    assert translations["Open DirectXTex / texconv Page"] == ""
+    assert "Apply Suggested Overrides..." in translations
+    assert translations["Apply Suggested Overrides..."] == ""
 
 
 def test_initial_english_language_apply_skips_widget_tree_walk() -> None:
@@ -152,7 +152,7 @@ def test_language_export_handler_stays_fast_and_includes_live_widget_strings(tmp
     payload = json.loads(output_path.read_text(encoding="utf-8"))
     assert elapsed < 0.05
     assert payload["language_code"] == "es"
-    assert payload["translations"]["Open DirectXTex / texconv Page"]
+    assert payload["translations"]["Apply Suggested Overrides..."]
     assert payload["translations"]["Live instantiated widget string"] == "Cadena de widget activa"
     warning.assert_not_called()
     assert window.worker_thread is None
@@ -232,8 +232,8 @@ def test_reviewed_gui_translations_are_available_for_spanish_and_german() -> Non
     assert german.translate("Scan a source folder to find packaged mods.") == (
         "Quellordner scannen, um paketierte Mods zu finden."
     )
-    assert spanish.translate("Open DirectXTex / texconv Page") == "Abrir pagina de DirectXTex / texconv"
-    assert german.translate("Open DirectXTex / texconv Page") == "DirectXTex-/texconv-Seite oeffnen"
+    assert spanish.translate("Apply Suggested Overrides...") == "Aplicar anulaciones sugeridas..."
+    assert german.translate("Apply Suggested Overrides...") == "Vorgeschlagene Overrides anwenden..."
     assert spanish.translate(
         "Paint tool active. Brush presets, image stamps, patterns, and symmetry are available here. Alt+click samples a color into the paint swatch."
     ).startswith("Herramienta de pintura activa.")
@@ -302,7 +302,7 @@ def test_profile_window_and_documentation_cover_current_settings_scope() -> None
     )
 
     assert "_collect_profile_settings_snapshot" in main_window_source
-    assert '"profile_format": 3' in main_window_source
+    assert '"profile_format": 4' in main_window_source
     assert '"settings_key_count"' in main_window_source
     assert "_restore_profile_settings_snapshot" in main_window_source
     assert "self._load_settings()" in main_window_source
@@ -350,9 +350,8 @@ def test_documentation_and_readme_cover_current_mesh_and_dds_workflows() -> None
     assert "Echte Quellenautoritaet" in main_window_source
 
     assert "OBJ/DAE/glTF/GLB import preview" in readme_source
-    assert "DirectXTex/native helpers first" in readme_source
-    assert "texconv.exe` remains an optional legacy fallback" in readme_source
-    assert "Open DirectXTex / texconv Page" in readme_source
+    assert "bundled `cd-texture-dx.exe` native" in readme_source
+    assert "DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe`" in readme_source
 
 
 def test_supported_documentation_languages_cover_all_topic_ids() -> None:

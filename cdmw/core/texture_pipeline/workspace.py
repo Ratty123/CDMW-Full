@@ -108,7 +108,6 @@ def create_missing_directories_for_config(config: AppConfig) -> List[Path]:
         ensure_dir(Path(config.csv_log_path).expanduser().resolve().parent)
 
     for raw in (
-        config.texconv_path,
         config.chainner_exe_path,
         config.chainner_chain_path,
         config.ncnn_exe_path,

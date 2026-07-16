@@ -44,7 +44,6 @@ class DdsDetailPreviewRequest:
     request_id: int
     source_path: str
     slot_kind: str
-    texconv_path: Path | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,7 +182,6 @@ class _DdsDetailPreviewWorker(QObject):
             preview_path, status_text = resolve_dds_detail_preview_path(
                 request.source_path,
                 request.slot_kind,
-                texconv_path=request.texconv_path,
                 parse_dds_file=parse_dds,
                 ensure_dds_display_preview=ensure_dds_display_preview_png,
                 stop_event=self.stop_event,
@@ -342,7 +340,6 @@ class StaticReplacementDdsDetailController(_LatestWorkerController):
         *,
         source_path: object,
         slot_kind: object,
-        texconv_path: Path | None,
         on_complete: Callable[[DdsDetailPreviewResult], None],
         on_error: Callable[[str], None],
         on_idle: Callable[[], None] = lambda: None,
@@ -355,7 +352,6 @@ class StaticReplacementDdsDetailController(_LatestWorkerController):
             self._request_id,
             str(source_path or ""),
             str(slot_kind or "base"),
-            Path(texconv_path) if texconv_path is not None else None,
         )
         self._launch(
             _DdsDetailPreviewWorker(request),

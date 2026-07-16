@@ -291,11 +291,9 @@ class TextureWorkflowComparePreviewMixin:
             return
         if self._startup_benchmark_enabled():
             return
-        texconv_text = self.texconv_path_edit.text().strip()
         original_root_text = self.original_dds_edit.text().strip()
         output_root_text = self.output_root_edit.text().strip()
 
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         original_path = Path(original_root_text).expanduser() / relative_path if original_root_text else None
         output_path = Path(output_root_text).expanduser() / relative_path if output_root_text else None
         original_planner_summary, output_planner_summary = self._summarize_compare_planner(relative_path)
@@ -315,7 +313,6 @@ class TextureWorkflowComparePreviewMixin:
 
         self._start_compare_preview_worker(
             request_id,
-            texconv_path,
             original_path,
             output_path,
             original_planner_summary,
@@ -325,7 +322,6 @@ class TextureWorkflowComparePreviewMixin:
     def _start_compare_preview_worker(
         self,
         request_id: int,
-        texconv_path: Optional[Path],
         original_path: Optional[Path],
         output_path: Optional[Path],
         original_planner_summary: str = "",
@@ -335,7 +331,6 @@ class TextureWorkflowComparePreviewMixin:
             return
         worker = ComparePreviewWorker(
             request_id,
-            texconv_path,
             original_path,
             output_path,
             original_planner_summary,
@@ -420,16 +415,13 @@ class TextureWorkflowComparePreviewMixin:
 
         request_id, relative_path = self.pending_compare_preview_request
         self.pending_compare_preview_request = None
-        texconv_text = self.texconv_path_edit.text().strip()
         original_root_text = self.original_dds_edit.text().strip()
         output_root_text = self.output_root_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         original_path = Path(original_root_text).expanduser() / relative_path if original_root_text else None
         output_path = Path(output_root_text).expanduser() / relative_path if output_root_text else None
         original_planner_summary, output_planner_summary = self._summarize_compare_planner(relative_path)
         self._start_compare_preview_worker(
             request_id,
-            texconv_path,
             original_path,
             output_path,
             original_planner_summary,

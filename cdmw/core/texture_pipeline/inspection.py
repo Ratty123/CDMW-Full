@@ -12,9 +12,9 @@ from cdmw.constants import (
     DDPF_FOURCC,
     DDPF_LUMINANCE,
     DDPF_RGB,
-    DXGI_TO_TEXCONV,
-    LEGACY_FOURCC_TO_TEXCONV,
-    LEGACY_NUMERIC_FOURCC_TO_TEXCONV,
+    DXGI_TO_DDS_FORMAT,
+    LEGACY_FOURCC_TO_DDS_FORMAT,
+    LEGACY_NUMERIC_FOURCC_TO_DDS_FORMAT,
     PNG_MAGIC,
 )
 from cdmw.core.common import read_u32_le
@@ -39,7 +39,7 @@ _DDS_ALPHA_CAPABLE_FORMATS = {
     "R16G16B16A16_SNORM",
     "R32G32B32A32_FLOAT",
 }
-def _legacy_luminance_texconv_format(
+def _legacy_luminance_dds_format(
     rgb_bit_count: int,
     r_mask: int,
     g_mask: int,
@@ -79,7 +79,7 @@ def _legacy_luminance_texconv_format(
     return None
 
 
-def _legacy_alpha_texconv_format(
+def _legacy_alpha_dds_format(
     rgb_bit_count: int,
     r_mask: int,
     g_mask: int,
@@ -132,7 +132,7 @@ def parse_dds(dds_path: Path) -> DdsInfo:
     b_mask = read_u32_le(header, 96)
     a_mask = read_u32_le(header, 100)
 
-    texconv_format: Optional[str] = None
+    dds_format: Optional[str] = None
 
     has_alpha = bool(pf_flags & (DDPF_ALPHAPIXELS | DDPF_ALPHA))
 
@@ -142,15 +142,15 @@ def parse_dds(dds_path: Path) -> DdsInfo:
                 raise ValueError("DDS declares DX10 header, but file is too small.")
             dx10 = blob[128:148]
             dxgi_format = read_u32_le(dx10, 0)
-            texconv_format = DXGI_TO_TEXCONV.get(dxgi_format)
-            if not texconv_format:
+            dds_format = DXGI_TO_DDS_FORMAT.get(dxgi_format)
+            if not dds_format:
                 raise ValueError(f"Unsupported DXGI format: {dxgi_format}")
         else:
-            texconv_format = LEGACY_FOURCC_TO_TEXCONV.get(fourcc)
-            if not texconv_format:
+            dds_format = LEGACY_FOURCC_TO_DDS_FORMAT.get(fourcc)
+            if not dds_format:
                 numeric_fourcc = read_u32_le(fourcc, 0)
-                texconv_format = LEGACY_NUMERIC_FOURCC_TO_TEXCONV.get(numeric_fourcc)
-            if not texconv_format:
+                dds_format = LEGACY_NUMERIC_FOURCC_TO_DDS_FORMAT.get(numeric_fourcc)
+            if not dds_format:
                 pretty_fourcc = fourcc.decode("ascii", errors="replace")
                 raise ValueError(
                     f"Unsupported legacy FOURCC format: {pretty_fourcc!r} (numeric={read_u32_le(fourcc, 0)})"
@@ -163,21 +163,21 @@ def parse_dds(dds_path: Path) -> DdsInfo:
                 0x00FF0000,
                 0xFF000000,
             ):
-                texconv_format = "R8G8B8A8_UNORM"
+                dds_format = "R8G8B8A8_UNORM"
             elif (r_mask, g_mask, b_mask, a_mask) == (
                 0x00FF0000,
                 0x0000FF00,
                 0x000000FF,
                 0xFF000000,
             ):
-                texconv_format = "B8G8R8A8_UNORM"
+                dds_format = "B8G8R8A8_UNORM"
             elif (r_mask, g_mask, b_mask, a_mask) == (
                 0x00FF0000,
                 0x0000FF00,
                 0x000000FF,
                 0x00000000,
             ):
-                texconv_format = "B8G8R8X8_UNORM"
+                dds_format = "B8G8R8X8_UNORM"
             else:
                 raise ValueError(
                     "Unsupported 32-bit RGB mask combination: "
@@ -186,15 +186,15 @@ def parse_dds(dds_path: Path) -> DdsInfo:
         else:
             raise ValueError(f"Unsupported uncompressed RGB bit depth: {rgb_bit_count}")
     elif pf_flags & DDPF_LUMINANCE:
-        texconv_format = _legacy_luminance_texconv_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask)
-        if not texconv_format:
+        dds_format = _legacy_luminance_dds_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask)
+        if not dds_format:
             raise ValueError(
                 "Unsupported luminance mask combination: "
                 f"bits={rgb_bit_count} R={r_mask:#010x} G={g_mask:#010x} B={b_mask:#010x} A={a_mask:#010x}"
             )
     elif pf_flags & DDPF_ALPHA:
-        texconv_format = _legacy_alpha_texconv_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask)
-        if not texconv_format:
+        dds_format = _legacy_alpha_dds_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask)
+        if not dds_format:
             raise ValueError(
                 "Unsupported alpha-only mask combination: "
                 f"bits={rgb_bit_count} R={r_mask:#010x} G={g_mask:#010x} B={b_mask:#010x} A={a_mask:#010x}"
@@ -202,18 +202,18 @@ def parse_dds(dds_path: Path) -> DdsInfo:
     else:
         raise ValueError(f"Unsupported DDS pixel format flags: {pf_flags:#x}")
 
-    if texconv_format in _DDS_ALPHA_CAPABLE_FORMATS:
+    if dds_format in _DDS_ALPHA_CAPABLE_FORMATS:
         has_alpha = True
 
     return DdsInfo(
         width=width,
         height=height,
         mip_count=max(1, mip_count),
-        texconv_format=texconv_format,
+        dds_format=dds_format,
         source_path=dds_path,
         has_alpha=has_alpha,
-        colorspace_intent=_dds_colorspace_intent_from_format(texconv_format),
-        precision_sensitive=("FLOAT" in texconv_format.upper() or "SNORM" in texconv_format.upper()),
+        colorspace_intent=_dds_colorspace_intent_from_format(dds_format),
+        precision_sensitive=("FLOAT" in dds_format.upper() or "SNORM" in dds_format.upper()),
     )
 
 
@@ -369,14 +369,14 @@ def crimson_dds_format_last4(
     *,
     dxgi_format: int = 0,
     fourcc: bytes | str = b"",
-    texconv_format: str = "",
+    dds_format: str = "",
 ) -> Optional[int]:
     fourcc_bytes = (
         str(fourcc or "").encode("ascii", errors="ignore")
         if isinstance(fourcc, str)
         else bytes(fourcc or b"")
     ).upper()
-    normalized_format = str(texconv_format or "").strip().upper()
+    normalized_format = str(dds_format or "").strip().upper()
     if int(dxgi_format or 0) in _CRIMSON_DDS_LAST4_BC1_DXGI or fourcc_bytes == b"DXT1" or normalized_format.startswith("BC1_"):
         return 12
     if (
@@ -394,7 +394,7 @@ def crimson_dds_format_last4(
     return None
 
 
-def _crimson_dds_texconv_format(
+def _crimson_dds_dds_format(
     *,
     pf_flags: int,
     fourcc: bytes,
@@ -408,20 +408,20 @@ def _crimson_dds_texconv_format(
 ) -> str:
     if pf_flags & DDPF_FOURCC:
         if fourcc == b"DX10":
-            texconv_format = DXGI_TO_TEXCONV.get(dxgi_format, "")
-            if not texconv_format:
+            dds_format = DXGI_TO_DDS_FORMAT.get(dxgi_format, "")
+            if not dds_format:
                 _crimson_dds_finding(
                     findings,
                     "warning",
                     "unknown_dxgi_format",
                     f"DDS uses an unknown DXGI format id: {dxgi_format}.",
                 )
-            return texconv_format
-        texconv_format = LEGACY_FOURCC_TO_TEXCONV.get(fourcc, "")
-        if not texconv_format:
+            return dds_format
+        dds_format = LEGACY_FOURCC_TO_DDS_FORMAT.get(fourcc, "")
+        if not dds_format:
             numeric_fourcc = read_u32_le(fourcc, 0) if len(fourcc) >= 4 else 0
-            texconv_format = LEGACY_NUMERIC_FOURCC_TO_TEXCONV.get(numeric_fourcc, "")
-        if not texconv_format:
+            dds_format = LEGACY_NUMERIC_FOURCC_TO_DDS_FORMAT.get(numeric_fourcc, "")
+        if not dds_format:
             pretty_fourcc = fourcc.decode("ascii", errors="replace")
             _crimson_dds_finding(
                 findings,
@@ -429,7 +429,7 @@ def _crimson_dds_texconv_format(
                 "unknown_fourcc",
                 f"DDS uses an unknown legacy FOURCC: {pretty_fourcc!r}.",
             )
-        return texconv_format
+        return dds_format
     if pf_flags & DDPF_RGB:
         if rgb_bit_count == 32:
             if (r_mask, g_mask, b_mask, a_mask) == (
@@ -461,25 +461,25 @@ def _crimson_dds_texconv_format(
         )
         return ""
     if pf_flags & DDPF_LUMINANCE:
-        texconv_format = _legacy_luminance_texconv_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask) or ""
-        if not texconv_format:
+        dds_format = _legacy_luminance_dds_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask) or ""
+        if not dds_format:
             _crimson_dds_finding(
                 findings,
                 "warning",
                 "unknown_luminance_layout",
                 f"DDS uses an unsupported luminance layout: bits={rgb_bit_count}.",
             )
-        return texconv_format
+        return dds_format
     if pf_flags & DDPF_ALPHA:
-        texconv_format = _legacy_alpha_texconv_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask) or ""
-        if not texconv_format:
+        dds_format = _legacy_alpha_dds_format(rgb_bit_count, r_mask, g_mask, b_mask, a_mask) or ""
+        if not dds_format:
             _crimson_dds_finding(
                 findings,
                 "warning",
                 "unknown_alpha_layout",
                 f"DDS uses an unsupported alpha-only layout: bits={rgb_bit_count}.",
             )
-        return texconv_format
+        return dds_format
     _crimson_dds_finding(
         findings,
         "warning",
@@ -568,7 +568,7 @@ def inspect_crimson_dds(
         else:
             dxgi_format = read_u32_le(blob, 128)
 
-    texconv_format = _crimson_dds_texconv_format(
+    dds_format = _crimson_dds_dds_format(
         pf_flags=pf_flags,
         fourcc=fourcc,
         rgb_bit_count=rgb_bit_count,
@@ -584,7 +584,7 @@ def inspect_crimson_dds(
     format_last4 = crimson_dds_format_last4(
         dxgi_format=dxgi_format,
         fourcc=fourcc,
-        texconv_format=texconv_format,
+        dds_format=dds_format,
     )
     resolved_pathc_last4 = int(pathc_last4) if pathc_last4 is not None else None
     effective_last4 = (
@@ -632,7 +632,7 @@ def inspect_crimson_dds(
             findings,
             "info",
             "requires_pathc",
-            f"DDS format {texconv_format or dxgi_format} uses DX10 metadata and should be registered through PATHC/manifest metadata.",
+            f"DDS format {dds_format or dxgi_format} uses DX10 metadata and should be registered through PATHC/manifest metadata.",
         )
     if effective_last4 is not None:
         _crimson_dds_finding(
@@ -680,7 +680,7 @@ def inspect_crimson_dds(
         mip_count=mip_count,
         raw_mip_count=raw_mip_count,
         depth=depth,
-        texconv_format=texconv_format,
+        dds_format=dds_format,
         is_dx10=is_dx10,
         dxgi_format=dxgi_format,
         fourcc=fourcc.decode("ascii", errors="replace"),

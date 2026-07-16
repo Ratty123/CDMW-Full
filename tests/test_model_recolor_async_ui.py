@@ -152,7 +152,7 @@ def test_recolor_analysis_and_image_preview_run_off_ui_thread() -> None:
         source = _write_mod(root)
         analysis = analyze_recolor_variant_package(source)
         settings = create_settings(settings_file_path=root / "settings.ini")
-        tab = RecolorVariantsTab(settings=settings, base_dir=root, get_texconv_path=lambda: "")
+        tab = RecolorVariantsTab(settings=settings, base_dir=root)
         tab.source_path_edit.setText(str(source))
 
         def slow_analysis(_source: Path, *, stop_event: threading.Event) -> object:
@@ -208,7 +208,7 @@ def test_recolor_stale_analysis_and_close_do_not_publish_or_block() -> None:
         source = _write_mod(root)
         analysis = analyze_recolor_variant_package(source)
         settings = create_settings(settings_file_path=root / "settings.ini")
-        tab = RecolorVariantsTab(settings=settings, base_dir=root, get_texconv_path=lambda: "")
+        tab = RecolorVariantsTab(settings=settings, base_dir=root)
         tab.source_path_edit.setText(str(source))
 
         def slow_analysis(_source: Path, *, stop_event: threading.Event) -> object:

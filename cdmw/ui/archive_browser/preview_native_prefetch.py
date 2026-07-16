@@ -79,7 +79,6 @@ class ArchivePreviewNativePrefetchMixin:
             cache_key = self._archive_native_preview_package_cache_key(
                 candidate,
                 companion_entry,
-                Path(self.texconv_path_edit.text().strip()).expanduser() if self.texconv_path_edit.text().strip() else None,
                 self._collect_archive_preview_loose_roots(),
             )
             if not cache_key:
@@ -120,8 +119,6 @@ class ArchivePreviewNativePrefetchMixin:
         )
         cache_mode = self._native_preview_package_cache_mode()
         cache_max_bytes, cache_target_bytes = self._native_preview_package_cache_budget()
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         loose_search_roots = self._collect_archive_preview_loose_roots()
         jobs = tuple(
             (
@@ -130,7 +127,6 @@ class ArchivePreviewNativePrefetchMixin:
                 self._archive_native_preview_package_cache_key(
                     entry,
                     self._find_archive_preview_companion_entry(entry),
-                    texconv_path,
                     loose_search_roots,
                 ),
             )

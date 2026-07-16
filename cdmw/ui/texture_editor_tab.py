@@ -174,7 +174,6 @@ class TextureEditorTab(
         self, *,
         settings: QSettings,
         base_dir: Path,
-        get_texconv_path,
         get_png_root,
         get_original_dds_root=None,
         get_archive_entries=None,
@@ -184,7 +183,6 @@ class TextureEditorTab(
         super().__init__(parent)
         self.settings = settings
         self.base_dir = base_dir
-        self.get_texconv_path = get_texconv_path
         self.get_png_root = get_png_root
         self.get_original_dds_root = get_original_dds_root or (lambda: "")
         self.get_archive_entries = get_archive_entries or (lambda: [])

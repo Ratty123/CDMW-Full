@@ -42,7 +42,7 @@ class DdsDx10FormatTests(unittest.TestCase):
 
                 info = parse_dds(path)
 
-                self.assertEqual(info.texconv_format, expected_texconv)
+                self.assertEqual(info.dds_format, expected_texconv)
 
 
 if __name__ == "__main__":

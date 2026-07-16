@@ -160,7 +160,41 @@ def _fake_dds_bytes(width: int, height: int, *, mips: int = 1, fourcc: bytes = b
     return bytes(data)
 
 
+def _fake_native_dds_encode(_source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+    dds_format = str(kwargs.get("dds_format") or "BC1_UNORM").upper()
+    fourcc = {
+        "BC1_UNORM": b"DXT1",
+        "BC1_UNORM_SRGB": b"DXT1",
+        "BC2_UNORM": b"DXT3",
+        "BC2_UNORM_SRGB": b"DXT3",
+        "BC3_UNORM": b"DXT5",
+        "BC3_UNORM_SRGB": b"DXT5",
+        "BC4_UNORM": b"BC4U",
+        "BC4_SNORM": b"BC4S",
+        "BC5_UNORM": b"BC5U",
+        "BC5_SNORM": b"BC5S",
+    }.get(dds_format, b"DXT1")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(
+        _fake_dds_bytes(
+            int(kwargs.get("width") or 1),
+            int(kwargs.get("height") or 1),
+            mips=int(kwargs.get("mip_count") or 1),
+            fourcc=fourcc,
+        )
+    )
+    return {"status": "encoded", "format": dds_format}
+
+
 class StaticTextureReplacementTests(unittest.TestCase):
+    def setUp(self) -> None:
+        encode_patch = patch(
+            "cdmw.core.texture_native.encode_dds_with_directxtex",
+            side_effect=_fake_native_dds_encode,
+        )
+        encode_patch.start()
+        self.addCleanup(encode_patch.stop)
+
     def test_sidecar_patch_can_neutralize_inherited_material_layers(self) -> None:
         sidecar_text = """
 <Root>
@@ -485,7 +519,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                             target_material_slot_index=0,
                         ),
                     ),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes()
                     if entry is normal_entry
                     else base_template.read_bytes(),
@@ -580,7 +613,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(StaticSubmeshMapping(0, "Helmet", [0], 0),),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: template.read_bytes(),
                     original_texture_source_path=lambda _entry: template,
                     pac_driven_sidecar=True,
@@ -1205,7 +1237,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                         ),
                         original_sidecars=((sidecar_entry, sidecar_text),),
                         submesh_mappings=(StaticSubmeshMapping(0, "Blade", [0], 0),),
-                        texconv_path=texconv,
                         read_original_texture_bytes=lambda _entry: template.read_bytes(),
                         original_texture_source_path=lambda _entry: template,
                         pac_driven_sidecar=True,
@@ -2076,7 +2107,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     submesh_mappings=(
                         StaticSubmeshMapping(0, "Gem_outside", [0], 0),
                     ),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -2157,7 +2187,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     submesh_mappings=(
                         StaticSubmeshMapping(0, "Gem_inside", [0], 0),
                     ),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -2226,7 +2255,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(StaticSubmeshMapping(0, "Gem_inside", [0], 0),),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -2312,7 +2340,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(StaticSubmeshMapping(0, "Gem_outside", [0], 0),),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -2661,7 +2688,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=tuple(refs),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: template_dds.read_bytes(),
                     original_texture_source_path=lambda _entry: template_dds,
                     pac_driven_sidecar=True,
@@ -2807,7 +2833,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((_entry("character/modelproperty/cd_phm_02_sword_0015.pac_xml", root), sidecar_text),),
                     submesh_mappings=(mapping,),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template_dds.read_bytes()
                     if "_n.dds" in str(getattr(entry, "path", "")).lower()
                     else template_dds.read_bytes(),
@@ -3123,7 +3148,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((_entry("character/modelproperty/cd_phm_02_sword_0036.pac_xml", root), sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: (
                         normal_template.read_bytes()
                         if entry is entries["normal"]
@@ -3289,7 +3313,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((_entry("character/modelproperty/cd_phm_02_sword_0036.pac_xml", root), sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: (
                         normal_template.read_bytes()
                         if entry is entries["normal"]
@@ -3418,7 +3441,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((_entry("character/modelproperty/test.pac_xml", root), sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is entries["normal"] else support_template.read_bytes() if entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is entries["normal"] else support_template if entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template,
                     pac_driven_sidecar=True,
@@ -3619,7 +3641,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is entries["normal"] else support_template.read_bytes() if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is entries["normal"] else support_template if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template,
                     pac_driven_sidecar=True,
@@ -3867,7 +3888,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is entries["normal"] else support_template.read_bytes() if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is entries["normal"] else support_template if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template,
                     pac_driven_sidecar=True,
@@ -4102,7 +4122,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: support_template.read_bytes() if entry is entries["material_mask"] else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: support_template if entry is entries["material_mask"] else base_template,
                     pac_driven_sidecar=True,
@@ -4312,7 +4331,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is entries["normal"] else support_template.read_bytes() if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is entries["normal"] else support_template if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template,
                     pac_driven_sidecar=True,
@@ -4402,7 +4420,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -4741,7 +4758,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is entries["normal"] else support_template.read_bytes() if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is entries["normal"] else support_template if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template,
                     pac_driven_sidecar=True,
@@ -4879,7 +4895,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is entries["normal"] else support_template.read_bytes() if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is entries["normal"] else support_template if entry is entries["height"] or entry is entries["material_mask"] or entry is entries["detail_mask"] else base_template,
                     pac_driven_sidecar=True,
@@ -4953,7 +4968,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -5032,7 +5046,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -5154,7 +5167,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 ),
                 original_sidecars=((sidecar_entry, sidecar_text),),
                 submesh_mappings=(),
-                texconv_path=texconv,
                 read_original_texture_bytes=lambda _entry: template.read_bytes(),
                 original_texture_source_path=lambda _entry: template,
                 pac_driven_sidecar=True,
@@ -5240,7 +5252,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     ),
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(StaticSubmeshMapping(0, "CD_PHM_02_Handle_0015", [0, 1], 0),),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: base_template.read_bytes(),
                     original_texture_source_path=lambda _entry: base_template,
                     pac_driven_sidecar=True,
@@ -5349,7 +5360,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(StaticSubmeshMapping(0, "CD_PHM_02_Sword_0042", [0, 1], 0),),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: template.read_bytes(),
                     original_texture_source_path=lambda _entry: template,
                     pac_driven_sidecar=True,
@@ -5446,7 +5456,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(StaticSubmeshMapping(0, "CD_PHM_02_Handle_0015", [0], 0),),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: template.read_bytes(),
                     original_texture_source_path=lambda _entry: template,
                     pac_driven_sidecar=True,
@@ -5696,7 +5705,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 original_texture_refs=(),
                 original_sidecars=((sidecar_entry, sidecar_text),),
                 submesh_mappings=(StaticSubmeshMapping(0, "Remove_A", [], 0),),
-                texconv_path=None,
                 read_original_texture_bytes=lambda _entry: b"",
                 original_texture_source_path=lambda _entry: root / "unused.dds",
                 pac_driven_sidecar=True,
@@ -5732,7 +5740,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 original_texture_refs=(),
                 original_sidecars=((sidecar_entry, sidecar_text),),
                 submesh_mappings=(StaticSubmeshMapping(0, "Target_A", [], 0),),
-                texconv_path=None,
                 read_original_texture_bytes=lambda _entry: b"",
                 original_texture_source_path=lambda _entry: root / "unused.dds",
                 pac_driven_sidecar=True,
@@ -5865,30 +5872,16 @@ class StaticTextureReplacementTests(unittest.TestCase):
             root = Path(temp_dir)
             source_png = root / "replacement_Base_Color.png"
             original_dds = root / "original.dds"
-            texconv = root / "texconv.exe"
             _write_fake_png_header(source_png, 4096, 4096)
             original_dds.write_bytes(_fake_dds_bytes(256, 512, mips=10))
-            texconv.write_bytes(b"fake")
-
-            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
-                out_dir = Path(command[command.index("-o") + 1])
-                width = int(command[command.index("-w") + 1])
-                height = int(command[command.index("-h") + 1])
-                mips = int(command[command.index("-m") + 1])
-                produced = out_dir / f"{Path(command[-1]).stem}.dds"
-                produced.write_bytes(_fake_dds_bytes(width, height, mips=mips))
-                return 0, "", ""
-
-            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
-                payload = _build_texture_payload(
-                    ReplacementTextureSlot("replacement", "base", source_png),
-                    target_entry=object(),
-                    texconv_path=texconv,
-                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
-                    original_texture_source_path=lambda _entry: original_dds,
-                    report=TextureReplacementReport(),
-                    on_log=None,
-                )
+            payload = _build_texture_payload(
+                ReplacementTextureSlot("replacement", "base", source_png),
+                target_entry=object(),
+                read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                original_texture_source_path=lambda _entry: original_dds,
+                report=TextureReplacementReport(),
+                on_log=None,
+            )
 
             output_dds = root / "output.dds"
             output_dds.write_bytes(payload)
@@ -5901,32 +5894,19 @@ class StaticTextureReplacementTests(unittest.TestCase):
             root = Path(temp_dir)
             source_png = root / "replacement_Base_Color.png"
             original_dds = root / "original.dds"
-            texconv = root / "texconv.exe"
             _write_fake_png_header(source_png, 4096, 4096)
             original_dds.write_bytes(_fake_dds_bytes(256, 512, mips=10))
-            texconv.write_bytes(b"fake")
             report = TextureReplacementReport()
 
-            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
-                out_dir = Path(command[command.index("-o") + 1])
-                width = int(command[command.index("-w") + 1])
-                height = int(command[command.index("-h") + 1])
-                mips = int(command[command.index("-m") + 1])
-                produced = out_dir / f"{Path(command[-1]).stem}.dds"
-                produced.write_bytes(_fake_dds_bytes(width, height, mips=mips))
-                return 0, "", ""
-
-            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
-                payload = _build_texture_payload(
-                    ReplacementTextureSlot("replacement", "base", source_png),
-                    target_entry=object(),
-                    texconv_path=texconv,
-                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
-                    original_texture_source_path=lambda _entry: original_dds,
-                    report=report,
-                    on_log=None,
-                    texture_output_size_mode="original",
-                )
+            payload = _build_texture_payload(
+                ReplacementTextureSlot("replacement", "base", source_png),
+                target_entry=object(),
+                read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                original_texture_source_path=lambda _entry: original_dds,
+                report=report,
+                on_log=None,
+                texture_output_size_mode="original",
+            )
 
             output_dds = root / "output.dds"
             output_dds.write_bytes(payload)
@@ -5940,29 +5920,19 @@ class StaticTextureReplacementTests(unittest.TestCase):
             root = Path(temp_dir)
             source_png = root / "Helmet_normal.png"
             original_dds = root / "original_color.dds"
-            texconv = root / "texconv.exe"
             _write_fake_png_header(source_png, 4096, 4096)
             original_dds.write_bytes(_fake_dds_bytes(256, 256, mips=9, fourcc=b"DXT1"))
-            texconv.write_bytes(b"fake")
             seen_formats: list[str] = []
 
-            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
-                out_dir = Path(command[command.index("-o") + 1])
-                width = int(command[command.index("-w") + 1])
-                height = int(command[command.index("-h") + 1])
-                mips = int(command[command.index("-m") + 1])
-                fmt = str(command[command.index("-f") + 1])
-                seen_formats.append(fmt)
-                produced = out_dir / f"{Path(command[-1]).stem}.dds"
-                produced.write_bytes(_fake_dds_bytes(width, height, mips=mips, fourcc=b"BC5U" if fmt == "BC5_UNORM" else b"DXT1"))
-                return 0, "", ""
+            def fake_native_encode(source: Path, target: Path, **kwargs: object) -> dict[str, object]:
+                seen_formats.append(str(kwargs["dds_format"]))
+                return _fake_native_dds_encode(source, target, **kwargs)
 
             report = TextureReplacementReport()
-            with patch("cdmw.core.common.run_process_with_cancellation", side_effect=fake_texconv):
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
                 payload = _build_texture_payload(
                     ReplacementTextureSlot("Helmet", "normal", source_png),
                     target_entry=object(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
                     original_texture_source_path=lambda _entry: original_dds,
                     report=report,
@@ -5972,7 +5942,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             output_dds = root / "output.dds"
             output_dds.write_bytes(payload)
             self.assertEqual(["BC5_UNORM"], seen_formats)
-            self.assertEqual("BC5_UNORM", parse_dds(output_dds).texconv_format)
+            self.assertEqual("BC5_UNORM", parse_dds(output_dds).dds_format)
             self.assertTrue(any("normal map output uses BC5_UNORM" in warning for warning in report.warnings))
 
     def test_material_mask_bc1_encode_forces_opaque_alpha_to_preserve_rgb(self) -> None:
@@ -5999,7 +5969,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 payload = _build_texture_payload(
                     ReplacementTextureSlot("Helmet", "material_mask", source_png),
                     target_entry=object(),
-                    texconv_path=None,
                     read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
                     original_texture_source_path=lambda _entry: original_dds,
                     report=TextureReplacementReport(),
@@ -6009,7 +5978,7 @@ class StaticTextureReplacementTests(unittest.TestCase):
             self.assertEqual([(255, 192, 0, 255)], seen_pixels)
             output_dds = root / "output.dds"
             output_dds.write_bytes(payload)
-            self.assertEqual("BC1_UNORM", parse_dds(output_dds).texconv_format)
+            self.assertEqual("BC1_UNORM", parse_dds(output_dds).dds_format)
 
     def test_non_material_bc1_encode_keeps_source_alpha(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -6035,7 +6004,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 _build_texture_payload(
                     ReplacementTextureSlot("replacement", "base", source_png),
                     target_entry=object(),
-                    texconv_path=None,
                     read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
                     original_texture_source_path=lambda _entry: original_dds,
                     report=TextureReplacementReport(),
@@ -6044,48 +6012,31 @@ class StaticTextureReplacementTests(unittest.TestCase):
 
             self.assertEqual([(10, 20, 30, 0)], seen_pixels)
 
-    def test_png_to_dds_falls_back_when_native_encode_writes_invalid_dds(self) -> None:
+    def test_png_to_dds_fails_when_native_encode_writes_invalid_dds(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source_png = root / "replacement_Base_Color.png"
             original_dds = root / "original.dds"
-            texconv = root / "texconv.exe"
             _write_fake_png_header(source_png, 128, 64)
             original_dds.write_bytes(_fake_dds_bytes(128, 64, mips=8))
-            texconv.write_bytes(b"fake")
             report = TextureReplacementReport()
 
             def fake_native_encode(_source: Path, target: Path, **_kwargs: object) -> dict[str, object]:
                 target.write_bytes(b"bad")
                 return {"ok": True}
 
-            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
-                out_dir = Path(command[command.index("-o") + 1])
-                width = int(command[command.index("-w") + 1])
-                height = int(command[command.index("-h") + 1])
-                mips = int(command[command.index("-m") + 1])
-                produced = out_dir / f"{Path(command[-1]).stem}.dds"
-                produced.write_bytes(_fake_dds_bytes(width, height, mips=mips))
-                return 0, "", ""
+            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode):
+                with self.assertRaisesRegex(RuntimeError, "Native DDS encode failed"):
+                    _build_texture_payload(
+                        ReplacementTextureSlot("replacement", "base", source_png),
+                        target_entry=object(),
+                        read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
+                        original_texture_source_path=lambda _entry: original_dds,
+                        report=report,
+                        on_log=None,
+                    )
 
-            with patch("cdmw.core.texture_native.encode_dds_with_directxtex", side_effect=fake_native_encode), patch(
-                "cdmw.core.common.run_process_with_cancellation",
-                side_effect=fake_texconv,
-            ):
-                payload = _build_texture_payload(
-                    ReplacementTextureSlot("replacement", "base", source_png),
-                    target_entry=object(),
-                    texconv_path=texconv,
-                    read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
-                    original_texture_source_path=lambda _entry: original_dds,
-                    report=report,
-                    on_log=None,
-                )
-
-            output_dds = root / "output.dds"
-            output_dds.write_bytes(payload)
-            self.assertEqual((128, 64), (parse_dds(output_dds).width, parse_dds(output_dds).height))
-            self.assertTrue(any("invalid DDS" in warning and "falling back to texconv" in warning for warning in report.warnings))
+            self.assertTrue(any("native DDS encode produced an invalid DDS" in warning for warning in report.warnings))
 
     def test_direct_dds_replacement_reports_crimson_validation_warnings(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -6100,7 +6051,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
             payload = _build_texture_payload(
                 ReplacementTextureSlot("replacement", "base", source_dds),
                 target_entry=entry,
-                texconv_path=None,
                 read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
                 original_texture_source_path=lambda _entry: original_dds,
                 report=report,
@@ -6135,7 +6085,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                 payload = _build_texture_payload(
                     ReplacementTextureSlot("replacement", "base", source_dds, base_color_lift=90),
                     target_entry=entry,
-                    texconv_path=None,
                     read_original_texture_bytes=lambda _entry: original_dds.read_bytes(),
                     original_texture_source_path=lambda _entry: original_dds,
                     report=report,
@@ -6666,7 +6615,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=(),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes()
                     if entry is entries["normal"]
                     else base_template.read_bytes(),
@@ -6855,7 +6803,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=(),
                     submesh_mappings=(StaticSubmeshMapping(0, "Helmet", [0], 0),),
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: template.read_bytes(),
                     original_texture_source_path=lambda _entry: template,
                     texture_slot_overrides=(
@@ -6971,7 +6918,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: (
                         normal_template.read_bytes()
                         if entry is normal_entry
@@ -7092,7 +7038,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is entries["_normalTexture"] else template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is entries["_normalTexture"] else template,
                     pac_driven_sidecar=True,
@@ -7188,7 +7133,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: normal_template.read_bytes() if entry is normal_entry else base_template.read_bytes(),
                     original_texture_source_path=lambda entry: normal_template if entry is normal_entry else base_template,
                     pac_driven_sidecar=True,
@@ -7460,7 +7404,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda _entry: template_dds.read_bytes(),
                     original_texture_source_path=lambda _entry: template_dds,
                     source_material_texture_overrides=(("AddedPart", "base", str(chosen_base)),),
@@ -7848,7 +7791,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: (
                         template_base_dds.read_bytes()
                         if entry is base_entry
@@ -7898,7 +7840,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: (
                         template_base_dds.read_bytes()
                         if entry is base_entry
@@ -8002,7 +7943,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=texconv,
                     read_original_texture_bytes=lambda entry: template_base.read_bytes() if entry is base_entry else template_normal.read_bytes(),
                     original_texture_source_path=lambda entry: template_base if entry is base_entry else template_normal,
                     pac_driven_sidecar=True,
@@ -8096,7 +8036,6 @@ class StaticTextureReplacementTests(unittest.TestCase):
                     original_texture_refs=original_refs,
                     original_sidecars=((sidecar_entry, sidecar_text),),
                     submesh_mappings=mappings,
-                    texconv_path=None,
                     read_original_texture_bytes=lambda entry: template_base.read_bytes() if entry is base_entry else template_normal.read_bytes(),
                     original_texture_source_path=lambda entry: template_base if entry is base_entry else template_normal,
                     texture_slot_overrides=(

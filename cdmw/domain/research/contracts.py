@@ -166,7 +166,7 @@ class MipAnalysisRow:
 class NormalValidationRow:
     path: str
     root_label: str
-    texconv_format: str
+    dds_format: str
     size_text: str
     issue_count: int
     root_path: str = ""

@@ -119,14 +119,12 @@ class RecolorVariantsTab(QWidget):
         *,
         settings: QSettings,
         base_dir: Path,
-        get_texconv_path: Callable[[], str],
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.setObjectName("RecolorVariantsTab")
         self.settings = settings
         self.base_dir = Path(base_dir).expanduser().resolve()
-        self.get_texconv_path = get_texconv_path
         self.analysis: Optional[RecolorVariantAnalysis] = None
         self.templates: List[RecolorVariantTemplate] = list(load_recolor_variant_templates(self.base_dir))
         self.last_output_roots: tuple[Path, ...] = ()
@@ -771,7 +769,7 @@ class RecolorVariantsTab(QWidget):
             state = "Editable" if target.editable else f"Locked: {target.locked_reason}"
             dds_text = ""
             if target.width and target.height:
-                dds_text = f"{target.width}x{target.height} {target.texconv_format} mips {target.mip_count}"
+                dds_text = f"{target.width}x{target.height} {target.dds_format} mips {target.mip_count}"
             item = QTreeWidgetItem(
                 [
                     target.game_path,
@@ -948,8 +946,6 @@ class RecolorVariantsTab(QWidget):
         if target.target_kind != "texture_slot":
             self.status_message_requested.emit("Material color targets use swatches instead of DDS preview.", False)
             return
-        texconv_text = self.get_texconv_path().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         analysis = self.analysis
         if analysis is None:
             return
@@ -961,7 +957,6 @@ class RecolorVariantsTab(QWidget):
                 analysis,
                 template,
                 target_id,
-                texconv_path=texconv_path,
                 stop_event=stop_event,
             )
             source_image = QImage(str(preview.source_png))
@@ -1036,7 +1031,7 @@ class RecolorVariantsTab(QWidget):
             relative_path=target.game_path,
             archive_relative_path=target.game_path,
             original_dds_path=str(self.current_preview_image.source_dds_path),
-            original_texconv_format=target.texconv_format,
+            original_dds_format=target.dds_format,
             texture_type=target.texture_type,
             semantic_subtype=target.semantic_subtype,
         )
@@ -1095,8 +1090,6 @@ class RecolorVariantsTab(QWidget):
             return
         self._save_settings()
         template = self._template_from_controls()
-        texconv_text = self.get_texconv_path().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         self.build_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.outputs_tree.clear()
@@ -1108,7 +1101,6 @@ class RecolorVariantsTab(QWidget):
             template,
             Path(output_root_text),
             profiles,
-            texconv_path=texconv_path,
             overwrite_existing=self.overwrite_checkbox.isChecked(),
         )
         self._operation_request_id += 1

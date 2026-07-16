@@ -92,7 +92,7 @@ def test_language_workers_validate_and_publish_atomically(tmp_path: Path) -> Non
     )
     assert export.output_path == output_path
     payload = json.loads(output_path.read_text(encoding="utf-8"))
-    assert "Open DirectXTex / texconv Page" in payload["translations"]
+    assert "Apply Suggested Overrides..." in payload["translations"]
     assert payload["translations"]["Live string"] == "Cadena activa"
     assert not tuple(tmp_path.glob(".*.tmp"))
 

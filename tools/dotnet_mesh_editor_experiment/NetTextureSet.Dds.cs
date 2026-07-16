@@ -87,8 +87,7 @@ internal sealed partial class NetTextureSet
             stream.Position = Math.Min(stream.Length, dataOffset);
             var data = reader.ReadBytes((int)Math.Max(0, stream.Length - stream.Position));
             var bitmap = DecodeDdsBitmap(width, height, formatKey, rgbBitCount, rMask, gMask, bMask, aMask, data)
-                ?? DecodeDdsWithCdTextureDx(path)
-                ?? DecodeDdsWithTexconv(path);
+                ?? DecodeDdsWithCdTextureDx(path);
             var native = BuildNativeDdsTextureData(
                 width,
                 height,
@@ -142,6 +141,7 @@ internal sealed partial class NetTextureSet
             var reportPath = Path.Combine(outputDir, "report.json");
             var job = new Dictionary<string, object?>
             {
+                ["protocol_version"] = 2,
                 ["jobs"] = new[]
                 {
                     new Dictionary<string, object?>
@@ -150,8 +150,9 @@ internal sealed partial class NetTextureSet
                         ["output"] = outputPng,
                         ["slot"] = "dotnet_preview",
                         ["max_dimension"] = 4096,
-                        ["srgb"] = true,
-                        ["normal_space"] = string.Empty,
+                        ["requested_mip"] = 0,
+                        ["output_pixel_type"] = "rgba8",
+                        ["normal_space"] = "auto",
                     }
                 }
             };
@@ -172,70 +173,24 @@ internal sealed partial class NetTextureSet
             {
                 return null;
             }
-            if (!process.WaitForExit(10000) || process.ExitCode != 0 || !File.Exists(outputPng))
+            if (!process.WaitForExit(10000))
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(5000);
+                }
+                catch
+                {
+                    // Best-effort process-tree termination.
+                }
+                return null;
+            }
+            if (process.ExitCode != 0 || !File.Exists(outputPng))
             {
                 return null;
             }
             using var decoded = new Bitmap(outputPng);
-            return new Bitmap(decoded);
-        }
-        catch
-        {
-            return null;
-        }
-        finally
-        {
-            try
-            {
-                Directory.Delete(outputDir, recursive: true);
-            }
-            catch
-            {
-                // Best-effort temp cleanup.
-            }
-        }
-    }
-
-    private static Bitmap? DecodeDdsWithTexconv(string path)
-    {
-        var texconv = FindTexconvExecutable();
-        if (string.IsNullOrWhiteSpace(texconv) || !File.Exists(texconv))
-        {
-            return null;
-        }
-        var outputDir = Path.Combine(Path.GetTempPath(), "cdmw-dotnet-dds", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(outputDir);
-        try
-        {
-            var start = new ProcessStartInfo
-            {
-                FileName = texconv,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardError = true,
-                RedirectStandardOutput = true,
-            };
-            start.ArgumentList.Add("-y");
-            start.ArgumentList.Add("-ft");
-            start.ArgumentList.Add("png");
-            start.ArgumentList.Add("-o");
-            start.ArgumentList.Add(outputDir);
-            start.ArgumentList.Add(path);
-            using var process = Process.Start(start);
-            if (process is null)
-            {
-                return null;
-            }
-            if (!process.WaitForExit(10000) || process.ExitCode != 0)
-            {
-                return null;
-            }
-            var png = Directory.EnumerateFiles(outputDir, "*.png").FirstOrDefault();
-            if (string.IsNullOrWhiteSpace(png) || !File.Exists(png))
-            {
-                return null;
-            }
-            using var decoded = new Bitmap(png);
             return new Bitmap(decoded);
         }
         catch
@@ -268,35 +223,6 @@ internal sealed partial class NetTextureSet
             Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "cd_texture_dx", "build", "Debug", "cd-texture-dx.exe")),
             Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "native", "cd_texture_dx", "build", "Release", "cd-texture-dx.exe")),
             Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "native", "cd_texture_dx", "build", "Debug", "cd-texture-dx.exe")),
-        };
-        foreach (var candidate in candidates)
-        {
-            if (!string.IsNullOrWhiteSpace(candidate) && File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-        return string.Empty;
-    }
-
-    private static string FindTexconvExecutable()
-    {
-        var env = Environment.GetEnvironmentVariable("CDMW_TEXCONV_EXE");
-        var baseDir = AppContext.BaseDirectory;
-        var candidates = new[]
-        {
-            env,
-            Path.Combine(baseDir, "texconv.exe"),
-            Path.Combine(baseDir, "native", "texconv.exe"),
-            Path.Combine(baseDir, "native", "cd_texture_dx", "texconv.exe"),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "cd_texture_dx", "build", "bin", "Release", "texconv.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "cd_texture_dx", "build", "bin", "Debug", "texconv.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "cdmw_d3d11_preview", "build", "bin", "Release", "texconv.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "cdmw_d3d11_preview", "build", "bin", "Debug", "texconv.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "native", "cd_texture_dx", "build", "bin", "Release", "texconv.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "native", "cd_texture_dx", "build", "bin", "Debug", "texconv.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "native", "cdmw_d3d11_preview", "build", "bin", "Release", "texconv.exe")),
-            Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "native", "cdmw_d3d11_preview", "build", "bin", "Debug", "texconv.exe")),
         };
         foreach (var candidate in candidates)
         {

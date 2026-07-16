@@ -133,13 +133,11 @@ def _show_mip_row_details(self, row: MipAnalysisRow) -> None:
         self.analysis_detail_edit,
         lambda: self.analysis_detail_edit.setPlainText("Loading Mip Analysis details..."),
     )
-    texconv_path = Path(self.get_texconv_path()).expanduser() if self.get_texconv_path().strip() else None
     family_lookup = self.research_payload.get("mip_detail_family_members_by_path")
     family_members = family_lookup.get(row.relative_path, ()) if isinstance(family_lookup, dict) else ()
     request = mip_detail_request(
         Path(original_root_text).expanduser() if original_root_text else Path("."),
         Path(output_root_text).expanduser() if output_root_text else Path("."),
-        texconv_path,
         row,
         family_members if isinstance(family_members, (list, tuple)) else (),
     )
@@ -156,10 +154,9 @@ def _show_normal_row_details(self, row: NormalValidationRow) -> None:
         self.analysis_detail_edit,
         lambda: self.analysis_detail_edit.setPlainText("Loading Bulk Normal Validator details..."),
     )
-    texconv_path = Path(self.get_texconv_path()).expanduser() if self.get_texconv_path().strip() else None
     root_path = Path(row.root_path).expanduser() if row.root_path else Path(".")
     self.analysis_task_controller.queue_detail(
-        normal_detail_request(root_path, texconv_path, row),
+        normal_detail_request(root_path, row),
         on_complete=self._apply_analysis_detail_result,
         on_error=self._handle_analysis_detail_error,
     )

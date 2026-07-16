@@ -70,7 +70,6 @@ def _build_base_color_injection_for_target(
     texture_set: ReplacementTextureSet,
     original_texture_refs: Sequence[object],
     material_refs: Sequence[object],
-    texconv_path: Optional[Path],
     read_original_texture_bytes: Callable[[object], bytes],
     original_texture_source_path: Callable[[object], Path],
     report: TextureReplacementReport,
@@ -109,7 +108,6 @@ def _build_base_color_injection_for_target(
         payload_data = _build_texture_payload(
             base_slot,
             target_entry=getattr(template_reference, "resolved_entry", None),
-            texconv_path=texconv_path,
             read_original_texture_bytes=read_original_texture_bytes,
             original_texture_source_path=original_texture_source_path,
             report=report,

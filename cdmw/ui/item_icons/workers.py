@@ -486,7 +486,6 @@ class ItemIconWorkerMixin:
             request_id=self._source_preview_request_id,
             source_path=path,
             output_dir=Path(self._temp_preview_dir.name),
-            texconv_path=self._texconv_path(),
             decode_size=self._preview_decode_size(self.source_preview_scroll),
         )
         self._pending_source_preview_request = request
@@ -555,7 +554,6 @@ class ItemIconWorkerMixin:
             target_entry=target_entry,
             target_path=target_path,
             output_path=preview_path,
-            texconv_path=self._texconv_path(),
             background_mode=background_mode,
             decode_size=self._preview_decode_size(self.final_preview_scroll),
             resolve_target_template_path=self.resolve_target_template_path,
@@ -631,7 +629,6 @@ class ItemIconWorkerMixin:
             action=str(action),
             spec=spec,
             destination=Path(destination),
-            texconv_path=self._texconv_path(),
             resolve_target_template_path=self.resolve_target_template_path,
         )
         self._pending_output_request = request

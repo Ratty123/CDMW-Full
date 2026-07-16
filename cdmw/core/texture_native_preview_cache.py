@@ -12,54 +12,69 @@ from cdmw.models import RunCancelled
 
 def add_preview_result(
     results: Dict[str, Path],
-    job: Mapping[str, object],
+    job: backend.NativeTextureDecodeCacheJob,
     output_path: Path,
     include_job_keys: bool,
 ) -> None:
-    results[str(job["input"])] = output_path
+    results[str(job.request.input_path)] = output_path
     if include_job_keys:
-        results[str(job["result_key"])] = output_path
+        results[job.result_key] = output_path
 
 
 def ensure_preview_batch_locked(
     binary: Path,
-    jobs: Sequence[Mapping[str, object]],
+    jobs: Sequence[backend.NativeTextureDecodeCacheJob],
     results: Dict[str, Path],
     *,
     timeout_seconds: float,
     include_job_keys: bool,
+    on_log: Optional[object],
     stop_event: Optional[threading.Event],
 ) -> Dict[str, Path]:
-    pending: list[Mapping[str, object]] = []
+    pending: list[backend.NativeTextureDecodeCacheJob] = []
     for job in jobs:
-        output = Path(str(job["output"]))
+        output = job.request.output_path
         if backend._cached_preview_is_valid(output):
             add_preview_result(results, job, output, include_job_keys)
         else:
             pending.append(job)
     if not pending:
         return results
-    staging_parent = Path(str(pending[0]["output"])).parent
+    staging_parent = pending[0].request.output_path.parent
     with preview_staging_dir(staging_parent) as job_root:
         job_path = job_root / "job.json"
         report_path = job_root / "report.json"
-        staged_by_output: Dict[str, tuple[Mapping[str, object], Path]] = {}
+        staged_by_output: Dict[str, tuple[backend.NativeTextureDecodeCacheJob, Path]] = {}
         helper_jobs: list[Dict[str, object]] = []
         for index, job in enumerate(pending):
-            staged = job_root / f"{index:04d}-{Path(str(job['output'])).name}"
-            helper_job = {key: value for key, value in job.items() if key not in {"result_key", "cache_key"}}
-            helper_job["output"] = str(staged)
-            helper_jobs.append(helper_job)
+            staged = job_root / f"{index:04d}-{job.request.output_path.name}"
+            helper_jobs.append(backend._decode_request_payload(job.request, output_path=staged))
             staged_by_output[str(staged.resolve())] = (job, staged)
         job_path.write_text(
-            json.dumps({"version": 1, "backend": backend.DIRECTXTEX_TEXTURE_BACKEND_ID, "jobs": helper_jobs}, indent=2),
+            json.dumps(
+                {
+                    "version": backend.NATIVE_TEXTURE_PROTOCOL_VERSION,
+                    "backend": backend.DIRECTXTEX_TEXTURE_BACKEND_ID,
+                    "jobs": helper_jobs,
+                },
+                indent=2,
+            ),
             encoding="utf-8",
         )
         try:
             backend.raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
+            def emit_heartbeat(elapsed_seconds: float) -> None:
+                if callable(on_log):
+                    on_log(
+                        f"Native texture decode is still running after {elapsed_seconds:.0f}s "
+                        f"(timeout {timeout_seconds:.0f}s)."
+                    )
+
             returncode, _stdout, stderr = backend.run_process_with_cancellation(
                 [str(binary), "batch-preview-json", str(job_path), str(report_path), *backend._native_diagnostic_args()],
-                timeout_seconds=max(1.0, float(timeout_seconds)),
+                timeout_seconds=timeout_seconds,
+                timeout_warning_interval_seconds=30.0,
+                on_timeout_warning=emit_heartbeat,
                 stop_event=stop_event,
             )
         except RunCancelled:
@@ -70,7 +85,7 @@ def ensure_preview_batch_locked(
                 operation="batch-preview-json",
                 returncode="exception",
                 stderr=str(exc),
-                fallback_available=True,
+                retry_available=False,
                 reason=type(exc).__name__,
             )
             return results
@@ -90,17 +105,17 @@ def ensure_preview_batch_locked(
             job, staged = matched
             item.setdefault("backend", backend.DIRECTXTEX_TEXTURE_BACKEND_ID)
             item.setdefault("native_backend", "directxtex")
-            item["source_path"] = str(job["input"])
+            item["source_path"] = str(job.request.input_path)
             try:
-                output = publish_preview_pair(staged, Path(str(job["output"])), item)
+                output = publish_preview_pair(staged, job.request.output_path, item)
             except (OSError, ValueError) as exc:
                 backend._record_directxtex_failure(
                     binary=binary,
                     operation="batch-preview-json",
                     returncode="publication_failed",
                     stderr=str(exc),
-                    source_path=job["input"],
-                    fallback_available=True,
+                    source_path=job.request.input_path,
+                    retry_available=False,
                     reason="atomic_publication_failed",
                 )
                 continue
@@ -120,7 +135,7 @@ def read_preview_items(
     source_path: object = "",
 ) -> Optional[list[object]]:
     reason = ""
-    if returncode != 0 or not report_path.is_file():
+    if returncode not in {0, 2} or not report_path.is_file():
         reason = "missing_report" if not report_path.is_file() else "nonzero_returncode"
     else:
         try:
@@ -140,7 +155,7 @@ def read_preview_items(
         returncode=returncode,
         stderr=stderr,
         source_path=source_path,
-        fallback_available=True,
+        retry_available=False,
         reason=reason,
     )
     return None

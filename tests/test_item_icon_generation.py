@@ -206,27 +206,24 @@ class ItemIconGenerationTests(unittest.TestCase):
             root = Path(temp_dir)
             source = root / "custom_icon.png"
             target = root / "target_icon.dds"
-            texconv = root / "texconv.exe"
             Image.new("RGBA", (128, 64), (10, 20, 30, 255)).save(source)
             target.write_bytes(_fake_dds_bytes(64, 64, mips=7, fourcc=b"DXT5"))
-            texconv.write_bytes(b"fake")
-            seen_command: list[str] = []
+            seen_formats: list[str] = []
 
-            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
-                seen_command[:] = command
-                out_dir = Path(command[command.index("-o") + 1])
-                width = int(command[command.index("-w") + 1])
-                height = int(command[command.index("-h") + 1])
-                mips = int(command[command.index("-m") + 1])
-                fmt = str(command[command.index("-f") + 1])
-                produced = out_dir / f"{Path(command[-1]).stem}.dds"
-                produced.write_bytes(_fake_dds_bytes(width, height, mips=mips, fourcc=b"DXT5" if fmt == "BC3_UNORM" else b"DXT1"))
-                return 0, "", ""
+            def fake_native_encode(_source: Path, output: Path, **kwargs: object) -> dict[str, object]:
+                dds_format = str(kwargs["dds_format"])
+                seen_formats.append(dds_format)
+                output.write_bytes(
+                    _fake_dds_bytes(
+                        int(kwargs["width"]),
+                        int(kwargs["height"]),
+                        mips=int(kwargs["mip_count"]),
+                        fourcc=b"DXT5" if dds_format == "BC3_UNORM" else b"DXT1",
+                    )
+                )
+                return {"status": "encoded", "format": dds_format}
 
-            with (
-                patch("cdmw.core.item_icon.encode_dds_with_directxtex", return_value=None),
-                patch("cdmw.core.item_icon.run_process_with_cancellation", side_effect=fake_texconv),
-            ):
+            with patch("cdmw.core.item_icon.encode_dds_with_directxtex", side_effect=fake_native_encode):
                 result = build_item_icon_payload(
                     ItemIconOverrideSpec(
                         source_path=source,
@@ -235,7 +232,6 @@ class ItemIconGenerationTests(unittest.TestCase):
                         source_mode="file",
                     ),
                     target_template_path=target,
-                    texconv_path=texconv,
                 )
 
             output = root / "generated.dds"
@@ -243,35 +239,32 @@ class ItemIconGenerationTests(unittest.TestCase):
             info = parse_dds(output)
             self.assertEqual((64, 64), (info.width, info.height))
             self.assertEqual(7, info.mip_count)
-            self.assertEqual("BC3_UNORM", info.texconv_format)
-            self.assertIn("BC3_UNORM", seen_command)
+            self.assertEqual("BC3_UNORM", info.dds_format)
+            self.assertEqual(["BC3_UNORM"], seen_formats)
 
     def test_jpeg_source_generated_dds_matches_target_template_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             source = root / "custom_icon.jpeg"
             target = root / "target_icon.dds"
-            texconv = root / "texconv.exe"
             Image.new("RGB", (90, 120), (40, 50, 60)).save(source)
             target.write_bytes(_fake_dds_bytes(80, 64, mips=6, fourcc=b"DXT5"))
-            texconv.write_bytes(b"fake")
-            seen_command: list[str] = []
+            seen_formats: list[str] = []
 
-            def fake_texconv(command: list[str], **_kwargs: object) -> tuple[int, str, str]:
-                seen_command[:] = command
-                out_dir = Path(command[command.index("-o") + 1])
-                width = int(command[command.index("-w") + 1])
-                height = int(command[command.index("-h") + 1])
-                mips = int(command[command.index("-m") + 1])
-                fmt = str(command[command.index("-f") + 1])
-                produced = out_dir / f"{Path(command[-1]).stem}.dds"
-                produced.write_bytes(_fake_dds_bytes(width, height, mips=mips, fourcc=b"DXT5" if fmt == "BC3_UNORM" else b"DXT1"))
-                return 0, "", ""
+            def fake_native_encode(_source: Path, output: Path, **kwargs: object) -> dict[str, object]:
+                dds_format = str(kwargs["dds_format"])
+                seen_formats.append(dds_format)
+                output.write_bytes(
+                    _fake_dds_bytes(
+                        int(kwargs["width"]),
+                        int(kwargs["height"]),
+                        mips=int(kwargs["mip_count"]),
+                        fourcc=b"DXT5" if dds_format == "BC3_UNORM" else b"DXT1",
+                    )
+                )
+                return {"status": "encoded", "format": dds_format}
 
-            with (
-                patch("cdmw.core.item_icon.encode_dds_with_directxtex", return_value=None),
-                patch("cdmw.core.item_icon.run_process_with_cancellation", side_effect=fake_texconv),
-            ):
+            with patch("cdmw.core.item_icon.encode_dds_with_directxtex", side_effect=fake_native_encode):
                 result = build_item_icon_payload(
                     ItemIconOverrideSpec(
                         source_path=source,
@@ -280,7 +273,6 @@ class ItemIconGenerationTests(unittest.TestCase):
                         source_mode="file",
                     ),
                     target_template_path=target,
-                    texconv_path=texconv,
                 )
 
             output = root / "generated.dds"
@@ -288,8 +280,8 @@ class ItemIconGenerationTests(unittest.TestCase):
             info = parse_dds(output)
             self.assertEqual((80, 64), (info.width, info.height))
             self.assertEqual(6, info.mip_count)
-            self.assertEqual("BC3_UNORM", info.texconv_format)
-            self.assertIn("BC3_UNORM", seen_command)
+            self.assertEqual("BC3_UNORM", info.dds_format)
+            self.assertEqual(["BC3_UNORM"], seen_formats)
 
 
 if __name__ == "__main__":

@@ -560,7 +560,7 @@ def _material_authority_texture_conversion_policy(
             if isinstance(row, Mapping) and str(row.get("kind", "") or "").strip()
         )
     )
-    texconv_format = str(dds_validation.get("texconv_format", "") or "")
+    dds_format = str(dds_validation.get("dds_format", "") or "")
     source_rows = _material_authority_bound_source_material_rows(bound_rows, source_materials)
     source_workflows = tuple(_dedupe(_material_authority_source_row_workflow(row) for row in source_rows))
     source_derived_channels = tuple(
@@ -606,7 +606,7 @@ def _material_authority_texture_conversion_policy(
         "source_dds_passthrough": source_extension == ".dds",
         "source_image_to_dds": bool(source_extension and source_extension != ".dds"),
         "bound_role_classes": role_classes,
-        "dds_format": texconv_format,
+        "dds_format": dds_format,
         "channel_order": str(dds_validation.get("channel_order", "") or ""),
         "mip_count": int(dds_validation.get("mip_count", 0) or 0),
         "normal_y_mode": str(normal_y_mode or "asset"),
@@ -660,7 +660,7 @@ def _material_authority_dds_validation(payload: _FinalPayload, payload_bytes: by
             "width": 0,
             "height": 0,
             "mip_count": 0,
-            "texconv_format": "",
+            "dds_format": "",
             "channel_order": "",
             "findings": (
                 {
@@ -678,7 +678,7 @@ def _material_authority_dds_validation(payload: _FinalPayload, payload_bytes: by
             "width": 0,
             "height": 0,
             "mip_count": 0,
-            "texconv_format": "",
+            "dds_format": "",
             "channel_order": "",
             "findings": (
                 {
@@ -706,8 +706,8 @@ def _material_authority_dds_validation(payload: _FinalPayload, payload_bytes: by
         "mip_count": int(getattr(info, "mip_count", 0) or 0),
         "raw_mip_count": int(getattr(info, "raw_mip_count", 0) or 0),
         "depth": int(getattr(info, "depth", 0) or 0),
-        "texconv_format": str(getattr(info, "texconv_format", "") or ""),
-        "channel_order": _material_authority_dds_channel_order(getattr(info, "texconv_format", "")),
+        "dds_format": str(getattr(info, "dds_format", "") or ""),
+        "channel_order": _material_authority_dds_channel_order(getattr(info, "dds_format", "")),
         "is_dx10": bool(getattr(info, "is_dx10", False)),
         "dxgi_format": int(getattr(info, "dxgi_format", 0) or 0),
         "fourcc": str(getattr(info, "fourcc", "") or ""),
@@ -744,8 +744,8 @@ def _material_authority_visible_luma_mean(
     return round(luma, 4)
 
 
-def _material_authority_dds_channel_order(texconv_format: object) -> str:
-    normalized = str(texconv_format or "").strip().upper()
+def _material_authority_dds_channel_order(dds_format: object) -> str:
+    normalized = str(dds_format or "").strip().upper()
     if normalized.startswith("R8G8B8A8"):
         return "rgba"
     if normalized.startswith("B8G8R8A8"):
@@ -772,8 +772,8 @@ def _material_authority_texture_role_diagnostics(
     source_normal_space: str = "",
     normal_y_mode: str = "asset",
 ) -> Tuple[Mapping[str, object], ...]:
-    texconv_format = str(dds_validation.get("texconv_format", "") or "").upper()
-    if not texconv_format:
+    dds_format = str(dds_validation.get("dds_format", "") or "").upper()
+    if not dds_format:
         return ()
     diagnostics: List[Mapping[str, object]] = []
     roles = {str(row.role or "").strip().lower() for row in tuple(bound_rows or ())}
@@ -830,7 +830,7 @@ def _material_authority_texture_role_diagnostics(
                     "message": "Normal source filename did not declare green_up/directx; verify Y was not flipped incorrectly.",
                 }
             )
-        if not texconv_format.startswith("BC5_"):
+        if not dds_format.startswith("BC5_"):
             diagnostics.append(
                 {
                     "severity": "warning",
@@ -838,7 +838,7 @@ def _material_authority_texture_role_diagnostics(
                     "message": "Normal texture is not BC5; verify tangent-space XY packing and normal Y policy.",
                 }
             )
-        if "SRGB" in texconv_format:
+        if "SRGB" in dds_format:
             diagnostics.append(
                 {
                     "severity": "warning",
@@ -847,7 +847,7 @@ def _material_authority_texture_role_diagnostics(
                 }
             )
     if visible_role_classes:
-        if texconv_format.startswith(("BC4_", "BC5_", "R8_", "R8G8_")):
+        if dds_format.startswith(("BC4_", "BC5_", "R8_", "R8G8_")):
             diagnostics.append(
                 {
                     "severity": "warning",
@@ -855,7 +855,7 @@ def _material_authority_texture_role_diagnostics(
                     "message": "Visible color slot uses a scalar/vector technical DDS format.",
                 }
             )
-        if texconv_format in {"BC1_UNORM", "BC2_UNORM", "BC3_UNORM", "BC7_UNORM", "R8G8B8A8_UNORM", "B8G8R8A8_UNORM"}:
+        if dds_format in {"BC1_UNORM", "BC2_UNORM", "BC3_UNORM", "BC7_UNORM", "R8G8B8A8_UNORM", "B8G8R8A8_UNORM"}:
             diagnostics.append(
                 {
                     "severity": "info",
@@ -866,7 +866,7 @@ def _material_authority_texture_role_diagnostics(
     if "emissive_control" in role_classes or any(
         token in role_text for token in ("material", "roughness", "metal", "ao", "height", "mask", "detail")
     ):
-        if "SRGB" in texconv_format:
+        if "SRGB" in dds_format:
             diagnostics.append(
                 {
                     "severity": "warning",
@@ -890,7 +890,7 @@ def _material_authority_texture_channel_visualization(
     bound_rows: Sequence[FinalPackageBindingRow],
     dds_validation: Mapping[str, object],
 ) -> Tuple[Mapping[str, object], ...]:
-    texconv_format = str(dds_validation.get("texconv_format", "") or "").upper()
+    dds_format = str(dds_validation.get("dds_format", "") or "").upper()
     channel_order = str(dds_validation.get("channel_order", "") or "").strip().lower()
     width = int(dds_validation.get("width", 0) or 0)
     height = int(dds_validation.get("height", 0) or 0)
@@ -914,7 +914,7 @@ def _material_authority_texture_channel_visualization(
                 "kind": kind,
                 "width": width,
                 "height": height,
-                "texconv_format": texconv_format,
+                "dds_format": dds_format,
                 "channel_order": channel_order,
                 "channels": tuple({"channel": channel, "semantic": semantic} for channel, semantic in channels),
                 "note": note,
@@ -943,7 +943,7 @@ def _material_authority_texture_channel_visualization(
         )
     if "emissive_control" in role_classes:
         channels = (("R", "emissive_intensity"), ("G", "emissive_progress_or_mask")) if (
-            channel_order == "rg" or texconv_format.startswith("BC5_")
+            channel_order == "rg" or dds_format.startswith("BC5_")
         ) else (("R", "emissive_intensity"),)
         add(
             "emissive_control",
@@ -957,10 +957,10 @@ def _material_authority_texture_channel_visualization(
             packed_channels,
             "Visualize packed Crimson material/mask scalar channels.",
         )
-    if not rows and texconv_format:
+    if not rows and dds_format:
         if channel_order == "r":
             add("scalar", (("R", "scalar"),), "Visualize single-channel scalar texture.")
-        elif channel_order == "rg" or texconv_format.startswith("BC5_"):
+        elif channel_order == "rg" or dds_format.startswith("BC5_"):
             add("vector2", (("R", "x"), ("G", "y")), "Visualize two-channel vector/scalar texture.")
     return tuple(rows)
 
@@ -2419,7 +2419,7 @@ def _material_authority_risk_flags(
         validation = row.get("dds_validation")
         if isinstance(validation, Mapping):
             validation_status = str(validation.get("status", "") or "").strip().lower()
-            texconv_format = str(validation.get("texconv_format", "") or "").strip()
+            dds_format = str(validation.get("dds_format", "") or "").strip()
             try:
                 width = int(validation.get("width", 0) or 0)
                 height = int(validation.get("height", 0) or 0)
@@ -2430,7 +2430,7 @@ def _material_authority_risk_flags(
                 flags.append("invalid_dds_payload")
             if width <= 0 or height <= 0:
                 flags.append("missing_dds_dimensions")
-            if not texconv_format:
+            if not dds_format:
                 flags.append("missing_dds_format")
             if bool(validation.get("requires_pathc")):
                 flags.append("dds_requires_pathc")

@@ -29,11 +29,8 @@ class ReplaceAssistantPreviewMixin:
         self._start_preview_worker(request_id, item)
 
     def _start_preview_worker(self, request_id: int, item: ReplaceAssistantItem) -> None:
-        texconv_text = self.get_texconv_path().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         worker = ReplaceAssistantPreviewWorker(
             request_id,
-            texconv_path,
             item.source_path,
         )
         thread = QThread(self)

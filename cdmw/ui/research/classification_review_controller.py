@@ -135,7 +135,6 @@ def _handle_unknown_member_selection_changed(
         self._clear_unknown_preview("Select a DDS review item to preview it here.")
         self._update_unknown_resolver_controls()
         return
-    texconv_path = Path(self.get_texconv_path()).expanduser() if self.get_texconv_path().strip() else None
     selected_entry = self._archive_picker_entry_for_path(member.path)
     selected_entries_by_path = (
         {normalize_archive_path(member.path): selected_entry}
@@ -146,7 +145,6 @@ def _handle_unknown_member_selection_changed(
         group,
         member.path,
         entries_by_path=selected_entries_by_path,
-        texconv_path=texconv_path,
     )
     self.unknown_detail_edit.setPlainText(detail_text)
     self._select_unknown_label_choice(preferred_unknown_choice_for_member(member, group))

@@ -306,9 +306,28 @@ Its focused facade/profile/output-safety/cache probe gate is:
 ## Texture Workflow
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_texture_decode_cache_concurrency.py tests/test_texture_native_backend.py tests/test_dds_resource_limits.py tests/test_texture_workflow_ui_source_guards.py tests/test_texture_workflow_asset_authoring_panel.py tests/test_texture_domain_profiles.py tests/test_texture_workflow_unavailable_editor.py tests/test_texture_editor_workers.py tests/test_texture_edit_hot_path.py tests/test_texture_editor_ui_helpers.py tests/test_texture_editor_native_service.py tests/test_texture_editor_dev_harness.py tests/test_static_texture_replacement.py
+.\.venv\Scripts\python.exe -m pytest tests/test_texture_backend_retirement.py tests/test_texture_replacer_headless_harness.py tests/test_texture_decode_cache_concurrency.py tests/test_texture_native_backend.py tests/test_dds_resource_limits.py tests/test_texture_workflow_guardrails.py tests/test_texture_workflow_ui_source_guards.py tests/test_texture_workflow_asset_authoring_panel.py tests/test_texture_domain_profiles.py tests/test_texture_workflow_unavailable_editor.py tests/test_texture_editor_workers.py tests/test_texture_edit_hot_path.py tests/test_texture_editor_ui_helpers.py tests/test_texture_editor_native_service.py tests/test_texture_editor_dev_harness.py tests/test_static_texture_replacement.py
 .\scripts\codex_check.ps1 -Area texture
 ```
+
+The authoritative native texture gate builds the release helper, runs its real
+roundtrip self-test, then drives Texture Replacer and all migrated headless
+consumers without starting the UI or touching a game archive:
+
+```powershell
+.\build_native_windows.ps1 -Configuration Release
+.\native\cd_texture_dx\build\Release\cd-texture-dx.exe self-test
+
+$out = Join-Path $env:TEMP "cdmw-texture-replacer-harness"
+.\.venv\Scripts\python.exe .\tools\texture_replacer_headless_harness.py `
+  --scenario full-suite `
+  --output $out
+```
+
+`full-suite` includes the separate authoritative 2048x2048 BC7 hand-texture
+rebuild. The regular pytest fixtures stay small and validate CLI, source,
+migration, protocol, consumer, and lifecycle contracts without repeating that
+costly encode.
 
 ## Supporting Feature Tabs
 
@@ -379,6 +398,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mod
 Both release modes publish the self-contained .NET helper, require its hidden
 `d3d11_vortice_shader` GPU smoke to keep all native windows hidden, and run the
 packaged offscreen startup verifier before moving output into `dist/`. The
+release builder also runs `cd-texture-dx.exe self-test` directly from onedir,
+extracts the bundled helper from onefile to system temp and runs the same
+self-test, and rejects either artifact if a retired texture executable is
+present. These texture packaging checks do not start CDMW. The
 onedir publisher removes the smoke-created `workspace/` and
 `CrimsonDesertModWorkbench.cfg` runtime artifacts before publishing. GitHub
 Actions runs the complete nonvisual gate on Python 3.11 and 3.14 first;

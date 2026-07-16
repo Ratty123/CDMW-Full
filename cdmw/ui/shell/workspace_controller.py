@@ -9,7 +9,6 @@ from PySide6.QtWidgets import QFileDialog, QInputDialog, QMessageBox
 
 from cdmw.constants import (
     CHAINNER_DOWNLOAD_PAGE_URL,
-    DIRECTXTEX_RELEASES_PAGE_URL,
     REALESRGAN_NCNN_RELEASES_PAGE_URL,
 )
 from cdmw.services.archive_extraction_service import clear_directory_contents
@@ -181,8 +180,6 @@ class WorkspaceControllerMixin:
             self.output_root_edit.setText(str(result["output_root"]))
             if not self.archive_extract_root_edit.text().strip():
                 self.archive_extract_root_edit.setText(str(result["archive_extract_root"]))
-            if not self.texconv_path_edit.text().strip():
-                self.texconv_path_edit.setText(str(result["texconv_path"]))
             if not self.csv_log_path_edit.text().strip():
                 self.csv_log_path_edit.setText(str(result["csv_log_path"]))
             if not self.chainner_exe_path_edit.text().strip():
@@ -230,9 +227,6 @@ class WorkspaceControllerMixin:
 
     def open_chainner_download_page(self) -> None:
         self._open_external_urls([CHAINNER_DOWNLOAD_PAGE_URL], label="chaiNNer")
-
-    def open_texconv_download_page(self) -> None:
-        self._open_external_urls([DIRECTXTEX_RELEASES_PAGE_URL], label="texconv")
 
     def open_realesrgan_ncnn_download_page(self) -> None:
         self._open_external_urls([REALESRGAN_NCNN_RELEASES_PAGE_URL], label="Real-ESRGAN NCNN")

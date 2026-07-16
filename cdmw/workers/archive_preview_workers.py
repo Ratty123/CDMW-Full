@@ -71,7 +71,6 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
     def __init__(
         self,
         request_id: int,
-        texconv_path: Optional[Path],
         entry: Optional[ArchiveEntry],
         companion_entry: Optional[ArchiveEntry],
         texture_entries_by_normalized_path: Dict[str, List[ArchiveEntry]],
@@ -103,7 +102,6 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
     ):
         super().__init__()
         self.request_id = request_id
-        self.texconv_path = texconv_path
         self.entry = entry
         self.companion_entry = companion_entry
         self.texture_entries_by_normalized_path = texture_entries_by_normalized_path
@@ -469,7 +467,6 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         timings: Dict[str, float] = {}
         worker_build_started_at = time.perf_counter()
         payload = build_archive_preview_result(
-            self.texconv_path,
             self.entry,
             self.loose_search_roots,
             companion_entry=self.companion_entry,

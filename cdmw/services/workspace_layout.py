@@ -49,7 +49,6 @@ SETTINGS_PATH_DEFAULTS: Mapping[str, tuple[str, str]] = {
     "archive/extract_root": ("archive_extract", "archive_extract_root"),
     "upscale/mod_ready_export_root": ("dds_final_mod_ready_loose_export", "mod_ready_export_root"),
     "settings/csv_log_path": ("build_log.csv", "csv_log_path"),
-    "paths/texconv_path": ("tools/texconv.exe", "texconv_path"),
     "chainner/exe_path": ("tools/chaiNNer/chaiNNer.exe", "chainner_exe_path"),
     "ncnn/exe_path": ("tools/realesrgan_ncnn/realesrgan-ncnn-vulkan.exe", "ncnn_exe_path"),
     "ncnn/model_dir": ("tools/realesrgan_ncnn/models", "ncnn_model_dir"),

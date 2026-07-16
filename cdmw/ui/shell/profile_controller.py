@@ -34,6 +34,10 @@ from cdmw.constants import (
     UPSCALE_BACKEND_NONE,
 )
 from cdmw.domain.cancellation import raise_if_cancelled
+from cdmw.core.texture_legacy_compat import (
+    OBSOLETE_SETTINGS_KEY,
+    sanitized_profile_mapping,
+)
 from cdmw.services.atomic_file_service import atomic_write_text
 from cdmw.models import AppConfig, ChainnerChainAnalysis, default_config
 from cdmw.services.diagnostic_bundle_service import (
@@ -83,6 +87,7 @@ def _coerce_profile_config_value(key: str, value: object, default: object) -> ob
 def _profile_config_from_payload(raw_config: object) -> AppConfig:
     if not isinstance(raw_config, dict):
         raise ValueError("Profile file is invalid. Expected a JSON object.")
+    raw_config = sanitized_profile_mapping(raw_config)
     config_values = dataclasses.asdict(default_config())
     for key, default_value in tuple(config_values.items()):
         if key in raw_config:
@@ -98,6 +103,8 @@ def _decoded_profile_settings_snapshot(snapshot: object) -> Dict[str, object]:
         key = str(raw_key or "").strip()
         if not key:
             raise ValueError("Profile settings contain an empty key.")
+        if key == OBSOLETE_SETTINGS_KEY:
+            continue
         decoded[key] = _decode_profile_setting_value(raw_value, qbytearray_type=QByteArray)
     return decoded
 
@@ -161,6 +168,7 @@ def load_profile_import_document(
         raise ValueError("Profile file is not valid UTF-8 JSON.") from exc
     if not isinstance(payload, dict):
         raise ValueError("Profile file is invalid. Expected a JSON object.")
+    payload = sanitized_profile_mapping(payload)
     config = _profile_config_from_payload(payload.get("config", payload))
     decoded = _decoded_profile_settings_snapshot(payload["settings"]) if "settings" in payload else None
     raise_if_cancelled(stop_event, "Profile import cancelled.")
@@ -182,7 +190,7 @@ class ProfileControllerMixin:
         settings_snapshot = self._collect_profile_settings_snapshot(flush=flush)
         return {
             "app": APP_TITLE,
-            "profile_format": 3,
+            "profile_format": 4,
             "created_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
             "theme": self.current_theme_key,
             "config": dataclasses.asdict(self.collect_config()),
@@ -208,6 +216,8 @@ class ProfileControllerMixin:
         except Exception:
             keys = []
         for key in keys:
+            if key == OBSOLETE_SETTINGS_KEY:
+                continue
             try:
                 snapshot[key] = _encode_profile_setting_value(self.settings.value(key))
             except Exception:
@@ -296,7 +306,6 @@ class ProfileControllerMixin:
             self.texture_editor_png_root_edit.setText(getattr(config, "texture_editor_png_root", ""))
             self.dds_staging_root_edit.setText(config.dds_staging_root)
             self.output_root_edit.setText(config.output_root)
-            self.texconv_path_edit.setText(config.texconv_path)
             self._set_combo_by_value(self.dds_format_mode_combo, config.dds_format_mode)
             self._set_combo_by_value(self.dds_custom_format_combo, config.dds_custom_format)
             self._set_combo_by_value(self.dds_size_mode_combo, config.dds_size_mode)

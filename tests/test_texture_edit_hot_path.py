@@ -427,7 +427,6 @@ def test_4k_texture_editor_handler_20th_and_post100_strokes_fit_frame_budget(tmp
     tab = TextureEditorTab(
         settings=QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat),
         base_dir=tmp_path,
-        get_texconv_path=lambda: "",
         get_png_root=lambda: "",
     )
     try:

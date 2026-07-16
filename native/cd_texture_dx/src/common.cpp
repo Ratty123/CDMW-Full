@@ -88,7 +88,7 @@ std::string exception_item_json(
     std::ostringstream out;
     out << "{"
         << "\"status\":\"error\","
-        << "\"backend\":\"directxtex_native_0.1\","
+        << "\"backend\":\"directxtex_native_0.2\","
         << "\"source_path\":\"" << json_escape(wide_to_utf8(source)) << "\","
         << "\"output_path\":\"" << json_escape(wide_to_utf8(output)) << "\","
         << "\"operation\":\"" << json_escape(operation ? operation : "") << "\","
@@ -284,6 +284,41 @@ static int json_int_field(const std::string& object, const std::string& name, in
     }
 }
 
+static double json_double_field(const std::string& object, const std::string& name, double fallback = 0.0) {
+    size_t value_offset = 0;
+    if (!json_field_value_offset(object, name, value_offset)) return fallback;
+    size_t end = value_offset;
+    if (end < object.size() && (object[end] == '-' || object[end] == '+')) ++end;
+    bool has_digit = false;
+    while (end < object.size() && object[end] >= '0' && object[end] <= '9') {
+        has_digit = true;
+        ++end;
+    }
+    if (end < object.size() && object[end] == '.') {
+        ++end;
+        while (end < object.size() && object[end] >= '0' && object[end] <= '9') {
+            has_digit = true;
+            ++end;
+        }
+    }
+    if (end < object.size() && (object[end] == 'e' || object[end] == 'E')) {
+        size_t exponent = end + 1;
+        if (exponent < object.size() && (object[exponent] == '-' || object[exponent] == '+')) ++exponent;
+        bool exponent_digit = false;
+        while (exponent < object.size() && object[exponent] >= '0' && object[exponent] <= '9') {
+            exponent_digit = true;
+            ++exponent;
+        }
+        if (exponent_digit) end = exponent;
+    }
+    if (!has_digit) return fallback;
+    try {
+        return std::stod(object.substr(value_offset, end - value_offset));
+    } catch (...) {
+        return fallback;
+    }
+}
+
 static bool json_bool_field(const std::string& object, const std::string& name, bool fallback = false) {
     size_t value_offset = 0;
     if (!json_field_value_offset(object, name, value_offset)) return fallback;
@@ -337,9 +372,10 @@ std::vector<PreviewJob> parse_jobs(const std::string& text) {
         job.input = utf8_to_wide(input);
         job.output = utf8_to_wide(output);
         job.slot = json_string_field(object, "slot", json_string_field(object, "slot_kind", "base"));
-        job.srgb = json_string_field(object, "srgb", "auto");
         job.normal_space = json_string_field(object, "normal_space", "auto");
-        job.max_dimension = std::max(1, json_int_field(object, "max_dimension", json_int_field(object, "max_dim", 4096)));
+        job.max_dimension = std::max(0, json_int_field(object, "max_dimension", json_int_field(object, "max_dim", 4096)));
+        job.requested_mip = std::max(0, json_int_field(object, "requested_mip", json_int_field(object, "mip_level", 0)));
+        job.output_pixel_type = json_string_field(object, "output_pixel_type", "rgba8");
         jobs.push_back(job);
     }
     return jobs;
@@ -354,12 +390,17 @@ std::vector<EncodeJob> parse_encode_jobs(const std::string& text) {
         EncodeJob job;
         job.input = utf8_to_wide(input);
         job.output = utf8_to_wide(output);
-        job.format = json_string_field(object, "format", json_string_field(object, "texconv_format", "BC7_UNORM"));
-        job.srgb = json_string_field(object, "srgb", "auto");
+        job.format = json_string_field(object, "format", json_string_field(object, "dds_format", "BC7_UNORM"));
         job.width = std::max(0, json_int_field(object, "width", json_int_field(object, "target_width", 0)));
         job.height = std::max(0, json_int_field(object, "height", json_int_field(object, "target_height", 0)));
-        job.mip_count = std::max(1, json_int_field(object, "mip_count", json_int_field(object, "mips", 1)));
+        job.mip_count = std::max(0, json_int_field(object, "mip_count", json_int_field(object, "mips", 1)));
         job.overwrite = json_bool_field(object, "overwrite", true);
+        job.source_color_policy = json_string_field(object, "source_color_policy", "auto");
+        job.mip_alpha_policy = json_string_field(object, "mip_alpha_policy", "default");
+        job.alpha_coverage_reference = static_cast<float>(
+            std::clamp(json_double_field(object, "alpha_coverage_reference", 0.5), 0.0, 1.0)
+        );
+        job.dds_alpha_mode = json_string_field(object, "dds_alpha_mode", "unknown");
         jobs.push_back(job);
     }
     return jobs;
@@ -367,14 +408,16 @@ std::vector<EncodeJob> parse_encode_jobs(const std::string& text) {
 
 bool json_parser_self_test() {
     const std::string preview_json = R"json({
-        "version": 1,
-        "backend": "directxtex_native_0.1",
+        "version": 2,
+        "backend": "directxtex_native_0.2",
         "jobs": [
             {
                 "input": "C:\\textures\\caf\u00e9{base}.dds",
                 "output": "C:\\out\\preview.png",
                 "slot": "base",
-                "max_dimension": 512
+                "max_dimension": 0,
+                "requested_mip": 2,
+                "output_pixel_type": "gray16"
             },
             {
                 "dds_path": "D:\\emoji\\blade\ud83d\udde1.dds",
@@ -391,7 +434,9 @@ bool json_parser_self_test() {
         wide_to_utf8(previews[0].input) != expected_first ||
         wide_to_utf8(previews[0].output) != "C:\\out\\preview.png" ||
         previews[0].slot != "base" ||
-        previews[0].max_dimension != 512 ||
+        previews[0].max_dimension != 0 ||
+        previews[0].requested_mip != 2 ||
+        previews[0].output_pixel_type != "gray16" ||
         wide_to_utf8(previews[1].input) != expected_second ||
         wide_to_utf8(previews[1].output) != "D:\\out\\second.png" ||
         previews[1].slot != "normal" ||
@@ -406,7 +451,11 @@ bool json_parser_self_test() {
                 "dds_path": "C:\\output\\a.dds",
                 "format": "BC7_UNORM",
                 "mips": 4,
-                "overwrite": false
+                "overwrite": false,
+                "source_color_policy": "ignore_srgb_metadata",
+                "mip_alpha_policy": "preserve_coverage",
+                "alpha_coverage_reference": 0.25,
+                "dds_alpha_mode": "straight"
             }
         ]
     })json";
@@ -416,7 +465,11 @@ bool json_parser_self_test() {
         wide_to_utf8(encodes[0].output) == "C:\\output\\a.dds" &&
         encodes[0].format == "BC7_UNORM" &&
         encodes[0].mip_count == 4 &&
-        !encodes[0].overwrite;
+        !encodes[0].overwrite &&
+        encodes[0].source_color_policy == "ignore_srgb_metadata" &&
+        encodes[0].mip_alpha_policy == "preserve_coverage" &&
+        std::abs(encodes[0].alpha_coverage_reference - 0.25f) < 0.001f &&
+        encodes[0].dds_alpha_mode == "straight";
 }
 
 static std::string upper_copy(std::string value) {
@@ -446,16 +499,30 @@ DXGI_FORMAT dxgi_format_from_name(const std::string& raw_format) {
         {"BC6H_SF16", DXGI_FORMAT_BC6H_SF16},
         {"BC7_UNORM", DXGI_FORMAT_BC7_UNORM},
         {"BC7_UNORM_SRGB", DXGI_FORMAT_BC7_UNORM_SRGB},
-        {"R8G8B8A8_UNORM", DXGI_FORMAT_R8G8B8A8_UNORM},
-        {"R8G8B8A8_UNORM_SRGB", DXGI_FORMAT_R8G8B8A8_UNORM_SRGB},
-        {"B8G8R8A8_UNORM", DXGI_FORMAT_B8G8R8A8_UNORM},
-        {"B8G8R8A8_UNORM_SRGB", DXGI_FORMAT_B8G8R8A8_UNORM_SRGB},
-        {"R8_UNORM", DXGI_FORMAT_R8_UNORM},
-        {"R16_UNORM", DXGI_FORMAT_R16_UNORM},
+        {"R32G32B32A32_FLOAT", DXGI_FORMAT_R32G32B32A32_FLOAT},
+        {"R32G32_FLOAT", DXGI_FORMAT_R32G32_FLOAT},
+        {"R32_FLOAT", DXGI_FORMAT_R32_FLOAT},
+        {"R32_UINT", DXGI_FORMAT_R32_UINT},
         {"R16G16B16A16_FLOAT", DXGI_FORMAT_R16G16B16A16_FLOAT},
         {"R16G16B16A16_UNORM", DXGI_FORMAT_R16G16B16A16_UNORM},
         {"R16G16B16A16_SNORM", DXGI_FORMAT_R16G16B16A16_SNORM},
-        {"R32G32B32A32_FLOAT", DXGI_FORMAT_R32G32B32A32_FLOAT},
+        {"R16G16_FLOAT", DXGI_FORMAT_R16G16_FLOAT},
+        {"R16_FLOAT", DXGI_FORMAT_R16_FLOAT},
+        {"R16_UNORM", DXGI_FORMAT_R16_UNORM},
+        {"R10G10B10A2_UNORM", DXGI_FORMAT_R10G10B10A2_UNORM},
+        {"R10G10B10A2_UINT", DXGI_FORMAT_R10G10B10A2_UINT},
+        {"R8G8B8A8_UNORM", DXGI_FORMAT_R8G8B8A8_UNORM},
+        {"R8G8B8A8_UNORM_SRGB", DXGI_FORMAT_R8G8B8A8_UNORM_SRGB},
+        {"R8G8B8A8_UINT", DXGI_FORMAT_R8G8B8A8_UINT},
+        {"R8G8B8A8_SNORM", DXGI_FORMAT_R8G8B8A8_SNORM},
+        {"B8G8R8A8_UNORM", DXGI_FORMAT_B8G8R8A8_UNORM},
+        {"B8G8R8A8_UNORM_SRGB", DXGI_FORMAT_B8G8R8A8_UNORM_SRGB},
+        {"B8G8R8X8_UNORM", DXGI_FORMAT_B8G8R8X8_UNORM},
+        {"B8G8R8X8_UNORM_SRGB", DXGI_FORMAT_B8G8R8X8_UNORM_SRGB},
+        {"R8G8_UNORM", DXGI_FORMAT_R8G8_UNORM},
+        {"R8_UNORM", DXGI_FORMAT_R8_UNORM},
+        {"R8_UINT", DXGI_FORMAT_R8_UINT},
+        {"A8_UNORM", DXGI_FORMAT_A8_UNORM},
     };
     auto it = formats.find(name);
     return it == formats.end() ? DXGI_FORMAT_UNKNOWN : it->second;
@@ -479,11 +546,39 @@ std::string dxgi_format_name(DXGI_FORMAT format) {
     case DXGI_FORMAT_BC7_UNORM_SRGB: return "DXGI_FORMAT_BC7_UNORM_SRGB";
     case DXGI_FORMAT_R8G8B8A8_UNORM: return "DXGI_FORMAT_R8G8B8A8_UNORM";
     case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB: return "DXGI_FORMAT_R8G8B8A8_UNORM_SRGB";
+    case DXGI_FORMAT_R8G8B8A8_UINT: return "DXGI_FORMAT_R8G8B8A8_UINT";
+    case DXGI_FORMAT_R8G8B8A8_SNORM: return "DXGI_FORMAT_R8G8B8A8_SNORM";
     case DXGI_FORMAT_B8G8R8A8_UNORM: return "DXGI_FORMAT_B8G8R8A8_UNORM";
     case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB: return "DXGI_FORMAT_B8G8R8A8_UNORM_SRGB";
+    case DXGI_FORMAT_B8G8R8X8_UNORM: return "DXGI_FORMAT_B8G8R8X8_UNORM";
+    case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB: return "DXGI_FORMAT_B8G8R8X8_UNORM_SRGB";
+    case DXGI_FORMAT_R32G32B32A32_FLOAT: return "DXGI_FORMAT_R32G32B32A32_FLOAT";
+    case DXGI_FORMAT_R32G32_FLOAT: return "DXGI_FORMAT_R32G32_FLOAT";
+    case DXGI_FORMAT_R32_FLOAT: return "DXGI_FORMAT_R32_FLOAT";
+    case DXGI_FORMAT_R32_UINT: return "DXGI_FORMAT_R32_UINT";
+    case DXGI_FORMAT_R16G16B16A16_FLOAT: return "DXGI_FORMAT_R16G16B16A16_FLOAT";
+    case DXGI_FORMAT_R16G16B16A16_UNORM: return "DXGI_FORMAT_R16G16B16A16_UNORM";
+    case DXGI_FORMAT_R16G16B16A16_SNORM: return "DXGI_FORMAT_R16G16B16A16_SNORM";
+    case DXGI_FORMAT_R16G16_FLOAT: return "DXGI_FORMAT_R16G16_FLOAT";
+    case DXGI_FORMAT_R16_FLOAT: return "DXGI_FORMAT_R16_FLOAT";
     case DXGI_FORMAT_R8_UNORM: return "DXGI_FORMAT_R8_UNORM";
+    case DXGI_FORMAT_R8_UINT: return "DXGI_FORMAT_R8_UINT";
+    case DXGI_FORMAT_R8G8_UNORM: return "DXGI_FORMAT_R8G8_UNORM";
+    case DXGI_FORMAT_A8_UNORM: return "DXGI_FORMAT_A8_UNORM";
     case DXGI_FORMAT_R16_UNORM: return "DXGI_FORMAT_R16_UNORM";
+    case DXGI_FORMAT_R10G10B10A2_UNORM: return "DXGI_FORMAT_R10G10B10A2_UNORM";
+    case DXGI_FORMAT_R10G10B10A2_UINT: return "DXGI_FORMAT_R10G10B10A2_UINT";
     default: return "DXGI_FORMAT_" + std::to_string(static_cast<unsigned int>(format));
+    }
+}
+
+std::string alpha_mode_name(DirectX::TEX_ALPHA_MODE mode) {
+    switch (mode) {
+    case DirectX::TEX_ALPHA_MODE_STRAIGHT: return "straight";
+    case DirectX::TEX_ALPHA_MODE_PREMULTIPLIED: return "premultiplied";
+    case DirectX::TEX_ALPHA_MODE_OPAQUE: return "opaque";
+    case DirectX::TEX_ALPHA_MODE_CUSTOM: return "custom";
+    default: return "unknown";
     }
 }
 
@@ -571,7 +666,7 @@ std::string metadata_json(const fs::path& source, const DirectX::TexMetadata& me
     std::ostringstream out;
     out << "{"
         << "\"status\":\"" << status << "\","
-        << "\"backend\":\"directxtex_native_0.1\","
+        << "\"backend\":\"directxtex_native_0.2\","
         << "\"native_backend\":\"directxtex\","
         << "\"source_path\":\"" << json_escape(wide_to_utf8(source.wstring())) << "\","
         << "\"format\":\"" << dxgi_format_name(metadata.format) << "\","
@@ -584,6 +679,7 @@ std::string metadata_json(const fs::path& source, const DirectX::TexMetadata& me
         << "\"height\":" << metadata.height << ","
         << "\"mip_count\":" << metadata.mipLevels << ","
         << "\"array_size\":" << metadata.arraySize << ","
+        << "\"dds_alpha_mode\":\"" << alpha_mode_name(metadata.GetAlphaMode()) << "\","
         << "\"is_cubemap\":" << (metadata.IsCubemap() ? "true" : "false")
         << "}";
     return out.str();
@@ -597,7 +693,7 @@ int write_batch_exception_report(
     std::ostringstream report;
     report << "{"
         << "\"status\":\"error\","
-        << "\"backend\":\"directxtex_native_0.1\","
+        << "\"backend\":\"directxtex_native_0.2\","
         << "\"batch_size\":0,"
         << "\"items\":[],"
         << "\"operation\":\"" << json_escape(operation ? operation : "") << "\","

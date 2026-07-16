@@ -7,6 +7,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 option(CDMW_FETCH_DIRECTXTEX "Fetch Microsoft DirectXTex when it is not provided by DirectXTex_DIR" ON)
 set(CDMW_DIRECTXTEX_COMMIT "bf256afaed1c789ddd444fb45105ffbcab283efe" CACHE STRING "Pinned DirectXTex commit")
 
+set(BUILD_TOOLS OFF CACHE BOOL "Build DirectXTex command-line tools" FORCE)
+set(BUILD_SAMPLE OFF CACHE BOOL "Build DirectXTex samples" FORCE)
+set(BC_USE_OPENMP ON CACHE BOOL "Build DirectXTex BC6H/BC7 codecs with OpenMP" FORCE)
+find_package(OpenMP REQUIRED COMPONENTS CXX)
+
 find_package(DirectXTex CONFIG QUIET)
 if(NOT DirectXTex_FOUND AND CDMW_FETCH_DIRECTXTEX)
     include(FetchContent)
@@ -58,7 +63,7 @@ set_target_properties(cdmw-d3d11-preview PROPERTIES
 )
 target_include_directories(cdmw-d3d11-preview PRIVATE src)
 target_compile_definitions(cdmw-d3d11-preview PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN UNICODE _UNICODE)
-target_link_libraries(cdmw-d3d11-preview PRIVATE d3d11 dxgi d3dcompiler windowscodecs)
+target_link_libraries(cdmw-d3d11-preview PRIVATE d3d11 dxgi d3dcompiler windowscodecs OpenMP::OpenMP_CXX)
 
 if(TARGET Microsoft::DirectXTex)
     target_link_libraries(cdmw-d3d11-preview PRIVATE Microsoft::DirectXTex)

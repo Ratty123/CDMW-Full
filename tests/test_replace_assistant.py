@@ -49,7 +49,6 @@ def _build_options(output_parent: Path) -> ReplaceAssistantBuildOptions:
         create_no_encrypt_file=True,
         build_mode="rebuild_only",
         size_mode="match_original",
-        texconv_path=None,
         ncnn_exe_path=None,
         ncnn_model_dir=None,
         ncnn_model_name="",
@@ -168,7 +167,7 @@ class ReplaceAssistantMatchingTests(unittest.TestCase):
                 patch("cdmw.core.replace_assistant.ensure_archive_preview_source", return_value=(extracted_original, "")),
                 patch(
                     "cdmw.core.replace_assistant.parse_dds",
-                    return_value=SimpleNamespace(width=4, height=4, texconv_format="BC7_UNORM"),
+                    return_value=SimpleNamespace(width=4, height=4, dds_format="BC7_UNORM"),
                 ),
                 patch("cdmw.core.replace_assistant._prepare_processing_png", return_value=root / "processed.png"),
                 patch("cdmw.core.replace_assistant.read_png_dimensions", return_value=(4, 4)),

@@ -27,27 +27,13 @@ from cdmw.core.archive import (
 )
 from cdmw.core.archive_accelerator import build_archive_basic_indexes_accelerated
 from cdmw.core.item_index import build_archive_item_search_index
+from cdmw.core.texture_native import native_texture_backend_identity
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 from cdmw.models import ArchiveEntry, RunCancelled
 
 
-def _archive_item_icon_converter_cache_key(texconv_key: str) -> str:
-    parts = [f"texconv={str(texconv_key or '')}"]
-    try:
-        from cdmw.core.texture_native import find_directxtex_texture_binary
-
-        binary = find_directxtex_texture_binary()
-    except Exception:
-        binary = None
-    if binary is None:
-        parts.append("directxtex=missing")
-    else:
-        try:
-            stat = binary.stat()
-            parts.append(f"directxtex={binary.resolve()}:{stat.st_size}:{stat.st_mtime_ns}")
-        except OSError:
-            parts.append(f"directxtex={binary}:missing")
-    return "|".join(parts)
+def _archive_item_icon_converter_cache_key() -> str:
+    return native_texture_backend_identity()
 
 
 def _normalize_shard_entry_signatures(value: object) -> Dict[str, str]:
@@ -456,9 +442,7 @@ class ArchiveItemIconWarmupWorker(QObject):
         package_root: Path,
         cache_root: Path,
         *,
-        texconv_key: str = "",
         thumbnail_converter_key: str = "",
-        texconv_path: Optional[Path] = None,
         max_dimension: int = 120,
     ) -> None:
         super().__init__()
@@ -468,9 +452,7 @@ class ArchiveItemIconWarmupWorker(QObject):
         self.entries_by_basename = entries_by_basename
         self.package_root = package_root
         self.cache_root = cache_root
-        self.texconv_key = str(texconv_key or "")
         self.thumbnail_converter_key = str(thumbnail_converter_key or "")
-        self.texconv_path = texconv_path
         self.max_dimension = max(32, int(max_dimension or 120))
         self.stop_event = threading.Event()
 
@@ -581,7 +563,7 @@ class ArchiveItemIconWarmupWorker(QObject):
             icon_paths = self._row_values(row, "icon_paths")
             if not icon_paths:
                 continue
-            prepared_key = (icon_paths, self.texconv_key)
+            prepared_key = (icon_paths, native_texture_backend_identity())
             prepared_note = ""
             for icon_path in icon_paths:
                 if self.stop_event.is_set():
@@ -661,7 +643,6 @@ class ArchiveItemIconWarmupWorker(QObject):
             try:
                 batch_results = ensure_directxtex_dds_preview_pngs(
                     jobs,
-                    timeout_seconds=45.0,
                     stop_event=self.stop_event,
                 )
             except Exception:
@@ -680,7 +661,6 @@ class ArchiveItemIconWarmupWorker(QObject):
             if preview_path is None:
                 try:
                     preview_path = ensure_dds_display_preview_png(
-                        self.texconv_path,
                         source_path,
                         max_dimension=self.max_dimension,
                         slot_kind="base",
@@ -730,7 +710,7 @@ class ArchiveItemIconWarmupWorker(QObject):
     @Slot()
     def run(self) -> None:
         try:
-            converter_key = self.thumbnail_converter_key or _archive_item_icon_converter_cache_key(self.texconv_key)
+            converter_key = self.thumbnail_converter_key or _archive_item_icon_converter_cache_key()
             emitted_keys: set[Tuple[Tuple[str, ...], str]] = set()
             pending_dds = self._collect_icon_sources(converter_key, emitted_keys)
             if pending_dds and not self.stop_event.is_set():

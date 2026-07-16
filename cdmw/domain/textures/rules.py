@@ -14,7 +14,7 @@ from cdmw.constants import (
     DDS_MIP_MODE_SINGLE,
     DDS_SIZE_MODE_ORIGINAL,
     DDS_SIZE_MODE_PNG,
-    SUPPORTED_TEXCONV_FORMAT_CHOICES,
+    SUPPORTED_DDS_FORMAT_CHOICES,
     UPSCALE_POST_CORRECTION_MATCH_HISTOGRAM,
     UPSCALE_POST_CORRECTION_MATCH_LEVELS,
     UPSCALE_POST_CORRECTION_MATCH_MEAN_LUMA,
@@ -92,7 +92,7 @@ def parse_texture_rules(raw_text: str) -> Tuple[TextureRule, ...]:
             elif lowered_key == "format":
                 if lowered_value in {"match_original", "original"}:
                     rule.format_value = DDS_FORMAT_MODE_MATCH_ORIGINAL
-                elif value in SUPPORTED_TEXCONV_FORMAT_CHOICES:
+                elif value in SUPPORTED_DDS_FORMAT_CHOICES:
                     rule.format_value = value
                 else:
                     raise ValueError(f"Texture rule line {line_number} has an unsupported format: {value}")
@@ -210,7 +210,7 @@ def coerce_texture_workflow_profiles(raw_value: object) -> Tuple[TextureWorkflow
             raise ValueError(f"Workflow profile {index} is missing label.")
         if profile.profile_id in seen_ids:
             raise ValueError(f"Workflow profile id '{profile.profile_id}' is duplicated.")
-        if profile.format_value and profile.format_value not in {DDS_FORMAT_MODE_MATCH_ORIGINAL, *SUPPORTED_TEXCONV_FORMAT_CHOICES}:
+        if profile.format_value and profile.format_value not in {DDS_FORMAT_MODE_MATCH_ORIGINAL, *SUPPORTED_DDS_FORMAT_CHOICES}:
             raise ValueError(f"Workflow profile '{profile.label}' has an unsupported DDS format override: {profile.format_value}")
         if profile.size_value:
             if profile.size_value not in {DDS_SIZE_MODE_PNG, DDS_SIZE_MODE_ORIGINAL} and not re.match(r"^\d+x\d+$", profile.size_value):

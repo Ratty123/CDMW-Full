@@ -373,7 +373,6 @@ def build_unknown_resolver_detail(
     selected_member_path: str,
     *,
     entries_by_path: Dict[str, ArchiveEntry],
-    texconv_path: Optional[Path] = None,
 ) -> str:
     normalized_selected = selected_member_path.replace("\\", "/")
     selected_entry = entries_by_path.get(normalized_selected)
@@ -422,7 +421,6 @@ def build_unknown_resolver_detail(
             detail_lines.append("- Saved local approval: no (current classification may only be inferred from naming/family context)")
         if selected_entry.extension == ".dds":
             detail_lines.append("- DDS header and image are loaded by the background preview worker.")
-        if texconv_path is not None and texconv_path.exists() and selected_entry.extension == ".dds":
             detail_lines.append("- Review the selected DDS in the center preview pane for visual confirmation.")
     else:
         detail_lines.append("- Entry metadata unavailable in the current archive view.")

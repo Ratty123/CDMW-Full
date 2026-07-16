@@ -7,7 +7,7 @@ import struct
 import tempfile
 import time
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
 
 try:
@@ -709,12 +709,10 @@ def build_archive_texture_payload_from_png(
     entry: ArchiveEntry,
     replacement_png_path: Path,
     *,
-    texconv_path: Optional[Path],
     on_log: Optional[Callable[[str], None]] = None,
 ) -> bytes:
     from cdmw.core.archive_media_preview import ensure_archive_preview_source
     from cdmw.core.texture_pipeline.inspection import parse_dds
-    from cdmw.core.texture_pipeline.texconv import build_texconv_command
     from cdmw.domain.textures.output import max_mips_for_size
 
     if entry.extension != ".dds":
@@ -748,7 +746,7 @@ def build_archive_texture_payload_from_png(
             native_report = encode_dds_with_directxtex(
                 normalized_png_path,
                 native_output_path,
-                dds_format=original_info.texconv_format,
+                dds_format=original_info.dds_format,
                 width=original_info.width,
                 height=original_info.height,
                 mip_count=mip_count,
@@ -762,42 +760,10 @@ def build_archive_texture_payload_from_png(
                 on_log,
                 (
                     f"Rebuilt DDS for {entry.path} from {resolved_png.name} "
-                    f"with DirectXTex native backend using {original_info.texconv_format} "
+                    f"with DirectXTex native backend using {original_info.dds_format} "
                     f"at {original_info.width}x{original_info.height}."
                 ),
             )
             return native_output_path.read_bytes()
 
-        if texconv_path is None:
-            raise FileNotFoundError(
-                "DirectXTex native DDS rebuild failed or is unavailable, and no texconv.exe path was provided."
-            )
-        resolved_texconv = texconv_path.expanduser().resolve()
-        if not resolved_texconv.is_file():
-            raise FileNotFoundError(f"texconv.exe was not found: {resolved_texconv}")
-
-        texconv_cmd = build_texconv_command(
-            resolved_texconv,
-            normalized_png_path,
-            output_dir,
-            original_info.texconv_format,
-            mip_count,
-            original_info.width,
-            original_info.height,
-            overwrite_existing_dds=True,
-        )
-        _safe_log(
-            on_log,
-            (
-                f"Rebuilding DDS for {entry.path} from {resolved_png.name} "
-                f"using {original_info.texconv_format} at {original_info.width}x{original_info.height}."
-            ),
-        )
-        return_code, stdout, stderr = run_process_with_cancellation(texconv_cmd)
-        if return_code != 0:
-            failure_text = stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}"
-            raise RuntimeError(f"texconv failed while rebuilding {entry.basename}: {failure_text}")
-        rebuilt_dds_path = output_dir / f"{target_stem}.dds"
-        if not rebuilt_dds_path.is_file():
-            raise FileNotFoundError(f"texconv did not produce the expected DDS output: {rebuilt_dds_path}")
-        return rebuilt_dds_path.read_bytes()
+        raise RuntimeError(f"Native DDS rebuild failed for {entry.path}.")

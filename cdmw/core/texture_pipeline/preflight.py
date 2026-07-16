@@ -105,7 +105,7 @@ def build_texture_policy_preview_payload(
     for entry in plan:
         final_action = entry.action
         final_reason = entry.action_reason
-        output_format = entry.dds_info.texconv_format
+        output_format = entry.dds_info.dds_format
         detail_notes = list(entry.decision.notes)
         effective_correction_mode = (
             entry.effective_ncnn_settings.post_correction_mode
@@ -142,7 +142,7 @@ def build_texture_policy_preview_payload(
                 entry.dds_info.height,
                 has_alpha=entry.dds_info.has_alpha,
             )
-            output_format = output_settings.texconv_format
+            output_format = output_settings.dds_format
             detail_notes.extend(output_settings.notes)
         elif entry.action == "skip_by_rule":
             output_format = "-"
@@ -175,7 +175,7 @@ def build_texture_policy_preview_payload(
                 "backend_compatible": entry.backend_capability.compatible,
                 "backend_execution_mode": entry.backend_capability.execution_mode,
                 "backend_reason": entry.backend_capability.reason,
-                "original_format": entry.dds_info.texconv_format,
+                "original_format": entry.dds_info.dds_format,
                 "planned_format": output_format,
                 "size_policy": _summarize_policy_size(normalized, entry),
                 "mip_policy": _summarize_policy_mips(normalized, entry),
@@ -323,8 +323,8 @@ def build_preflight_report_lines(
                 info = plan_entry.dds_info if plan_entry is not None else parse_dds(path)
             except Exception:
                 info = None
-            if info is not None and ("FLOAT" in info.texconv_format or "SNORM" in info.texconv_format):
-                high_precision_examples.append(f"{rel_text} [{info.texconv_format}]")
+            if info is not None and ("FLOAT" in info.dds_format or "SNORM" in info.dds_format):
+                high_precision_examples.append(f"{rel_text} [{info.dds_format}]")
     (
         high_precision_input_scan_total,
         missing_high_precision_input_examples,

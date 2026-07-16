@@ -19,7 +19,6 @@ class MeshImportBuildState:
     scene_import_result: Optional[SceneImportResult]
     source_display_label: str
     archive_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]]
-    texconv_path: Optional[Path]
     texture_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]]
     texture_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]]
     visible_texture_mode: str

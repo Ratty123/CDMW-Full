@@ -123,7 +123,7 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         refresh_start = source.index("    def refresh_compare_list(")
         refresh_body = source[refresh_start: source.index("    def _handle_compare_selection_change", refresh_start)]
         render_start = source.index("    def _render_compare_preview(")
-        render_body = source[render_start: source.index("        texconv_text =", render_start)]
+        render_body = source[render_start: source.index("    def _start_compare_preview_worker(", render_start)]
         self.assertIn("if self._startup_benchmark_enabled():\n            self.compare_list.setCurrentRow(-1)", refresh_body)
         self.assertIn("if self._startup_benchmark_enabled():\n            return", render_body)
         self.assertIn('getattr(self, "_startup_splash_window", None) is not None', source)

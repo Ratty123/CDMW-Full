@@ -143,7 +143,6 @@ def _add_native_binary_tree(source, destination, *, required_release=False, suff
 _add_native_binary(f"native/cd_texture_dx/build/{NATIVE_CONFIGURATION}/cd-texture-dx.exe", "native", required_release=True)
 _add_native_binary(f"native/cdmw_preview_core/build/{NATIVE_CONFIGURATION}/cdmw-preview-core.exe", "native", required_release=True)
 _add_native_binary(f"native/cdmw_d3d11_preview/build/{NATIVE_CONFIGURATION}/cdmw-d3d11-preview.exe", "native", required_release=True)
-_add_native_binary(f"native/cdmw_d3d11_preview/build/bin/{NATIVE_CONFIGURATION}/texconv.exe", "native")
 _add_native_binary(f"native/cdmw_archive_accelerator/build/{NATIVE_CONFIGURATION}/cdmw-archive-accelerator.exe", "native")
 _add_native_binary(f"native/cdmw_mesh_core/build/{NATIVE_CONFIGURATION}/cdmw-mesh-core.exe", "native", required_release=True)
 _add_native_binary_tree(

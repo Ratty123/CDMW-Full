@@ -37,7 +37,7 @@ __all__ = [
 
 ANALYSIS_CONTEXT_HELP_TEXT = (
     "Texture Analysis uses your current Original DDS root and Output root. Refresh Research after changing either folder.\n\n"
-    "Mip Analysis compares matching DDS files found in both Original DDS root and Output root, including header validity, file-size drift, color-space changes, preview-based alpha and brightness checks when texconv is available, and texture-specific warnings for normals, packed masks, and grayscale technical maps. "
+    "Mip Analysis compares matching DDS files found in both Original DDS root and Output root, including header validity, file-size drift, color-space changes, native preview-based alpha and brightness checks, and texture-specific warnings for normals, packed masks, and grayscale technical maps. "
     "Bulk Normal Validator scans normal-like DDS files from whichever of those roots currently exist. "
     "Budget Analysis adds exact mod-vs-vanilla growth metrics plus clearly labeled heuristic risk summaries."
 )

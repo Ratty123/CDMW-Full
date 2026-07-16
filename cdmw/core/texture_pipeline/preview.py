@@ -1,21 +1,13 @@
 from __future__ import annotations
 
-import hashlib
 import shutil
 import threading
 import time
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
-from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
-from cdmw.core.texture_decode_cache import (
-    preview_cache_locks,
-    preview_pair_is_valid,
-    preview_png_is_valid,
-    preview_staging_dir,
-    publish_preview_pair,
-)
+from cdmw.core.common import raise_if_cancelled
+from cdmw.core.texture_legacy_compat import resolve_deprecated_preview_source
 from cdmw.core.texture_pipeline.inspection import describe_png_color_type, parse_dds, read_png_header_info
 from cdmw.models import ComparePreviewPaneResult, DdsInfo, NormalizedConfig, RunCancelled, TextureProcessingPlan
 
@@ -47,80 +39,6 @@ def collect_compare_relative_paths(
     return sorted(combined)
 
 
-def build_preview_png_command(
-    texconv_path: Path,
-    dds_path: Path,
-    output_dir: Path,
-    *,
-    width: Optional[int] = None,
-    height: Optional[int] = None,
-) -> List[str]:
-    cmd = [
-        str(texconv_path),
-        "-nologo",
-        "-y",
-        "-f",
-        "R8G8B8A8_UNORM",
-        "-ft",
-        "png",
-        "-o",
-        str(output_dir),
-    ]
-    if width is not None and height is not None and width > 0 and height > 0:
-        cmd.extend(["-w", str(int(width)), "-h", str(int(height))])
-    cmd.append(str(dds_path))
-    return cmd
-
-
-def _ensure_texconv_preview_cached(
-    texconv_path: Path,
-    dds_path: Path,
-    *,
-    cache_key: str,
-    preview_path: Path,
-    width: Optional[int] = None,
-    height: Optional[int] = None,
-    slot_kind: str = "base",
-    max_dimension: int = 0,
-    display: bool = False,
-    stop_event: Optional[threading.Event] = None,
-) -> Path:
-    label = "display preview" if display else "preview"
-    with preview_cache_locks((f"texconv:{cache_key}",)):
-        raise_if_cancelled(stop_event, f"{label.capitalize()} generation cancelled for {dds_path.name}.")
-        if preview_pair_is_valid(preview_path):
-            return preview_path
-        with preview_staging_dir(preview_path.parent) as staging:
-            cmd = build_preview_png_command(
-                texconv_path,
-                dds_path,
-                staging,
-                width=width,
-                height=height,
-            )
-            return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
-            if return_code != 0:
-                detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
-                raise ValueError(f"Could not generate {label} for {dds_path.name}: {detail}")
-            candidates = [staging / f"{dds_path.stem}.png"]
-            candidates.extend(path for path in sorted(staging.glob("*.png")) if path not in candidates)
-            staged = next((path for path in candidates if preview_png_is_valid(path)), None)
-            if staged is None:
-                article = "a display PNG preview" if display else "a PNG preview"
-                raise ValueError(f"texconv did not produce {article} for {dds_path.name}.")
-            from cdmw.core.texture_native import texconv_preview_report
-
-            report = texconv_preview_report(
-                dds_path,
-                staged,
-                slot_kind=slot_kind,
-                max_dimension=max_dimension,
-            )
-            publish_preview_pair(staged, preview_path, report)
-        request_app_temp_cache_prune()
-        return preview_path
-
-
 def _staging_png_format_for_plan(entry: TextureProcessingPlan) -> str:
     if entry.path_kind == "technical_high_precision_path":
         return "R16_UNORM"
@@ -146,67 +64,30 @@ def _validate_high_precision_staged_png(
     return None
 
 
-def build_staging_png_command(
-    texconv_path: Path,
-    dds_path: Path,
-    output_dir: Path,
-    entry: TextureProcessingPlan,
-) -> List[str]:
-    return [
-        str(texconv_path),
-        "-nologo",
-        "-y",
-        "-f",
-        _staging_png_format_for_plan(entry),
-        "-ft",
-        "png",
-        "-o",
-        str(output_dir),
-        str(dds_path),
-    ]
-
-
 def ensure_dds_preview_png(
-    texconv_path: Optional[Path],
-    dds_path: Path,
+    source_or_obsolete_backend: Optional[Path],
+    dds_path: Optional[Path] = None,
     *,
     stop_event: Optional[threading.Event] = None,
 ) -> Path:
+    source_path = resolve_deprecated_preview_source(source_or_obsolete_backend, dds_path).expanduser().resolve()
     try:
         from cdmw.core.texture_native import ensure_native_dds_preview_png
 
         native_preview = ensure_native_dds_preview_png(
-            dds_path.resolve(),
+            source_path,
             max_dimension=4096,
             slot_kind="base",
             normal_space="auto",
+            stop_event=stop_event,
         )
         if native_preview is not None:
             return native_preview
-    except Exception:
-        native_preview = None
-
-    if texconv_path is None:
-        raise ValueError(
-            f"DirectXTex native DDS preview is unavailable and no optional texconv fallback was provided for {dds_path.name}."
-        )
-    stat = dds_path.stat()
-    texconv_stat = texconv_path.stat()
-    cache_key = hashlib.sha256(
-        (
-            f"{dds_path.resolve()}::{stat.st_size}::{stat.st_mtime_ns}"
-            f"::{texconv_path.resolve()}::{texconv_stat.st_size}::{texconv_stat.st_mtime_ns}"
-        ).encode("utf-8")
-    ).hexdigest()
-    cache_dir = app_temp_cache_path("preview_cache", cache_key)
-    preview_path = cache_dir / f"{dds_path.stem}.png"
-    return _ensure_texconv_preview_cached(
-        texconv_path,
-        dds_path,
-        cache_key=cache_key,
-        preview_path=preview_path,
-        stop_event=stop_event,
-    )
+    except RunCancelled:
+        raise
+    except Exception as exc:
+        raise ValueError(f"Native DDS preview failed for {source_path.name}: {exc}") from exc
+    raise ValueError(f"Native DDS preview failed for {source_path.name}.")
 
 
 def _preview_resize_dimensions(
@@ -230,20 +111,22 @@ def _preview_resize_dimensions(
 
 
 def ensure_dds_display_preview_png(
-    texconv_path: Optional[Path],
-    dds_path: Path,
+    source_or_obsolete_backend: Optional[Path],
+    dds_path: Optional[Path] = None,
     *,
     dds_info: Optional[DdsInfo] = None,
     max_dimension: int = _COMPARE_DISPLAY_PREVIEW_MAX_DIMENSION,
     slot_kind: str = "base",
     srgb: str = "auto",
     normal_space: str = "auto",
+    output_pixel_type: str = "rgba8",
     stop_event: Optional[threading.Event] = None,
 ) -> Path:
+    source_path = resolve_deprecated_preview_source(source_or_obsolete_backend, dds_path).expanduser().resolve()
     resolved_info: Optional[DdsInfo] = dds_info
     try:
         if resolved_info is None:
-            resolved_info = parse_dds(dds_path)
+            resolved_info = parse_dds(source_path)
     except Exception as exc:
         if dds_info is not None:
             raise
@@ -252,74 +135,21 @@ def ensure_dds_display_preview_png(
         from cdmw.core.texture_native import ensure_native_dds_preview_png
 
         native_preview = ensure_native_dds_preview_png(
-            dds_path.resolve(),
+            source_path,
             max_dimension=max_dimension,
             slot_kind=slot_kind,
             srgb=srgb,
             normal_space=normal_space,
+            output_pixel_type=output_pixel_type,
+            stop_event=stop_event,
         )
         if native_preview is not None:
             return native_preview
-    except Exception:
-        native_preview = None
-    if texconv_path is None:
-        raise ValueError(
-            f"DirectXTex native DDS display preview is unavailable and no optional texconv fallback was provided for {dds_path.name}."
-        )
-    if resolved_info is None:
-        preview_path = ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
-        try:
-            from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
-
-            write_native_texture_report_sidecar(
-                preview_path,
-                texconv_preview_report(dds_path, preview_path, slot_kind=slot_kind, max_dimension=max_dimension),
-            )
-        except Exception:
-            pass
-        return preview_path
-    resize_dims = _preview_resize_dimensions(
-        resolved_info.width,
-        resolved_info.height,
-        max_dimension=max_dimension,
-    )
-    if resize_dims is None:
-        preview_path = ensure_dds_preview_png(texconv_path, dds_path, stop_event=stop_event)
-        try:
-            from cdmw.core.texture_native import texconv_preview_report, write_native_texture_report_sidecar
-
-            write_native_texture_report_sidecar(
-                preview_path,
-                texconv_preview_report(dds_path, preview_path, slot_kind=slot_kind, max_dimension=max_dimension),
-            )
-        except Exception:
-            pass
-        return preview_path
-
-    stat = dds_path.stat()
-    texconv_stat = texconv_path.stat()
-    target_width, target_height = resize_dims
-    cache_key = hashlib.sha256(
-        (
-            f"display::{dds_path.resolve()}::{stat.st_size}::{stat.st_mtime_ns}"
-            f"::{texconv_path.resolve()}::{texconv_stat.st_size}::{texconv_stat.st_mtime_ns}"
-            f"::{target_width}x{target_height}"
-        ).encode("utf-8")
-    ).hexdigest()
-    cache_dir = app_temp_cache_path("preview_cache_display", cache_key)
-    preview_path = cache_dir / f"{dds_path.stem}.png"
-    return _ensure_texconv_preview_cached(
-        texconv_path,
-        dds_path,
-        cache_key=cache_key,
-        preview_path=preview_path,
-        width=target_width,
-        height=target_height,
-        slot_kind=slot_kind,
-        max_dimension=max_dimension,
-        display=True,
-        stop_event=stop_event,
-    )
+    except RunCancelled:
+        raise
+    except Exception as exc:
+        raise ValueError(f"Native DDS display preview failed for {source_path.name}: {exc}") from exc
+    raise ValueError(f"Native DDS display preview failed for {source_path.name}.")
 
 
 def stage_dds_to_pngs(
@@ -388,10 +218,14 @@ def stage_dds_to_pngs(
                 except Exception:
                     dds_info = None
                 preview_path = ensure_dds_display_preview_png(
-                    config.texconv_path,
                     dds_path,
                     dds_info=dds_info,
                     max_dimension=0,
+                    output_pixel_type=(
+                        "gray16"
+                        if entry.path_kind == "technical_high_precision_path"
+                        else "rgba8"
+                    ),
                     stop_event=stop_event,
                 )
                 if Path(preview_path).resolve() != target_png.resolve():
@@ -446,28 +280,40 @@ def stage_dds_to_pngs(
 
 
 def build_compare_preview_pane_result(
-    texconv_path: Optional[Path],
-    dds_path: Optional[Path],
-    missing_message: str,
+    source_or_obsolete_backend: Optional[Path],
+    dds_path_or_missing_message: Optional[Path | str],
+    missing_message: Optional[str] = None,
     planner_summary: str = "",
     *,
     stop_event: Optional[threading.Event] = None,
 ) -> ComparePreviewPaneResult:
+    if missing_message is None:
+        dds_path = Path(source_or_obsolete_backend) if source_or_obsolete_backend is not None else None
+        resolved_missing_message = str(dds_path_or_missing_message or "")
+    else:
+        dds_path = (
+            resolve_deprecated_preview_source(
+                source_or_obsolete_backend,
+                Path(dds_path_or_missing_message) if dds_path_or_missing_message is not None else None,
+            )
+            if dds_path_or_missing_message is not None
+            else None
+        )
+        resolved_missing_message = missing_message
     if dds_path is None or not dds_path.exists():
-        return ComparePreviewPaneResult(status="missing", message=missing_message)
+        return ComparePreviewPaneResult(status="missing", message=resolved_missing_message)
 
     try:
         metadata_summary = ""
         dds_info: Optional[DdsInfo] = None
         try:
             dds_info = parse_dds(dds_path.resolve())
-            metadata_summary = f"Format: {dds_info.texconv_format} | Size: {dds_info.width}x{dds_info.height} | Mips: {dds_info.mip_count}"
+            metadata_summary = f"Format: {dds_info.dds_format} | Size: {dds_info.width}x{dds_info.height} | Mips: {dds_info.mip_count}"
         except Exception:
             metadata_summary = "DDS metadata unavailable."
         if planner_summary.strip():
             metadata_summary = f"{metadata_summary} | {planner_summary.strip()}"
         preview_png = ensure_dds_display_preview_png(
-            texconv_path.resolve() if texconv_path is not None and texconv_path.is_file() else None,
             dds_path.resolve(),
             dds_info=dds_info,
             stop_event=stop_event,

@@ -54,7 +54,6 @@ def _prepared_tab(root: Path) -> tuple[ItemIconLibraryTab, Path, object]:
         settings=QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat),
         base_dir=root,
         get_archive_entries=lambda: (),
-        get_texconv_path=lambda: "",
         resolve_target_template_path=lambda _entry: template,
     )
     _wait_until(lambda: tab._index_thread is None)

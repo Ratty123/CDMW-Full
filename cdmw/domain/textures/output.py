@@ -38,7 +38,7 @@ def max_mips_for_size(width: int, height: int) -> int:
     return int(math.floor(math.log2(max(width, height)))) + 1
 
 
-def _srgb_variant(texconv_format: str) -> str:
+def _srgb_variant(dds_format: str) -> str:
     mapping = {
         "R8G8B8A8_UNORM": "R8G8B8A8_UNORM_SRGB",
         "B8G8R8A8_UNORM": "B8G8R8A8_UNORM_SRGB",
@@ -47,10 +47,10 @@ def _srgb_variant(texconv_format: str) -> str:
         "BC3_UNORM": "BC3_UNORM_SRGB",
         "BC7_UNORM": "BC7_UNORM_SRGB",
     }
-    return mapping.get(texconv_format, texconv_format)
+    return mapping.get(dds_format, dds_format)
 
 
-def _linear_variant(texconv_format: str) -> str:
+def _linear_variant(dds_format: str) -> str:
     mapping = {
         "R8G8B8A8_UNORM_SRGB": "R8G8B8A8_UNORM",
         "B8G8R8A8_UNORM_SRGB": "B8G8R8A8_UNORM",
@@ -59,7 +59,7 @@ def _linear_variant(texconv_format: str) -> str:
         "BC3_UNORM_SRGB": "BC3_UNORM",
         "BC7_UNORM_SRGB": "BC7_UNORM",
     }
-    return mapping.get(texconv_format, texconv_format)
+    return mapping.get(dds_format, dds_format)
 
 
 def apply_texture_workflow_output_override(
@@ -70,21 +70,23 @@ def apply_texture_workflow_output_override(
     note_label: str,
 ) -> DdsOutputSettings:
     next_settings = DdsOutputSettings(
-        texconv_format=settings.texconv_format,
+        dds_format=settings.dds_format,
         mip_count=settings.mip_count,
         width=settings.width,
         height=settings.height,
         resize_to_dimensions=settings.resize_to_dimensions,
         notes=list(settings.notes),
-        texconv_color_args=list(settings.texconv_color_args),
-        texconv_extra_args=list(settings.texconv_extra_args),
+        source_color_policy=settings.source_color_policy,
+        mip_alpha_policy=settings.mip_alpha_policy,
+        alpha_coverage_reference=settings.alpha_coverage_reference,
+        dds_alpha_mode=settings.dds_alpha_mode,
     )
 
     if override.format_value:
         if override.format_value == DDS_FORMAT_MODE_MATCH_ORIGINAL:
-            next_settings.texconv_format = dds_info.texconv_format
+            next_settings.dds_format = dds_info.dds_format
         else:
-            next_settings.texconv_format = override.format_value
+            next_settings.dds_format = override.format_value
     if override.size_value:
         if override.size_value == DDS_SIZE_MODE_PNG:
             next_settings.resize_to_dimensions = False
@@ -164,7 +166,7 @@ def _resolve_plan_output_settings(
         )
 
     allow_profile_format_override = (
-        plan.profile.preferred_texconv_format not in {"", "MATCH_ORIGINAL"}
+        plan.profile.preferred_dds_format not in {"", "MATCH_ORIGINAL"}
         and explicit_output_format_override == ""
         and (
             explicit_profile_override
@@ -172,26 +174,26 @@ def _resolve_plan_output_settings(
         )
     )
     if allow_profile_format_override:
-        output_settings.texconv_format = plan.profile.preferred_texconv_format
+        output_settings.dds_format = plan.profile.preferred_dds_format
     elif (
-        plan.profile.preferred_texconv_format not in {"", "MATCH_ORIGINAL"}
+        plan.profile.preferred_dds_format not in {"", "MATCH_ORIGINAL"}
         and normalized.dds_format_mode == DDS_FORMAT_MODE_MATCH_ORIGINAL
         and not normalized.enable_automatic_texture_rules
         and explicit_output_format_override == ""
         and not explicit_profile_override
     ):
         output_settings.notes.append(
-            f"planner profile suggests {plan.profile.preferred_texconv_format}, but manual Match original DDS format remains in effect because automatic color/format rules are disabled."
+            f"planner profile suggests {plan.profile.preferred_dds_format}, but manual Match original DDS format remains in effect because automatic color/format rules are disabled."
         )
     elif (
-        plan.profile.preferred_texconv_format not in {"", "MATCH_ORIGINAL"}
+        plan.profile.preferred_dds_format not in {"", "MATCH_ORIGINAL"}
         and plan.path_kind != "technical_high_precision_path"
         and explicit_output_format_override == ""
         and not explicit_profile_override
-        and output_settings.texconv_format != plan.profile.preferred_texconv_format
+        and output_settings.dds_format != plan.profile.preferred_dds_format
     ):
         output_settings.notes.append(
-            f"planner profile suggests {plan.profile.preferred_texconv_format}, but the explicit DDS Output format setting remains in effect."
+            f"planner profile suggests {plan.profile.preferred_dds_format}, but the explicit DDS Output format setting remains in effect."
         )
     output_settings.notes.append(f"planner profile: {plan.profile.key}")
     output_settings.notes.append(f"planner path: {plan.path_kind}")
@@ -226,23 +228,25 @@ def apply_automatic_texture_rule_adjustments(
         decision = decision_factory(
             rel_path.as_posix(),
             preset=preset,
-            original_texconv_format=dds_info.texconv_format,
+            original_dds_format=dds_info.dds_format,
             has_alpha=has_alpha,
             sidecar_texts=sidecar_texts,
             enable_automatic_rules=True,
         )
     next_settings = DdsOutputSettings(
-        texconv_format=output_settings.texconv_format,
+        dds_format=output_settings.dds_format,
         mip_count=output_settings.mip_count,
         width=output_settings.width,
         height=output_settings.height,
         resize_to_dimensions=output_settings.resize_to_dimensions,
         notes=list(output_settings.notes),
-        texconv_color_args=list(output_settings.texconv_color_args),
-        texconv_extra_args=list(output_settings.texconv_extra_args),
+        source_color_policy=output_settings.source_color_policy,
+        mip_alpha_policy=output_settings.mip_alpha_policy,
+        alpha_coverage_reference=output_settings.alpha_coverage_reference,
+        dds_alpha_mode=output_settings.dds_alpha_mode,
     )
-    current_format = next_settings.texconv_format.upper()
-    recommended = decision.recommended_texconv_format.upper()
+    current_format = next_settings.dds_format.upper()
+    recommended = decision.recommended_dds_format.upper()
     preserve_visible_format = (
         prefer_manual_visible_format
         and decision.texture_type in _VISIBLE_COLOR_TEXTURE_TYPES
@@ -254,26 +258,26 @@ def apply_automatic_texture_rule_adjustments(
             srgb_candidate = _srgb_variant(current_format)
             if srgb_candidate != current_format:
                 updated_format = srgb_candidate
-            elif current_format == dds_info.texconv_format.upper() and recommended.endswith("_SRGB"):
+            elif current_format == dds_info.dds_format.upper() and recommended.endswith("_SRGB"):
                 updated_format = recommended
     elif decision.texture_type == "normal" and allow_auto_format_override:
         if current_format.endswith("_SRGB") or current_format not in {"BC5_UNORM", "BC5_SNORM"}:
             updated_format = recommended
     elif decision.texture_type == "height" and allow_auto_format_override:
         linear_candidate = _linear_variant(current_format)
-        if "FLOAT" in dds_info.texconv_format.upper():
-            updated_format = dds_info.texconv_format.upper()
+        if "FLOAT" in dds_info.dds_format.upper():
+            updated_format = dds_info.dds_format.upper()
         elif linear_candidate != current_format:
             updated_format = linear_candidate
         elif current_format.endswith("_SRGB") or current_format not in {"BC4_UNORM", "BC4_SNORM", "R8G8B8A8_UNORM", "B8G8R8A8_UNORM"}:
             updated_format = recommended
     elif decision.texture_type == "vector" and allow_auto_format_override:
         linear_candidate = _linear_variant(current_format)
-        if "FLOAT" in dds_info.texconv_format.upper():
-            updated_format = dds_info.texconv_format.upper()
+        if "FLOAT" in dds_info.dds_format.upper():
+            updated_format = dds_info.dds_format.upper()
         elif linear_candidate != current_format:
             updated_format = linear_candidate
-        elif current_format.endswith("_SRGB") or current_format != dds_info.texconv_format.upper():
+        elif current_format.endswith("_SRGB") or current_format != dds_info.dds_format.upper():
             updated_format = recommended
     elif decision.texture_type == "roughness" and allow_auto_format_override:
         if current_format.endswith("_SRGB") or current_format not in {"BC4_UNORM", "BC4_SNORM"}:
@@ -286,7 +290,7 @@ def apply_automatic_texture_rule_adjustments(
             updated_format = recommended
 
     if updated_format != current_format:
-        next_settings.texconv_format = updated_format
+        next_settings.dds_format = updated_format
         next_settings.notes.append(
             f"automatic texture rule: {decision.texture_type}/{decision.semantic_subtype} -> {updated_format}"
         )
@@ -298,31 +302,38 @@ def apply_automatic_texture_rule_adjustments(
         next_settings.notes.append(
             f"automatic texture rule: preserved original visible-texture format {current_format} to avoid unintended luminance shifts under manual Match original DDS format."
         )
-    next_settings.texconv_color_args.clear()
+    next_settings.source_color_policy = (
+        "ignore_srgb_metadata"
+        if decision.recommended_colorspace == "linear"
+        else "auto"
+    )
     if decision.recommended_colorspace == "linear":
-        next_settings.texconv_color_args.extend(["--ignore-srgb"])
+        next_settings.notes.append(
+            "auto-rule: source sRGB metadata will be ignored while rebuilding this linear texture."
+        )
     elif decision.recommended_colorspace == "srgb":
         next_settings.notes.append(
-            "auto-rule: visible texture rebuild keeps PNG pixel values as-is and avoids extra texconv sRGB conversion flags to reduce luminance drift."
+            "auto-rule: visible texture rebuild keeps PNG pixel values as-is to reduce luminance drift."
         )
 
-    next_settings.texconv_extra_args = [
-        arg
-        for arg in next_settings.texconv_extra_args
-        if str(arg).strip().lower() not in {
-            "-sepalpha",
-            "--separate-alpha",
-            "--keep-coverage",
-            "-pmalpha",
-            "--premultiplied-alpha",
-        }
-    ]
+    next_settings.mip_alpha_policy = "default"
+    next_settings.alpha_coverage_reference = 0.5
     if decision.alpha_mode in {"cutout"} and next_settings.mip_count > 1:
-        next_settings.texconv_extra_args.extend(["--keep-coverage", "0.5"])
+        next_settings.mip_alpha_policy = "preserve_coverage"
         next_settings.notes.append("auto-rule: alpha-tested cutout texture will preserve alpha coverage during mip generation.")
     if decision.alpha_mode == "channel_data" and decision.preserve_alpha:
-        next_settings.texconv_extra_args.append("--separate-alpha")
+        next_settings.mip_alpha_policy = "separate"
         next_settings.notes.append("auto-rule: alpha channel appears to store data, so separate-alpha mip handling is enabled.")
+    if decision.alpha_mode == "none":
+        next_settings.dds_alpha_mode = "opaque"
+    elif decision.alpha_mode == "channel_data":
+        next_settings.dds_alpha_mode = "custom"
+    elif decision.alpha_mode == "premultiplied":
+        next_settings.dds_alpha_mode = "premultiplied"
+    elif decision.preserve_alpha:
+        next_settings.dds_alpha_mode = "straight"
+    else:
+        next_settings.dds_alpha_mode = "unknown"
     if decision.alpha_mode == "premultiplied":
         next_settings.notes.append("auto-rule: possible premultiplied alpha detected; verify final blend behavior manually.")
 
@@ -335,7 +346,7 @@ def apply_automatic_texture_rule_adjustments(
             next_settings.notes.append(
                 f"auto-rule: {decision.texture_type} map is using resized PNG dimensions; verify that the semantic data still makes sense."
             )
-        if intermediate_kind == "visible_color_png_path" and is_png_intermediate_high_risk(decision.texture_type, dds_info.texconv_format):
+        if intermediate_kind == "visible_color_png_path" and is_png_intermediate_high_risk(decision.texture_type, dds_info.dds_format):
             next_settings.notes.append(
                 f"auto-rule: {decision.texture_type} map may lose precision through PNG intermediates; compare carefully against the source."
             )
@@ -359,10 +370,10 @@ def resolve_dds_output_settings(
     notes: List[str] = []
 
     if config.dds_format_mode == DDS_FORMAT_MODE_MATCH_ORIGINAL:
-        texconv_format = dds_info.texconv_format
+        dds_format = dds_info.dds_format
     else:
-        texconv_format = config.dds_custom_format
-        notes.append(f"custom format {texconv_format}")
+        dds_format = config.dds_custom_format
+        notes.append(f"custom format {dds_format}")
 
     if config.dds_size_mode == DDS_SIZE_MODE_ORIGINAL:
         output_width = dds_info.width
@@ -402,7 +413,7 @@ def resolve_dds_output_settings(
             notes.append(f"custom mip count {mip_count}")
 
     return DdsOutputSettings(
-        texconv_format=texconv_format,
+        dds_format=dds_format,
         mip_count=mip_count,
         width=output_width,
         height=output_height,
@@ -419,18 +430,20 @@ def apply_texture_rule_to_output_settings(
         return None, f"texture rule matched: {rule.pattern} -> skip"
 
     next_settings = DdsOutputSettings(
-        texconv_format=settings.texconv_format,
+        dds_format=settings.dds_format,
         mip_count=settings.mip_count,
         width=settings.width,
         height=settings.height,
         resize_to_dimensions=settings.resize_to_dimensions,
         notes=list(settings.notes),
-        texconv_color_args=list(settings.texconv_color_args),
-        texconv_extra_args=list(settings.texconv_extra_args),
+        source_color_policy=settings.source_color_policy,
+        mip_alpha_policy=settings.mip_alpha_policy,
+        alpha_coverage_reference=settings.alpha_coverage_reference,
+        dds_alpha_mode=settings.dds_alpha_mode,
     )
 
     if rule.format_value and rule.format_value != DDS_FORMAT_MODE_MATCH_ORIGINAL:
-        next_settings.texconv_format = rule.format_value
+        next_settings.dds_format = rule.format_value
     if rule.size_value:
         if rule.size_value == DDS_SIZE_MODE_PNG:
             next_settings.resize_to_dimensions = False

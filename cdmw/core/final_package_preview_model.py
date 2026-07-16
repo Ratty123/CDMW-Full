@@ -365,8 +365,6 @@ def _payload_preview_file(payload: _FinalPayload) -> Path:
 
 def _preview_texture_path_for_payload(
     payload: _FinalPayload,
-    *,
-    texconv_path: Optional[Path],
 ) -> Tuple[str, str]:
     dds_path = _payload_preview_file(payload)
     try:
@@ -378,19 +376,14 @@ def _preview_texture_path_for_payload(
             dds_info = parse_dds(dds_path)
         except Exception:
             dds_info = None
-        resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
-        preview_path = ensure_dds_display_preview_png(resolved_texconv, dds_path, dds_info=dds_info)
+        preview_path = ensure_dds_display_preview_png(dds_path, dds_info=dds_info)
         return Path(preview_path).as_posix(), ""
     except Exception as exc:
-        if texconv_path is None or not texconv_path.expanduser().is_file():
-            return dds_path.as_posix(), ""
         return "", str(exc)
 
 
 def _preview_texture_path_for_original(
     dds_path: Path,
-    *,
-    texconv_path: Optional[Path],
 ) -> Tuple[str, str]:
     if not isinstance(dds_path, Path):
         return "", "Original DDS resolver did not return a file path."
@@ -406,12 +399,9 @@ def _preview_texture_path_for_original(
             dds_info = parse_dds(source)
         except Exception:
             dds_info = None
-        resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
-        preview_path = ensure_dds_display_preview_png(resolved_texconv, source, dds_info=dds_info)
+        preview_path = ensure_dds_display_preview_png(source, dds_info=dds_info)
         return Path(preview_path).as_posix(), ""
     except Exception as exc:
-        if texconv_path is None or not texconv_path.expanduser().is_file():
-            return source.as_posix(), ""
         return "", str(exc)
 
 

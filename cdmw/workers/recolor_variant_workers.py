@@ -32,7 +32,6 @@ class RecolorVariantBuildWorker(QObject):
         output_root: Path,
         profiles: Sequence[RecolorVariantOutputProfile],
         *,
-        texconv_path: Optional[Path],
         overwrite_existing: bool,
     ) -> None:
         super().__init__()
@@ -40,7 +39,6 @@ class RecolorVariantBuildWorker(QObject):
         self.template = template
         self.output_root = output_root
         self.profiles = tuple(profiles)
-        self.texconv_path = texconv_path
         self.overwrite_existing = bool(overwrite_existing)
         self.stop_event = threading.Event()
 
@@ -55,7 +53,6 @@ class RecolorVariantBuildWorker(QObject):
                 self.template,
                 self.output_root,
                 self.profiles,
-                texconv_path=self.texconv_path,
                 overwrite_existing=self.overwrite_existing,
                 stop_event=self.stop_event,
                 on_log=lambda message: _emit(self.log_message, message),

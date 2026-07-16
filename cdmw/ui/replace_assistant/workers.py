@@ -37,12 +37,10 @@ class ReplaceAssistantPreviewWorker(QObject):
     def __init__(
         self,
         request_id: int,
-        texconv_path: Optional[Path],
         source_path: Path,
     ) -> None:
         super().__init__()
         self.request_id = request_id
-        self.texconv_path = texconv_path
         self.source_path = source_path
         self.stop_event = threading.Event()
 
@@ -55,7 +53,6 @@ class ReplaceAssistantPreviewWorker(QObject):
             if self.stop_event.is_set():
                 return
             preview_png_path, metadata_summary, detail_text = build_replace_assistant_preview_assets(
-                self.texconv_path,
                 self.source_path,
             )
             result = ArchivePreviewResult(
@@ -265,10 +262,9 @@ class ReplaceAssistantReviewCompareWorker(QObject):
     error = Signal(int, str)
     finished = Signal()
 
-    def __init__(self, request_id: int, texconv_path: Optional[Path], item: ReplaceAssistantReviewItem) -> None:
+    def __init__(self, request_id: int, item: ReplaceAssistantReviewItem) -> None:
         super().__init__()
         self.request_id = request_id
-        self.texconv_path = texconv_path
         self.item = item
         self.stop_event = threading.Event()
 
@@ -287,7 +283,7 @@ class ReplaceAssistantReviewCompareWorker(QObject):
                 dds_info = parse_dds(resolved)
                 metadata.update(
                     {
-                        "format": dds_info.texconv_format,
+                        "format": dds_info.dds_format,
                         "size": f"{dds_info.width}x{dds_info.height}",
                         "mips": str(dds_info.mip_count),
                     }
@@ -318,7 +314,7 @@ class ReplaceAssistantReviewCompareWorker(QObject):
             return None
         return {
             "path": str(resolved),
-            "format": dds_info.texconv_format,
+            "format": dds_info.dds_format,
             "size": f"{dds_info.width}x{dds_info.height}",
             "mips": str(dds_info.mip_count),
         }
@@ -370,7 +366,6 @@ class ReplaceAssistantReviewCompareWorker(QObject):
             source_metadata = self._collect_source_metadata(self.item.source_path)
             original_metadata = self._collect_dds_metadata(self.item.original_dds_path)
             source_preview_path, source_meta, source_detail = build_replace_assistant_preview_assets(
-                self.texconv_path,
                 self.item.source_path,
             )
             source_image = None
@@ -380,7 +375,6 @@ class ReplaceAssistantReviewCompareWorker(QObject):
                 if not image.isNull():
                     source_image = image
             output_result = build_compare_preview_pane_result(
-                self.texconv_path,
                 self.item.output_dds_path,
                 "Rebuilt DDS not found.",
                 stop_event=self.stop_event,

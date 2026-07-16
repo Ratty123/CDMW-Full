@@ -71,7 +71,6 @@ from cdmw.constants import (
     REALESRGAN_NCNN_EXTRA_ARGS,
     DEFAULT_UPSCALE_POST_CORRECTION,
     RETRY_SMALLER_TILE_ON_FAILURE,
-    TEXCONV_PATH,
     TEXTURE_RULES_TEXT,
 )
 
@@ -153,7 +152,6 @@ class AppConfig:
     texture_editor_png_root: str = TEXTURE_EDITOR_PNG_ROOT
     output_root: str = OUTPUT_ROOT
     dds_staging_root: str = DDS_STAGING_ROOT
-    texconv_path: str = TEXCONV_PATH
     dds_format_mode: str = DEFAULT_DDS_FORMAT_MODE
     dds_custom_format: str = DEFAULT_DDS_CUSTOM_FORMAT
     dds_size_mode: str = DEFAULT_DDS_SIZE_MODE
@@ -227,7 +225,6 @@ class NormalizedConfig:
     texture_editor_png_root: Optional[Path]
     output_root: Path
     dds_staging_root: Optional[Path]
-    texconv_path: Optional[Path]
     dds_format_mode: str
     dds_custom_format: str
     dds_size_mode: str
@@ -273,7 +270,7 @@ class DdsInfo:
     width: int
     height: int
     mip_count: int
-    texconv_format: str
+    dds_format: str
     source_path: Path
     has_alpha: bool = False
     colorspace_intent: str = "unknown"
@@ -298,7 +295,7 @@ class CrimsonDdsInfo:
     mip_count: int = 0
     raw_mip_count: int = 0
     depth: int = 0
-    texconv_format: str = ""
+    dds_format: str = ""
     is_dx10: bool = False
     dxgi_format: int = 0
     fourcc: str = ""
@@ -319,14 +316,16 @@ class CrimsonDdsInfo:
 
 @dataclass(slots=True)
 class DdsOutputSettings:
-    texconv_format: str
+    dds_format: str
     mip_count: int
     width: int
     height: int
     resize_to_dimensions: bool
     notes: List[str] = field(default_factory=list)
-    texconv_color_args: List[str] = field(default_factory=list)
-    texconv_extra_args: List[str] = field(default_factory=list)
+    source_color_policy: str = "auto"
+    mip_alpha_policy: str = "default"
+    alpha_coverage_reference: float = 0.5
+    dds_alpha_mode: str = "unknown"
 
 
 @dataclass(slots=True)
@@ -334,7 +333,7 @@ class TextureProcessingProfile:
     key: str
     label: str
     allowed_intermediate_kinds: Tuple[IntermediateKind, ...]
-    preferred_texconv_format: str
+    preferred_dds_format: str
     colorspace_policy: str
     alpha_policy: AlphaPolicy
     mip_policy_hint: str
@@ -495,7 +494,7 @@ class JobResult:
     height: int
     original_mips: int
     used_mips: int
-    texconv_format: str
+    dds_format: str
     status: str
     note: str
 
@@ -555,7 +554,6 @@ class ReplaceAssistantBuildOptions:
     create_no_encrypt_file: bool
     build_mode: str
     size_mode: str
-    texconv_path: Optional[Path]
     ncnn_exe_path: Optional[Path]
     ncnn_model_dir: Optional[Path]
     ncnn_model_name: str
@@ -603,7 +601,7 @@ class TextureEditorSourceBinding:
     package_root: str = ""
     archive_relative_path: str = ""
     original_dds_path: str = ""
-    original_texconv_format: str = ""
+    original_dds_format: str = ""
     texture_type: str = "unknown"
     semantic_subtype: str = "unknown"
     technical_warning: str = ""

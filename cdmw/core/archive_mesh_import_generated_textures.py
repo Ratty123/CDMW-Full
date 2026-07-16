@@ -84,7 +84,7 @@ def _generated_candidate_meshes(model: ModelPreviewData, material_name: str, tex
     return list(model.meshes) if len(model.meshes) == 1 else []
 
 
-def _generated_payload_preview_path(payload: TextureReplacementPayload, texconv: Optional[Path], cache: Dict[str, str]) -> str:
+def _generated_payload_preview_path(payload: TextureReplacementPayload, cache: Dict[str, str]) -> str:
     from cdmw.core.texture_pipeline.inspection import parse_dds
     from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
     path = _generated_texture_preview_file(payload)
@@ -94,7 +94,7 @@ def _generated_payload_preview_path(payload: TextureReplacementPayload, texconv:
             info = parse_dds(path)
         except (OSError, ValueError):
             info = None
-        cache[key] = ensure_dds_display_preview_png(texconv, path, dds_info=info)
+        cache[key] = ensure_dds_display_preview_png(path, dds_info=info)
     return cache[key]
 
 
@@ -120,7 +120,7 @@ def _assign_generated_texture_slot(mesh: ModelPreviewMesh, slot: str, preview_pa
 
 def _apply_generated_mapping_pass(
     model: ModelPreviewData, mappings: Sequence[object], payloads: Mapping[str, TextureReplacementPayload],
-    texconv: Optional[Path], cache: Dict[str, str], source_by_target: Dict[str, str], base_targets: set[str],
+    cache: Dict[str, str], source_by_target: Dict[str, str], base_targets: set[str],
 ) -> int:
     assigned = 0
     for mapping in mappings:
@@ -133,7 +133,7 @@ def _apply_generated_mapping_pass(
         if target_material and source_material:
             source_by_target.setdefault(target_material.strip().lower(), source_material)
         try:
-            preview = _generated_payload_preview_path(payload, texconv, cache)
+            preview = _generated_payload_preview_path(payload, cache)
         except (OSError, RuntimeError, ValueError):
             continue
         slot = str(getattr(mapping, "slot_kind", "") or "").strip().lower()
@@ -145,14 +145,14 @@ def _apply_generated_mapping_pass(
     return assigned
 
 
-def _apply_generated_missing_pass(model: ModelPreviewData, mappings: Sequence[object], payloads: Mapping[str, TextureReplacementPayload], texconv: Optional[Path], cache: Dict[str, str]) -> int:
+def _apply_generated_missing_pass(model: ModelPreviewData, mappings: Sequence[object], payloads: Mapping[str, TextureReplacementPayload], cache: Dict[str, str]) -> int:
     assigned = 0
     for mapping in mappings:
         payload = payloads.get(str(getattr(mapping, "output_texture_path", "") or "").replace("\\", "/").strip().lower())
         if payload is None:
             continue
         try:
-            preview = _generated_payload_preview_path(payload, texconv, cache)
+            preview = _generated_payload_preview_path(payload, cache)
         except (OSError, RuntimeError, ValueError):
             continue
         target = str(getattr(mapping, "target_material_name", "") or "")
@@ -189,17 +189,15 @@ def _apply_generated_static_texture_previews(
     *,
     generated_payloads: Sequence[TextureReplacementPayload],
     texture_replacement_report: object,
-    texconv_path: Optional[Path],
 ) -> int:
     if not preview_model.meshes:
         return 0
     payloads = {str(payload.target_path or "").replace("\\", "/").strip().lower(): payload for payload in generated_payloads if payload.kind == "texture_generated" and payload.payload_data}
     if not payloads:
         return 0
-    texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     mappings = list(getattr(texture_replacement_report, "slot_mappings", ()) or ())
     cache: Dict[str, str] = {}; source_by_target: Dict[str, str] = {}; base_targets: set[str] = set()
-    assigned = _apply_generated_mapping_pass(preview_model, mappings, payloads, texconv, cache, source_by_target, base_targets)
-    assigned += _apply_generated_missing_pass(preview_model, mappings, payloads, texconv, cache)
+    assigned = _apply_generated_mapping_pass(preview_model, mappings, payloads, cache, source_by_target, base_targets)
+    assigned += _apply_generated_missing_pass(preview_model, mappings, payloads, cache)
     assigned += _apply_source_base_fallbacks(preview_model, texture_replacement_report, source_by_target, base_targets)
     return assigned

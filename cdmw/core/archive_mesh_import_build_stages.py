@@ -234,8 +234,6 @@ def resolve_mesh_import_sidecars(state: MeshImportBuildState) -> None:
 
 
 def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
-    if state.texconv_path is None:
-        return
     api = _public_api()
     from cdmw.core import archive_model_textures as textures
 
@@ -255,7 +253,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
     if state.sidecar_texture_references:
         state.summary_lines.extend(
             textures._attach_model_sidecar_texture_preview_paths(
-                state.texconv_path,
                 state.entry,
                 state.preview_model,
                 parsed_mesh=state.parsed_mesh,
@@ -266,7 +263,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
         )
     state.summary_lines.extend(
         textures._attach_model_texture_preview_paths(
-            state.texconv_path,
             state.entry,
             state.preview_model,
             **kwargs,
@@ -275,7 +271,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
     if state.sidecar_texture_references and state.normalized_visible_texture_mode == "mesh_base_first":
         state.summary_lines.extend(
             textures._attach_model_sidecar_texture_preview_paths(
-                state.texconv_path,
                 state.entry,
                 state.preview_model,
                 parsed_mesh=state.parsed_mesh,
@@ -287,7 +282,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
         )
         state.summary_lines.extend(
             textures._attach_model_texture_preview_paths(
-                state.texconv_path,
                 state.entry,
                 state.preview_model,
                 override_existing_base=True,
@@ -297,7 +291,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
         )
     state.summary_lines.extend(
         textures._attach_model_support_texture_preview_paths(
-            state.texconv_path,
             state.entry,
             state.preview_model,
             parsed_mesh=state.parsed_mesh,
@@ -315,7 +308,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
                     state.selected_sidecar_texture_references,
                     by_path,
                     by_name,
-                    texconv_path=state.texconv_path,
                 )
             )
             state.summary_lines.extend(
@@ -325,7 +317,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
                     state.selected_sidecar_texture_references,
                     by_path,
                     by_name,
-                    texconv_path=state.texconv_path,
                 )
             )
         state.summary_lines.extend(
@@ -333,7 +324,6 @@ def attach_mesh_import_texture_previews(state: MeshImportBuildState) -> None:
                 state.preview_model,
                 by_path,
                 by_name,
-                texconv_path=state.texconv_path,
             )
         )
 

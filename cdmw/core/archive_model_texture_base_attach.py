@@ -30,7 +30,6 @@ def _attach_base_texture_to_mesh(
     mesh: ModelPreviewMesh,
     *,
     source_entry: ArchiveEntry,
-    resolved_texconv_path: Optional[Path],
     preview_cache: Dict[str, str],
     texture_entries_by_normalized_path: Optional[Dict[str, Sequence[ArchiveEntry]]],
     texture_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]],
@@ -79,7 +78,7 @@ def _attach_base_texture_to_mesh(
     preview_path = preview_cache.get(cache_key, "")
     if not preview_path:
         try:
-            preview_path = _public_preview_path(resolved_texconv_path, texture_entry, stop_event=stop_event)
+            preview_path = _public_preview_path(texture_entry, stop_event=stop_event)
             preview_cache[cache_key] = preview_path
         except RunCancelled:
             raise
@@ -141,7 +140,6 @@ def _base_texture_attachment_report(counts: Dict[str, int], names: Dict[str, Lis
 
 
 def _attach_model_texture_preview_paths(
-    texconv_path: Optional[Path],
     source_entry: ArchiveEntry,
     model_preview: Optional[ModelPreviewData],
     *,
@@ -155,7 +153,6 @@ def _attach_model_texture_preview_paths(
 ) -> List[str]:
     if model_preview is None or not model_preview.meshes:
         return []
-    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     counts = {key: 0 for key in ("resolved", "sidecar", "override", "missing", "technical", "failure", "skip")}
     names = {key: [] for key in ("missing", "technical", "failure")}
     preview_cache: Dict[str, str] = {}
@@ -164,7 +161,6 @@ def _attach_model_texture_preview_paths(
         status, label = _attach_base_texture_to_mesh(
             mesh,
             source_entry=source_entry,
-            resolved_texconv_path=resolved_texconv_path,
             preview_cache=preview_cache,
             texture_entries_by_normalized_path=texture_entries_by_normalized_path,
             texture_entries_by_basename=texture_entries_by_basename,

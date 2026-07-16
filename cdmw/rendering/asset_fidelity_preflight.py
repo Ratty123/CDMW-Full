@@ -104,12 +104,6 @@ def dds_encoder_compatibility_matrix() -> Dict[str, object]:
     nvtt = _detect_executable("nvcompress", "nvtt_export", "nvtt_encode")
     ispc = _detect_executable("ispc_texcomp", "ispc_texcomp.exe")
     bc7enc = _detect_executable("bc7enc_rdo", "bc7enc")
-    texconv_path = _existing_repo_tool(
-        "native/cdmw_d3d11_preview/build/bin/Release/texconv.exe",
-        "native/cd_texture_dx/build/bin/Release/texconv.exe",
-        "native/cdmw_d3d11_preview/build/bin/Debug/texconv.exe",
-        "native/cd_texture_dx/build/bin/Debug/texconv.exe",
-    ) or _detect_executable("texconv").get("path", "")
     cd_texture_dx_path = _existing_repo_tool(
         "native/cd_texture_dx/build/Release/cd-texture-dx.exe",
         "native/cd_texture_dx/build/Debug/cd-texture-dx.exe",
@@ -120,7 +114,7 @@ def dds_encoder_compatibility_matrix() -> Dict[str, object]:
         "backends": {
             "DirectXTex": {
                 "status": "bundled",
-                "path": texconv_path,
+                "path": cd_texture_dx_path,
                 "native_encoder_path": cd_texture_dx_path,
                 "role": "dds_writer_authority",
                 "formats": ["BC1", "BC2", "BC3", "BC4", "BC5", "BC6H", "BC7", "RGBA"],

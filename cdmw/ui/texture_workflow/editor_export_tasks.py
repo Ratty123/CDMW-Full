@@ -32,13 +32,11 @@ def copy_texture_editor_layer_pixels(
 def create_texture_editor_source_document_task(
     source_path: Path,
     *,
-    texconv_path: Optional[Path],
     workspace_root: Path,
     binding: TextureEditorSourceBinding,
 ) -> Tuple[TextureEditorDocument, Dict[str, np.ndarray]]:
     document, layer_pixels, _normalized_png = TextureEditorService.create_document_from_source(
         source_path,
-        texconv_path=texconv_path,
         workspace_root=workspace_root,
         binding=binding,
     )

@@ -97,7 +97,7 @@ internal sealed partial class MeshViewport
             ["dds_decode"] = _textureSet.NativeDdsResourceCount > 0
                 ? "source_dds_native_mip_chain_with_optional_bitmap_edit_fallback"
                 : (_textureSet.DdsDecodedCount > 0 ? "bitmap_decode_then_bgra32_generated_mip_chain" : (_textureSet.DdsResourceCount > 0 ? "header_verified_not_sampled" : "not_present_or_unverified")),
-            ["dds_decode_tools"] = new[] { "managed_dds_decoder", "cd-texture-dx.exe", "texconv.exe" },
+            ["dds_decode_tools"] = new[] { "managed_dds_decoder", "cd-texture-dx.exe" },
             ["shader_model"] = _rendererBlocked ? "blocked_renderer_unavailable" : (_d3d11Viewport is not null ? "hlsl_vs5_ps5_per_pixel_materials" : (_gpuViewport is not null ? "wpf_materials" : "gdi_fallback")),
         };
     }

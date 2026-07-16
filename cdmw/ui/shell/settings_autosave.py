@@ -18,7 +18,6 @@ class SettingsAutosaveMixin:
             self.texture_editor_png_root_edit,
             self.dds_staging_root_edit,
             self.output_root_edit,
-            self.texconv_path_edit,
             self.archive_package_root_edit,
             self.archive_extract_root_edit,
         ):
@@ -80,7 +79,6 @@ class SettingsAutosaveMixin:
             self.texture_editor_png_root_edit,
             self.dds_staging_root_edit,
             self.output_root_edit,
-            self.texconv_path_edit,
         ):
             widget.textChanged.connect(self._schedule_workflow_match_refresh)
 

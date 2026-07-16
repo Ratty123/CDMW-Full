@@ -12,6 +12,7 @@ CommonArgs parse_common_args(int argc, wchar_t** argv);
 std::string wide_to_utf8(const std::wstring& text);
 void record_caught_exception(const char* event_name, const char* operation, const char* message) noexcept;
 bool json_parser_self_test();
+bool texture_codec_self_test(std::string& failed_component);
 int inspect_json(const std::wstring& source);
 int batch_preview_json_guarded(
     const std::filesystem::path& job_file,

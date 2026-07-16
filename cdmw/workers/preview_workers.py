@@ -41,7 +41,6 @@ class ComparePreviewWorker(QObject):
     def __init__(
         self,
         request_id: int,
-        texconv_path: Optional[Path],
         original_path: Optional[Path],
         output_path: Optional[Path],
         original_planner_summary: str = "",
@@ -49,7 +48,6 @@ class ComparePreviewWorker(QObject):
     ) -> None:
         super().__init__()
         self.request_id = request_id
-        self.texconv_path = texconv_path
         self.original_path = original_path
         self.output_path = output_path
         self.original_planner_summary = original_planner_summary
@@ -66,14 +64,12 @@ class ComparePreviewWorker(QObject):
                 return
             payload = {
                 "original": build_compare_preview_pane_result(
-                    self.texconv_path,
                     self.original_path,
                     "Original DDS not found.",
                     self.original_planner_summary,
                     stop_event=self.stop_event,
                 ),
                 "output": build_compare_preview_pane_result(
-                    self.texconv_path,
                     self.output_path,
                     "Output DDS not found.",
                     self.output_planner_summary,

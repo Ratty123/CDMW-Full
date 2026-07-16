@@ -292,7 +292,7 @@ def build_mip_item(row: MipAnalysisRow) -> QTreeWidgetItem:
 
 
 def build_normal_item(row: NormalValidationRow) -> QTreeWidgetItem:
-    item = QTreeWidgetItem([row.path, row.root_label, row.texconv_format, row.size_text, "; ".join(row.issues[:2])])
+    item = QTreeWidgetItem([row.path, row.root_label, row.dds_format, row.size_text, "; ".join(row.issues[:2])])
     item.setData(0, Qt.UserRole, row)
     item.setToolTip(4, "\n".join(normal_validation_tooltip_lines(row)))
     return item

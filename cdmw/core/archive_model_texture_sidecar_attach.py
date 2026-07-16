@@ -65,7 +65,6 @@ class _SidecarAttachmentState:
     source_entry: ArchiveEntry
     model_preview: ModelPreviewData
     parsed_submeshes: Tuple[object, ...]
-    resolved_texconv_path: Optional[Path]
     texture_entries_by_normalized_path: Optional[Dict[str, Sequence[ArchiveEntry]]]
     texture_entries_by_basename: Optional[Dict[str, Sequence[ArchiveEntry]]]
     sidecar_texts_by_normalized_path: Optional[Dict[str, Tuple[str, ...]]]
@@ -98,7 +97,6 @@ def _sidecar_preview_path(state: _SidecarAttachmentState, entry: ArchiveEntry) -
     key = f"{_normalize_model_texture_reference(entry.path)}|base"
     if key not in state.preview_cache:
         state.preview_cache[key] = _public_preview_path(
-            state.resolved_texconv_path,
             entry,
             slot_kind="base",
             stop_event=state.stop_event,
@@ -185,7 +183,7 @@ def _collect_and_prefetch_sidecar_bindings(state: _SidecarAttachmentState) -> No
     mesh_count = max(1, len(state.model_preview.meshes))
     requests.extend((item[0], "base", int(_config.MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)) for item in state.global_visible_bindings[:mesh_count])
     requests.extend((item[1], "base", int(_config.MODEL_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)) for item in sorted(state.fallback_visible_bindings, key=lambda value: value[0], reverse=True)[:max(mesh_count * 2, 8)])
-    _prefetch_archive_model_texture_preview_paths(state.resolved_texconv_path, requests, state.preview_cache, stop_event=state.stop_event)
+    _prefetch_archive_model_texture_preview_paths(requests, state.preview_cache, stop_event=state.stop_event)
 
 
 def _mesh_sidecar_candidates(state: _SidecarAttachmentState, index: int, mesh: ModelPreviewMesh) -> Tuple[str, ...]:
@@ -488,7 +486,6 @@ def _sidecar_attachment_report(state: _SidecarAttachmentState) -> List[str]:
 
 
 def _attach_model_sidecar_texture_preview_paths(
-    texconv_path: Optional[Path],
     source_entry: ArchiveEntry,
     model_preview: Optional[ModelPreviewData],
     *,
@@ -508,7 +505,6 @@ def _attach_model_sidecar_texture_preview_paths(
         source_entry=source_entry,
         model_preview=model_preview,
         parsed_submeshes=_iter_parsed_model_submeshes(parsed_mesh),
-        resolved_texconv_path=texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None,
         texture_entries_by_normalized_path=texture_entries_by_normalized_path,
         texture_entries_by_basename=texture_entries_by_basename,
         sidecar_texts_by_normalized_path=sidecar_texts_by_normalized_path,

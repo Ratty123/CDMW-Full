@@ -104,7 +104,6 @@ summarize_obj_text = _archive_proxy("summarize_obj_text")
 try_decode_text_like_archive_data = _archive_proxy("try_decode_text_like_archive_data")
 
 def build_archive_preview_result(
-    texconv_path: Optional[Path],
     entry: Optional[ArchiveEntry],
     loose_search_roots: Optional[Sequence[Path]] = None,
     *,
@@ -172,7 +171,6 @@ def build_archive_preview_result(
                             loose_preview_metadata_summary,
                             loose_preview_detail_text,
                         ) = build_loose_archive_preview_assets(
-                            texconv_path,
                             loose_candidate,
                             stop_event=stop_event,
                         )
@@ -287,7 +285,7 @@ def build_archive_preview_result(
             try:
                 dds_info = parse_dds(source_path)
                 metadata_summary = (
-                    f"{metadata_summary} | {dds_info.texconv_format} | "
+                    f"{metadata_summary} | {dds_info.dds_format} | "
                     f"{dds_info.width}x{dds_info.height} | Mips {dds_info.mip_count}"
                 )
                 extra_detail_parts.append(
@@ -319,7 +317,6 @@ def build_archive_preview_result(
             if pathc_lookup_detail:
                 extra_detail_parts.append(pathc_lookup_detail)
             preview_png = ensure_dds_display_preview_png(
-                texconv_path.resolve() if texconv_path is not None and texconv_path.is_file() else None,
                 source_path.resolve(),
                 dds_info=dds_info,
                 stop_event=stop_event,
@@ -646,7 +643,6 @@ def build_archive_preview_result(
                         if not semantic_sidecar_texts:
                             context_cache_key = _hkx_context_model_preview_cache_key(
                                 hkx_context_model_entry,
-                                texconv_path=texconv_path,
                                 visible_texture_mode=visible_texture_mode,
                                 support_texture_slots=support_texture_slots,
                                 quality_tier=normalized_quality_tier,
@@ -656,7 +652,6 @@ def build_archive_preview_result(
                             hkx_visual_notes.append(f"HKX body context reused cached preview model for {hkx_context_model_entry.path}.")
                         else:
                             context_result = build_archive_preview_result(
-                                texconv_path,
                                 hkx_context_model_entry,
                                 (),
                                 companion_entry=None,
@@ -1114,7 +1109,6 @@ def build_archive_preview_result(
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_texture_preview_paths(
-                            texconv_path,
                             entry,
                             model_preview,
                             texture_entries_by_normalized_path=texture_entries_by_normalized_path,
@@ -1129,7 +1123,6 @@ def build_archive_preview_result(
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_sidecar_texture_preview_paths(
-                            texconv_path,
                             entry,
                             model_preview,
                             parsed_mesh=parsed_mesh_for_references,
@@ -1147,7 +1140,6 @@ def build_archive_preview_result(
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_texture_preview_paths(
-                            texconv_path,
                             entry,
                             model_preview,
                             texture_entries_by_normalized_path=texture_entries_by_normalized_path,
@@ -1166,7 +1158,6 @@ def build_archive_preview_result(
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_sidecar_texture_preview_paths(
-                            texconv_path,
                             entry,
                             model_preview,
                             parsed_mesh=parsed_mesh_for_references,
@@ -1184,7 +1175,6 @@ def build_archive_preview_result(
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_texture_preview_paths(
-                            texconv_path,
                             entry,
                             model_preview,
                             texture_entries_by_normalized_path=texture_entries_by_normalized_path,
@@ -1210,7 +1200,6 @@ def build_archive_preview_result(
                     attach_started_at = time.perf_counter()
                     info_extra_parts.extend(
                         _attach_model_support_texture_preview_paths(
-                            texconv_path,
                             entry,
                             model_preview,
                             parsed_mesh=parsed_mesh_for_references,

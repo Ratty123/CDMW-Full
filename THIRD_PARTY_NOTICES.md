@@ -30,14 +30,16 @@ This file is a practical notice list for repository and release packaging. For a
 - Upstream: https://github.com/pyca/cryptography
 - Notes: used for deterministic ChaCha20 archive payload decryption where supported
 
-## External Tools
+## Native Libraries
 
-### DirectXTex / texconv
+### DirectXTex
 
 - Purpose: DDS preview conversion, DDS staging, and final DDS rebuild
 - Upstream: https://github.com/microsoft/DirectXTex
-- Release assets: https://github.com/microsoft/DirectXTex/releases
-- Notes: Crimson Desert Mod Workbench links to the official `texconv.exe` release page, but the tool remains a separate upstream project
+- Notes: built as a library inside the bundled `cd-texture-dx.exe` helper; no
+  separate DirectXTex command-line executable is used at runtime
+
+## External Tools
 
 ### chaiNNer
 
@@ -76,5 +78,5 @@ This file is a practical notice list for repository and release packaging. For a
 ## Redistribution Notes
  
 - Crimson Desert Mod Workbench now includes explicit, confirm-before-write archive patch workflows for selected mesh and audio replacement paths.
-- External tools such as `texconv.exe` and `chaiNNer.exe` remain separate projects and should be distributed in accordance with their upstream terms.
+- External tools such as `chaiNNer.exe` remain separate projects and should be distributed in accordance with their upstream terms.
 - If you publish releases of this app, review the upstream licenses of any bundled or redistributed third-party components before shipping them.

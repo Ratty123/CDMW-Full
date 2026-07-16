@@ -44,7 +44,6 @@ def _make_tab(root: Path, *, resolver=None) -> ItemIconLibraryTab:
         settings=QSettings(str(root / "settings.ini"), QSettings.Format.IniFormat),
         base_dir=root,
         get_archive_entries=lambda: (),
-        get_texconv_path=lambda: "",
         resolve_target_template_path=resolver or (lambda _entry: root / "template.png"),
     )
 
@@ -99,7 +98,6 @@ def test_index_worker_cleanup_is_ordered_on_ui_thread() -> None:
                 settings=QSettings(str(tab_root / "settings.ini"), QSettings.Format.IniFormat),
                 base_dir=tab_root,
                 get_archive_entries=lambda: (),
-                get_texconv_path=lambda: "",
                 resolve_target_template_path=lambda _entry: tab_root / "template.png",
             )
             generated = tab.mesh_editor_generated_icon_path(

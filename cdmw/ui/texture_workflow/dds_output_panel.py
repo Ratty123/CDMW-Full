@@ -26,7 +26,7 @@ from cdmw.constants import (
     DDS_SIZE_MODE_CUSTOM,
     DDS_SIZE_MODE_ORIGINAL,
     DDS_SIZE_MODE_PNG,
-    SUPPORTED_TEXCONV_FORMAT_CHOICES,
+    SUPPORTED_DDS_FORMAT_CHOICES,
 )
 from cdmw.ui.shell.help_widgets import make_help_button
 from cdmw.ui.shell.texture_panel_persistence import finish_texture_workflow_panel_body
@@ -78,7 +78,7 @@ class TextureWorkflowDdsOutputPanelMixin:
 
         self.dds_custom_format_label = QLabel("Custom format")
         self.dds_custom_format_combo = QComboBox()
-        for format_name in SUPPORTED_TEXCONV_FORMAT_CHOICES:
+        for format_name in SUPPORTED_DDS_FORMAT_CHOICES:
             self._add_combo_choice(self.dds_custom_format_combo, format_name, format_name)
 
         self.dds_size_mode_combo = QComboBox()

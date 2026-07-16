@@ -257,8 +257,6 @@ def _dialog_step_0059(_state):
         _state.hkx_link_preview_state["pending_entry_key"] = _state.self._archive_entry_identity_key(model_entry)
         _state.hkx_link_preview_widget.clear_model(f"Building embedded 3D preview for {model_entry.basename}...")
         _state.hkx_preview_status_label.setText(f"Building embedded preview for {model_entry.path}...")
-        texconv_text = _state.self.texconv_path_edit.text().strip()
-        texconv_path = _state.Path(texconv_text).expanduser() if texconv_text else None
         companion_entry = _state.self._find_archive_preview_companion_entry(model_entry)
         preview_settings = _state.self._current_model_preview_render_settings()
         support_texture_slots = _state.self._archive_preview_support_texture_slots(preview_settings)
@@ -267,7 +265,6 @@ def _dialog_step_0059(_state):
             entry_key,
             model_entry,
             companion_entry,
-            texconv_path,
             _state.self.archive_entries_by_normalized_path,
             _state.self.archive_entries_by_basename,
             _state.self.archive_sidecar_entries_by_texture_path,

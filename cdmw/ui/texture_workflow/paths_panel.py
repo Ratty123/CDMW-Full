@@ -25,7 +25,6 @@ class TextureWorkflowPathsPanelMixin:
         self.texture_editor_png_root_edit = QLineEdit()
         self.dds_staging_root_edit = QLineEdit()
         self.output_root_edit = QLineEdit()
-        self.texconv_path_edit = QLineEdit()
 
         self._add_path_row(paths_layout, 0, "Original DDS root", self.original_dds_edit, self._browse_original_dds_root)
         self._add_path_row(paths_layout, 1, "PNG root", self.png_root_edit, self._browse_png_root)
@@ -44,14 +43,6 @@ class TextureWorkflowPathsPanelMixin:
             self._browse_dds_staging_root,
         )
         self._add_path_row(paths_layout, 4, "Output root", self.output_root_edit, self._browse_output_root)
-        self._add_path_row(
-            paths_layout,
-            5,
-            "Optional legacy texconv.exe fallback",
-            self.texconv_path_edit,
-            self._browse_texconv_path,
-        )
-
         self.paths_section.body_layout.addWidget(paths_group)
 
 

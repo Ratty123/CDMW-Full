@@ -52,7 +52,7 @@ def test_analysis_path_and_tooltip_helpers_format_planner_context() -> None:
     normal = NormalValidationRow(
         path="texture/armor_n.dds",
         root_label="Output",
-        texconv_format="BC5",
+        dds_format="BC5",
         size_text="1024x1024",
         issue_count=1,
         planner_profile="Normals",
@@ -141,7 +141,7 @@ def test_texture_analysis_context_text_summarizes_payload_counts(tmp_path: Path)
     normal = NormalValidationRow(
         path="texture/armor_n.dds",
         root_label="Output root",
-        texconv_format="BC5",
+        dds_format="BC5",
         size_text="512x512",
         issue_count=0,
     )

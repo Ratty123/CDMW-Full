@@ -48,7 +48,7 @@ class CrimsonDdsInspectorTests(unittest.TestCase):
     def test_dxt1_uses_format_fallback_when_path_is_unknown(self) -> None:
         info = inspect_crimson_dds(_dds(fourcc=b"DXT1"), vpath="/object/texture/sample.dds")
 
-        self.assertEqual("BC1_UNORM", info.texconv_format)
+        self.assertEqual("BC1_UNORM", info.dds_format)
         self.assertEqual(12, info.last4_format_derived)
         self.assertEqual(12, info.effective_last4)
         self.assertEqual(8, info.block_bytes)
@@ -56,7 +56,7 @@ class CrimsonDdsInspectorTests(unittest.TestCase):
     def test_path_classifier_overrides_format_fallback(self) -> None:
         info = inspect_crimson_dds(_dds(fourcc=b"DXT5"), vpath="/ui/icon/sample.dds")
 
-        self.assertEqual("BC3_UNORM", info.texconv_format)
+        self.assertEqual("BC3_UNORM", info.dds_format)
         self.assertEqual(15, info.last4_format_derived)
         self.assertEqual(0x1580, info.last4_path_class)
         self.assertEqual(0x1580, info.effective_last4)
@@ -66,7 +66,7 @@ class CrimsonDdsInspectorTests(unittest.TestCase):
         codes = {finding.code for finding in info.findings}
 
         self.assertTrue(info.is_dx10)
-        self.assertEqual("BC7_UNORM", info.texconv_format)
+        self.assertEqual("BC7_UNORM", info.dds_format)
         self.assertEqual(16, info.block_bytes)
         self.assertTrue(info.requires_pathc)
         self.assertIn("requires_pathc", codes)
@@ -74,7 +74,7 @@ class CrimsonDdsInspectorTests(unittest.TestCase):
     def test_dx10_bc6h_signed_format_has_sixteen_byte_blocks(self) -> None:
         info = inspect_crimson_dds(_dds(dxgi_format=96), vpath="/object/texture/bc6h.dds")
 
-        self.assertEqual("BC6H_SF16", info.texconv_format)
+        self.assertEqual("BC6H_SF16", info.dds_format)
         self.assertEqual(16, info.block_bytes)
         self.assertEqual(16, _dds_surface_size(4, 4, 96, b"DX10"))
 

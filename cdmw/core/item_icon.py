@@ -12,10 +12,9 @@ from typing import Callable, Mapping, Optional, Sequence
 from PIL import Image, ImageFilter
 
 from cdmw.core.atomic_file import atomic_publish_directory, atomic_publish_files, atomic_write_text
-from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
+from cdmw.core.common import raise_if_cancelled
 from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
-from cdmw.core.texture_pipeline.texconv import build_texconv_command
 from cdmw.core.texture_native import encode_dds_with_directxtex
 from cdmw.domain.library.item_icons import (
     ITEM_ICON_BACKGROUND_MODES,
@@ -381,7 +380,6 @@ def _copy_preview_to_output(preview_path: Path, output_path: Path) -> Path:
 
 
 def _convert_dds_to_png(
-    texconv_path: Optional[Path],
     dds_path: Path,
     output_dir: Path,
     *,
@@ -390,7 +388,6 @@ def _convert_dds_to_png(
     raise_if_cancelled(stop_event, "Item icon DDS preview conversion cancelled.")
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_path = ensure_dds_display_preview_png(
-        texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None,
         dds_path,
         dds_info=parse_dds(dds_path),
         max_dimension=0,
@@ -680,7 +677,7 @@ def read_item_icon_template_info(target_path: str, target_template_path: Path) -
         target_info = parse_dds(target_template)
         target_width = int(target_info.width)
         target_height = int(target_info.height)
-        target_format = str(target_info.texconv_format or "").strip()
+        target_format = str(target_info.dds_format or "").strip()
         target_mip_count = max(1, min(max_mips_for_size(target_width, target_height), int(target_info.mip_count or 1)))
         if not target_format:
             raise ValueError(f"Target icon DDS format could not be determined: {target_path}")
@@ -693,16 +690,13 @@ def build_item_icon_source_preview_png(
     source_path: Path,
     *,
     output_dir: Path,
-    texconv_path: Optional[Path] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> Path:
     raise_if_cancelled(stop_event, "Item icon source preview cancelled.")
     source = source_path.expanduser().resolve()
     if source.suffix.lower() != ".dds":
         return source
-    resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     return _convert_dds_to_png(
-        resolved_texconv,
         source,
         output_dir.expanduser(),
         stop_event=stop_event,
@@ -715,7 +709,6 @@ def build_item_icon_fit_pad_preview(
     target_path: str,
     target_template_path: Path,
     output_path: Path,
-    texconv_path: Optional[Path] = None,
     background_mode: str = ITEM_ICON_DEFAULT_BACKGROUND_MODE,
     stop_event: Optional[threading.Event] = None,
 ) -> tuple[Path, ItemIconTemplateInfo, tuple[int, int], tuple[str, ...]]:
@@ -726,9 +719,7 @@ def build_item_icon_fit_pad_preview(
     with tempfile.TemporaryDirectory(prefix="cdmw_item_icon_preview_") as temp_text:
         temp_dir = Path(temp_text)
         if source.suffix.lower() == ".dds":
-            resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
             working_source = _convert_dds_to_png(
-                resolved_texconv,
                 source,
                 temp_dir / "decoded",
                 stop_event=stop_event,
@@ -736,9 +727,7 @@ def build_item_icon_fit_pad_preview(
         target_underlay_path: Optional[Path] = None
         if normalize_item_icon_background_mode(background_mode) == "target_underlay":
             if target_info.suffix == ".dds":
-                resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
                 target_underlay_path = _convert_dds_to_png(
-                    resolved_texconv,
                     target_template_path,
                     temp_dir / "target_underlay",
                     stop_event=stop_event,
@@ -1057,7 +1046,6 @@ def build_item_icon_payload(
     spec: ItemIconOverrideSpec,
     *,
     target_template_path: Path,
-    texconv_path: Optional[Path],
     on_log: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> ItemIconBuildResult:
@@ -1082,7 +1070,7 @@ def build_item_icon_payload(
         target_info = parse_dds(target_template)
         target_width = int(target_info.width)
         target_height = int(target_info.height)
-        target_format = str(target_info.texconv_format or "").strip()
+        target_format = str(target_info.dds_format or "").strip()
         target_mip_count = max(1, min(max_mips_for_size(target_width, target_height), int(target_info.mip_count or 1)))
         if not target_format:
             raise ValueError(f"Target icon DDS format could not be determined: {target_path}")
@@ -1100,7 +1088,7 @@ def build_item_icon_payload(
                 source_matches_target = (
                     int(source_info.width) == target_width
                     and int(source_info.height) == target_height
-                    and str(source_info.texconv_format or "").strip() == target_format
+                    and str(source_info.dds_format or "").strip() == target_format
                     and int(source_info.mip_count or 1) == target_mip_count
                 )
                 if source_matches_target and background_mode == "keep_source":
@@ -1118,9 +1106,7 @@ def build_item_icon_payload(
                         target_mip_count=target_mip_count,
                         warnings=(),
                     )
-            resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
             working_source = _convert_dds_to_png(
-                resolved_texconv,
                 source_path,
                 temp_dir / "decoded",
                 stop_event=stop_event,
@@ -1131,9 +1117,7 @@ def build_item_icon_payload(
         target_underlay_path: Optional[Path] = None
         if background_mode == "target_underlay":
             if target_suffix == ".dds":
-                resolved_texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
                 target_underlay_path = _convert_dds_to_png(
-                    resolved_texconv,
                     target_template,
                     temp_dir / "target_underlay",
                     stop_event=stop_event,
@@ -1187,24 +1171,7 @@ def build_item_icon_payload(
         if native_report and produced.is_file() and produced.stat().st_size > 0:
             _log(on_log, "Generated custom item icon with DirectXTex native DDS encode.")
         else:
-            if texconv_path is None or not texconv_path.expanduser().is_file():
-                raise FileNotFoundError(
-                    "DirectXTex native DDS encode failed and no optional legacy texconv fallback is configured."
-                )
-            cmd = build_texconv_command(
-                texconv_path.expanduser().resolve(),
-                prepared_png,
-                output_dir,
-                target_format,
-                target_mip_count,
-                target_width,
-                target_height,
-                overwrite_existing_dds=True,
-            )
-            return_code, stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
-            if return_code != 0:
-                detail = stderr.strip() or stdout.strip() or f"texconv exited with code {return_code}"
-                raise RuntimeError(f"texconv fallback failed while generating custom item icon: {detail}")
+            raise RuntimeError("Native DDS encode failed while generating the custom item icon.")
         if not produced.is_file():
             raise FileNotFoundError(f"DDS encoder did not produce {produced.name}")
         produced_info = parse_dds(produced)
@@ -1212,9 +1179,9 @@ def build_item_icon_payload(
             warnings.append(
                 f"Generated icon dimensions {produced_info.width}x{produced_info.height} did not match target {target_width}x{target_height}."
             )
-        if str(produced_info.texconv_format or "").strip() != target_format:
+        if str(produced_info.dds_format or "").strip() != target_format:
             warnings.append(
-                f"Generated icon format {produced_info.texconv_format} did not match target {target_format}."
+                f"Generated icon format {produced_info.dds_format} did not match target {target_format}."
             )
         raise_if_cancelled(stop_event, "Item icon build cancelled.")
         return ItemIconBuildResult(

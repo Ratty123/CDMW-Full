@@ -28,10 +28,9 @@ supported workflow.
 - Preview supported `.pam`, `.pamlod`, and `.pac` meshes with the native D3D11
   preview path, referenced texture inspection, OBJ/FBX export, and supported
   OBJ/DAE/glTF/GLB import preview workflows.
-- Run DDS texture workflows with native DirectX helpers, optional `texconv`
-  fallback, optional Real-ESRGAN NCNN/chaiNNer upscaling, texture policy
-  planning, compare review, and mod-package export. DirectXTex/native helpers first.
-  `texconv.exe` remains an optional legacy fallback.
+- Run DDS texture workflows with the bundled `cd-texture-dx.exe` native
+  DirectXTex helper, optional Real-ESRGAN NCNN/chaiNNer upscaling, texture
+  policy planning, compare review, and mod-package export.
 - Use `Texture Replacer` to replace edited PNG/DDS textures using the original game DDS as rebuild
   authority, including package-prefixed loose output and manager metadata.
 - Edit visible textures in-app with layered projects, selections, masks,
@@ -59,12 +58,10 @@ reports, restore points, and corpus data out of source control.
    [Releases](https://github.com/Ratty123/crimson-desert-mod-workbench/releases).
 2. Run `CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
 3. In `Texture Workflow > Setup`, initialize a workspace and configure roots.
-4. Use bundled native DDS helpers by default. Configure external tools only if
-   needed:
-   - `texconv.exe` as a legacy DDS fallback
+4. DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe`
+   helper automatically. Configure optional upscaling tools only if needed:
    - Real-ESRGAN NCNN for direct upscaling
    - chaiNNer for existing `.chn` chains
-   - `Open DirectXTex / texconv Page` opens the external helper download page
 
 Portable config is stored beside the EXE. App-managed folders live under
 `workspace/`, including original DDS files, staging, outputs, extracts,

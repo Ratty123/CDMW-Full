@@ -66,11 +66,11 @@ class AboutDocumentationGermanMixin:
                 "id": "first_run_checklist",
                 "title": "Erster-Lauf-Checkliste",
                 "summary": "Checkliste fuer Pfade, Werkzeuge, Richtlinie und erste Testausgabe.",
-                "keywords": "erster lauf checkliste setup pfade texconv workspace ncnn chainner richtlinie vorschau vergleichen",
+                "keywords": "erster lauf checkliste setup pfade natives dds workspace ncnn chainner richtlinie vorschau vergleichen",
                 "html": """
                 <ol>
                   <li>Oeffne <b>Einstellungen</b> und fuehre <b>Arbeitsbereich einrichten</b> aus, wenn die App die ueblichen Arbeitsordner erstellen soll.</li>
-                  <li><b>texconv.exe-Pfad</b> ist nur optionaler Legacy-Fallback. Normale DDS-Vorschau, DDS-zu-PNG, Vergleich und DDS-Neuaufbau nutzen zuerst DirectXTex/native.</li>
+                  <li><b>Natives DDS-Werkzeug</b>: <code>cd-texture-dx.exe</code> ist gebuendelt und wird automatisch fuer Vorschau, Staging, Vergleich und DDS-Neuaufbau verwendet.</li>
                   <li>Setze <b>Original-DDS-Stamm</b>, <b>PNG-Stamm</b> und <b>Ausgabe-Stamm</b>. Starte mit einem kleinen Testordner.</li>
                   <li>Waehle ein Upscaling-Backend: <b>Deaktiviert</b> fuer Neuaufbau-Tests, direktes <b>Real-ESRGAN NCNN</b> fuer In-App-Upscaling oder <b>chaiNNer</b> fuer eine bereits getestete Kette.</li>
                   <li>Behalte zuerst eine sichere <b>Textur-Richtlinie</b> und aktive automatische Regeln.</li>
@@ -178,11 +178,11 @@ class AboutDocumentationGermanMixin:
                 "id": "dds_output",
                 "title": "DDS-Ausgabe und Staging",
                 "summary": "Globale Werte fuer den DDS-Neuaufbau.",
-                "keywords": "dds ausgabe format groesse mipmaps staging texconv png",
+                "keywords": "dds ausgabe format groesse mipmaps staging nativ png",
                 "html": """
                 <p>DDS-Ausgabe definiert globale Werte fuer Dateien ohne Profil-Override.</p>
                 <ul>
-                  <li><b>Format</b>: Originalformat behalten oder ein texconv-Format erzwingen.</li>
+                  <li><b>Format</b>: Originalformat behalten oder ein unterstuetztes natives DDS-Format erzwingen.</li>
                   <li><b>Groesse</b>: PNG-Groesse, Originalgroesse oder benutzerdefinierte Groesse verwenden.</li>
                   <li><b>Mipmaps</b>: behalten, voll erzeugen, eine verwenden oder Anzahl festlegen.</li>
                   <li><b>DDS-Staging</b>: erstellt PNG-Zwischenstufen vor externem Backend-Lauf.</li>
@@ -212,7 +212,7 @@ class AboutDocumentationGermanMixin:
                 "html": """
                 <h4>DDS ohne Upscaling neu aufbauen</h4>
                 <ol>
-                  <li>Setze <b>Original-DDS-Stamm</b>, <b>PNG-Stamm</b> und <b>Ausgabe-Stamm</b>. Der <b>texconv.exe</b>-Pfad ist optionaler Fallback.</li>
+                  <li>Setze <b>Original-DDS-Stamm</b>, <b>PNG-Stamm</b> und <b>Ausgabe-Stamm</b>. Das gebuendelte native DDS-Werkzeug wird automatisch gewaehlt.</li>
                   <li>Setze das Backend auf <b>Deaktiviert</b>.</li>
                   <li>Lege bearbeitete PNG-Dateien unter <b>PNG-Stamm</b> mit passenden relativen Pfaden ab.</li>
                   <li>Nutze <b>Scannen</b>, dann <b>Richtlinienvorschau</b> und danach <b>Start</b>.</li>
@@ -323,13 +323,13 @@ class AboutDocumentationGermanMixin:
                 "id": "settings_files",
                 "title": "Einstellungen, Dateien und Abhaengigkeiten",
                 "summary": "Lokale Konfiguration, Cache, Projektdateien und externe Werkzeuge.",
-                "keywords": "einstellungen dateien cache abhaengigkeiten texconv ncnn chainner sprache",
+                "keywords": "einstellungen dateien cache abhaengigkeiten natives dds ncnn chainner sprache",
                 "html": f"""
                 <p>Konfiguration, Cache und Praeferenzen werden neben Installation oder lokalem Checkout gespeichert.</p>
                 <ul>
                   <li><b>Konfigurationsdatei</b>: <code>{settings_text}</code></li>
                   <li><b>Archiv-Cache</b>: <code>{cache_text}</code></li>
-                  <li><b>texconv</b>: optionaler Legacy-Fallback. DDS-Vorschau, DDS-zu-PNG, Vergleich und DDS-Neuaufbau nutzen zuerst DirectXTex/native.</li>
+                  <li><b>cd-texture-dx.exe</b> ist gebuendelt und fuer DDS-Vorschau, DDS-zu-PNG, Vergleich und DDS-Neuaufbau erforderlich.</li>
                   <li><b>Real-ESRGAN NCNN</b> und <b>chaiNNer</b>: optionale Upscaling-Backends.</li>
                   <li><b>Sprachen</b>: Sprachdatei exportieren, Werte bearbeiten und wieder importieren.</li>
                 </ul>
@@ -339,10 +339,10 @@ class AboutDocumentationGermanMixin:
                 "id": "troubleshooting",
                 "title": "Fehlerbehebung und Grenzen",
                 "summary": "Haeufige Fehler und aktuelle Einschraenkungen.",
-                "keywords": "fehlerbehebung grenzen texconv ncnn chainner png helligkeit cache vorschau",
+                "keywords": "fehlerbehebung grenzen natives dds ncnn chainner png helligkeit cache vorschau",
                 "html": """
                 <ul>
-                  <li><b>texconv fehlt</b>: normale DDS-Vorschau und Neuaufbau sollten weiter ueber DirectXTex/native funktionieren. Wenn auch die nativen Werkzeuge fehlschlagen, die Tool-Paketierung pruefen.</li>
+                  <li><b>Natives DDS-Werkzeug fehlt</b>: DDS-Vorschau und Neuaufbau stoppen mit einem eindeutigen Fehler. Pruefe, ob <code>cd-texture-dx.exe</code> neben der Anwendung paketiert wurde.</li>
                   <li><b>NCNN-Modelle fehlen</b>: direktes NCNN braucht eine gueltige EXE und passende .param/.bin-Paare.</li>
                   <li><b>Keine PNG-Ausgabe</b>: wenn das Backend kein nutzbares PNG erzeugt, gibt es nichts zum Neuaufbauen.</li>
                   <li><b>Falsche chaiNNer-Pfade</b>: eine Kette kann aus falschen Ordnern lesen oder dorthin schreiben.</li>
@@ -358,13 +358,13 @@ class AboutDocumentationGermanMixin:
                     "id": "quick_start",
                     "title": "Schnellstart",
                     "summary": "Erste Schritte fuer Spielpfad, Workspace und Werkzeuge.",
-                    "keywords": "schnellstart spiel paket workspace texconv sidecar",
+                    "keywords": "schnellstart spiel paket workspace natives dds sidecar",
                     "html": """
                     <ol>
                       <li>Erstelle einen eigenen App-Ordner und lege die portable .exe dort ab.</li>
                       <li>Setze unter <b>Einstellungen &gt; Archiv-Orte</b> den Spiel-/Paketpfad.</li>
                       <li>Fuehre <b>Arbeitsbereich einrichten</b> aus, um Workspace, tools, Ausgabe, PNG und Extraktion anzulegen.</li>
-                      <li>Nutze die gebuendelten DirectXTex/native-Werkzeuge. texconv.exe ist nur optionaler Legacy-Fallback, falls du ihn konfigurieren willst.</li>
+                      <li>Nutze das gebuendelte native DDS-Werkzeug <code>cd-texture-dx.exe</code> fuer Vorschau und Neuaufbau.</li>
                       <li>Scanne zuerst einen kleinen Testsatz.</li>
                       <li>Fuer Meshes zuerst <b>Mesh-Importvorschau</b> im Archiv-Browser nutzen. <b>Mesh importieren</b> oder <b>Mit Ingame-Mesh tauschen</b> erst nach der Ausrichtungspruefung verwenden.</li>
                     </ol>
@@ -511,9 +511,9 @@ class AboutDocumentationGermanMixin:
                     "id": "faq",
                     "title": "FAQ",
                     "summary": "Kurze Antworten auf haeufige Fragen.",
-                    "keywords": "faq texconv sidecar ncnn chainner helligkeit archiv",
+                    "keywords": "faq natives dds sidecar ncnn chainner helligkeit archiv",
                     "html": """
-                    <p><b>Brauche ich texconv?</b><br/>Nein fuer normale Workflows. DirectXTex/native wird zuerst genutzt; texconv bleibt optionaler Legacy-Fallback.</p>
+                    <p><b>Muss ich einen DDS-Konverter installieren?</b><br/>Nein. CDMW enthaelt <code>cd-texture-dx.exe</code> und nutzt es fuer alle DDS-Vorschau- und Neuaufbau-Workflows.</p>
                     <p><b>Sollte ich alle Texturen hochskalieren?</b><br/>Nein. Mit Farbe/UI/Emissive starten; Normalen, Masken und technische Maps zuerst erhalten.</p>
                     <p><b>Warum dauert der Sidecar-Cache lange?</b><br/>Er liest viele Sidecars fuer globale Verbindungen. Teuer, aber nuetzlich fuer verwandte Dateien.</p>
                     <p><b>Wann nutze ich den Ersetzungsassistenten?</b><br/>Fuer eine einzelne bearbeitete Textur. Fuer Stapel den Textur-Workflow nutzen.</p>

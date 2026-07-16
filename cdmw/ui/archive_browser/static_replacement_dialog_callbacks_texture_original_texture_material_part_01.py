@@ -199,8 +199,6 @@ def _texture_original_texture_material_step_003(_state):
     _state.stop_event = _state.context.get('stop_event')
     _state.target_index = _state.context.get('target_index')
     _state.target_material_name = _state.context.get('target_material_name')
-    _state.texconv_path = _state.context.get('texconv_path')
-    _state.texconv_text = _state.context.get('texconv_text')
     _state.texts = _state.context.get('texts')
     _state.texture_entries_by_basename_for_alignment = _state.context.get('texture_entries_by_basename_for_alignment')
     _state.texture_entries_by_normalized_path_for_alignment = _state.context.get('texture_entries_by_normalized_path_for_alignment')
@@ -314,8 +312,6 @@ def _texture_original_texture_material_step_009(_state):
         _state._set_alignment_d3d11_progress(10, load_state.progress_message, stage='source_textures', detail=load_state.detail)
         _state._set_preview_performance_status(load_state.performance.summary, details=load_state.performance.details)
         try:
-            texconv_text = _state.self.texconv_path_edit.text().strip()
-            texconv_path = _state.Path(texconv_text).expanduser() if texconv_text else None
             package_root_text = _state.self.archive_package_root_edit.text().strip()
             current_preview_render_settings = _state._current_preview_render_settings()
             normalized_visible_texture_mode = _state._normalize_model_visible_texture_mode(str(getattr(current_preview_render_settings, 'visible_texture_mode', '')))
@@ -343,7 +339,7 @@ def _texture_original_texture_material_step_009(_state):
                     if native_material_batches:
                         return (native_preview_model, native_material_batches)
                 if preview_model is None and callable(_state.build_archive_preview_result):
-                    preview_result = _state.build_archive_preview_result(texconv_path, _state.entry, companion_entry=companion_entry, texture_entries_by_normalized_path=archive_texture_entries_by_normalized_path, texture_entries_by_basename=archive_texture_entries_by_basename, sidecar_entries_by_texture_path=archive_sidecar_entries_by_texture_path, sidecar_entries_by_texture_basename=archive_sidecar_entries_by_texture_basename, visible_texture_mode=normalized_visible_texture_mode, support_texture_slots=support_texture_slots, stop_event=stop_event)
+                    preview_result = _state.build_archive_preview_result(_state.entry, companion_entry=companion_entry, texture_entries_by_normalized_path=archive_texture_entries_by_normalized_path, texture_entries_by_basename=archive_texture_entries_by_basename, sidecar_entries_by_texture_path=archive_sidecar_entries_by_texture_path, sidecar_entries_by_texture_basename=archive_sidecar_entries_by_texture_basename, visible_texture_mode=normalized_visible_texture_mode, support_texture_slots=support_texture_slots, stop_event=stop_event)
                     preview_candidate = getattr(preview_result, 'preview_model', None)
                     if _state.ModelPreviewData is not None and isinstance(preview_candidate, _state.ModelPreviewData) and getattr(preview_candidate, 'meshes', None):
                         preview_model = _state._clone_preview_model(preview_candidate)
@@ -355,16 +351,16 @@ def _texture_original_texture_material_step_009(_state):
                     raise _state.RunCancelled('Original texture preview cancelled.')
                 if not archive_preview_authoritative:
                     if normalized_visible_texture_mode == 'mesh_base_first':
-                        _state._attach_model_texture_preview_paths(texconv_path, _state.entry, preview_model, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
-                    _state._attach_model_sidecar_texture_preview_paths(texconv_path, _state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, visible_texture_mode=normalized_visible_texture_mode, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
+                        _state._attach_model_texture_preview_paths(_state.entry, preview_model, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
+                    _state._attach_model_sidecar_texture_preview_paths(_state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, visible_texture_mode=normalized_visible_texture_mode, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
                     if normalized_visible_texture_mode != 'mesh_base_first':
-                        _state._attach_model_texture_preview_paths(texconv_path, _state.entry, preview_model, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
+                        _state._attach_model_texture_preview_paths(_state.entry, preview_model, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
                     if _state.sidecar_bindings and normalized_visible_texture_mode == 'mesh_base_first':
-                        _state._attach_model_sidecar_texture_preview_paths(texconv_path, _state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, visible_texture_mode='layer_aware_visible', texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename, fallback_only=True)
-                        _state._attach_model_texture_preview_paths(texconv_path, _state.entry, preview_model, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename, override_existing_base=True, prefer_material_name_for_base=True)
+                        _state._attach_model_sidecar_texture_preview_paths(_state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, visible_texture_mode='layer_aware_visible', texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename, fallback_only=True)
+                        _state._attach_model_texture_preview_paths(_state.entry, preview_model, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename, override_existing_base=True, prefer_material_name_for_base=True)
                     if stop_event.is_set():
                         raise _state.RunCancelled('Original texture preview cancelled.')
-                    _state._attach_model_support_texture_preview_paths(texconv_path, _state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
+                    _state._attach_model_support_texture_preview_paths(_state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
                 _state.self._attach_archive_model_preview_images(preview_model)
                 native_material_batches = 0 if native_manifest_attempted else _state._load_native_preview_core_material_manifest_for_alignment(preview_model, package_root_text)
                 return (preview_model, native_material_batches)

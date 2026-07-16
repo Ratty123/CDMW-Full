@@ -32,6 +32,10 @@ $TestsByArea = @{
         "tests/test_archive_extract_progress.py"
     )
     texture = @(
+        "tests/test_texture_backend_retirement.py",
+        "tests/test_texture_replacer_headless_harness.py",
+        "tests/test_texture_native_backend.py",
+        "tests/test_texture_workflow_guardrails.py",
         "tests/test_texture_workflow_ui_source_guards.py",
         "tests/test_texture_domain_profiles.py",
         "tests/test_texture_workflow_unavailable_editor.py",

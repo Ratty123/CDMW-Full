@@ -333,14 +333,14 @@ def build_source_match_plan_for_path(
     original_dds_path: Optional[Path] = None,
     direct_backend_supported: bool = True,
 ) -> Tuple[TextureUpscaleDecision, SourceMatchPlan]:
-    original_texconv_format = ""
+    original_dds_format = ""
     has_alpha = image_has_alpha_channel(source_png_path)
     if original_dds_path is not None and original_dds_path.exists():
         try:
             from cdmw.core.texture_pipeline.inspection import parse_dds
 
             dds_info = parse_dds(original_dds_path)
-            original_texconv_format = dds_info.texconv_format
+            original_dds_format = dds_info.dds_format
             has_alpha = has_alpha or dds_info.has_alpha
         except Exception:
             pass
@@ -348,7 +348,7 @@ def build_source_match_plan_for_path(
     decision = suggest_texture_upscale_decision(
         relative_path,
         preset=preset,
-        original_texconv_format=original_texconv_format,
+        original_dds_format=original_dds_format,
         has_alpha=has_alpha,
         sidecar_texts=sidecar_texts,
         enable_automatic_rules=enable_automatic_rules,

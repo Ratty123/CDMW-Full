@@ -904,7 +904,6 @@ def _build_component_model_preview(
     model_entry: ArchiveEntry,
     component: AppearanceCompositeComponent,
     *,
-    texconv_path: Optional[Path],
     path_index: Mapping[str, Sequence[ArchiveEntry]],
     basename_index: Mapping[str, Sequence[ArchiveEntry]],
     role_prefix: str = "",
@@ -960,7 +959,6 @@ def _build_component_model_preview(
     references = merge_archive_reference_rows(references, relationship_refs)
     try:
         texture_notes = _attach_model_texture_preview_paths(
-            texconv_path,
             model_entry,
             temp_model,
             texture_entries_by_normalized_path=path_index,
@@ -986,7 +984,6 @@ def build_appearance_composite_model(
     *,
     selected_component_indexes: Optional[Sequence[int]] = None,
     model_overrides: Optional[Sequence[AppearanceCompositeModelOverride]] = None,
-    texconv_path: Optional[Path] = None,
     path_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     basename_index: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     stop_event: Optional[threading.Event] = None,
@@ -1040,7 +1037,6 @@ def build_appearance_composite_model(
                 component_meshes, component_refs, component_warnings = _build_component_model_preview(
                     model_entry,
                     component,
-                    texconv_path=texconv_path,
                     path_index=path_index,
                     basename_index=basename_index,
                     role_prefix=str(getattr(override, "label", "") or "") if override is not None else "",

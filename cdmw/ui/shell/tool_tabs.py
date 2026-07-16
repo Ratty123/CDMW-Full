@@ -147,7 +147,6 @@ class ShellToolTabsMixin:
             get_filtered_archive_entries=lambda: self.archive_filtered_entries,
             get_original_root=lambda: self.original_dds_edit.text(),
             get_output_root=lambda: self.output_root_edit.text(),
-            get_texconv_path=lambda: self.texconv_path_edit.text(),
             get_app_config=self.collect_config,
             get_current_archive_path=self.current_archive_path_for_research,
             get_current_text_search_path=lambda: self.text_search_tab.current_result_path(),
@@ -177,7 +176,6 @@ class ShellToolTabsMixin:
             base_dir=self.settings_file_path.parent,
             get_archive_entries=lambda: self.archive_entries,
             get_original_root=lambda: self.original_dds_edit.text(),
-            get_texconv_path=lambda: self.texconv_path_edit.text(),
             get_current_config=self.collect_config,
         )
         tab.status_message_requested.connect(
@@ -196,7 +194,6 @@ class ShellToolTabsMixin:
         tab = RecolorVariantsTab(
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
-            get_texconv_path=lambda: self.texconv_path_edit.text(),
         )
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
@@ -214,7 +211,6 @@ class ShellToolTabsMixin:
             tab = texture_editor_tab_class(
                 settings=self.settings,
                 base_dir=self.settings_file_path.parent,
-                get_texconv_path=lambda: self.texconv_path_edit.text(),
                 get_png_root=lambda: self.png_root_edit.text(),
                 get_original_dds_root=lambda: self.original_dds_edit.text(),
                 get_archive_entries=lambda: self.archive_entries,
@@ -244,7 +240,6 @@ class ShellToolTabsMixin:
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
             get_archive_entries=lambda: self.archive_entries,
-            get_texconv_path=lambda: self.texconv_path_edit.text(),
             resolve_target_template_path=lambda entry: ensure_archive_preview_source(entry)[0],
             get_current_archive_path=self.current_archive_path_for_research,
             item_icon_service=self.app_context.services.require_item_icons(),

@@ -63,13 +63,15 @@ def build_incremental_manifest_entry(
         "png_size": png_stat.st_size,
         "output_mtime_ns": output_stat.st_mtime_ns,
         "output_size": output_stat.st_size,
-        "format": output_settings.texconv_format,
+        "format": output_settings.dds_format,
         "mips": output_settings.mip_count,
         "resize": output_settings.resize_to_dimensions,
         "width": output_settings.width,
         "height": output_settings.height,
-        "color_args": list(output_settings.texconv_color_args),
-        "extra_args": list(output_settings.texconv_extra_args),
+        "source_color_policy": output_settings.source_color_policy,
+        "mip_alpha_policy": output_settings.mip_alpha_policy,
+        "alpha_coverage_reference": output_settings.alpha_coverage_reference,
+        "dds_alpha_mode": output_settings.dds_alpha_mode,
     }
 
 

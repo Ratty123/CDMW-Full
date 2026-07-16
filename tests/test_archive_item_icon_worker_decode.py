@@ -49,7 +49,8 @@ def test_item_icon_worker_decodes_cached_thumbnail_to_qimage(tmp_path: Path) -> 
     assert len(prepared) == 1
     generation, prepared_key, path_text, note, decoded = prepared[0]
     assert generation == 7
-    assert prepared_key == ((entry.path,), "")
+    assert prepared_key[0] == (entry.path,)
+    assert prepared_key[1].startswith("directxtex_native_0.2|bin=")
     assert path_text == str(preview_path)
     assert note == "cached"
     assert isinstance(decoded, QImage) and not decoded.isNull()

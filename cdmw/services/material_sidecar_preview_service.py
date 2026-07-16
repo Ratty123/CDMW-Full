@@ -42,7 +42,6 @@ class MaterialSidecarPreviewBuildRequest:
     preview_model_entry: ArchiveEntry
     sidecar_entry: ArchiveEntry
     companion_entry: Optional[ArchiveEntry]
-    texconv_path: Optional[Path]
     preview_sidecar_text: str
     material_preview_edits: Mapping[str, str]
     include_texture_edits: bool
@@ -357,7 +356,6 @@ def _build_full_material_preview(
     else:
         log(request.building_model_log)
         result = build_archive_preview_result(
-            request.texconv_path,
             request.preview_model_entry,
             companion_entry=request.companion_entry,
             texture_entries_by_normalized_path=request.texture_entries_by_normalized_path,
@@ -388,7 +386,6 @@ def _build_full_material_preview(
                         sidecar_texts_by_basename[basename] = (request.preview_sidecar_text,)
             notes.extend(
                 _attach_model_sidecar_texture_preview_paths(
-                    request.texconv_path,
                     request.preview_model_entry,
                     preview_model,
                     parsed_mesh=None,

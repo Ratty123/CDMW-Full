@@ -563,7 +563,6 @@ def test_linked_texture_edit_emits_patch_after_pointer_handler_returns(tmp_path:
     tab = TextureEditorTab(
         settings=QSettings(str(tmp_path / "settings.ini"), QSettings.Format.IniFormat),
         base_dir=tmp_path,
-        get_texconv_path=lambda: "",
         get_png_root=lambda: "",
     )
     pixels = np.zeros((16, 16, 4), dtype=np.uint8)

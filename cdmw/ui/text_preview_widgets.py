@@ -762,7 +762,7 @@ class LogHighlighter(QSyntaxHighlighter):
         r"\b(UPSCALE|BUILD|COPY|DRYRUN|SYNCING|INDEXING|SCANNING|STARTING|RUNNING|LOADING|REFRESHING|EXTRACTING|CONVERTING|VALIDATING|RETRYING|FOUND)\b",
         re.IGNORECASE,
     )
-    _backend_re = re.compile(r"\b(Real-ESRGAN NCNN|chaiNNer|texconv(?:\.exe)?)\b", re.IGNORECASE)
+    _backend_re = re.compile(r"\b(Real-ESRGAN NCNN|chaiNNer|cd-texture-dx(?:\.exe)?|DirectXTex)\b", re.IGNORECASE)
     _correction_mode_re = re.compile(
         r"\b(Match Mean Luma|Match Levels|Match Histogram|Source Match Balanced|Source Match Extended|Source Match Experimental)\b",
         re.IGNORECASE,

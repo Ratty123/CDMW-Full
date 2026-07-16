@@ -77,6 +77,11 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert "scripts\\verify_packaged_startup.ps1" in source
     assert 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $exePath -Context "published"' in source
     assert 'Invoke-DotNetMeshEditorProvenanceCheck -ExecutablePath $exePath -Context "published"' in source
+    assert "function Test-OnedirTextureBackend" in source
+    assert "function Test-OnefileTextureBackend" in source
+    assert 'Invoke-TextureBackendSelfTest -ExecutablePath $helperPath -Context "packaged onedir"' in source
+    assert "CArchiveReader" in source
+    assert '[str(helper_path), "self-test"]' in source
     assert 'cdmw-mesh-dotnet-editor.manifest.json' in source
     assert 'executable_sha256 = $exeHash' in source
     assert 'shader_sha256 = $shaderHash' in source
@@ -93,6 +98,9 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert source.index(describe_only_return) < source.index(metadata_refresh)
     assert source.index(metadata_refresh) < source.index(metadata_check)
     assert source.index(metadata_check) < source.index("Starting PyInstaller")
+    texture_backend_stage = 'Stage "Verifying packaged native texture backend"'
+    assert source.index(texture_backend_stage) < source.index(packaged_smoke)
+    assert source.index(texture_backend_stage) < source.index('Stage "Verifying packaged startup"')
     assert source.index(packaged_smoke) < source.index('Stage "Verifying packaged startup"')
     assert source.index("Verifying packaged startup") < source.index("Publishing build output")
     assert source.index("generate_window_feature_provider_members.py") < source.index("Starting PyInstaller")

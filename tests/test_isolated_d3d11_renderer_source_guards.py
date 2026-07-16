@@ -268,9 +268,11 @@ class IsolatedD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("direct_upload_candidate", source)
         self.assertIn("compressed_family", source)
         self.assertIn("normal_green_inverted", source)
-        self.assertIn("DirectX::Decompress(*first, DXGI_FORMAT_R8G8B8A8_UNORM", source)
-        self.assertIn("rgba.InitializeFromImage(*convert_source)", source)
-        self.assertIn("source_format=", source)
+        self.assertIn("source_image.GetImage(static_cast<size_t>(job.requested_mip), 0, 0)", source)
+        self.assertIn("DirectX::Decompress(*selected, output_format, converted)", source)
+        self.assertIn("prepared.InitializeFromImage(*convert_source)", source)
+        self.assertIn("GUID_WICPixelFormat16bppGray", source)
+        self.assertIn('<< "\\"format\\":\\"" << dxgi_format_name(metadata.format)', source)
 
     def test_native_d3d11_is_archive_renderer_backend_and_qt_scene_is_not_used(self) -> None:
         source = _archive_d3d11_ui_source()

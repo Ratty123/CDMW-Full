@@ -290,7 +290,8 @@ def test_dotnet_experiment_packaging_scripts_publish_and_bundle_helper() -> None
     assert 'NATIVE_CONFIGURATION = "Debug" if PROFILE == "debug" else "Release"' in spec_source
     assert "native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}" in spec_source
     assert "native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl" in spec_source
-    assert "native/cdmw_d3d11_preview/build/bin/{NATIVE_CONFIGURATION}/texconv.exe" in spec_source
+    assert "native/cd_texture_dx/build/{NATIVE_CONFIGURATION}/cd-texture-dx.exe" in spec_source
+    assert ("tex" + "conv.exe") not in spec_source.lower()
     assert 'if PROFILE != "release":' not in spec_source
     assert "suffixes={\".exe\", \".dll\", \".json\", \".pdb\"}" in spec_source
 

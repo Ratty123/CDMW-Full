@@ -134,7 +134,6 @@ class ArchiveAttachmentIconMixin:
         self,
         icon_spec: ItemIconOverrideSpec,
         *,
-        texconv_path: Optional[Path],
         on_log: Optional[Callable[[str], None]] = None,
     ) -> MeshImportSupplementalFileSpec:
         target_entry = icon_spec.target_entry
@@ -144,7 +143,6 @@ class ArchiveAttachmentIconMixin:
         result = self.app_context.services.require_item_icons().build_payload(
             icon_spec,
             target_template_path=target_template_path,
-            texconv_path=texconv_path,
             on_log=on_log,
         )
         if on_log is not None:

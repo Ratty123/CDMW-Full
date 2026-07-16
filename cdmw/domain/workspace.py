@@ -43,7 +43,6 @@ def workspace_paths(app_root: Path) -> dict[str, Path]:
         "archive_cache_root": root / "cache",
         "crash_reports_dir": root / "logs",
         "tools_root": tools_root,
-        "texconv_path": tools_root / "texconv.exe",
         "chainner_dir": tools_root / "chaiNNer",
         "chainner_exe_path": tools_root / "chaiNNer" / "chaiNNer.exe",
         "ncnn_dir": ncnn_dir,

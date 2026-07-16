@@ -1659,19 +1659,22 @@ def _archive_entry_pathc_identity_signature(entry: ArchiveEntry) -> Tuple[object
         return ("missing_pathc",)
 
 
-def _texconv_identity_signature(texconv_path: Optional[Path]) -> Tuple[object, ...]:
-    if texconv_path is None:
-        return ("native_directxtex",)
+def _native_texture_helper_identity_signature() -> Tuple[object, ...]:
+    from cdmw.core.texture_native import find_directxtex_texture_binary
+
+    helper_path = find_directxtex_texture_binary()
+    if helper_path is None:
+        return ("native_directxtex", "missing")
     try:
-        resolved_path = texconv_path.expanduser().resolve()
+        resolved_path = helper_path.expanduser().resolve()
     except OSError:
-        resolved_path = texconv_path.expanduser()
+        resolved_path = helper_path.expanduser()
     try:
-        texconv_stat = resolved_path.stat()
+        helper_stat = resolved_path.stat()
         return (
             str(resolved_path),
-            int(texconv_stat.st_size),
-            int(getattr(texconv_stat, "st_mtime_ns", int(texconv_stat.st_mtime * 1_000_000_000))),
+            int(helper_stat.st_size),
+            int(getattr(helper_stat, "st_mtime_ns", int(helper_stat.st_mtime * 1_000_000_000))),
         )
     except OSError:
         return (str(resolved_path), 0, 0)

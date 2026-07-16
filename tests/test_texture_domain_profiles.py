@@ -164,7 +164,7 @@ class TextureDomainProfileTests(unittest.TestCase):
         from cdmw.models import DdsInfo, DdsOutputSettings, TextureWorkflowDdsOverride
 
         settings = DdsOutputSettings(
-            texconv_format="BC1_UNORM",
+            dds_format="BC1_UNORM",
             mip_count=1,
             width=64,
             height=32,
@@ -174,7 +174,7 @@ class TextureDomainProfileTests(unittest.TestCase):
             width=128,
             height=64,
             mip_count=7,
-            texconv_format="BC7_UNORM",
+            dds_format="BC7_UNORM",
             source_path=Path("source.dds"),
         )
 
@@ -186,7 +186,7 @@ class TextureDomainProfileTests(unittest.TestCase):
             note_label="profile matched",
         )
 
-        self.assertEqual("BC7_UNORM", overridden.texconv_format)
+        self.assertEqual("BC7_UNORM", overridden.dds_format)
         self.assertEqual((128, 64), (overridden.width, overridden.height))
         self.assertEqual(7, overridden.mip_count)
         self.assertIn("profile matched", overridden.notes)
@@ -202,13 +202,13 @@ class TextureDomainProfileTests(unittest.TestCase):
             should_upscale=False,
             recommended_colorspace="linear",
             format_strategy="bc5_linear",
-            recommended_texconv_format="BC5_UNORM",
+            recommended_dds_format="BC5_UNORM",
             preserve_alpha=False,
             alpha_mode="none",
         )
         adjusted = output.apply_automatic_texture_rule_adjustments(
             DdsOutputSettings(
-                texconv_format="BC7_UNORM_SRGB",
+                dds_format="BC7_UNORM_SRGB",
                 mip_count=1,
                 width=64,
                 height=64,
@@ -219,7 +219,7 @@ class TextureDomainProfileTests(unittest.TestCase):
                 width=64,
                 height=64,
                 mip_count=1,
-                texconv_format="BC7_UNORM_SRGB",
+                dds_format="BC7_UNORM_SRGB",
                 source_path=Path("body_n.dds"),
             ),
             has_alpha=False,
@@ -227,7 +227,7 @@ class TextureDomainProfileTests(unittest.TestCase):
             decision_factory=lambda *_args, **_kwargs: decision,
         )
 
-        self.assertEqual("BC5_UNORM", adjusted.texconv_format)
+        self.assertEqual("BC5_UNORM", adjusted.dds_format)
 
     def test_texture_profile_ui_uses_domain_profile_keys_directly(self) -> None:
         source = Path("cdmw/ui/texture_workflow/workflow_profiles_ui.py").read_text(encoding="utf-8")

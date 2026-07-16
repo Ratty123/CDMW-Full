@@ -30,7 +30,6 @@ def _make_texture_editor_tab(root: Path) -> TextureEditorTab:
     return TextureEditorTab(
         settings=settings,
         base_dir=root,
-        get_texconv_path=lambda: "",
         get_png_root=lambda: "",
     )
 

@@ -372,13 +372,11 @@ def test_resolve_dds_detail_preview_path_handles_empty_missing_and_images(tmp_pa
 
     assert resolve_dds_detail_preview_path(
         "",
-        texconv_path=None,
         parse_dds_file=lambda _path: object(),
         ensure_dds_display_preview=lambda *_args, **_kwargs: image_path,
     ) == (None, "No local preview source is available for this row.")
     missing_path, missing_status = resolve_dds_detail_preview_path(
         tmp_path / "missing.dds",
-        texconv_path=None,
         parse_dds_file=lambda _path: object(),
         ensure_dds_display_preview=lambda *_args, **_kwargs: image_path,
     )
@@ -386,24 +384,20 @@ def test_resolve_dds_detail_preview_path_handles_empty_missing_and_images(tmp_pa
     assert "Preview source is not a local file:" in missing_status
     assert resolve_dds_detail_preview_path(
         image_path,
-        texconv_path=None,
         parse_dds_file=lambda _path: object(),
         ensure_dds_display_preview=lambda *_args, **_kwargs: image_path,
     ) == (image_path, "Visible thumbnail from the source image.")
 
 
-def test_resolve_dds_detail_preview_path_decodes_dds_with_texconv_and_slot(tmp_path: Path) -> None:
+def test_resolve_dds_detail_preview_path_decodes_dds_with_native_backend_and_slot(tmp_path: Path) -> None:
     dds_path = tmp_path / "body.dds"
     dds_path.write_bytes(b"DDS ")
-    texconv_path = tmp_path / "texconv.exe"
-    texconv_path.write_bytes(b"tool")
     preview_path = tmp_path / "body.png"
-    calls: list[tuple[object, Path, object, int, str]] = []
+    calls: list[tuple[Path, object, int, str]] = []
 
-    def ensure_preview(texconv: object, candidate: Path, **kwargs: object) -> Path:
+    def ensure_preview(candidate: Path, **kwargs: object) -> Path:
         calls.append(
             (
-                texconv,
                 candidate,
                 kwargs.get("dds_info"),
                 int(kwargs.get("max_dimension", 0)),
@@ -415,11 +409,10 @@ def test_resolve_dds_detail_preview_path_decodes_dds_with_texconv_and_slot(tmp_p
     assert resolve_dds_detail_preview_path(
         dds_path,
         " Normal ",
-        texconv_path=texconv_path,
         parse_dds_file=lambda path: {"path": path.name},
         ensure_dds_display_preview=ensure_preview,
     ) == (preview_path, "Visible thumbnail from decoded DDS preview.")
-    assert calls == [(texconv_path, dds_path, {"path": "body.dds"}, 512, "normal")]
+    assert calls == [(dds_path, {"path": "body.dds"}, 512, "normal")]
 
 
 def test_resolve_dds_detail_preview_path_reports_decode_failures(tmp_path: Path) -> None:
@@ -428,7 +421,6 @@ def test_resolve_dds_detail_preview_path_reports_decode_failures(tmp_path: Path)
 
     preview_path, status = resolve_dds_detail_preview_path(
         dds_path,
-        texconv_path=None,
         parse_dds_file=lambda _path: object(),
         ensure_dds_display_preview=lambda *_args, **_kwargs: (_ for _ in ()).throw(RuntimeError("decode failed")),
     )

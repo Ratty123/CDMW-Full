@@ -14,8 +14,8 @@ from cdmw.core.archive_model_references import (
     _archive_entry_identity_signature,
     _archive_entry_pathc_identity_signature,
     _model_texture_hint_priority,
+    _native_texture_helper_identity_signature,
     _normalize_model_texture_reference,
-    _texconv_identity_signature,
 )
 from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
@@ -236,7 +236,6 @@ def _resolve_model_texture_archive_entry(
     return best_candidate, "resolved"
 
 def _ensure_archive_model_texture_preview_path(
-    resolved_texconv_path: Optional[Path],
     texture_entry: ArchiveEntry,
     *,
     max_dimension: Optional[int] = None,
@@ -251,7 +250,7 @@ def _ensure_archive_model_texture_preview_path(
     cache_key: Tuple[object, ...] = (
         _archive_entry_identity_signature(texture_entry),
         _archive_entry_pathc_identity_signature(texture_entry),
-        _texconv_identity_signature(resolved_texconv_path),
+        _native_texture_helper_identity_signature(),
         resolved_max_dimension,
         str(slot_kind or "base").strip().lower(),
     )
@@ -277,7 +276,6 @@ def _ensure_archive_model_texture_preview_path(
     except Exception:
         dds_info = None
     preview_path = ensure_dds_display_preview_png(
-        resolved_texconv_path,
         texture_source_path.resolve(),
         dds_info=dds_info,
         max_dimension=resolved_max_dimension,
@@ -293,7 +291,6 @@ def _ensure_archive_model_texture_preview_path(
     return preview_path_text
 
 def _prefetch_archive_model_texture_preview_paths(
-    resolved_texconv_path: Optional[Path],
     requests: Sequence[Tuple[ArchiveEntry, str, int]],
     preview_cache: Dict[str, str],
     *,
@@ -322,7 +319,7 @@ def _prefetch_archive_model_texture_preview_paths(
         cache_key: Tuple[object, ...] = (
             _archive_entry_identity_signature(texture_entry),
             _archive_entry_pathc_identity_signature(texture_entry),
-            _texconv_identity_signature(resolved_texconv_path),
+            _native_texture_helper_identity_signature(),
             resolved_max_dimension,
             slot_key,
         )
@@ -380,10 +377,8 @@ def _prefetch_archive_model_texture_preview_paths(
         return
 
     try:
-        timeout_seconds = max(10.0, min(180.0, 4.0 + (len(jobs) * 4.0)))
         results = ensure_directxtex_dds_preview_pngs(
             jobs,
-            timeout_seconds=timeout_seconds,
             include_job_keys=True,
             stop_event=stop_event,
         )

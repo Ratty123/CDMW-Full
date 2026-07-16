@@ -58,7 +58,6 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
         settings: QSettings,
         base_dir: Path,
         get_archive_entries: Callable[[], Sequence[object]],
-        get_texconv_path: Callable[[], str],
         resolve_target_template_path: Callable[[object], Path],
         get_current_archive_path: Optional[Callable[[], str]] = None,
         item_icon_service: Optional[ItemIconService] = None,
@@ -68,7 +67,6 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
         self.settings = settings
         self.base_dir = base_dir
         self.get_archive_entries = get_archive_entries
-        self.get_texconv_path = get_texconv_path
         self.resolve_target_template_path = resolve_target_template_path
         self.get_current_archive_path = get_current_archive_path or (lambda: "")
         self.item_icon_service = item_icon_service or ItemIconService(settings=settings)
@@ -152,10 +150,6 @@ class ItemIconLibraryTab(ItemIconRecordListMixin, ItemIconWorkerMixin, QWidget):
 
     def _emit_status(self, message: str, error: bool = False) -> None:
         self.status_message_requested.emit(message, bool(error))
-
-    def _texconv_path(self) -> Optional[Path]:
-        text = str(self.get_texconv_path() or "").strip()
-        return Path(text).expanduser() if text else None
 
     def _background_mode(self) -> str:
         if not hasattr(self, "background_mode_combo"):

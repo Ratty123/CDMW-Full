@@ -258,13 +258,9 @@ class TextureEditorFileIoUiMixin:
             self._refresh_canvas_status_strip()
             self._set_status(texture_editor_existing_source_status_text(resolved_source), False)
             return
-        texconv_text = str(self.get_texconv_path()).strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-
         def _task() -> object:
             return create_texture_editor_source_document_task(
                 resolved_source,
-                texconv_path=texconv_path,
                 workspace_root=self.workspace_root,
                 binding=texture_binding,
             )

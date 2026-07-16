@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-15
+Last updated: 2026-07-16
 
 ## Repository rules
 
@@ -41,6 +41,17 @@ Last updated: 2026-07-15
 
 ## Texture and cache contracts
 
+- All production DDS decode, staging, preview, encode, and rebuild work uses
+  `cd-texture-dx.exe` protocol v2. Missing or failed native execution fails
+  explicitly; no secondary executable is searched or launched. Profile format
+  4 discards obsolete converter paths/tokens, while the one-release public
+  compatibility shim only warns and ignores obsolete arguments.
+- Native DDS publication is sibling-staged, metadata-validated, and atomic.
+  Protocol v2 owns source color policy, mip alpha policy/coverage, DDS alpha
+  metadata, requested-mip decode, and true gray16 PNG staging. The authoritative
+  non-UI gate is `tools/texture_replacer_headless_harness.py --scenario
+  full-suite`; it exercises the real 2048x2048 Texture Replacer rebuild,
+  consumer matrix, policy matrix, and failure lifecycle without archive writes.
 - Replace Assistant Auto Match rejects resolved-path self matches, leaves their
   destination empty until an authoritative original is chosen, and fans one
   matched package/game path through all selected manager profiles.

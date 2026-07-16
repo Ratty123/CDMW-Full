@@ -246,7 +246,7 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.texture_pipeline.preview.ensure_dds_display_preview_png",
-            side_effect=lambda _texconv, dds_path, **_kwargs: f"preview://{Path(dds_path).name}",
+            side_effect=lambda dds_path, **_kwargs: f"preview://{Path(dds_path).name}",
         ):
             lines = archive_modding._apply_mesh_import_local_sidecar_texture_overrides(
                 preview_model,
@@ -254,7 +254,6 @@ class MeshImportPreviewStaticEditTests(unittest.TestCase):
                 sidecar_texture_bindings=bindings,
                 supplemental_dds_by_normalized_path={"character/texture/part_a.dds": Path("part_a.dds")},
                 supplemental_dds_by_basename={"part_a.dds": Path("part_a.dds")},
-                texconv_path=Path("texconv.exe"),
             )
 
         self.assertEqual("character/texture/part_a.dds", preview_model.meshes[0].texture_name)

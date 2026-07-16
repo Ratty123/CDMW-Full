@@ -31,21 +31,12 @@ class ArchiveMeshDdsPreviewMixin:
     def _build_local_dds_preview_override_path(
         self,
         source_path: Path,
-        *,
-        texconv_path: Optional[Path] = None,
     ) -> str:
-        resolved_texconv_path = texconv_path
-        if resolved_texconv_path is None:
-            texconv_text = self.texconv_path_edit.text().strip()
-            resolved_texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-        if resolved_texconv_path is not None and not resolved_texconv_path.is_file():
-            resolved_texconv_path = None
         resolved_source = source_path.expanduser().resolve()
         if not resolved_source.is_file():
             raise FileNotFoundError(f"Imported DDS was not found: {resolved_source}")
         dds_info = parse_dds(resolved_source)
         preview_path = ensure_dds_display_preview_png(
-            resolved_texconv_path.resolve() if resolved_texconv_path is not None else None,
             resolved_source,
             dds_info=dds_info,
         )
@@ -154,7 +145,6 @@ class ArchiveMeshDdsPreviewMixin:
         source_path: Path,
         slot: str,
         *,
-        texconv_path: Optional[Path],
         companion_entry: Optional[ArchiveEntry],
         visible_texture_mode: str,
     ) -> ArchivePreviewResult:
@@ -162,7 +152,6 @@ class ArchiveMeshDdsPreviewMixin:
         slot_label = self._preview_slot_label(normalized_slot)
         resolved_source_path = source_path.expanduser().resolve()
         preview_result = build_archive_preview_result(
-            texconv_path,
             entry,
             companion_entry=companion_entry,
             texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
@@ -182,7 +171,6 @@ class ArchiveMeshDdsPreviewMixin:
 
         preview_path = self._build_local_dds_preview_override_path(
             resolved_source_path,
-            texconv_path=texconv_path,
         )
         applied = self._apply_archive_entry_dds_preview_to_model(
             preview_model,
@@ -275,8 +263,6 @@ class ArchiveMeshDdsPreviewMixin:
 
         resolved_source_path = Path(source_path).expanduser().resolve()
         normalized_slot = str(selected_slot_label or "").strip().lower()
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         companion_entry = self._find_archive_preview_companion_entry(entry)
         preview_settings = self._current_model_preview_render_settings()
 
@@ -286,7 +272,6 @@ class ArchiveMeshDdsPreviewMixin:
                 entry,
                 resolved_source_path,
                 normalized_slot,
-                texconv_path=texconv_path,
                 companion_entry=companion_entry,
                 visible_texture_mode=preview_settings.visible_texture_mode,
             )

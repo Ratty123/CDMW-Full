@@ -70,7 +70,7 @@ def _normal_csv_row(row: object) -> dict[str, object]:
         "report_type": "normal", "path": row.path, "root": row.root_label, "root_path": row.root_path,
         "planner_profile": row.planner_profile, "planner_path_kind": row.planner_path_kind,
         "planner_backend_mode": row.planner_backend_mode, "planner_alpha_policy": row.planner_alpha_policy,
-        "planner_preserve_reason": row.planner_preserve_reason, "format": row.texconv_format,
+        "planner_preserve_reason": row.planner_preserve_reason, "format": row.dds_format,
         "size": row.size_text, "issue_count": row.issue_count, "summary": " | ".join(row.issues),
     }
 

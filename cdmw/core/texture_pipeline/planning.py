@@ -54,7 +54,7 @@ def build_single_texture_processing_plan(
     resolved_decision = decision or suggest_texture_upscale_decision(
         resolved_relative.as_posix(),
         preset=normalized.upscale_texture_preset,
-        original_texconv_format=dds_info.texconv_format,
+        original_dds_format=dds_info.dds_format,
         has_alpha=dds_info.has_alpha,
         enable_automatic_rules=normalized.enable_automatic_texture_rules,
     )
@@ -244,11 +244,11 @@ def _collect_texture_preview_sample(image_path: Path) -> Optional[TexturePreview
     )
 
 
-def _preview_sample_for_unknown_dds(texconv_path: Optional[Path], dds_path: Path, texture_type: str) -> Optional[TexturePreviewSample]:
+def _preview_sample_for_unknown_dds(dds_path: Path, texture_type: str) -> Optional[TexturePreviewSample]:
     if texture_type != "unknown":
         return None
     try:
-        preview_path = ensure_dds_preview_png(texconv_path, dds_path)
+        preview_path = ensure_dds_preview_png(dds_path)
     except Exception:
         return None
     return _collect_texture_preview_sample(preview_path)
@@ -288,11 +288,11 @@ def build_texture_processing_plan(
             sidecars_by_texture_basename=sidecars_by_texture_basename,
             text_cache=sidecar_text_cache,
         )
-        preview_sample = _preview_sample_for_unknown_dds(normalized.texconv_path, dds_path, coarse_texture_type)
+        preview_sample = _preview_sample_for_unknown_dds(dds_path, coarse_texture_type)
         decision = suggest_texture_upscale_decision(
             rel_display,
             preset=normalized.upscale_texture_preset,
-            original_texconv_format=dds_info.texconv_format,
+            original_dds_format=dds_info.dds_format,
             has_alpha=dds_info.has_alpha,
             sidecar_texts=sidecar_texts,
             enable_automatic_rules=normalized.enable_automatic_texture_rules,

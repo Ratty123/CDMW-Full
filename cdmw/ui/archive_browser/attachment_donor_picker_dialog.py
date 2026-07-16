@@ -369,13 +369,10 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                         "source_extension": preview_entry.extension,
                     }
                 )
-                texconv_text = self.texconv_path_edit.text().strip()
-                texconv_path = Path(texconv_text).expanduser() if texconv_text else None
                 preview_settings = self._current_model_preview_render_settings()
                 preview_theme = get_theme(str(getattr(self, "current_theme_key", DEFAULT_UI_THEME) or DEFAULT_UI_THEME))
                 worker = ArchivePreviewWorker(
                     request_id,
-                    texconv_path,
                     preview_entry,
                     self._find_archive_preview_companion_entry(preview_entry),
                     self.archive_entries_by_normalized_path,
@@ -985,9 +982,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             def _handle_item_finder_donor_icon_prepared(prepared_key: Tuple[Tuple[str, ...], str]) -> None:
                 if not finder.isVisible():
                     return
-                icon_paths, texconv_key = prepared_key
-                if texconv_key != self.texconv_path_edit.text().strip():
-                    return
+                icon_paths, _native_backend_key = prepared_key
                 active_rect = item_grid.viewport().rect().adjusted(-220, -260, 260, 640)
                 matched_items: List[QListWidgetItem] = []
                 for row_index in range(item_grid.count()):

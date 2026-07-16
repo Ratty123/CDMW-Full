@@ -162,13 +162,8 @@ class ArchiveAssetCatalogScopeMixin:
                 return None, ""
             preview_path = source_path
             if entry.extension == ".dds":
-                texconv_text = self.texconv_path_edit.text().strip()
-                texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-                if texconv_path is not None and not texconv_path.exists():
-                    texconv_path = None
                 try:
                     preview_path = ensure_dds_display_preview_png(
-                        texconv_path,
                         source_path,
                         max_dimension=max(32, int(size)),
                         slot_kind="base",
@@ -247,13 +242,8 @@ class ArchiveAssetCatalogScopeMixin:
                     continue
                 preview_path = source_path
                 if entry.extension == ".dds":
-                    texconv_text = self.texconv_path_edit.text().strip()
-                    texconv_path = Path(texconv_text).expanduser() if texconv_text else None
-                    if texconv_path is not None and not texconv_path.exists():
-                        texconv_path = None
                     try:
                         preview_path = ensure_dds_display_preview_png(
-                            texconv_path,
                             source_path,
                             max_dimension=max(32, int(size)),
                             slot_kind="base",

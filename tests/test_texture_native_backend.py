@@ -70,6 +70,30 @@ def _minimal_luminance_dds(*, width: int = 4, height: int = 4, bit_count: int = 
     return b"DDS " + bytes(header) + (b"\x00" * payload_size)
 
 
+def _encoded_dds_for_job(item: dict[str, object]) -> bytes:
+    dds_format = str(item["format"]).upper()
+    width = int(item.get("width") or 1)
+    height = int(item.get("height") or 1)
+    mip_count = int(item.get("mip_count") or 1)
+    if dds_format in {"BC7_UNORM", "BC7_UNORM_SRGB"}:
+        return _minimal_dx10_dds(99 if dds_format.endswith("_SRGB") else 98, width=width, height=height, mip_count=mip_count, bytes_per_pixel=1)
+    if dds_format in {"R8G8B8A8_UNORM", "R8G8B8A8_UNORM_SRGB"}:
+        return _minimal_dx10_dds(29 if dds_format.endswith("_SRGB") else 28, width=width, height=height, mip_count=mip_count)
+    fourcc = {
+        "BC1_UNORM": b"DXT1",
+        "BC1_UNORM_SRGB": b"DXT1",
+        "BC2_UNORM": b"DXT3",
+        "BC2_UNORM_SRGB": b"DXT3",
+        "BC3_UNORM": b"DXT5",
+        "BC3_UNORM_SRGB": b"DXT5",
+        "BC4_UNORM": b"BC4U",
+        "BC4_SNORM": b"BC4S",
+        "BC5_UNORM": b"BC5U",
+        "BC5_SNORM": b"BC5S",
+    }[dds_format]
+    return _minimal_bc_dds(fourcc, width=width, height=height, mip_count=mip_count)
+
+
 class NativeTextureBackendTests(unittest.TestCase):
     def test_directxtex_helper_contains_structured_cxx_exception_boundaries(self) -> None:
         source = texture_dx_source()
@@ -307,24 +331,30 @@ class NativeTextureBackendTests(unittest.TestCase):
         self.assertEqual("batch-preview-json", reports[-1]["operation"])
         self.assertEqual(1, reports[-1]["returncode"])
         self.assertIn("decode failed", reports[-1]["stderr_summary"])
-        self.assertTrue(reports[-1]["fallback_available"])
+        self.assertFalse(reports[-1]["retry_available"])
+        self.assertNotIn("fallback_available", reports[-1])
 
-    def test_texconv_preview_report_unknown_metadata_is_not_clean_decoded(self) -> None:
+    def test_native_preview_rejects_unknown_metadata_before_launch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
             dds_path = root / "unknown.dds"
-            preview_path = root / "unknown.png"
+            binary_path.write_bytes(b"fake")
             dds_path.write_bytes(b"not a valid dds")
-            preview_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+            texture_native.directxtex_texture_failure_reports(clear=True)
 
-            with patch("cdmw.core.texture_native.inspect_dds_native_path", side_effect=ValueError("bad header")):
-                report = texture_native.texconv_preview_report(dds_path, preview_path)
+            with (
+                patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path),
+                patch("cdmw.core.texture_native.run_process_with_cancellation") as run_process,
+            ):
+                results = texture_native.ensure_directxtex_dds_preview_pngs(({"dds_path": str(dds_path)},))
+            reports = texture_native.directxtex_texture_failure_reports(clear=True)
 
-        self.assertEqual("decoded_with_unknown_metadata", report["status"])
-        self.assertFalse(report["metadata_verified"])
-        self.assertEqual("", report["format"])
-        self.assertEqual(0, report["width"])
-        self.assertEqual(0, report["height"])
+        self.assertEqual({}, results)
+        run_process.assert_not_called()
+        self.assertTrue(reports)
+        self.assertEqual("unsafe_dds_input", reports[-1]["reason"])
+        self.assertIn("not a DDS file", reports[-1]["stderr_summary"])
 
     def test_directxtex_batch_encode_uses_one_helper_command(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -333,8 +363,8 @@ class NativeTextureBackendTests(unittest.TestCase):
             binary_path.write_bytes(b"fake")
             png_a = root / "a.png"
             png_b = root / "b.png"
-            png_a.write_bytes(b"\x89PNG\r\n\x1a\nfake-a")
-            png_b.write_bytes(b"\x89PNG\r\n\x1a\nfake-b")
+            png_a.write_bytes(_MINIMAL_PNG)
+            png_b.write_bytes(_MINIMAL_PNG)
             output_a = root / "out" / "a.dds"
             output_b = root / "out" / "b.dds"
             run_commands = []
@@ -344,16 +374,17 @@ class NativeTextureBackendTests(unittest.TestCase):
                 job_path = Path(command[2])
                 report_path = Path(command[3])
                 job = json.loads(job_path.read_text(encoding="utf-8"))
-                self.assertEqual("directxtex_native_0.1", job["backend"])
+                self.assertEqual(2, job["version"])
+                self.assertEqual("directxtex_native_0.2", job["backend"])
                 items = []
                 for item in job["jobs"]:
                     output = Path(item["output"])
                     output.parent.mkdir(parents=True, exist_ok=True)
-                    output.write_bytes(b"DDS fake")
+                    output.write_bytes(_encoded_dds_for_job(item))
                     items.append(
                         {
                             "status": "encoded",
-                            "backend": "directxtex_native_0.1",
+                            "backend": "directxtex_native_0.2",
                             "native_backend": "directxtex",
                             "source_path": item["input"],
                             "output_path": item["output"],
@@ -403,7 +434,7 @@ class NativeTextureBackendTests(unittest.TestCase):
             binary_path = root / "cd-texture-dx.exe"
             binary_path.write_bytes(b"fake")
             png_path = root / "source.png"
-            png_path.write_bytes(b"\x89PNG\r\n\x1a\nfake")
+            png_path.write_bytes(_MINIMAL_PNG)
             formats = ("BC1_UNORM", "BC3_UNORM", "BC5_UNORM", "BC7_UNORM", "R8G8B8A8_UNORM", "UNSUPPORTED_FORMAT")
             seen_jobs = []
 
@@ -419,24 +450,30 @@ class NativeTextureBackendTests(unittest.TestCase):
                         items.append(
                             {
                                 "status": "error",
-                                "backend": "directxtex_native_0.1",
+                                "backend": "directxtex_native_0.2",
                                 "source_path": item["input"],
                                 "output_path": item["output"],
                                 "message": "unsupported DDS format UNSUPPORTED_FORMAT",
                             }
                         )
                         continue
+                    reported_item = dict(item)
+                    reported_item["width"] = int(item["width"]) or 1
+                    reported_item["height"] = int(item["height"]) or 1
+                    reported_item["mip_count"] = 1
                     output.parent.mkdir(parents=True, exist_ok=True)
-                    output.write_bytes(b"DDS fake")
+                    output.write_bytes(_encoded_dds_for_job(reported_item))
                     items.append(
                         {
                             "status": "encoded",
-                            "backend": "directxtex_native_0.1",
+                            "backend": "directxtex_native_0.2",
                             "native_backend": "directxtex",
                             "source_path": item["input"],
                             "output_path": item["output"],
                             "format": item["format"],
-                            "mip_count": item["mip_count"],
+                            "width": reported_item["width"],
+                            "height": reported_item["height"],
+                            "mip_count": reported_item["mip_count"],
                         }
                     )
                 report_path.write_text(json.dumps({"status": "ok", "items": items}), encoding="utf-8")

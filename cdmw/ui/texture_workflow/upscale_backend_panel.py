@@ -192,7 +192,7 @@ class TextureWorkflowUpscaleBackendPanelMixin:
         chainner_hint.setWordWrap(True)
         chainner_hint.setToolTip(
             "Paste either the full chaiNNer override object or just the inputs object. "
-            "Supported path tokens: ${original_dds_root}, ${staging_png_root}, ${png_root}, ${output_root}, ${texconv_path}."
+            "Supported path tokens: ${original_dds_root}, ${staging_png_root}, ${png_root}, ${output_root}."
         )
         self.chainner_override_edit = QPlainTextEdit()
         self.chainner_override_edit.setPlaceholderText(

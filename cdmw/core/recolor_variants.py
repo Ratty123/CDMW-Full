@@ -16,7 +16,7 @@ from typing import Callable, Mapping, Optional, Sequence
 import numpy as np
 from PIL import Image
 
-from cdmw.core.common import raise_if_cancelled, run_process_with_cancellation
+from cdmw.core.common import raise_if_cancelled
 from cdmw.core.mod_package import (
     ModPackageExportOptions,
     normalize_mod_package_payload_path,
@@ -25,7 +25,6 @@ from cdmw.core.mod_package import (
 )
 from cdmw.core.texture_pipeline.inspection import parse_dds, read_png_dimensions
 from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
-from cdmw.core.texture_pipeline.texconv import build_texconv_command
 from cdmw.domain.textures.output import max_mips_for_size
 from cdmw.core.texture_editor import apply_texture_editor_recolor, save_rgba_array_png
 from cdmw.core.texture_native import encode_dds_with_directxtex
@@ -104,7 +103,7 @@ class RecolorVariantTarget:
     width: int = 0
     height: int = 0
     mip_count: int = 0
-    texconv_format: str = ""
+    dds_format: str = ""
     consumers: tuple[str, ...] = ()
 
 
@@ -318,14 +317,14 @@ def analyze_recolor_variant_package(
                 included=member is not None,
             )
             width = height = mip_count = 0
-            texconv_format = ""
+            dds_format = ""
             if member is not None:
                 try:
                     dds_info = _parse_member_dds_info(resolved, member)
                     width = int(dds_info.width)
                     height = int(dds_info.height)
                     mip_count = int(dds_info.mip_count)
-                    texconv_format = dds_info.texconv_format
+                    dds_format = dds_info.dds_format
                 except Exception as exc:
                     editable = False
                     locked_reason = f"DDS metadata could not be read: {exc}"
@@ -344,7 +343,7 @@ def analyze_recolor_variant_package(
                 width=width,
                 height=height,
                 mip_count=mip_count,
-                texconv_format=texconv_format,
+                dds_format=dds_format,
                 consumers=consumers,
             )
             texture_state[state_key] = target
@@ -413,7 +412,6 @@ def preview_recolor_variant_target_image(
     template: RecolorVariantTemplate,
     target_id: str,
     *,
-    texconv_path: Optional[Path] = None,
     max_dimension: int = 1024,
     stop_event: Optional[threading.Event] = None,
 ) -> RecolorVariantPreviewImage:
@@ -437,7 +435,6 @@ def preview_recolor_variant_target_image(
 
         dds_info = parse_dds(source_dds)
         source_display_png = ensure_dds_display_preview_png(
-            texconv_path if texconv_path is not None and texconv_path.is_file() else None,
             source_dds,
             dds_info=dds_info,
             max_dimension=max(1, int(max_dimension)),
@@ -511,7 +508,6 @@ def build_recolor_variant_outputs(
     output_root: Path,
     output_profiles: Sequence[RecolorVariantOutputProfile],
     *,
-    texconv_path: Optional[Path] = None,
     overwrite_existing: bool = False,
     stop_event: Optional[threading.Event] = None,
     on_log: Optional[Callable[[str], None]] = None,
@@ -586,7 +582,6 @@ def build_recolor_variant_outputs(
                 _apply_texture_rule_to_dds(
                     source_dds,
                     rule,
-                    texconv_path=texconv_path,
                     scratch_root=scratch_root / "textures" / _safe_slug(target.target_id),
                     stop_event=stop_event,
                     on_log=on_log,
@@ -1104,7 +1099,6 @@ def _apply_texture_rule_to_dds(
     dds_path: Path,
     rule: RecolorVariantRule,
     *,
-    texconv_path: Optional[Path],
     scratch_root: Path,
     stop_event: Optional[threading.Event],
     on_log: Optional[Callable[[str], None]],
@@ -1113,7 +1107,6 @@ def _apply_texture_rule_to_dds(
     scratch_root.mkdir(parents=True, exist_ok=True)
     dds_info = parse_dds(dds_path)
     source_png = ensure_dds_display_preview_png(
-        texconv_path if texconv_path is not None and texconv_path.is_file() else None,
         dds_path,
         dds_info=dds_info,
         max_dimension=0,
@@ -1131,7 +1124,7 @@ def _apply_texture_rule_to_dds(
     native_report = encode_dds_with_directxtex(
         edited_png,
         dds_path,
-        dds_format=dds_info.texconv_format,
+        dds_format=dds_info.dds_format,
         width=dds_info.width,
         height=dds_info.height,
         mip_count=mip_count,
@@ -1141,26 +1134,7 @@ def _apply_texture_rule_to_dds(
         if on_log:
             on_log(f"RECOLOR {dds_path.name} with DirectXTex native encode")
         return
-    if texconv_path is None or not texconv_path.is_file():
-        raise RuntimeError("DirectXTex native DDS encode failed and no texconv fallback is configured.")
-    cmd = build_texconv_command(
-        texconv_path=texconv_path,
-        png_path=edited_png,
-        output_dir=dds_path.parent,
-        fmt=dds_info.texconv_format,
-        mip_count=mip_count,
-        width=dds_info.width,
-        height=dds_info.height,
-        overwrite_existing_dds=True,
-    )
-    return_code, _stdout, stderr = run_process_with_cancellation(cmd, stop_event=stop_event)
-    if return_code != 0:
-        raise RuntimeError(stderr.strip() or f"texconv failed with exit code {return_code}")
-    built = dds_path.parent / f"{edited_png.stem}.dds"
-    if built != dds_path and built.is_file():
-        if dds_path.exists():
-            dds_path.unlink()
-        built.replace(dds_path)
+    raise RuntimeError("Native DDS encode failed.")
 
 
 def _apply_material_color_rules(

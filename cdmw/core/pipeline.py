@@ -85,8 +85,6 @@ from cdmw.core.texture_pipeline.planning import (
 from cdmw.core.texture_pipeline.preview import (
     _validate_high_precision_staged_png,
     build_compare_preview_pane_result,
-    build_preview_png_command,
-    build_staging_png_command,
     collect_compare_relative_paths,
     collect_relative_dds_paths,
     ensure_dds_display_preview_png,
@@ -104,8 +102,6 @@ from cdmw.core.texture_pipeline.runtime_config import (
     normalize_config_for_planning,
     validate_backend_runtime_requirements,
 )
-from cdmw.core.texture_pipeline import texconv as texture_texconv
-from cdmw.core.texture_pipeline.texconv import build_texconv_command, _run_texture_workflow_texconv
 from cdmw.core.texture_pipeline.workspace import (
     common_workspace_root_from_config,
     create_missing_directories_for_config,
@@ -194,7 +190,6 @@ def convert_dds_to_pngs(
         "Original DDS root",
     )
     png_root = normalize_required_path(config.png_root, "PNG root")
-    texconv_path = normalize_optional_path(config.texconv_path)
     include_filters = parse_filter_patterns(config.include_filters)
     csv_log_path = normalize_optional_path(config.csv_log_path) if config.csv_log_enabled else None
     if config.csv_log_enabled and csv_log_path is None:
@@ -287,7 +282,7 @@ def convert_dds_to_pngs(
                         height=dds_info.height if dds_info is not None else 0,
                         original_mips=dds_info.mip_count if dds_info is not None else 0,
                         used_mips=dds_info.mip_count if dds_info is not None else 0,
-                        texconv_format=dds_info.texconv_format if dds_info is not None else "",
+                        dds_format=dds_info.dds_format if dds_info is not None else "",
                         status="skipped",
                         note=note,
                     )
@@ -308,7 +303,6 @@ def convert_dds_to_pngs(
                 else:
                     preview_started = time.perf_counter()
                     preview_path = ensure_dds_display_preview_png(
-                        texconv_path,
                         dds_path,
                         dds_info=dds_info,
                         max_dimension=0,
@@ -347,7 +341,7 @@ def convert_dds_to_pngs(
                         height=dds_info.height if dds_info is not None else 0,
                         original_mips=dds_info.mip_count if dds_info is not None else 0,
                         used_mips=dds_info.mip_count if dds_info is not None else 0,
-                        texconv_format=dds_info.texconv_format if dds_info is not None else "",
+                        dds_format=dds_info.dds_format if dds_info is not None else "",
                         status=status,
                         note=note,
                     )
@@ -367,7 +361,7 @@ def convert_dds_to_pngs(
                         height=dds_info.height if dds_info is not None else 0,
                         original_mips=dds_info.mip_count if dds_info is not None else 0,
                         used_mips=dds_info.mip_count if dds_info is not None else 0,
-                        texconv_format=dds_info.texconv_format if dds_info is not None else "",
+                        dds_format=dds_info.dds_format if dds_info is not None else "",
                         status="failed",
                         note=str(exc),
                     )
@@ -719,10 +713,10 @@ def rebuild_dds_files(
         try:
             from cdmw.core.texture_native import encode_dds_batch_with_directxtex, find_directxtex_texture_binary
         except Exception as exc:
-            emit_log(f"DirectXTex native DDS batch encode unavailable; texconv fallback remains active ({exc}).")
+            emit_log(f"Native DDS batch encode is unavailable ({exc}).")
             return
         if find_directxtex_texture_binary() is None:
-            emit_log("DirectXTex native DDS batch encode unavailable; texconv fallback remains active.")
+            emit_log("Native DDS batch encode is unavailable because cd-texture-dx.exe is missing.")
             return
         jobs: List[Dict[str, object]] = []
         for dds_path in dds_files:
@@ -754,8 +748,6 @@ def rebuild_dds_files(
                     png_height,
                     has_alpha=png_has_alpha,
                 )
-                if output_settings.texconv_color_args or output_settings.texconv_extra_args:
-                    continue
                 target_file = normalized.output_root / rel_path
                 if manifest_path is not None and manifest_entry_matches(
                     manifest_entries.get(rel_path.as_posix(), {}),
@@ -771,11 +763,15 @@ def rebuild_dds_files(
                     {
                         "png_path": str(png_path),
                         "output_path": str(target_file),
-                        "format": output_settings.texconv_format,
+                        "format": output_settings.dds_format,
                         "width": output_settings.width if output_settings.resize_to_dimensions else 0,
                         "height": output_settings.height if output_settings.resize_to_dimensions else 0,
                         "mip_count": output_settings.mip_count,
                         "overwrite": normalized.overwrite_existing_dds,
+                        "source_color_policy": output_settings.source_color_policy,
+                        "mip_alpha_policy": output_settings.mip_alpha_policy,
+                        "alpha_coverage_reference": output_settings.alpha_coverage_reference,
+                        "dds_alpha_mode": output_settings.dds_alpha_mode,
                     }
                 )
             except RunCancelled:
@@ -784,27 +780,25 @@ def rebuild_dds_files(
                 continue
         if not jobs:
             return
-        emit_log(f"DirectXTex native DDS batch encode: attempting {len(jobs):,} file(s) before texconv fallback.")
+        emit_log(f"Native DDS batch encode: processing {len(jobs):,} file(s).")
         try:
-            timeout_seconds = max(120.0, min(3600.0, 30.0 * len(jobs)))
             native_encoded_outputs = encode_dds_batch_with_directxtex(
                 jobs,
-                timeout_seconds=timeout_seconds,
+                on_log=on_log,
                 stop_event=stop_event,
             )
         except RunCancelled:
             raise
         except Exception as exc:
             native_encoded_outputs = {}
-            emit_log(f"DirectXTex native DDS batch encode failed; texconv fallback remains active ({exc}).")
+            emit_log(f"Native DDS batch encode failed ({exc}).")
             return
         if native_encoded_outputs:
             emit_log(
-                f"DirectXTex native DDS batch encode produced {len(native_encoded_outputs):,} DDS file(s); "
-                "remaining files will use texconv fallback if needed."
+                f"Native DDS batch encode produced {len(native_encoded_outputs):,} DDS file(s)."
             )
         else:
-            emit_log("DirectXTex native DDS batch encode produced no DDS files; texconv fallback remains active.")
+            emit_log("Native DDS batch encode produced no DDS files.")
 
     _prebuild_directxtex_batch_outputs()
 
@@ -839,7 +833,7 @@ def rebuild_dds_files(
                         height=dds_info.height,
                         original_mips=dds_info.mip_count,
                         used_mips=0,
-                        texconv_format=dds_info.texconv_format,
+                        dds_format=dds_info.dds_format,
                         status="failed",
                         note=note,
                     )
@@ -861,7 +855,7 @@ def rebuild_dds_files(
                             height=dds_info.height,
                             original_mips=dds_info.mip_count,
                             used_mips=dds_info.mip_count,
-                            texconv_format=dds_info.texconv_format,
+                            dds_format=dds_info.dds_format,
                             status="skipped",
                             note=note,
                         )
@@ -896,7 +890,7 @@ def rebuild_dds_files(
                             height=dds_info.height,
                             original_mips=dds_info.mip_count,
                             used_mips=dds_info.mip_count,
-                            texconv_format=dds_info.texconv_format,
+                            dds_format=dds_info.dds_format,
                             status="skipped",
                             note=note,
                         )
@@ -927,7 +921,7 @@ def rebuild_dds_files(
                         height=dds_info.height,
                         original_mips=dds_info.mip_count,
                         used_mips=dds_info.mip_count,
-                        texconv_format=dds_info.texconv_format,
+                        dds_format=dds_info.dds_format,
                         status=status,
                         note=note,
                     )
@@ -965,7 +959,7 @@ def rebuild_dds_files(
                                 height=dds_info.height,
                                 original_mips=dds_info.mip_count,
                                 used_mips=dds_info.mip_count,
-                                texconv_format=dds_info.texconv_format,
+                                dds_format=dds_info.dds_format,
                                 status="skipped",
                                 note=note,
                             )
@@ -983,7 +977,7 @@ def rebuild_dds_files(
                                 height=dds_info.height,
                                 original_mips=dds_info.mip_count,
                                 used_mips=dds_info.mip_count,
-                                texconv_format=dds_info.texconv_format,
+                                dds_format=dds_info.dds_format,
                                 status="dry-run",
                                 note=note,
                             )
@@ -1002,7 +996,7 @@ def rebuild_dds_files(
                                 height=dds_info.height,
                                 original_mips=dds_info.mip_count,
                                 used_mips=dds_info.mip_count,
-                                texconv_format=dds_info.texconv_format,
+                                dds_format=dds_info.dds_format,
                                 status="converted",
                                 note=note,
                             )
@@ -1019,7 +1013,7 @@ def rebuild_dds_files(
                             height=0,
                             original_mips=0,
                             used_mips=0,
-                            texconv_format="",
+                            dds_format="",
                             status="skipped",
                             note=match_note,
                         )
@@ -1052,7 +1046,7 @@ def rebuild_dds_files(
                                 height=dds_info.height,
                                 original_mips=dds_info.mip_count,
                                 used_mips=dds_info.mip_count,
-                                texconv_format=dds_info.texconv_format,
+                                dds_format=dds_info.dds_format,
                                 status="skipped",
                                 note=note,
                             )
@@ -1070,7 +1064,7 @@ def rebuild_dds_files(
                                 height=dds_info.height,
                                 original_mips=dds_info.mip_count,
                                 used_mips=dds_info.mip_count,
-                                texconv_format=dds_info.texconv_format,
+                                dds_format=dds_info.dds_format,
                                 status="dry-run",
                                 note=note,
                             )
@@ -1089,7 +1083,7 @@ def rebuild_dds_files(
                                 height=dds_info.height,
                                 original_mips=dds_info.mip_count,
                                 used_mips=dds_info.mip_count,
-                                texconv_format=dds_info.texconv_format,
+                                dds_format=dds_info.dds_format,
                                 status="converted",
                                 note=note,
                             )
@@ -1138,7 +1132,7 @@ def rebuild_dds_files(
                             height=output_settings.height,
                             original_mips=dds_info.mip_count,
                             used_mips=output_settings.mip_count,
-                            texconv_format=output_settings.texconv_format,
+                            dds_format=output_settings.dds_format,
                             status="skipped",
                             note=note,
                         )
@@ -1160,7 +1154,7 @@ def rebuild_dds_files(
                             height=output_settings.height,
                             original_mips=dds_info.mip_count,
                             used_mips=output_settings.mip_count,
-                            texconv_format=output_settings.texconv_format,
+                            dds_format=output_settings.dds_format,
                             status="skipped",
                             note=note,
                         )
@@ -1175,7 +1169,7 @@ def rebuild_dds_files(
                 action = "DRYRUN" if normalized.dry_run else "BUILD"
                 emit_log(
                     f"[{index}/{total}] {action} {rel_display} "
-                    f"-> format={output_settings.texconv_format} mips={output_settings.mip_count} "
+                    f"-> format={output_settings.dds_format} mips={output_settings.mip_count} "
                     f"output={output_settings.width}x{output_settings.height} png={png_width}x{png_height}"
                 )
 
@@ -1206,86 +1200,12 @@ def rebuild_dds_files(
                             )
                             save_incremental_manifest(manifest_path, manifest_entries)
                     else:
-                        if normalized.texconv_path is None:
-                            failed += 1
-                            status = "failed"
-                            detail = (
-                                "DirectXTex native batch encode did not produce this DDS and no optional "
-                                "legacy texconv fallback is configured."
-                            )
-                            notes.append(detail)
-                            note = "; ".join(notes)
-                            emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
-                            results.append(
-                                JobResult(
-                                    original_dds=str(dds_path),
-                                    png=str(png_path),
-                                    output_dir=str(target_dir),
-                                    width=output_settings.width,
-                                    height=output_settings.height,
-                                    original_mips=dds_info.mip_count,
-                                    used_mips=output_settings.mip_count,
-                                    texconv_format=output_settings.texconv_format,
-                                    status=status,
-                                    note=note,
-                                )
-                            )
-                            emit_progress(index, total, converted, skipped, failed)
-                            emit_phase_progress(index, total, f"{index} / {total} DDS files")
-                            continue
-                        cmd = texture_texconv.build_texconv_command(
-                            texconv_path=normalized.texconv_path,
-                            png_path=png_path,
-                            output_dir=target_dir,
-                            fmt=output_settings.texconv_format,
-                            mips=output_settings.mip_count,
-                            resize_width=output_settings.width if output_settings.resize_to_dimensions else None,
-                            resize_height=output_settings.height if output_settings.resize_to_dimensions else None,
-                            overwrite_existing_dds=normalized.overwrite_existing_dds,
-                            color_args=output_settings.texconv_color_args,
-                            extra_args=output_settings.texconv_extra_args,
-                        )
-                        return_code, stdout, stderr, elapsed_seconds = texture_texconv._run_texture_workflow_texconv(
-                            cmd,
-                            detail_label=f"[{index}/{total}] BUILD {rel_display}",
-                            on_log=on_log,
-                            stop_event=stop_event,
-                        )
-                        if return_code != 0:
-                            failed += 1
-                            status = "failed"
-                            detail = stderr.strip() or stdout.strip() or f"texconv failed with exit code {return_code}"
-                            notes.append(detail)
-                            note = "; ".join(notes)
-                            emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
-                        else:
-                            try:
-                                output_size = target_file.stat().st_size
-                            except OSError:
-                                output_size = 0
-                            if output_size <= 0:
-                                failed += 1
-                                status = "failed"
-                                detail = f"texconv reported success but did not produce expected DDS: {target_file}"
-                                notes.append(detail)
-                                note = "; ".join(notes)
-                                emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
-                            else:
-                                converted += 1
-                                status = "converted"
-                                note = "; ".join(notes)
-                                emit_log(
-                                    f"[{index}/{total}] BUILT {rel_display} in {elapsed_seconds:.1f}s "
-                                    f"-> {target_file} ({output_size:,} bytes)"
-                                )
-                                if manifest_path is not None:
-                                    manifest_entries[rel_path.as_posix()] = build_incremental_manifest_entry(
-                                        dds_path,
-                                        png_path,
-                                        target_file,
-                                        output_settings,
-                                    )
-                                    save_incremental_manifest(manifest_path, manifest_entries)
+                        failed += 1
+                        status = "failed"
+                        detail = "Native DDS encode did not produce this output."
+                        notes.append(detail)
+                        note = "; ".join(notes)
+                        emit_log(f"[{index}/{total}] FAIL {rel_display} -> {detail}")
 
                 results.append(
                     JobResult(
@@ -1296,7 +1216,7 @@ def rebuild_dds_files(
                         height=output_settings.height,
                         original_mips=dds_info.mip_count,
                         used_mips=output_settings.mip_count,
-                        texconv_format=output_settings.texconv_format,
+                        dds_format=output_settings.dds_format,
                         status=status,
                         note=note,
                     )
@@ -1314,7 +1234,7 @@ def rebuild_dds_files(
                         height=0,
                         original_mips=0,
                         used_mips=0,
-                        texconv_format="",
+                        dds_format="",
                         status="failed",
                         note=str(exc),
                     )

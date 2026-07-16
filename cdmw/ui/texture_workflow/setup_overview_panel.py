@@ -42,25 +42,21 @@ class TextureWorkflowSetupOverviewPanelMixin:
         setup_tools_layout.setVerticalSpacing(8)
         self.download_chainner_button = QPushButton("Open chaiNNer Download Page")
         self.download_chainner_button.setToolTip("Open the official chaiNNer download page in your default browser.")
-        self.download_texconv_button = QPushButton("Open DirectXTex / texconv Page")
-        self.download_texconv_button.setToolTip("Open the official DirectXTex releases page. texconv is optional legacy fallback only.")
         self.download_ncnn_button = QPushButton("Open Real-ESRGAN NCNN Download Page")
         self.download_ncnn_button.setToolTip("Open the official Real-ESRGAN NCNN releases page in your default browser.")
         self.import_ncnn_models_button = QPushButton("Import NCNN Models")
         self.import_ncnn_models_button.setToolTip(
             "Import NCNN models from a folder, zip, or files that contain matching .param + .bin pairs."
         )
-        setup_tools_layout.addWidget(self.download_texconv_button, 0, 0)
-        setup_tools_layout.addWidget(self.download_chainner_button, 1, 0)
-        setup_tools_layout.addWidget(self.download_ncnn_button, 2, 0)
-        setup_tools_layout.addWidget(self.import_ncnn_models_button, 3, 0)
+        setup_tools_layout.addWidget(self.download_chainner_button, 0, 0)
+        setup_tools_layout.addWidget(self.download_ncnn_button, 1, 0)
+        setup_tools_layout.addWidget(self.import_ncnn_models_button, 2, 0)
         setup_tools_layout.setColumnStretch(0, 1)
         for button in (
             self.init_workspace_button,
             self.create_folders_button,
             self.open_texture_editor_button,
             self.download_chainner_button,
-            self.download_texconv_button,
             self.download_ncnn_button,
             self.import_ncnn_models_button,
         ):
@@ -74,8 +70,7 @@ class TextureWorkflowSetupOverviewPanelMixin:
         setup_hint = QLabel(
             "Recommended first run: put the portable EXE in its own folder, set the game/package path under "
             "Archive Locations, click Init Workspace, then use the bundled DirectXTex/native DDS tools. "
-            "texconv.exe is optional legacy fallback only; download buttons open official pages "
-            "in your browser instead of downloading files inside the app."
+            "External-tool download buttons open official pages in your browser instead of downloading files inside the app."
         )
         setup_hint.setObjectName("HintLabel")
         setup_hint.setWordWrap(True)

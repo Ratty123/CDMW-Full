@@ -219,10 +219,6 @@ def run_gui() -> int:
         except Exception:
             pass
         try:
-            context["texconv_path"] = window.texconv_path_edit.text().strip()
-        except Exception:
-            pass
-        try:
             context["archive_package_root"] = window.archive_package_root_edit.text().strip()
         except Exception:
             pass

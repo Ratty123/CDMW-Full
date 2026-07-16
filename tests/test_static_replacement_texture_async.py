@@ -125,7 +125,6 @@ def test_dds_detail_latest_request_wins_and_shutdown_is_nonblocking(tmp_path: Pa
     controller.start(
         source_path="first.dds",
         slot_kind="base",
-        texconv_path=None,
         on_complete=results.append,
         on_error=errors.append,
     )
@@ -134,7 +133,6 @@ def test_dds_detail_latest_request_wins_and_shutdown_is_nonblocking(tmp_path: Pa
     controller.start(
         source_path="second.dds",
         slot_kind="normal",
-        texconv_path=None,
         on_complete=results.append,
         on_error=errors.append,
     )
@@ -149,7 +147,6 @@ def test_dds_detail_latest_request_wins_and_shutdown_is_nonblocking(tmp_path: Pa
     controller.start(
         source_path="first.dds",
         slot_kind="base",
-        texconv_path=None,
         on_complete=results.append,
         on_error=errors.append,
     )

@@ -76,9 +76,6 @@ class PathControllerMixin:
     def _browse_output_root(self) -> None:
         self._browse_directory(self.output_root_edit, "Select Output Root")
 
-    def _browse_texconv_path(self) -> None:
-        self._browse_file(self.texconv_path_edit, "Select texconv.exe", "Executable (*.exe);;All files (*.*)")
-
     def _browse_csv_log_path(self) -> None:
         self._browse_file(
             self.csv_log_path_edit,

@@ -163,7 +163,6 @@ class ArchiveMeshPatchFlowMixin:
             paired_entry = None
             if build_entry.extension == ".pam":
                 paired_entry = self._find_archive_entry_by_virtual_path(str(PurePosixPath(build_entry.path).with_suffix(".pamlod")))
-            texconv_text = self.texconv_path_edit.text().strip()
             require_source_owned_colors = bool(getattr(static_replacement_options, "complete_external_swap", False))
 
             def _preview_task(
@@ -189,7 +188,6 @@ class ArchiveMeshPatchFlowMixin:
                     scene_import_result=setup.scene_import_result,
                     source_display_label=setup.source_label,
                     archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                     texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
                     texture_entries_by_basename=self.archive_entries_by_basename,
                     visible_texture_mode=preview_settings.visible_texture_mode,
@@ -238,7 +236,6 @@ class ArchiveMeshPatchFlowMixin:
                         custom_icon_specs = (
                             self._build_custom_item_icon_supplemental_spec(
                                 custom_icon_override,
-                                texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                                 on_log=log,
                             ),
                         )
@@ -300,7 +297,6 @@ class ArchiveMeshPatchFlowMixin:
                             supplemental_file_specs=supplemental_specs_to_include,
                             source_path=scene_path_obj,
                             export_options=export_options,
-                            texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                             original_dds_resolver=_archive_dds_preview_source_for_path,
                             original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                             require_source_owned_colors=require_source_owned_colors,
@@ -451,7 +447,6 @@ class ArchiveMeshPatchFlowMixin:
                             supplemental_file_specs=supplemental_specs_to_include,
                             source_path=scene_path_obj,
                             export_options=export_options,
-                            texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                             original_dds_resolver=_archive_dds_preview_source_for_path,
                             original_dds_basename_resolver=_archive_dds_preview_sources_for_basename,
                             package_root=loose_result.package_root,

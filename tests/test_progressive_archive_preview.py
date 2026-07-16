@@ -89,7 +89,6 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
     def test_native_preview_emits_quick_metadata_before_full_generation(self) -> None:
         worker = ArchivePreviewWorker(
             request_id=1,
-            texconv_path=None,
             entry=_entry("character/model/body.pac", ".pac"),
             companion_entry=None,
             texture_entries_by_normalized_path={},
@@ -182,24 +181,22 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
                 paz_index=0,
             )
             harness = CacheKeyHarness()
-            archive_key = harness._archive_preview_cache_key(entry, None, [loose_root])
+            archive_key = harness._archive_preview_cache_key(entry, [loose_root])
             first_key = harness._archive_preview_cache_key(
                 entry,
-                None,
                 [loose_root],
                 include_loose_preview_assets=True,
             )
             loose_path.write_bytes(b"second payload")
             second_key = harness._archive_preview_cache_key(
                 entry,
-                None,
                 [loose_root],
                 include_loose_preview_assets=True,
             )
 
             self.assertEqual("", first_key)
             self.assertEqual("", second_key)
-            self.assertEqual(archive_key, harness._archive_preview_cache_key(entry, None, [loose_root]))
+            self.assertEqual(archive_key, harness._archive_preview_cache_key(entry, [loose_root]))
 
     def test_fast_preview_reduces_preview_only_geometry(self) -> None:
         full_model = _preview_model(60_000)

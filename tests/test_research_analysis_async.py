@@ -59,7 +59,6 @@ class _ResearchHarness(QWidget):
         self.analysis_task_controller = ResearchAnalysisTaskController(self, debounce_ms=10)
         self.get_original_root = lambda: str(root / "original")
         self.get_output_root = lambda: str(root / "output")
-        self.get_texconv_path = lambda: ""
 
     def request_shutdown(self) -> None:
         self.analysis_task_controller.request_shutdown()

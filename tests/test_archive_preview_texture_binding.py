@@ -86,7 +86,6 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         lines = _attach_model_sidecar_texture_preview_paths(
-            None,
             source_entry,
             model,
             parsed_mesh=None,
@@ -130,7 +129,6 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         _attach_model_sidecar_texture_preview_paths(
-            None,
             source_entry,
             model,
             parsed_mesh=None,
@@ -164,7 +162,6 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         )
 
         _attach_model_sidecar_texture_preview_paths(
-            None,
             source_entry,
             model,
             parsed_mesh=None,
@@ -219,10 +216,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -259,10 +255,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -376,10 +371,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -424,10 +418,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -462,10 +455,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -506,10 +498,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -519,7 +510,6 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
                 texture_entries_by_basename=by_basename,
             )
             lines = _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -572,10 +562,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -585,7 +574,6 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
                 texture_entries_by_basename=by_basename,
             )
             lines = _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -630,10 +618,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -643,7 +630,6 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
                 texture_entries_by_basename=by_basename,
             )
             lines = _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -689,10 +675,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -724,10 +709,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             lines = _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -776,10 +760,9 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
 
         with patch(
             "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
-            side_effect=lambda _texconv, texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
         ):
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,
@@ -789,7 +772,6 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
                 texture_entries_by_basename=by_basename,
             )
             _attach_model_sidecar_texture_preview_paths(
-                Path("texconv.exe"),
                 source_entry,
                 model,
                 parsed_mesh=None,

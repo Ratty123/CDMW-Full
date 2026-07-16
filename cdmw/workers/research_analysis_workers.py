@@ -48,7 +48,6 @@ class AnalysisDetailRequest:
     kind: str
     root_path: Path
     secondary_root_path: Path | None
-    texconv_path: Path | None
     row: FrozenRecord
     family_members: tuple[str, ...] = ()
     request_id: int = 0
@@ -82,7 +81,6 @@ class AnalysisReportExportResult:
 def mip_detail_request(
     original_root: Path,
     rebuilt_root: Path,
-    texconv_path: Path | None,
     row: MipAnalysisRow,
     family_members: Sequence[str],
 ) -> AnalysisDetailRequest:
@@ -90,7 +88,6 @@ def mip_detail_request(
         "mip",
         Path(original_root),
         Path(rebuilt_root),
-        Path(texconv_path) if texconv_path is not None else None,
         freeze_record(row),
         tuple(str(path) for path in family_members),
     )
@@ -98,14 +95,12 @@ def mip_detail_request(
 
 def normal_detail_request(
     root: Path,
-    texconv_path: Path | None,
     row: NormalValidationRow,
 ) -> AnalysisDetailRequest:
     return AnalysisDetailRequest(
         "normal",
         Path(root),
         None,
-        Path(texconv_path) if texconv_path is not None else None,
         freeze_record(row),
     )
 
@@ -145,7 +140,6 @@ def run_analysis_detail_request(
             request.root_path,
             request.secondary_root_path,
             row,
-            texconv_path=request.texconv_path,
             family_members_by_path={row.relative_path: request.family_members},
             stop_event=stop_event,
         )
@@ -154,7 +148,6 @@ def run_analysis_detail_request(
         detail = research_service.texture_analysis.build_normal_detail(
             request.root_path,
             row,
-            texconv_path=request.texconv_path,
             stop_event=stop_event,
         )
     else:

@@ -154,7 +154,7 @@ def build_dds_header_detail_text(
     semantic = infer_texture_semantics(
         semantic_path_value,
         sidecar_texts=sidecar_texts,
-        original_texconv_format=resolved_info.texconv_format,
+        original_dds_format=resolved_info.dds_format,
         has_alpha=resolved_info.has_alpha,
     )
     texture_type_hint = str(getattr(semantic, "texture_type", "") or "").strip().lower() or classify_texture_type(semantic_path_value)
@@ -280,7 +280,7 @@ def build_dds_header_detail_text(
 
     lines = [
         "DDS metadata:",
-        f"- Format: {resolved_info.texconv_format}",
+        f"- Format: {resolved_info.dds_format}",
         f"- Dimensions: {resolved_info.width}x{resolved_info.height}",
         f"- Mip levels: {resolved_info.mip_count}",
         f"- Mip chain complete: {'Yes' if resolved_info.mip_count >= expected_mips else 'No'} ({resolved_info.mip_count}/{expected_mips} expected)",
@@ -459,7 +459,6 @@ def iter_archive_loose_file_candidates(
 
 
 def build_loose_archive_preview_assets(
-    texconv_path: Optional[Path],
     loose_path: Path,
     *,
     stop_event: Optional[threading.Event] = None,
@@ -475,14 +474,13 @@ def build_loose_archive_preview_assets(
         try:
             dds_info = parse_dds(resolved_path)
             metadata_summary = (
-                f"Loose DDS | Format: {dds_info.texconv_format} | "
+                f"Loose DDS | Format: {dds_info.dds_format} | "
                 f"Size: {dds_info.width}x{dds_info.height} | Mips: {dds_info.mip_count}"
             )
         except Exception as exc:
             parse_error = exc
             metadata_summary = f"Loose DDS | {resolved_path.name}"
         preview_png = ensure_dds_display_preview_png(
-            texconv_path.resolve() if texconv_path is not None and texconv_path.is_file() else None,
             resolved_path,
             dds_info=dds_info,
             stop_event=stop_event,

@@ -107,22 +107,19 @@ def _render_archive_picker_preview_for_entry(self, entry: Optional[ArchiveEntry]
     self.archive_picker_preview_stack.setCurrentWidget(self.archive_picker_preview_info_edit)
     self.pending_archive_picker_preview_request = None
 
-    texconv_text = self.get_texconv_path().strip()
-    texconv_path = Path(texconv_text).expanduser() if texconv_text else None
     if self.archive_picker_preview_thread is not None:
         self.pending_archive_picker_preview_request = (request_id, entry)
         if self.archive_picker_preview_worker is not None:
             self.archive_picker_preview_worker.stop()
         return
-    self._start_archive_picker_preview_worker(request_id, texconv_path, entry)
+    self._start_archive_picker_preview_worker(request_id, entry)
 
 def _start_archive_picker_preview_worker(
     self,
     request_id: int,
-    texconv_path: Optional[Path],
     entry: Optional[ArchiveEntry],
 ) -> None:
-    worker = UnknownResolverPreviewWorker(request_id, texconv_path, entry)
+    worker = UnknownResolverPreviewWorker(request_id, entry)
     thread = QThread(self)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
@@ -154,10 +151,8 @@ def _cleanup_archive_picker_preview_refs(self) -> None:
         return
     request_id, entry = self.pending_archive_picker_preview_request
     self.pending_archive_picker_preview_request = None
-    texconv_text = self.get_texconv_path().strip()
-    texconv_path = Path(texconv_text).expanduser() if texconv_text else None
     self.archive_picker_preview_request_id = request_id
-    self._start_archive_picker_preview_worker(request_id, texconv_path, entry)
+    self._start_archive_picker_preview_worker(request_id, entry)
 
 def _apply_archive_picker_preview_result(self, result: ArchivePreviewResult) -> None:
     display = research_preview_display_state(result)
@@ -262,22 +257,19 @@ def _render_unknown_preview_for_member(self, member: Optional[UnknownResolverMem
     self.unknown_preview_stack.setCurrentWidget(self.unknown_preview_info_edit)
     self.pending_unknown_preview_request = None
 
-    texconv_text = self.get_texconv_path().strip()
-    texconv_path = Path(texconv_text).expanduser() if texconv_text else None
     if self.unknown_preview_thread is not None:
         self.pending_unknown_preview_request = (request_id, entry)
         if self.unknown_preview_worker is not None:
             self.unknown_preview_worker.stop()
         return
-    self._start_unknown_preview_worker(request_id, texconv_path, entry)
+    self._start_unknown_preview_worker(request_id, entry)
 
 def _start_unknown_preview_worker(
     self,
     request_id: int,
-    texconv_path: Optional[Path],
     entry: Optional[ArchiveEntry],
 ) -> None:
-    worker = UnknownResolverPreviewWorker(request_id, texconv_path, entry)
+    worker = UnknownResolverPreviewWorker(request_id, entry)
     thread = QThread(self)
     worker.moveToThread(thread)
     thread.started.connect(worker.run)
@@ -309,10 +301,8 @@ def _cleanup_unknown_preview_refs(self) -> None:
         return
     request_id, entry = self.pending_unknown_preview_request
     self.pending_unknown_preview_request = None
-    texconv_text = self.get_texconv_path().strip()
-    texconv_path = Path(texconv_text).expanduser() if texconv_text else None
     self.unknown_preview_request_id = request_id
-    self._start_unknown_preview_worker(request_id, texconv_path, entry)
+    self._start_unknown_preview_worker(request_id, entry)
 
 def _apply_unknown_preview_result(self, result: ArchivePreviewResult) -> None:
     display = research_preview_display_state(result)

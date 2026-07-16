@@ -136,7 +136,6 @@ class ItemIconSourcePreviewRequest:
     request_id: int
     source_path: Path
     output_dir: Path
-    texconv_path: Optional[Path]
     decode_size: tuple[int, int]
 
 
@@ -153,7 +152,6 @@ class ItemIconFinalPreviewRequest:
     target_entry: object
     target_path: str
     output_path: Path
-    texconv_path: Optional[Path]
     background_mode: str
     decode_size: tuple[int, int]
     resolve_target_template_path: Callable[[object], Path]
@@ -174,7 +172,6 @@ class ItemIconOutputRequest:
     action: str
     spec: ItemIconOverrideSpec
     destination: Path
-    texconv_path: Optional[Path]
     resolve_target_template_path: Callable[[object], Path]
 
 
@@ -467,7 +464,6 @@ class ItemIconSourcePreviewWorker(_CancellableItemIconWorker):
             preview_path = build_item_icon_source_preview_png(
                 request.source_path,
                 output_dir=request.output_dir,
-                texconv_path=request.texconv_path,
                 stop_event=self.stop_event,
             )
             image = _decode_preview_image(preview_path, request.decode_size, self.stop_event)
@@ -505,7 +501,6 @@ class ItemIconFinalPreviewWorker(_CancellableItemIconWorker):
                 target_path=request.target_path,
                 target_template_path=template_path,
                 output_path=request.output_path,
-                texconv_path=request.texconv_path,
                 background_mode=request.background_mode,
                 stop_event=self.stop_event,
             )
@@ -548,7 +543,6 @@ class ItemIconOutputWorker(_CancellableItemIconWorker):
             payload = build_item_icon_payload(
                 request.spec,
                 target_template_path=template_path,
-                texconv_path=request.texconv_path,
                 stop_event=self.stop_event,
             )
             raise_if_cancelled(self.stop_event, "Item icon output cancelled.")

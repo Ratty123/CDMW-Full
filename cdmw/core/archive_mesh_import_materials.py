@@ -165,7 +165,6 @@ def build_static_texture_payloads(state: MeshImportBuildState, original_sidecars
         original_texture_refs=state.texture_references,
         original_sidecars=original_sidecars,
         submesh_mappings=state.static_mappings,
-        texconv_path=state.texconv_path,
         read_original_texture_bytes=api._mesh_texture_original_bytes,
         original_texture_source_path=api._mesh_texture_original_source_path,
         enable_missing_base_color_parameters=state.enable_missing_base_color_parameters,
@@ -263,13 +262,12 @@ def publish_generated_texture_payloads(
         state.preview_model,
         generated_payloads=payloads,
         texture_replacement_report=report,
-        texconv_path=state.texconv_path,
     )
     if count:
         state.summary_lines.append(
             f"Applied {count:,} generated static texture preview slot(s) from PNG/DDS replacements."
         )
-    elif state.texconv_path is None:
+    elif not count:
         state.summary_lines.append(
             "Generated static texture payloads were not shown in preview because the DirectXTex/native preview backend did not produce usable previews."
         )

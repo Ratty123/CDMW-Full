@@ -716,9 +716,7 @@ class ArchiveAssetCatalogDialogMixin:
         def _handle_catalog_icon_prepared(prepared_key: Tuple[Tuple[str, ...], str]) -> None:
             if not dialog.isVisible():
                 return
-            icon_paths, texconv_key = prepared_key
-            if texconv_key != self.texconv_path_edit.text().strip():
-                return
+            icon_paths, _native_backend_key = prepared_key
             matched_items: List[QListWidgetItem] = []
             active_rect = item_grid.viewport().rect().adjusted(-220, -280, 260, 680)
             for row_index in range(item_grid.count()):

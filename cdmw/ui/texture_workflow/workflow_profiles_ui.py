@@ -28,7 +28,7 @@ from cdmw.constants import (
     DDS_MIP_MODE_SINGLE,
     DDS_SIZE_MODE_ORIGINAL,
     DDS_SIZE_MODE_PNG,
-    SUPPORTED_TEXCONV_FORMAT_CHOICES,
+    SUPPORTED_DDS_FORMAT_CHOICES,
     UPSCALE_POST_CORRECTION_MATCH_HISTOGRAM,
     UPSCALE_POST_CORRECTION_MATCH_LEVELS,
     UPSCALE_POST_CORRECTION_MATCH_MEAN_LUMA,
@@ -155,8 +155,8 @@ class TextureWorkflowProfilesUiMixin:
         self.workflow_profile_format_combo = QComboBox()
         self._add_combo_choice(self.workflow_profile_format_combo, "Inherit Main DDS Output", "")
         self._add_combo_choice(self.workflow_profile_format_combo, "Match Original DDS", DDS_FORMAT_MODE_MATCH_ORIGINAL)
-        for texconv_format in SUPPORTED_TEXCONV_FORMAT_CHOICES:
-            self._add_combo_choice(self.workflow_profile_format_combo, texconv_format, texconv_format)
+        for dds_format in SUPPORTED_DDS_FORMAT_CHOICES:
+            self._add_combo_choice(self.workflow_profile_format_combo, dds_format, dds_format)
         self.workflow_profile_size_combo = QComboBox()
         self._add_combo_choice(self.workflow_profile_size_combo, "Inherit Main DDS Output", "")
         self._add_combo_choice(self.workflow_profile_size_combo, "Match PNG Size", DDS_SIZE_MODE_PNG)

@@ -70,12 +70,9 @@ def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> 
         dds_detail_thumbnail_label.setToolTip(str(getattr(thumbnail_state, "tooltip", "")))
 
     def _resolve_dds_detail_preview_path(raw_path: object, slot_kind: object = "base") -> tuple[Optional[Path], str]:
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
         return _resolve_dds_detail_preview_path_helper(
             raw_path,
             slot_kind,
-            texconv_path=texconv_path,
             parse_dds_file=parse_dds,
             ensure_dds_display_preview=ensure_dds_display_preview_png,
         )
@@ -92,8 +89,6 @@ def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> 
             _apply_dds_detail_thumbnail_state(route_state.thumbnail)
             return
         _apply_dds_detail_thumbnail_state(route_state.thumbnail)
-        texconv_text = self.texconv_path_edit.text().strip()
-        texconv_path = Path(texconv_text).expanduser() if texconv_text else None
 
         def _resolved(result: DdsDetailPreviewResult) -> None:
             pixmap = QPixmap.fromImage(result.image) if not result.image.isNull() else None
@@ -117,7 +112,6 @@ def create_alignment_texture_detail_uv_callbacks(context: dict[str, object]) -> 
         dds_detail_controller.start(
             source_path=route_state.preview_source,
             slot_kind=route_state.slot_kind,
-            texconv_path=texconv_path,
             on_complete=_resolved,
             on_error=_failed,
         )

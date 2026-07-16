@@ -218,6 +218,8 @@ def substitute_chainner_tokens(value: object, token_map: Dict[str, str]) -> obje
 
 
 def build_chainner_override_payload(config: NormalizedConfig) -> Optional[Dict[str, object]]:
+    from cdmw.core.texture_legacy_compat import obsolete_chain_token_error
+
     raw_json = config.chainner_override_json.strip()
     if not raw_json:
         return None
@@ -226,6 +228,9 @@ def build_chainner_override_payload(config: NormalizedConfig) -> Optional[Dict[s
             "chaiNNer override JSON references ${staging_png_root}, but DDS staging is disabled. "
             "Enable 'Create source PNGs from DDS before processing' or remove that token from the overrides."
         )
+    obsolete_token_message = obsolete_chain_token_error(raw_json)
+    if obsolete_token_message:
+        raise ValueError(obsolete_token_message)
 
     try:
         parsed = json.loads(raw_json)
@@ -247,7 +252,6 @@ def build_chainner_override_payload(config: NormalizedConfig) -> Optional[Dict[s
         "original_dds_root": str(config.original_dds_root),
         "png_root": str(config.png_root),
         "output_root": str(config.output_root),
-        "texconv_path": str(config.texconv_path or ""),
         "staging_png_root": str(config.dds_staging_root) if config.dds_staging_root is not None else "",
     }
     return substitute_chainner_tokens(payload, token_map)  # type: ignore[return-value]

@@ -100,13 +100,11 @@ class ItemIconService:
         source_path: Path,
         *,
         output_dir: Path,
-        texconv_path: Optional[Path] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Path:
         return _backend().build_item_icon_source_preview_png(
             source_path,
             output_dir=output_dir,
-            texconv_path=texconv_path,
             stop_event=stop_event,
         )
 
@@ -122,14 +120,12 @@ class ItemIconService:
         spec: ItemIconOverrideSpec,
         *,
         target_template_path: Path,
-        texconv_path: Optional[Path] = None,
         stop_event: Optional[threading.Event] = None,
         on_log: Optional[Callable[[str], None]] = None,
     ) -> ItemIconBuildResult:
         return _backend().build_item_icon_payload(
             spec,
             target_template_path=target_template_path,
-            texconv_path=texconv_path,
             stop_event=stop_event,
             on_log=on_log,
         )

@@ -91,7 +91,6 @@ class ItemIconLibraryTests(unittest.TestCase):
                 settings=settings,
                 base_dir=root,
                 get_archive_entries=lambda: (),
-                get_texconv_path=lambda: "",
                 resolve_target_template_path=lambda _entry: root / "template.dds",
             )
             try:

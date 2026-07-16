@@ -542,7 +542,6 @@ def _path_mtime_fingerprint(path: object) -> Tuple[str, int, int]:
 def _hkx_context_model_preview_cache_key(
     entry: ArchiveEntry,
     *,
-    texconv_path: Optional[Path],
     visible_texture_mode: object,
     support_texture_slots: Sequence[str],
     quality_tier: str,
@@ -556,7 +555,6 @@ def _hkx_context_model_preview_cache_key(
         "orig_size": int(getattr(entry, "orig_size", 0) or 0),
         "flags": int(getattr(entry, "flags", 0) or 0),
         "paz_index": int(getattr(entry, "paz_index", 0) or 0),
-        "texconv": str(texconv_path or ""),
         "visible_texture_mode": str(visible_texture_mode or ""),
         "support_texture_slots": tuple(sorted(str(slot or "").strip().lower() for slot in tuple(support_texture_slots or ()) if str(slot or "").strip())),
         "quality_tier": _normalize_archive_preview_quality_tier(quality_tier),

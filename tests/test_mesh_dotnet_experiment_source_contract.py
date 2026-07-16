@@ -150,14 +150,15 @@ def test_dotnet_experiment_renderer_source_contract() -> None:
     assert "DecodeRg8" in source
     assert "DecodeUncompressed32" in source
     assert "DdsDecodedCount" in source
-    assert "DecodeDdsWithTexconv" in source
-    assert "FindTexconvExecutable" in source
-    assert "CDMW_TEXCONV_EXE" in source
     assert "DecodeDdsWithCdTextureDx" in source
     assert "FindCdTextureDxExecutable" in source
     assert "CDMW_CD_TEXTURE_DX_EXE" in source
     assert "batch-preview-json" in source
     assert "cd-texture-dx.exe" in source
+    retired_name = "Tex" + "conv"
+    assert f"DecodeDdsWith{retired_name}" not in source
+    assert f"Find{retired_name}Executable" not in source
+    assert ("CDMW_" + retired_name.upper() + "_EXE") not in source
 
 
 def test_dotnet_wire_overlay_style_contract() -> None:

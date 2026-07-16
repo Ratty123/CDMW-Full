@@ -207,7 +207,7 @@ def _build_mesh_import_local_dds_lookup(
             by_basename[basename] = resolved_path
     return by_normalized_path, by_basename
 
-def _local_dds_preview_path(resolved_texconv_path: Optional[Path], cache: Dict[str, str], dds_path: Path) -> str:
+def _local_dds_preview_path(cache: Dict[str, str], dds_path: Path) -> str:
     key = str(dds_path).lower()
     if key not in cache:
         from cdmw.core.texture_pipeline.inspection import parse_dds
@@ -216,7 +216,7 @@ def _local_dds_preview_path(resolved_texconv_path: Optional[Path], cache: Dict[s
             info = parse_dds(dds_path)
         except (OSError, ValueError):
             info = None
-        cache[key] = ensure_dds_display_preview_png(resolved_texconv_path, dds_path, dds_info=info)
+        cache[key] = ensure_dds_display_preview_png(dds_path, dds_info=info)
     return cache[key]
 
 
@@ -266,10 +266,10 @@ def _local_mesh_reference_candidates(parsed_submeshes: Sequence[object], index: 
     return _iter_model_submesh_reference_candidates(str(getattr(parsed, "name", "") or ""), str(getattr(parsed, "material", "") or ""), str(getattr(parsed, "texture", "") or ""), str(getattr(mesh, "material_name", "") or ""), str(getattr(mesh, "texture_name", "") or ""))
 
 
-def _assign_local_visible(mesh: ModelPreviewMesh, item: Tuple[Path, str, str, str], resolved_texconv: Optional[Path], cache: Dict[str, str]) -> bool:
+def _assign_local_visible(mesh: ModelPreviewMesh, item: Tuple[Path, str, str, str], cache: Dict[str, str]) -> bool:
     override, _parameter, submesh, texture_path = item
     try:
-        mesh.preview_texture_path = _local_dds_preview_path(resolved_texconv, cache, override)
+        mesh.preview_texture_path = _local_dds_preview_path(cache, override)
     except (OSError, RuntimeError, ValueError):
         return False
     mesh.texture_name = texture_path or override.name
@@ -281,7 +281,7 @@ def _assign_local_visible(mesh: ModelPreviewMesh, item: Tuple[Path, str, str, st
 
 def _assign_local_matched_visible(
     meshes: Sequence[ModelPreviewMesh], parsed_submeshes: Sequence[object], resolved: Mapping[str, Tuple[Tuple[int, int, int, int], Path, str, str, str]],
-    resolved_texconv: Optional[Path], cache: Dict[str, str],
+    cache: Dict[str, str],
 ) -> Tuple[int, List[ModelPreviewMesh], Dict[int, int]]:
     assigned = 0; unresolved: List[ModelPreviewMesh] = []; indices: Dict[int, int] = {}
     for index, mesh in enumerate(meshes):
@@ -291,7 +291,7 @@ def _assign_local_matched_visible(
         best = max((resolved[key] for key in keys if key in resolved), key=lambda item: item[0], default=None)
         if best is None:
             unresolved.append(mesh); indices[id(mesh)] = index
-        elif _assign_local_visible(mesh, (best[1], best[2], best[3], best[4]), resolved_texconv, cache):
+        elif _assign_local_visible(mesh, (best[1], best[2], best[3], best[4]), cache):
             assigned += 1
     return assigned, unresolved, indices
 
@@ -312,14 +312,14 @@ def _promote_local_visible_fallback(
     return True
 
 
-def _assign_local_global_visible(meshes: Sequence[ModelPreviewMesh], bindings: Sequence[Tuple[Path, str, str, str]], resolved_texconv: Optional[Path], cache: Dict[str, str]) -> int:
+def _assign_local_global_visible(meshes: Sequence[ModelPreviewMesh], bindings: Sequence[Tuple[Path, str, str, str]], cache: Dict[str, str]) -> int:
     unresolved = [mesh for mesh in meshes if not str(getattr(mesh, "preview_texture_path", "") or "").strip()]
     assigned = 0
     for index, mesh in enumerate(unresolved):
         if not bindings or (len(bindings) != 1 and index >= len(bindings)):
             break
         item = bindings[0] if len(bindings) == 1 else bindings[index]
-        assigned += int(_assign_local_visible(mesh, item, resolved_texconv, cache))
+        assigned += int(_assign_local_visible(mesh, item, cache))
     return assigned
 
 
@@ -329,19 +329,16 @@ def _apply_mesh_import_local_sidecar_texture_overrides(
     sidecar_texture_bindings: Sequence[object],
     supplemental_dds_by_normalized_path: Mapping[str, Path],
     supplemental_dds_by_basename: Mapping[str, Path],
-    *,
-    texconv_path: Optional[Path],
 ) -> List[str]:
     if not preview_model.meshes or not sidecar_texture_bindings:
         return []
     from cdmw.core.archive_model_textures import _iter_parsed_model_submeshes
     parsed = _iter_parsed_model_submeshes(parsed_mesh)
     resolved, global_bindings, fallback = _collect_local_visible_bindings(sidecar_texture_bindings, supplemental_dds_by_normalized_path, supplemental_dds_by_basename)
-    texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     cache: Dict[str, str] = {}
-    assigned, unresolved, indices = _assign_local_matched_visible(preview_model.meshes, parsed, resolved, texconv, cache)
+    assigned, unresolved, indices = _assign_local_matched_visible(preview_model.meshes, parsed, resolved, cache)
     promoted = _promote_local_visible_fallback(preview_model.meshes, parsed, unresolved, indices, global_bindings, fallback)
-    assigned += _assign_local_global_visible(unresolved, global_bindings, texconv, cache)
+    assigned += _assign_local_global_visible(unresolved, global_bindings, cache)
     if not assigned:
         return []
     info = [f"Applied {assigned:,} local sidecar-driven texture preview binding(s) from the selected supplemental files."]
@@ -382,11 +379,11 @@ def _collect_local_support_bindings(
     return resolved, global_bindings
 
 
-def _assign_local_support(mesh: ModelPreviewMesh, slot: str, item: Tuple[Tuple[int, int, int, int], Path, str, str, str], texconv: Optional[Path], cache: Dict[str, str]) -> bool:
+def _assign_local_support(mesh: ModelPreviewMesh, slot: str, item: Tuple[Tuple[int, int, int, int], Path, str, str, str], cache: Dict[str, str]) -> bool:
     from cdmw.core.archive_model_textures import _infer_model_preview_normal_strength, _refine_model_texture_semantic_from_hint, _resolve_model_texture_semantic_details
     _key, override, parameter, _submesh, texture = item
     try:
-        preview_path = _local_dds_preview_path(texconv, cache, override)
+        preview_path = _local_dds_preview_path(cache, override)
     except (OSError, RuntimeError, ValueError):
         return False
     name = texture or override.name
@@ -406,16 +403,16 @@ def _assign_local_support(mesh: ModelPreviewMesh, slot: str, item: Tuple[Tuple[i
     return True
 
 
-def _assign_local_matched_support(meshes: Sequence[ModelPreviewMesh], parsed: Sequence[object], resolved: Mapping[Tuple[str, str], Tuple[Tuple[int, int, int, int], Path, str, str, str]], texconv: Optional[Path], cache: Dict[str, str], counts: Dict[str, int]) -> None:
+def _assign_local_matched_support(meshes: Sequence[ModelPreviewMesh], parsed: Sequence[object], resolved: Mapping[Tuple[str, str], Tuple[Tuple[int, int, int, int], Path, str, str, str]], cache: Dict[str, str], counts: Dict[str, int]) -> None:
     for index, mesh in enumerate(meshes):
         keys = _local_mesh_reference_candidates(parsed, index, mesh)
         for slot in ("normal", "material", "height"):
             best = max((resolved[(slot, key)] for key in keys if (slot, key) in resolved), key=lambda item: item[0], default=None)
-            if best is not None and _assign_local_support(mesh, slot, best, texconv, cache):
+            if best is not None and _assign_local_support(mesh, slot, best, cache):
                 counts[slot] += 1
 
 
-def _assign_local_global_support(meshes: Sequence[ModelPreviewMesh], bindings_by_slot: Mapping[str, Sequence[Tuple[Tuple[int, int, int, int], Path, str, str, str]]], texconv: Optional[Path], cache: Dict[str, str], counts: Dict[str, int]) -> None:
+def _assign_local_global_support(meshes: Sequence[ModelPreviewMesh], bindings_by_slot: Mapping[str, Sequence[Tuple[Tuple[int, int, int, int], Path, str, str, str]]], cache: Dict[str, str], counts: Dict[str, int]) -> None:
     for slot in ("normal", "material", "height"):
         bindings = sorted(bindings_by_slot.get(slot, ()), key=lambda item: item[0], reverse=True)
         unresolved = [mesh for mesh in meshes if not str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip()]
@@ -423,7 +420,7 @@ def _assign_local_global_support(meshes: Sequence[ModelPreviewMesh], bindings_by
             if not bindings or (len(bindings) != 1 and index >= len(bindings)):
                 break
             item = bindings[0] if len(bindings) == 1 else bindings[index]
-            counts[slot] += int(_assign_local_support(mesh, slot, item, texconv, cache))
+            counts[slot] += int(_assign_local_support(mesh, slot, item, cache))
 
 
 def _apply_mesh_import_local_support_texture_overrides(
@@ -432,18 +429,15 @@ def _apply_mesh_import_local_support_texture_overrides(
     sidecar_texture_bindings: Sequence[object],
     supplemental_dds_by_normalized_path: Mapping[str, Path],
     supplemental_dds_by_basename: Mapping[str, Path],
-    *,
-    texconv_path: Optional[Path],
 ) -> List[str]:
     if not preview_model.meshes or not sidecar_texture_bindings:
         return []
     from cdmw.core.archive_model_textures import _iter_parsed_model_submeshes
     resolved, global_bindings = _collect_local_support_bindings(sidecar_texture_bindings, supplemental_dds_by_normalized_path, supplemental_dds_by_basename)
     parsed = _iter_parsed_model_submeshes(parsed_mesh)
-    texconv = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     cache: Dict[str, str] = {}; counts = {slot: 0 for slot in ("normal", "material", "height")}
-    _assign_local_matched_support(preview_model.meshes, parsed, resolved, texconv, cache, counts)
-    _assign_local_global_support(preview_model.meshes, global_bindings, texconv, cache, counts)
+    _assign_local_matched_support(preview_model.meshes, parsed, resolved, cache, counts)
+    _assign_local_global_support(preview_model.meshes, global_bindings, cache, counts)
     total = sum(counts.values())
     if not total:
         return []
@@ -454,8 +448,6 @@ def _apply_mesh_import_local_texture_overrides(
     preview_model: ModelPreviewData,
     supplemental_dds_by_normalized_path: Mapping[str, Path],
     supplemental_dds_by_basename: Mapping[str, Path],
-    *,
-    texconv_path: Optional[Path],
 ) -> List[str]:
     if not getattr(preview_model, "meshes", None):
         return []
@@ -463,7 +455,6 @@ def _apply_mesh_import_local_texture_overrides(
     from cdmw.core.texture_pipeline.inspection import parse_dds
     from cdmw.core.texture_pipeline.preview import ensure_dds_display_preview_png
 
-    resolved_texconv_path = texconv_path.expanduser().resolve() if texconv_path is not None and texconv_path.expanduser().is_file() else None
     preview_cache: Dict[str, str] = {}
     override_count = 0
     unresolved_names: List[str] = []
@@ -489,7 +480,6 @@ def _apply_mesh_import_local_texture_overrides(
             except (OSError, ValueError):
                 dds_info = None
             preview_path = ensure_dds_display_preview_png(
-                resolved_texconv_path,
                 override_path,
                 dds_info=dds_info,
             )

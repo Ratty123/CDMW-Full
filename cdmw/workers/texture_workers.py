@@ -46,7 +46,6 @@ def _texture_workflow_breadcrumb_base(config: AppConfig, worker_name: str) -> Di
         "png_root": config.png_root,
         "dds_staging_root": config.dds_staging_root,
         "output_root": config.output_root,
-        "texconv_path": config.texconv_path,
         "started_at": time.time(),
     }
 
@@ -56,7 +55,7 @@ def _is_texture_workflow_tool_log(message: str) -> bool:
     return any(
         marker in lowered
         for marker in (
-            "texconv",
+            "native texture",
             "real-esrgan",
             "ncnn",
             "chainner",

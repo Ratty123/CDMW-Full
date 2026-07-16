@@ -117,7 +117,6 @@ def test_recolor_build_worker_stops_cooperatively_under_load() -> None:
         object(),  # type: ignore[arg-type]
         Path("unused"),
         (),
-        texconv_path=None,
         overwrite_existing=False,
     )
     with mock.patch("cdmw.workers.recolor_variant_workers.build_recolor_variant_outputs", side_effect=build):

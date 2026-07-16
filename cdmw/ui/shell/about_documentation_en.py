@@ -59,18 +59,18 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Understand a texture family</b>: use <a href="topic:research">Research</a> for grouped sets, classification, references, analysis, and notes.</li>
                   <li><b>Find text, XML, JSON, Lua, or config strings</b>: use <a href="topic:text_search">Text Search</a>.</li>
                 </ul>
-                <p>For a first session, use the bundled DirectXTex/native DDS tools, scan a small source set, avoid technical-map upscaling, and compare output before exporting anything larger. <b>texconv.exe</b> is optional legacy fallback only.</p>
+                <p>For a first session, use the bundled <b>cd-texture-dx.exe</b> DDS helper, scan a small source set, avoid technical-map upscaling, and compare output before exporting anything larger.</p>
                 """,
             },
             {
                 "id": "first_run_checklist",
                 "title": "First Run Checklist",
                 "summary": "Setup checklist for paths, tools, policy, and first test output.",
-                "keywords": "first run checklist setup paths texconv workspace ncnn chainner policy preview compare",
+                "keywords": "first run checklist setup paths native dds workspace ncnn chainner policy preview compare",
                 "html": """
                 <ol>
                   <li>Open <b>Settings</b> and run <b>Init Workspace</b> if you want the app to create the usual working folders.</li>
-                  <li><b>texconv.exe path</b> is optional legacy fallback. Normal DDS preview, DDS-to-PNG conversion, Compare previews, and DDS rebuild use DirectXTex/native helpers.</li>
+                  <li><b>Native DDS helper</b>: <code>cd-texture-dx.exe</code> is bundled and used automatically for DDS preview, staging, Compare previews, and rebuild.</li>
                   <li>Set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Use a tiny test folder first.</li>
                   <li>Choose an upscaling backend: <b>Disabled</b> for rebuild testing, direct <b>Real-ESRGAN NCNN</b> for in-app upscale, or <b>chaiNNer</b> for an already-tested chain.</li>
                   <li>Keep a safer <b>Texture Policy</b> preset and automatic rules enabled.</li>
@@ -226,11 +226,11 @@ class AboutDocumentationEnglishMixin:
                 "id": "dds_output",
                 "title": "DDS Output & Staging",
                 "summary": "Global DDS rebuild defaults used by the workflow.",
-                "keywords": "dds output format size mipmaps staging texconv png size match original custom",
+                "keywords": "dds output format size mipmaps staging native png size match original custom",
                 "html": """
                 <p><b>DDS Output</b> defines the global rebuild defaults for files that do not receive a workflow-profile override.</p>
                 <ul>
-                  <li><b>Format</b>: match the original DDS or force one texconv format.</li>
+                  <li><b>Format</b>: match the original DDS or force one supported native DDS format.</li>
                   <li><b>Size</b>: rebuild to PNG size, original DDS size, or a custom size.</li>
                   <li><b>Mipmaps</b>: keep original count, generate a full chain, use a single mip, or force a custom count.</li>
                   <li><b>DDS staging</b>: when enabled with an upscaling backend, the app first converts matched DDS files to a staging PNG root before the backend runs.</li>
@@ -267,7 +267,7 @@ class AboutDocumentationEnglishMixin:
                 "html": """
                 <h4>Rebuild DDS without upscaling</h4>
                 <ol>
-                  <li>Set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. The <b>texconv.exe</b> path is optional fallback.</li>
+                  <li>Set <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. The bundled native DDS helper is selected automatically.</li>
                   <li>Set backend to <b>Disabled</b>.</li>
                   <li>Place edited PNG files under <b>PNG root</b> using matching relative paths.</li>
                   <li>Use <b>Scan</b>, then <b>Preview Policy</b>, then <b>Start</b>.</li>
@@ -584,7 +584,7 @@ class AboutDocumentationEnglishMixin:
                 "id": "settings_files",
                 "title": "Settings, Files & Dependencies",
                 "summary": "Local config, cache, project files, and external dependencies.",
-                "keywords": "settings files config cache dependency texconv ncnn chainner license readme notices",
+                "keywords": "settings files config cache dependency native dds ncnn chainner license readme notices",
                 "html": f"""
                 <p>The app stores its local settings and archive cache beside the executable or local source checkout.</p>
                 <ul>
@@ -596,12 +596,12 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <h4>External requirements</h4>
                 <ul>
-                  <li><b>texconv</b> is optional fallback. DDS preview, DDS-to-PNG conversion, compare preview, and DDS rebuild use DirectXTex/native helpers first.</li>
+                  <li><b>cd-texture-dx.exe</b> is bundled and required for DDS preview, DDS-to-PNG conversion, compare preview, and DDS rebuild.</li>
                   <li><b>Real-ESRGAN NCNN</b> and <b>chaiNNer</b> are optional backends.</li>
                 </ul>
                 <h4>References</h4>
                 <ul>
-                  <li><a href="https://github.com/microsoft/DirectXTex/releases">Microsoft DirectXTex releases</a></li>
+                  <li><a href="https://github.com/microsoft/DirectXTex">Microsoft DirectXTex project</a></li>
                   <li><a href="https://chainner.app/download/">chaiNNer download page</a></li>
                   <li><a href="https://github.com/xinntao/Real-ESRGAN-ncnn-vulkan">Real-ESRGAN NCNN Vulkan</a></li>
                   <li><a href="https://www.nexusmods.com/crimsondesert/mods/62">Crimson Desert Unpacker</a></li>
@@ -613,26 +613,26 @@ class AboutDocumentationEnglishMixin:
                 "id": "faq",
                 "title": "FAQ",
                 "summary": "Short answers to common setup, workflow, and output questions.",
-                "keywords": "faq questions answers texconv ncnn chainner replace assistant texture workflow archive patch settings cache brightness technical maps",
+                "keywords": "faq questions answers native dds ncnn chainner replace assistant texture workflow archive patch settings cache brightness technical maps",
                 "html": """
-                <p><b>Do I need texconv?</b><br/>No for normal preview/rebuild workflows. DirectXTex/native helpers are used first; <b>texconv.exe</b> is kept only as optional legacy fallback.</p>
+                <p><b>Do I need to install a DDS converter?</b><br/>No. CDMW bundles <b>cd-texture-dx.exe</b> and uses it for all DDS preview and rebuild workflows.</p>
                 <p><b>Should I upscale every texture?</b><br/>No. Start with visible color, UI, or emissive textures. Normals, packed masks, vectors, height maps, and displacement maps should usually stay preserve-first unless you know the family.</p>
                 <p><b>When should I use Texture Replacer?</b><br/>Use it for one-off edited PNG/DDS replacements. Use Texture Workflow for batch rebuild or batch upscale of a loose DDS tree.</p>
                 <p><b>What is the safest first backend?</b><br/>Use <b>Disabled</b> first to prove paths and DDS rebuild behavior. Then test direct <b>Real-ESRGAN NCNN</b> or a known-good <b>chaiNNer</b> chain on a small subset.</p>
                 <p><b>Why did output brightness or detail change?</b><br/>Upscale models and correction modes can shift luma, contrast, alpha, or detail. Compare against the original, test a different model, reduce aggressive settings, or try Source Match correction for visible textures.</p>
                 <p><b>Can the app patch archives directly?</b><br/>Only for supported workflows. Ordinary browsing, preview, and extraction are read-only; patch actions require explicit confirmation and use backup/restore support where implemented.</p>
                 <p><b>Where are settings stored?</b><br/>The config file and cache are stored beside the executable or local source checkout. See <a href="topic:settings_files">Settings, Files &amp; Dependencies</a>.</p>
-                <p><b>Why does search not find my topic?</b><br/>Try feature names, tab names, file types, field labels, or symptoms such as <code>texconv</code>, <code>brightness</code>, <code>normal</code>, <code>archive</code>, <code>profile</code>, or <code>mod-ready</code>.</p>
+                <p><b>Why does search not find my topic?</b><br/>Try feature names, tab names, file types, field labels, or symptoms such as <code>native DDS</code>, <code>brightness</code>, <code>normal</code>, <code>archive</code>, <code>profile</code>, or <code>mod-ready</code>.</p>
                 """,
             },
             {
                 "id": "troubleshooting",
                 "title": "Troubleshooting & Limits",
                 "summary": "Common failure cases and current limitations.",
-                "keywords": "troubleshooting limits texconv ncnn chainner png output brightness drift preview archive cache",
+                "keywords": "troubleshooting limits native dds ncnn chainner png output brightness drift preview archive cache",
                 "html": """
                 <ul>
-                  <li><b>Missing texconv</b>: normal DDS preview/rebuild should still work through DirectXTex/native helpers. If both native helpers and optional fallback fail, check native tool packaging.</li>
+                  <li><b>Missing native DDS helper</b>: DDS preview and rebuild stop with an explicit native-backend error. Check that <code>cd-texture-dx.exe</code> was packaged beside the app.</li>
                   <li><b>Missing NCNN models</b>: direct NCNN requires a valid executable and matching <code>.param</code> / <code>.bin</code> models.</li>
                   <li><b>No matching PNG outputs</b>: if the selected backend produces no usable PNG output, DDS rebuild has nothing to convert.</li>
                   <li><b>Wrong chaiNNer paths</b>: hardcoded chain paths can make the chain read from or write to the wrong directory.</li>

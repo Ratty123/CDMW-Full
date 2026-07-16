@@ -378,8 +378,6 @@ class ArchiveMeshLaunchFlowMixin:
                     for path in getattr(static_replacement_options, "additional_supplemental_files", ()) or ()
                     if isinstance(path, Path)
                 )
-            texconv_text = self.texconv_path_edit.text().strip()
-
             def _task(log: Callable[[str], None]) -> MeshImportPreviewResult:
                 log(f"Rebuilding {entry.path} from {scene_path_obj.name}...")
                 preview_settings = self._current_model_preview_render_settings()
@@ -391,7 +389,6 @@ class ArchiveMeshLaunchFlowMixin:
                     scene_import_result=setup.scene_import_result,
                     source_display_label=setup.source_label,
                     archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    texconv_path=(Path(texconv_text).expanduser() if texconv_text else None),
                     texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
                     texture_entries_by_basename=self.archive_entries_by_basename,
                     visible_texture_mode=preview_settings.visible_texture_mode,
