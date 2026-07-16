@@ -240,7 +240,8 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
     assert "MaximumCenterBackgroundFraction" in readability
     assert "TryCaptureReplacementPng" in readability
     assert "IsWindowVisible(viewport.Handle)" in readability
-    assert '"cdmw_textured_metal_readability_v3"' in textured_metal_readability
+    assert '"cdmw_textured_metal_readability_v4"' in textured_metal_readability
+    assert '"cdmw_textured_metal_readability_v3"' not in textured_metal_readability
     assert '"hidden_synthetic_gpu_regression"' in textured_metal_readability
     assert '["material_category"] = "metal"' in textured_metal_readability
     assert '["material_category_confidence"] = 1.0' in textured_metal_readability
@@ -266,6 +267,17 @@ def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence()
     assert '"double_sided_opposite_views_balanced"' in textured_metal_readability
     assert '"angle_color_identity_stable"' in textured_metal_readability
     assert '"angle_brightness_stable"' in textured_metal_readability
+    assert "viewport.MaterialDebugMode = 6;" in textured_metal_readability
+    assert "viewport.MaterialDebugMode = 0;" in textured_metal_readability
+    assert '$"{view.Name}_specular.png"' in textured_metal_readability
+    assert '"specular_captures"' in textured_metal_readability
+    assert '"specular_debug_captures_complete"' in textured_metal_readability
+    assert '"specular_debug_view_response_varies"' in textured_metal_readability
+    assert '"specular_debug_response_bounded"' in textured_metal_readability
+    assert "MinimumSpecularMeanLuma = 1.0" in textured_metal_readability
+    assert "MinimumSpecularMeanLumaViewSpan = 3.0" in textured_metal_readability
+    assert "MaximumSpecularWhiteFraction = 0.12" in textured_metal_readability
+    assert '"specular_mean_luma_view_span"' in textured_metal_readability
     assert "MinimumAllViewLumaRatio" in textured_metal_readability
     assert "MaximumViewChromaticityDistance" in textured_metal_readability
     assert "center_chromaticity_span" in textured_metal_readability

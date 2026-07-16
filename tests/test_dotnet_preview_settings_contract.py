@@ -249,7 +249,8 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "float3 sourceStableF0 = lerp(" in shader
     assert "float3 resolvedSurfaceF0 = sourceStableF0;" in shader
     assert "float3 resolvedSurfaceF0 = categoryMetal" not in shader
-    assert "SourceStableFresnel(ndotv, resolvedSurfaceF0, metallic)" in shader
+    assert "SourceStableFresnel(ndotv, resolvedSurfaceF0)" in shader
+    assert "return FresnelSchlick(cosTheta, reflectanceAtNormal);" in shader
     assert "float glossyCue = glossyNonmetal" in shader
     assert "litDiffuse += materialReferenceAlbedo * glossyCue * 0.22f;" in shader
     for expected_scale in (
@@ -278,7 +279,10 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "uv += viewDirection.xy * height * MaterialHeightScale;" not in shader
     assert "float3 metalTintBias = clamp(" in shader
     assert "materialReferenceAlbedo * metalTintBias" in shader
-    assert "float ambientFloor = categoryMetal ? 0.24f" in shader
+    assert "lerp(0.72f, 1.25f, neutralMetalTint)" in shader
+    assert "float colorizeStrength = lerp(0.82f, 0.96f, neutralMetalTint);" in shader
+    assert "float metalTintBlend = lerp(0.34f, 0.56f" in shader
+    assert "float ambientFloor = categoryMetal ? 0.16f" in shader
     assert "float diffuseDepth = saturate(" in shader
     assert "float depthAuthority = categoryMetal" in shader
     assert "glossyNonmetal ? 0.72f" in shader
@@ -286,17 +290,29 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "MaterialFamilyPolicy.w > 0.0f ? MaterialFamilyPolicy.w" not in shader
     assert "float nonmetalTextureScale = conservativeNonmetal ? 1.03f : 1.0f;" in shader
     assert "float3 litDiffuse = materialReferenceAlbedo" in shader
-    assert "float metalDirectLobe = pow(metalNdotH, metalSpecularPower)" in shader
-    assert "float broadMetalLobe = pow(" in shader
-    assert "float metalDirectSpecularScale = 0.45f + metallic * 0.30f;" in shader
+    assert "float3 metalNormal = dot(normal, viewDirection) < 0.0f ? -normal : normal;" in shader
+    assert "float metalDistribution = DistributionGGX(metalNormal, metalHalfVector, roughness);" in shader
+    assert "float metalGeometry = GeometrySmith(" in shader
+    assert "float3 metalFresnel = SourceStableFresnel(metalHdotV, specularColor);" in shader
+    assert "float metalDirectSpecularScale = 0.35f + metallic * 0.35f;" in shader
+    assert "float3(0.85f, 0.85f, 0.85f)" in shader
+    assert "float metalDirectLobe = pow(" not in shader
+    assert "float broadMetalLobe = pow(" not in shader
     assert "float nonmetalDirectSpecularScale = glossyNonmetal" in shader
     assert "conservativeNonmetal ? 0.025f : 0.08f" in shader
     assert "float3 sourceStableF0 = lerp(" in shader
+    assert "float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)" in shader
+    assert "float3 radiance = float3(0.016f, 0.017f, 0.020f);" in shader
+    assert "float3(1.25f, 1.25f, 1.25f)" in shader
+    assert "PreviewEnvironmentIntensity" not in shader
     assert "float environmentMaterialScale = categoryMetal" in shader
     assert "glossyNonmetal ? 0.18f" in shader
     assert "conservativeNonmetal ? 0.018f" in shader
     assert "* categoryEnvironmentScale" in shader
     assert "float metalCue = categoryMetal" in shader
+    assert "float metalDiffuseScale = lerp(1.0f, 0.20f, saturate(metallic));" in shader
+    assert "litDiffuse += materialReferenceAlbedo * metalCue * 0.08f;" in shader
+    assert "0.055f + roughness * 0.035f + (1.0f - ndotv) * 0.12f" in shader
     assert "if (categoryMetal)" in shader
     assert "float3(0.035f, 0.035f, 0.035f)" in shader
     assert "materialReferenceAlbedo," in shader
@@ -331,12 +347,12 @@ def test_dotnet_material_category_authority_reaches_native_response_fallback() -
     assert "MaterialBaseTintPolicy.w > 0.5f" in shader
     source_fresnel = shader.index("float3 sourceStableF0 = lerp(")
     sampled_specular = shader.index("SpecularTexture.Sample(MaterialSampler, uv).rgb")
-    metal_fresnel_use = shader.index("float3 sourceStableMetalFresnel = SourceStableFresnel(")
+    metal_fresnel_use = shader.index("float3 metalFresnel = SourceStableFresnel(metalHdotV, specularColor);")
     environment_fresnel_use = shader.index(
-        "float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0, metallic);"
+        "float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0);"
     )
     assert sampled_specular < source_fresnel < metal_fresnel_use < environment_fresnel_use
-    assert "SourceStableFresnel(\n            nonmetalCameraShape,\n            resolvedSurfaceF0," in shader
+    assert "SourceStableFresnel(\n            nonmetalCameraShape,\n            resolvedSurfaceF0)" in shader
     assert "float3 resolvedSurfaceF0 = sourceStableF0;" in shader
 
 

@@ -19,6 +19,9 @@ internal static class D3D11TexturedMetalReadabilityProof
     private const double MaximumViewChromaticityDistance = 0.10;
     private const double MaximumCenterWhiteFraction = 0.08;
     private const double MinimumCenterChromaticitySpan = 0.18;
+    private const double MinimumSpecularMeanLuma = 1.0;
+    private const double MinimumSpecularMeanLumaViewSpan = 3.0;
+    private const double MaximumSpecularWhiteFraction = 0.12;
 
     public static Dictionary<string, object?> Run()
     {
@@ -27,6 +30,7 @@ internal static class D3D11TexturedMetalReadabilityProof
             "cdmw-textured-metal-readability",
             Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var rows = new List<Dictionary<string, object?>>();
+        var specularRows = new List<Dictionary<string, object?>>();
         try
         {
             Directory.CreateDirectory(evidenceDirectory);
@@ -155,6 +159,53 @@ internal static class D3D11TexturedMetalReadabilityProof
                 });
             }
 
+            try
+            {
+                viewport.MaterialDebugMode = 6;
+                foreach (var view in views)
+                {
+                    viewport.UpdateCamera(NetViewportCamera.Create(
+                        center,
+                        bounds,
+                        view.Yaw,
+                        view.Pitch,
+                        48.0f,
+                        0.0f,
+                        0.0f,
+                        CaptureSize,
+                        CaptureSize));
+                    var capturePath = Path.Combine(evidenceDirectory, $"{view.Name}_specular.png");
+                    var captured = viewport.TryCaptureReplacementPng(
+                        capturePath,
+                        CaptureSize,
+                        CaptureSize,
+                        out var sha256,
+                        out var captureError,
+                        out var renderedCamera);
+                    var metrics = captured
+                        ? CenterPatchMetrics(capturePath)
+                        : new Dictionary<string, object?>();
+                    specularRows.Add(new Dictionary<string, object?>
+                    {
+                        ["name"] = view.Name,
+                        ["yaw_radians"] = view.Yaw,
+                        ["pitch_radians"] = view.Pitch,
+                        ["captured"] = captured,
+                        ["capture_path"] = capturePath,
+                        ["sha256"] = sha256,
+                        ["error"] = captureError,
+                        ["sample_count"] = renderedCamera.SampleCount,
+                        ["sample_quality"] = renderedCamera.SampleQuality,
+                        ["multisample_resolved"] = renderedCamera.MultisampleResolved,
+                        ["metrics"] = metrics,
+                    });
+                }
+            }
+            finally
+            {
+                viewport.MaterialDebugMode = 0;
+            }
+
             var liveResolveCountBefore = viewport.MultisampleResolveCount;
             var liveFrameAfterCaptures = viewport.TryRunHeadlessFrame(
                 out _,
@@ -190,6 +241,14 @@ internal static class D3D11TexturedMetalReadabilityProof
             var obliqueRatio = OppositeViewLumaRatio(rows, "front_oblique", "back_oblique");
             var allViewLumaRatio = AllViewLumaRatio(rows);
             var maximumChromaticityDistance = MaximumChromaticityDistance(rows);
+            var specularMeanLumas = specularRows
+                .Select(row => row.GetValueOrDefault("metrics") is Dictionary<string, object?> metrics
+                    ? Metric(metrics, "center_mean_luma")
+                    : 0.0)
+                .ToArray();
+            var specularMeanLumaViewSpan = specularMeanLumas.Length > 0
+                ? specularMeanLumas.Max() - specularMeanLumas.Min()
+                : 0.0;
             var renderSurfaceIdentityAfter = viewport.RenderSurfaceIdentity;
             var windowsHidden = host.IsHandleCreated
                 && viewport.IsHandleCreated
@@ -236,10 +295,18 @@ internal static class D3D11TexturedMetalReadabilityProof
                         && Metric(metrics, "center_white_fraction") <= MaximumCenterWhiteFraction
                         && Metric(metrics, "center_chromaticity_span") >= MinimumCenterChromaticitySpan),
                 ["angle_brightness_stable"] = allViewLumaRatio >= MinimumAllViewLumaRatio,
+                ["specular_debug_captures_complete"] = specularRows.Count == views.Length
+                    && specularRows.All(row => row.GetValueOrDefault("captured") is true),
+                ["specular_debug_view_response_varies"] = specularRows.Count == views.Length
+                    && specularMeanLumaViewSpan >= MinimumSpecularMeanLumaViewSpan,
+                ["specular_debug_response_bounded"] = specularRows.Count == views.Length
+                    && specularRows.All(row => row.GetValueOrDefault("metrics") is Dictionary<string, object?> metrics
+                        && Metric(metrics, "center_mean_luma") >= MinimumSpecularMeanLuma
+                        && Metric(metrics, "center_white_fraction") <= MaximumSpecularWhiteFraction),
             };
             return new Dictionary<string, object?>
             {
-                ["schema"] = "cdmw_textured_metal_readability_v3",
+                ["schema"] = "cdmw_textured_metal_readability_v4",
                 ["evidence_class"] = "hidden_synthetic_gpu_regression",
                 ["material_contract"] = new Dictionary<string, object?>
                 {
@@ -285,11 +352,17 @@ internal static class D3D11TexturedMetalReadabilityProof
                 ["maximum_view_chromaticity_distance"] = MaximumViewChromaticityDistance,
                 ["maximum_center_white_fraction"] = MaximumCenterWhiteFraction,
                 ["minimum_center_chromaticity_span"] = MinimumCenterChromaticitySpan,
+                ["minimum_specular_mean_luma"] = MinimumSpecularMeanLuma,
+                ["minimum_specular_mean_luma_view_span"] = MinimumSpecularMeanLumaViewSpan,
+                ["maximum_specular_white_fraction"] = MaximumSpecularWhiteFraction,
                 ["front_back_mean_luma_ratio"] = frontBackRatio,
                 ["oblique_mean_luma_ratio"] = obliqueRatio,
                 ["all_view_mean_luma_ratio"] = allViewLumaRatio,
                 ["measured_maximum_view_chromaticity_distance"] = maximumChromaticityDistance,
+                ["specular_mean_luma_view_span"] = specularMeanLumaViewSpan,
+                ["material_debug_mode_after_specular_captures"] = viewport.MaterialDebugMode,
                 ["captures"] = rows,
+                ["specular_captures"] = specularRows,
                 ["gates"] = gates,
                 ["ok"] = gates.Values.All(value => value),
             };
@@ -298,9 +371,10 @@ internal static class D3D11TexturedMetalReadabilityProof
         {
             return new Dictionary<string, object?>
             {
-                ["schema"] = "cdmw_textured_metal_readability_v3",
+                ["schema"] = "cdmw_textured_metal_readability_v4",
                 ["evidence_class"] = "hidden_synthetic_gpu_regression",
                 ["captures"] = rows,
+                ["specular_captures"] = specularRows,
                 ["ok"] = false,
                 ["error"] = $"{ex.GetType().Name}: {ex.Message}",
             };

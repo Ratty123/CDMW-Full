@@ -260,43 +260,47 @@ float3 FresnelSchlick(float cosTheta, float3 reflectanceAtNormal)
         + (1.0f - reflectanceAtNormal) * pow(1.0f - saturate(cosTheta), 5.0f);
 }
 
-float PreviewEnvironmentIntensity(float3 reflectedView, float roughness)
+float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)
 {
-    float environmentLobe = saturate((reflectedView.y * 0.55f) + (reflectedView.z * -0.14f) + 0.58f);
+    float safeRoughness = saturate(roughness);
     float horizonBand = pow(saturate(1.0f - abs(reflectedView.y) * 1.12f), 2.2f);
     float frontSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(-0.18f, 0.36f, -0.92f)))),
-        lerp(14.0f, 4.0f, roughness));
-    float topSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(-0.32f, 0.88f, -0.34f)))),
-        lerp(28.0f, 7.0f, roughness));
-    float sideSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(0.82f, 0.20f, -0.54f)))),
-        lerp(18.0f, 5.0f, roughness));
+        saturate(dot(reflectedView, normalize(float3(-0.24f, 0.28f, -0.93f)))),
+        lerp(28.0f, 5.0f, safeRoughness));
     float backSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(-0.72f, 0.26f, 0.64f)))),
-        lerp(18.0f, 5.0f, roughness));
-    float oppositeSoftbox = pow(
-        saturate(dot(reflectedView, normalize(float3(0.58f, 0.30f, 0.76f)))),
-        lerp(20.0f, 6.0f, roughness));
+        saturate(dot(reflectedView, normalize(float3(0.42f, 0.22f, 0.88f)))),
+        lerp(24.0f, 4.5f, safeRoughness));
+    float topSoftbox = pow(
+        saturate(dot(reflectedView, normalize(float3(-0.12f, 0.96f, -0.25f)))),
+        lerp(30.0f, 6.0f, safeRoughness));
+    float sideSoftbox = pow(
+        saturate(dot(reflectedView, normalize(float3(0.92f, 0.12f, -0.38f)))),
+        lerp(22.0f, 4.0f, safeRoughness));
+    float oppositeSideSoftbox = pow(
+        saturate(dot(reflectedView, normalize(float3(-0.88f, 0.16f, -0.44f)))),
+        lerp(24.0f, 4.5f, safeRoughness));
     float darkBand = pow(
-        saturate(1.0f - abs(reflectedView.x * 1.8f + reflectedView.y * 0.35f)),
-        3.2f) * saturate(0.85f - reflectedView.z);
-    float intensity = lerp(0.48f, 0.52f, environmentLobe);
-    intensity *= lerp(1.0f, 0.96f, darkBand * (1.0f - roughness));
-    intensity += horizonBand * 0.025f;
-    intensity += frontSoftbox * 0.04f;
-    intensity += topSoftbox * 0.03f;
-    intensity += sideSoftbox * 0.025f;
-    intensity += backSoftbox * 0.02f;
-    intensity += oppositeSoftbox * 0.018f;
-    return clamp(intensity, 0.46f, 0.60f);
+        saturate(1.0f - abs(reflectedView.x * 1.35f + reflectedView.y * 0.45f)),
+        3.2f) * saturate(0.95f - reflectedView.z);
+    float3 radiance = float3(0.016f, 0.017f, 0.020f);
+    radiance += horizonBand * float3(0.10f, 0.11f, 0.13f);
+    radiance += frontSoftbox * float3(1.16f, 0.94f, 0.70f);
+    radiance += backSoftbox * float3(0.92f, 0.66f, 0.42f);
+    radiance += topSoftbox * float3(0.46f, 0.62f, 0.92f);
+    radiance += sideSoftbox * float3(0.32f, 0.50f, 0.88f);
+    radiance += oppositeSideSoftbox * float3(0.12f, 0.14f, 0.17f);
+    radiance *= lerp(1.0f, 0.08f, darkBand * lerp(0.94f, 0.45f, safeRoughness));
+    float roughnessBlur = safeRoughness * safeRoughness * 0.58f;
+    radiance = lerp(radiance, float3(0.075f, 0.080f, 0.090f), roughnessBlur);
+    return clamp(
+        radiance,
+        float3(0.012f, 0.012f, 0.012f),
+        float3(1.25f, 1.25f, 1.25f));
 }
 
-float3 SourceStableFresnel(float cosTheta, float3 reflectanceAtNormal, float metallic)
+float3 SourceStableFresnel(float cosTheta, float3 reflectanceAtNormal)
 {
-    float3 physicalFresnel = FresnelSchlick(cosTheta, reflectanceAtNormal);
-    return lerp(physicalFresnel, reflectanceAtNormal, saturate(metallic * 0.88f));
+    return FresnelSchlick(cosTheta, reflectanceAtNormal);
 }
 
 float3 WorkbenchGeometryColor(VSOutput input)
@@ -367,14 +371,14 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             && MaterialBaseTintPolicy.y < 1.5f;
         float neutralMetalTint = earlyCategoryMetal ? saturate((0.12f - tintChroma) * 8.0f) : 0.0f;
         float strength = saturate(MaterialBaseTintPolicy.x
-            * (earlyCategoryMetal ? lerp(0.05f, 1.25f, neutralMetalTint) : 1.0f));
+            * (earlyCategoryMetal ? lerp(0.72f, 1.25f, neutralMetalTint) : 1.0f));
         float albedoLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
         float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f) + 0.10f * strength);
         float3 multiplied = saturate(baseColor.rgb * tintBias);
         float3 colorized = saturate(liftedLuma.xxx * tintBias);
         float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);
         colorized = lerp(colorized, saturate(neutralMetalLuma.xxx * tintBias), neutralMetalTint);
-        float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);
+        float colorizeStrength = lerp(0.82f, 0.96f, neutralMetalTint);
         baseColor.rgb = lerp(baseColor.rgb, lerp(multiplied, colorized, colorizeStrength), strength);
     }
     baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x, 0.1f));
@@ -694,10 +698,13 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             metalTint / metalTintLuma,
             float3(0.58f, 0.58f, 0.58f),
             float3(1.42f, 1.42f, 1.42f));
+        float metalTintChroma = max(metalTint.r, max(metalTint.g, metalTint.b))
+            - min(metalTint.r, min(metalTint.g, metalTint.b));
+        float metalTintBlend = lerp(0.34f, 0.56f, saturate(metalTintChroma * 6.0f));
         materialReferenceAlbedo = saturate(lerp(
             materialReferenceAlbedo,
             materialReferenceAlbedo * metalTintBias,
-            0.34f));
+            metalTintBlend));
     }
     float categoryMetalFallback = categoryMetal
         ? saturate(lerp(0.28f, 0.62f, materialCategoryConfidence)
@@ -779,31 +786,32 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float3 spec = float3(0.0f, 0.0f, 0.0f);
     if (categoryMetal)
     {
-        float metalSmoothness = saturate(1.0f - roughness);
-        float metalCameraShape = saturate(abs(dot(normal, viewDirection)));
-        float metalRimShape = pow(
-            saturate(1.0f - metalCameraShape),
-            lerp(2.4f, 1.2f, metalSmoothness));
-        float metalNdotH = saturate(dot(normal, halfVector));
-        float metalSpecularPower = lerp(
-            28.0f,
-            max(PresentationMaterialTuning.z, 28.0f),
-            metalSmoothness);
-        float metalDirectLobe = pow(metalNdotH, metalSpecularPower)
-            * saturate(ndotl * 1.25f);
-        float broadMetalLobe = pow(
-            metalNdotH,
-            lerp(7.0f, 22.0f, metalSmoothness))
-            * saturate(ndotl * 0.85f + metalRimShape * 0.45f);
-        float3 sourceStableMetalFresnel = SourceStableFresnel(
-            metalCameraShape,
-            specularColor,
-            metallic);
-        float metalDirectSpecularScale = 0.45f + metallic * 0.30f;
-        spec = sourceStableMetalFresnel
-            * (metalDirectLobe + broadMetalLobe * 1.05f)
-            * saturate(PresentationMaterialTuning.y)
-            * metalDirectSpecularScale;
+        float3 metalNormal = dot(normal, viewDirection) < 0.0f ? -normal : normal;
+        float metalNdotL = saturate(dot(metalNormal, lightDirection));
+        float metalNdotV = max(saturate(dot(metalNormal, viewDirection)), 1e-4f);
+        float3 metalHalfVector = SafeNormalize(
+            lightDirection + viewDirection,
+            viewDirection);
+        float metalHdotV = saturate(dot(metalHalfVector, viewDirection));
+        float metalDistribution = DistributionGGX(metalNormal, metalHalfVector, roughness);
+        float metalGeometry = GeometrySmith(
+            metalNormal,
+            viewDirection,
+            lightDirection,
+            roughness);
+        float3 metalFresnel = SourceStableFresnel(metalHdotV, specularColor);
+        float metalDenominator = max(4.0f * metalNdotV * metalNdotL, 1e-4f);
+        float3 metalCookTorrance = metalDistribution
+            * metalGeometry
+            * metalFresnel
+            / metalDenominator;
+        float metalDirectSpecularScale = 0.35f + metallic * 0.35f;
+        spec = min(
+            metalCookTorrance
+                * metalNdotL
+                * saturate(PresentationMaterialTuning.y)
+                * metalDirectSpecularScale,
+            float3(0.85f, 0.85f, 0.85f));
     }
     else
     {
@@ -821,8 +829,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             : (conservativeNonmetal ? 0.025f : 0.08f);
         spec = SourceStableFresnel(
             nonmetalCameraShape,
-            resolvedSurfaceF0,
-            metallic)
+            resolvedSurfaceF0)
             * nonmetalDirectLobe
             * saturate(PresentationMaterialTuning.y)
             * nonmetalDirectSpecularScale;
@@ -932,7 +939,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float3 reflectedView = SafeNormalize(
         reflect(-viewDirection, normal),
         float3(0.0f, 0.0f, -1.0f));
-    float environmentIntensity = PreviewEnvironmentIntensity(reflectedView, roughness);
+    float3 environmentRadiance = PreviewEnvironmentRadiance(reflectedView, roughness);
     float smoothness = saturate(1.0f - roughness);
     float authorityGlossCue = (explicitMaterialAuthorityHint && !conservativeNonmetal)
         ? saturate(
@@ -944,8 +951,8 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         ? 0.55f + metallic * lerp(0.45f, 1.10f, smoothness)
         : (glossyNonmetal ? 0.18f : (conservativeNonmetal ? 0.018f : 0.08f));
     environmentMaterialScale = max(environmentMaterialScale, authorityGlossCue * 0.32f);
-    float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0, metallic);
-    float3 environmentSpecular = environmentIntensity
+    float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0);
+    float3 environmentSpecular = environmentRadiance
         * environmentFresnel
         * max(PresentationToneTuning.w, 0.0f)
         * categoryEnvironmentScale
@@ -955,8 +962,8 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         float metalCameraShape = saturate(abs(dot(normal, viewDirection)));
         float metalEnvironmentScale = 0.55f
             + metallic * lerp(0.45f, 1.10f, smoothness);
-        environmentSpecular = environmentIntensity
-            * SourceStableFresnel(metalCameraShape, sourceStableF0, metallic)
+        environmentSpecular = environmentRadiance
+            * SourceStableFresnel(metalCameraShape, sourceStableF0)
             * max(PresentationToneTuning.w, 0.0f)
             * categoryEnvironmentScale
             * metalEnvironmentScale;
@@ -973,7 +980,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float fillLight = WrappedNdotL(normal, fillDirection, 0.82f);
     float cameraShape = saturate(abs(dot(normal, viewDirection)));
     float rimShape = pow(saturate(1.0f - cameraShape), lerp(2.4f, 1.2f, smoothness));
-    float ambientFloor = categoryMetal ? 0.24f : (categorySkin ? 0.60f : (conservativeNonmetal ? 0.58f : 0.52f));
+    float ambientFloor = categoryMetal ? 0.16f : (categorySkin ? 0.60f : (conservativeNonmetal ? 0.58f : 0.52f));
     float diffuseDepth = saturate(
         ambientFloor * PresentationLightingTuning.w
         + PresentationLightingTuning.z * (keyLight * 0.58f + fillLight * 0.30f + rimShape * 0.12f));
@@ -986,7 +993,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
                         : (categoryLeather ? 0.52f : 0.50f)))));
     diffuseDepth = lerp(1.0f, diffuseDepth, depthAuthority);
     float nonmetalTextureScale = conservativeNonmetal ? 1.03f : 1.0f;
-    float metalDiffuseScale = lerp(1.0f, 0.34f, saturate(metallic));
+    float metalDiffuseScale = lerp(1.0f, 0.20f, saturate(metallic));
     float3 litDiffuse = materialReferenceAlbedo
         * ambientOcclusion
         * nonmetalTextureScale
@@ -999,14 +1006,14 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float glossyCue = glossyNonmetal
         ? saturate(resolvedSpecular * lerp(0.06f, 0.20f, smoothness))
         : 0.0f;
-    litDiffuse += materialReferenceAlbedo * metalCue * 0.16f;
+    litDiffuse += materialReferenceAlbedo * metalCue * 0.08f;
     litDiffuse += materialReferenceAlbedo * glossyCue * 0.22f;
     litDiffuse += materialReferenceAlbedo
         * authorityGlossCue
         * (0.035f + rimShape * 0.16f);
     float3 metallicSourceAnchor = materialReferenceAlbedo
         * metallic
-        * (0.14f + roughness * 0.06f + (1.0f - ndotv) * 0.30f)
+        * (0.055f + roughness * 0.035f + (1.0f - ndotv) * 0.12f)
         * ambientOcclusion;
     float3 finalColor = PresentationSurfaceTuning.w > 0.5f
         ? baseColor.rgb + emissive

@@ -48,7 +48,11 @@ def test_builder_presentation_fields_are_consumed_by_the_vortice_renderer() -> N
     assert "float3 exposedColor = max(" in hlsl_source
     assert "finalColor * max(PresentationToneTuning.x, 0.05f)" in hlsl_source
     assert "finalColor = exposedColor * (mappedLuma / max(exposedLuma, 1e-5f));" in hlsl_source
-    assert "PreviewEnvironmentIntensity" in hlsl_source
+    assert "PreviewEnvironmentRadiance" in hlsl_source
+    assert "PreviewEnvironmentIntensity" not in hlsl_source
+    assert "DistributionGGX(metalNormal, metalHalfVector, roughness)" in hlsl_source
+    assert "GeometrySmith(" in hlsl_source
+    assert "return FresnelSchlick(cosTheta, reflectanceAtNormal);" in hlsl_source
     assert "SourceStableFresnel" in hlsl_source
     assert "environmentSpecular" in hlsl_source
     assert "bool isFrontFace : SV_IsFrontFace" in hlsl_source
