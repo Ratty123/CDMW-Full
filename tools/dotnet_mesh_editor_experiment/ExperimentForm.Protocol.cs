@@ -21,6 +21,24 @@ internal sealed partial class ExperimentForm
     private long _outgoingMutationRequestSequence;
     private long _residentProcessGeneration;
     private bool _applyingResidentStateResync;
+    private readonly Queue<ParsedProtocolMessage> _parsedProtocolMessages = new();
+    private readonly Dictionary<string, ParsedProtocolMessage> _latestParsedProtocolMessages = new(StringComparer.Ordinal);
+    private readonly object _parsedProtocolMessageLock = new();
+    private readonly SemaphoreSlim _orderedProtocolSlots = new(MaximumParsedProtocolBacklog, MaximumParsedProtocolBacklog);
+    private readonly SemaphoreSlim _latestProtocolSlot = new(1, 1);
+    private int _parsedProtocolMessageCount;
+    private int _protocolDrainScheduled;
+    private long _parsedProtocolArrivalSequence;
+    private const int MaximumParsedProtocolBacklog = 2048;
+
+    private readonly record struct ParsedProtocolMessage(
+        JsonElement Root,
+        string EventName,
+        IReadOnlyList<PreviewVertexGroup>? PreparedVertexUpdate = null,
+        bool VertexUpdatePrepared = false,
+        PreviewTriangleUpdatePlan? PreparedTriangleUpdate = null,
+        bool TriangleUpdatePrepared = false,
+        long ArrivalSequence = 0L);
 
     private static Dictionary<string, object?> MetricsPayload(RenderMetrics metrics)
     {
@@ -41,16 +59,13 @@ internal sealed partial class ExperimentForm
                 ["responsiveness_ms"] = metrics.AverageResponsivenessMs,
                 ["frame_count"] = metrics.FrameCount,
                 ["has_rendered_frame"] = metrics.HasRenderedFrame,
-                ["memory_mb"] = Process.GetCurrentProcess().WorkingSet64 / (1024.0 * 1024.0)
+                ["memory_mb"] = Environment.WorkingSet / (1024.0 * 1024.0)
             }
         };
     }
 
-    private static string RendererMetricsText(RenderMetrics metrics, IReadOnlyDictionary<string, object?> renderer, bool compact)
+    private static string RendererMetricsText(RenderMetrics metrics, string backend, bool compact)
     {
-        var backend = renderer.TryGetValue("backend", out var rawBackend)
-            ? Convert.ToString(rawBackend, CultureInfo.InvariantCulture)
-            : "unknown";
         if (!metrics.HasRenderedFrame)
         {
             return compact
@@ -83,14 +98,120 @@ internal sealed partial class ExperimentForm
                 string? line;
                 while ((line = reader.ReadLine()) is not null)
                 {
-                    var captured = line;
+                    var received = Stopwatch.GetTimestamp();
+                    var allocatedBytesBefore = PreviewPerformanceCapture.IsActive
+                        ? GC.GetAllocatedBytesForCurrentThread()
+                        : 0L;
+                    if (PreviewPerformanceCapture.IsActive)
+                    {
+                        PreviewPerformanceCapture.RecordPhase(
+                            PreviewPerformancePhase.ProtocolReceive,
+                            received,
+                            received,
+                            allocatedBytesBefore);
+                    }
                     try
                     {
-                        BeginInvoke(new Action(() => HandleProtocolLine(captured)));
+                        using var document = JsonDocument.Parse(line);
+                        if (document.RootElement.ValueKind != JsonValueKind.Object)
+                        {
+                            continue;
+                        }
+                        var root = document.RootElement.Clone();
+                        var eventName = JsonString(root, "event");
+                        if (eventName.Length == 0)
+                        {
+                            eventName = JsonString(root, "type");
+                        }
+                        eventName = eventName.Trim().ToLowerInvariant();
+                        var parsed = Stopwatch.GetTimestamp();
+                        if (PreviewPerformanceCapture.IsActive)
+                        {
+                            PreviewPerformanceCapture.RecordPhase(
+                                PreviewPerformancePhase.ProtocolParse,
+                                received,
+                                parsed,
+                                allocatedBytesBefore,
+                                JsonLongValue(root, "request_id"));
+                        }
+                        if (IsPerformanceInputEvent(eventName))
+                        {
+                            PreviewPerformanceCapture.RecordInputAtTimestamp(
+                                PreviewPerformanceInputKind.Protocol,
+                                JsonLongValue(root, "request_id"),
+                                received);
+                        }
+                        if (eventName == "performance_heartbeat")
+                        {
+                            PreviewPerformanceCapture.RecordHeartbeat(PreviewPerformanceHeartbeatKind.QtHost);
+                            continue;
+                        }
+                        if (eventName == "performance_input")
+                        {
+                            continue;
+                        }
+                        IReadOnlyList<PreviewVertexGroup>? preparedVertexUpdate = null;
+                        var vertexUpdatePrepared = false;
+                        if (eventName == "preview_vertex_update")
+                        {
+                            vertexUpdatePrepared = true;
+                            var vertexAllocatedBytesBefore = PreviewPerformanceCapture.IsActive
+                                ? GC.GetAllocatedBytesForCurrentThread()
+                                : 0L;
+                            var vertexStarted = Stopwatch.GetTimestamp();
+                            if (root.TryGetProperty("vertex_groups", out var vertexGroups)
+                                && vertexGroups.ValueKind == JsonValueKind.Array)
+                            {
+                                _ = TryParsePreviewVertexGroups(vertexGroups, out preparedVertexUpdate);
+                            }
+                            if (PreviewPerformanceCapture.IsActive)
+                            {
+                                PreviewPerformanceCapture.RecordPhase(
+                                    PreviewPerformancePhase.VertexPrepare,
+                                    vertexStarted,
+                                    Stopwatch.GetTimestamp(),
+                                    vertexAllocatedBytesBefore,
+                                    JsonLongValue(root, "request_id"));
+                            }
+                        }
+                        PreviewTriangleUpdatePlan? preparedTriangleUpdate = null;
+                        var triangleUpdatePrepared = false;
+                        if (eventName == "preview_triangle_update")
+                        {
+                            triangleUpdatePrepared = true;
+                            var topologyAllocatedBytesBefore = PreviewPerformanceCapture.IsActive
+                                ? GC.GetAllocatedBytesForCurrentThread()
+                                : 0L;
+                            var topologyStarted = Stopwatch.GetTimestamp();
+                            if (root.TryGetProperty("triangle_groups", out var triangleGroups)
+                                && triangleGroups.ValueKind == JsonValueKind.Array)
+                            {
+                                _ = TryPreparePreviewTriangleGroups(root, triangleGroups, out preparedTriangleUpdate);
+                            }
+                            if (PreviewPerformanceCapture.IsActive)
+                            {
+                                PreviewPerformanceCapture.RecordPhase(
+                                    PreviewPerformancePhase.TopologyPrepare,
+                                    topologyStarted,
+                                    Stopwatch.GetTimestamp(),
+                                    topologyAllocatedBytesBefore,
+                                    JsonLongValue(root, "request_id"));
+                            }
+                        }
+                        QueueParsedProtocolMessage(new ParsedProtocolMessage(
+                            root,
+                            eventName,
+                            preparedVertexUpdate,
+                            vertexUpdatePrepared,
+                            preparedTriangleUpdate,
+                            triangleUpdatePrepared));
                     }
-                    catch (InvalidOperationException)
+                    catch (JsonException ex)
                     {
-                        break;
+                        WriteProtocolEvent("error", new Dictionary<string, object?>
+                        {
+                            ["message"] = $"Malformed protocol JSON: {ex.Message}",
+                        });
                     }
                 }
             }
@@ -113,12 +234,164 @@ internal sealed partial class ExperimentForm
             {
                 return;
             }
-            var eventName = JsonString(document.RootElement, "event");
+            var root = document.RootElement;
+            var eventName = JsonString(root, "event");
             if (eventName.Length == 0)
             {
-                eventName = JsonString(document.RootElement, "type");
+                eventName = JsonString(root, "type");
             }
-            switch (eventName.Trim().ToLowerInvariant())
+            HandleParsedProtocolMessage(new ParsedProtocolMessage(root.Clone(), eventName.Trim().ToLowerInvariant()));
+        }
+        catch (JsonException ex)
+        {
+            WriteProtocolEvent("error", new Dictionary<string, object?> { ["message"] = $"Malformed protocol JSON: {ex.Message}" });
+        }
+    }
+
+    private void QueueParsedProtocolMessage(ParsedProtocolMessage message)
+    {
+        message = message with { ArrivalSequence = Interlocked.Increment(ref _parsedProtocolArrivalSequence) };
+        var coalescingKey = ProtocolCoalescingKey(message);
+        if (coalescingKey is not null)
+        {
+            lock (_parsedProtocolMessageLock)
+            {
+                if (_latestParsedProtocolMessages.ContainsKey(coalescingKey))
+                {
+                    PreviewPerformanceCapture.RecordProtocolInputCoalesced();
+                    _latestParsedProtocolMessages[coalescingKey] = message;
+                    PreviewPerformanceCapture.RecordProtocolInputQueueDepth(1);
+                    ScheduleProtocolDrain();
+                    return;
+                }
+            }
+            _latestProtocolSlot.Wait();
+            lock (_parsedProtocolMessageLock)
+            {
+                _latestParsedProtocolMessages[coalescingKey] = message;
+                _parsedProtocolMessageCount++;
+            }
+            PreviewPerformanceCapture.RecordProtocolInputQueueDepth(1);
+            ScheduleProtocolDrain();
+            return;
+        }
+        _orderedProtocolSlots.Wait();
+        int orderedDepth;
+        lock (_parsedProtocolMessageLock)
+        {
+            _parsedProtocolMessages.Enqueue(message);
+            _parsedProtocolMessageCount++;
+            orderedDepth = _parsedProtocolMessages.Count;
+        }
+        PreviewPerformanceCapture.RecordOrderedProtocolInputQueueDepth(orderedDepth);
+        ScheduleProtocolDrain();
+    }
+
+    private static string? ProtocolCoalescingKey(ParsedProtocolMessage message)
+    {
+        var root = message.Root;
+        var sessionId = JsonString(root, "session_id").Trim();
+        return message.EventName switch
+        {
+            "preview_vertex_update" or "preview_triangle_update" => $"{message.EventName}|{sessionId}",
+            "texture_region_update" => $"{message.EventName}|{JsonString(root, "resource_id").Trim()}",
+            "material_state_update" or "material_parameter_update" => $"{message.EventName}|{sessionId}",
+            "viewport_display_update" or "scene_state_update" or "presentation_state_update" => message.EventName,
+            _ => null,
+        };
+    }
+
+    private void ScheduleProtocolDrain()
+    {
+        if (Interlocked.CompareExchange(ref _protocolDrainScheduled, 1, 0) != 0)
+        {
+            return;
+        }
+        try
+        {
+            BeginInvoke(new Action(DrainParsedProtocolMessages));
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref _protocolDrainScheduled, 0);
+        }
+    }
+
+    private void DrainParsedProtocolMessages()
+    {
+        const int maximumMessagesPerDispatch = 32;
+        var processed = 0;
+        while (processed < maximumMessagesPerDispatch && TryDequeueParsedProtocolMessage(out var message))
+        {
+            HandleParsedProtocolMessage(message);
+            processed++;
+        }
+        Interlocked.Exchange(ref _protocolDrainScheduled, 0);
+        lock (_parsedProtocolMessageLock)
+        {
+            if (_parsedProtocolMessageCount > 0)
+            {
+                ScheduleProtocolDrain();
+            }
+        }
+    }
+
+    private bool TryDequeueParsedProtocolMessage(out ParsedProtocolMessage message)
+    {
+        var releaseOrderedSlot = false;
+        var releaseLatestSlot = false;
+        lock (_parsedProtocolMessageLock)
+        {
+            var hasOrdered = _parsedProtocolMessages.TryPeek(out var ordered);
+            string? latestKey = null;
+            ParsedProtocolMessage latest = default;
+            foreach (var pair in _latestParsedProtocolMessages)
+            {
+                if (latestKey is null || pair.Value.ArrivalSequence < latest.ArrivalSequence)
+                {
+                    latestKey = pair.Key;
+                    latest = pair.Value;
+                }
+            }
+            if (!hasOrdered && latestKey is null)
+            {
+                message = default;
+                return false;
+            }
+            if (hasOrdered && (latestKey is null || ordered.ArrivalSequence < latest.ArrivalSequence))
+            {
+                message = _parsedProtocolMessages.Dequeue();
+                releaseOrderedSlot = true;
+            }
+            else
+            {
+                message = latest;
+                _latestParsedProtocolMessages.Remove(latestKey!);
+                releaseLatestSlot = true;
+            }
+            _parsedProtocolMessageCount--;
+        }
+        if (releaseOrderedSlot)
+        {
+            _orderedProtocolSlots.Release();
+        }
+        if (releaseLatestSlot)
+        {
+            _latestProtocolSlot.Release();
+        }
+        return true;
+    }
+
+    private void HandleParsedProtocolMessage(ParsedProtocolMessage message)
+    {
+        var root = message.Root;
+        var eventName = message.EventName;
+        var captureActive = PreviewPerformanceCapture.IsActive;
+        var allocatedBytesBefore = captureActive ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+        var applyStarted = captureActive ? Stopwatch.GetTimestamp() : 0L;
+        try
+        {
+            switch (eventName)
             {
                 case "close_request":
                     Close();
@@ -129,7 +402,7 @@ internal sealed partial class ExperimentForm
                     WriteProtocolEvent("deactivated");
                     break;
                 case "activate_request":
-                    var requestedMaterialSignature = JsonString(document.RootElement, "material_signature");
+                    var requestedMaterialSignature = JsonString(root, "material_signature");
                     if (requestedMaterialSignature.Length > 0 && !string.Equals(requestedMaterialSignature, _materials.Signature, StringComparison.Ordinal))
                     {
                         RequestMaterialSync(requestedMaterialSignature);
@@ -138,14 +411,14 @@ internal sealed partial class ExperimentForm
                     _ = ActivateResidentViewport();
                     break;
                 case "session_state":
-                    ObserveResidentSession(document.RootElement);
-                    ApplyHistoryState(document.RootElement);
-                    ApplySelectionUpdate(document.RootElement, requireCorrelation: false);
+                    ObserveResidentSession(root);
+                    ApplyHistoryState(root);
+                    ApplySelectionUpdate(root, requireCorrelation: false);
                     _statusLabel.Text = "Live MeshService bridge connected.";
                     break;
-                case "tool_state": ApplyHostToolState(document.RootElement); break;
+                case "tool_state": ApplyHostToolState(root); break;
                 case "selection_update":
-                    if (ApplySelectionUpdate(document.RootElement))
+                    if (ApplySelectionUpdate(root))
                     {
                         _statusLabel.Text = "Selection updated by MeshService.";
                     }
@@ -155,45 +428,81 @@ internal sealed partial class ExperimentForm
                     }
                     break;
                 case "preview_vertex_update":
-                    ApplyPreviewVertexUpdate(document.RootElement);
+                    ApplyPreviewVertexUpdate(
+                        root,
+                        message.PreparedVertexUpdate,
+                        message.VertexUpdatePrepared);
                     break;
                 case "preview_triangle_update":
-                    ApplyPreviewTriangleUpdate(document.RootElement);
+                    ApplyPreviewTriangleUpdate(
+                        root,
+                        message.PreparedTriangleUpdate,
+                        message.TriangleUpdatePrepared);
                     break;
                 case "resident_state_resync":
-                    ApplyResidentStateResync(document.RootElement);
+                    ApplyResidentStateResync(root);
                     break;
                 case "material_state_update":
-                    HandleMaterialStateUpdate(document.RootElement);
+                    HandleMaterialStateUpdate(root);
                     break;
                 case "material_parameter_update":
-                    HandleMaterialParameterUpdate(document.RootElement);
+                    HandleMaterialParameterUpdate(root);
                     break;
                 case "texture_region_update":
-                    HandleTextureRegionUpdate(document.RootElement);
+                    HandleTextureRegionUpdate(root);
                     break;
                 case "viewport_display_update":
-                    HandleViewportDisplayUpdate(document.RootElement);
+                    HandleViewportDisplayUpdate(root);
                     break;
                 case "scene_state_update":
-                    HandleSceneStateUpdate(document.RootElement);
+                    HandleSceneStateUpdate(root);
                     break;
                 case "presentation_state_update":
-                    HandlePresentationStateUpdate(document.RootElement);
+                    HandlePresentationStateUpdate(root);
                     break;
                 case "capture_request":
-                    HandleCaptureRequest(document.RootElement);
+                    HandleCaptureRequest(root);
+                    break;
+                case "performance_capture_start":
+                    HandlePerformanceCaptureStart(root);
+                    break;
+                case "performance_capture_stop":
+                    HandlePerformanceCaptureStop(root);
+                    break;
+                case "performance_heartbeat":
+                    HandlePerformanceHeartbeat(root);
+                    break;
+                case "performance_input":
                     break;
                 case "command_result":
-                    HandleCommandResult(document.RootElement);
+                    HandleCommandResult(root);
                     break;
             }
         }
-        catch (JsonException ex)
+        finally
         {
-            WriteProtocolEvent("error", new Dictionary<string, object?> { ["message"] = $"Malformed protocol JSON: {ex.Message}" });
+            if (captureActive)
+            {
+                PreviewPerformanceCapture.RecordPhase(
+                    PreviewPerformancePhase.ProtocolApply,
+                    applyStarted,
+                    Stopwatch.GetTimestamp(),
+                    allocatedBytesBefore,
+                    JsonLongValue(root, "request_id"));
+            }
         }
     }
+
+    private static bool IsPerformanceInputEvent(string eventName) => eventName is
+        "performance_input" or
+        "preview_vertex_update" or
+        "preview_triangle_update" or
+        "texture_region_update" or
+        "material_state_update" or
+        "material_parameter_update" or
+        "viewport_display_update" or
+        "scene_state_update" or
+        "presentation_state_update";
 
     private void HandleCaptureRequest(JsonElement root)
     {
@@ -305,7 +614,13 @@ internal sealed partial class ExperimentForm
         return IsReparsePoint(outputPath);
     }
 
-    private void ApplyPreviewVertexUpdate(JsonElement root)
+    private void ApplyPreviewVertexUpdate(JsonElement root) =>
+        ApplyPreviewVertexUpdate(root, null, vertexUpdatePrepared: false);
+
+    private void ApplyPreviewVertexUpdate(
+        JsonElement root,
+        IReadOnlyList<PreviewVertexGroup>? preparedVertexUpdate,
+        bool vertexUpdatePrepared)
     {
         var revision = ProtocolEditRevision(root);
         if (!CanApplyEditRevision(revision, out var rejectionReason))
@@ -313,16 +628,30 @@ internal sealed partial class ExperimentForm
             WriteEditRevisionAck(root, "preview_vertex_update_ack", "rejected", revision, 0, rejectionReason);
             return;
         }
-        if (!root.TryGetProperty("vertex_groups", out var groups) || groups.ValueKind != JsonValueKind.Array)
+        IReadOnlyList<PreviewVertexGroup> parsedGroups;
+        if (vertexUpdatePrepared)
         {
-            WriteEditRevisionAck(root, "preview_vertex_update_ack", "rejected", revision, 0, "invalid_payload");
-            return;
+            if (preparedVertexUpdate is null
+                || !ValidatePreviewVertexGroups(_document, preparedVertexUpdate))
+            {
+                WriteEditRevisionAck(root, "preview_vertex_update_ack", "rejected", revision, 0, "invalid_payload");
+                return;
+            }
+            parsedGroups = preparedVertexUpdate;
         }
-        if (!TryParsePreviewVertexGroups(_document, groups, out var parsedGroups))
+        else
         {
-            WriteEditRevisionAck(root, "preview_vertex_update_ack", "rejected", revision, 0, "invalid_payload");
-            return;
+            if (!root.TryGetProperty("vertex_groups", out var groups)
+                || groups.ValueKind != JsonValueKind.Array
+                || !TryParsePreviewVertexGroups(_document, groups, out parsedGroups))
+            {
+                WriteEditRevisionAck(root, "preview_vertex_update_ack", "rejected", revision, 0, "invalid_payload");
+                return;
+            }
         }
+        var captureVertex = PreviewPerformanceCapture.IsActive;
+        var vertexAllocatedBytesBefore = captureVertex ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+        var vertexStarted = captureVertex ? Stopwatch.GetTimestamp() : 0L;
         var changedPositions = new Dictionary<int, HashSet<int>>();
         var changedNormals = new Dictionary<int, HashSet<int>>();
         var changedUvs = new Dictionary<int, HashSet<int>>();
@@ -385,6 +714,15 @@ internal sealed partial class ExperimentForm
             _viewport.Invalidate();
             _statusLabel.Text = "Vertex update applied from MeshService.";
         }
+        if (captureVertex)
+        {
+            PreviewPerformanceCapture.RecordPhase(
+                PreviewPerformancePhase.VertexCommit,
+                vertexStarted,
+                Stopwatch.GetTimestamp(),
+                vertexAllocatedBytesBefore,
+                JsonLongValue(root, "request_id"));
+        }
         MarkEditRevisionApplied(revision);
         WriteEditRevisionAck(
             root,
@@ -412,7 +750,13 @@ internal sealed partial class ExperimentForm
         return changed.TryGetValue(submeshIndex, out var indices) ? indices : Array.Empty<int>();
     }
 
-    private void ApplyPreviewTriangleUpdate(JsonElement root)
+    private void ApplyPreviewTriangleUpdate(JsonElement root) =>
+        ApplyPreviewTriangleUpdate(root, null, triangleUpdatePrepared: false);
+
+    private void ApplyPreviewTriangleUpdate(
+        JsonElement root,
+        PreviewTriangleUpdatePlan? preparedTriangleUpdate,
+        bool triangleUpdatePrepared)
     {
         var revision = ProtocolEditRevision(root);
         if (!CanApplyEditRevision(revision, out var rejectionReason))
@@ -420,19 +764,43 @@ internal sealed partial class ExperimentForm
             WriteEditRevisionAck(root, "preview_triangle_update_ack", "rejected", revision, 0, rejectionReason);
             return;
         }
-        if (!root.TryGetProperty("triangle_groups", out var groups) || groups.ValueKind != JsonValueKind.Array)
+        JsonElement groups = default;
+        if ((!triangleUpdatePrepared
+                && (!root.TryGetProperty("triangle_groups", out groups) || groups.ValueKind != JsonValueKind.Array))
+            || (triangleUpdatePrepared && preparedTriangleUpdate is null))
         {
             WriteEditRevisionAck(root, "preview_triangle_update_ack", "rejected", revision, 0, "invalid_payload");
             return;
         }
-        if (!TryApplyPreviewTriangleGroups(
+        var captureTopology = PreviewPerformanceCapture.IsActive;
+        var topologyAllocatedBytesBefore = captureTopology ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+        var topologyStarted = captureTopology ? Stopwatch.GetTimestamp() : 0L;
+        var applied = triangleUpdatePrepared
+            ? TryCommitPreviewTriangleGroups(
                 _document,
-                root,
-                groups,
+                preparedTriangleUpdate!,
                 out var changedCount,
                 out var affectedSubmeshes,
                 out var materialSources,
-                out var replaceAll))
+                out var replaceAll)
+            : TryApplyPreviewTriangleGroups(
+                _document,
+                root,
+                groups,
+                out changedCount,
+                out affectedSubmeshes,
+                out materialSources,
+                out replaceAll);
+        if (captureTopology)
+        {
+            PreviewPerformanceCapture.RecordPhase(
+                PreviewPerformancePhase.TopologyCommit,
+                topologyStarted,
+                Stopwatch.GetTimestamp(),
+                topologyAllocatedBytesBefore,
+                JsonLongValue(root, "request_id"));
+        }
+        if (!applied)
         {
             WriteEditRevisionAck(root, "preview_triangle_update_ack", "rejected", revision, 0, "invalid_payload");
             return;

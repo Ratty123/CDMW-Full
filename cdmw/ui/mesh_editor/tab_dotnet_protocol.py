@@ -176,6 +176,13 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
             return self._handle_dotnet_material_parameter_event(payload, event)
         if event == "capture_result":
             return self._handle_dotnet_capture_result(payload)
+        if event in {
+            "performance_capture_started",
+            "performance_capture_stopping",
+            "performance_capture_complete",
+        }:
+            self.standalone_dotnet_status_payload["performance_capture"] = dict(payload)
+            return True
         if event == "select_request":
             return self._handle_dotnet_select_request(payload)
         if event == "selection_request":

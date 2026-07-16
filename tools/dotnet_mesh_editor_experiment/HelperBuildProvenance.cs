@@ -8,6 +8,9 @@ namespace Cdmw.MeshEditorExperiment;
 internal static class HelperBuildProvenance
 {
     public const string ManifestFileName = "cdmw-mesh-dotnet-editor.manifest.json";
+    private static readonly Lazy<IReadOnlyDictionary<string, object?>> CachedIdentity = new(
+        BuildIdentityPayload,
+        LazyThreadSafetyMode.ExecutionAndPublication);
     public static readonly string[] RequiredProtocolCapabilities =
     {
         "mesh_edit_revision_ack_v1",
@@ -21,9 +24,19 @@ internal static class HelperBuildProvenance
         "authoritative_resident_scene_frame_v2",
         "helper_build_provenance_v1",
         "deterministic_offscreen_capture_v1",
+        "performance_capture_v1",
     };
 
     public static Dictionary<string, object?> Payload(IEnumerable<string> capabilities)
+    {
+        var payload = new Dictionary<string, object?>(CachedIdentity.Value, StringComparer.Ordinal)
+        {
+            ["capabilities"] = capabilities.Order(StringComparer.Ordinal).ToArray(),
+        };
+        return payload;
+    }
+
+    private static IReadOnlyDictionary<string, object?> BuildIdentityPayload()
     {
         var processPath = Environment.ProcessPath ?? string.Empty;
         var assembly = Assembly.GetExecutingAssembly();
@@ -56,7 +69,6 @@ internal static class HelperBuildProvenance
             ["shader_sha256"] = shaderSha,
             ["renderer_backend"] = "d3d11_vortice_shader",
             ["edit_backend"] = "cdmw_mesh_core_0.1",
-            ["capabilities"] = capabilities.Order(StringComparer.Ordinal).ToArray(),
         };
     }
 

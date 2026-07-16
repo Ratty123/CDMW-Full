@@ -18,12 +18,34 @@ internal sealed partial class D3D11MaterialViewport
     private int _overlayVertexWriteOffset;
     private long _overlayVertexBufferCreateCount;
     private long _overlayVertexBufferMapCount;
-    private long _overlayVertexBufferNoOverwriteCount;
     private long _overlayVerticesUploaded;
+    private long _overlayBatchFlushCount;
+    private long _overlayBatchedDrawCount;
+    private readonly List<Vector3> _overlayScratchA = new(InitialOverlayVertexCapacity);
+    private readonly List<Vector3> _overlayScratchB = new(InitialOverlayVertexCapacity);
+    private readonly List<Vector3> _overlayFrameVertices = new(InitialOverlayVertexCapacity);
+    private readonly List<D3D11OverlayDrawCommand> _overlayDrawCommands = new(64);
+    private readonly List<Vector3> _gridMinorVertices = new(80);
+    private readonly List<Vector3> _gridMajorVertices = new(24);
+    private readonly List<Vector3> _referenceOverlayVertices = new(InitialOverlayVertexCapacity);
+    private readonly D3D11WireOverlayCache _comparisonWireOverlayCache = new();
+    private readonly D3D11WireOverlayCache _referenceWireOverlayCache = new();
+    private readonly D3D11WireOverlayCache _editableWireOverlayCache = new();
+    private Vector3 _cachedGridOrigin;
+    private float _cachedGridSpacing;
+    private bool _gridGeometryValid;
+    private D3D11OverlayGeometryGenerationKey _referenceOverlayGeneration;
+    private bool _referenceOverlayValid;
+    private long _retainedOverlayCacheHitCount;
+    private long _retainedOverlayRebuildCount;
+    private byte _overlayCommandDepthMode;
 
     private void BeginOverlayFrame()
     {
         _overlayVertexWriteOffset = 0;
+        _overlayFrameVertices.Clear();
+        _overlayDrawCommands.Clear();
+        _overlayCommandDepthMode = 0;
     }
 
     private void DisposeOverlayDynamicResources()
@@ -76,6 +98,7 @@ internal sealed partial class D3D11MaterialViewport
         }
         _context.OMSetBlendState(_overlayBlendState);
         _context.OMSetDepthStencilState(_overlayDepthState);
+        _overlayCommandDepthMode = 0;
         _context.IASetInputLayout(_overlayInputLayout);
         _context.VSSetShader(_overlayVertexShader);
         _context.GSSetShader(null);
@@ -88,7 +111,14 @@ internal sealed partial class D3D11MaterialViewport
         }
         if (_overlayShowVertices)
         {
-            DrawD3D11VertexOverlay();
+            _overlayDrawCommands.Add(new D3D11OverlayDrawCommand(
+                PrimitiveTopology.Undefined,
+                0,
+                0,
+                default,
+                default,
+                _overlayCommandDepthMode,
+                DrawSceneVertices: true));
         }
         if (!_overlayShowXRay)
         {
@@ -99,6 +129,7 @@ internal sealed partial class D3D11MaterialViewport
         }
 
         _context.OMSetDepthStencilState(_overlayNoDepthState);
+        _overlayCommandDepthMode = 1;
         if (_overlayShowXRay)
         {
             if (!_overlayShowWire)
@@ -121,7 +152,9 @@ internal sealed partial class D3D11MaterialViewport
         }
 
         _context.OMSetDepthStencilState(_gizmoDepthState);
+        _overlayCommandDepthMode = 2;
         DrawSceneGizmo();
+        FlushOverlayPrimitives();
         _context.OMSetBlendState(_blendState);
         _context.OMSetDepthStencilState(_depthState);
     }
@@ -130,33 +163,67 @@ internal sealed partial class D3D11MaterialViewport
     {
         if (ActivePaneGridVisible)
         {
-            var minor = new List<Vector3>();
-            var major = new List<Vector3>();
             var spacing = Math.Max(0.0001f, _scene.GridSpacing);
-            const int halfLines = 10;
-            for (var line = -halfLines; line <= halfLines; line++)
+            if (!_gridGeometryValid || _cachedGridOrigin != _scene.GridOrigin || _cachedGridSpacing != spacing)
             {
-                var target = line % 5 == 0 ? major : minor;
-                var offset = line * spacing;
-                target.Add(_scene.GridOrigin + new Vector3(-halfLines * spacing, 0, offset));
-                target.Add(_scene.GridOrigin + new Vector3(halfLines * spacing, 0, offset));
-                target.Add(_scene.GridOrigin + new Vector3(offset, 0, -halfLines * spacing));
-                target.Add(_scene.GridOrigin + new Vector3(offset, 0, halfLines * spacing));
+                RebuildGridGeometry(spacing);
             }
-            DrawOverlayPrimitive(PrimitiveTopology.LineList, minor, OverlayColor(90, 105, 120, 75), _camera.WorldViewProjection);
-            DrawOverlayPrimitive(PrimitiveTopology.LineList, major, OverlayColor(125, 140, 155, 115), _camera.WorldViewProjection);
+            else
+            {
+                _retainedOverlayCacheHitCount++;
+            }
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, _gridMinorVertices, OverlayColor(90, 105, 120, 75), _camera.WorldViewProjection);
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, _gridMajorVertices, OverlayColor(125, 140, 155, 115), _camera.WorldViewProjection);
         }
         if (_scene.ComparisonMode == "overlay")
         {
-            var referenceLines = new List<Vector3>();
-            for (var submeshIndex = _scene.EditableSubmeshCount; submeshIndex < _scene.EditableSubmeshCount + _scene.ReferenceSubmeshCount; submeshIndex++)
+            var generation = OverlayGeometryGenerationKey();
+            if (!_referenceOverlayValid || _referenceOverlayGeneration != generation)
             {
-                if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count) continue;
-                var ignoredTriangles = new List<Vector3>();
-                AddSubmeshFaceVertices(submeshIndex, ignoredTriangles, referenceLines);
+                RebuildReferenceOverlay(generation);
             }
-            DrawOverlayPrimitive(PrimitiveTopology.LineList, referenceLines, OverlayColor(90, 205, 255, 190), _camera.WorldViewProjection);
+            else
+            {
+                _retainedOverlayCacheHitCount++;
+            }
+            DrawOverlayPrimitive(PrimitiveTopology.LineList, _referenceOverlayVertices, OverlayColor(90, 205, 255, 190), _camera.WorldViewProjection);
         }
+    }
+
+    private void RebuildGridGeometry(float spacing)
+    {
+        _gridMinorVertices.Clear();
+        _gridMajorVertices.Clear();
+        const int halfLines = 10;
+        for (var line = -halfLines; line <= halfLines; line++)
+        {
+            var target = line % 5 == 0 ? _gridMajorVertices : _gridMinorVertices;
+            var offset = line * spacing;
+            target.Add(_scene.GridOrigin + new Vector3(-halfLines * spacing, 0, offset));
+            target.Add(_scene.GridOrigin + new Vector3(halfLines * spacing, 0, offset));
+            target.Add(_scene.GridOrigin + new Vector3(offset, 0, -halfLines * spacing));
+            target.Add(_scene.GridOrigin + new Vector3(offset, 0, halfLines * spacing));
+        }
+        _cachedGridOrigin = _scene.GridOrigin;
+        _cachedGridSpacing = spacing;
+        _gridGeometryValid = true;
+        _retainedOverlayRebuildCount++;
+    }
+
+    private void RebuildReferenceOverlay(D3D11OverlayGeometryGenerationKey generation)
+    {
+        _referenceOverlayVertices.Clear();
+        for (var submeshIndex = _scene.EditableSubmeshCount; submeshIndex < _scene.EditableSubmeshCount + _scene.ReferenceSubmeshCount; submeshIndex++)
+        {
+            if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
+            {
+                continue;
+            }
+            AddSubmeshFaceLineVertices(submeshIndex, _referenceOverlayVertices);
+        }
+        _referenceOverlayGeneration = generation;
+        _referenceOverlayValid = true;
+        _retainedOverlayRebuildCount++;
     }
 
     private void DrawSceneGizmo()
@@ -185,14 +252,16 @@ internal sealed partial class D3D11MaterialViewport
         else if (_scene.GizmoTool == "scale")
         {
             var size = Math.Max(length * 0.055f, 0.001f);
+            var lines = ResetScratchA();
+            lines.Add(origin - new Vector3(size, 0, 0));
+            lines.Add(origin + new Vector3(size, 0, 0));
+            lines.Add(origin - new Vector3(0, size, 0));
+            lines.Add(origin + new Vector3(0, size, 0));
+            lines.Add(origin - new Vector3(0, 0, size));
+            lines.Add(origin + new Vector3(0, 0, size));
             DrawOverlayPrimitive(
                 PrimitiveTopology.LineList,
-                new List<Vector3>
-                {
-                    origin - new Vector3(size, 0, 0), origin + new Vector3(size, 0, 0),
-                    origin - new Vector3(0, size, 0), origin + new Vector3(0, size, 0),
-                    origin - new Vector3(0, 0, size), origin + new Vector3(0, 0, size),
-                },
+                lines,
                 OverlayColor(240, 240, 240, 245),
                 _camera.WorldViewProjection);
         }
@@ -215,7 +284,9 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawGizmoAxis(Vector3 origin, Vector3 axis, string label, Vector4 color)
     {
-        var lines = new List<Vector3> { origin, origin + axis };
+        var lines = ResetScratchA();
+        lines.Add(origin);
+        lines.Add(origin + axis);
         if (_scene.GizmoTool == "scale")
         {
             var tip = origin + axis;
@@ -234,9 +305,14 @@ internal sealed partial class D3D11MaterialViewport
         var b = origin + (firstAxis * length * 0.42f);
         var c = origin + (secondAxis * length * 0.42f);
         var d = origin + (secondAxis * length * 0.22f);
+        var lines = ResetScratchA();
+        lines.Add(a); lines.Add(b);
+        lines.Add(b); lines.Add(c);
+        lines.Add(c); lines.Add(d);
+        lines.Add(d); lines.Add(a);
         DrawOverlayPrimitive(
             PrimitiveTopology.LineList,
-            new List<Vector3> { a, b, b, c, c, d, d, a },
+            lines,
             color,
             _camera.WorldViewProjection);
     }
@@ -244,34 +320,23 @@ internal sealed partial class D3D11MaterialViewport
     private void DrawGizmoCircle(Vector3 origin, float radius, int normalAxis, string label, Vector4 color)
     {
         const int segments = 48;
-        var lines = new List<Vector3>(segments * 2);
+        var lines = ResetScratchA();
         for (var index = 0; index < segments; index++)
         {
             var a = index * MathF.Tau / segments;
             var b = (index + 1) * MathF.Tau / segments;
-            Vector3 Point(float angle) => normalAxis switch
-            {
-                0 => origin + new Vector3(0, MathF.Cos(angle) * radius, MathF.Sin(angle) * radius),
-                1 => origin + new Vector3(MathF.Cos(angle) * radius, 0, MathF.Sin(angle) * radius),
-                _ => origin + new Vector3(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0),
-            };
-            lines.Add(Point(a)); lines.Add(Point(b));
+            lines.Add(GizmoCirclePoint(origin, radius, normalAxis, a));
+            lines.Add(GizmoCirclePoint(origin, radius, normalAxis, b));
         }
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, color, _camera.WorldViewProjection);
         var markerAngle = normalAxis == 1 ? MathF.PI * 0.5f : 0.0f;
-        Vector3 MarkerPoint(float angle) => normalAxis switch
-        {
-            0 => origin + new Vector3(0, MathF.Cos(angle) * radius, MathF.Sin(angle) * radius),
-            1 => origin + new Vector3(MathF.Cos(angle) * radius, 0, MathF.Sin(angle) * radius),
-            _ => origin + new Vector3(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0),
-        };
-        DrawGizmoHandleMarker(MarkerPoint(markerAngle), label, color);
+        DrawGizmoHandleMarker(GizmoCirclePoint(origin, radius, normalAxis, markerAngle), label, color);
     }
 
     private void DrawGizmoHandleMarker(Vector3 worldPoint, string label, Vector4 color)
     {
         var point = _camera.Project(new Vec3(worldPoint.X, worldPoint.Y, worldPoint.Z));
-        var marker = new List<Vector3>();
+        var marker = ResetScratchA();
         AddScreenQuad(point.X - 4.0f, point.Y - 4.0f, point.X + 4.0f, point.Y + 4.0f, marker);
         DrawOverlayPrimitive(PrimitiveTopology.TriangleList, marker, color, Matrix4x4.Identity);
 
@@ -279,14 +344,14 @@ internal sealed partial class D3D11MaterialViewport
         var top = point.Y - 6.0f;
         const float width = 7.0f;
         const float height = 12.0f;
-        var glyph = new List<Vector3>();
-        switch ((label ?? string.Empty).Trim().ToUpperInvariant())
+        var glyph = ResetScratchA();
+        switch (label)
         {
-            case "X":
+            case "x":
                 AddScreenLine(left, top, left + width, top + height, glyph);
                 AddScreenLine(left + width, top, left, top + height, glyph);
                 break;
-            case "Y":
+            case "y":
                 AddScreenLine(left, top, left + width * 0.5f, top + height * 0.5f, glyph);
                 AddScreenLine(left + width, top, left + width * 0.5f, top + height * 0.5f, glyph);
                 AddScreenLine(left + width * 0.5f, top + height * 0.5f, left + width * 0.5f, top + height, glyph);
@@ -307,30 +372,68 @@ internal sealed partial class D3D11MaterialViewport
     private void DrawD3D11WireOverlay()
     {
         var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
-        var lines = new List<Vector3>();
-        foreach (var edge in _overlayTopology.Edges)
+        var cache = WireOverlayCacheForActivePane();
+        var generation = OverlayGeometryGenerationKey();
+        if (!cache.Valid || cache.Generation != generation)
         {
-            if (edge.SubmeshIndex < 0
-                || edge.SubmeshIndex >= _document.Submeshes.Count
-                || !ActivePaneIncludes(edge.SubmeshIndex)
-                || _materials.ParametersForSubmesh(edge.SubmeshIndex).Visible is false)
+            cache.Lines.Clear();
+            var edges = _overlayTopology.Edges;
+            for (var edgeIndex = 0; edgeIndex < edges.Count; edgeIndex++)
             {
-                continue;
+                var edge = edges[edgeIndex];
+                if (edge.SubmeshIndex < 0
+                    || edge.SubmeshIndex >= _document.Submeshes.Count
+                    || !ActivePaneIncludes(edge.SubmeshIndex)
+                    || _materials.ParametersForSubmesh(edge.SubmeshIndex).Visible is false)
+                {
+                    continue;
+                }
+                AddEdgeLineVertices(edge, cache.Lines);
             }
-            AddEdgeLineVertices(edge, lines);
+            cache.Generation = generation;
+            cache.Valid = true;
+            _retainedOverlayRebuildCount++;
+        }
+        else
+        {
+            _retainedOverlayCacheHitCount++;
         }
         DrawOverlayPrimitive(
             PrimitiveTopology.LineList,
-            lines,
+            cache.Lines,
             ScaleOverlayAlpha(
                 _overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor,
                 overlayStyle.WireOpacityScale),
             _camera.WorldViewProjection);
-        if (lines.Count > 0)
+        if (cache.Lines.Count > 0)
         {
             _wireOverlayDrawCount++;
         }
     }
+
+    private D3D11WireOverlayCache WireOverlayCacheForActivePane() => (_activeRenderPane?.Role ?? "comparison") switch
+    {
+        "reference" => _referenceWireOverlayCache,
+        "editable" => _editableWireOverlayCache,
+        _ => _comparisonWireOverlayCache,
+    };
+
+    private D3D11OverlayGeometryGenerationKey OverlayGeometryGenerationKey() => new(
+        _topologyGeneration,
+        _sparseVertexUpdateCount,
+        _scene.SceneGeneration,
+        _scene.PresentationGeneration,
+        _materials.Generation,
+        _materialParameterApplyCount,
+        _scene.Translation,
+        _scene.RotationDegrees,
+        _scene.Scale,
+        (_activeRenderPane?.Role ?? "comparison") switch
+        {
+            "reference" => 1,
+            "editable" => 2,
+            _ => 0,
+        });
 
     private void DrawD3D11VertexOverlay()
     {
@@ -373,8 +476,8 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawSelectedSourcesOverlay()
     {
-        var triangles = new List<Vector3>();
-        var lines = new List<Vector3>();
+        var triangles = ResetScratchA();
+        var lines = ResetScratchB();
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
         {
             if (!_overlaySelectedSources.Contains(submeshIndex) && submeshIndex != _overlaySelectedSubmeshIndex)
@@ -393,8 +496,8 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawSelectedFacesOverlay()
     {
-        var triangles = new List<Vector3>();
-        var lines = new List<Vector3>();
+        var triangles = ResetScratchA();
+        var lines = ResetScratchB();
         foreach (var pair in _overlaySelectedFaces)
         {
             if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
@@ -421,10 +524,12 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawSelectedEdgesOverlay()
     {
-        var selected = new List<Vector3>();
-        var hovered = new List<Vector3>();
-        foreach (var edge in _overlayTopology.Edges)
+        var selected = ResetScratchA();
+        var hovered = ResetScratchB();
+        var edges = _overlayTopology.Edges;
+        for (var edgeIndex = 0; edgeIndex < edges.Count; edgeIndex++)
         {
+            var edge = edges[edgeIndex];
             if (edge.SubmeshIndex < 0
                 || edge.SubmeshIndex >= _document.Submeshes.Count
                 || !ActivePaneIncludes(edge.SubmeshIndex)
@@ -447,7 +552,7 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawSelectedVerticesOverlay()
     {
-        var lines = new List<Vector3>();
+        var lines = ResetScratchA();
         foreach (var pair in _overlaySelectedVertices)
         {
             if (pair.Key < 0 || pair.Key >= _document.Submeshes.Count)
@@ -482,17 +587,17 @@ internal sealed partial class D3D11MaterialViewport
             return;
         }
         var rect = _overlaySelectionRectangle.Value;
-        var triangles = new List<Vector3>();
+        var triangles = ResetScratchA();
         AddScreenQuad(rect.Left, rect.Top, rect.Right, rect.Bottom, triangles);
         DrawOverlayPrimitive(PrimitiveTopology.TriangleList, triangles, OverlayColor(96, 202, 255, 36), Matrix4x4.Identity);
-        var lines = new List<Vector3>();
+        var lines = ResetScratchA();
         AddScreenRectangle(rect.Left, rect.Top, rect.Right, rect.Bottom, lines);
         DrawOverlayPrimitive(PrimitiveTopology.LineList, lines, OverlayColor(96, 202, 255, 210), Matrix4x4.Identity);
     }
 
     private void DrawXRayOverlayMarker()
     {
-        var lines = new List<Vector3>();
+        var lines = ResetScratchA();
         AddScreenLine(8.0f, 8.0f, 32.0f, 24.0f, lines);
         AddScreenLine(32.0f, 8.0f, 8.0f, 24.0f, lines);
         AddScreenLine(40.0f, 8.0f, 58.0f, 24.0f, lines);
@@ -508,7 +613,7 @@ internal sealed partial class D3D11MaterialViewport
         }
         const int segments = 48;
         var center = _overlayBrushCursor.Value;
-        var lines = new List<Vector3>(segments * 2);
+        var lines = ResetScratchA();
         for (var index = 0; index < segments; index++)
         {
             var start = index * MathF.Tau / segments;
@@ -536,30 +641,69 @@ internal sealed partial class D3D11MaterialViewport
         }
     }
 
+    private void AddSubmeshFaceLineVertices(int submeshIndex, List<Vector3> lines)
+    {
+        if (submeshIndex < 0 || submeshIndex >= _document.Submeshes.Count)
+        {
+            return;
+        }
+        var submesh = _document.Submeshes[submeshIndex];
+        var model = ActivePaneModelMatrix(submeshIndex);
+        foreach (var face in submesh.Faces)
+        {
+            if (face.Corners.Length != 3)
+            {
+                continue;
+            }
+            var firstIndex = face.Corners[0].VertexIndex;
+            var secondIndex = face.Corners[1].VertexIndex;
+            var thirdIndex = face.Corners[2].VertexIndex;
+            if (firstIndex < 0 || firstIndex >= submesh.Vertices.Count
+                || secondIndex < 0 || secondIndex >= submesh.Vertices.Count
+                || thirdIndex < 0 || thirdIndex >= submesh.Vertices.Count)
+            {
+                continue;
+            }
+            var first = TransformVertex(submesh.Vertices[firstIndex], model);
+            var second = TransformVertex(submesh.Vertices[secondIndex], model);
+            var third = TransformVertex(submesh.Vertices[thirdIndex], model);
+            lines.Add(first);
+            lines.Add(second);
+            lines.Add(second);
+            lines.Add(third);
+            lines.Add(third);
+            lines.Add(first);
+        }
+    }
+
     private void AddFaceVertices(int submeshIndex, ObjSubmesh submesh, ObjFace face, List<Vector3> triangles, List<Vector3> lines)
     {
         if (face.Corners.Length != 3)
         {
             return;
         }
-        var vertices = new Vector3[3];
-        for (var index = 0; index < 3; index++)
+        var firstIndex = face.Corners[0].VertexIndex;
+        var secondIndex = face.Corners[1].VertexIndex;
+        var thirdIndex = face.Corners[2].VertexIndex;
+        if (firstIndex < 0 || firstIndex >= submesh.Vertices.Count
+            || secondIndex < 0 || secondIndex >= submesh.Vertices.Count
+            || thirdIndex < 0 || thirdIndex >= submesh.Vertices.Count)
         {
-            var vertexIndex = face.Corners[index].VertexIndex;
-            if (vertexIndex < 0 || vertexIndex >= submesh.Vertices.Count)
-            {
-                return;
-            }
-            var vertex = submesh.Vertices[vertexIndex];
-            vertices[index] = Vector3.Transform(new Vector3(vertex.X, vertex.Y, vertex.Z), ActivePaneModelMatrix(submeshIndex));
+            return;
         }
-        triangles.AddRange(vertices);
-        lines.Add(vertices[0]);
-        lines.Add(vertices[1]);
-        lines.Add(vertices[1]);
-        lines.Add(vertices[2]);
-        lines.Add(vertices[2]);
-        lines.Add(vertices[0]);
+        var model = ActivePaneModelMatrix(submeshIndex);
+        var first = TransformVertex(submesh.Vertices[firstIndex], model);
+        var second = TransformVertex(submesh.Vertices[secondIndex], model);
+        var third = TransformVertex(submesh.Vertices[thirdIndex], model);
+        triangles.Add(first);
+        triangles.Add(second);
+        triangles.Add(third);
+        lines.Add(first);
+        lines.Add(second);
+        lines.Add(second);
+        lines.Add(third);
+        lines.Add(third);
+        lines.Add(first);
     }
 
     private void AddEdgeLineVertices(NetEdge edge, List<Vector3> lines)
@@ -621,51 +765,134 @@ internal sealed partial class D3D11MaterialViewport
         return new Vector3((2.0f * x / width) - 1.0f, 1.0f - (2.0f * y / height), 0.0f);
     }
 
+    private List<Vector3> ResetScratchA()
+    {
+        _overlayScratchA.Clear();
+        return _overlayScratchA;
+    }
+
+    private List<Vector3> ResetScratchB()
+    {
+        _overlayScratchB.Clear();
+        return _overlayScratchB;
+    }
+
+    private static Vector3 GizmoCirclePoint(Vector3 origin, float radius, int normalAxis, float angle) => normalAxis switch
+    {
+        0 => origin + new Vector3(0, MathF.Cos(angle) * radius, MathF.Sin(angle) * radius),
+        1 => origin + new Vector3(MathF.Cos(angle) * radius, 0, MathF.Sin(angle) * radius),
+        _ => origin + new Vector3(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius, 0),
+    };
+
+    private static Vector3 TransformVertex(Vec3 vertex, Matrix4x4 model) =>
+        Vector3.Transform(new Vector3(vertex.X, vertex.Y, vertex.Z), model);
+
     private unsafe void DrawOverlayPrimitive(PrimitiveTopology topology, IReadOnlyList<Vector3> positions, Vector4 color, Matrix4x4 worldViewProjection)
     {
         if (positions.Count == 0 || _device is null || _context is null || _overlayCameraBuffer is null)
         {
             return;
         }
-        EnsureOverlayVertexCapacity(checked(_overlayVertexWriteOffset + positions.Count));
-        var vertexBuffer = _overlayVertexBuffer;
-        if (vertexBuffer is null)
+        var startVertex = _overlayFrameVertices.Count;
+        for (var index = 0; index < positions.Count; index++)
         {
+            _overlayFrameVertices.Add(positions[index]);
+        }
+        _overlayDrawCommands.Add(new D3D11OverlayDrawCommand(
+            topology,
+            startVertex,
+            positions.Count,
+            color,
+            worldViewProjection,
+            _overlayCommandDepthMode));
+    }
+
+    private unsafe void FlushOverlayPrimitives()
+    {
+        if (_overlayDrawCommands.Count == 0
+            || _device is null
+            || _context is null
+            || _overlayCameraBuffer is null)
+        {
+            _overlayFrameVertices.Clear();
+            _overlayDrawCommands.Clear();
             return;
         }
-        var startVertex = _overlayVertexWriteOffset;
-        var mapMode = startVertex == 0 ? MapMode.WriteDiscard : MapMode.WriteNoOverwrite;
-        var mapped = _context.Map(vertexBuffer, mapMode, MapFlags.None);
-        try
+        ID3D11Buffer? vertexBuffer = null;
+        if (_overlayFrameVertices.Count > 0)
         {
-            var destination = (D3D11OverlayVertex*)mapped.DataPointer + startVertex;
-            for (var index = 0; index < positions.Count; index++)
+            EnsureOverlayVertexCapacity(_overlayFrameVertices.Count);
+            vertexBuffer = _overlayVertexBuffer;
+            if (vertexBuffer is null)
             {
-                destination[index] = new D3D11OverlayVertex(positions[index]);
+                _overlayFrameVertices.Clear();
+                _overlayDrawCommands.Clear();
+                return;
             }
+            var mapped = _context.Map(vertexBuffer, MapMode.WriteDiscard, MapFlags.None);
+            try
+            {
+                var destination = (D3D11OverlayVertex*)mapped.DataPointer;
+                for (var index = 0; index < _overlayFrameVertices.Count; index++)
+                {
+                    destination[index] = new D3D11OverlayVertex(_overlayFrameVertices[index]);
+                }
+            }
+            finally
+            {
+                _context.Unmap(vertexBuffer, 0);
+            }
+            _overlayVertexWriteOffset = _overlayFrameVertices.Count;
+            _overlayVertexBufferMapCount++;
+            _overlayVerticesUploaded += _overlayFrameVertices.Count;
         }
-        finally
-        {
-            _context.Unmap(vertexBuffer, 0);
-        }
-        _overlayVertexWriteOffset = checked(startVertex + positions.Count);
-        _overlayVertexBufferMapCount++;
-        if (mapMode == MapMode.WriteNoOverwrite)
-        {
-            _overlayVertexBufferNoOverwriteCount++;
-        }
-        _overlayVerticesUploaded += positions.Count;
-        var constants = new D3D11OverlayConstants
-        {
-            WorldViewProjection = worldViewProjection,
-            Color = color,
-        };
-        _context.UpdateSubresource(in constants, _overlayCameraBuffer);
+        _overlayBatchFlushCount++;
+        _context.OMSetBlendState(_overlayBlendState);
+        _context.IASetInputLayout(_overlayInputLayout);
+        _context.VSSetShader(_overlayVertexShader);
+        _context.GSSetShader(null);
+        _context.PSSetShader(_overlayPixelShader);
         _context.VSSetConstantBuffer(1u, _overlayCameraBuffer);
         _context.PSSetConstantBuffer(1u, _overlayCameraBuffer);
-        _context.IASetPrimitiveTopology(topology);
-        _context.IASetVertexBuffer(0u, vertexBuffer, OverlayVertexStride);
-        _context.Draw((uint)positions.Count, (uint)startVertex);
+        if (vertexBuffer is not null)
+        {
+            _context.IASetVertexBuffer(0u, vertexBuffer, OverlayVertexStride);
+        }
+        foreach (var command in _overlayDrawCommands)
+        {
+            _context.OMSetDepthStencilState(command.DepthMode switch
+            {
+                1 => _overlayNoDepthState,
+                2 => _gizmoDepthState,
+                _ => _overlayDepthState,
+            });
+            if (command.DrawSceneVertices)
+            {
+                DrawD3D11VertexOverlay();
+                _context.IASetInputLayout(_overlayInputLayout);
+                _context.VSSetShader(_overlayVertexShader);
+                _context.GSSetShader(null);
+                _context.PSSetShader(_overlayPixelShader);
+                _context.VSSetConstantBuffer(1u, _overlayCameraBuffer);
+                _context.PSSetConstantBuffer(1u, _overlayCameraBuffer);
+                if (vertexBuffer is not null)
+                {
+                    _context.IASetVertexBuffer(0u, vertexBuffer, OverlayVertexStride);
+                }
+                continue;
+            }
+            var constants = new D3D11OverlayConstants
+            {
+                WorldViewProjection = command.WorldViewProjection,
+                Color = command.Color,
+            };
+            _context.UpdateSubresource(in constants, _overlayCameraBuffer);
+            _context.IASetPrimitiveTopology(command.Topology);
+            _context.Draw((uint)command.VertexCount, (uint)command.StartVertex);
+            _overlayBatchedDrawCount++;
+        }
+        _overlayFrameVertices.Clear();
+        _overlayDrawCommands.Clear();
     }
 
     private static Vector4 OverlayColor(int red, int green, int blue, int alpha)
@@ -684,6 +911,34 @@ internal sealed partial class D3D11MaterialViewport
 
 [StructLayout(LayoutKind.Sequential)]
 internal readonly record struct D3D11OverlayVertex(Vector3 Position);
+
+internal readonly record struct D3D11OverlayDrawCommand(
+    PrimitiveTopology Topology,
+    int StartVertex,
+    int VertexCount,
+    Vector4 Color,
+    Matrix4x4 WorldViewProjection,
+    byte DepthMode,
+    bool DrawSceneVertices = false);
+
+internal readonly record struct D3D11OverlayGeometryGenerationKey(
+    long TopologyGeneration,
+    long SparseVertexUpdateCount,
+    long SceneGeneration,
+    long PresentationGeneration,
+    long MaterialGeneration,
+    long MaterialParameterApplyCount,
+    Vector3 Translation,
+    Vector3 RotationDegrees,
+    Vector3 Scale,
+    int PaneRole);
+
+internal sealed class D3D11WireOverlayCache
+{
+    public List<Vector3> Lines { get; } = new(4096);
+    public D3D11OverlayGeometryGenerationKey Generation { get; set; }
+    public bool Valid { get; set; }
+}
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct D3D11OverlayConstants

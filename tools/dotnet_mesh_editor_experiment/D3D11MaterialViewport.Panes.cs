@@ -19,7 +19,10 @@ internal readonly record struct D3D11RenderPane(
 
 internal sealed partial class D3D11MaterialViewport
 {
-    private D3D11RenderPane[] _renderPanes = Array.Empty<D3D11RenderPane>();
+    private readonly D3D11RenderPane[] _renderPanes = new D3D11RenderPane[2];
+    private int _renderPaneCount;
+    private readonly D3D11RenderPane[] _fallbackRenderPane = new D3D11RenderPane[1];
+    private readonly Vector3[] _surfaceQuadVertices = new Vector3[6];
     private D3D11RenderPane? _activeRenderPane;
     private long _referencePaneRenderCount;
     private long _editablePaneRenderCount;
@@ -29,30 +32,51 @@ internal sealed partial class D3D11MaterialViewport
 
     public void UpdateRenderPanes(IEnumerable<D3D11RenderPane> panes)
     {
-        _renderPanes = panes
-            .Where(pane => pane.Bounds.Width > 0 && pane.Bounds.Height > 0)
-            .ToArray();
+        var count = 0;
+        foreach (var pane in panes)
+        {
+            if (pane.Bounds.Width > 0 && pane.Bounds.Height > 0 && count < _renderPanes.Length)
+            {
+                _renderPanes[count++] = pane;
+            }
+        }
+        _renderPaneCount = count;
     }
 
-    private IReadOnlyList<D3D11RenderPane> PanesForFrame(bool replacementOnly)
+    public void UpdateRenderPanes(D3D11RenderPane[] panes, int count)
     {
-        if (!replacementOnly && _renderPanes.Length > 0)
+        var writeCount = 0;
+        var limit = Math.Min(Math.Min(count, panes.Length), _renderPanes.Length);
+        for (var index = 0; index < limit; index++)
         {
+            var pane = panes[index];
+            if (pane.Bounds.Width > 0 && pane.Bounds.Height > 0)
+            {
+                _renderPanes[writeCount++] = pane;
+            }
+        }
+        _renderPaneCount = writeCount;
+    }
+
+    private D3D11RenderPane[] PanesForFrame(bool replacementOnly, out int count)
+    {
+        if (!replacementOnly && _renderPaneCount > 0)
+        {
+            count = _renderPaneCount;
             return _renderPanes;
         }
-        return new[]
-        {
-            new D3D11RenderPane(
-                new Rectangle(0, 0, Math.Max(1, _renderWidth), Math.Max(1, _renderHeight)),
-                _camera,
-                replacementOnly ? "editable" : "comparison",
-                TexturesEnabled ? "textured" : (ShowSolid ? "solid" : "wire"),
-                MaterialDebugMode,
-                TexturesEnabled,
-                _scene.GridVisible,
-                _scene.GizmoVisible,
-                true),
-        };
+        _fallbackRenderPane[0] = new D3D11RenderPane(
+            new Rectangle(0, 0, Math.Max(1, _renderWidth), Math.Max(1, _renderHeight)),
+            _camera,
+            replacementOnly ? "editable" : "comparison",
+            TexturesEnabled ? "textured" : (ShowSolid ? "solid" : "wire"),
+            MaterialDebugMode,
+            TexturesEnabled,
+            _scene.GridVisible,
+            _scene.GizmoVisible,
+            true);
+        count = 1;
+        return _fallbackRenderPane;
     }
 
     private void ActivateRenderPane(D3D11RenderPane pane)
@@ -60,12 +84,18 @@ internal sealed partial class D3D11MaterialViewport
         _activeRenderPane = pane;
         _camera = pane.Camera;
         _materialDebugMode = Math.Clamp(pane.MaterialDebugMode, 0, 12);
-        var mode = (pane.DisplayMode ?? "textured").Trim().ToLowerInvariant();
-        ShowSolid = mode is not ("wire" or "vertices");
-        TexturesEnabled = pane.TexturesEnabled && mode is ("textured" or "textured_wire");
-        _overlayShowWire = mode is "wire" or "wire_vertices" or "xray";
-        _overlayShowVertices = mode is "vertices" or "wire_vertices";
-        _overlayShowXRay = mode == "xray";
+        var mode = pane.DisplayMode ?? "textured";
+        ShowSolid = !string.Equals(mode, "wire", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(mode, "vertices", StringComparison.OrdinalIgnoreCase);
+        TexturesEnabled = pane.TexturesEnabled
+            && (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase));
+        _overlayShowWire = string.Equals(mode, "wire", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
+        _overlayShowVertices = string.Equals(mode, "vertices", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase);
+        _overlayShowXRay = string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
         _context?.RSSetViewport(new Viewport(
             pane.Bounds.X,
             pane.Bounds.Y,
@@ -116,7 +146,7 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawPaneDividerOverlay()
     {
-        if (_renderPanes.Length != 2
+        if (_renderPaneCount != 2
             || _context is null
             || _device is null
             || _overlayInputLayout is null
@@ -126,9 +156,12 @@ internal sealed partial class D3D11MaterialViewport
         {
             return;
         }
-        var ordered = _renderPanes.OrderBy(pane => pane.Bounds.Left).ToArray();
-        var gapLeft = ordered[0].Bounds.Right;
-        var gapRight = ordered[1].Bounds.Left;
+        var first = _renderPanes[0];
+        var second = _renderPanes[1];
+        var leftPane = first.Bounds.Left <= second.Bounds.Left ? first : second;
+        var rightPane = first.Bounds.Left <= second.Bounds.Left ? second : first;
+        var gapLeft = leftPane.Bounds.Right;
+        var gapRight = rightPane.Bounds.Left;
         if (gapRight <= gapLeft)
         {
             return;
@@ -136,12 +169,15 @@ internal sealed partial class D3D11MaterialViewport
         _context.RSSetViewport(new Viewport(0, 0, Math.Max(1, _renderWidth), Math.Max(1, _renderHeight), 0, 1));
         _context.OMSetBlendState(_overlayBlendState);
         _context.OMSetDepthStencilState(_overlayNoDepthState);
+        _overlayCommandDepthMode = 1;
         _context.IASetInputLayout(_overlayInputLayout);
         _context.VSSetShader(_overlayVertexShader);
         _context.PSSetShader(_overlayPixelShader);
         DrawSurfaceQuad(gapLeft, 0, gapRight, _renderHeight, OverlayColor(112, 121, 132, 245));
         var center = (gapLeft + gapRight) * 0.5f;
         DrawSurfaceQuad(center - 1.0f, 0, center + 1.0f, _renderHeight, OverlayColor(232, 236, 240, 255));
+        FlushOverlayPrimitives();
+        _overlayCommandDepthMode = 0;
         _context.OMSetBlendState(_blendState);
         _context.OMSetDepthStencilState(_depthState);
     }
@@ -150,26 +186,31 @@ internal sealed partial class D3D11MaterialViewport
     {
         var width = Math.Max(1.0f, _renderWidth);
         var height = Math.Max(1.0f, _renderHeight);
-        Vector3 Clip(float x, float y) => new((2.0f * x / width) - 1.0f, 1.0f - (2.0f * y / height), 0.0f);
-        var a = Clip(left, top);
-        var b = Clip(right, top);
-        var c = Clip(right, bottom);
-        var d = Clip(left, bottom);
+        var a = new Vector3((2.0f * left / width) - 1.0f, 1.0f - (2.0f * top / height), 0.0f);
+        var b = new Vector3((2.0f * right / width) - 1.0f, 1.0f - (2.0f * top / height), 0.0f);
+        var c = new Vector3((2.0f * right / width) - 1.0f, 1.0f - (2.0f * bottom / height), 0.0f);
+        var d = new Vector3((2.0f * left / width) - 1.0f, 1.0f - (2.0f * bottom / height), 0.0f);
+        _surfaceQuadVertices[0] = a;
+        _surfaceQuadVertices[1] = b;
+        _surfaceQuadVertices[2] = c;
+        _surfaceQuadVertices[3] = a;
+        _surfaceQuadVertices[4] = c;
+        _surfaceQuadVertices[5] = d;
         DrawOverlayPrimitive(
             PrimitiveTopology.TriangleList,
-            new[] { a, b, c, a, c, d },
+            _surfaceQuadVertices,
             color,
             Matrix4x4.Identity);
     }
 
     public Dictionary<string, object?> PaneRenderStatusPayload() => new()
     {
-        ["simultaneous"] = _renderPanes.Length == 2,
+        ["simultaneous"] = _renderPaneCount == 2,
         ["shared_device"] = true,
         ["shared_geometry_resources"] = true,
         ["reference_render_count"] = _referencePaneRenderCount,
         ["editable_render_count"] = _editablePaneRenderCount,
-        ["views"] = _renderPanes.Select(pane => new Dictionary<string, object?>
+        ["views"] = _renderPanes.Take(_renderPaneCount).Select(pane => new Dictionary<string, object?>
         {
             ["role"] = pane.Role,
             ["x"] = pane.Bounds.X,

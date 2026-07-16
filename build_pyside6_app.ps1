@@ -548,6 +548,7 @@ function Invoke-DotNetMeshEditorBuild {
         "authoritative_resident_scene_frame_v2"
         "helper_build_provenance_v1"
         "deterministic_offscreen_capture_v1"
+        "performance_capture_v1"
     )
     $sourceRevision = (& git -C $scriptDir rev-parse HEAD 2>$null | Select-Object -First 1)
     if (-not $sourceRevision) {

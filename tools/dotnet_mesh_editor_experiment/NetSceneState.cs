@@ -41,6 +41,7 @@ internal sealed class NetSceneState
     public string SessionId { get; private set; } = string.Empty;
     public string SourceIdentity { get; private set; } = string.Empty;
     public long SceneGeneration { get; private set; }
+    public long PresentationGeneration { get; private set; }
     public long LastRequestId { get; private set; }
     public Matrix4x4 EditableModelMatrix { get; private set; } = Matrix4x4.Identity;
     public Matrix4x4 ReferenceModelMatrix { get; private set; } = Matrix4x4.Identity;
@@ -214,12 +215,25 @@ internal sealed class NetSceneState
         };
     }
 
-    public void SetComparisonMode(string value) =>
-        ComparisonMode = EffectiveComparisonMode(value, InteractionMode);
+    public void SetComparisonMode(string value)
+    {
+        var next = EffectiveComparisonMode(value, InteractionMode);
+        if (string.Equals(next, ComparisonMode, StringComparison.Ordinal))
+        {
+            return;
+        }
+        ComparisonMode = next;
+        PresentationGeneration++;
+    }
     public void SetPresentationOverlayVisibility(bool gridVisible, bool gizmoVisible)
     {
+        if (GridVisible == gridVisible && GizmoVisible == gizmoVisible)
+        {
+            return;
+        }
         GridVisible = gridVisible;
         GizmoVisible = gizmoVisible;
+        PresentationGeneration++;
     }
     public void SetPresentationHiddenSubmeshes(IEnumerable<int> indices)
     {
@@ -228,6 +242,7 @@ internal sealed class NetSceneState
         {
             _presentationHiddenSubmeshes.Add(index);
         }
+        PresentationGeneration++;
     }
     public void SetPresentationPartMatrices(
         IReadOnlyDictionary<int, Matrix4x4> matrices,
@@ -243,6 +258,7 @@ internal sealed class NetSceneState
         {
             _presentationPartRoles[pair.Key] = pair.Value;
         }
+        PresentationGeneration++;
     }
     public void SetGizmoTool(string value) => GizmoTool = NormalizeGizmo(value);
     public void SetHoveredGizmoHandle(string value) => HoveredGizmoHandle = NormalizeGizmoHandle(value);
@@ -524,6 +540,7 @@ internal sealed class NetSceneState
         SessionId = other.SessionId;
         SourceIdentity = other.SourceIdentity;
         SceneGeneration = other.SceneGeneration;
+        PresentationGeneration = other.PresentationGeneration;
         LastRequestId = other.LastRequestId;
         EditableModelMatrix = other.EditableModelMatrix;
         ReferenceModelMatrix = other.ReferenceModelMatrix;

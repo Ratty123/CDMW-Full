@@ -1,6 +1,6 @@
 # Mesh Editing Pipeline
 
-Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
+Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
 
 ## Current Implementation Map
 
@@ -372,10 +372,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
   or another active monitor refresh rate without a software 60 Hz cap when the
   input rate and GPU/display budget permit it.
   Grid, gizmo, selection, wire, and divider vertices stream through one
-  capacity-growing dynamic D3D11 vertex buffer. The first overlay upload in a
-  frame uses discard mapping and later non-overlapping uploads use no-overwrite
-  mapping, so overlay primitives do not create and dispose GPU buffers in the
-  draw loop.
+  capacity-growing dynamic D3D11 vertex buffer and one discard map per pane
+  frame. Draw commands preserve the established grid/wire/vertex/selection
+  layering after that single upload. Grid, wire, reference, selection, and
+  highlight geometry is retained by topology, scene, presentation, material,
+  and selection generations, so unchanged overlays do not rebuild or create
+  and dispose GPU buffers in the draw loop.
   The production D3D11 child exclusively owns viewport painting: the parent
   WinForms CPU/GDI fallback returns before traversing any faces while that child
   exists. Windowed presentation uses DXGI flip-discard rather than the legacy
@@ -559,6 +561,47 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-14.
   upload counters, cached SRV binding arrays, VRAM estimates, post-warmup
   working-set growth, and hidden-window proof. `--gpu-soak-smoke` permits an
   explicitly non-release reduced diagnostic run.
+  `--headless-gpu-frame-pacing-soak --frame-pacing-report <path>
+  --frame-pacing-duration-seconds <n> --frame-pacing-target-hz <n>` is the
+  sustained hidden presentation gate. It performs the configured warm-up before
+  capture, keeps the production device/swap chain resident, and writes
+  `cdmw_dotnet_preview_performance_v1` evidence with raw frame, render, Present,
+  correlated delayed D3D11 GPU-query, input-latency, heartbeat, allocation, GC,
+  queue, resource-identity, RAM, and VRAM samples. Query coverage must resolve
+  every issued sample except the bounded in-flight query ring; disjoint or
+  dropped queries fail the report. The normal editor keeps only constant-time
+  counters active. Percentiles, full diagnostics, DXGI memory, hashing, and JSON
+  serialization are outside the render loop. Capture rings are allocated and
+  page-committed before the working-set baseline; the report records their byte
+  size so ten-minute RAM growth does not mistake lazy instrumentation-page
+  commitment for renderer growth.
+  The resident helper advertises additive `performance_capture_v1` start/stop
+  messages. The canonical real-PAC harness accepts a strict
+  `cdmw_dotnet_preview_performance_manifest_v1` only for
+  `real-archive-mesh-editor-dotnet-edit-smoke`, prepares the selected PAC once,
+  sizes the Qt host to the requested capture resolution, and schedules declared
+  camera, Side by Side, overlay/highlight, selection/brush, material, texture,
+  topology, and resize workloads with a monotonic rate. Ordered control/final
+  protocol events are non-droppable; high-frequency immutable updates retain
+  one latest pending value per correlated stream. Texture updates retain one
+  latest pending value per resource and upload/generate mips at most once per
+  presented frame. Final material, texture, topology, display, and size states
+  are restored and acknowledged before the report is closed.
+  Release acceptance at 1920x1080/144 Hz requires frame interval p95 at most
+  8.68 ms, p99 at most 13.89 ms, fewer than 0.1% of intervals above 13.89 ms,
+  no interval above 20.83 ms, input-to-present p95 at most 13.89 ms, host
+  heartbeats at most 33.3 ms, no captured-frame managed allocations, no Gen1 or
+  Gen2 collection, queue depth at most one, complete input/final-revision
+  accounting, stable device/resource identities, and at most 5% post-warm-up
+  RAM/VRAM growth. CPU and GPU p99 must remain below 16.7 ms. The windowed path
+  remains flip-discard with VSync `Present(1)` and maximum frame latency one;
+  it does not enable tearing, adaptive quality, or a UI-thread waitable-object
+  wait. Explicit performance capture uses a balanced 1 ms Windows timer-resolution
+  request and a generation-guarded worker timer that posts at most one pending
+  invalidation to the WinForms owner; normal editor use does not raise timer
+  resolution. Continuous Qt-parent resize remains an end-to-end hard-gate
+  workload and must not be omitted when the other interaction segments pass.
+  The helper uses Vortice 3.8.3 on .NET 8.
   Sparse camera bounds retain the six current extremum owners. Interior edits
   update bounds and center in O(changed vertices); moving an extremum inward
   triggers one exact rebase, preventing stale camera and picking coordinates.

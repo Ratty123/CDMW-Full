@@ -7,6 +7,44 @@ internal sealed partial class D3D11MaterialViewport
 {
     private ulong _peakDxgiLocalUsageBytes;
 
+    public Dictionary<string, object?> LiveMetricsPayload()
+    {
+        return new Dictionary<string, object?>
+        {
+            ["available"] = true,
+            ["topology_generation"] = _topologyGeneration,
+            ["sparse_vertex_updates"] = _sparseVertexUpdateCount,
+            ["vertex_patch_ranges"] = _vertexPatchRangeCount,
+            ["textured_solid_batch_draws"] = _texturedSolidBatchDrawCount,
+            ["untextured_solid_batch_draws"] = _untexturedSolidBatchDrawCount,
+            ["transparent_solid_batch_draws"] = _transparentSolidBatchDrawCount,
+            ["wire_overlay_draws"] = _wireOverlayDrawCount,
+            ["vertex_overlay_batch_draws"] = _vertexOverlayBatchDrawCount,
+            ["overlay_vertex_buffer_maps"] = _overlayVertexBufferMapCount,
+            ["overlay_vertices_uploaded"] = _overlayVerticesUploaded,
+            ["overlay_batch_flushes"] = _overlayBatchFlushCount,
+            ["overlay_batched_draws"] = _overlayBatchedDrawCount,
+            ["retained_overlay_cache_hits"] = _retainedOverlayCacheHitCount,
+            ["retained_overlay_rebuilds"] = _retainedOverlayRebuildCount,
+            ["texture_region_patch_count"] = _textureRegionPatchCount,
+            ["texture_region_bytes_uploaded"] = _textureRegionBytesUploaded,
+            ["texture_region_mip_generation_count"] = _textureRegionMipGenerationCount,
+            ["texture_region_gpu_upload_pass_count"] = _textureRegionGpuUploadPassCount,
+            ["texture_region_coalesced_count"] = _textureRegionCoalescedCount,
+            ["texture_region_pending_depth"] = _pendingTextureRegions.Count,
+            ["resident_geometry_bytes_estimate"] = _residentGeometryBytes,
+            ["resident_texture_bytes_estimate"] = _textureResidentBytes,
+            ["device_reset_count"] = _deviceResetCount,
+            ["gpu_timestamp_queries_issued"] = _gpuTimingQueryIssuedCount,
+            ["gpu_timestamp_queries_resolved"] = _gpuTimingQueryResolvedCount,
+            ["gpu_timestamp_queries_disjoint"] = _gpuTimingQueryDisjointCount,
+            ["gpu_timestamp_queries_dropped"] = _gpuTimingQueryDroppedCount,
+            ["swap_chain_resize_deferred_count"] = _swapChainResizeDeferredCount,
+            ["swap_chain_resize_coalesced_count"] = _swapChainResizeCoalescedCount,
+            ["swap_chain_resize_commit_count"] = _swapChainResizeCommitCount,
+        };
+    }
+
     public Dictionary<string, object?> ResourceMetricsPayload()
     {
         var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
@@ -45,11 +83,24 @@ internal sealed partial class D3D11MaterialViewport
             ["wire_overlay_opacity_scale"] = overlayStyle.WireOpacityScale,
             ["overlay_vertex_buffer_creates"] = _overlayVertexBufferCreateCount,
             ["overlay_vertex_buffer_maps"] = _overlayVertexBufferMapCount,
-            ["overlay_vertex_buffer_no_overwrite_maps"] = _overlayVertexBufferNoOverwriteCount,
+            ["overlay_vertex_buffer_no_overwrite_maps"] = 0L,
             ["overlay_vertices_uploaded"] = _overlayVerticesUploaded,
+            ["overlay_batch_flushes"] = _overlayBatchFlushCount,
+            ["overlay_batched_draws"] = _overlayBatchedDrawCount,
+            ["retained_overlay_cache_hits"] = _retainedOverlayCacheHitCount,
+            ["retained_overlay_rebuilds"] = _retainedOverlayRebuildCount,
             ["overlay_vertex_capacity"] = _overlayVertexCapacity,
             ["overlay_vertex_buffer_reused"] = _overlayVertexBufferCreateCount > 0
                 && _overlayVertexBufferMapCount > _overlayVertexBufferCreateCount,
+            ["overlay_uploads_batched"] = _overlayBatchedDrawCount > _overlayBatchFlushCount,
+            ["gpu_timestamp_query_slots"] = _gpuTimingQuerySets.Length,
+            ["gpu_timestamp_queries_issued"] = _gpuTimingQueryIssuedCount,
+            ["gpu_timestamp_queries_resolved"] = _gpuTimingQueryResolvedCount,
+            ["gpu_timestamp_queries_disjoint"] = _gpuTimingQueryDisjointCount,
+            ["gpu_timestamp_queries_dropped"] = _gpuTimingQueryDroppedCount,
+            ["swap_chain_resize_deferred_count"] = _swapChainResizeDeferredCount,
+            ["swap_chain_resize_coalesced_count"] = _swapChainResizeCoalescedCount,
+            ["swap_chain_resize_commit_count"] = _swapChainResizeCommitCount,
             ["resident_geometry_bytes_estimate"] = _residentGeometryBytes,
             ["peak_resident_geometry_bytes_estimate"] = _peakResidentGeometryBytes,
             ["peak_geometry_old_plus_new_bytes_estimate"] = _peakGeometryRebuildBytesEstimate,
@@ -83,6 +134,10 @@ internal sealed partial class D3D11MaterialViewport
             ["texture_region_failure_count"] = _textureRegionFailureCount,
             ["texture_region_affected_batch_rebinds"] = _textureRegionAffectedBatchRebindCount,
             ["texture_region_mip_generation_count"] = _textureRegionMipGenerationCount,
+            ["texture_region_gpu_upload_pass_count"] = _textureRegionGpuUploadPassCount,
+            ["texture_region_coalesced_count"] = _textureRegionCoalescedCount,
+            ["texture_region_pending_depth"] = _pendingTextureRegions.Count,
+            ["texture_region_maximum_pending_depth"] = _maximumPendingTextureRegionDepth,
             ["editable_texture_resources"] = _editableTextureRegions.Count,
             ["editable_texture_mip_levels"] = _editableTextureRegions.ToDictionary(
                 pair => pair.Key,

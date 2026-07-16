@@ -17,7 +17,7 @@ def test_dotnet_texture_region_protocol_is_negotiated_validated_and_acknowledged
 
     assert 'ResidentTextureRegionUpdatesCapability = "resident_texture_region_updates_v1"' in region
     assert 'case "texture_region_update":' in protocol
-    assert "HandleTextureRegionUpdate(document.RootElement);" in protocol
+    assert "HandleTextureRegionUpdate(root);" in protocol
     assert '"resident_texture_region_updates_v1"' in provenance
     assert "HelperBuildProvenance.RequiredProtocolCapabilities" in protocol
     assert 'capabilities.Add("resident_texture_region_updates_v1")' in status
@@ -112,6 +112,24 @@ def test_dotnet_texture_region_gpu_path_is_copy_on_write_boxed_upload_with_regen
     assert "EditableMipLevelCount" in source
     assert "EditableMipBytes" in source
     assert "int MipCount" in source
+    assert "TryQueueTextureRegion" in source
+    viewport_source = _source("D3D11MaterialViewport.cs")
+    assert "ApplyPendingTextureRegion();" in viewport_source
+    paint_source = viewport_source.split("protected override void OnPaint", maxsplit=1)[1].split(
+        "private bool EnsureDeviceReady", maxsplit=1
+    )[0]
+    assert paint_source.index("var presentMs = RenderFrame();") < paint_source.index("PublishTextureRegionCompletion();")
+    assert "finally" not in paint_source
+    assert "if (_completedTextureRegion is not null)" in source
+    assert "_pendingTextureRegions.TryGetValue(update.ResourceId, out var superseded)" in source
+    assert "_pendingTextureRegionOrder.Enqueue(update.ResourceId);" in source
+    assert "MaximumPendingTextureResources = 64" in source
+    assert "for the same resource replaced the pending update" in source
+    assert "_textureRegionGpuUploadPassCount++;" in source
+    assert "DiscardPendingTextureRegion(" in paint_source
+    assert "else\n            {\n                Invalidate();\n            }" in paint_source
+    assert "PublishTextureRegionCompletion();" in _source("D3D11MaterialViewport.Headless.cs")
+    assert "CompleteQueuedTextureRegionUpdate" in _source("ExperimentForm.TextureRegionProtocol.cs")
 
     assert "ID3D11Texture2D Texture" in resources
     assert "entry.View.Dispose();" in resources
@@ -123,6 +141,10 @@ def test_dotnet_texture_region_gpu_path_is_copy_on_write_boxed_upload_with_regen
         "texture_region_failure_count",
         "texture_region_affected_batch_rebinds",
         "texture_region_mip_generation_count",
+        "texture_region_gpu_upload_pass_count",
+        "texture_region_coalesced_count",
+        "texture_region_pending_depth",
+        "texture_region_maximum_pending_depth",
         "editable_texture_resources",
         "editable_texture_mip_levels",
     ):

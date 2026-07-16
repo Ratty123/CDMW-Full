@@ -19,6 +19,10 @@ internal sealed partial class ExperimentForm
     private long _lastAppliedMaterialParameterGeneration;
     private string _residentMaterialSessionId = string.Empty;
     private bool _activateAfterMaterialSync;
+    private RendererDiagnosticCacheKey _rendererDiagnosticCacheKey;
+    private Dictionary<string, object?>? _rendererDiagnosticCache;
+    private long _rendererDiagnosticCacheHitCount;
+    private long _rendererDiagnosticRebuildCount;
 
     private Dictionary<string, object?> LifecycleCountsPayload()
     {
@@ -40,21 +44,88 @@ internal sealed partial class ExperimentForm
             ["texture_region_failed_count"] = _textureRegionFailedCount,
             ["texture_decode_singleflight_join_count"] = _textureSet.DecodeSingleflightJoinCount,
             ["decoded_bitmap_prune_count"] = _textureSet.DecodedBitmapPruneCount,
+            ["renderer_diagnostic_cache_hits"] = _rendererDiagnosticCacheHitCount,
+            ["renderer_diagnostic_rebuilds"] = _rendererDiagnosticRebuildCount,
+            ["embedded_host_resize_deferred_count"] = _embeddedHostResizeDeferredCount,
+            ["embedded_host_resize_coalesced_count"] = _embeddedHostResizeCoalescedCount,
+            ["embedded_host_resize_commit_count"] = _embeddedHostResizeCommitCount,
         };
     }
 
     private Dictionary<string, object?> RendererStatusWithLifecycle()
     {
-        var renderer = _viewport.RendererStatusPayload();
+        var cacheKey = new RendererDiagnosticCacheKey(
+            _viewport.RendererBackendName,
+            _viewport.DisplayMode,
+            _viewport.MaterialDebugMode,
+            _viewport.ShowSolid,
+            _viewport.ShowWire,
+            _viewport.ShowVertices,
+            _viewport.TexturesEnabled,
+            _viewport.Width,
+            _viewport.Height,
+            _scene.SceneGeneration,
+            _materials.Generation,
+            _lastAppliedEditRevision,
+            _lastAppliedMaterialGeneration,
+            _lastAppliedMaterialParameterGeneration,
+            _textureRegionAppliedCount,
+            _textureSet.DecodedCount,
+            _viewport.GeometryUploadCount,
+            _viewport.DeviceResetCount);
+        if (_rendererDiagnosticCache is null || _rendererDiagnosticCacheKey != cacheKey)
+        {
+            _rendererDiagnosticCache = _viewport.RendererStatusPayload();
+            _rendererDiagnosticCache["provenance"] = HelperBuildProvenance.Payload(_viewport.ActiveCapabilities());
+            _rendererDiagnosticCacheKey = cacheKey;
+            _rendererDiagnosticRebuildCount++;
+        }
+        else
+        {
+            _rendererDiagnosticCacheHitCount++;
+        }
+        var renderer = new Dictionary<string, object?>(_rendererDiagnosticCache);
+        renderer["live_metrics"] = _viewport.RendererLiveMetricsPayload();
         renderer["lifecycle_counts"] = LifecycleCountsPayload();
         renderer["material_generation"] = _materials.Generation;
         renderer["last_requested_material_generation"] = _lastRequestedMaterialGeneration;
         renderer["last_applied_material_generation"] = _lastAppliedMaterialGeneration;
         renderer["last_requested_material_parameter_generation"] = _lastRequestedMaterialParameterGeneration;
         renderer["last_applied_material_parameter_generation"] = _lastAppliedMaterialParameterGeneration;
-        renderer["provenance"] = HelperBuildProvenance.Payload(_viewport.ActiveCapabilities());
         return renderer;
     }
+
+    private Dictionary<string, object?> RendererCompactStatusWithLifecycle()
+    {
+        var renderer = _viewport.RendererCompactStatusPayload();
+        renderer["lifecycle_counts"] = LifecycleCountsPayload();
+        renderer["material_generation"] = _materials.Generation;
+        renderer["last_requested_material_generation"] = _lastRequestedMaterialGeneration;
+        renderer["last_applied_material_generation"] = _lastAppliedMaterialGeneration;
+        renderer["last_requested_material_parameter_generation"] = _lastRequestedMaterialParameterGeneration;
+        renderer["last_applied_material_parameter_generation"] = _lastAppliedMaterialParameterGeneration;
+        return renderer;
+    }
+
+    private readonly record struct RendererDiagnosticCacheKey(
+        string Backend,
+        string DisplayMode,
+        int MaterialDebugMode,
+        bool ShowSolid,
+        bool ShowWire,
+        bool ShowVertices,
+        bool TexturesEnabled,
+        int Width,
+        int Height,
+        long SceneGeneration,
+        long MaterialGeneration,
+        long EditRevision,
+        long AppliedMaterialGeneration,
+        long AppliedMaterialParameterGeneration,
+        long TextureRegionAppliedCount,
+        int DecodedTextureCount,
+        long GeometryUploadCount,
+        long DeviceResetCount);
 
     private void RequestMaterialSync(string requestedMaterialSignature)
     {

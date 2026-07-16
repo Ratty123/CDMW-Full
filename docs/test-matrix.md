@@ -120,6 +120,8 @@ The direct harness CLI resolves the game root from `--game-root`, then
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --material-resource-policy-report "$env:TEMP\cdmw-material-resource-policy-runtime.json"
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-sparse-soak --gpu-soak-report "$env:TEMP\cdmw-dotnet-gpu-sparse-soak.json"
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144
+.\.venv\Scripts\python.exe -m pytest tests/test_dotnet_preview_performance_contract.py tests/test_mesh_harness_performance_contract.py tests/test_dotnet_texture_region_protocol.py tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_scene_import_uv_contract.py tests/test_scene_import_normalization.py tests/test_scene_importer_gltf.py
@@ -143,6 +145,29 @@ use `--gpu-soak-smoke --gpu-soak-vertices 30000 --gpu-soak-updates 100
 --gpu-soak-warmup 16 --gpu-soak-no-cadence`; smoke JSON is explicitly marked
 `release_gate_eligible=false`.
 
+The frame-pacing command keeps the hidden production renderer resident, warms
+300 frames by default, and writes `cdmw_dotnet_preview_performance_v1` outside
+the repository. Its fixed evidence arrays are page-committed before the RAM
+baseline and their exact size is reported as instrumentation overhead. A
+release claim requires three 30-second 1920x1080/144 Hz repetitions plus this
+ten-minute RAM/VRAM soak:
+
+```powershell
+1..3 | ForEach-Object { dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing-$_.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144 }
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing-10-minute.json" --frame-pacing-duration-seconds 600 --frame-pacing-target-hz 144
+```
+
+The visible performance manifest
+is strict `cdmw_dotnet_preview_performance_manifest_v1` JSON with `capture`,
+`asset`, and `interactions` objects. Supported interaction names are
+`textured-orbit-pan-zoom`, `side-by-side`,
+`wire-vertices-part-highlight`, `selection-brush-burst`, `material-update`,
+`texture-update`, `topology-update`, and `resize-stress`; each row also requires
+`input_rate_hz`. Keep the manifest, report, profiler traces, and selected real
+assets under a unique system-temp root. Visible automation still requires
+explicit authorization. A green subset of interaction segments is diagnostic
+evidence only: continuous `resize-stress` remains part of the overall hard gate.
+
 Native-core protocol, responsiveness, production .NET, and legacy-renderer
 compatibility checks:
 
@@ -153,6 +178,7 @@ compatibility checks:
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-qt-responsiveness --output "$env:TEMP\cdmw-native-mesh-editor-qt"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-qt-cancellation --output "$env:TEMP\cdmw-native-mesh-editor-qt-cancel"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-dotnet-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-dotnet-edit"
+.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-dotnet-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-dotnet-performance" --performance-manifest "$env:TEMP\cdmw-dotnet-performance-manifest.json" --performance-duration-seconds 30 --performance-target-hz 144
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-d3d11-edit"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-rigging-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-rigging"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-animation-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-animation"
@@ -345,6 +371,7 @@ and process-tree cleanup remain observable on Windows PowerShell.
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_dependency_pins.py tests/test_release_packaging.py
 .\.venv\Scripts\python.exe scripts\verify_release_dependencies.py
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -NativeHelpersOnly -BuildProfile release
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onefile -BuildProfile release
 powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onedir -BuildProfile release
 ```

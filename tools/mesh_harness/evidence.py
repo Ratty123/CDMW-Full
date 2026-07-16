@@ -202,6 +202,9 @@ def _real_game_mesh_evidence(proof: Mapping[str, object]) -> dict[str, object]:
         "resident_export": dict(proof.get("resident_export", {}))
         if isinstance(proof.get("resident_export"), Mapping)
         else {},
+        "performance_capture": dict(proof.get("performance_capture", {}))
+        if isinstance(proof.get("performance_capture"), Mapping)
+        else {},
         "lifecycle_counts": dict(proof.get("lifecycle_counts", {}))
         if isinstance(proof.get("lifecycle_counts"), Mapping)
         else {},

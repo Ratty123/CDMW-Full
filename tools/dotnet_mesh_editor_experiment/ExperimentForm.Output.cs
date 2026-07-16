@@ -6,6 +6,8 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm
 {
+    private readonly ProtocolOutputWriter _protocolOutput = new();
+
     private void WriteProtocolEvent(string eventName, Dictionary<string, object?>? payload = null)
     {
         var message = payload is null
@@ -23,8 +25,27 @@ internal sealed partial class ExperimentForm
             message["protocol_version"] = 2;
             RegisterOutgoingMutation(eventName, message);
         }
-        Console.Out.WriteLine(JsonSerializer.Serialize(message));
-        Console.Out.Flush();
+        if (string.Equals(eventName, "metrics", StringComparison.OrdinalIgnoreCase))
+        {
+            _protocolOutput.EnqueueLatestTelemetry(message);
+        }
+        else
+        {
+            _protocolOutput.EnqueueCritical(message);
+        }
+    }
+
+    public bool DrainProtocolOutput(TimeSpan grace) => _protocolOutput.WaitForDrain(grace);
+
+    private void WritePreparedProtocolEventThreadSafe(
+        string eventName,
+        IReadOnlyDictionary<string, object?> payload)
+    {
+        var message = new Dictionary<string, object?>(payload)
+        {
+            ["event"] = eventName,
+        };
+        _protocolOutput.EnqueueCritical(message);
     }
 
     private static bool IsMutatingProtocolRequest(string eventName) => eventName.Trim().ToLowerInvariant() switch

@@ -10,14 +10,129 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class D3D11MaterialViewport
 {
+    private const int MaximumPendingTextureResources = 64;
     private readonly Dictionary<string, D3D11EditableTextureRegion> _editableTextureRegions = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, D3D11PendingTextureRegion> _pendingTextureRegions = new(StringComparer.Ordinal);
+    private readonly Queue<string> _pendingTextureRegionOrder = new();
     private long _textureRegionPatchCount;
     private long _textureRegionBytesUploaded;
     private long _textureRegionFailureCount;
     private long _textureRegionAffectedBatchRebindCount;
     private long _textureRegionMipGenerationCount;
+    private long _textureRegionGpuUploadPassCount;
+    private long _textureRegionCoalescedCount;
+    private int _maximumPendingTextureRegionDepth;
+    private D3D11CompletedTextureRegion? _completedTextureRegion;
 
-    public bool TryApplyTextureRegion(
+    public event Action<NetTextureRegionUpdate, int, string>? TextureRegionCompleted;
+
+    public bool TryQueueTextureRegion(NetTextureRegionUpdate update, byte[] pixels, out string error)
+    {
+        error = string.Empty;
+        if (_device is null || _context is null)
+        {
+            return TextureRegionFailure("D3D11 texture renderer is not initialized.", out error);
+        }
+        var expectedBytes = checked(update.RowPitch * update.Rect.Height);
+        if (pixels.Length != expectedBytes)
+        {
+            return TextureRegionFailure("Texture patch byte length does not match row_pitch and rect height.", out error);
+        }
+        if (_pendingTextureRegions.TryGetValue(update.ResourceId, out var superseded))
+        {
+            _pendingTextureRegions[update.ResourceId] = new D3D11PendingTextureRegion(update, pixels);
+            _textureRegionCoalescedCount++;
+            NotifyTextureRegionCompleted(
+                superseded.Update,
+                0,
+                "A newer texture region for the same resource replaced the pending update before its render frame.");
+        }
+        else
+        {
+            if (_pendingTextureRegions.Count >= MaximumPendingTextureResources)
+            {
+                return TextureRegionFailure(
+                    $"Texture region queue exceeded its bounded {MaximumPendingTextureResources}-resource backlog.",
+                    out error);
+            }
+            _pendingTextureRegions.Add(update.ResourceId, new D3D11PendingTextureRegion(update, pixels));
+            _pendingTextureRegionOrder.Enqueue(update.ResourceId);
+            _maximumPendingTextureRegionDepth = Math.Max(
+                _maximumPendingTextureRegionDepth,
+                _pendingTextureRegions.Count);
+        }
+        Invalidate();
+        return true;
+    }
+
+    private void ApplyPendingTextureRegion()
+    {
+        if (_completedTextureRegion is not null)
+        {
+            return;
+        }
+        D3D11PendingTextureRegion? pending = null;
+        while (_pendingTextureRegionOrder.TryDequeue(out var resourceId))
+        {
+            if (_pendingTextureRegions.Remove(resourceId, out pending))
+            {
+                break;
+            }
+        }
+        if (pending is null)
+        {
+            return;
+        }
+        var captureActive = PreviewPerformanceCapture.IsActive;
+        var allocatedBytesBefore = captureActive ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+        var started = captureActive ? Stopwatch.GetTimestamp() : 0L;
+        var applied = TryApplyTextureRegionImmediate(pending.Update, pending.Pixels, out var bytesUploaded, out var error);
+        if (applied)
+        {
+            _textureRegionGpuUploadPassCount++;
+        }
+        if (captureActive)
+        {
+            PreviewPerformanceCapture.RecordPhase(
+                PreviewPerformancePhase.TextureUpload,
+                started,
+                Stopwatch.GetTimestamp(),
+                allocatedBytesBefore,
+                pending.Update.RequestId);
+        }
+        _completedTextureRegion = new D3D11CompletedTextureRegion(
+            pending.Update,
+            applied ? bytesUploaded : 0,
+            applied ? string.Empty : error);
+    }
+
+    public void PublishTextureRegionCompletion()
+    {
+        var completed = _completedTextureRegion;
+        _completedTextureRegion = null;
+        if (completed is not null)
+        {
+            NotifyTextureRegionCompleted(completed.Update, completed.BytesUploaded, completed.Error);
+        }
+        if (_pendingTextureRegions.Count > 0)
+        {
+            Invalidate();
+        }
+    }
+
+    private void NotifyTextureRegionCompleted(NetTextureRegionUpdate update, int bytesUploaded, string error)
+    {
+        try
+        {
+            TextureRegionCompleted?.Invoke(update, bytesUploaded, error);
+        }
+        catch (Exception ex)
+        {
+            LastError = $"Texture region completion callback failed: {ex.Message}";
+        }
+    }
+
+    private bool TryApplyTextureRegionImmediate(
         NetTextureRegionUpdate update,
         ReadOnlySpan<byte> pixels,
         out int bytesUploaded,
@@ -81,7 +196,6 @@ internal sealed partial class D3D11MaterialViewport
                 _textureRegionMipGenerationCount++;
                 RecordTextureRegionApplied(expectedBytes);
                 bytesUploaded = expectedBytes;
-                Invalidate();
                 return true;
             }
             catch (Exception ex)
@@ -191,7 +305,6 @@ internal sealed partial class D3D11MaterialViewport
             _peakTextureRefreshBytesEstimate = Math.Max(_peakTextureRefreshBytesEstimate, _textureResidentBytes);
             RecordTextureRegionApplied(expectedBytes);
             bytesUploaded = expectedBytes;
-            Invalidate();
             return true;
         }
         catch (Exception ex)
@@ -251,6 +364,25 @@ internal sealed partial class D3D11MaterialViewport
         _textureRegionPatchCount++;
         _textureRegionBytesUploaded += bytesUploaded;
         LastError = string.Empty;
+    }
+
+    private void DiscardPendingTextureRegion(string reason)
+    {
+        foreach (var pending in _pendingTextureRegions.Values)
+        {
+            NotifyTextureRegionCompleted(pending.Update, 0, reason);
+        }
+        _pendingTextureRegions.Clear();
+        _pendingTextureRegionOrder.Clear();
+        var completed = _completedTextureRegion;
+        _completedTextureRegion = null;
+        if (completed is not null)
+        {
+            NotifyTextureRegionCompleted(
+                completed.Update,
+                0,
+                string.IsNullOrWhiteSpace(completed.Error) ? reason : completed.Error);
+        }
     }
 
     private bool TextureRegionFailure(string message, out string error)
@@ -330,6 +462,10 @@ internal sealed partial class D3D11MaterialViewport
             ElapsedMilliseconds(entry.CreatedTimestamp));
     }
 }
+
+internal sealed record D3D11PendingTextureRegion(NetTextureRegionUpdate Update, byte[] Pixels);
+
+internal sealed record D3D11CompletedTextureRegion(NetTextureRegionUpdate Update, int BytesUploaded, string Error);
 
 internal sealed record D3D11EditableTextureRegion(
     ID3D11Texture2D Texture,

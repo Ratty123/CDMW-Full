@@ -14,6 +14,7 @@ internal sealed partial class NetMaterialSet
         Submeshes = submeshes;
         ManifestDirectory = manifestDirectory;
         Signature = signature;
+        RefreshBindingIndex();
     }
 
     public IReadOnlyList<NetMaterialSlot> Slots { get; private set; }
@@ -21,6 +22,8 @@ internal sealed partial class NetMaterialSet
     public string ManifestDirectory { get; private set; }
     public string Signature { get; private set; }
     public long Generation { get; private set; }
+    private IReadOnlyDictionary<int, NetSubmeshMaterialBinding> BindingBySubmesh { get; set; }
+        = new Dictionary<int, NetSubmeshMaterialBinding>();
     private IReadOnlyDictionary<string, NetMaterialResource> Resources { get; set; }
         = new Dictionary<string, NetMaterialResource>(StringComparer.Ordinal);
     public int SlotCount => Slots.Count;
@@ -29,6 +32,14 @@ internal sealed partial class NetMaterialSet
     public int ResolvedTextureReferenceCount => SubmeshTexturePaths().Count(value => !string.IsNullOrWhiteSpace(value));
     public int ExistingTextureFileCount => SubmeshTexturePaths().Count(value => !string.IsNullOrWhiteSpace(value) && File.Exists(value));
     public int DecodableTextureFileCount => SubmeshTexturePaths().Count(IsDecodableImagePath);
+
+    private void RefreshBindingIndex()
+    {
+        BindingBySubmesh = Submeshes.ToDictionary(binding => binding.SubmeshIndex);
+    }
+
+    private NetSubmeshMaterialBinding? BindingForSubmesh(int submeshIndex) =>
+        BindingBySubmesh.TryGetValue(submeshIndex, out var binding) ? binding : null;
 
     public IEnumerable<string> SubmeshTexturePaths()
     {

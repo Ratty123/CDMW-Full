@@ -9,6 +9,8 @@ internal static class NativeWindowHost
     private const long WsChild = 0x40000000L;
     private const long WsPopup = 0x80000000L;
     private const long WsCaption = 0x00C00000L;
+    private const uint SwpNoMove = 0x0002;
+    private const uint SwpNoZOrder = 0x0004;
     private const uint SwpNoActivate = 0x0010;
     private const uint SwpFrameChanged = 0x0020;
     private const uint SwpShowWindow = 0x0040;
@@ -58,6 +60,31 @@ internal static class NativeWindowHost
             flags |= SwpFrameChanged;
         }
         SetWindowPos(form.Handle, HwndTop, 0, 0, width, height, flags);
+    }
+
+    public static bool TryGetClientSize(IntPtr window, out Size size)
+    {
+        size = Size.Empty;
+        if (window == IntPtr.Zero || !IsWindow(window) || !GetClientRect(window, out var rect))
+        {
+            return false;
+        }
+        size = new Size(
+            Math.Max(1, rect.Right - rect.Left),
+            Math.Max(1, rect.Bottom - rect.Top));
+        return true;
+    }
+
+    public static void ResizeHidden(Form form, int width, int height)
+    {
+        SetWindowPos(
+            form.Handle,
+            HwndTop,
+            0,
+            0,
+            Math.Max(1, width),
+            Math.Max(1, height),
+            SwpNoMove | SwpNoZOrder | SwpNoActivate | SwpFrameChanged);
     }
 
     private static void BringEmbeddedChildToFront(Form form, IntPtr parent)

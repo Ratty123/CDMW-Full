@@ -95,6 +95,7 @@ internal sealed partial class NetMaterialSet
         ManifestDirectory = state.ManifestDirectory;
         Signature = state.Signature;
         Generation = state.Generation;
+        RefreshBindingIndex();
     }
 
     public IReadOnlySet<int> RemapTopologyState(
@@ -139,12 +140,13 @@ internal sealed partial class NetMaterialSet
 
         Submeshes = nextBindings.Values.OrderBy(binding => binding.SubmeshIndex).ToArray();
         ParameterStates = nextParameters;
+        RefreshBindingIndex();
         return reboundTargets;
     }
 
     public NetMaterialTextureReference TextureReferenceForSubmesh(int submeshIndex, params string[] keys)
     {
-        var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
+        var binding = BindingForSubmesh(submeshIndex);
         if (binding is null)
         {
             return NetMaterialTextureReference.Empty;
@@ -176,65 +178,70 @@ internal sealed partial class NetMaterialSet
 
     public int ChannelComponentIndexForSubmesh(int submeshIndex, string channel)
     {
-        var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
+        var binding = BindingForSubmesh(submeshIndex);
         if (binding is null || !binding.ChannelComponents.TryGetValue(channel, out var component))
         {
             return 0;
         }
-        return component.Trim().ToLowerInvariant() switch
-        {
-            "g" => 1,
-            "b" => 2,
-            "a" => 3,
-            _ => 0,
-        };
+        var normalized = component.AsSpan().Trim();
+        if (normalized.Equals("g", StringComparison.OrdinalIgnoreCase)) return 1;
+        if (normalized.Equals("b", StringComparison.OrdinalIgnoreCase)) return 2;
+        if (normalized.Equals("a", StringComparison.OrdinalIgnoreCase)) return 3;
+        return 0;
     }
 
     public string ShaderFamilyForSubmesh(int submeshIndex)
     {
-        var family = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.ShaderFamily;
-        return string.IsNullOrWhiteSpace(family) ? "generic" : family.Trim().ToLowerInvariant();
+        var family = BindingForSubmesh(submeshIndex)?.ShaderFamily;
+        if (string.IsNullOrWhiteSpace(family)) return "generic";
+        var normalized = family.AsSpan().Trim();
+        if (normalized.Equals("skin", StringComparison.OrdinalIgnoreCase)) return "skin";
+        if (normalized.Equals("hair", StringComparison.OrdinalIgnoreCase)) return "hair";
+        if (normalized.Equals("cloth", StringComparison.OrdinalIgnoreCase)) return "cloth";
+        if (normalized.Equals("cloth_v2", StringComparison.OrdinalIgnoreCase)) return "cloth_v2";
+        if (normalized.Equals("standard", StringComparison.OrdinalIgnoreCase)) return "standard";
+        if (normalized.Equals("standard_v2", StringComparison.OrdinalIgnoreCase)) return "standard_v2";
+        if (normalized.Equals("static_standard", StringComparison.OrdinalIgnoreCase)) return "static_standard";
+        if (normalized.Equals("static_multitextured", StringComparison.OrdinalIgnoreCase)) return "static_multitextured";
+        if (normalized.Equals("emissive", StringComparison.OrdinalIgnoreCase)) return "emissive";
+        if (normalized.Equals("emissive_v2", StringComparison.OrdinalIgnoreCase)) return "emissive_v2";
+        return "generic";
     }
 
     public float MaterialCategoryCodeForSubmesh(int submeshIndex)
     {
-        var category = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
-            ?.MaterialCategory.Trim().ToLowerInvariant();
-        return category switch
-        {
-            "metal" => 1.0f,
-            "leather" => 2.0f,
-            "wood" => 3.0f,
-            "cloth" => 4.0f,
-            "skin" => 5.0f,
-            "hair" => 6.0f,
-            "glass" => 7.0f,
-            "gem" => 8.0f,
-            "stone" => 9.0f,
-            "eye" => 10.0f,
-            "tooth" => 11.0f,
-            _ => 0.0f,
-        };
+        var categoryText = BindingForSubmesh(submeshIndex)?.MaterialCategory;
+        var category = categoryText.AsSpan().Trim();
+        if (category.Equals("metal", StringComparison.OrdinalIgnoreCase)) return 1.0f;
+        if (category.Equals("leather", StringComparison.OrdinalIgnoreCase)) return 2.0f;
+        if (category.Equals("wood", StringComparison.OrdinalIgnoreCase)) return 3.0f;
+        if (category.Equals("cloth", StringComparison.OrdinalIgnoreCase)) return 4.0f;
+        if (category.Equals("skin", StringComparison.OrdinalIgnoreCase)) return 5.0f;
+        if (category.Equals("hair", StringComparison.OrdinalIgnoreCase)) return 6.0f;
+        if (category.Equals("glass", StringComparison.OrdinalIgnoreCase)) return 7.0f;
+        if (category.Equals("gem", StringComparison.OrdinalIgnoreCase)) return 8.0f;
+        if (category.Equals("stone", StringComparison.OrdinalIgnoreCase)) return 9.0f;
+        if (category.Equals("eye", StringComparison.OrdinalIgnoreCase)) return 10.0f;
+        if (category.Equals("tooth", StringComparison.OrdinalIgnoreCase)) return 11.0f;
+        return 0.0f;
     }
 
     public float MaterialCategoryConfidenceForSubmesh(int submeshIndex)
     {
         return Math.Clamp(
-            Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
-                ?.MaterialCategoryConfidence ?? 0.35f,
+            BindingForSubmesh(submeshIndex)?.MaterialCategoryConfidence ?? 0.35f,
             0.0f,
             1.0f);
     }
 
     public bool MaterialResponsePromotedForSubmesh(int submeshIndex)
     {
-        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
-            ?.MaterialResponsePromoted == true;
+        return BindingForSubmesh(submeshIndex)?.MaterialResponsePromoted == true;
     }
 
     public bool NormalYInvertedForSubmesh(int submeshIndex)
     {
-        var binding = Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex);
+        var binding = BindingForSubmesh(submeshIndex);
         return string.Equals(
             binding?.NormalYPolicy,
             "invert_green_for_directx",
@@ -243,19 +250,21 @@ internal sealed partial class NetMaterialSet
 
     public bool TextureFlipVerticalForSubmesh(int submeshIndex)
     {
-        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)
-            ?.TextureFlipVertical == true;
+        return BindingForSubmesh(submeshIndex)?.TextureFlipVertical == true;
     }
 
     public string AlphaModeForSubmesh(int submeshIndex)
     {
-        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.AlphaMode ?? "opaque";
+        var alphaMode = BindingForSubmesh(submeshIndex)?.AlphaMode;
+        if (string.Equals(alphaMode, "cutout", StringComparison.OrdinalIgnoreCase)) return "cutout";
+        if (string.Equals(alphaMode, "blend", StringComparison.OrdinalIgnoreCase)) return "blend";
+        return "opaque";
     }
 
     public float AlphaCutoffForSubmesh(int submeshIndex)
     {
         return Math.Clamp(
-            Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.AlphaCutoff ?? 0.5f,
+            BindingForSubmesh(submeshIndex)?.AlphaCutoff ?? 0.5f,
             0.0f,
             1.0f);
     }
@@ -263,14 +272,14 @@ internal sealed partial class NetMaterialSet
     public float OpacityFactorForSubmesh(int submeshIndex)
     {
         return Math.Clamp(
-            Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.OpacityFactor ?? 1.0f,
+            BindingForSubmesh(submeshIndex)?.OpacityFactor ?? 1.0f,
             0.0f,
             1.0f);
     }
 
     public bool DoubleSidedForSubmesh(int submeshIndex)
     {
-        return Submeshes.FirstOrDefault(item => item.SubmeshIndex == submeshIndex)?.DoubleSided == true;
+        return BindingForSubmesh(submeshIndex)?.DoubleSided == true;
     }
 
     public IReadOnlyList<Dictionary<string, object?>> MaterialSemanticDiagnostics()

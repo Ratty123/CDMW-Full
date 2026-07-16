@@ -64,6 +64,12 @@ internal sealed partial class ExperimentForm : Form
     private string _pendingTextureError = string.Empty;
     private bool _syncingSubmeshListSelection;
     private DateTime _lastEmbeddedHostMaintenanceUtc = DateTime.MinValue;
+    private DateTime _lastEmbeddedCloseCheckUtc = DateTime.MinValue;
+    private Size _pendingEmbeddedParentSize = Size.Empty;
+    private long _pendingEmbeddedParentSizeTimestamp;
+    private long _embeddedHostResizeDeferredCount;
+    private long _embeddedHostResizeCoalescedCount;
+    private long _embeddedHostResizeCommitCount;
     private DateTime _lastMetricsUiUtc = DateTime.MinValue;
     private DateTime _lastMetricsProtocolUtc = DateTime.MinValue;
     private string _lastMetricsUiText = string.Empty;
@@ -101,6 +107,7 @@ internal sealed partial class ExperimentForm : Form
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += HandleViewportEditorEvent;
         _viewport.StatusRequested += message => _statusLabel.Text = message;
+        _viewport.TextureRegionCompleted += CompleteQueuedTextureRegionUpdate;
         _viewport.MouseDown += (_, _) => _viewport.Focus();
         _viewport.SubmeshSelectedRequested += _ => SyncSubmeshListSelection();
         _submeshList.Dock = DockStyle.Fill;
@@ -342,6 +349,7 @@ internal sealed partial class ExperimentForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        CancelPerformanceCaptureForShutdown();
         FlushPendingPlacementTransform(force: true);
         if (!_saved && !_embeddedHostFailed && _options.Embedded && _editedSubmeshes.Count > 0 && !_externalTopologyDirty)
         {
@@ -666,6 +674,30 @@ internal sealed partial class ExperimentForm : Form
 
 internal sealed partial class MeshViewport : Control
 {
+    private const uint PerformanceTimerResolutionMilliseconds = 1;
+
+    [DllImport("winmm.dll", EntryPoint = "timeBeginPeriod")]
+    private static extern uint TimeBeginPeriod(uint periodMilliseconds);
+
+    [DllImport("winmm.dll", EntryPoint = "timeEndPeriod")]
+    private static extern uint TimeEndPeriod(uint periodMilliseconds);
+
+    private sealed class PerformanceRenderPumpState
+    {
+        public PerformanceRenderPumpState(MeshViewport owner, long generation, long minimumIntervalTicks)
+        {
+            Generation = generation;
+            MinimumIntervalTicks = minimumIntervalTicks;
+            UiCallback = () => owner.PumpPerformanceRenderFrameOnUiThread(this);
+        }
+
+        public long Generation { get; }
+        public long MinimumIntervalTicks { get; }
+        public Action UiCallback { get; }
+        public long LastRequestTimestamp;
+        public int Queued;
+    }
+
     private readonly ObjDocument _document;
     private readonly NetMaterialSet _materials;
     private readonly NetTextureSet _textureSet;
@@ -696,6 +728,13 @@ internal sealed partial class MeshViewport : Control
     private readonly HashSet<int> _selectedEdges = new();
     private bool _frameDirty = true;
     private bool _renderInvalidationQueued;
+    private volatile bool _performanceRenderPumpActive;
+    private System.Threading.Timer? _performanceRenderTimer;
+    private PerformanceRenderPumpState? _performanceRenderPumpState;
+    private long _performanceRenderPumpGeneration;
+    private bool _performanceTimerResolutionRaised;
+    private uint _performanceTimerResolutionBeginResult = uint.MaxValue;
+    private readonly System.Windows.Forms.Timer _renderSurfaceResizeTimer = new() { Interval = 150 };
     private DateTime _dirtySinceUtc = DateTime.UtcNow;
     private int _hoverEdgeId = -1;
     private bool _edgeDragActive;
@@ -716,6 +755,7 @@ internal sealed partial class MeshViewport : Control
     public string RendererBackend => _rendererBlocked ? "blocked_renderer_unavailable" : (_d3d11Viewport is not null ? "d3d11_vortice_shader" : (_gpuViewport is not null ? "wpf_viewport3d_gpu" : "winforms_gdi_fallback"));
     public int SelectedSubmeshIndex => _selectedSources.Count > 0 ? _selectedSources.Min() : -1;
     public int[] SelectedSubmeshIndices => _selectedSources.OrderBy(index => index).ToArray();
+    public uint PerformanceTimerResolutionBeginResult => _performanceTimerResolutionBeginResult;
     public bool ShowSolid { get; private set; } = true;
     public bool ShowWire { get; private set; }
     public bool ShowVertices { get; private set; }
@@ -728,6 +768,7 @@ internal sealed partial class MeshViewport : Control
     public Func<Dictionary<string, object?>>? ToolOptionsProvider { get; set; }
     public Action<string, Dictionary<string, object?>>? EditorEventRequested { get; set; }
     public Action<string>? StatusRequested { get; set; }
+    public Action<NetTextureRegionUpdate, int, string>? TextureRegionCompleted { get; set; }
     public Action<int>? SubmeshSelectedRequested { get; set; }
 
     public bool ConsumeRenderRequest()
@@ -742,12 +783,23 @@ internal sealed partial class MeshViewport : Control
 
     private void RequestFrame()
     {
+        var captureActive = PreviewPerformanceCapture.IsActive;
+        var allocatedBytesBefore = captureActive ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+        var started = captureActive ? Stopwatch.GetTimestamp() : 0L;
         if (!_frameDirty)
         {
             _dirtySinceUtc = DateTime.UtcNow;
         }
         _frameDirty = true;
         EnsureRenderScheduled();
+        if (captureActive)
+        {
+            PreviewPerformanceCapture.RecordPhase(
+                PreviewPerformancePhase.Invalidation,
+                started,
+                Stopwatch.GetTimestamp(),
+                allocatedBytesBefore);
+        }
     }
 
     private void RecordRenderedFrame(double frameMs, double presentMs, string deviceRemovedReason)
@@ -755,6 +807,90 @@ internal sealed partial class MeshViewport : Control
         var dirtyToPresentMs = Math.Max(0.0, (DateTime.UtcNow - _dirtySinceUtc).TotalMilliseconds);
         Metrics.Record(frameMs, presentMs, dirtyToPresentMs, deviceRemovedReason);
         _dirtySinceUtc = DateTime.UtcNow;
+    }
+
+    public void StartPerformanceRenderPump(double targetHz)
+    {
+        var minimumIntervalTicks = Math.Max(
+            1L,
+            (long)Math.Round(Stopwatch.Frequency / Math.Clamp(targetHz, 1.0, 1000.0) * 0.9));
+        var current = Volatile.Read(ref _performanceRenderPumpState);
+        if (_performanceRenderPumpActive
+            && current is not null
+            && current.MinimumIntervalTicks == minimumIntervalTicks
+            && Volatile.Read(ref _performanceRenderTimer) is not null)
+        {
+            return;
+        }
+        StopPerformanceRenderPump();
+        _performanceTimerResolutionBeginResult = TimeBeginPeriod(PerformanceTimerResolutionMilliseconds);
+        _performanceTimerResolutionRaised = _performanceTimerResolutionBeginResult == 0;
+        var generation = Interlocked.Increment(ref _performanceRenderPumpGeneration);
+        var pump = new PerformanceRenderPumpState(this, generation, minimumIntervalTicks);
+        Volatile.Write(ref _performanceRenderPumpState, pump);
+        _performanceRenderPumpActive = true;
+        _performanceRenderTimer = new System.Threading.Timer(
+            QueuePerformanceRenderFrame,
+            pump,
+            TimeSpan.Zero,
+            TimeSpan.FromMilliseconds(1));
+    }
+
+    private void QueuePerformanceRenderFrame(object? state)
+    {
+        if (state is not PerformanceRenderPumpState pump
+            || !_performanceRenderPumpActive
+            || pump.Generation != Interlocked.Read(ref _performanceRenderPumpGeneration))
+        {
+            return;
+        }
+        var now = Stopwatch.GetTimestamp();
+        var previous = Interlocked.Read(ref pump.LastRequestTimestamp);
+        if (previous > 0 && now - previous < pump.MinimumIntervalTicks)
+        {
+            return;
+        }
+        if (Interlocked.CompareExchange(ref pump.Queued, 1, 0) != 0)
+        {
+            return;
+        }
+        try
+        {
+            BeginInvoke(pump.UiCallback);
+        }
+        catch (InvalidOperationException)
+        {
+            Interlocked.Exchange(ref pump.Queued, 0);
+        }
+    }
+
+    private void PumpPerformanceRenderFrameOnUiThread(PerformanceRenderPumpState pump)
+    {
+        Interlocked.Exchange(ref pump.Queued, 0);
+        if (!_performanceRenderPumpActive
+            || pump.Generation != Interlocked.Read(ref _performanceRenderPumpGeneration)
+            || IsDisposed
+            || Disposing
+            || _d3d11Viewport is not { IsDisposed: false } viewport)
+        {
+            return;
+        }
+        Interlocked.Exchange(ref pump.LastRequestTimestamp, Stopwatch.GetTimestamp());
+        PreviewPerformanceCapture.RecordHeartbeat(PreviewPerformanceHeartbeatKind.WinForms);
+        viewport.Invalidate();
+    }
+
+    public void StopPerformanceRenderPump()
+    {
+        _performanceRenderPumpActive = false;
+        Interlocked.Increment(ref _performanceRenderPumpGeneration);
+        Volatile.Write(ref _performanceRenderPumpState, null);
+        Interlocked.Exchange(ref _performanceRenderTimer, null)?.Dispose();
+        if (_performanceTimerResolutionRaised)
+        {
+            _performanceTimerResolutionRaised = false;
+            _ = TimeEndPeriod(PerformanceTimerResolutionMilliseconds);
+        }
     }
 
     public MeshViewport(ObjDocument document, NetMaterialSet materials, NetTextureSet textureSet, NetSceneState scene, LaunchOptions options)
@@ -769,6 +905,7 @@ internal sealed partial class MeshViewport : Control
         ForeColor = Color.White;
         Dock = DockStyle.Fill;
         TabStop = true;
+        _renderSurfaceResizeTimer.Tick += OnRenderSurfaceResizeTimerTick;
         InitializeGpuViewport();
         FrameMesh();
         InitializePresentationContexts();

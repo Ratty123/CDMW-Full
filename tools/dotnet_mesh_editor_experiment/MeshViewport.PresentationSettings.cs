@@ -8,6 +8,7 @@ internal sealed partial class MeshViewport
     private D3D11PresentationSettings _residentPresentationSettings = new();
     private readonly HashSet<int> _presentationHighlightedOriginals = new();
     private readonly Dictionary<int, string> _presentationPartRoles = new();
+    private readonly HashSet<int> _presentedSources = new();
 
     private void ApplyPresentationQualityAndUv(JsonElement display, JsonElement root)
     {

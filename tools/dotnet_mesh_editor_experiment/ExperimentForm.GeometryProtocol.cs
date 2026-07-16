@@ -4,16 +4,31 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm
 {
-    private sealed record PreviewTriangleGroup(int SubmeshIndex, int MaterialSource, ObjSubmesh Submesh);
+    internal sealed record PreviewTriangleGroup(int SubmeshIndex, int MaterialSource, ObjSubmesh Submesh);
+    internal sealed record PreviewTriangleUpdatePlan(
+        IReadOnlyDictionary<int, PreviewTriangleGroup> Parsed,
+        IReadOnlyList<int> Requested,
+        bool ReplaceAll,
+        bool HasExplicitFinalCount,
+        int FinalCount);
     internal sealed record PreviewVertexGroup(
         int SubmeshIndex,
         IReadOnlyList<int> Indices,
         IReadOnlyList<double> Positions,
         IReadOnlyList<double> Normals,
-        IReadOnlyList<double> Uvs);
+        IReadOnlyList<double> Uvs,
+        bool RequiresWholeSubmeshCount);
 
     internal static bool TryParsePreviewVertexGroups(
         ObjDocument document,
+        JsonElement groups,
+        out IReadOnlyList<PreviewVertexGroup> parsed)
+    {
+        return TryParsePreviewVertexGroups(groups, out parsed)
+            && ValidatePreviewVertexGroups(document, parsed);
+    }
+
+    internal static bool TryParsePreviewVertexGroups(
         JsonElement groups,
         out IReadOnlyList<PreviewVertexGroup> parsed)
     {
@@ -26,12 +41,11 @@ internal sealed partial class ExperimentForm
                 return false;
             }
             var submeshIndex = JsonInt(group, "source_submesh_index", JsonInt(group, "index", -1));
-            if (submeshIndex < 0 || submeshIndex >= document.Submeshes.Count)
+            if (submeshIndex < 0)
             {
                 parsed = Array.Empty<PreviewVertexGroup>();
                 return false;
             }
-            var submesh = document.Submeshes[submeshIndex];
             var positions = JsonOrBinaryDoubles(group, "positions", "positions_binary");
             if (positions.Count == 0 || positions.Count % 3 != 0)
             {
@@ -43,6 +57,7 @@ internal sealed partial class ExperimentForm
                 "source_vertex_indices",
                 "source_vertex_indices_binary");
             var indices = JsonOrBinaryInts(group, "source_vertex_indices", "source_vertex_indices_binary");
+            var requiresWholeSubmeshCount = false;
             if (indices.Count == 0)
             {
                 if (indexPayloadDeclared)
@@ -56,25 +71,54 @@ internal sealed partial class ExperimentForm
                 {
                     indices = Enumerable.Range(start, count).ToList();
                 }
-                else if (positions.Count / 3 == submesh.Vertices.Count)
+                else
                 {
-                    indices = Enumerable.Range(0, submesh.Vertices.Count).ToList();
+                    // State-dependent full-submesh validation happens on the
+                    // ordered UI owner after earlier topology commits.
+                    requiresWholeSubmeshCount = true;
+                    indices = Enumerable.Range(0, positions.Count / 3).ToList();
                 }
             }
             var normals = JsonOrBinaryDoubles(group, "normals", "normals_binary");
             var uvs = JsonOrBinaryDoubles(group, "uvs", "uvs_binary");
             var countMatches = indices.Count == positions.Count / 3;
             if (!countMatches
-                || indices.Any(index => index < 0 || index >= submesh.Vertices.Count)
+                || indices.Any(index => index < 0)
                 || (ChannelPayloadDeclaresValues(group, "normals", "normals_binary") && normals.Count != indices.Count * 3)
                 || (ChannelPayloadDeclaresValues(group, "uvs", "uvs_binary") && uvs.Count != indices.Count * 2))
             {
                 parsed = Array.Empty<PreviewVertexGroup>();
                 return false;
             }
-            result.Add(new PreviewVertexGroup(submeshIndex, indices, positions, normals, uvs));
+            result.Add(new PreviewVertexGroup(
+                submeshIndex,
+                indices,
+                positions,
+                normals,
+                uvs,
+                requiresWholeSubmeshCount));
         }
         parsed = result;
+        return true;
+    }
+
+    internal static bool ValidatePreviewVertexGroups(
+        ObjDocument document,
+        IReadOnlyList<PreviewVertexGroup> groups)
+    {
+        foreach (var group in groups)
+        {
+            if (group.SubmeshIndex < 0 || group.SubmeshIndex >= document.Submeshes.Count)
+            {
+                return false;
+            }
+            var vertexCount = document.Submeshes[group.SubmeshIndex].Vertices.Count;
+            if ((group.RequiresWholeSubmeshCount && group.Indices.Count != vertexCount)
+                || group.Indices.Any(index => index < 0 || index >= vertexCount))
+            {
+                return false;
+            }
+        }
         return true;
     }
 
@@ -260,10 +304,30 @@ internal sealed partial class ExperimentForm
         out Dictionary<int, int> materialSources,
         out bool replaceAll)
     {
-        changedCount = 0;
-        affectedSubmeshes = Array.Empty<int>();
-        materialSources = new Dictionary<int, int>();
-        replaceAll = root.TryGetProperty("replace_all_triangles", out var replaceValue)
+        if (!TryPreparePreviewTriangleGroups(root, groups, out var plan) || plan is null)
+        {
+            changedCount = 0;
+            affectedSubmeshes = Array.Empty<int>();
+            materialSources = new Dictionary<int, int>();
+            replaceAll = false;
+            return false;
+        }
+        return TryCommitPreviewTriangleGroups(
+            document,
+            plan,
+            out changedCount,
+            out affectedSubmeshes,
+            out materialSources,
+            out replaceAll);
+    }
+
+    internal static bool TryPreparePreviewTriangleGroups(
+        JsonElement root,
+        JsonElement groups,
+        out PreviewTriangleUpdatePlan? plan)
+    {
+        plan = null;
+        var replaceAll = root.TryGetProperty("replace_all_triangles", out var replaceValue)
             && replaceValue.ValueKind == JsonValueKind.True;
         var parsed = new Dictionary<int, PreviewTriangleGroup>();
         foreach (var group in groups.EnumerateArray())
@@ -278,14 +342,39 @@ internal sealed partial class ExperimentForm
             }
         }
         var requested = JsonIntValues(root, "triangle_source_submesh_indices");
+        var hasExplicitFinalCount = root.TryGetProperty("final_submesh_count", out var finalCountValue)
+            && finalCountValue.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined;
+        var finalCount = JsonInt(root, "final_submesh_count", -1);
+        plan = new PreviewTriangleUpdatePlan(
+            parsed,
+            requested,
+            replaceAll,
+            hasExplicitFinalCount,
+            finalCount);
+        return true;
+    }
+
+    internal static bool TryCommitPreviewTriangleGroups(
+        ObjDocument document,
+        PreviewTriangleUpdatePlan plan,
+        out int changedCount,
+        out int[] affectedSubmeshes,
+        out Dictionary<int, int> materialSources,
+        out bool replaceAll)
+    {
+        changedCount = 0;
+        affectedSubmeshes = Array.Empty<int>();
+        materialSources = new Dictionary<int, int>();
+        replaceAll = plan.ReplaceAll;
+        var parsed = new Dictionary<int, PreviewTriangleGroup>(plan.Parsed);
+        var requested = plan.Requested;
         if (requested.Any(index => index < 0 || (index >= document.Submeshes.Count && !parsed.ContainsKey(index))))
         {
             return false;
         }
         var affected = parsed.Keys.Concat(requested).ToHashSet();
-        var hasExplicitFinalCount = root.TryGetProperty("final_submesh_count", out var finalCountValue)
-            && finalCountValue.ValueKind is not JsonValueKind.Null and not JsonValueKind.Undefined;
-        var finalCount = JsonInt(root, "final_submesh_count", -1);
+        var hasExplicitFinalCount = plan.HasExplicitFinalCount;
+        var finalCount = plan.FinalCount;
         if (replaceAll)
         {
             if (!hasExplicitFinalCount)

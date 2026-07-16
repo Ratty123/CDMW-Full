@@ -10,22 +10,22 @@ internal sealed class RenderMetrics
 {
     private const int SampleWindow = 120;
     private const double CadenceResetThresholdMs = 250.0;
-    private readonly Queue<double> _renderMs = new();
-    private readonly Queue<double> _frameIntervalMs = new();
-    private readonly Queue<double> _presentMs = new();
-    private readonly Queue<double> _dirtyToPresentMs = new();
-    private readonly Queue<double> _responsivenessMs = new();
+    private readonly FixedMetricRing _renderMs = new(SampleWindow);
+    private readonly FixedMetricRing _frameIntervalMs = new(SampleWindow);
+    private readonly FixedMetricRing _presentMs = new(SampleWindow);
+    private readonly FixedMetricRing _dirtyToPresentMs = new(SampleWindow);
+    private readonly FixedMetricRing _responsivenessMs = new(SampleWindow);
     private long _lastFrameTimestamp;
 
-    public double AverageRenderMs { get; private set; }
-    public double AverageFrameIntervalMs { get; private set; }
-    public double FrameIntervalP95Ms { get; private set; }
-    public double FrameIntervalMaxMs { get; private set; }
-    public double FramePacingJitterMs { get; private set; }
+    public double AverageRenderMs => _renderMs.Average;
+    public double AverageFrameIntervalMs => _frameIntervalMs.Average;
+    public double FrameIntervalP95Ms => _frameIntervalMs.Percentile(0.95);
+    public double FrameIntervalMaxMs => _frameIntervalMs.Maximum;
+    public double FramePacingJitterMs => _frameIntervalMs.StandardDeviation;
     public double AverageFrameMs => AverageFrameIntervalMs > 0.0001 ? AverageFrameIntervalMs : AverageRenderMs;
-    public double AveragePresentMs { get; private set; }
-    public double AverageDirtyToPresentMs { get; private set; }
-    public double AverageResponsivenessMs { get; private set; }
+    public double AveragePresentMs => _presentMs.Average;
+    public double AverageDirtyToPresentMs => _dirtyToPresentMs.Average;
+    public double AverageResponsivenessMs => _responsivenessMs.Average;
     public int DroppedFrames { get; private set; }
     public int FrameCount { get; private set; }
     public bool HasRenderedFrame => FrameCount > 0;
@@ -37,32 +37,16 @@ internal sealed class RenderMetrics
         var now = Stopwatch.GetTimestamp();
         var normalizedRenderMs = Math.Max(0.0, frameMs);
         FrameCount++;
-        _renderMs.Enqueue(normalizedRenderMs);
-        _presentMs.Enqueue(Math.Max(0.0, presentMs));
-        _dirtyToPresentMs.Enqueue(Math.Max(0.0, dirtyToPresentMs));
-        while (_renderMs.Count > SampleWindow)
-        {
-            _renderMs.Dequeue();
-        }
-        while (_presentMs.Count > SampleWindow)
-        {
-            _presentMs.Dequeue();
-        }
-        while (_dirtyToPresentMs.Count > SampleWindow)
-        {
-            _dirtyToPresentMs.Dequeue();
-        }
+        _renderMs.Record(normalizedRenderMs);
+        _presentMs.Record(Math.Max(0.0, presentMs));
+        _dirtyToPresentMs.Record(Math.Max(0.0, dirtyToPresentMs));
 
         if (_lastFrameTimestamp > 0)
         {
             var intervalMs = (now - _lastFrameTimestamp) * 1000.0 / Stopwatch.Frequency;
             if (intervalMs <= CadenceResetThresholdMs)
             {
-                _frameIntervalMs.Enqueue(Math.Max(0.0, intervalMs));
-                while (_frameIntervalMs.Count > SampleWindow)
-                {
-                    _frameIntervalMs.Dequeue();
-                }
+                _frameIntervalMs.Record(Math.Max(0.0, intervalMs));
                 if (intervalMs > 16.7)
                 {
                     DroppedFrames++;
@@ -74,42 +58,104 @@ internal sealed class RenderMetrics
         {
             DeviceRemovedReason = deviceRemovedReason;
         }
-        AverageRenderMs = _renderMs.Count == 0 ? 0.0 : _renderMs.Average();
-        AverageFrameIntervalMs = _frameIntervalMs.Count == 0 ? 0.0 : _frameIntervalMs.Average();
-        FrameIntervalP95Ms = Percentile(_frameIntervalMs, 0.95);
-        FrameIntervalMaxMs = _frameIntervalMs.Count == 0 ? 0.0 : _frameIntervalMs.Max();
-        FramePacingJitterMs = StandardDeviation(_frameIntervalMs, AverageFrameIntervalMs);
-        AveragePresentMs = _presentMs.Count == 0 ? 0.0 : _presentMs.Average();
-        AverageDirtyToPresentMs = _dirtyToPresentMs.Count == 0 ? 0.0 : _dirtyToPresentMs.Average();
     }
 
     public void RecordResponsiveness(double responsivenessMs)
     {
-        _responsivenessMs.Enqueue(Math.Max(0.0, responsivenessMs));
-        while (_responsivenessMs.Count > SampleWindow)
+        _responsivenessMs.Record(Math.Max(0.0, responsivenessMs));
+    }
+}
+
+internal sealed class FixedMetricRing
+{
+    private readonly double[] _values;
+    private int _next;
+    private int _count;
+    private long _version;
+    private long _orderedVersion = -1;
+    private double[]? _ordered;
+    private double _sum;
+    private double _sumSquares;
+
+    public FixedMetricRing(int capacity)
+    {
+        if (capacity <= 0)
         {
-            _responsivenessMs.Dequeue();
+            throw new ArgumentOutOfRangeException(nameof(capacity));
         }
-        AverageResponsivenessMs = _responsivenessMs.Count == 0 ? 0.0 : _responsivenessMs.Average();
+        _values = new double[capacity];
     }
 
-    private static double Percentile(IEnumerable<double> samples, double percentile)
+    public int Count => _count;
+    public int Capacity => _values.Length;
+    public double Average => _count == 0 ? 0.0 : _sum / _count;
+    public double StandardDeviation
     {
-        var ordered = samples.OrderBy(value => value).ToArray();
-        if (ordered.Length == 0)
+        get
+        {
+            if (_count == 0)
+            {
+                return 0.0;
+            }
+            var average = _sum / _count;
+            return Math.Sqrt(Math.Max(0.0, (_sumSquares / _count) - (average * average)));
+        }
+    }
+    public double Maximum => _count == 0 ? 0.0 : Ordered()[_count - 1];
+
+    public void Record(double value)
+    {
+        if (_count == _values.Length)
+        {
+            var replaced = _values[_next];
+            _sum -= replaced;
+            _sumSquares -= replaced * replaced;
+        }
+        else
+        {
+            _count++;
+        }
+        _values[_next] = value;
+        _next = (_next + 1) % _values.Length;
+        _sum += value;
+        _sumSquares += value * value;
+        _version++;
+    }
+
+    public double Percentile(double percentile)
+    {
+        if (_count == 0)
         {
             return 0.0;
         }
-        var index = Math.Clamp((int)Math.Ceiling(percentile * ordered.Length) - 1, 0, ordered.Length - 1);
-        return ordered[index];
+        var values = Ordered();
+        var index = Math.Clamp((int)Math.Ceiling(percentile * _count) - 1, 0, _count - 1);
+        return values[index];
     }
 
-    private static double StandardDeviation(IEnumerable<double> samples, double average)
+    public double[] CopyChronological()
     {
-        var values = samples as ICollection<double> ?? samples.ToArray();
-        return values.Count == 0
-            ? 0.0
-            : Math.Sqrt(values.Sum(value => Math.Pow(value - average, 2.0)) / values.Count);
+        var result = new double[_count];
+        var start = _count == _values.Length ? _next : 0;
+        for (var index = 0; index < _count; index++)
+        {
+            result[index] = _values[(start + index) % _values.Length];
+        }
+        return result;
+    }
+
+    private double[] Ordered()
+    {
+        if (_orderedVersion == _version && _ordered is not null && _ordered.Length == _count)
+        {
+            return _ordered;
+        }
+        var ordered = new double[_count];
+        Array.Copy(_values, ordered, _count);
+        Array.Sort(ordered);
+        _ordered = ordered;
+        _orderedVersion = _version;
+        return ordered;
     }
 }
 

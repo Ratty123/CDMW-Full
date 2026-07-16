@@ -76,7 +76,11 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'return $"fingerprint|{fingerprint}";' in texture_source
     assert "_decoded[resource.Path] = cached;" in texture_source
     assert 'case "material_state_update":' in protocol_source
-    assert 'ObserveResidentSession(document.RootElement);' in protocol_source
+    assert "QueueParsedProtocolMessage(new ParsedProtocolMessage(" in protocol_source
+    assert "TryParsePreviewVertexGroups(vertexGroups, out preparedVertexUpdate)" in protocol_source
+    assert "ValidatePreviewVertexGroups(_document, preparedVertexUpdate)" in protocol_source
+    assert "TryPreparePreviewTriangleGroups(root, triangleGroups, out preparedTriangleUpdate)" in protocol_source
+    assert "ObserveResidentSession(root);" in protocol_source
     assert 'Material state update requires session_id.' in material_protocol_source
     assert 'Resident session is not established.' in material_protocol_source
     assert "ResourceIdsForAffectedSubmeshes()" in material_source
@@ -100,7 +104,7 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
         assert counter in material_protocol_source
     assert "full_reload_count" not in material_protocol_source
     assert "process_restart_count" not in material_protocol_source
-    assert 'JsonString(document.RootElement, "material_signature")' in protocol_source
+    assert 'JsonString(root, "material_signature")' in protocol_source
     assert "public bool TryApplyMaterialState(IReadOnlyCollection<int> affectedSubmeshes" in d3d_source
     display_source = _source("ExperimentForm.ViewportDisplayProtocol.cs")
     display_modes = _source("MeshViewport.DisplayModes.cs")
@@ -131,7 +135,7 @@ def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_short
 
     assert 'AddSection(stack, "Action History"' in program_source
     assert 'Name = "ResidentActionHistoryList"' in program_source
-    assert 'ApplyHistoryState(document.RootElement);' in protocol_source
+    assert "ApplyHistoryState(root);" in protocol_source
     assert 'root.TryGetProperty("history_entries"' in history_source
     assert 'state == "undone"' in history_source
     assert 'WriteCommandRequest("undo")' in controls_source
@@ -221,8 +225,9 @@ def test_dotnet_alpha_blend_uses_a_sorted_depth_read_only_material_pass() -> Non
 
     assert "_transparentBlendState = _device.CreateBlendState(BlendDescription.NonPremultiplied);" in renderer_source
     assert "transparentDepthDescription.DepthWriteMask = DepthWriteMask.Zero;" in renderer_source
-    assert ".Where(IsAlphaBlendBatch)" in renderer_source
-    assert ".OrderByDescending(TransparentSortDistanceSquared)" in renderer_source
+    assert "_visibleTransparentBatches.Add(batch);" in renderer_source
+    assert "if (_visibleTransparentBatches.Count > 1)" in renderer_source
+    assert "SortTransparentBatchesBackToFront();" in renderer_source
     assert "_context.OMSetBlendState(_transparentBlendState ?? _overlayBlendState);" in renderer_source
     assert "_transparentSolidBatchDrawCount++" in renderer_source
     assert "public Vector3 Center { get; }" in geometry_source
@@ -243,7 +248,7 @@ def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
     assert 'case "scene_state_update":' in protocol_source
     assert 'ResidentSceneCapability = "resident_scene_state_v1"' in protocol_source
     assert 'AuthoritativeResidentSceneCapability = "authoritative_resident_scene_frame_v2"' in protocol_source
-    assert "HandleSceneStateUpdate(document.RootElement);" in protocol_source
+    assert "HandleSceneStateUpdate(root);" in protocol_source
     assert "TryApplyResidentUpdate" in scene_source
     assert 'rejectionReason = "stale_scene_generation"' in scene_source
     assert 'rejectionReason = "stale_source_identity"' in scene_source
@@ -332,9 +337,15 @@ def test_dotnet_overlay_geometry_reuses_one_dynamic_vertex_buffer_per_frame() ->
     assert "ResourceUsage.Dynamic" in overlay_source
     assert "CpuAccessFlags.Write" in overlay_source
     assert "MapMode.WriteDiscard" in overlay_source
-    assert "MapMode.WriteNoOverwrite" in overlay_source
+    flush_source = overlay_source.split("private unsafe void FlushOverlayPrimitives()", maxsplit=1)[1]
+    queue_source = overlay_source.split("private unsafe void FlushOverlayPrimitives()", maxsplit=1)[0]
+    assert "_overlayBatchFlushCount++;" in flush_source
+    assert "_overlayBatchedDrawCount++;" in flush_source
+    assert "if (command.DrawSceneVertices)" in flush_source
+    assert "DrawD3D11VertexOverlay();" in flush_source
+    assert "_context.Map(" not in queue_source
     assert "using var vertexBuffer = _device.CreateBuffer" not in overlay_source
-    assert "_context.Draw((uint)positions.Count, (uint)startVertex);" in overlay_source
+    assert "_context.Draw((uint)command.VertexCount, (uint)command.StartVertex);" in overlay_source
     assert '["overlay_vertex_buffer_creates"]' in metrics_source
     assert '["overlay_vertex_buffer_reused"]' in metrics_source
 
@@ -351,7 +362,9 @@ def test_dotnet_d3d11_interaction_skips_hidden_gdi_rendering_and_uses_flip_model
     assert "_gdiFallbackFrameCount++;" in painting_source
     assert 'SwapEffect = SwapEffect.FlipDiscard' in d3d_source
     assert 'SwapEffect = SwapEffect.Discard' not in d3d_source
-    assert 'PresentationModel => _swapChain is null ? "unavailable" : "flip_discard"' in d3d_source
+    assert "public string PresentationModel => _swapChain is null" in d3d_source
+    assert '? "unavailable"' in d3d_source
+    assert ': "flip_discard";' in d3d_source
     assert "if (!_rotating" in input_source
     mouse_move_source = input_source.split("protected override void OnMouseMove", maxsplit=1)[1].split(
         "protected override void OnMouseEnter", maxsplit=1
@@ -406,9 +419,15 @@ def test_resident_role_views_share_resources_and_keep_normal_cameras_independent
     assert "referenceSubmeshCount > 0" in split_view_source
     assert 'string.Equals(comparisonMode, "side_by_side", StringComparison.OrdinalIgnoreCase)' in split_view_source
     assert "SinglePaneRoleForMode(_scene.ComparisonMode)" in split_view_source
-    assert "RenderPane(bounds.Reference, reference, \"reference\", interactionAllowed: false)" in split_view_source
-    assert "RenderPane(bounds.Editable, editable, \"editable\", interactionAllowed: true)" in split_view_source
-    assert "foreach (var pane in PanesForFrame(replacementOnly))" in d3d_renderer_source
+    assert "private readonly D3D11RenderPane[] _currentRenderPanes = new D3D11RenderPane[2];" in split_view_source
+    assert "PopulateCurrentRenderPanes()" in split_view_source
+    assert 'bounds.Reference, reference, "reference", interactionAllowed: false' in split_view_source
+    assert 'bounds.Editable, editable, "editable", interactionAllowed: true' in split_view_source
+    assert "UpdateRenderPanes(_currentRenderPanes, PopulateCurrentRenderPanes())" in renderer_source
+    assert "private readonly D3D11RenderPane[] _renderPanes = new D3D11RenderPane[2];" in pane_renderer_source
+    assert "UpdateRenderPanes(D3D11RenderPane[] panes, int count)" in pane_renderer_source
+    assert "var panes = PanesForFrame(replacementOnly, out var paneCount);" in d3d_renderer_source
+    assert "for (var paneIndex = 0; paneIndex < paneCount; paneIndex++)" in d3d_renderer_source
     assert "ActivePaneIncludes(batch.SubmeshIndex)" in d3d_renderer_source
     assert "HasRenderedBothRolePanes" in pane_renderer_source
     assert "ActivePaneIncludesForPicking(submeshIndex)" in picking_source
@@ -525,7 +544,7 @@ def test_dotnet_provisional_picking_and_mutation_responses_are_authority_safe() 
     assert "revision < _viewport.AcknowledgedSelectionRevision" in mutation_authority
     assert "Ignored stale or uncorrelated command result" in mutation_authority
     assert "Ignored stale or uncorrelated selection update" in protocol
-    assert "HandleCommandResult(document.RootElement);" in protocol
+    assert "HandleCommandResult(root);" in protocol
     assert "TryPrepareCorrelatedSelectionUpdate" in protocol
     assert "RegisterOutgoingMutation(eventName, message);" in output
 
@@ -702,7 +721,11 @@ def test_dotnet_embedded_ready_requires_a_verified_native_parent() -> None:
     constructor_source, shown_source = program_source.split("protected override void OnShown", maxsplit=1)
     assert "GetParent(child) != parent" in host_source
     assert "SetWindowPos(form.Handle, HwndTop" in host_source
-    assert "SwpNoZOrder" not in host_source
+    embedded_resize = host_source.split("public static void ResizeToParent", maxsplit=1)[1].split(
+        "public static void ResizeHidden", maxsplit=1
+    )[0]
+    assert "SwpNoZOrder" not in embedded_resize
+    assert "SwpNoMove | SwpNoZOrder | SwpNoActivate" in host_source
     assert host_source.index("SetWindowLongPtrSafe(child") < host_source.index("SetParent(child, parent)")
     assert host_source.index("SetParent(child, parent)") < host_source.index("GetParent(child) != parent")
     assert 'WriteProtocolEvent("ready"' not in constructor_source

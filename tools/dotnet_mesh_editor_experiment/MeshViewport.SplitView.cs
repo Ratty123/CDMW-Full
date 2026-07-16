@@ -5,6 +5,7 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class MeshViewport
 {
+    private readonly D3D11RenderPane[] _currentRenderPanes = new D3D11RenderPane[2];
     private const int PaneDividerWidth = 8;
     private float _paneSplitRatio = 0.5f;
     private bool _paneDividerDragging;
@@ -291,7 +292,7 @@ internal sealed partial class MeshViewport
             Math.Max(1, bounds.Height));
     }
 
-    private D3D11RenderPane[] CurrentRenderPanes()
+    private int PopulateCurrentRenderPanes()
     {
         SaveActivePresentationContext();
         if (HasSimultaneousRolePanes)
@@ -299,16 +300,17 @@ internal sealed partial class MeshViewport
             var bounds = RolePaneBounds();
             var reference = _presentationContexts["reference"];
             var editable = _presentationContexts["editable"];
-            return new[]
-            {
-                RenderPane(bounds.Reference, reference, "reference", interactionAllowed: false),
-                RenderPane(bounds.Editable, editable, "editable", interactionAllowed: true),
-            };
+            _currentRenderPanes[0] = RenderPane(
+                bounds.Reference, reference, "reference", interactionAllowed: false);
+            _currentRenderPanes[1] = RenderPane(
+                bounds.Editable, editable, "editable", interactionAllowed: true);
+            return 2;
         }
         var role = SinglePaneRoleForMode(_scene.ComparisonMode);
         var context = _presentationContexts[_activeCameraContextId];
         var full = new Rectangle(0, 0, Math.Max(1, Width), Math.Max(1, Height));
-        return new[] { RenderPane(full, context, role, PresentationInteractionAllowed) };
+        _currentRenderPanes[0] = RenderPane(full, context, role, PresentationInteractionAllowed);
+        return 1;
     }
 
     private D3D11RenderPane RenderPane(

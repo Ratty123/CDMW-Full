@@ -123,12 +123,29 @@ internal sealed partial class ExperimentForm
             WriteTextureRegionFailed(update, "binary_read_failed", task.Exception?.GetBaseException().Message ?? "Texture patch read was cancelled.");
             return;
         }
-        if (!_viewport.TryApplyTextureRegion(update, task.Result, out var bytesUploaded, out var error))
+        if (!_viewport.TryQueueTextureRegion(update, task.Result, out var error))
         {
             WriteTextureRegionFailed(update, "renderer_rejected", error);
             return;
         }
+    }
 
+    private void CompleteQueuedTextureRegionUpdate(NetTextureRegionUpdate update, int bytesUploaded, string error)
+    {
+        if (!string.IsNullOrWhiteSpace(error))
+        {
+            var reason = error.Contains("newer texture region", StringComparison.OrdinalIgnoreCase)
+                ? "superseded"
+                : "renderer_rejected";
+            WriteTextureRegionFailed(update, reason, error);
+            return;
+        }
+        if (!_lastRequestedTextureRegionGeneration.TryGetValue(update.ResourceId, out var requested)
+            || requested != update.Generation)
+        {
+            WriteTextureRegionFailed(update, "superseded", "A newer texture generation replaced this rendered update.");
+            return;
+        }
         _lastAppliedTextureRegionGeneration[update.ResourceId] = update.Generation;
         _lastAppliedTextureRevision[update.ResourceId] = update.TextureRevision;
         _textureRegionAppliedCount++;

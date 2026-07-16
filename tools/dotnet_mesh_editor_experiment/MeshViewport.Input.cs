@@ -55,6 +55,10 @@ internal sealed partial class MeshViewport
     {
         if (disposing)
         {
+            StopPerformanceRenderPump();
+            _renderSurfaceResizeTimer.Stop();
+            _renderSurfaceResizeTimer.Tick -= OnRenderSurfaceResizeTimerTick;
+            _renderSurfaceResizeTimer.Dispose();
             _d3d11Viewport?.Dispose();
             _gpuViewport?.Dispose();
             _gpuHost?.Dispose();
@@ -65,7 +69,14 @@ internal sealed partial class MeshViewport
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
-        UpdateGpuViewport();
+        if (_d3d11Viewport is not null)
+        {
+            QueueRenderSurfaceResize();
+        }
+        else
+        {
+            UpdateGpuViewport();
+        }
     }
 
     protected override void OnMouseDown(MouseEventArgs e)

@@ -337,6 +337,13 @@ internal static partial class HeadlessGpuSparseSoak
             out _,
             out var replaceMaterials,
             out var replaceAll);
+        using var orderedVertexDocument = JsonDocument.Parse("""{"vertex_groups":[{"source_submesh_index":1,"positions":[0,0,0,-1,0,0,0,-1,0]}]}""");
+        var orderedVertexGroups = orderedVertexDocument.RootElement.GetProperty("vertex_groups");
+        var orderedVertexDecoded = ExperimentForm.TryParsePreviewVertexGroups(
+            orderedVertexGroups,
+            out var orderedVertexPlan);
+        var orderedVertexRejectedBeforeTopology = orderedVertexDecoded
+            && !ExperimentForm.ValidatePreviewVertexGroups(document, orderedVertexPlan);
         using var addDocument = JsonDocument.Parse("""
             {
               "triangle_groups": [{
@@ -359,6 +366,8 @@ internal static partial class HeadlessGpuSparseSoak
             out _,
             out var addMaterials,
             out var addReplaceAll);
+        var orderedVertexAcceptedAfterTopology = orderedVertexDecoded
+            && ExperimentForm.ValidatePreviewVertexGroups(document, orderedVertexPlan);
         using var shrinkDocument = JsonDocument.Parse("""{"final_submesh_count":1,"triangle_source_submesh_indices":[1],"triangle_groups":[{"source_submesh_index":1,"positions":[],"indices":[]}]}""");
         var shrinkRoot = shrinkDocument.RootElement;
         var shrunk = ExperimentForm.TryApplyPreviewTriangleGroups(document, shrinkRoot, shrinkRoot.GetProperty("triangle_groups"), out var shrinkChanges, out var shrinkAffected, out _, out var shrinkReplaceAll);
@@ -389,6 +398,7 @@ internal static partial class HeadlessGpuSparseSoak
             && added && !addReplaceAll && addChanges == 1
             && shrunk && !shrinkReplaceAll && shrinkChanges == 1 && shrinkAffected.SequenceEqual(new[] { 1 })
             && incompleteRejected && missingChannelsInitialized && equalCountChannelsRemapped && malformedVertexRejected
+            && orderedVertexRejectedBeforeTopology && orderedVertexAcceptedAfterTopology
             && topologyMaterialLineageRemapped
             && document.Submeshes.Count == 1
             && document.Submeshes[0].Material == "survivor"
@@ -404,6 +414,8 @@ internal static partial class HeadlessGpuSparseSoak
             ["missing_vertex_channels_initialized"] = missingChannelsInitialized,
             ["equal_count_channels_remapped"] = equalCountChannelsRemapped,
             ["malformed_vertex_channel_rejected"] = malformedVertexRejected,
+            ["ordered_vertex_plan_revalidated_after_topology"] = orderedVertexRejectedBeforeTopology
+                && orderedVertexAcceptedAfterTopology,
             ["material_parameter_lineage_remapped"] = topologyMaterialLineageRemapped,
             ["final_submesh_count"] = document.Submeshes.Count,
             ["survivor_material_source"] = replaceMaterials.GetValueOrDefault(0),
@@ -534,7 +546,7 @@ internal static partial class HeadlessGpuSparseSoak
         return ElapsedMilliseconds(started);
     }
 
-    private static ObjDocument BuildSyntheticDocument(int vertexCount)
+    internal static ObjDocument BuildSyntheticDocument(int vertexCount)
     {
         var document = new ObjDocument();
         var submesh = new ObjSubmesh("gpu_sparse_soak", 0, 0, 0);
@@ -575,7 +587,7 @@ internal static partial class HeadlessGpuSparseSoak
         return document;
     }
 
-    private static NetViewportCamera CameraFor(ObjDocument document, Size size)
+    internal static NetViewportCamera CameraFor(ObjDocument document, Size size)
     {
         var bounds = document.Bounds();
         var center = new Vec3(
@@ -618,7 +630,8 @@ internal static partial class HeadlessGpuSparseSoak
             ["overlay_vertex_buffer_reused_across_frames"] = Metric(before, "overlay_vertex_buffer_creates") > 0
                 && Metric(after, "overlay_vertex_buffer_creates") == Metric(before, "overlay_vertex_buffer_creates")
                 && Metric(after, "overlay_vertex_buffer_maps") > Metric(before, "overlay_vertex_buffer_maps")
-                && Metric(after, "overlay_vertex_buffer_no_overwrite_maps") > Metric(before, "overlay_vertex_buffer_no_overwrite_maps"),
+                && Metric(after, "overlay_batch_flushes") > Metric(before, "overlay_batch_flushes")
+                && Metric(after, "overlay_batched_draws") > Metric(after, "overlay_batch_flushes"),
             ["vertex_markers_rendered_in_smoke"] = !options.Smoke
                 || (Metric(after, "vertex_overlay_batch_draws") > 0
                     && Metric(after, "vertex_marker_size_pixels") >= 7),

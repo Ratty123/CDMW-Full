@@ -22,6 +22,8 @@ internal sealed partial class D3D11MaterialViewport : Control
     private NetTextureSet _textureSet;
     private NetSceneState _scene;
     private readonly List<D3D11SubmeshBatch> _batches = new();
+    private readonly List<D3D11SubmeshBatch> _visibleOpaqueBatches = new();
+    private readonly List<D3D11SubmeshBatch> _visibleTransparentBatches = new();
     private readonly Dictionary<string, D3D11TextureSrvCacheEntry> _textureSrvCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<int, Vector4> _lastDrawnMaterialAuthority = new();
     private ID3D11Device? _device;
@@ -53,17 +55,22 @@ internal sealed partial class D3D11MaterialViewport : Control
     private int _renderWidth;
     private int _renderHeight;
     private bool _renderResourcesDirty = true;
+    private const int ResizeCommitDelayMilliseconds = 150;
+    private readonly System.Windows.Forms.Timer _resizeCommitTimer = new() { Interval = ResizeCommitDelayMilliseconds };
+    private long _swapChainResizeDeferredCount;
+    private long _swapChainResizeCoalescedCount;
+    private long _swapChainResizeCommitCount;
     private bool _geometryDirty = true;
     private Vec3 _center;
     private (Vec3 Min, Vec3 Max) _bounds;
     private NetViewportCamera _camera;
     private NetEdgeTopology _overlayTopology = NetEdgeTopology.Empty;
-    private IReadOnlySet<int> _overlaySelectedEdges = new HashSet<int>();
+    private HashSet<int> _overlaySelectedEdges = new();
     private int _overlayHoverEdgeId = -1;
     private Rectangle? _overlaySelectionRectangle;
-    private IReadOnlyDictionary<int, HashSet<int>> _overlaySelectedVertices = new Dictionary<int, HashSet<int>>();
-    private IReadOnlyDictionary<int, HashSet<int>> _overlaySelectedFaces = new Dictionary<int, HashSet<int>>();
-    private IReadOnlySet<int> _overlaySelectedSources = new HashSet<int>();
+    private Dictionary<int, HashSet<int>> _overlaySelectedVertices = new();
+    private Dictionary<int, HashSet<int>> _overlaySelectedFaces = new();
+    private HashSet<int> _overlaySelectedSources = new();
     private int _overlaySelectedSubmeshIndex = -1;
     private bool _overlayShowWire;
     private bool _overlayShowVertices;
@@ -84,6 +91,8 @@ internal sealed partial class D3D11MaterialViewport : Control
     private long _materialParameterApplyFailureCount;
     private long _affectedMaterialParameterBatchCount;
     private uint _maximumFrameLatency;
+    private long _lastPresentStartedTimestamp;
+    private long _lastPresentFinishedTimestamp;
     private D3D11PresentationSettings _presentationSettings = new();
 
     public event Action<string>? BackendUnavailable;
@@ -98,6 +107,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.Opaque | ControlStyles.ResizeRedraw | ControlStyles.UserPaint, true);
         Dock = DockStyle.Fill;
         BackColor = System.Drawing.Color.FromArgb(18, 20, 24);
+        _resizeCommitTimer.Tick += OnResizeCommitTimerTick;
     }
 
     public string BackendName => "d3d11_vortice_shader";
@@ -146,12 +156,14 @@ internal sealed partial class D3D11MaterialViewport : Control
         float brushRadius)
     {
         _overlayTopology = topology;
-        _overlaySelectedEdges = selectedEdges;
+        _overlaySelectedEdges = selectedEdges as HashSet<int> ?? new HashSet<int>(selectedEdges);
         _overlayHoverEdgeId = hoverEdgeId;
         _overlaySelectionRectangle = selectionRectangle;
-        _overlaySelectedVertices = selectedVertices;
-        _overlaySelectedFaces = selectedFaces;
-        _overlaySelectedSources = selectedSources;
+        _overlaySelectedVertices = selectedVertices as Dictionary<int, HashSet<int>>
+            ?? new Dictionary<int, HashSet<int>>(selectedVertices);
+        _overlaySelectedFaces = selectedFaces as Dictionary<int, HashSet<int>>
+            ?? new Dictionary<int, HashSet<int>>(selectedFaces);
+        _overlaySelectedSources = selectedSources as HashSet<int> ?? new HashSet<int>(selectedSources);
         _overlaySelectedSubmeshIndex = selectedSubmeshIndex;
         _overlayShowWire = showWire;
         _overlayShowVertices = showVertices;
@@ -174,6 +186,8 @@ internal sealed partial class D3D11MaterialViewport : Control
             e.Graphics.Clear(BackColor);
             return;
         }
+        var captureActive = PreviewPerformanceCapture.IsActive;
+        var allocatedBytesBefore = captureActive ? GC.GetAllocatedBytesForCurrentThread() : 0L;
         var frameStart = Stopwatch.GetTimestamp();
         try
         {
@@ -181,6 +195,22 @@ internal sealed partial class D3D11MaterialViewport : Control
             _consecutiveRenderFailures = 0;
             _deviceResetAttempts = 0;
             var frameMs = (Stopwatch.GetTimestamp() - frameStart) * 1000.0 / Stopwatch.Frequency;
+            if (captureActive)
+            {
+                var frameFinished = Stopwatch.GetTimestamp();
+                PreviewPerformanceCapture.RecordFrame(
+                    frameStart,
+                    _lastPresentStartedTimestamp,
+                    frameFinished,
+                    ResolvedGpuTimeForFrameMs,
+                    allocatedBytesBefore);
+                PreviewPerformanceCapture.RecordPhase(
+                    PreviewPerformancePhase.Paint,
+                    frameStart,
+                    frameFinished,
+                    allocatedBytesBefore);
+            }
+            PublishTextureRegionCompletion();
             FrameRendered?.Invoke(frameMs, presentMs, DeviceRemovedReason);
         }
         catch (Exception ex) when (IsDeviceLostException(ex))
@@ -200,7 +230,13 @@ internal sealed partial class D3D11MaterialViewport : Control
             e.Graphics.Clear(BackColor);
             if (_consecutiveRenderFailures >= 2)
             {
+                DiscardPendingTextureRegion(
+                    $"The D3D11 renderer failed before the queued texture update could be presented: {ex.Message}");
                 BackendUnavailable?.Invoke($"D3D11 render failed repeatedly: {ex.Message}");
+            }
+            else
+            {
+                Invalidate();
             }
         }
     }
@@ -221,7 +257,7 @@ internal sealed partial class D3D11MaterialViewport : Control
             {
                 return false;
             }
-            if (_renderResourcesDirty || _renderWidth != Math.Max(1, ClientSize.Width) || _renderHeight != Math.Max(1, ClientSize.Height))
+            if (_renderResourcesDirty)
             {
                 ResizeSwapChainResources();
             }
@@ -272,6 +308,7 @@ internal sealed partial class D3D11MaterialViewport : Control
             DeviceCreationFlags.BgraSupport,
             featureLevels);
         _context = _device.ImmediateContext;
+        CreateGpuTimingQueries();
         using var dxgiDevice1 = _device.QueryInterface<IDXGIDevice1>();
         dxgiDevice1.SetMaximumFrameLatency(1);
         _maximumFrameLatency = 1;
@@ -428,6 +465,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _renderWidth = Math.Max(1, ClientSize.Width);
         _renderHeight = Math.Max(1, ClientSize.Height);
         _swapChain.ResizeBuffers(0, (uint)_renderWidth, (uint)_renderHeight, Format.Unknown, SwapChainFlags.None).CheckError();
+        _swapChainResizeCommitCount++;
         using var backBuffer = _swapChain.GetBuffer<ID3D11Texture2D>(0);
         _renderTargetView = _device.CreateRenderTargetView(
             backBuffer,
@@ -467,6 +505,13 @@ internal sealed partial class D3D11MaterialViewport : Control
         {
             throw new InvalidOperationException("Forced DXGI device lost during Present for D3D11 recovery testing.");
         }
+        BeginGpuTimingFrame(present && PreviewPerformanceCapture.IsActive);
+        try
+        {
+        if (present)
+        {
+            ApplyPendingTextureRegion();
+        }
         _lastDrawnMaterialAuthority.Clear();
         BeginOverlayFrame();
         // The render target is sRGB. Supply the workbench background in linear
@@ -480,8 +525,10 @@ internal sealed partial class D3D11MaterialViewport : Control
         var previousShowWire = _overlayShowWire;
         var previousShowVertices = _overlayShowVertices;
         var previousShowXRay = _overlayShowXRay;
-        foreach (var pane in PanesForFrame(replacementOnly))
+        var panes = PanesForFrame(replacementOnly, out var paneCount);
+        for (var paneIndex = 0; paneIndex < paneCount; paneIndex++)
         {
+            var pane = panes[paneIndex];
             ActivateRenderPane(pane);
             DrawActiveRenderPane(includeOverlays, replacementOnly);
             RecordActivePaneRender();
@@ -498,14 +545,35 @@ internal sealed partial class D3D11MaterialViewport : Control
         _overlayShowWire = previousShowWire;
         _overlayShowVertices = previousShowVertices;
         _overlayShowXRay = previousShowXRay;
+        }
+        finally
+        {
+            EndGpuTimingFrame();
+        }
         if (!present)
         {
             _context.Flush();
+            _lastPresentStartedTimestamp = 0;
+            _lastPresentFinishedTimestamp = 0;
             return 0.0;
         }
         var presentStart = Stopwatch.GetTimestamp();
+        var presentAllocatedBytes = PreviewPerformanceCapture.IsActive
+            ? GC.GetAllocatedBytesForCurrentThread()
+            : 0L;
+        _lastPresentStartedTimestamp = presentStart;
         _swapChain.Present(PresentSyncInterval, PresentFlags.None);
-        return (Stopwatch.GetTimestamp() - presentStart) * 1000.0 / Stopwatch.Frequency;
+        var presentFinished = Stopwatch.GetTimestamp();
+        _lastPresentFinishedTimestamp = presentFinished;
+        if (PreviewPerformanceCapture.IsActive)
+        {
+            PreviewPerformanceCapture.RecordPhase(
+                PreviewPerformancePhase.Present,
+                presentStart,
+                presentFinished,
+                presentAllocatedBytes);
+        }
+        return (presentFinished - presentStart) * 1000.0 / Stopwatch.Frequency;
     }
 
     private void DrawActiveRenderPane(bool includeOverlays, bool replacementOnly)
@@ -531,38 +599,101 @@ internal sealed partial class D3D11MaterialViewport : Control
         _context.PSSetConstantBuffer(0u, _cameraBuffer);
         if (ShowSolid)
         {
-            var visibleBatches = _batches
-                .Where(batch =>
-                    ActivePaneIncludes(batch.SubmeshIndex)
-                    && !(replacementOnly && _scene.IsReference(batch.SubmeshIndex))
-                    && !(_scene.ComparisonMode == "overlay" && _scene.IsReference(batch.SubmeshIndex))
-                    && _materials.ParametersForSubmesh(batch.MaterialSubmeshIndex).Visible is not false)
-                .ToArray();
-            foreach (var batch in visibleBatches.Where(batch => !IsAlphaBlendBatch(batch)))
+            var captureOpaque = PreviewPerformanceCapture.IsActive;
+            var opaqueAllocatedBytes = captureOpaque ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+            var opaqueStarted = captureOpaque ? Stopwatch.GetTimestamp() : 0L;
+            _visibleOpaqueBatches.Clear();
+            _visibleTransparentBatches.Clear();
+            foreach (var batch in _batches)
+            {
+                if (!ActivePaneIncludes(batch.SubmeshIndex)
+                    || (replacementOnly && _scene.IsReference(batch.SubmeshIndex))
+                    || (_scene.ComparisonMode == "overlay" && _scene.IsReference(batch.SubmeshIndex))
+                    || _materials.ParametersForSubmesh(batch.MaterialSubmeshIndex).Visible is false)
+                {
+                    continue;
+                }
+                if (IsAlphaBlendBatch(batch))
+                {
+                    _visibleTransparentBatches.Add(batch);
+                }
+                else
+                {
+                    _visibleOpaqueBatches.Add(batch);
+                }
+            }
+            foreach (var batch in _visibleOpaqueBatches)
             {
                 DrawSolidBatch(batch, transparent: false);
             }
-            var transparentBatches = visibleBatches
-                .Where(IsAlphaBlendBatch)
-                .OrderByDescending(TransparentSortDistanceSquared)
-                .ToArray();
-            if (transparentBatches.Length > 0)
+            if (captureOpaque)
             {
+                PreviewPerformanceCapture.RecordPhase(
+                    PreviewPerformancePhase.OpaquePass,
+                    opaqueStarted,
+                    Stopwatch.GetTimestamp(),
+                    opaqueAllocatedBytes);
+            }
+            if (_visibleTransparentBatches.Count > 0)
+            {
+                var captureTransparent = PreviewPerformanceCapture.IsActive;
+                var transparentAllocatedBytes = captureTransparent ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+                var transparentStarted = captureTransparent ? Stopwatch.GetTimestamp() : 0L;
+                if (_visibleTransparentBatches.Count > 1)
+                {
+                    SortTransparentBatchesBackToFront();
+                }
                 _context.OMSetBlendState(_transparentBlendState ?? _overlayBlendState);
                 _context.OMSetDepthStencilState(
                     _presentationSettings.DisableDepthTest ? _overlayNoDepthState : _transparentDepthState);
-                foreach (var batch in transparentBatches)
+                foreach (var batch in _visibleTransparentBatches)
                 {
                     DrawSolidBatch(batch, transparent: true);
                 }
                 _context.OMSetBlendState(_blendState);
                 _context.OMSetDepthStencilState(
                     _presentationSettings.DisableDepthTest ? _overlayNoDepthState : _depthState);
+                if (captureTransparent)
+                {
+                    PreviewPerformanceCapture.RecordPhase(
+                        PreviewPerformancePhase.TransparentPass,
+                        transparentStarted,
+                        Stopwatch.GetTimestamp(),
+                        transparentAllocatedBytes);
+                }
             }
         }
         if (includeOverlays)
         {
+            var captureOverlay = PreviewPerformanceCapture.IsActive;
+            var overlayAllocatedBytes = captureOverlay ? GC.GetAllocatedBytesForCurrentThread() : 0L;
+            var overlayStarted = captureOverlay ? Stopwatch.GetTimestamp() : 0L;
             DrawD3D11Overlay();
+            if (captureOverlay)
+            {
+                PreviewPerformanceCapture.RecordPhase(
+                    PreviewPerformancePhase.OverlayPass,
+                    overlayStarted,
+                    Stopwatch.GetTimestamp(),
+                    overlayAllocatedBytes);
+            }
+        }
+    }
+
+    private void SortTransparentBatchesBackToFront()
+    {
+        for (var index = 1; index < _visibleTransparentBatches.Count; index++)
+        {
+            var candidate = _visibleTransparentBatches[index];
+            var candidateDistance = TransparentSortDistanceSquared(candidate);
+            var insertion = index - 1;
+            while (insertion >= 0
+                && TransparentSortDistanceSquared(_visibleTransparentBatches[insertion]) < candidateDistance)
+            {
+                _visibleTransparentBatches[insertion + 1] = _visibleTransparentBatches[insertion];
+                insertion--;
+            }
+            _visibleTransparentBatches[insertion + 1] = candidate;
         }
     }
 
@@ -706,9 +837,11 @@ internal sealed partial class D3D11MaterialViewport : Control
     private void DisposeDeviceResources(bool clearDeviceContext)
     {
         DisposeBatches();
+        DiscardPendingTextureRegion("The D3D11 renderer stopped before the pending texture update was rendered.");
         ClearTextureCache();
         DiscardTextureResourceRefreshState();
         DisposeOverlayDynamicResources();
+        DisposeGpuTimingQueries();
         _blendState?.Dispose();
         _transparentBlendState?.Dispose();
         _overlayBlendState?.Dispose();
@@ -776,6 +909,9 @@ internal sealed partial class D3D11MaterialViewport : Control
     {
         if (disposing)
         {
+            _resizeCommitTimer.Stop();
+            _resizeCommitTimer.Tick -= OnResizeCommitTimerTick;
+            _resizeCommitTimer.Dispose();
             DisposeDeviceResources(clearDeviceContext: true);
         }
         base.Dispose(disposing);

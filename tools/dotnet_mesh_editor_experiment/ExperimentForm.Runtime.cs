@@ -57,18 +57,23 @@ internal sealed partial class ExperimentForm
         _timer.Interval = 16;
         _timer.Tick += (_, _) =>
         {
+            ContinuePendingPerformanceCapture();
             var now = DateTime.UtcNow;
-            if (_options.Embedded
-                && _options.ParentHwnd > 0
-                && _embeddedViewportActive
-                && (now - _lastEmbeddedHostMaintenanceUtc).TotalMilliseconds >= 100)
+            if (_options.Embedded && _options.ParentHwnd > 0 && _embeddedViewportActive)
             {
-                _lastEmbeddedHostMaintenanceUtc = now;
-                NativeWindowHost.ResizeToParent(this, new IntPtr(_options.ParentHwnd));
-                if (File.Exists(_options.CloseRequestPath))
+                if ((now - _lastEmbeddedHostMaintenanceUtc).TotalMilliseconds >= 8)
                 {
-                    Close();
-                    return;
+                    _lastEmbeddedHostMaintenanceUtc = now;
+                    MaintainEmbeddedHostSize(new IntPtr(_options.ParentHwnd));
+                }
+                if ((now - _lastEmbeddedCloseCheckUtc).TotalMilliseconds >= 100)
+                {
+                    _lastEmbeddedCloseCheckUtc = now;
+                    if (File.Exists(_options.CloseRequestPath))
+                    {
+                        Close();
+                        return;
+                    }
                 }
             }
             if (!_embeddedViewportActive)
@@ -87,7 +92,7 @@ internal sealed partial class ExperimentForm
                 _lastMetricsUiUtc = now;
                 var metricsText = RendererMetricsText(
                     _viewport.Metrics,
-                    RendererStatusWithLifecycle(),
+                    _viewport.RendererBackendName,
                     compact: _options.Embedded);
                 if (!string.Equals(metricsText, _lastMetricsUiText, StringComparison.Ordinal))
                 {
@@ -98,12 +103,48 @@ internal sealed partial class ExperimentForm
             if ((now - _lastMetricsProtocolUtc).TotalMilliseconds >= 500)
             {
                 _lastMetricsProtocolUtc = now;
+                PreviewPerformanceCapture.SampleWorkingSet();
                 var metricsPayload = MetricsPayload(_viewport.Metrics);
-                metricsPayload["renderer"] = RendererStatusWithLifecycle();
+                metricsPayload["renderer"] = _viewport.RendererLiveMetricsPayload();
                 metricsPayload["lifecycle_counts"] = LifecycleCountsPayload();
                 WriteProtocolEvent("metrics", metricsPayload);
             }
         };
         _timer.Start();
+    }
+
+    private void MaintainEmbeddedHostSize(IntPtr parent)
+    {
+        if (!NativeWindowHost.TryGetClientSize(parent, out var desired))
+        {
+            return;
+        }
+        if (Width == desired.Width && Height == desired.Height)
+        {
+            _pendingEmbeddedParentSize = Size.Empty;
+            _pendingEmbeddedParentSizeTimestamp = 0L;
+            return;
+        }
+        var now = Stopwatch.GetTimestamp();
+        if (_pendingEmbeddedParentSize != desired)
+        {
+            if (!_pendingEmbeddedParentSize.IsEmpty)
+            {
+                _embeddedHostResizeCoalescedCount++;
+            }
+            _pendingEmbeddedParentSize = desired;
+            _pendingEmbeddedParentSizeTimestamp = now;
+            _embeddedHostResizeDeferredCount++;
+            return;
+        }
+        if (_pendingEmbeddedParentSizeTimestamp <= 0
+            || (now - _pendingEmbeddedParentSizeTimestamp) * 1000.0 / Stopwatch.Frequency < 200.0)
+        {
+            return;
+        }
+        NativeWindowHost.ResizeToParent(this, parent);
+        _embeddedHostResizeCommitCount++;
+        _pendingEmbeddedParentSize = Size.Empty;
+        _pendingEmbeddedParentSizeTimestamp = 0L;
     }
 }

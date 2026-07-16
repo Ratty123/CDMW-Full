@@ -28,10 +28,28 @@ internal sealed partial class D3D11MaterialViewport
         }
         try
         {
+            var captureActive = PreviewPerformanceCapture.IsActive;
+            var allocatedBytesBefore = captureActive ? GC.GetAllocatedBytesForCurrentThread() : 0L;
             var started = Stopwatch.GetTimestamp();
             presentMs = RenderFrame();
             _context?.Flush();
-            frameMs = (Stopwatch.GetTimestamp() - started) * 1000.0 / Stopwatch.Frequency;
+            var finished = Stopwatch.GetTimestamp();
+            frameMs = (finished - started) * 1000.0 / Stopwatch.Frequency;
+            if (captureActive)
+            {
+                PreviewPerformanceCapture.RecordFrame(
+                    started,
+                    _lastPresentStartedTimestamp,
+                    finished,
+                    ResolvedGpuTimeForFrameMs,
+                    allocatedBytesBefore);
+                PreviewPerformanceCapture.RecordPhase(
+                    PreviewPerformancePhase.Paint,
+                    started,
+                    finished,
+                    allocatedBytesBefore);
+            }
+            PublishTextureRegionCompletion();
             return true;
         }
         catch (Exception ex)

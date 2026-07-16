@@ -18,6 +18,7 @@ from tools.mesh_harness.parity import (
     DEFAULT_PARITY_HARD_FAIL_THRESHOLD,
     run_mesh_dotnet_native_parity_report,
 )
+from tools.mesh_harness.performance_contract import resolve_performance_request
 from tools.mesh_harness.qt_probes import run_native_mesh_editor_qt_cancellation, run_native_mesh_editor_qt_responsiveness
 from tools.mesh_harness.real_animation import run_real_archive_animation_binding_smoke
 from tools.mesh_harness.real_app import run_real_archive_app_workflow_smoke
@@ -62,7 +63,16 @@ def run_scenario(
     parity_fail_percent: float = DEFAULT_PARITY_FAIL_PERCENT,
     parity_hard_fail_threshold: float = DEFAULT_PARITY_HARD_FAIL_THRESHOLD,
     parity_difference_scale: float = DEFAULT_PARITY_DIFFERENCE_SCALE,
+    performance_manifest: Path | str | None = None,
+    performance_duration_seconds: float | None = None,
+    performance_target_hz: float | None = None,
 ) -> dict[str, object]:
+    performance_request = resolve_performance_request(
+        scenario,
+        performance_manifest,
+        duration_seconds=performance_duration_seconds,
+        target_hz=performance_target_hz,
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     metadata = scenario_metadata(scenario)
     if scenario in _SYNTHETIC_D3D11_SCENARIOS and (not allow_synthetic_d3d11):
@@ -102,12 +112,27 @@ def run_scenario(
             run_real_archive_mesh_editor_dotnet_zoom_smoke,
         )
 
-        edit_result = _apply_backend_gate(
+        performance_timeout = (
+            max(metadata.timeout_seconds, performance_request.duration_seconds + 60.0)
+            if performance_request is not None
+            else metadata.timeout_seconds
+        )
+        edit_proof = (
             run_real_archive_mesh_editor_dotnet_edit_smoke(
                 Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
                 output_dir,
+                timeout_seconds=performance_timeout,
+                performance_request=performance_request,
+            )
+            if performance_request is not None
+            else run_real_archive_mesh_editor_dotnet_edit_smoke(
+                Path(game_root) if game_root is not None else _DEFAULT_GAME_ROOT,
+                output_dir,
                 timeout_seconds=metadata.timeout_seconds,
-            ),
+            )
+        )
+        edit_result = _apply_backend_gate(
+            edit_proof,
             expected_renderer_backend=metadata.expected_renderer_backend,
             expected_edit_backend=metadata.expected_edit_backend,
         )

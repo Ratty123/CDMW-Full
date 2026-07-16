@@ -185,6 +185,13 @@ def exercise_linked_texture_strokes(
         texture_revision=2,
         dirty_bounds=(second_x, 0, second_width, patch_height),
     )
+    state.performance_texture_binding = binding
+    state.performance_texture_variants = (first, second)
+    state.performance_texture_dirty_bounds = (
+        (0, 0, patch_width, patch_height),
+        (second_x, 0, second_width, patch_height),
+    )
+    state.performance_texture_revision = 2
     if not state.tab.apply_texture_editor_region_patch(first_patch):
         second_patch.composite_lease.release()
         return "First linked Texture Editor stroke was rejected."

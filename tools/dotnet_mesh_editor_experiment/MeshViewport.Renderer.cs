@@ -37,15 +37,20 @@ internal sealed partial class MeshViewport
         D3D11MaterialViewport? viewport = null;
         try
         {
-            viewport = new D3D11MaterialViewport(_document, _materials, _textureSet, _scene) { Dock = DockStyle.Fill };
-            viewport.MouseDown += (_, e) => OnMouseDown(e);
-            viewport.MouseUp += (_, e) => OnMouseUp(e);
-            viewport.MouseMove += (_, e) => OnMouseMove(e);
+            viewport = new D3D11MaterialViewport(_document, _materials, _textureSet, _scene)
+            {
+                Dock = DockStyle.None,
+                Bounds = ClientRectangle,
+            };
+            viewport.MouseDown += (_, e) => ForwardRendererMouseDown(e);
+            viewport.MouseUp += (_, e) => ForwardRendererMouseUp(e);
+            viewport.MouseMove += (_, e) => ForwardRendererMouseMove(e);
             viewport.MouseWheel += (_, e) => ForwardRendererMouseWheel(e);
             viewport.MouseEnter += (_, _) => OnMouseEnter(EventArgs.Empty);
             viewport.MouseLeave += (_, _) => OnMouseLeave(EventArgs.Empty);
             viewport.BackendUnavailable += HandleD3D11BackendUnavailable;
             viewport.FrameRendered += RecordRenderedFrame;
+            viewport.TextureRegionCompleted += HandleTextureRegionCompleted;
             if (!viewport.TryInitialize(out var error))
             {
                 RetainD3D11LifecycleCounts(viewport);
@@ -58,6 +63,7 @@ internal sealed partial class MeshViewport
             _d3d11Viewport = viewport;
             _d3d11Viewport.ApplyPresentationSettings(_residentPresentationSettings);
             Controls.Add(_d3d11Viewport);
+            CommitInitialRenderSurfaceSize();
             _d3d11Viewport.BringToFront();
             StatusRequested?.Invoke("D3D11/Vortice HLSL material viewport initialized.");
             return true;
@@ -88,9 +94,9 @@ internal sealed partial class MeshViewport
                 Child = _gpuViewport.Root,
                 BackColor = BackColor,
             };
-            _gpuHost.MouseDown += (_, e) => OnMouseDown(e);
-            _gpuHost.MouseUp += (_, e) => OnMouseUp(e);
-            _gpuHost.MouseMove += (_, e) => OnMouseMove(e);
+            _gpuHost.MouseDown += (_, e) => ForwardRendererMouseDown(e);
+            _gpuHost.MouseUp += (_, e) => ForwardRendererMouseUp(e);
+            _gpuHost.MouseMove += (_, e) => ForwardRendererMouseMove(e);
             _gpuHost.MouseWheel += (_, e) => ForwardRendererMouseWheel(e);
             _gpuHost.MouseEnter += (_, _) => OnMouseEnter(EventArgs.Empty);
             _gpuHost.MouseLeave += (_, _) => OnMouseLeave(EventArgs.Empty);
@@ -112,11 +118,33 @@ internal sealed partial class MeshViewport
 
     private void ForwardRendererMouseWheel(MouseEventArgs e)
     {
+        PreviewPerformanceCapture.RecordInput(PreviewPerformanceInputKind.Physical);
         OnMouseWheel(e);
         if (e is HandledMouseEventArgs handled)
         {
             handled.Handled = true;
         }
+    }
+
+    private void ForwardRendererMouseDown(MouseEventArgs e)
+    {
+        PreviewPerformanceCapture.RecordInput(PreviewPerformanceInputKind.Physical);
+        OnMouseDown(e);
+    }
+
+    private void ForwardRendererMouseUp(MouseEventArgs e)
+    {
+        PreviewPerformanceCapture.RecordInput(PreviewPerformanceInputKind.Physical);
+        OnMouseUp(e);
+    }
+
+    private void ForwardRendererMouseMove(MouseEventArgs e)
+    {
+        if (e.Button != MouseButtons.None)
+        {
+            PreviewPerformanceCapture.RecordInput(PreviewPerformanceInputKind.Physical);
+        }
+        OnMouseMove(e);
     }
 
     private void HandleD3D11BackendUnavailable(string message)
@@ -128,6 +156,7 @@ internal sealed partial class MeshViewport
         }
         failed.BackendUnavailable -= HandleD3D11BackendUnavailable;
         failed.FrameRendered -= RecordRenderedFrame;
+        failed.TextureRegionCompleted -= HandleTextureRegionCompleted;
         RetainD3D11LifecycleCounts(failed);
         Controls.Remove(failed);
         _d3d11Viewport = null;
@@ -158,18 +187,29 @@ internal sealed partial class MeshViewport
             _d3d11Viewport.ShowSolid = ShowSolid;
             _d3d11Viewport.TexturesEnabled = TexturesEnabled;
             _d3d11Viewport.UpdateCamera(_camera);
-            _d3d11Viewport.UpdateRenderPanes(CurrentRenderPanes());
+            _d3d11Viewport.UpdateRenderPanes(_currentRenderPanes, PopulateCurrentRenderPanes());
             var brushTool = ActiveTool is "grab" or "smooth" or "inflate" or "pinch";
-            var brushRadius = (float)NumberOption(ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(), "radius", 24.0);
-            var presentedSources = _selectedSources
-                .Concat(_presentationHighlightedSources)
-                .Concat(_presentationHighlightedOriginals.Select(index => _scene.EditableSubmeshCount + index))
-                .Where(index => index >= 0)
-                .ToHashSet();
+            var brushRadius = brushTool
+                ? (float)NumberOption(
+                    ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>(),
+                    "radius",
+                    24.0)
+                : 24.0f;
+            _presentedSources.Clear();
+            _presentedSources.UnionWith(_selectedSources);
+            _presentedSources.UnionWith(_presentationHighlightedSources);
+            foreach (var originalIndex in _presentationHighlightedOriginals)
+            {
+                var sourceIndex = _scene.EditableSubmeshCount + originalIndex;
+                if (sourceIndex >= 0)
+                {
+                    _presentedSources.Add(sourceIndex);
+                }
+            }
             var presentedSourceIndex = _presentationHoveredSource >= 0
                 ? _presentationHoveredSource
-                : (presentedSources.Count > 0 ? presentedSources.Min() : -1);
-            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, brushTool && _pointerInside ? _pointerLocation : null, brushRadius);
+                : MinimumPresentedSourceIndex();
+            _d3d11Viewport.UpdateOverlay(_edgeTopology, _selectedEdges, _hoverEdgeId, _edgeDragActive ? EdgeDragRectangle() : null, _selectedVertices, _selectedFaces, _presentedSources, presentedSourceIndex, ShowWire, ShowVertices, ShowXRay, brushTool && _pointerInside ? _pointerLocation : null, brushRadius);
             return;
         }
         var viewport = _gpuViewport;
@@ -190,6 +230,57 @@ internal sealed partial class MeshViewport
             ShowWire,
             ShowXRay,
             _camera.Project);
+    }
+
+    private int MinimumPresentedSourceIndex()
+    {
+        var minimum = int.MaxValue;
+        foreach (var sourceIndex in _presentedSources)
+        {
+            minimum = Math.Min(minimum, sourceIndex);
+        }
+        return minimum == int.MaxValue ? -1 : minimum;
+    }
+
+    private void QueueRenderSurfaceResize()
+    {
+        var viewport = _d3d11Viewport;
+        if (viewport is null)
+        {
+            return;
+        }
+        RequestFrame();
+        if (viewport.Bounds == ClientRectangle)
+        {
+            _renderSurfaceResizeTimer.Stop();
+            return;
+        }
+        _renderSurfaceResizeTimer.Stop();
+        _renderSurfaceResizeTimer.Start();
+    }
+
+    private void CommitInitialRenderSurfaceSize()
+    {
+        var viewport = _d3d11Viewport;
+        if (viewport is null || ClientSize.Width <= 1 || ClientSize.Height <= 1)
+        {
+            return;
+        }
+        _renderSurfaceResizeTimer.Stop();
+        viewport.Bounds = ClientRectangle;
+        viewport.CommitResizeImmediately();
+    }
+
+    private void OnRenderSurfaceResizeTimerTick(object? sender, EventArgs e)
+    {
+        _renderSurfaceResizeTimer.Stop();
+        var viewport = _d3d11Viewport;
+        if (viewport is null || viewport.IsDisposed)
+        {
+            return;
+        }
+        viewport.Bounds = ClientRectangle;
+        UpdateGpuViewport();
     }
 
     public void InvalidateRenderSurface()
@@ -246,6 +337,7 @@ internal sealed partial class MeshViewport
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        CommitInitialRenderSurfaceSize();
         EnsureRenderScheduled();
     }
 
@@ -327,9 +419,11 @@ internal sealed partial class MeshViewport
         return true;
     }
 
-    public bool TryApplyTextureRegion(NetTextureRegionUpdate update, ReadOnlySpan<byte> pixels, out int bytesUploaded, out string error)
+    private void HandleTextureRegionCompleted(NetTextureRegionUpdate update, int bytesUploaded, string error) =>
+        TextureRegionCompleted?.Invoke(update, bytesUploaded, error);
+
+    public bool TryQueueTextureRegion(NetTextureRegionUpdate update, byte[] pixels, out string error)
     {
-        bytesUploaded = 0;
         if (_d3d11Viewport is null)
         {
             error = ProductionD3D11Required || _rendererBlocked
@@ -337,7 +431,7 @@ internal sealed partial class MeshViewport
                 : "Texture region updates require the D3D11 material renderer.";
             return false;
         }
-        if (!_d3d11Viewport.TryApplyTextureRegion(update, pixels, out bytesUploaded, out error))
+        if (!_d3d11Viewport.TryQueueTextureRegion(update, pixels, out error))
         {
             return false;
         }

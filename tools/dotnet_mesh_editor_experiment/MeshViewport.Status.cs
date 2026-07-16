@@ -98,6 +98,31 @@ internal sealed partial class MeshViewport
         };
     }
 
+    public Dictionary<string, object?> RendererCompactStatusPayload()
+    {
+        var geometryResources = _d3d11Viewport?.LiveMetricsPayload()
+            ?? new Dictionary<string, object?> { ["available"] = false };
+        return new Dictionary<string, object?>
+        {
+            ["backend"] = RendererBackend,
+            ["gpu_backed"] = !_rendererBlocked && (_d3d11Viewport is not null || _gpuViewport is not null),
+            ["renderer_blocked"] = _rendererBlocked,
+            ["device_removed_reason"] = _d3d11Viewport?.DeviceRemovedReason ?? string.Empty,
+            ["present_sync_interval"] = _d3d11Viewport?.PresentSyncInterval,
+            ["maximum_frame_latency"] = _d3d11Viewport?.MaximumFrameLatency,
+            ["presentation_model"] = _d3d11Viewport?.PresentationModel,
+            ["viewport"] = RenderSurfaceStatusPayload(),
+            ["display_mode"] = DisplayMode,
+            ["comparison_mode"] = _scene.ComparisonMode,
+            ["show_solid"] = ShowSolid,
+            ["show_wire"] = ShowWire,
+            ["show_vertices"] = ShowVertices,
+            ["textures_enabled"] = TexturesEnabled,
+            ["geometry_resources"] = geometryResources,
+            ["live_metrics"] = geometryResources,
+        };
+    }
+
     public string[] ActiveCapabilities()
     {
         var capabilities = new List<string>
@@ -122,6 +147,7 @@ internal sealed partial class MeshViewport
             "resizable_role_panes_v1",
             "helper_build_provenance_v1",
             "deterministic_offscreen_capture_v1",
+            "performance_capture_v1",
             "scene_grid_v1",
             "placement_gizmo_move_rotate_scale_v1",
             "strokes",

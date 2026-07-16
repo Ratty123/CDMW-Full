@@ -39,7 +39,7 @@ internal sealed partial class ExperimentForm
             ["show_wire"] = _viewport.ShowWire,
             ["show_vertices"] = _viewport.ShowVertices,
             ["textures_enabled"] = _viewport.TexturesEnabled,
-            ["renderer"] = RendererStatusWithLifecycle(),
+            ["renderer"] = RendererCompactStatusWithLifecycle(),
             ["capabilities"] = new[] { ViewportDisplayModesCapability },
         });
     }
