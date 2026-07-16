@@ -76,6 +76,20 @@ internal static class CameraZoomPolicy
         return Clamp(safeCurrentZoom * safeZoomFactor, safeFitZoom);
     }
 
+    internal static float PreserveWorldPan(float projectedPan, float currentZoom, float targetZoom)
+    {
+        if (!float.IsFinite(projectedPan))
+        {
+            return 0.0f;
+        }
+        if (!float.IsFinite(currentZoom) || currentZoom <= 0.0f
+            || !float.IsFinite(targetZoom) || targetZoom <= 0.0f)
+        {
+            return projectedPan;
+        }
+        return projectedPan * (targetZoom / currentZoom);
+    }
+
     internal static float MinimumZoom(float fitZoom)
     {
         var safeFitZoom = SafeFitZoom(fitZoom);

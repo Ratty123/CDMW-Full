@@ -56,8 +56,40 @@ def _presentation_cameras(renderer: Mapping[str, object]) -> tuple[dict[str, obj
     return presentation, cameras
 
 
-def _camera_without_zoom(camera: Mapping[str, object]) -> dict[str, object]:
-    return {str(key): value for key, value in camera.items() if str(key) != "zoom"}
+def _camera_without_zoom_or_pan(camera: Mapping[str, object]) -> dict[str, object]:
+    return {
+        str(key): value
+        for key, value in camera.items()
+        if str(key) not in {"zoom", "pan"}
+    }
+
+
+def _camera_world_pan(camera: Mapping[str, object]) -> tuple[float, float] | None:
+    raw_pan = camera.get("pan")
+    if not isinstance(raw_pan, (list, tuple)) or len(raw_pan) < 2:
+        return None
+    try:
+        zoom = float(camera.get("zoom", 0.0) or 0.0)
+        if zoom <= 0.0:
+            return None
+        return (float(raw_pan[0]) / zoom, float(raw_pan[1]) / zoom)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
+def _camera_preserves_native_zoom_anchor(
+    initial: Mapping[str, object],
+    zoomed: Mapping[str, object],
+) -> bool:
+    initial_world_pan = _camera_world_pan(initial)
+    zoomed_world_pan = _camera_world_pan(zoomed)
+    return bool(
+        initial_world_pan is not None
+        and zoomed_world_pan is not None
+        and _camera_without_zoom_or_pan(zoomed) == _camera_without_zoom_or_pan(initial)
+        and abs(zoomed_world_pan[0] - initial_world_pan[0]) <= 0.00001
+        and abs(zoomed_world_pan[1] - initial_world_pan[1]) <= 0.00001
+    )
 
 
 def _foreground_root_hwnd(state: SimpleNamespace) -> int:
@@ -319,8 +351,9 @@ def exercise_side_by_side_wheel_zoom(
                     initial_zoom > 0.0
                     and abs(zoomed_zoom - initial_zoom * 0.75) <= zoom_tolerance
                 ),
-                "target_framing_center_locked": bool(
-                    _camera_without_zoom(zoomed_target) == _camera_without_zoom(initial_target)
+                "target_panned_anchor_locked": _camera_preserves_native_zoom_anchor(
+                    initial_target,
+                    zoomed_target,
                 ),
                 "non_target_camera_unchanged": bool(zoomed_other == initial_other),
                 "active_camera_context_unchanged": bool(
@@ -388,11 +421,11 @@ def exercise_side_by_side_wheel_zoom(
         "physical_divider_activation_owned": divider_activation.get("ok") is True,
         "correct_viewport_ownership": bool(rows and all(row["gates"]["viewport_input_owned"] for row in rows)),
         "each_pane_zoomed_independently": bool(rows and all(row["ok"] for row in rows)),
-        "models_remained_visible_and_center_locked": bool(
+        "models_remained_visible_and_panned_anchor_locked": bool(
             rows
             and all(
                 row["gates"]["zoomed_out_model_still_visible"]
-                and row["gates"]["target_framing_center_locked"]
+                and row["gates"]["target_panned_anchor_locked"]
                 for row in rows
             )
         ),

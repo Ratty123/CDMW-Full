@@ -296,10 +296,11 @@ internal sealed partial class MeshViewport
             -1.55f,
             1.55f);
         var zoomFactor = Math.Clamp(JsonFloat(camera, "zoom_factor", 1.0f), 0.01f, 100.0f);
-        context.Zoom = CameraZoomPolicy.ApplyZoomFactor(
+        var targetZoom = CameraZoomPolicy.ApplyZoomFactor(
             context.Zoom,
             FitZoomForBounds((context.CameraMinimum, context.CameraMaximum)),
             zoomFactor);
+        ApplyZoomToContext(context, targetZoom);
         if (camera.TryGetProperty("pan", out var pan) && pan.ValueKind == JsonValueKind.Array)
         {
             var values = pan.EnumerateArray().Take(2)

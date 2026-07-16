@@ -66,6 +66,8 @@ def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
     assert "safeFitZoom * MinimumFitZoomRatio" in policy
     assert "safeFitZoom * MaximumFitZoomRatio" in policy
     assert "delta > 0 ? 1 : -1" in policy
+    assert "PreserveWorldPan(" in policy
+    assert "projectedPan * (targetZoom / currentZoom)" in policy
     assert "_zoom *= e.Delta > 0 ? 1.1f : 0.9f;" not in input_source
     assert "Math.Clamp(_zoom, 1.0f, 500000.0f)" not in input_source
     assert "CameraZoomPolicy.ApplyZoomFactor(" in presentation_source
@@ -95,20 +97,33 @@ def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
     assert "LoadPresentationContext(" not in pane_zoom_handler
     assert "_activeCameraContextId" in pane_zoom_handler
     assert "_zoom = context.Zoom;" in pane_zoom_handler
+    assert "_panX = context.PanX;" in pane_zoom_handler
+    assert "_panY = context.PanY;" in pane_zoom_handler
+    assert "ApplyZoomToContext(context, targetZoom);" in pane_zoom_handler
+    assert pane_zoom_handler.count("CameraZoomPolicy.PreserveWorldPan(") == 2
+    assert "ApplyZoomToContext(context, targetZoom);" in presentation_source
 
 
 def test_hidden_runtime_proof_covers_shared_reversible_zoom_policy() -> None:
     soak = _source_family("HeadlessGpuSparseSoak*.cs")
+    real_input = (
+        ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py"
+    ).read_text(encoding="utf-8")
 
     assert "CameraZoomProof()" in soak
     assert 'gates["placement_and_mesh_edit_wheel_zoom_reversible"]' in soak
     assert 'gates["archive_browser_zoom_step_parity"]' in soak
-    assert 'gates["wheel_zoom_projected_center_stable"]' in soak
+    assert 'gates["wheel_zoom_panned_anchor_stable"]' in soak
     assert 'gates["side_by_side_wheel_zoom_target_isolated"]' in soak
     assert 'gates["programmatic_zoom_clamped_fit_relative"]' in soak
     assert '["archive_browser_step_table_exact"]' in soak
     assert '["high_resolution_delta_single_step"]' in soak
-    assert '["projected_center_proof"]' in soak
+    assert '["panned_anchor_proof"]' in soak
+    assert "UnprojectFramingCenter(" in soak
+    assert "CameraWorldPan(" in soak
+    assert "_camera_preserves_native_zoom_anchor(" in real_input
+    assert '"target_panned_anchor_locked"' in real_input
+    assert '"models_remained_visible_and_panned_anchor_locked"' in real_input
     assert '["pane_isolation_proof"]' in soak
     assert 'new[] { 0.0005f, fitZoom, 226.707f }' in soak
     for angle in ("front", "back", "top", "side", "oblique"):

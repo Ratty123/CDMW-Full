@@ -360,9 +360,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   `0.1, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64`.
   Each wheel event moves one slot based on current zoom divided by fitted zoom,
   regardless of wheel-delta magnitude, and an inverse step restores the exact
-  prior slot. Zoom remains locked to the projected framing center, including
-  after pan. In Side by Side, only the pane beneath the pointer changes; the
-  other pane's camera and the active camera context remain untouched.
+  prior slot. Like Archive Browser, zoom preserves camera-space pan: projected
+  pan scales with zoom so a detail moved to the framing center stays anchored
+  instead of pulling back toward the model's original center. In Side by Side,
+  only the pane beneath the pointer changes; the other pane's camera and the
+  active camera context remain untouched.
   Every camera, stroke, gizmo, selection-rectangle, divider, or wheel state
   change queues at most one latest-wins invalidation rather than rendering from
   the 16 ms WinForms maintenance timer. A completed Present never schedules

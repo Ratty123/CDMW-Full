@@ -96,16 +96,27 @@ internal sealed partial class MeshViewport
         if (string.Equals(contextId, _activeCameraContextId, StringComparison.OrdinalIgnoreCase))
         {
             _zoom = context.Zoom;
+            _panX = context.PanX;
+            _panY = context.PanY;
         }
         return true;
     }
 
     internal static void ApplyWheelZoomToContext(NetViewPresentationContext context, int delta)
     {
-        context.Zoom = CameraZoomPolicy.ApplyWheelDelta(
+        var targetZoom = CameraZoomPolicy.ApplyWheelDelta(
             context.Zoom,
             FitZoomForBounds((context.CameraMinimum, context.CameraMaximum)),
             delta);
+        ApplyZoomToContext(context, targetZoom);
+    }
+
+    internal static void ApplyZoomToContext(NetViewPresentationContext context, float targetZoom)
+    {
+        var currentZoom = context.Zoom;
+        context.PanX = CameraZoomPolicy.PreserveWorldPan(context.PanX, currentZoom, targetZoom);
+        context.PanY = CameraZoomPolicy.PreserveWorldPan(context.PanY, currentZoom, targetZoom);
+        context.Zoom = targetZoom;
     }
 
     private static string NormalizePaneId(string? view) =>

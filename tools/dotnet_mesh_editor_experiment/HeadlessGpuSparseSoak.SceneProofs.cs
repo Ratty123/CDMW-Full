@@ -275,7 +275,7 @@ internal static partial class HeadlessGpuSparseSoak
             && NearlyEqual(
                 CameraZoomPolicy.ApplyZoomFactor(fitZoom, fitZoom, 1000.0f),
                 maximum);
-        var projectedCenterProof = ProjectedCenterZoomProof(expectedSteps);
+        var pannedAnchorProof = PannedZoomAnchorProof(expectedSteps);
         var paneIsolationProof = PaneZoomIsolationProof();
         var stepTableExact = actualSteps.SequenceEqual(expectedSteps);
         var stepTransitionsExact = stepRows.All(row => row.GetValueOrDefault("ok") is true);
@@ -289,7 +289,7 @@ internal static partial class HeadlessGpuSparseSoak
                 && highResolutionDeltaSingleStep
                 && invalidValuesSafe
                 && programmaticClampExact
-                && projectedCenterProof.GetValueOrDefault("ok") is true
+                && pannedAnchorProof.GetValueOrDefault("ok") is true
                 && paneIsolationProof.GetValueOrDefault("ok") is true
                 && reciprocalError <= 0.00001f
                 && zoomedOut < fitZoom
@@ -301,7 +301,7 @@ internal static partial class HeadlessGpuSparseSoak
             ["high_resolution_delta_single_step"] = highResolutionDeltaSingleStep,
             ["invalid_values_safe"] = invalidValuesSafe,
             ["programmatic_clamp_exact"] = programmaticClampExact,
-            ["projected_center_proof"] = projectedCenterProof,
+            ["panned_anchor_proof"] = pannedAnchorProof,
             ["pane_isolation_proof"] = paneIsolationProof,
             ["fit_zoom"] = fitZoom,
             ["zoomed_in"] = zoomedIn,
@@ -395,7 +395,7 @@ internal static partial class HeadlessGpuSparseSoak
         };
     }
 
-    private static Dictionary<string, object?> ProjectedCenterZoomProof(IReadOnlyList<float> zoomSteps)
+    private static Dictionary<string, object?> PannedZoomAnchorProof(IReadOnlyList<float> zoomSteps)
     {
         var bounds = (Min: new Vec3(-4.0f, -2.0f, 3.0f), Max: new Vec3(8.0f, 10.0f, 15.0f));
         var center = new Vec3(2.0f, 4.0f, 9.0f);
@@ -418,42 +418,67 @@ internal static partial class HeadlessGpuSparseSoak
         {
             foreach (var pan in pans)
             {
-                var baseline = NetViewportCamera.Create(
+                var context = new NetViewPresentationContext
+                {
+                    Id = "editable",
+                    RoleFilter = "editable",
+                    Yaw = angle.Yaw,
+                    Pitch = angle.Pitch,
+                    Zoom = fitZoom,
+                    PanX = pan.X,
+                    PanY = pan.Y,
+                    CameraMinimum = bounds.Min,
+                    CameraMaximum = bounds.Max,
+                };
+                var baselineCamera = NetViewportCamera.Create(
                     center,
                     bounds,
-                    angle.Yaw,
-                    angle.Pitch,
-                    fitZoom,
-                    pan.X,
-                    pan.Y,
+                    context.Yaw,
+                    context.Pitch,
+                    context.Zoom,
+                    context.PanX,
+                    context.PanY,
                     1280,
-                    720).Project(center);
+                    720);
+                var anchor = UnprojectFramingCenter(baselineCamera);
+                var baseline = baselineCamera.Project(anchor);
                 var maximumDelta = 0.0;
+                var maximumWorldPanError = 0.0;
+                var initialWorldPanX = context.PanX / context.Zoom;
+                var initialWorldPanY = context.PanY / context.Zoom;
                 foreach (var step in zoomSteps)
                 {
+                    MeshViewport.ApplyZoomToContext(context, fitZoom * step);
                     var projected = NetViewportCamera.Create(
                         center,
                         bounds,
-                        angle.Yaw,
-                        angle.Pitch,
-                        fitZoom * step,
-                        pan.X,
-                        pan.Y,
+                        context.Yaw,
+                        context.Pitch,
+                        context.Zoom,
+                        context.PanX,
+                        context.PanY,
                         1280,
-                        720).Project(center);
+                        720).Project(anchor);
                     maximumDelta = Math.Max(
                         maximumDelta,
                         Math.Sqrt(
                             Math.Pow(projected.X - baseline.X, 2.0)
                             + Math.Pow(projected.Y - baseline.Y, 2.0)));
+                    maximumWorldPanError = Math.Max(
+                        maximumWorldPanError,
+                        Math.Max(
+                            Math.Abs((context.PanX / context.Zoom) - initialWorldPanX),
+                            Math.Abs((context.PanY / context.Zoom) - initialWorldPanY)));
                 }
                 rows.Add(new Dictionary<string, object?>
                 {
                     ["angle"] = angle.Name,
                     ["pan"] = pan.Name,
+                    ["anchor"] = new[] { anchor.X, anchor.Y, anchor.Z },
                     ["baseline"] = new[] { baseline.X, baseline.Y },
                     ["maximum_pixel_delta"] = maximumDelta,
-                    ["ok"] = maximumDelta <= 0.002,
+                    ["maximum_world_pan_error"] = maximumWorldPanError,
+                    ["ok"] = maximumDelta <= 0.005 && maximumWorldPanError <= 0.00001,
                 });
             }
         }
@@ -461,8 +486,23 @@ internal static partial class HeadlessGpuSparseSoak
         {
             ["ok"] = rows.All(row => row.GetValueOrDefault("ok") is true),
             ["angles"] = rows,
-            ["center_lock_tolerance_pixels"] = 0.002,
+            ["panned_anchor_tolerance_pixels"] = 0.005,
+            ["world_pan_tolerance"] = 0.00001,
         };
+    }
+
+    private static Vec3 UnprojectFramingCenter(NetViewportCamera camera)
+    {
+        if (!Matrix4x4.Invert(camera.WorldViewProjection, out var inverse))
+        {
+            return camera.Center;
+        }
+        var world = Vector4.Transform(new Vector4(0.0f, 0.0f, 0.5f, 1.0f), inverse);
+        if (Math.Abs(world.W) <= 0.000001f)
+        {
+            return camera.Center;
+        }
+        return new Vec3(world.X / world.W, world.Y / world.W, world.Z / world.W);
     }
 
     private static Dictionary<string, object?> PaneZoomIsolationProof()
@@ -492,26 +532,42 @@ internal static partial class HeadlessGpuSparseSoak
             CameraMaximum = new Vec3(7.0f, 5.0f, 6.0f),
         };
         const string activeContext = "editable";
-        var editableBefore = CameraInvariantValues(editable);
-        var referenceBefore = CameraInvariantValues(reference);
+        var editableBefore = CameraFixedValues(editable);
+        var referenceBefore = CameraFixedValues(reference);
+        var editableWorldPanBefore = CameraWorldPan(editable);
+        var referenceWorldPanBefore = CameraWorldPan(reference);
         var editableZoomBefore = editable.Zoom;
         var referenceZoomBefore = reference.Zoom;
+        var editableProjectedPanBefore = new[] { editable.PanX, editable.PanY };
+        var referenceProjectedPanBefore = new[] { reference.PanX, reference.PanY };
 
         MeshViewport.ApplyWheelZoomToContext(reference, 120);
-        var referenceChangedOnlyZoom = CameraInvariantValues(reference).SequenceEqual(referenceBefore)
-            && NearlyEqual(reference.Zoom, referenceZoomBefore * 1.5f);
-        var editableUntouched = CameraInvariantValues(editable).SequenceEqual(editableBefore)
+        var referenceChangedOnlyZoom = CameraFixedValues(reference).SequenceEqual(referenceBefore)
+            && CameraWorldPan(reference).Zip(referenceWorldPanBefore).All(pair => NearlyEqual(pair.First, pair.Second))
+            && NearlyEqual(reference.Zoom, referenceZoomBefore * 1.5f)
+            && NearlyEqual(reference.PanX, referenceProjectedPanBefore[0] * 1.5f)
+            && NearlyEqual(reference.PanY, referenceProjectedPanBefore[1] * 1.5f);
+        var editableUntouched = CameraFixedValues(editable).SequenceEqual(editableBefore)
+            && CameraWorldPan(editable).Zip(editableWorldPanBefore).All(pair => NearlyEqual(pair.First, pair.Second))
             && NearlyEqual(editable.Zoom, editableZoomBefore);
         MeshViewport.ApplyWheelZoomToContext(reference, -120);
-        var referenceRestored = NearlyEqual(reference.Zoom, referenceZoomBefore);
+        var referenceRestored = NearlyEqual(reference.Zoom, referenceZoomBefore)
+            && NearlyEqual(reference.PanX, referenceProjectedPanBefore[0])
+            && NearlyEqual(reference.PanY, referenceProjectedPanBefore[1]);
 
         MeshViewport.ApplyWheelZoomToContext(editable, -120);
-        var editableChangedOnlyZoom = CameraInvariantValues(editable).SequenceEqual(editableBefore)
-            && NearlyEqual(editable.Zoom, editableZoomBefore * 0.75f);
-        var referenceUntouched = CameraInvariantValues(reference).SequenceEqual(referenceBefore)
+        var editableChangedOnlyZoom = CameraFixedValues(editable).SequenceEqual(editableBefore)
+            && CameraWorldPan(editable).Zip(editableWorldPanBefore).All(pair => NearlyEqual(pair.First, pair.Second))
+            && NearlyEqual(editable.Zoom, editableZoomBefore * 0.75f)
+            && NearlyEqual(editable.PanX, editableProjectedPanBefore[0] * 0.75f)
+            && NearlyEqual(editable.PanY, editableProjectedPanBefore[1] * 0.75f);
+        var referenceUntouched = CameraFixedValues(reference).SequenceEqual(referenceBefore)
+            && CameraWorldPan(reference).Zip(referenceWorldPanBefore).All(pair => NearlyEqual(pair.First, pair.Second))
             && NearlyEqual(reference.Zoom, referenceZoomBefore);
         MeshViewport.ApplyWheelZoomToContext(editable, 120);
-        var editableRestored = NearlyEqual(editable.Zoom, editableZoomBefore);
+        var editableRestored = NearlyEqual(editable.Zoom, editableZoomBefore)
+            && NearlyEqual(editable.PanX, editableProjectedPanBefore[0])
+            && NearlyEqual(editable.PanY, editableProjectedPanBefore[1]);
         var activeContextUnchanged = activeContext == "editable";
 
         return new Dictionary<string, object?>
@@ -524,27 +580,35 @@ internal static partial class HeadlessGpuSparseSoak
                 && editableRestored
                 && activeContextUnchanged,
             ["reference_changed_only_zoom"] = referenceChangedOnlyZoom,
+            ["reference_world_pan_preserved"] =
+                CameraWorldPan(reference).Zip(referenceWorldPanBefore).All(pair => NearlyEqual(pair.First, pair.Second)),
             ["editable_untouched_when_reference_targeted"] = editableUntouched,
             ["reference_inverse_restored"] = referenceRestored,
             ["editable_changed_only_zoom"] = editableChangedOnlyZoom,
+            ["editable_world_pan_preserved"] =
+                CameraWorldPan(editable).Zip(editableWorldPanBefore).All(pair => NearlyEqual(pair.First, pair.Second)),
             ["reference_untouched_when_editable_targeted"] = referenceUntouched,
             ["editable_inverse_restored"] = editableRestored,
             ["active_context_unchanged"] = activeContextUnchanged,
         };
     }
 
-    private static float[] CameraInvariantValues(NetViewPresentationContext context) => new[]
+    private static float[] CameraFixedValues(NetViewPresentationContext context) => new[]
     {
         context.Yaw,
         context.Pitch,
-        context.PanX,
-        context.PanY,
         context.CameraMinimum.X,
         context.CameraMinimum.Y,
         context.CameraMinimum.Z,
         context.CameraMaximum.X,
         context.CameraMaximum.Y,
         context.CameraMaximum.Z,
+    };
+
+    private static float[] CameraWorldPan(NetViewPresentationContext context) => new[]
+    {
+        context.PanX / context.Zoom,
+        context.PanY / context.Zoom,
     };
 
     private static bool ApplyPlacementProofFrame(

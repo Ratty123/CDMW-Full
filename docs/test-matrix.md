@@ -102,7 +102,7 @@ two linked texture strokes, committed DDS assignment, UV/topology edits,
 undo/redo, coherent export, and GLB/OBJ/DDS/sidecar readback. Evidence stays
 under the temp directory. A second isolated resident session loads the same real
 PAC side by side and physically proves Archive Browser wheel-step parity,
-center-locked zoom, exact inverse restoration, per-pane ownership, and unchanged
+panned focal-point locking, exact inverse restoration, per-pane ownership, and unchanged
 archive fingerprints without contaminating the edit session's resource-lifetime
 counters. The edit proof also requires an initially empty Parts selection and
 proves face/vertex selection does not select or highlight a part.
