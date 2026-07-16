@@ -9,6 +9,20 @@ def _source(name: str) -> str:
     return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
 
 
+def test_part_pick_off_routes_authoritative_clear_selection() -> None:
+    program_source = _source("Program.cs")
+    part_pick_handler = program_source.split(
+        '_partPick.CheckedChanged += (_, _) =>', maxsplit=1
+    )[1].split("var left = new Panel", maxsplit=1)[0]
+    command_guard = program_source.split(
+        "private void WriteCommandRequest", maxsplit=1
+    )[1].split("var targetMode = SelectionTarget();", maxsplit=1)[0]
+
+    assert 'WriteCommandRequest("clear_selection");' in part_pick_handler
+    assert "Part Pick disabled; clearing selection." in part_pick_handler
+    assert '!string.Equals(command, "clear_selection", StringComparison.OrdinalIgnoreCase)' in command_guard
+
+
 def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync() -> None:
     input_source = _source("MeshViewport.Input.cs")
     selection_source = _source("MeshViewport.Status.cs")

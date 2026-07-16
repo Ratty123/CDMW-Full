@@ -535,14 +535,15 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
             self.standalone_dotnet_scene_desired["gizmo_tool"] = str(gizmo_tool)
         if placement is not None:
             return self._queue_dotnet_scene_frame_update()
-        if self.standalone_dotnet_scene_thread is not None:
-            # The active latest-wins calculation will publish these presentation
-            # values with its authoritative transform instead of racing it with
-            # an older matrix.
-            return True
         frame = self.standalone_dotnet_scene_candidate or self.standalone_dotnet_scene_frame
         if frame is None:
-            return False
+            # A first authoritative frame may still be calculating. Its
+            # completion applies the latest desired presentation values.
+            return self.standalone_dotnet_scene_thread is not None
+        # Mode-only transitions must not wait behind an older transform
+        # calculation. Publishing the last authoritative frame with a newer
+        # request id makes that worker result stale while keeping geometry and
+        # placement recomputation off the UI thread.
         self.standalone_dotnet_scene_request_id += 1
         self.standalone_dotnet_scene_generation += 1
         try:

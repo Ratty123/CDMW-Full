@@ -672,6 +672,9 @@ def _source_parts_outliner_step_017(_state):
         if isinstance(_state.selected_texture_plan_source, dict):
             _state.selected_texture_plan_source['material_name'] = ''
             _state.selected_texture_plan_source['source_indices'] = ()
+        sync_embedded_selection = getattr(_state, '_sync_embedded_part_selection', None)
+        if callable(sync_embedded_selection):
+            sync_embedded_selection(())
         if _state._qt_object_is_valid(_state.dds_detail_label) and _state._qt_object_is_valid(_state.dds_detail_panel):
             clear_state = _state._dds_detail_clear_state_helper(_state.material_plan_control_text)
             _state.dds_detail_label.setText(clear_state.detail_text)

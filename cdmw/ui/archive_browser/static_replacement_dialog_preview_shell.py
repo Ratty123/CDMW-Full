@@ -593,8 +593,14 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     camera_yaw_right_button.clicked.connect(lambda _checked=False: _nudge_alignment_camera(15.0, 0.0))
     camera_reset_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-35.0, 20.0))
 
+    def _preview_part_pick_toggled(checked: bool = False) -> None:
+        if bool(checked):
+            _sync_highlight_sets()
+            return
+        _clear_all_part_selections()
+
     preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
-    preview_part_pick_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
+    preview_part_pick_checkbox.toggled.connect(_preview_part_pick_toggled)
     preview_stack = QStackedWidget(preview_panel)
     preview_stack.addWidget(preview_splitter)
     preview_stack.addWidget(overlay_dialog_preview)

@@ -423,6 +423,11 @@ internal sealed partial class ExperimentForm : Form
                 _selectionTarget.SelectedItem = "Part";
                 _statusLabel.Text = "Part Pick enabled; selection requests target source parts.";
             }
+            else
+            {
+                _statusLabel.Text = "Part Pick disabled; clearing selection.";
+                WriteCommandRequest("clear_selection");
+            }
         };
         var left = new Panel
         {
@@ -620,7 +625,8 @@ internal sealed partial class ExperimentForm : Form
 
     private void WriteCommandRequest(string command, Dictionary<string, object?>? extraPayload = null)
     {
-        if (!string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(command, "clear_selection", StringComparison.OrdinalIgnoreCase))
         {
             _statusLabel.Text = "Placement mode: enable Edit Mesh to mutate geometry.";
             return;

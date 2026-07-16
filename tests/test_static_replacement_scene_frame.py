@@ -16,6 +16,7 @@ from cdmw.modding.static_mesh_scene_frame import (
 )
 from cdmw.modding.static_mesh_types import StaticReplacementTransform
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import MeshEditorDotNetProtocolMixin
+from cdmw.ui.mesh_editor.tab_state import MeshEditorStateMixin
 
 
 def _mesh(path: str, vertices: list[tuple[float, float, float]]) -> ParsedMesh:
@@ -243,6 +244,52 @@ def test_scene_ack_rejects_stale_generation_and_retains_last_acknowledged_frame(
     assert state.standalone_dotnet_scene_pending is None
     assert state.standalone_dotnet_scene_candidate is None
     assert state.standalone_dotnet_scene_frame is old_frame
+
+
+def test_mode_only_scene_update_bypasses_active_transform_worker() -> None:
+    original = _mesh("original.pac", [(0.0, 0.0, 0.0), (4.0, 2.0, 1.0)])
+    replacement = _mesh("replacement.obj", [(0.0, 0.0, 0.0), (2.0, 1.0, 1.0)])
+    frame = build_authoritative_static_scene_frame(
+        original,
+        replacement,
+        StaticReplacementTransform(alignment_mode="manual", scale_to_original_length=False),
+        source_identity="identity",
+        scene_generation=7,
+        comparison_mode="side_by_side",
+        interaction_mode="placement",
+    )
+    published: list[tuple[int, object]] = []
+    state = SimpleNamespace(
+        standalone_dotnet_scene_desired={
+            "comparison_mode": "side_by_side",
+            "interaction_mode": "placement",
+            "gizmo_tool": "move",
+        },
+        standalone_dotnet_scene_thread=object(),
+        standalone_dotnet_scene_candidate=None,
+        standalone_dotnet_scene_frame=frame,
+        standalone_dotnet_scene_request_id=3,
+        standalone_dotnet_scene_generation=7,
+        _standalone_dotnet_editor_process_running=lambda: True,
+        _publish_dotnet_scene_frame=lambda updated, request_id: (
+            published.append((int(request_id), updated)) or True
+        ),
+    )
+
+    assert MeshEditorStateMixin._send_dotnet_scene_state(
+        state,
+        comparison_mode="replacement_only",
+        interaction_mode="mesh_edit",
+    )
+    assert state.standalone_dotnet_scene_request_id == 4
+    assert state.standalone_dotnet_scene_generation == 8
+    assert len(published) == 1
+    request_id, updated = published[0]
+    assert request_id == 4
+    assert updated.scene_generation == 8
+    assert updated.comparison_mode == "replacement_only"
+    assert updated.interaction_mode == "mesh_edit"
+    assert updated.editable.model_matrix == frame.editable.model_matrix
 
 
 def test_live_scene_update_owner_does_not_rebuild_package_or_reparse_source() -> None:

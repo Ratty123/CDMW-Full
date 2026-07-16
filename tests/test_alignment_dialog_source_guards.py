@@ -3620,7 +3620,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _sync_highlight_sets_when_ready(*args, **kwargs):", source)
         self.assertIn("'_sync_highlight_sets': _sync_highlight_sets_when_ready", source)
         self.assertIn("preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())", source)
-        self.assertIn("preview_part_pick_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())", source)
+        self.assertIn("def _preview_part_pick_toggled(checked: bool = False) -> None:", source)
+        self.assertIn("_clear_all_part_selections()", source)
+        self.assertIn("preview_part_pick_checkbox.toggled.connect(_preview_part_pick_toggled)", source)
         selection_highlight_state_source = ARCHIVE_STATIC_REPLACEMENT_SELECTION_HIGHLIGHT_STATE.read_text(encoding="utf-8")
         self.assertIn("def selection_highlight_sets_state", selection_highlight_state_source)
         selection_source = static_replacement_callback_concern_source(ROOT, "preview_mode")
@@ -5380,6 +5382,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         clear_selection_source = _nested_function_source(outliner_source, "_clear_all_part_selections")
         self.assertIn("if not _state._alignment_dialog_widgets_live():", clear_selection_source)
         self.assertIn("if not _state._qt_object_is_valid(tree):", clear_selection_source)
+        self.assertIn("sync_embedded_selection(())", clear_selection_source)
 
         inspector_source = _nested_function_source(
             selection_mapping_source, "_refresh_mesh_replacement_properties_inspector"

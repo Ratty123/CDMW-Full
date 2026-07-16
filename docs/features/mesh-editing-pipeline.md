@@ -416,7 +416,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   either pane. Replacement control changes calculate a latest-wins frame
   off the Qt thread and update resident transforms without OBJ
   export, package rebuild, source reparse, geometry-buffer replacement, or
-  renderer restart. Scene updates and acknowledgements correlate session,
+  renderer restart. A mode-only `Edit Mesh` transition can publish the last
+  authoritative frame immediately instead of waiting behind an older transform
+  calculation; the older request then becomes stale and cannot replay placement
+  mode over the editor. Scene updates and acknowledgements correlate session,
   request, process generation, source identity, and scene generation; stale or
   rejected updates leave the last acknowledged scene frame active. Overlay
   renders the original as a reference wire layer.
@@ -456,6 +459,8 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   mirrors local selection to the resident C++ session, sends incremental
   strokes, and routes screen selection plus topology commands through
   `MeshEditCommandWorker` so native picking never blocks the Qt UI thread.
+  Turning Part Pick off clears Builder highlights and the resident selection;
+  Clear Selection uses the same authoritative selection bridge.
   The embedded tool panel shows the live authoritative action timeline and
   enables Undo/Redo from its cursor; Ctrl+Z, Ctrl+Y, and Ctrl+Shift+Z use the
   same background command path. Select and brush tools retain camera access
