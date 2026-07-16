@@ -42,6 +42,7 @@ internal sealed partial class MeshViewport
                 Dock = DockStyle.None,
                 Bounds = ClientRectangle,
             };
+            viewport.SetOverlayColors(_overlayColors);
             viewport.MouseDown += (_, e) => ForwardRendererMouseDown(e);
             viewport.MouseUp += (_, e) => ForwardRendererMouseUp(e);
             viewport.MouseMove += (_, e) => ForwardRendererMouseMove(e);
@@ -88,6 +89,7 @@ internal sealed partial class MeshViewport
         try
         {
             _gpuViewport = new WpfGpuMeshViewport(_document, _materials, _textureSet);
+            _gpuViewport.SetOverlayColors(_overlayColors);
             _gpuHost = new System.Windows.Forms.Integration.ElementHost
             {
                 Dock = DockStyle.Fill,

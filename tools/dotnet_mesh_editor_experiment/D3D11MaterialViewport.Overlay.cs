@@ -10,9 +10,11 @@ internal sealed partial class D3D11MaterialViewport
     private const int InitialOverlayVertexCapacity = 4096;
     private const float SelectedVertexMarkerRadiusPixels = 7.0f;
     private const float WireOverlayWidthPixels = 1.35f;
-    private static readonly Vector4 WireOverlayColor = OverlayColor(0, 0, 0, 225);
-    private static readonly Vector4 XRayWireOverlayColor = OverlayColor(0, 0, 0, 240);
-    private static readonly Vector4 VertexOverlayColor = OverlayColor(255, 174, 40, 255);
+    private MeshOverlayColors _overlayColors = MeshOverlayColors.Default;
+    private Vector4 _wireOverlayColor = OverlayColor(0, 0, 0, 225);
+    private Vector4 _vertexOverlayColor = OverlayColor(255, 174, 40, 255);
+    private static readonly Vector4 XRayWireOverlayColor = OverlayColor(245, 248, 252, 240);
+    private static readonly Vector4 XRayVertexOverlayColor = OverlayColor(255, 88, 214, 255);
     private static readonly uint OverlayVertexStride = (uint)Marshal.SizeOf<D3D11OverlayVertex>();
     private ID3D11Buffer? _overlayVertexBuffer;
     private int _overlayVertexCapacity;
@@ -22,6 +24,8 @@ internal sealed partial class D3D11MaterialViewport
     private long _overlayVerticesUploaded;
     private long _overlayBatchFlushCount;
     private long _overlayBatchedDrawCount;
+    private long _xRayWireNoDepthDrawCount;
+    private long _xRayVertexNoDepthPassCount;
     private readonly List<Vector3> _overlayScratchA = new(InitialOverlayVertexCapacity);
     private readonly List<Vector3> _overlayScratchB = new(InitialOverlayVertexCapacity);
     private readonly List<Vector3> _overlayFrameVertices = new(InitialOverlayVertexCapacity);
@@ -47,6 +51,21 @@ internal sealed partial class D3D11MaterialViewport
         _overlayFrameVertices.Clear();
         _overlayDrawCommands.Clear();
         _overlayCommandDepthMode = 0;
+    }
+
+    public void SetOverlayColors(MeshOverlayColors colors)
+    {
+        _overlayColors = colors.Normalized();
+        _wireOverlayColor = OverlayColor(
+            _overlayColors.Wire.R,
+            _overlayColors.Wire.G,
+            _overlayColors.Wire.B,
+            225);
+        _vertexOverlayColor = OverlayColor(
+            _overlayColors.Vertex.R,
+            _overlayColors.Vertex.G,
+            _overlayColors.Vertex.B,
+            255);
     }
 
     private void DisposeOverlayDynamicResources()
@@ -107,23 +126,16 @@ internal sealed partial class D3D11MaterialViewport
         _context.PSSetShader(_overlayPixelShader);
         _context.OMSetDepthStencilState(_overlayDepthState);
         DrawSceneGrid();
-        if (_overlayShowWire)
-        {
-            DrawD3D11WireOverlay();
-        }
-        if (_overlayShowVertices)
-        {
-            _overlayDrawCommands.Add(new D3D11OverlayDrawCommand(
-                PrimitiveTopology.Undefined,
-                0,
-                0,
-                default,
-                default,
-                _overlayCommandDepthMode,
-                DrawSceneVertices: true));
-        }
         if (!_overlayShowXRay)
         {
+            if (_overlayShowWire)
+            {
+                DrawD3D11WireOverlay();
+            }
+            if (_overlayShowVertices)
+            {
+                QueueD3D11VertexOverlay();
+            }
             DrawSelectedSourcesOverlay();
             DrawSelectedFacesOverlay();
             DrawSelectedEdgesOverlay();
@@ -134,9 +146,10 @@ internal sealed partial class D3D11MaterialViewport
         _overlayCommandDepthMode = 1;
         if (_overlayShowXRay)
         {
-            if (!_overlayShowWire)
+            DrawD3D11WireOverlay();
+            if (_overlayShowVertices)
             {
-                DrawD3D11WireOverlay();
+                QueueD3D11VertexOverlay();
             }
             DrawSelectedSourcesOverlay();
             DrawSelectedFacesOverlay();
@@ -159,6 +172,18 @@ internal sealed partial class D3D11MaterialViewport
         FlushOverlayPrimitives();
         _context.OMSetBlendState(_blendState);
         _context.OMSetDepthStencilState(_depthState);
+    }
+
+    private void QueueD3D11VertexOverlay()
+    {
+        _overlayDrawCommands.Add(new D3D11OverlayDrawCommand(
+            PrimitiveTopology.Undefined,
+            0,
+            0,
+            default,
+            default,
+            _overlayCommandDepthMode,
+            DrawSceneVertices: true));
     }
 
     private void DrawSceneGrid()
@@ -404,7 +429,7 @@ internal sealed partial class D3D11MaterialViewport
             PrimitiveTopology.LineList,
             cache.Lines,
             ScaleOverlayAlpha(
-                _overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor,
+                _overlayShowXRay ? XRayWireOverlayColor : _wireOverlayColor,
                 overlayStyle.WireOpacityScale),
             _camera.WorldViewProjection,
             lineWidthPixels: WireOverlayWidthPixels);
@@ -448,7 +473,7 @@ internal sealed partial class D3D11MaterialViewport
         var constants = new D3D11OverlayConstants
         {
             WorldViewProjection = _camera.WorldViewProjection,
-            Color = VertexOverlayColor,
+            Color = _overlayShowXRay ? XRayVertexOverlayColor : _vertexOverlayColor,
             MarkerSettings = new Vector4(
                 Math.Max(1.0f, _camera.ViewportWidth),
                 Math.Max(1.0f, _camera.ViewportHeight),
@@ -879,6 +904,10 @@ internal sealed partial class D3D11MaterialViewport
             if (command.DrawSceneVertices)
             {
                 DrawD3D11VertexOverlay();
+                if (command.DepthMode == 1)
+                {
+                    _xRayVertexNoDepthPassCount++;
+                }
                 _context.IASetInputLayout(_overlayInputLayout);
                 _context.VSSetShader(_overlayVertexShader);
                 _context.GSSetShader(null);
@@ -908,6 +937,10 @@ internal sealed partial class D3D11MaterialViewport
                     : null);
             _context.IASetPrimitiveTopology(command.Topology);
             _context.Draw((uint)command.VertexCount, (uint)command.StartVertex);
+            if (command.DepthMode == 1 && command.LineWidthPixels > 1.0f)
+            {
+                _xRayWireNoDepthDrawCount++;
+            }
             _overlayBatchedDrawCount++;
         }
         _context.GSSetShader(null);

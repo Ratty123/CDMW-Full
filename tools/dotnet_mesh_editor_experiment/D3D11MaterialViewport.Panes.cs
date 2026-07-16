@@ -15,6 +15,7 @@ internal readonly record struct D3D11RenderPane(
     bool TexturesEnabled,
     bool GridVisible,
     bool GizmoVisible,
+    bool XRay,
     bool InteractionAllowed);
 
 internal sealed partial class D3D11MaterialViewport
@@ -74,6 +75,7 @@ internal sealed partial class D3D11MaterialViewport
             TexturesEnabled,
             _scene.GridVisible,
             _scene.GizmoVisible,
+            _overlayShowXRay,
             true);
         count = 1;
         return _fallbackRenderPane;
@@ -94,8 +96,10 @@ internal sealed partial class D3D11MaterialViewport
             || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase)
             || string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
         _overlayShowVertices = string.Equals(mode, "vertices", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase);
-        _overlayShowXRay = string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
+        _overlayShowXRay = pane.XRay;
+        _overlayShowWire = _overlayShowWire || _overlayShowXRay;
         _context?.RSSetViewport(new Viewport(
             pane.Bounds.X,
             pane.Bounds.Y,
@@ -218,6 +222,7 @@ internal sealed partial class D3D11MaterialViewport
             ["width"] = pane.Bounds.Width,
             ["height"] = pane.Bounds.Height,
             ["grid_visible"] = pane.GridVisible,
+            ["xray"] = pane.XRay,
             ["interaction_allowed"] = pane.InteractionAllowed,
             ["textures_enabled"] = pane.TexturesEnabled,
         }).ToArray(),

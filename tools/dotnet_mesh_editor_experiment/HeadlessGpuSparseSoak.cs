@@ -91,6 +91,12 @@ internal static partial class HeadlessGpuSparseSoak
         {
             throw new InvalidOperationException($"Hidden D3D11 first frame failed: {firstFrameError}");
         }
+        var xrayOverlayProof = ApplyXRayOverlayProof(
+            viewport,
+            document,
+            camera,
+            host.ClientSize,
+            options.Smoke);
         var untexturedReadabilityProof = D3D11UntexturedReadabilityProof.Run();
         var texturedMetalReadabilityProof = D3D11TexturedMetalReadabilityProof.Run();
 
@@ -184,6 +190,8 @@ internal static partial class HeadlessGpuSparseSoak
             cameraZoomProof.GetValueOrDefault("programmatic_clamp_exact") is true;
         gates["fit_relative_vertex_markers_and_wire"] =
             fitRelativeOverlayProof.GetValueOrDefault("ok") is true;
+        gates["xray_overlay_draws_wire_and_vertices_without_depth"] =
+            xrayOverlayProof.GetValueOrDefault("ok") is true;
         var ok = gates.Values.All(value => value);
         var report = BuildReport(
             options,
@@ -210,6 +218,7 @@ internal static partial class HeadlessGpuSparseSoak
         report["presentation_mode_proof"] = presentationModeProof;
         report["camera_zoom_proof"] = cameraZoomProof;
         report["fit_relative_overlay_proof"] = fitRelativeOverlayProof;
+        report["xray_overlay_proof"] = xrayOverlayProof;
         report["untextured_readability_proof"] = untexturedReadabilityProof;
         report["textured_metal_readability_proof"] = texturedMetalReadabilityProof;
         return (report, ok);
@@ -237,6 +246,7 @@ internal static partial class HeadlessGpuSparseSoak
                 false,
                 true,
                 false,
+                false,
                 true),
         });
         viewport.UpdateOverlay(
@@ -253,6 +263,103 @@ internal static partial class HeadlessGpuSparseSoak
             showXRay: false,
             brushCursor: null,
             brushRadius: 24.0f);
+    }
+
+    private static Dictionary<string, object?> ApplyXRayOverlayProof(
+        D3D11MaterialViewport viewport,
+        ObjDocument document,
+        NetViewportCamera camera,
+        Size clientSize,
+        bool smoke)
+    {
+        if (!smoke)
+        {
+            return new Dictionary<string, object?>
+            {
+                ["ok"] = true,
+                ["exercised"] = false,
+                ["reason"] = "The dedicated X-Ray draw proof runs in smoke mode.",
+            };
+        }
+
+        var configuredColors = new MeshOverlayColors(
+            System.Drawing.Color.FromArgb(12, 34, 56),
+            System.Drawing.Color.FromArgb(78, 90, 123));
+        viewport.SetOverlayColors(configuredColors);
+        var before = viewport.ResourceMetricsPayload();
+        viewport.UpdateRenderPanes(new[]
+        {
+            new D3D11RenderPane(
+                new Rectangle(Point.Empty, clientSize),
+                camera,
+                "editable",
+                "wire_vertices",
+                0,
+                false,
+                true,
+                false,
+                true,
+                true),
+        });
+        viewport.UpdateOverlay(
+            NetEdgeTopology.Build(document),
+            new HashSet<int>(),
+            -1,
+            null,
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>(),
+            new HashSet<int>(),
+            -1,
+            showWire: true,
+            showVertices: true,
+            showXRay: true,
+            brushCursor: null,
+            brushRadius: 24.0f);
+        if (!viewport.TryRunHeadlessFrame(out var frameMs, out _, out var error))
+        {
+            throw new InvalidOperationException($"Hidden D3D11 X-Ray overlay proof failed: {error}");
+        }
+        var after = viewport.ResourceMetricsPayload();
+        var normalColorsRetained =
+            string.Equals(after.GetValueOrDefault("wire_overlay_color") as string, "#0C2238", StringComparison.Ordinal)
+            && string.Equals(after.GetValueOrDefault("vertex_overlay_color") as string, "#4E5A7B", StringComparison.Ordinal);
+        var automaticPaletteActive =
+            after.GetValueOrDefault("xray_overlay_active") is true
+            && string.Equals(after.GetValueOrDefault("xray_wire_overlay_color") as string, "#F5F8FC", StringComparison.Ordinal)
+            && string.Equals(after.GetValueOrDefault("xray_vertex_overlay_color") as string, "#FF58D6", StringComparison.Ordinal);
+        var wireNoDepthAdvanced =
+            Metric(after, "xray_wire_no_depth_draws") > Metric(before, "xray_wire_no_depth_draws");
+        var vertexNoDepthAdvanced =
+            Metric(after, "xray_vertex_no_depth_passes") > Metric(before, "xray_vertex_no_depth_passes");
+
+        viewport.SetOverlayColors(MeshOverlayColors.Default);
+        ConfigureSmokeViewport(viewport, camera, clientSize, smoke: true);
+        if (!viewport.TryRunHeadlessFrame(out _, out _, out var restoreError))
+        {
+            throw new InvalidOperationException($"Hidden D3D11 X-Ray overlay proof restore failed: {restoreError}");
+        }
+
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = normalColorsRetained
+                && automaticPaletteActive
+                && wireNoDepthAdvanced
+                && vertexNoDepthAdvanced,
+            ["exercised"] = true,
+            ["frame_ms"] = frameMs,
+            ["normal_colors_retained"] = normalColorsRetained,
+            ["automatic_palette_active"] = automaticPaletteActive,
+            ["wire_no_depth_draw_advanced"] = wireNoDepthAdvanced,
+            ["vertex_no_depth_pass_advanced"] = vertexNoDepthAdvanced,
+            ["configured_wire_color"] = after.GetValueOrDefault("wire_overlay_color"),
+            ["configured_vertex_color"] = after.GetValueOrDefault("vertex_overlay_color"),
+            ["xray_wire_color"] = after.GetValueOrDefault("xray_wire_overlay_color"),
+            ["xray_vertex_color"] = after.GetValueOrDefault("xray_vertex_overlay_color"),
+            ["wire_no_depth_draws_before"] = Metric(before, "xray_wire_no_depth_draws"),
+            ["wire_no_depth_draws_after"] = Metric(after, "xray_wire_no_depth_draws"),
+            ["vertex_no_depth_passes_before"] = Metric(before, "xray_vertex_no_depth_passes"),
+            ["vertex_no_depth_passes_after"] = Metric(after, "xray_vertex_no_depth_passes"),
+        };
     }
 
     private static Dictionary<string, object?> ApplyPartialTopologyProof(

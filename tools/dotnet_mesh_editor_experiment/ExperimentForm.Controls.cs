@@ -130,6 +130,135 @@ internal sealed partial class ExperimentForm
         return LabeledControl("Preview mode", _previewMode);
     }
 
+    private Control OverlayColorControls()
+    {
+        _wireColorButton = OverlayColorButton("Wire", wire: true);
+        _vertexColorButton = OverlayColorButton("Vertices", wire: false);
+        var reset = StyledActionButton("Reset", ResetOverlayColors);
+        var note = new Label
+        {
+            Name = "OverlayColorXRayHint",
+            Text = "Normal colors are saved. X-Ray automatically uses white wire and magenta vertices for dark-background contrast.",
+            AutoSize = true,
+            MaximumSize = new Size(248, 0),
+            ForeColor = ThemeMutedText,
+            BackColor = ThemeSectionBackground,
+            Margin = new Padding(0, 0, 0, 6),
+        };
+        return LabeledControl(
+            "Topology colors",
+            StackControls(
+                ButtonRow(_wireColorButton, _vertexColorButton, reset),
+                note));
+    }
+
+    private Button OverlayColorButton(string label, bool wire)
+    {
+        var button = StyledButton(label);
+        button.Click += (_, _) => ChooseOverlayColor(label, wire);
+        ApplyOverlayColorButtonStyle(button, label, wire ? _overlayColors.Wire : _overlayColors.Vertex);
+        return button;
+    }
+
+    private void ChooseOverlayColor(string label, bool wire)
+    {
+        var current = wire ? _overlayColors.Wire : _overlayColors.Vertex;
+        using var dialog = new ColorDialog
+        {
+            Color = current,
+            AllowFullOpen = true,
+            AnyColor = true,
+            FullOpen = true,
+            SolidColorOnly = true,
+        };
+        if (dialog.ShowDialog(this) != DialogResult.OK)
+        {
+            return;
+        }
+        _overlayColors = wire
+            ? _overlayColors with { Wire = dialog.Color }
+            : _overlayColors with { Vertex = dialog.Color };
+        ApplyOverlayColors($"{label} color set to {MeshOverlayColors.Hex(dialog.Color)}.");
+    }
+
+    private void ResetOverlayColors()
+    {
+        _overlayColors = MeshOverlayColors.Default;
+        ApplyOverlayColors("Topology colors reset to black wire and amber vertices.");
+    }
+
+    private void ApplyOverlayColors(string status)
+    {
+        _overlayColors = _overlayColors.Normalized();
+        _viewport.SetOverlayColors(_overlayColors);
+        if (_wireColorButton is not null)
+        {
+            ApplyOverlayColorButtonStyle(_wireColorButton, "Wire", _overlayColors.Wire);
+        }
+        if (_vertexColorButton is not null)
+        {
+            ApplyOverlayColorButtonStyle(_vertexColorButton, "Vertices", _overlayColors.Vertex);
+        }
+        _statusLabel.Text = MeshOverlayColorPreferences.TrySave(_overlayColors, out var error)
+            ? status
+            : $"{status} Preference save failed: {error}";
+    }
+
+    private static void ApplyOverlayColorButtonStyle(Button button, string label, Color color)
+    {
+        var normalized = Color.FromArgb(color.R, color.G, color.B);
+        var lightText = RelativeLuminance(normalized) < 0.44;
+        button.Text = $"{label}\n{MeshOverlayColors.Hex(normalized)}";
+        button.BackColor = normalized;
+        button.ForeColor = lightText ? Color.White : Color.Black;
+        button.FlatAppearance.MouseOverBackColor = BlendColor(normalized, Color.White, 0.16f);
+        button.FlatAppearance.MouseDownBackColor = BlendColor(normalized, Color.Black, 0.16f);
+        button.Height = 42;
+        button.MinimumSize = new Size(0, 42);
+        button.Invalidate();
+    }
+
+    private static double RelativeLuminance(Color color)
+    {
+        static double Channel(byte value)
+        {
+            var normalized = value / 255.0;
+            return normalized <= 0.04045
+                ? normalized / 12.92
+                : Math.Pow((normalized + 0.055) / 1.055, 2.4);
+        }
+        return (0.2126 * Channel(color.R)) + (0.7152 * Channel(color.G)) + (0.0722 * Channel(color.B));
+    }
+
+    private static Color BlendColor(Color from, Color to, float amount)
+    {
+        var weight = Math.Clamp(amount, 0.0f, 1.0f);
+        return Color.FromArgb(
+            (int)MathF.Round(from.R + ((to.R - from.R) * weight)),
+            (int)MathF.Round(from.G + ((to.G - from.G) * weight)),
+            (int)MathF.Round(from.B + ((to.B - from.B) * weight)));
+    }
+
+    private static Control StackControls(params Control[] controls)
+    {
+        var panel = new TableLayoutPanel
+        {
+            ColumnCount = 1,
+            RowCount = 0,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            BackColor = ThemeSectionBackground,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+        };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        foreach (var control in controls)
+        {
+            AddStackRow(panel, control);
+        }
+        return panel;
+    }
+
     private static Control LabeledControl(string label, Control control)
     {
         var panel = new TableLayoutPanel

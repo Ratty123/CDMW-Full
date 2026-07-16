@@ -337,6 +337,7 @@ internal sealed partial class MeshViewport
             context.TexturesEnabled,
             context.GridVisible,
             context.GizmoVisible && role == "editable",
+            context.XRay,
             interactionAllowed);
 
     private Dictionary<string, object?> PaneRectangleStatusPayload()

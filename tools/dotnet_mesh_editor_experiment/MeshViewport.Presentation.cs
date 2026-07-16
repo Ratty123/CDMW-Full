@@ -16,6 +16,7 @@ internal sealed class NetViewPresentationContext
     public Vec3 CameraMaximum { get; set; }
     public long LastCameraCommandGeneration { get; set; }
     public string DisplayMode { get; set; } = "textured";
+    public bool XRay { get; set; }
     public int MaterialDebugMode { get; set; }
     public bool TexturesEnabled { get; set; } = true;
     public bool GridVisible { get; set; } = true;
@@ -37,6 +38,7 @@ internal sealed class NetViewPresentationContext
             ["last_command_generation"] = LastCameraCommandGeneration,
         },
         ["display_mode"] = DisplayMode,
+        ["xray"] = XRay,
         ["material_debug_mode"] = MaterialDebugMode,
         ["textures_enabled"] = TexturesEnabled,
         ["grid_visible"] = GridVisible,
@@ -92,6 +94,7 @@ internal sealed partial class MeshViewport
             CameraMinimum = cameraBounds.Min,
             CameraMaximum = cameraBounds.Max,
             DisplayMode = DisplayMode,
+            XRay = ShowXRay,
             MaterialDebugMode = MaterialDebugMode,
             TexturesEnabled = this.TexturesEnabled,
             GridVisible = _presentationGridVisible,
@@ -113,6 +116,7 @@ internal sealed partial class MeshViewport
         context.PanX = _panX;
         context.PanY = _panY;
         context.DisplayMode = DisplayMode;
+        context.XRay = ShowXRay;
         context.MaterialDebugMode = MaterialDebugMode;
         context.TexturesEnabled = TexturesEnabled;
         context.GridVisible = _presentationGridVisible;
@@ -141,7 +145,9 @@ internal sealed partial class MeshViewport
         _scene.SetPresentationOverlayVisibility(
             _presentationGridVisible,
             _presentationGizmoVisible);
+        var xray = context.XRay;
         _ = TrySetDisplayMode(context.DisplayMode, out _);
+        SetXRayEnabled(xray);
         TexturesEnabled = context.TexturesEnabled;
     }
 

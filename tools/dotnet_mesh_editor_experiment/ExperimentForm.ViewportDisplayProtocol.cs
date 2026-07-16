@@ -38,6 +38,7 @@ internal sealed partial class ExperimentForm
             ["show_solid"] = _viewport.ShowSolid,
             ["show_wire"] = _viewport.ShowWire,
             ["show_vertices"] = _viewport.ShowVertices,
+            ["show_xray"] = _viewport.ShowXRay,
             ["textures_enabled"] = _viewport.TexturesEnabled,
             ["renderer"] = RendererCompactStatusWithLifecycle(),
             ["capabilities"] = new[] { ViewportDisplayModesCapability },

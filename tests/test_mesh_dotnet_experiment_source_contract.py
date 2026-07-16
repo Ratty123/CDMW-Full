@@ -167,10 +167,13 @@ def test_dotnet_wire_overlay_style_contract() -> None:
     hlsl_source = context["hlsl_source"]
 
     assert "WireOverlayWidthPixels = 1.35f" in d3d_overlay_source
-    assert "WireOverlayColor = OverlayColor(0, 0, 0, 225)" in d3d_overlay_source
-    assert "XRayWireOverlayColor = OverlayColor(0, 0, 0, 240)" in d3d_overlay_source
-    assert "VertexOverlayColor = OverlayColor(255, 174, 40, 255)" in d3d_overlay_source
-    assert "_overlayShowXRay ? XRayWireOverlayColor : WireOverlayColor" in d3d_overlay_source
+    assert "_wireOverlayColor = OverlayColor(0, 0, 0, 225)" in d3d_overlay_source
+    assert "_vertexOverlayColor = OverlayColor(255, 174, 40, 255)" in d3d_overlay_source
+    assert "XRayWireOverlayColor = OverlayColor(245, 248, 252, 240)" in d3d_overlay_source
+    assert "XRayVertexOverlayColor = OverlayColor(255, 88, 214, 255)" in d3d_overlay_source
+    assert "_overlayShowXRay ? XRayWireOverlayColor : _wireOverlayColor" in d3d_overlay_source
+    assert "_overlayShowXRay ? XRayVertexOverlayColor : _vertexOverlayColor" in d3d_overlay_source
+    assert "SetOverlayColors(MeshOverlayColors colors)" in d3d_overlay_source
     assert "lineWidthPixels: WireOverlayWidthPixels" in d3d_overlay_source
     assert "command.LineWidthPixels > 1.0f" in d3d_overlay_source
     assert "GSWireLine" in hlsl_source

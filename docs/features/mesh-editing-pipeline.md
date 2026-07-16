@@ -698,10 +698,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   resident scene. Wheel and programmatic zoom are clamped from `0.1x` through
   `64x` the pane's fitted zoom. Ordinary vertex dots and wire visual weight are
   also pane-local and fit-relative below `1x`: dots shrink from 7 pixels to a
-  2-pixel readability floor, while one-pixel D3D11 wire lines reduce opacity to
-  a 20% floor. Zooming in does not enlarge either overlay beyond its fitted
-  weight; selected markers, hover feedback, and picking tolerances stay
-  unchanged.
+  2-pixel readability floor, while 1.35-pixel D3D11 wire lines reduce opacity
+  to a 20% floor. The normal wire and vertex colors are user-selectable and
+  persisted in the local mesh-editor preferences. X-Ray is carried separately
+  in each presentation context, switches automatically to high-contrast white
+  wire and magenta vertices, and draws wire, vertices, and selection overlays
+  without depth rejection; X-Ray picking likewise includes occluded topology.
+  Zooming in does not enlarge either overlay beyond its fitted weight; selected
+  markers, hover feedback, and picking tolerances stay unchanged.
 - Initial external imports and appended parts share the same work-area fit
   helper. External imports are centered against the reference/work area and
   bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones

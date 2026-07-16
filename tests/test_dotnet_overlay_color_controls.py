@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+
+def _source(name: str) -> str:
+    root = Path(__file__).resolve().parents[1]
+    return (
+        root / "tools" / "dotnet_mesh_editor_experiment" / name
+    ).read_text(encoding="utf-8")
+
+
+def test_overlay_color_controls_persist_normal_palette_and_define_xray_palette() -> None:
+    colors = _source("MeshOverlayColors.cs")
+    controls = _source("ExperimentForm.Controls.cs")
+    program = _source("Program.cs")
+
+    assert 'Schema = "cdmw_mesh_overlay_colors_v1"' in colors
+    assert '"mesh-editor-overlay-colors.json"' in colors
+    assert "Color.FromArgb(0, 0, 0)" in colors
+    assert "Color.FromArgb(255, 174, 40)" in colors
+    assert "AutomaticXRayWire" in colors
+    assert "Color.FromArgb(245, 248, 252)" in colors
+    assert "AutomaticXRayVertex" in colors
+    assert "Color.FromArgb(255, 88, 214)" in colors
+    assert "ColorDialog" in controls
+    assert '"Topology colors"' in controls
+    assert "MeshOverlayColorPreferences.TrySave" in controls
+    assert "_viewport.SetOverlayColors(_overlayColors)" in program
+
+
+def test_xray_state_reaches_each_render_pane_and_refreshes_the_gpu_viewport() -> None:
+    program = _source("Program.cs")
+    display_modes = _source("MeshViewport.DisplayModes.cs")
+    presentation = _source("MeshViewport.Presentation.cs")
+    split_view = _source("MeshViewport.SplitView.cs")
+    panes = _source("D3D11MaterialViewport.Panes.cs")
+
+    assert "_viewport.SetXRayEnabled(_xray.Checked)" in program
+    assert "if (!_xray.Checked && _previewMode.SelectedIndex == 6)" in program
+    assert "public void SetXRayEnabled(bool enabled)" in display_modes
+    assert "context.XRay = enabled;" in display_modes
+    assert "UpdateGpuViewport();" in display_modes
+    assert '"xray" => (false, true, true, true, false)' in display_modes
+    assert "public bool XRay { get; set; }" in presentation
+    assert "context.XRay," in split_view
+    assert "bool XRay," in panes
+    assert "_overlayShowXRay = pane.XRay;" in panes
+
+
+def test_xray_renderer_uses_no_depth_wire_and_vertex_passes_with_hidden_gpu_proof() -> None:
+    overlay = _source("D3D11MaterialViewport.Overlay.cs")
+    metrics = _source("D3D11MaterialViewport.Metrics.cs")
+    selection = _source("MeshViewport.SelectionPicking.cs")
+    headless = _source("HeadlessGpuSparseSoak.cs")
+
+    no_depth = overlay.index("_overlayCommandDepthMode = 1;")
+    xray_wire = overlay.index("DrawD3D11WireOverlay();", no_depth)
+    xray_vertices = overlay.index("QueueD3D11VertexOverlay();", xray_wire)
+    assert no_depth < xray_wire < xray_vertices
+    assert "_xRayWireNoDepthDrawCount++" in overlay
+    assert "_xRayVertexNoDepthPassCount++" in overlay
+    assert '["xray_wire_no_depth_draws"]' in metrics
+    assert '["xray_vertex_no_depth_passes"]' in metrics
+    assert "!ShowXRay" in selection
+    assert "ApplyXRayOverlayProof" in headless
+    assert 'gates["xray_overlay_draws_wire_and_vertices_without_depth"]' in headless
+    assert '["automatic_palette_active"]' in headless

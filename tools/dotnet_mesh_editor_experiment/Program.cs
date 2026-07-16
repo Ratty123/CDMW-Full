@@ -40,6 +40,8 @@ internal sealed partial class ExperimentForm : Form
     private readonly ComboBox _selectionOperation = new();
     private readonly ComboBox _previewMode = new();
     private readonly CheckBox _xray = new();
+    private Button? _wireColorButton;
+    private Button? _vertexColorButton;
     private readonly CheckBox _partPick = new();
     private readonly NumericUpDown _radius = new();
     private readonly NumericUpDown _strength = new();
@@ -80,6 +82,7 @@ internal sealed partial class ExperimentForm : Form
     private DateTime _lastMetricsProtocolUtc = DateTime.MinValue;
     private string _lastMetricsUiText = string.Empty;
     private bool _meshEditInteractionActive;
+    private MeshOverlayColors _overlayColors = MeshOverlayColorPreferences.Load();
 
     public ExperimentForm(LaunchOptions options, ObjDocument document, long sourceParseCount)
     {
@@ -110,6 +113,7 @@ internal sealed partial class ExperimentForm : Form
         StartProtocolReader();
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
+        _viewport.SetOverlayColors(_overlayColors);
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += HandleViewportEditorEvent;
         _viewport.StatusRequested += message => _statusLabel.Text = message;
@@ -147,10 +151,14 @@ internal sealed partial class ExperimentForm : Form
         ConfigureCheckBox(_xray, "X-Ray", isChecked: false);
         _xray.CheckedChanged += (_, _) =>
         {
-            _viewport.ShowXRay = _xray.Checked;
-            _viewport.Invalidate();
+            if (!_xray.Checked && _previewMode.SelectedIndex == 6)
+            {
+                _previewMode.SelectedIndex = 3;
+                return;
+            }
+            _viewport.SetXRayEnabled(_xray.Checked);
             _statusLabel.Text = _xray.Checked
-                ? "X-Ray selection enabled; picking can include occluded mesh elements."
+                ? "X-Ray enabled: visible and occluded topology is drawn without depth rejection; wire and vertex colors switch automatically."
                 : "Visible-only selection enabled; picking uses the front surface.";
         };
         ConfigureNumeric(_radius, decimalPlaces: 1, minimum: 1, maximum: 512, value: 24, increment: 2);
@@ -528,6 +536,7 @@ internal sealed partial class ExperimentForm : Form
             ButtonRow(CommandButton("Subdivide", "subdivide"), CommandButton("Refine Smooth", "refine_smooth"))));
         AddSection(stack, "Viewport",
             PreviewModeControl(),
+            OverlayColorControls(),
             ButtonRow(CameraButton("Front", "front"), CameraButton("Left", "left"), CameraButton("Right", "right")),
             ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
             ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Reset/Fit", _viewport.FrameMesh)),
@@ -757,6 +766,7 @@ internal sealed partial class MeshViewport : Control
     private bool _rendererBlocked;
     private string _rendererBlockReason = string.Empty;
     private string _lastD3D11Error = string.Empty;
+    private MeshOverlayColors _overlayColors = MeshOverlayColors.Default;
 
     public RenderMetrics Metrics { get; } = new();
     public bool RendererBlocked => _rendererBlocked;
@@ -768,7 +778,7 @@ internal sealed partial class MeshViewport : Control
     public bool ShowSolid { get; private set; } = true;
     public bool ShowWire { get; private set; }
     public bool ShowVertices { get; private set; }
-    public bool ShowXRay { get; set; }
+    public bool ShowXRay { get; private set; }
     public bool PartPickEnabled { get; set; }
     public bool TexturesEnabled { get; private set; } = true;
     public string DisplayMode { get; private set; } = "textured";

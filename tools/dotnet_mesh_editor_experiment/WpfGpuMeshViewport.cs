@@ -19,6 +19,7 @@ internal sealed class WpfGpuMeshViewport : IDisposable
     private readonly Canvas _overlay = new();
     private readonly ModelVisual3D _modelVisual = new();
     private readonly OrthographicCamera _camera = new();
+    private MeshOverlayColors _overlayColors = MeshOverlayColors.Default;
 
     public WpfGpuMeshViewport(ObjDocument document, NetMaterialSet materials, NetTextureSet textureSet)
     {
@@ -37,6 +38,11 @@ internal sealed class WpfGpuMeshViewport : IDisposable
     }
 
     public Grid Root { get; }
+
+    public void SetOverlayColors(MeshOverlayColors colors)
+    {
+        _overlayColors = colors.Normalized();
+    }
 
     public void RefreshGeometry()
     {
@@ -103,9 +109,14 @@ internal sealed class WpfGpuMeshViewport : IDisposable
         _overlay.Children.Clear();
         if (showWire || showXRay)
         {
+            var wireColor = _overlayColors.ActiveWire(showXRay);
             foreach (var edge in edgeTopology.Edges)
             {
-                AddEdgeLine(edge, project, WpfColor.FromArgb(showXRay ? (byte)95 : (byte)65, 120, 158, 196), showXRay ? 0.9 : 0.7);
+                AddEdgeLine(
+                    edge,
+                    project,
+                    WpfColor.FromArgb(showXRay ? (byte)240 : (byte)225, wireColor.R, wireColor.G, wireColor.B),
+                    showXRay ? 1.35 : 1.0);
             }
         }
         for (var submeshIndex = 0; submeshIndex < _document.Submeshes.Count; submeshIndex++)
