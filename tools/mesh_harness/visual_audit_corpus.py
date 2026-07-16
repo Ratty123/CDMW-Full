@@ -347,7 +347,6 @@ def _load_visual_audit_asset(
     mesh = MeshService().load_mesh_bytes(payload, entry.path)
     archive_started = time.perf_counter()
     preview_result = build_archive_preview_result(
-        None,
         entry,
         (),
         texture_entries_by_normalized_path=dict(entries_by_path),

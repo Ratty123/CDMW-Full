@@ -210,8 +210,15 @@ def test_visual_audit_packages_the_exact_prepared_archive_material_bindings() ->
     source = (ROOT / "tools" / "mesh_harness" / "visual_audit_corpus.py").read_text(
         encoding="utf-8"
     )
+    provenance = (
+        ROOT / "tools" / "mesh_harness" / "archive_provenance.py"
+    ).read_text(encoding="utf-8")
 
     assert "preview_model=preview_result.preview_model" in source
+    assert "build_archive_preview_result(\n        entry,\n        ()," in source
+    assert "build_archive_preview_result(\n            model_entry,\n            ()," in provenance
+    assert "build_archive_preview_result(\n        None,\n        entry," not in source
+    assert "build_archive_preview_result(\n            None,\n            model_entry," not in provenance
     prepared = source.index("prepared_model, prepared_preview = prepare_model_preview(")
     stripped = source.index("comparison_overlays = _remove_visual_audit_overlays(prepared_model)")
     copied = source.index("copy_dotnet_preview_material_bindings(mesh, prepared_model)")

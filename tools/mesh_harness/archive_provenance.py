@@ -141,7 +141,6 @@ def _hydrate_real_archive_mesh_materials(
     diagnostics: list[str] = []
     if preview_model is None:
         preview_result = build_archive_preview_result(
-            None,
             model_entry,
             (),
             texture_entries_by_normalized_path=dict(entries_by_path),
