@@ -523,6 +523,16 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   family roughness floors, achromatic capped dielectric specular, and the same
   family depth-authority values that keep texture hue stable as the camera
   moves. This is an inspection fallback, not exact game-shader parity.
+  The flip-discard swap chain remains single-sampled, while the production
+  renderer selects a preferred 4x offscreen MSAA color/depth surface (2x, then
+  1x fallback when the exact formats are unsupported). Opaque, transparent,
+  grid, selection, gizmo, and pane-divider passes share that surface and resolve
+  once into the swap-chain backbuffer before Present. Hidden icon and visual
+  audit captures use the same sample description, resolve into a 1x readback
+  texture, and report sample count, resolve activity, render-surface identity,
+  lifecycle counts, and surface-memory estimates. MSAA improves polygon-edge
+  coverage; it does not replace source texture resolution, mip generation,
+  alpha-cutout filtering, or unsupported material-family shading.
   Native original-reference material batches are applied by authoritative local
   submesh identity. Secondary/prefab batches are decoded as separate
   original-reference-only geometry; they never enter the editable replacement,
@@ -608,8 +618,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   accounting, stable device/resource identities, and at most 5% post-warm-up
   RAM/VRAM growth. CPU and GPU p99 must remain below 16.7 ms. The windowed path
   remains flip-discard with VSync `Present(1)` and maximum frame latency one;
-  it does not enable tearing, adaptive quality, or a UI-thread waitable-object
-  wait. Explicit performance capture uses a balanced 1 ms Windows timer-resolution
+  its offscreen MSAA resolve must retain one render-surface identity and exactly
+  one resolve per presented frame without fixed-size surface churn. It does not
+  enable tearing, adaptive quality, or a UI-thread waitable-object wait.
+  Explicit performance capture uses a balanced 1 ms Windows timer-resolution
   request and a generation-guarded worker timer that posts at most one pending
   invalidation to the WinForms owner; normal editor use does not raise timer
   resolution. Continuous Qt-parent resize remains an end-to-end hard-gate

@@ -455,40 +455,12 @@ internal sealed partial class D3D11MaterialViewport : Control
         {
             return;
         }
-        _context.OMSetRenderTargets((ID3D11RenderTargetView?)null, null);
-        _renderTargetView?.Dispose();
-        _depthStencilView?.Dispose();
-        _depthTexture?.Dispose();
-        _renderTargetView = null;
-        _depthStencilView = null;
-        _depthTexture = null;
+        DisposeRenderTargets();
         _renderWidth = Math.Max(1, ClientSize.Width);
         _renderHeight = Math.Max(1, ClientSize.Height);
         _swapChain.ResizeBuffers(0, (uint)_renderWidth, (uint)_renderHeight, Format.Unknown, SwapChainFlags.None).CheckError();
         _swapChainResizeCommitCount++;
-        using var backBuffer = _swapChain.GetBuffer<ID3D11Texture2D>(0);
-        _renderTargetView = _device.CreateRenderTargetView(
-            backBuffer,
-            new RenderTargetViewDescription(
-                backBuffer,
-                RenderTargetViewDimension.Texture2D,
-                Format.B8G8R8A8_UNorm_SRgb,
-                0,
-                0,
-                1));
-        var depthDescription = new Texture2DDescription
-        {
-            Width = (uint)_renderWidth,
-            Height = (uint)_renderHeight,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = Format.D24_UNorm_S8_UInt,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.DepthStencil,
-        };
-        _depthTexture = _device.CreateTexture2D(depthDescription);
-        _depthStencilView = _device.CreateDepthStencilView(_depthTexture);
+        CreateSwapChainRenderTargets();
         _renderResourcesDirty = false;
     }
 
@@ -536,6 +508,10 @@ internal sealed partial class D3D11MaterialViewport : Control
         if (includeOverlays && !replacementOnly)
         {
             DrawPaneDividerOverlay();
+        }
+        if (present)
+        {
+            ResolveRenderTargetForPresentation();
         }
         _activeRenderPane = null;
         _camera = previousCamera;
@@ -862,9 +838,7 @@ internal sealed partial class D3D11MaterialViewport : Control
         _vertexMarkerGeometryShader?.Dispose();
         _vertexShader?.Dispose();
         _overlayVertexShader?.Dispose();
-        _depthStencilView?.Dispose();
-        _depthTexture?.Dispose();
-        _renderTargetView?.Dispose();
+        DisposeRenderTargets();
         _swapChain?.Dispose();
         if (clearDeviceContext)
         {
@@ -896,9 +870,6 @@ internal sealed partial class D3D11MaterialViewport : Control
         _vertexMarkerGeometryShader = null;
         _vertexShader = null;
         _overlayVertexShader = null;
-        _depthStencilView = null;
-        _depthTexture = null;
-        _renderTargetView = null;
         _swapChain = null;
         _renderResourcesDirty = true;
         DiscardPendingVertexUpdates();

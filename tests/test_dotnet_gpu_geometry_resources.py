@@ -150,6 +150,39 @@ def test_native_dds_mips_color_space_and_semantic_shading_are_explicit() -> None
     assert '"native_dds_parity"] = false' in status
 
 
+def test_d3d11_preview_and_capture_use_offscreen_msaa_resolve() -> None:
+    viewport = _source("D3D11MaterialViewport.cs")
+    targets = _source("D3D11MaterialViewport.RenderTargets.cs")
+    capture = _source("D3D11MaterialViewport.Capture.cs")
+    presentation = _source("D3D11MaterialViewport.PresentationSettings.cs")
+    metrics = _source("D3D11MaterialViewport.Metrics.cs")
+    status = _source("MeshViewport.Status.cs")
+    audit = _source("VisualAuditBatch.cs")
+    readability = _source("D3D11TexturedMetalReadabilityProof.cs")
+
+    assert "SwapEffect = SwapEffect.FlipDiscard" in viewport
+    assert "SampleDescription = new SampleDescription(1, 0)" in viewport
+    assert "PreferredRenderSampleCount = 4" in targets
+    assert "CheckMultisampleQualityLevels" in targets
+    assert "RenderTargetViewDimension.Texture2DMultisampled" in targets
+    assert "DepthStencilViewDimension.Texture2DMultisampled" in targets
+    assert "ResolveSubresource(" in targets
+    assert "ResolveRenderTargetForPresentation();" in viewport
+    assert "MultisampleEnable = true" in presentation
+    assert "CurrentRenderSampleDescription" in capture
+    assert "ResolveSubresource(" in capture
+    assert "MultisampleResolved" in capture
+    assert '"render_sample_count"' in metrics
+    assert '"multisample_resolve_count"' in metrics
+    assert '"peak_resident_plus_capture_vram_bytes_estimate"' in metrics
+    assert "public int RenderSurfaceIdentity => CurrentRenderSurfaceIdentity();" in targets
+    assert '"anti_aliasing_mode"' in status
+    assert '"d3d11_offscreen_msaa_resolve_v1"' in status
+    assert '["sample_count"] = renderedCamera.SampleCount' in audit
+    assert '"capture_msaa_resolve_active"' in readability
+    assert '"live_frame_after_capture_resolved"' in readability
+
+
 def test_hidden_gpu_sparse_soak_uses_real_d3d_resources_and_versioned_evidence() -> None:
     entry = _source("ProgramEntry.cs")
     soak = _source_family("HeadlessGpuSparseSoak*.cs")

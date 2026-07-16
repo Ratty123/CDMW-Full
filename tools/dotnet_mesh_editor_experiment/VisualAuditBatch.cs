@@ -179,6 +179,9 @@ internal static class VisualAuditBatch
                         ["viewport_height"] = renderedCamera.ViewportHeight,
                         ["world_view_projection"] = renderedCamera.WorldViewProjection,
                         ["solid_draw_count"] = renderedCamera.SolidDrawCount,
+                        ["sample_count"] = renderedCamera.SampleCount,
+                        ["sample_quality"] = renderedCamera.SampleQuality,
+                        ["multisample_resolved"] = renderedCamera.MultisampleResolved,
                     },
                     ["error"] = captureError,
                 });

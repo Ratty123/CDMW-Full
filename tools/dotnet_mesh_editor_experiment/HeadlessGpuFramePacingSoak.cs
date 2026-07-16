@@ -147,6 +147,9 @@ internal static class HeadlessGpuFramePacingSoak
             ["present_sync_interval"] = viewport.PresentSyncInterval,
             ["maximum_frame_latency"] = viewport.MaximumFrameLatency,
             ["presentation_model"] = viewport.PresentationModel,
+            ["anti_aliasing_mode"] = viewport.AntiAliasingMode,
+            ["render_sample_count"] = viewport.RenderSampleCount,
+            ["render_sample_quality"] = viewport.RenderSampleQuality,
             ["host_visible"] = host.Visible,
             ["show_in_taskbar"] = host.ShowInTaskbar,
             ["application_run_called"] = false,
@@ -163,6 +166,24 @@ internal static class HeadlessGpuFramePacingSoak
         gates["configured_duration_completed"] = snapshot.ElapsedSeconds >= options.DurationSeconds * 0.98;
         gates["configured_resolution"] = viewport.ClientSize.Width == options.Width
             && viewport.ClientSize.Height == options.Height;
+        gates["offscreen_msaa_resolve_active"] =
+            Convert.ToUInt32(resourcesBefore.GetValueOrDefault("render_sample_count") ?? 0) >= 2
+            && Convert.ToUInt32(resourcesAfter.GetValueOrDefault("render_sample_count") ?? 0) >= 2
+            && Convert.ToInt64(resourcesAfter.GetValueOrDefault("multisample_resolve_count") ?? 0)
+                > Convert.ToInt64(resourcesBefore.GetValueOrDefault("multisample_resolve_count") ?? 0);
+        gates["resolve_count_matches_presented_frames"] =
+            Convert.ToInt64(resourcesAfter.GetValueOrDefault("multisample_resolve_count") ?? 0)
+                - Convert.ToInt64(resourcesBefore.GetValueOrDefault("multisample_resolve_count") ?? 0)
+                == frame;
+        gates["stable_render_surface_identity"] =
+            Convert.ToInt32(resourcesBefore.GetValueOrDefault("render_surface_identity") ?? 0) != 0
+            && Convert.ToInt32(resourcesAfter.GetValueOrDefault("render_surface_identity") ?? 0)
+                == Convert.ToInt32(resourcesBefore.GetValueOrDefault("render_surface_identity") ?? 0);
+        gates["no_render_surface_recreation_during_capture"] =
+            Convert.ToInt64(resourcesAfter.GetValueOrDefault("render_surface_create_count") ?? 0)
+                == Convert.ToInt64(resourcesBefore.GetValueOrDefault("render_surface_create_count") ?? 0)
+            && Convert.ToInt64(resourcesAfter.GetValueOrDefault("render_surface_dispose_count") ?? 0)
+                == Convert.ToInt64(resourcesBefore.GetValueOrDefault("render_surface_dispose_count") ?? 0);
         var ok = gates.Values.All(value => value);
         report["ok"] = ok;
         report["release_gate_eligible"] = !options.Smoke

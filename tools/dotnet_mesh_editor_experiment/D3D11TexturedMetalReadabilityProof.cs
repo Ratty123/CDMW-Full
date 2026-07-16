@@ -89,6 +89,8 @@ internal static class D3D11TexturedMetalReadabilityProof
                 SpecularBase = 0.055f,
                 SpecularMax = 0.52f,
             });
+            var renderSurfaceIdentityBefore = viewport.RenderSurfaceIdentity;
+            var deviceResetCountBefore = viewport.DeviceResetCount;
 
             var views = new (string Name, float Yaw, float Pitch)[]
             {
@@ -115,7 +117,8 @@ internal static class D3D11TexturedMetalReadabilityProof
                     CaptureSize,
                     CaptureSize,
                     out var sha256,
-                    out var captureError);
+                    out var captureError,
+                    out var renderedCamera);
                 var drawnMaterialAuthority = Vector4.Zero;
                 var drawnMaterialAuthorityRecorded = captured
                     && viewport.TryGetLastDrawnMaterialAuthority(0, out drawnMaterialAuthority);
@@ -139,6 +142,9 @@ internal static class D3D11TexturedMetalReadabilityProof
                     ["capture_path"] = capturePath,
                     ["sha256"] = sha256,
                     ["error"] = captureError,
+                    ["sample_count"] = renderedCamera.SampleCount,
+                    ["sample_quality"] = renderedCamera.SampleQuality,
+                    ["multisample_resolved"] = renderedCamera.MultisampleResolved,
                     ["metrics"] = metrics,
                     ["readable"] = readable,
                     ["drawn_material_authority_recorded"] = drawnMaterialAuthorityRecorded,
@@ -149,6 +155,12 @@ internal static class D3D11TexturedMetalReadabilityProof
                 });
             }
 
+            var liveResolveCountBefore = viewport.MultisampleResolveCount;
+            var liveFrameAfterCaptures = viewport.TryRunHeadlessFrame(
+                out _,
+                out _,
+                out var liveFrameError);
+            var liveResolveAdvanced = viewport.MultisampleResolveCount > liveResolveCountBefore;
             var textureResourceDiagnostics = viewport.TextureResourceDiagnosticsPayload();
             var baseTextureDiagnostic = textureResourceDiagnostics.FirstOrDefault(item =>
                 string.Equals(
@@ -178,6 +190,7 @@ internal static class D3D11TexturedMetalReadabilityProof
             var obliqueRatio = OppositeViewLumaRatio(rows, "front_oblique", "back_oblique");
             var allViewLumaRatio = AllViewLumaRatio(rows);
             var maximumChromaticityDistance = MaximumChromaticityDistance(rows);
+            var renderSurfaceIdentityAfter = viewport.RenderSurfaceIdentity;
             var windowsHidden = host.IsHandleCreated
                 && viewport.IsHandleCreated
                 && !host.Visible
@@ -193,6 +206,15 @@ internal static class D3D11TexturedMetalReadabilityProof
                 ["base_texture_decoded"] = textures.BitmapForPath(texturePath) is not null
                     && textures.TextureLoadFailureCount == 0,
                 ["bitmap_fallback_generated_full_mip_chain"] = bitmapGeneratedFullMipChain,
+                ["capture_msaa_resolve_active"] = rows.Count == views.Length
+                    && rows.All(row => Convert.ToUInt32(row.GetValueOrDefault("sample_count") ?? 0) >= 2
+                        && row.GetValueOrDefault("multisample_resolved") is true),
+                ["capture_preserved_live_render_surface"] = renderSurfaceIdentityBefore != 0
+                    && renderSurfaceIdentityAfter == renderSurfaceIdentityBefore,
+                ["capture_required_no_device_reset"] = viewport.DeviceResetCount == deviceResetCountBefore,
+                ["live_frame_after_capture_resolved"] = liveFrameAfterCaptures
+                    && liveResolveAdvanced
+                    && string.IsNullOrWhiteSpace(liveFrameError),
                 ["runtime_material_category_is_metal"] = runtimeMetalCategoryBranch,
                 ["runtime_material_category_confident"] = runtimeMaterialCategoryConfidence >= 0.99f,
                 ["runtime_material_response_promoted"] = runtimeMaterialResponsePromoted,
@@ -227,6 +249,17 @@ internal static class D3D11TexturedMetalReadabilityProof
                     ["double_sided"] = true,
                 },
                 ["texture_resource_diagnostics"] = textureResourceDiagnostics,
+                ["render_surface"] = new Dictionary<string, object?>
+                {
+                    ["identity_before"] = renderSurfaceIdentityBefore,
+                    ["identity_after"] = renderSurfaceIdentityAfter,
+                    ["sample_count"] = viewport.RenderSampleCount,
+                    ["sample_quality"] = viewport.RenderSampleQuality,
+                    ["anti_aliasing_mode"] = viewport.AntiAliasingMode,
+                    ["live_frame_after_captures"] = liveFrameAfterCaptures,
+                    ["live_frame_error"] = liveFrameError,
+                    ["live_resolve_advanced"] = liveResolveAdvanced,
+                },
                 ["runtime_material_authority"] = new Dictionary<string, object?>
                 {
                     ["submesh_index"] = 0,

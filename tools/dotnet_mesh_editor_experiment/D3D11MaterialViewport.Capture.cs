@@ -17,7 +17,10 @@ internal readonly record struct D3D11RenderedCameraEvidence(
     int ViewportWidth,
     int ViewportHeight,
     double[] WorldViewProjection,
-    long SolidDrawCount);
+    long SolidDrawCount,
+    uint SampleCount,
+    uint SampleQuality,
+    bool MultisampleResolved);
 
 internal sealed partial class D3D11MaterialViewport
 {
@@ -54,46 +57,34 @@ internal sealed partial class D3D11MaterialViewport
 
         var width = Math.Clamp(requestedWidth, 64, 2048);
         var height = Math.Clamp(requestedHeight, 64, 2048);
-        var targetDescription = new Texture2DDescription
-        {
-            Width = (uint)width,
-            Height = (uint)height,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = Format.B8G8R8A8_Typeless,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.RenderTarget,
-        };
-        var depthDescription = new Texture2DDescription
-        {
-            Width = (uint)width,
-            Height = (uint)height,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = Format.D24_UNorm_S8_UInt,
-            SampleDescription = new SampleDescription(1, 0),
-            Usage = ResourceUsage.Default,
-            BindFlags = BindFlags.DepthStencil,
-        };
-        var stagingDescription = targetDescription;
+        var samples = CurrentRenderSampleDescription;
+        var multisampled = _renderSampleCount > 1;
+        var targetDescription = ColorRenderTargetDescription(width, height, samples);
+        var depthDescription = DepthRenderTargetDescription(width, height, samples);
+        var resolvedDescription = ColorRenderTargetDescription(
+            width,
+            height,
+            new SampleDescription(1, 0));
+        var stagingDescription = resolvedDescription;
         stagingDescription.Usage = ResourceUsage.Staging;
         stagingDescription.BindFlags = BindFlags.None;
         stagingDescription.CPUAccessFlags = CpuAccessFlags.Read;
 
         using var targetTexture = _device.CreateTexture2D(targetDescription);
-        using var targetView = _device.CreateRenderTargetView(
-            targetTexture,
-            new RenderTargetViewDescription(
-                targetTexture,
-                RenderTargetViewDimension.Texture2D,
-                Format.B8G8R8A8_UNorm_SRgb,
-                0,
-                0,
-                1));
+        using var targetView = CreateSrgbRenderTargetView(targetTexture, multisampled);
         using var depthTexture = _device.CreateTexture2D(depthDescription);
-        using var depthView = _device.CreateDepthStencilView(depthTexture);
+        using var depthView = CreateDepthStencilView(depthTexture, multisampled);
+        using var resolvedTexture = multisampled
+            ? _device.CreateTexture2D(resolvedDescription)
+            : null;
         using var stagingTexture = _device.CreateTexture2D(stagingDescription);
+        _offscreenCaptureSurfaceBytesEstimate = EstimateOffscreenCaptureSurfaceBytes(
+            width,
+            height,
+            _renderSampleCount);
+        _peakOffscreenCaptureSurfaceBytesEstimate = Math.Max(
+            _peakOffscreenCaptureSurfaceBytesEstimate,
+            _offscreenCaptureSurfaceBytesEstimate);
 
         var previousTarget = _renderTargetView;
         var previousDepth = _depthStencilView;
@@ -102,6 +93,7 @@ internal sealed partial class D3D11MaterialViewport
         var cameraForCapture = _camera;
         var solidDrawCountBefore = _texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount;
         var mapped = false;
+        var multisampleResolved = false;
         try
         {
             _context.OMSetRenderTargets((ID3D11RenderTargetView?)null, null);
@@ -110,7 +102,21 @@ internal sealed partial class D3D11MaterialViewport
             _renderWidth = width;
             _renderHeight = height;
             _ = RenderFrame(present: false, includeOverlays: false, replacementOnly: true);
-            _context.CopyResource(stagingTexture, targetTexture);
+            _context.OMSetRenderTargets((ID3D11RenderTargetView?)null, null);
+            ID3D11Texture2D captureSource = targetTexture;
+            if (multisampled)
+            {
+                _context.ResolveSubresource(
+                    resolvedTexture!,
+                    0,
+                    targetTexture,
+                    0,
+                    Format.B8G8R8A8_UNorm);
+                _offscreenMultisampleResolveCount++;
+                multisampleResolved = true;
+                captureSource = resolvedTexture!;
+            }
+            _context.CopyResource(stagingTexture, captureSource);
             _context.Map(stagingTexture, 0, MapMode.Read, Vortice.Direct3D11.MapFlags.None, out var mappedResource).CheckError();
             mapped = true;
 
@@ -160,7 +166,10 @@ internal sealed partial class D3D11MaterialViewport
                 width,
                 height,
                 cameraForCapture.WorldViewProjectionRowMajorArray(),
-                (_texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount) - solidDrawCountBefore);
+                (_texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount) - solidDrawCountBefore,
+                _renderSampleCount,
+                _renderSampleQuality,
+                multisampleResolved);
             return true;
         }
         catch (Exception ex)
@@ -183,6 +192,7 @@ internal sealed partial class D3D11MaterialViewport
             {
                 _context.OMSetRenderTargets(previousTarget, previousDepth);
             }
+            _offscreenCaptureSurfaceBytesEstimate = 0;
         }
     }
 }

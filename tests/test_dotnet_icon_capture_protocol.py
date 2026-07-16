@@ -150,14 +150,21 @@ def test_dotnet_capture_resolves_relative_output_and_rejects_reparse_leaf() -> N
 
 def test_icon_capture_uses_deterministic_offscreen_d3d_target_without_visible_state_mutation() -> None:
     capture = _source("D3D11MaterialViewport.Capture.cs")
+    targets = _source("D3D11MaterialViewport.RenderTargets.cs")
     renderer = _source_family("D3D11MaterialViewport")
     protocol = _source("ExperimentForm.Protocol.cs")
 
-    assert "BindFlags.RenderTarget" in capture
+    assert "BindFlags.RenderTarget" in targets
     assert "ResourceUsage.Staging" in capture
     assert "CpuAccessFlags.Read" in capture
-    assert "CopyResource(stagingTexture, targetTexture)" in capture
+    assert "CurrentRenderSampleDescription" in capture
+    assert "resolvedTexture" in capture
+    assert "ResolveSubresource(" in capture
+    assert "CopyResource(stagingTexture, captureSource)" in capture
+    assert "_offscreenMultisampleResolveCount++;" in capture
     assert "RenderFrame(present: false, includeOverlays: false, replacementOnly: true)" in capture
+    assert "_renderTargetView = previousTarget;" in capture
+    assert "_depthStencilView = previousDepth;" in capture
     assert "bitmap.Save(temporaryPath, ImageFormat.Png)" in capture
     assert "screen.grabWindow" not in capture
     assert "replacementOnly && _scene.IsReference" in renderer

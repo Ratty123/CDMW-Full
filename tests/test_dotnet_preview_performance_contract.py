@@ -28,6 +28,15 @@ def test_sustained_frame_pacing_cli_and_evidence_contract_are_versioned() -> Non
     assert 'Integer(values, "frame-pacing-warmup-frames", smoke ? 16 : 300' in options
     assert "Application.Run" not in soak
     assert "PresentSyncInterval == 1" in soak
+    for gate in (
+        "offscreen_msaa_resolve_active",
+        "resolve_count_matches_presented_frames",
+        "stable_render_surface_identity",
+        "no_render_surface_recreation_during_capture",
+    ):
+        assert f'gates["{gate}"]' in soak
+    assert '["anti_aliasing_mode"] = viewport.AntiAliasingMode' in soak
+    assert '["render_sample_count"] = viewport.RenderSampleCount' in soak
     assert 'Schema = "cdmw_dotnet_preview_performance_v1"' in report
     assert "every frame in the snapshot is part of the measured interval" in report
     assert ".Skip(Math.Min(capture.Options.WarmupFrames" not in report
@@ -235,5 +244,14 @@ def test_retained_overlays_and_texture_updates_have_explicit_generation_and_fram
         "texture_region_maximum_pending_depth",
         "swap_chain_resize_coalesced_count",
         "swap_chain_resize_commit_count",
+        "render_sample_count",
+        "render_sample_quality",
+        "multisample_resolve_count",
+        "render_surface_create_count",
+        "render_surface_dispose_count",
+        "render_surface_identity",
+        "render_surface_bytes_estimate",
+        "peak_render_surface_bytes_estimate",
+        "peak_offscreen_capture_surface_bytes_estimate",
     ):
         assert f'["{metric}"]' in metrics

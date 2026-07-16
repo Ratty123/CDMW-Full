@@ -37,6 +37,10 @@ internal sealed partial class MeshViewport
             ["present_sync_interval"] = _d3d11Viewport?.PresentSyncInterval,
             ["maximum_frame_latency"] = _d3d11Viewport?.MaximumFrameLatency,
             ["presentation_model"] = _d3d11Viewport?.PresentationModel,
+            ["anti_aliasing_mode"] = _d3d11Viewport?.AntiAliasingMode,
+            ["render_sample_count"] = _d3d11Viewport?.RenderSampleCount,
+            ["render_sample_quality"] = _d3d11Viewport?.RenderSampleQuality,
+            ["anti_aliasing_fallback_reason"] = _d3d11Viewport?.AntiAliasingFallbackReason,
             ["gdi_fallback_active"] = !_rendererBlocked && _d3d11Viewport is null && _gpuViewport is null,
             ["gdi_fallback_frame_count"] = _gdiFallbackFrameCount,
             ["viewport"] = RenderSurfaceStatusPayload(),
@@ -111,6 +115,8 @@ internal sealed partial class MeshViewport
             ["present_sync_interval"] = _d3d11Viewport?.PresentSyncInterval,
             ["maximum_frame_latency"] = _d3d11Viewport?.MaximumFrameLatency,
             ["presentation_model"] = _d3d11Viewport?.PresentationModel,
+            ["anti_aliasing_mode"] = _d3d11Viewport?.AntiAliasingMode,
+            ["render_sample_count"] = _d3d11Viewport?.RenderSampleCount,
             ["viewport"] = RenderSurfaceStatusPayload(),
             ["display_mode"] = DisplayMode,
             ["comparison_mode"] = _scene.ComparisonMode,
@@ -170,6 +176,7 @@ internal sealed partial class MeshViewport
             capabilities.Add("resident_texture_mip_regeneration_v1");
             capabilities.Add("native_dds_2d_mip_chain_upload_v1");
             capabilities.Add("bitmap_bgra32_generated_mip_chain_v1");
+            capabilities.Add("d3d11_offscreen_msaa_resolve_v1");
             capabilities.Add("source_color_space_views_v1");
             capabilities.Add("material_semantic_diagnostics_v1");
         }

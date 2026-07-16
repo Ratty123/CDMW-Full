@@ -42,6 +42,14 @@ internal sealed partial class D3D11MaterialViewport
             ["swap_chain_resize_deferred_count"] = _swapChainResizeDeferredCount,
             ["swap_chain_resize_coalesced_count"] = _swapChainResizeCoalescedCount,
             ["swap_chain_resize_commit_count"] = _swapChainResizeCommitCount,
+            ["render_sample_count"] = _renderSampleCount,
+            ["render_sample_quality"] = _renderSampleQuality,
+            ["anti_aliasing_mode"] = AntiAliasingMode,
+            ["multisample_resolve_count"] = _multisampleResolveCount,
+            ["offscreen_multisample_resolve_count"] = _offscreenMultisampleResolveCount,
+            ["render_surface_identity"] = RenderSurfaceIdentity,
+            ["render_surface_bytes_estimate"] = _renderSurfaceBytesEstimate,
+            ["offscreen_capture_surface_bytes_estimate"] = _offscreenCaptureSurfaceBytesEstimate,
         };
     }
 
@@ -101,6 +109,19 @@ internal sealed partial class D3D11MaterialViewport
             ["swap_chain_resize_deferred_count"] = _swapChainResizeDeferredCount,
             ["swap_chain_resize_coalesced_count"] = _swapChainResizeCoalescedCount,
             ["swap_chain_resize_commit_count"] = _swapChainResizeCommitCount,
+            ["render_sample_count"] = _renderSampleCount,
+            ["render_sample_quality"] = _renderSampleQuality,
+            ["anti_aliasing_mode"] = AntiAliasingMode,
+            ["anti_aliasing_fallback_reason"] = _antiAliasingFallbackReason,
+            ["multisample_resolve_count"] = _multisampleResolveCount,
+            ["offscreen_multisample_resolve_count"] = _offscreenMultisampleResolveCount,
+            ["render_surface_create_count"] = _renderSurfaceCreateCount,
+            ["render_surface_dispose_count"] = _renderSurfaceDisposeCount,
+            ["render_surface_identity"] = RenderSurfaceIdentity,
+            ["render_surface_bytes_estimate"] = _renderSurfaceBytesEstimate,
+            ["peak_render_surface_bytes_estimate"] = _peakRenderSurfaceBytesEstimate,
+            ["offscreen_capture_surface_bytes_estimate"] = _offscreenCaptureSurfaceBytesEstimate,
+            ["peak_offscreen_capture_surface_bytes_estimate"] = _peakOffscreenCaptureSurfaceBytesEstimate,
             ["resident_geometry_bytes_estimate"] = _residentGeometryBytes,
             ["peak_resident_geometry_bytes_estimate"] = _peakResidentGeometryBytes,
             ["peak_geometry_old_plus_new_bytes_estimate"] = _peakGeometryRebuildBytesEstimate,
@@ -146,10 +167,24 @@ internal sealed partial class D3D11MaterialViewport
             ["cached_material_binding_arrays"] = _batches.Count,
             ["material_binding_array_identity"] = MaterialBindingArrayIdentity(),
             ["resident_topology_mapping_bytes_estimate"] = _batches.Sum(batch => batch.SourceVertexToRenderCorners.EstimatedBytes),
-            ["resident_vram_bytes_estimate"] = _residentGeometryBytes + _textureResidentBytes,
+            ["resident_vram_bytes_estimate"] = _residentGeometryBytes
+                + _textureResidentBytes
+                + _renderSurfaceBytesEstimate,
             ["peak_old_plus_new_vram_bytes_estimate"] = Math.Max(
-                _peakGeometryRebuildBytesEstimate + _peakTextureResidentBytes,
-                _peakTextureRefreshBytesEstimate + _peakResidentGeometryBytes),
+                _peakGeometryRebuildBytesEstimate
+                    + _peakTextureResidentBytes
+                    + _peakRenderSurfaceBytesEstimate,
+                _peakTextureRefreshBytesEstimate
+                    + _peakResidentGeometryBytes
+                    + _peakRenderSurfaceBytesEstimate),
+            ["peak_resident_plus_capture_vram_bytes_estimate"] = Math.Max(
+                _peakGeometryRebuildBytesEstimate
+                    + _peakTextureResidentBytes
+                    + _peakRenderSurfaceBytesEstimate,
+                _peakTextureRefreshBytesEstimate
+                    + _peakResidentGeometryBytes
+                    + _peakRenderSurfaceBytesEstimate)
+                + _peakOffscreenCaptureSurfaceBytesEstimate,
             ["dxgi_local_memory_available"] = videoMemory.Available,
             ["dxgi_local_memory_current_usage_bytes"] = videoMemory.CurrentUsage,
             ["dxgi_local_memory_budget_bytes"] = videoMemory.Budget,

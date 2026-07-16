@@ -59,6 +59,10 @@ internal sealed partial class D3D11MaterialViewport
             ["specular_base"] = settings.SpecularBase,
             ["specular_max"] = settings.SpecularMax,
             ["color_pipeline"] = "srgb_srv_linear_shader_srgb_rtv",
+            ["anti_aliasing_mode"] = AntiAliasingMode,
+            ["sample_count"] = _renderSampleCount,
+            ["sample_quality"] = _renderSampleQuality,
+            ["anti_aliasing_fallback_reason"] = _antiAliasingFallbackReason,
         };
     }
 
@@ -89,12 +93,20 @@ internal sealed partial class D3D11MaterialViewport
         _samplerState = _device.CreateSamplerState(description);
         _rasterizerState?.Dispose();
         _doubleSidedRasterizerState?.Dispose();
-        _rasterizerState = _device.CreateRasterizerState(new RasterizerDescription(
+        var rasterizerDescription = new RasterizerDescription(
             _presentationSettings.CullBackFaces ? CullMode.Back : CullMode.None,
-            FillMode.Solid));
-        _doubleSidedRasterizerState = _device.CreateRasterizerState(new RasterizerDescription(
+            FillMode.Solid)
+        {
+            MultisampleEnable = true,
+        };
+        _rasterizerState = _device.CreateRasterizerState(rasterizerDescription);
+        var doubleSidedDescription = new RasterizerDescription(
             CullMode.None,
-            FillMode.Solid));
+            FillMode.Solid)
+        {
+            MultisampleEnable = true,
+        };
+        _doubleSidedRasterizerState = _device.CreateRasterizerState(doubleSidedDescription);
     }
 
     private D3D11CameraConstants BuildCameraConstants(D3D11SubmeshBatch batch)
