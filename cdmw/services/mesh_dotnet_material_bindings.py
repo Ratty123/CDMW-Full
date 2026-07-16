@@ -103,6 +103,10 @@ _DOTNET_NATIVE_MATERIAL_OVERRIDE_KEYS = frozenset(
     }
 )
 
+_DOTNET_LAYER_ONLY_MATERIAL_ROLES = frozenset(
+    {"damage", "decal", "detail", "dye", "grime", "layer", "overlay"}
+)
+
 
 def _safe_int(value: object, fallback: int) -> int:
     try:
@@ -258,6 +262,109 @@ def _native_material_texture_input(value: object) -> PreviewMaterialTextureInput
     return PreviewMaterialTextureInput(**payload)
 
 
+def _native_material_input_is_primary_base(value: object) -> bool:
+    values = (
+        value
+        if isinstance(value, Mapping)
+        else vars(value)
+        if hasattr(value, "__dict__")
+        else {}
+    )
+
+    def field(name: str) -> str:
+        return str(values.get(name, "") or getattr(value, name, "") or "").strip()
+
+    layer_role = field("layer_role").casefold()
+    layer_channel = field("layer_channel").casefold()
+    disposition = field("disposition").casefold()
+    if (
+        layer_role in _DOTNET_LAYER_ONLY_MATERIAL_ROLES
+        or layer_channel
+        or disposition == "layer_only"
+    ):
+        return False
+    slot = field("slot_kind").casefold() or field("slot").casefold()
+    semantic = field("semantic_type").casefold()
+    if slot in {"albedo", "base", "base_color", "color", "diffuse"}:
+        return True
+    if semantic in {"albedo", "base", "base_color", "diffuse"}:
+        return True
+    parameter_name = field("parameter_name").casefold()
+    return semantic == "color" and any(
+        token in parameter_name for token in ("albedo", "basecolor", "base_color", "diffuse")
+    )
+
+
+def _native_material_input_has_primary_base_source(value: object) -> bool:
+    if not _native_material_input_is_primary_base(value):
+        return False
+    values = (
+        value
+        if isinstance(value, Mapping)
+        else vars(value)
+        if hasattr(value, "__dict__")
+        else {}
+    )
+    return any(
+        str(values.get(name, "") or getattr(value, name, "") or "").strip()
+        for name in (
+            "source_path",
+            "source_dds_path",
+            "source_texture_path",
+            "preview_texture_path",
+        )
+    )
+
+
+def _native_batch_explicitly_omits_base_source(
+    batch: Mapping[str, object],
+    dds_textures: Mapping[str, object],
+) -> bool:
+    """Return whether a complete native batch explicitly resolved no base source."""
+
+    raw_textures = batch.get("textures")
+    if not isinstance(raw_textures, Mapping) or "base" not in raw_textures:
+        return False
+    if str(raw_textures.get("base", "") or "").strip():
+        return False
+    if _native_material_descriptor_path(dds_textures.get("base")):
+        return False
+    raw_inputs = dds_textures.get("material_inputs")
+    if isinstance(raw_inputs, Sequence) and not isinstance(
+        raw_inputs,
+        (str, bytes, bytearray),
+    ):
+        return not any(
+            _native_material_input_has_primary_base_source(item)
+            for item in raw_inputs
+        )
+    return True
+
+
+def _clear_dotnet_primary_base_bindings(target: object) -> None:
+    for attr in (
+        "texture",
+        "preview_texture_path",
+        "preview_texture_dds_path",
+        "preview_base_texture_default_path",
+        "preview_base_texture_default_name",
+    ):
+        setattr(target, attr, "")
+    existing_inputs = tuple(
+        getattr(target, "preview_material_texture_inputs", ()) or ()
+    )
+    if existing_inputs:
+        setattr(
+            target,
+            "preview_material_texture_inputs",
+            tuple(
+                item
+                for item in existing_inputs
+                if not _native_material_input_is_primary_base(item)
+            ),
+        )
+
+
 def apply_dotnet_native_material_batch_binding(target: object, batch: object) -> bool:
     """Apply one authoritative Native Preview Core material batch to a submesh.
 
@@ -269,6 +376,9 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         return False
     raw_dds = batch.get("dds_textures")
     dds_textures = raw_dds if isinstance(raw_dds, Mapping) else {}
+    tint_only_base = bool(batch.get("base_tint_only_fallback", False)) or (
+        _native_batch_explicitly_omits_base_source(batch, dds_textures)
+    )
     slot_attrs = {
         "base": ("preview_texture_path", "preview_texture_dds_path"),
         "normal": ("preview_normal_texture_path", "preview_normal_texture_dds_path"),
@@ -359,12 +469,13 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         overrides["material_shader_family"] = shader_family
     if "alpha_threshold" in batch:
         overrides["alpha_cutoff"] = copy.deepcopy(batch.get("alpha_threshold"))
+    if tint_only_base:
+        overrides["base_tint_only_fallback"] = True
     if overrides:
         setattr(target, "preview_native_material_overrides", overrides)
 
-    if bool(batch.get("base_tint_only_fallback", False)):
-        setattr(target, "preview_texture_path", "")
-        setattr(target, "preview_texture_dds_path", "")
+    if tint_only_base:
+        _clear_dotnet_primary_base_bindings(target)
     return True
 
 

@@ -668,3 +668,89 @@ def test_native_batch_tint_preserves_prepared_typed_inputs_for_package_synthesis
     assert binding["parameters"]["base_tint_strength"] == 0.42
     assert binding["parameters"]["base_tint_metallic"] is False
     assert binding["parameters"]["texture_tint"] == [0.73, 0.44, 0.24]
+
+
+def test_native_batch_explicit_no_base_suppresses_stale_color_fallbacks(
+    tmp_path: Path,
+) -> None:
+    stale_base = _image(tmp_path / "inferred_belt_base.png", (224, 206, 170, 255))
+    material = _image(tmp_path / "belt_detail_mask.png", (90, 150, 210, 255))
+    submesh = _submesh("collar")
+    submesh.texture = str(stale_base)
+    submesh.preview_texture_path = str(stale_base)
+    submesh.preview_texture_dds_path = str(stale_base)
+    submesh.preview_base_texture_default_path = str(stale_base)
+    submesh.preview_base_texture_default_name = stale_base.name
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            semantic_type="color",
+            semantic_subtype="albedo",
+            source_dds_path=str(stale_base),
+            preview_texture_path=str(stale_base),
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            semantic_type="mask",
+            semantic_subtype="detail_mask",
+            source_dds_path=str(material),
+            preview_texture_path=str(material),
+            layer_role="detail",
+            visualized=True,
+        ),
+    )
+    mesh = ParsedMesh(
+        path="archive/collar.pac",
+        format="pac",
+        submeshes=[submesh],
+    )
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "base_color": [0.58, 0.44, 0.65],
+                "textures": {
+                    "base": "",
+                    "material": "textures/detail_mask.png",
+                },
+                "dds_textures": {
+                    "material": {
+                        "slot": "material",
+                        "source_path": str(material),
+                    },
+                    "material_inputs": [
+                        {
+                            "slot": "material",
+                            "semantic_type": "mask",
+                            "semantic_subtype": "detail_mask",
+                            "source_path": str(material),
+                            "layer_role": "detail",
+                        },
+                    ],
+                },
+            },
+        ),
+    ) == 1
+
+    assert submesh.texture == ""
+    assert submesh.preview_texture_path == ""
+    assert submesh.preview_texture_dds_path == ""
+    assert submesh.preview_base_texture_default_path == ""
+    assert submesh.preview_base_texture_default_name == ""
+    assert submesh.preview_native_material_overrides["base_tint_only_fallback"] is True
+    assert len(submesh.preview_material_texture_inputs) == 1
+    assert submesh.preview_material_texture_inputs[0].slot_kind == "material"
+
+    payload = _write_manifest(tmp_path / "no-base-package", mesh.submeshes)
+    binding = payload["submeshes"][0]
+    for channels in (
+        binding["raw_resolved_channels"],
+        binding["resolved_channels"],
+        binding["packaged_channels"],
+    ):
+        assert not {"albedo", "base", "diffuse"}.intersection(channels)
+    assert binding["parameters"]["base_tint_color"] == [0.58, 0.44, 0.65]
+    assert "material" in binding["raw_resolved_channels"]
