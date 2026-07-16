@@ -208,8 +208,6 @@ def _prepare_visual_audit_run(
         specs = specs[: max(1, args.limit)]
     resume_checkpoint: Mapping[str, object] | None = None
     if args.resume_prepare:
-        if args.limit > 0:
-            parser.error("--resume-prepare cannot be combined with --limit.")
         try:
             run_id, temporary_root, resume_checkpoint = _load_preparation_resume(
                 runtime_root,

@@ -54,6 +54,16 @@ def test_visual_audit_rejects_dotnet_apphost_as_an_assembly(tmp_path: Path) -> N
         )
 
 
+def test_visual_audit_resume_preserves_a_bounded_manifest_selection() -> None:
+    source = (ROOT / "tools" / "mesh_harness" / "visual_audit_cli.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "specs = specs[: max(1, args.limit)]" in source
+    assert "allow_partial=bool(args.limit > 0)" in source
+    assert "--resume-prepare cannot be combined with --limit" not in source
+
+
 def test_dotnet_refresh_reuses_only_exactly_matching_source_assets() -> None:
     corpus = {
         "assets": [
