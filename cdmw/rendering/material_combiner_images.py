@@ -14,6 +14,7 @@ from cdmw.models import PreviewMaterialTextureInput
 from cdmw.rendering.material_combiner_decode import (
     _apply_external_material_factors,
     _material_decode_output_flags,
+    _resolve_external_material_factors,
     decode_material_sample,
 )
 from cdmw.rendering.material_combiner_rules import (
@@ -553,6 +554,7 @@ def _generate_material_maps(
     metal_peak = 0.0
     spec_peak = 0.0
     contribution_peak = 1.0 if mask_source.isNull() else 0.0
+    external_material_factors = _resolve_external_material_factors(input_item, decode_mode)
     for y in range(height):
         _raise_if_material_combiner_cancelled(cancelled)
         source_row = y * source_stride
@@ -566,8 +568,7 @@ def _generate_material_maps(
                 decode_mode,
             )
             ao, roughness, metalness, specular = _apply_external_material_factors(
-                input_item,
-                decode_mode,
+                external_material_factors,
                 ao,
                 roughness,
                 metalness,

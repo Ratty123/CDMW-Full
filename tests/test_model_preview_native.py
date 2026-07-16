@@ -676,6 +676,85 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertAlmostEqual(0.35, roughness)
         self.assertAlmostEqual(0.8, metalness)
 
+    def test_material_combiner_resolves_external_factors_once_per_texture(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        from cdmw.rendering import material_combiner_decode
+        from cdmw.rendering.material_combiner_images import _generate_material_maps
+
+        texture_input = PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_metallicRoughnessTexture",
+            semantic_type="material",
+            semantic_subtype="metallic_roughness",
+            packed_channels=("roughness", "metallic"),
+            material_parameters=(
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_roughnessFactor",
+                    numeric_value=0.5,
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_metallicFactor",
+                    numeric_value=0.25,
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_glossinessFactor",
+                    numeric_value=0.6,
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_specularFactor",
+                    numeric_value=0.7,
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="color",
+                    parameter_name="_specularColorFactor",
+                    color_value=(0.8, 0.7, 0.6),
+                ),
+                PreviewMaterialParameterInput(
+                    parameter_kind="float",
+                    parameter_name="_gltfTextureStrength_occlusion",
+                    numeric_value=0.25,
+                ),
+            ),
+        )
+        image = QImage(4, 3, QImage.Format.Format_RGBA8888)
+        image.fill(QColor(80, 200, 120, 255))
+        original_numeric = material_combiner_decode._material_parameter_numeric
+        original_hint = material_combiner_decode._material_parameter_hint
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with (
+                patch.object(material_combiner_decode, "_material_parameter_numeric", wraps=original_numeric) as numeric_scan,
+                patch.object(material_combiner_decode, "_material_parameter_hint", wraps=original_hint) as hint_scan,
+            ):
+                slots, urls = _generate_material_maps(
+                    image,
+                    Path(temp_dir),
+                    "resolved_factors",
+                    decode_mode="metallic_roughness",
+                    input_item=texture_input,
+                    flip_vertical=False,
+                    max_dimension=4,
+                )
+            generated_pixels = []
+            for url in urls[1:]:
+                generated = QImage(QUrl(url).toLocalFile())
+                self.assertFalse(generated.isNull())
+                generated_pixels.append(generated.pixelColor(0, 0).getRgb())
+
+        self.assertEqual(("roughness", "metalness", "specular"), slots)
+        self.assertEqual(5, numeric_scan.call_count)
+        self.assertEqual(1, hint_scan.call_count)
+        self.assertEqual("", urls[0])
+        self.assertEqual(
+            [(100, 100, 100, 255), (30, 30, 30, 255), (75, 75, 75, 255)],
+            generated_pixels,
+        )
+
     def test_gltf_specular_glossiness_decodes_alpha_as_glossiness(self) -> None:
         texture_input = PreviewMaterialTextureInput(
             slot_kind="material",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Optional, Sequence, Tuple
 
 from cdmw.models import PreviewMaterialTextureInput
@@ -24,6 +25,19 @@ from cdmw.rendering.material_combiner_rules import (
     _stem_tokens,
     _strong_metallic_override,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class _ResolvedExternalMaterialFactors:
+    input_present: bool = False
+    mode: str = ""
+    roughness_factor: Optional[float] = None
+    metallic_factor: Optional[float] = None
+    glossiness_factor: Optional[float] = None
+    specular_factor: Optional[float] = None
+    specular_color: float = 0.0
+    occlusion_strength: Optional[float] = None
+
 
 def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
     texture_type = str(input_item.semantic_type or "").strip().lower()
@@ -531,42 +545,57 @@ def decode_material_sample(
     return _clamp(ao, 0.45, 1.0), _clamp(roughness, 0.04, 1.0), _clamp(metalness), _clamp(specular)
 
 
-def _apply_external_material_factors(
+def _resolve_external_material_factors(
     input_item: Optional[PreviewMaterialTextureInput],
     decode_mode: str,
+) -> _ResolvedExternalMaterialFactors:
+    if input_item is None:
+        return _ResolvedExternalMaterialFactors()
+    roughness_factor = _material_parameter_numeric(input_item, "roughnessfactor")
+    metallic_factor = _material_parameter_numeric(input_item, "metallicfactor", "metalnessfactor")
+    glossiness_factor = _material_parameter_numeric(input_item, "glossinessfactor")
+    specular_factor = _material_parameter_numeric(input_item, "specularfactor")
+    occlusion_strength = _material_parameter_numeric(input_item, "texturestrengthocclusion", "occlusionstrength")
+    return _ResolvedExternalMaterialFactors(
+        input_present=True,
+        mode=str(decode_mode or "").strip().lower(),
+        roughness_factor=None if roughness_factor is None else _clamp(roughness_factor),
+        metallic_factor=None if metallic_factor is None else _clamp(metallic_factor),
+        glossiness_factor=None if glossiness_factor is None else _clamp(glossiness_factor),
+        specular_factor=None if specular_factor is None else _clamp(specular_factor),
+        specular_color=_material_parameter_hint(input_item, "specularcolorfactor"),
+        occlusion_strength=None if occlusion_strength is None else _clamp(occlusion_strength),
+    )
+
+
+def _apply_external_material_factors(
+    factors: _ResolvedExternalMaterialFactors,
     ao: float,
     roughness: float,
     metalness: float,
     specular: float,
 ) -> Tuple[float, float, float, float]:
-    if input_item is None:
+    if not factors.input_present:
         return ao, roughness, metalness, specular
-    mode = str(decode_mode or "").strip().lower()
-    roughness_factor = _material_parameter_numeric(input_item, "roughnessfactor")
-    metallic_factor = _material_parameter_numeric(input_item, "metallicfactor", "metalnessfactor")
-    glossiness_factor = _material_parameter_numeric(input_item, "glossinessfactor")
-    specular_factor = _material_parameter_numeric(input_item, "specularfactor")
-    specular_color = _material_parameter_hint(input_item, "specularcolorfactor")
-    occlusion_strength = _material_parameter_numeric(input_item, "texturestrengthocclusion", "occlusionstrength")
+    mode = factors.mode
     if mode == "metallic_roughness":
-        if roughness_factor is not None:
-            roughness = _clamp(roughness * _clamp(roughness_factor))
-        if metallic_factor is not None:
-            metalness = _clamp(metalness * _clamp(metallic_factor))
+        if factors.roughness_factor is not None:
+            roughness = _clamp(roughness * factors.roughness_factor)
+        if factors.metallic_factor is not None:
+            metalness = _clamp(metalness * factors.metallic_factor)
     elif mode in {"specular_glossiness", "glossiness"}:
-        if glossiness_factor is not None:
-            glossiness = _clamp((1.0 - roughness) * _clamp(glossiness_factor))
+        if factors.glossiness_factor is not None:
+            glossiness = _clamp((1.0 - roughness) * factors.glossiness_factor)
             roughness = _clamp(1.0 - glossiness, 0.04, 0.98)
-        if specular_factor is not None:
-            specular = _clamp(specular * _clamp(specular_factor))
-        if specular_color > 0.0:
-            specular = _clamp(specular * specular_color)
+        if factors.specular_factor is not None:
+            specular = _clamp(specular * factors.specular_factor)
+        if factors.specular_color > 0.0:
+            specular = _clamp(specular * factors.specular_color)
     elif mode in {"specular", "clearcoat", "sheen"}:
-        if specular_factor is not None:
-            specular = _clamp(specular * _clamp(specular_factor))
-        if specular_color > 0.0:
-            specular = _clamp(specular * specular_color)
-    if occlusion_strength is not None:
-        strength = _clamp(occlusion_strength)
-        ao = _clamp(1.0 + (ao - 1.0) * strength, 0.45, 1.0)
+        if factors.specular_factor is not None:
+            specular = _clamp(specular * factors.specular_factor)
+        if factors.specular_color > 0.0:
+            specular = _clamp(specular * factors.specular_color)
+    if factors.occlusion_strength is not None:
+        ao = _clamp(1.0 + (ao - 1.0) * factors.occlusion_strength, 0.45, 1.0)
     return _clamp(ao, 0.45, 1.0), _clamp(roughness, 0.04, 1.0), _clamp(metalness), _clamp(specular)
