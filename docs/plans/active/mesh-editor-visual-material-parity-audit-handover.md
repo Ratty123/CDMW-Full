@@ -70,9 +70,9 @@ and a reflective control. No known corpus asset provides authoritative
 alpha-blend/transmission or double-sided coverage; wing, eye-cover, hair, and
 foliage assets are proxies only.
 
-At this checkpoint, 10 of 16 assets are fully prepared and asset 11, the
-261-texture NDM NPC control, is actively converting. The preparation checkpoint
-is:
+At this checkpoint, 10 of 16 assets are fully prepared and asset 11, the large
+NDM NPC control, is actively converting hundreds of material inputs. The
+preparation checkpoint is:
 
 `workspace/mesh-editor-visual-audit/20260716-current-parity-additional-16/runtime/preparation-checkpoint.json`
 
