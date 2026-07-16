@@ -7,6 +7,7 @@ import json
 import os
 import shutil
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -14,6 +15,7 @@ from PySide6.QtCore import QUrl
 
 from cdmw.core.atomic_file import atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.rendering.material_combiner import (
     MaterialPreviewCombinerSettings,
@@ -190,6 +192,150 @@ def _package_synthesis_inputs(
     return ()
 
 
+class _CallbackStopEvent:
+    def __init__(self, cancelled: Callable[[], bool] | None) -> None:
+        self._cancelled = cancelled
+
+    def is_set(self) -> bool:
+        return bool(self._cancelled is not None and self._cancelled())
+
+
+def _synthesis_preview_profile(
+    item: object,
+    *,
+    high_resolution_mask: bool = False,
+) -> tuple[int, str, str, str]:
+    slot = str(_input_value(item, "slot_kind") or "").strip().casefold()
+    semantic = str(_input_value(item, "semantic_type") or "").strip().casefold()
+    color_input = slot in {"base", "color", "emissive"} or semantic in {
+        "albedo",
+        "base",
+        "color",
+        "diffuse",
+        "emissive",
+    }
+    normal_input = slot == "normal" or semantic == "normal"
+    max_dimension = 512 if color_input or high_resolution_mask else 192
+    decode_slot = "base" if color_input else ("normal" if normal_input else "material")
+    srgb = str(_input_value(item, "srgb_mode") or "").strip().casefold()
+    if not srgb:
+        srgb = "srgb" if color_input else "linear"
+    normal_space = str(_input_value(item, "normal_space") or "").strip().casefold() or "auto"
+    return max_dimension, decode_slot, srgb, normal_space
+
+
+def _local_synthesis_dds_path(item: object) -> Path | None:
+    for field_name in (
+        "preview_texture_path",
+        "source_dds_path",
+        "source_texture_path",
+    ):
+        raw_path = str(_input_value(item, field_name) or "").strip()
+        if not raw_path:
+            continue
+        if raw_path.casefold().startswith("file:"):
+            raw_path = QUrl(raw_path).toLocalFile()
+        try:
+            path = Path(raw_path).expanduser().resolve()
+        except (OSError, RuntimeError, ValueError):
+            continue
+        if path.suffix.casefold() == ".dds" and path.is_file():
+            return path
+    return None
+
+
+def _has_native_support_map(
+    item: object,
+    raw_channels: Mapping[str, str],
+) -> bool:
+    slot = str(_input_value(item, "slot_kind") or "").strip().casefold()
+    semantic = str(_input_value(item, "semantic_type") or "").strip().casefold()
+    if slot == "normal" or semantic == "normal":
+        channel = "normal"
+    elif slot in {"height", "displacement"} or semantic in {"height", "displacement"}:
+        channel = "height"
+    else:
+        return False
+    raw_path = _local_synthesis_dds_path(
+        {"source_dds_path": raw_channels.get(channel, "")}
+    )
+    return raw_path is not None
+
+
+def _decode_synthesis_input_previews(
+    inputs: tuple[object, ...],
+    raw_channels: Mapping[str, str],
+    *,
+    cancelled: Callable[[], bool] | None,
+) -> tuple[tuple[object, ...], int]:
+    from cdmw.core.texture_native import (
+        directxtex_preview_result_key,
+        ensure_directxtex_dds_preview_pngs,
+    )
+    from cdmw.rendering.material_combiner_rules import _mask_inputs_for_albedo
+
+    jobs: list[dict[str, object]] = []
+    job_keys: dict[int, str] = {}
+    albedo_mask_ids = {
+        id(item)
+        for item in _mask_inputs_for_albedo(
+            tuple(
+                item
+                for item in inputs
+                if isinstance(item, PreviewMaterialTextureInput)
+            )
+        ).values()
+    }
+    for index, item in enumerate(inputs):
+        dds_path = _local_synthesis_dds_path(item)
+        if dds_path is None:
+            continue
+        if _has_native_support_map(item, raw_channels):
+            continue
+        max_dimension, slot_kind, srgb, normal_space = _synthesis_preview_profile(
+            item,
+            high_resolution_mask=id(item) in albedo_mask_ids,
+        )
+        jobs.append(
+            {
+                "dds_path": str(dds_path),
+                "max_dimension": max_dimension,
+                "slot_kind": slot_kind,
+                "srgb": srgb,
+                "normal_space": normal_space,
+            }
+        )
+        job_keys[index] = directxtex_preview_result_key(
+            dds_path,
+            max_dimension=max_dimension,
+            slot_kind=slot_kind,
+            srgb=srgb,
+            normal_space=normal_space,
+        )
+    if not jobs:
+        return inputs, 0
+    results = ensure_directxtex_dds_preview_pngs(
+        jobs,
+        include_job_keys=True,
+        stop_event=_CallbackStopEvent(cancelled),
+    )
+    decoded = 0
+    updated_inputs = list(inputs)
+    for index, result_key in job_keys.items():
+        preview_path = results.get(result_key)
+        if preview_path is None or not preview_path.is_file():
+            continue
+        item = inputs[index]
+        if not isinstance(item, PreviewMaterialTextureInput):
+            continue
+        updated_inputs[index] = replace(
+            item,
+            preview_texture_path=str(preview_path),
+        )
+        decoded += 1
+    return tuple(updated_inputs), decoded
+
+
 def _source_has_usable_tangents(source: object | None) -> bool:
     if source is None:
         return False
@@ -296,7 +442,6 @@ def _generated_channels(
     decoded_support_channels = _decoded_support_replacement_channels(
         inputs, raw_contract, combined
     )
-    raw_normal_available = bool(str(raw_channels.get("normal", "") or "").strip())
     for source_field, channel in (
         ("normal_source", "normal"),
         ("roughness_source", "roughness"),
@@ -309,7 +454,11 @@ def _generated_channels(
         raw_channel_available = bool(str(raw_channels.get(channel, "") or "").strip())
         if not path:
             continue
-        if channel == "normal" and raw_normal_available:
+        if channel == "normal" and raw_channel_available:
+            continue
+        if channel == "height" and _local_synthesis_dds_path(
+            {"source_dds_path": raw_channels.get(channel, "")}
+        ) is not None:
             continue
         if (
             channel in _GENERATED_SUPPORT_CHANNELS
@@ -340,6 +489,11 @@ def _synthesize_dotnet_material_channels(
             "skipped": "cancelled",
         }, ()
     try:
+        inputs, decoded_preview_input_count = _decode_synthesis_input_previews(
+            inputs,
+            raw_channels,
+            cancelled=cancelled,
+        )
         combined = combine_preview_material(
             SimpleNamespace(
                 material_name=str(getattr(source, "material", "") or getattr(source, "name", "") or ""),
@@ -396,6 +550,7 @@ def _synthesize_dotnet_material_channels(
         "decode_modes": list(tuple(getattr(combined, "decode_modes", ()) or ())),
         "notes": list(tuple(getattr(combined, "notes", ()) or ())),
         "texture_flip_vertical": bool(getattr(combined, "texture_flip_vertical", False)),
+        "decoded_preview_input_count": int(decoded_preview_input_count),
     }
     if getattr(combined, "base_note", ""):
         metadata["base_note"] = str(combined.base_note)

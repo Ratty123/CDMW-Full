@@ -154,7 +154,7 @@ def _generate_synthesized_albedo_map(
         if prepared.isNull():
             continue
         source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
-    if prepared_base.isNull() and not source_layers and len(neutral_base_color) < 3:
+    if prepared_base.isNull() and not source_layers:
         return "", ""
 
     target, width, height, layer_start = _initialize_synthesized_albedo_target(
