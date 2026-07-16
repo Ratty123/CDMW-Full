@@ -126,14 +126,24 @@ Last updated: 2026-07-16
   process/package/viewport contract. Real topology evidence scans the retained
   protocol tail when the bounded event buffer has pruned the original cursor.
   The canonical paired visual audit keeps one native process and one .NET
-  process/device/viewport resident for an ordered PAC corpus, captures six fixed
-  angles, rejects culling/depth/tint/tone presentation drift, requires direct
-  per-asset verdicts, and proves source archives unchanged with before/after
-  fingerprints. Hidden automation creates the HWND without calling `Show`, proves both
-  host and viewport remain invisible, and records that proof in the capture report.
-  Open card geometry and standalone neck/cuff/body boundaries that match Archive are not by themselves x-ray regressions.
-  Preserve per-hint presence and RGB-versus-scalar emissive authority across package, live UI,
-  native protocol, and .NET shader boundaries. It is CDMW renderer-consistency evidence, never licensed-game parity proof.
+  process/device/viewport resident, captures six fixed angles, requires direct
+  verdicts, and fingerprints source archives. Its audit-only camera uses
+  Archive's `T(-center) * Rx(pitch) * Ry(yaw)` object basis; integrity compares
+  normalized screen-right/up/view axes so mirrored or rolled captures fail.
+  Archive remains perspective and .NET orthographic, so fit/foreshortening is
+  not texture-resolution evidence. Hidden automation creates the HWND without
+  `Show`; open cards or standalone boundaries also seen in Archive are not
+  x-ray regressions. Preserve RGB-versus-scalar emissive authority end to end:
+  zero intensity combined with non-authoritative fallback color is not family
+  evidence, while active intensity/color/role/channel remains authoritative;
+  current nine-family real-PAC evidence matched 130/130 batches. The finalized
+  corrected-camera ledgers are 11 PASS/5 CONCERN/0 FAIL across 16 broad models
+  and 8 PASS/1 CONCERN/0 FAIL across the affected nine; both retain depth, use
+  no X-ray/no-depth passes, and preserve byte-identical archive-fingerprint
+  manifests. Direct authoritative DDS bytes, formats, dimensions, and mips stay
+  identical to source; fit, source atlases, capped synthesized material
+  outputs, or unsupported response can still soften the image. This is CDMW
+  renderer-consistency evidence, never licensed-game parity proof.
   Prepared audit packages recursively own and rewrite every nested
   `source_path` the native role scan can select, even when a descriptor is not
   a direct-upload candidate, so cache eviction cannot invalidate later capture.
