@@ -551,6 +551,546 @@ class ArchivePreviewTextureBindingSupportTests(unittest.TestCase):
         self.assertIn("channel:g", specular_input.blend_flags)
         self.assertIn("material diagnostics and preview", "\n".join(lines))
 
+    def test_exact_punctuation_identity_excludes_conflicting_fuzzy_sidecar_bindings(self) -> None:
+        source_entry = _entry("character/model/cd_test_lightsource.pac")
+        copper_base = "character/texture/cd_metal_copper_01.dds"
+        copper_material = "character/texture/cd_metal_copper_01_sp.dds"
+        coffin_base = "character/texture/cd_common_coffin_01.dds"
+        coffin_material = "character/texture/cd_common_coffin_01_sp.dds"
+        by_normalized, by_basename = _texture_maps(
+            copper_base,
+            copper_material,
+            coffin_base,
+            coffin_material,
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="CD_Common_Coffin_01",
+                    texture_name="07 - Default",
+                )
+            ],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                copper_base,
+                "_baseColorTexture",
+                part_name="07___default",
+                material_name="07___default",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                copper_material,
+                "_materialTexture",
+                part_name="07___default",
+                material_name="07___default",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                coffin_base,
+                "_baseColorTexture",
+                part_name="07 - default",
+                material_name="07 - default",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                coffin_material,
+                "_materialTexture",
+                part_name="07 - default",
+                material_name="07 - default",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        self.assertEqual(f"preview://{coffin_base}", mesh.preview_texture_path)
+        self.assertEqual(coffin_material, mesh.preview_material_texture_name)
+        material_sources = {
+            item.source_texture_path
+            for item in mesh.preview_material_texture_inputs
+        }
+        self.assertIn(coffin_base, material_sources)
+        self.assertIn(coffin_material, material_sources)
+        self.assertNotIn(copper_base, material_sources)
+        self.assertNotIn(copper_material, material_sources)
+
+    def test_ambiguous_fuzzy_sidecar_identity_is_not_used_as_a_fallback(self) -> None:
+        source_entry = _entry("character/model/cd_test_lightsource.pac")
+        copper_base = "character/texture/cd_metal_copper_01.dds"
+        copper_material = "character/texture/cd_metal_copper_01_sp.dds"
+        coffin_base = "character/texture/cd_common_coffin_01.dds"
+        coffin_material = "character/texture/cd_common_coffin_01_sp.dds"
+        by_normalized, by_basename = _texture_maps(
+            copper_base,
+            copper_material,
+            coffin_base,
+            coffin_material,
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="07 default", texture_name="07 default")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                copper_base,
+                "_baseColorTexture",
+                part_name="07___default",
+                material_name="07___default",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                copper_material,
+                "_materialTexture",
+                part_name="07___default",
+                material_name="07___default",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                coffin_base,
+                "_baseColorTexture",
+                part_name="07 - default",
+                material_name="07 - default",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                coffin_material,
+                "_materialTexture",
+                part_name="07 - default",
+                material_name="07 - default",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        self.assertEqual("", mesh.preview_texture_path)
+        self.assertEqual("", mesh.preview_material_texture_path)
+        self.assertEqual((), mesh.preview_material_texture_inputs)
+
+    def test_unique_fuzzy_sidecar_identity_remains_a_support_fallback(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        normal_path = "character/texture/part_a_n.dds"
+        by_normalized, by_basename = _texture_maps(normal_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part A", texture_name="Part A")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                normal_path,
+                "_normalTexture",
+                submesh_name="Part_A",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual(normal_path, model.meshes[0].preview_normal_texture_name)
+
+    def test_exact_sidecar_identity_selects_the_whole_connected_material_graph(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        base_path = "character/texture/part_a.dds"
+        material_path = "character/texture/part_a_ma.dds"
+        by_normalized, by_basename = _texture_maps(base_path, material_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part A", texture_name="Part A")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                base_path,
+                "_baseColorTexture",
+                submesh_name="Part_A",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                material_path,
+                "_materialTexture",
+                submesh_name="Part_A",
+                material_name="Part A",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        material_sources = {
+            item.source_texture_path
+            for item in mesh.preview_material_texture_inputs
+        }
+        self.assertEqual(f"preview://{base_path}", mesh.preview_texture_path)
+        self.assertIn(base_path, material_sources)
+        self.assertIn(material_path, material_sources)
+
+    def test_unique_fuzzy_sidecar_identity_selects_the_whole_connected_material_graph(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        base_path = "character/texture/part_a.dds"
+        material_path = "character/texture/part_a_ma.dds"
+        by_normalized, by_basename = _texture_maps(base_path, material_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part-A", texture_name="Part-A")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                base_path,
+                "_baseColorTexture",
+                submesh_name="Part_A",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                material_path,
+                "_materialTexture",
+                submesh_name="Part_A",
+                material_name="Part A",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        material_sources = {
+            item.source_texture_path
+            for item in mesh.preview_material_texture_inputs
+        }
+        self.assertEqual(f"preview://{base_path}", mesh.preview_texture_path)
+        self.assertIn(base_path, material_sources)
+        self.assertIn(material_path, material_sources)
+
+    def test_shared_material_alias_does_not_merge_distinct_submesh_graphs(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        part_a_base = "character/texture/part_a.dds"
+        part_a_material = "character/texture/part_a_ma.dds"
+        part_b_base = "character/texture/part_b.dds"
+        part_b_material = "character/texture/part_b_ma.dds"
+        by_normalized, by_basename = _texture_maps(
+            part_a_base,
+            part_a_material,
+            part_b_base,
+            part_b_material,
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part_A", texture_name="Shared")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                part_a_base,
+                "_baseColorTexture",
+                submesh_name="Part_A",
+                material_name="Shared",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_a_material,
+                "_materialTexture",
+                submesh_name="Part_A",
+                material_name="Shared",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_b_base,
+                "_baseColorTexture",
+                submesh_name="Part_B",
+                material_name="Shared",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_b_material,
+                "_materialTexture",
+                submesh_name="Part_B",
+                material_name="Shared",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        material_sources = {
+            item.source_texture_path
+            for item in mesh.preview_material_texture_inputs
+        }
+        self.assertEqual(f"preview://{part_a_base}", mesh.preview_texture_path)
+        self.assertIn(part_a_base, material_sources)
+        self.assertIn(part_a_material, material_sources)
+        self.assertNotIn(part_b_base, material_sources)
+        self.assertNotIn(part_b_material, material_sources)
+
+    def test_exact_sidecar_owner_prevents_unrelated_fuzzy_candidate_promotion(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        part_a_base = "character/texture/part_a.dds"
+        part_a_material = "character/texture/part_a_ma.dds"
+        part_b_base = "character/texture/part_b.dds"
+        part_b_material = "character/texture/part_b_ma.dds"
+        by_normalized, by_basename = _texture_maps(
+            part_a_base,
+            part_a_material,
+            part_b_base,
+            part_b_material,
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part_A", texture_name="Part-B")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                part_a_base,
+                "_baseColorTexture",
+                submesh_name="Part_A",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_a_material,
+                "_materialTexture",
+                submesh_name="Part_A",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_b_base,
+                "_baseColorTexture",
+                submesh_name="Part_B",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_b_material,
+                "_materialTexture",
+                submesh_name="Part_B",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        material_sources = {
+            item.source_texture_path
+            for item in mesh.preview_material_texture_inputs
+        }
+        self.assertEqual(f"preview://{part_a_base}", mesh.preview_texture_path)
+        self.assertIn(part_a_base, material_sources)
+        self.assertIn(part_a_material, material_sources)
+        self.assertNotIn(part_b_base, material_sources)
+        self.assertNotIn(part_b_material, material_sources)
+
+    def test_distinct_fuzzy_sidecar_candidates_do_not_promote_multiple_graphs(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        part_a_base = "character/texture/part_a.dds"
+        part_b_base = "character/texture/part_b.dds"
+        by_normalized, by_basename = _texture_maps(part_a_base, part_b_base)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part A", texture_name="Part B")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                part_a_base,
+                "_baseColorTexture",
+                submesh_name="Part_A",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_b_base,
+                "_baseColorTexture",
+                submesh_name="Part_B",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        self.assertEqual("", mesh.preview_texture_path)
+        self.assertEqual((), mesh.preview_material_texture_inputs)
+
+    def test_exact_sidecar_candidate_precedence_selects_one_graph(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        part_a_base = "character/texture/part_a.dds"
+        part_b_base = "character/texture/part_b.dds"
+        by_normalized, by_basename = _texture_maps(part_a_base, part_b_base)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part_A", texture_name="Part_B")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                part_a_base,
+                "_baseColorTexture",
+                submesh_name="Part_A",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                part_b_base,
+                "_baseColorTexture",
+                submesh_name="Part_B",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                visible_texture_mode="layer_aware_visible",
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        mesh = model.meshes[0]
+        material_sources = {
+            item.source_texture_path
+            for item in mesh.preview_material_texture_inputs
+        }
+        self.assertEqual(f"preview://{part_a_base}", mesh.preview_texture_path)
+        self.assertIn(part_a_base, material_sources)
+        self.assertNotIn(part_b_base, material_sources)
+
     def test_exact_sidecar_material_input_survives_preview_conversion_failure(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
         texture_path = "character/texture/part_a_ma.dds"

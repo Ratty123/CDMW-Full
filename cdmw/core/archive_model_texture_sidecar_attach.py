@@ -34,12 +34,15 @@ from cdmw.core.archive_model_texture_resolution import (
 )
 from cdmw.core.archive_model_texture_semantics import (
     _is_visible_model_texture_type,
+    _iter_model_sidecar_binding_exact_submesh_keys,
     _iter_model_sidecar_binding_submesh_keys,
+    _iter_model_submesh_exact_reference_candidates,
     _iter_model_submesh_reference_candidates,
     _iter_parsed_model_submeshes,
     _model_sidecar_binding_matches_source_component,
     _refine_model_texture_semantic_from_hint,
     _resolve_model_texture_semantics,
+    _select_model_sidecar_bindings_for_submesh,
 )
 from cdmw.core.archive_model_texture_sidecar_rules import (
     _apply_model_sidecar_base_preview,
@@ -77,6 +80,7 @@ class _SidecarAttachmentState:
     global_visible_bindings: List[Tuple[ArchiveEntry, str, str, _ArchiveModelSidecarTextureBinding]] = field(default_factory=list)
     fallback_visible_bindings: List[_VisibleBinding] = field(default_factory=list)
     material_color_by_submesh: Dict[str, _MaterialColor] = field(default_factory=dict)
+    material_color_bindings: List[_MaterialColor] = field(default_factory=list)
     global_material_colors: List[_MaterialColor] = field(default_factory=list)
     sidecar_paths: List[str] = field(default_factory=list)
     preview_cache: Dict[str, str] = field(default_factory=dict)
@@ -91,6 +95,7 @@ class _SidecarAttachmentState:
     alpha_contract_count: int = 0
     double_sided_contract_count: int = 0
     promoted_anonymous_fallback: bool = False
+    ambiguous_binding_mesh_ids: set[int] = field(default_factory=set)
 
 
 def _sidecar_preview_path(state: _SidecarAttachmentState, entry: ArchiveEntry) -> str:
@@ -113,16 +118,18 @@ def _collect_sidecar_binding(
 ) -> None:
     if not _model_sidecar_binding_matches_source_component(state.source_entry, binding):
         return
-    submesh_keys = _iter_model_sidecar_binding_submesh_keys(binding)
+    exact_submesh_keys = _iter_model_sidecar_binding_exact_submesh_keys(binding)
     binding_class = _classify_model_sidecar_visible_binding(binding.parameter_name, binding.texture_path)
     color = _model_preview_sidecar_material_color(binding)
     if color:
         color_priority = (_model_sidecar_visible_class_priority(binding_class), 1 if binding_class != "technical" else 0, 1 if str(getattr(binding, "tint_color", "") or "") else 0, -len(str(getattr(binding, "texture_path", "") or "")))
-        if submesh_keys:
-            for key in submesh_keys:
+        if exact_submesh_keys:
+            color_item = (color_priority, color, binding)
+            state.material_color_bindings.append(color_item)
+            for key in exact_submesh_keys:
                 existing = state.material_color_by_submesh.get(key)
                 if existing is None or color_priority > existing[0]:
-                    state.material_color_by_submesh[key] = (color_priority, color, binding)
+                    state.material_color_by_submesh[key] = color_item
         else:
             color_key = (color[0], color[1], color[2], str(getattr(binding, "material_name", "") or "").strip().lower(), str(getattr(binding, "part_name", "") or "").strip().lower())
             if color_key not in seen_colors:
@@ -158,8 +165,8 @@ def _collect_sidecar_binding(
     if fallback_key not in seen_fallback:
         seen_fallback.add(fallback_key)
         state.fallback_visible_bindings.append(item)
-    if submesh_keys:
-        for key in submesh_keys:
+    if exact_submesh_keys:
+        for key in exact_submesh_keys:
             existing = state.resolved_by_submesh.get(key)
             if existing is None or candidate_key > existing[0]:
                 state.resolved_by_submesh[key] = item
@@ -195,16 +202,65 @@ def _mesh_sidecar_candidates(state: _SidecarAttachmentState, index: int, mesh: M
     )
 
 
-def _best_visible_sidecar_fallback(state: _SidecarAttachmentState, candidate_keys: Sequence[str]) -> Optional[_VisibleBinding]:
-    key_set = set(candidate_keys)
-    best: Optional[_VisibleBinding] = None
-    for item in state.fallback_visible_bindings:
-        if _is_low_authority_model_base_texture(item[1].path):
-            continue
-        binding_keys = _iter_model_sidecar_binding_submesh_keys(item[4])
-        if binding_keys and any(key in key_set for key in binding_keys) and (best is None or item[0] > best[0]):
-            best = item
-    return best
+def _mesh_sidecar_exact_candidates(
+    state: _SidecarAttachmentState,
+    index: int,
+    mesh: ModelPreviewMesh,
+) -> Tuple[str, ...]:
+    parsed = state.parsed_submeshes[index] if 0 <= index < len(state.parsed_submeshes) else None
+    return _iter_model_submesh_exact_reference_candidates(
+        str(getattr(parsed, "name", "") or ""), str(getattr(parsed, "material", "") or ""),
+        str(getattr(parsed, "texture", "") or ""), str(getattr(mesh, "material_name", "") or ""),
+        str(getattr(mesh, "texture_name", "") or ""),
+    )
+
+
+def _matched_visible_bindings(
+    state: _SidecarAttachmentState,
+    index: int,
+    mesh: ModelPreviewMesh,
+    *,
+    exclude_low_authority: bool = False,
+) -> Tuple[_VisibleBinding, ...]:
+    candidates = tuple(
+        item
+        for item in state.fallback_visible_bindings
+        if not exclude_low_authority or not _is_low_authority_model_base_texture(item[1].path)
+    )
+    selected_bindings = _select_model_sidecar_bindings_for_submesh(
+        tuple(item[4] for item in candidates),
+        exact_candidates=_mesh_sidecar_exact_candidates(state, index, mesh),
+        fuzzy_candidates=_mesh_sidecar_candidates(state, index, mesh),
+    )
+    selected_ids = {id(binding) for binding in selected_bindings}
+    return tuple(item for item in candidates if id(item[4]) in selected_ids)
+
+
+def _best_visible_sidecar_fallback(
+    state: _SidecarAttachmentState,
+    index: int,
+    mesh: ModelPreviewMesh,
+) -> Optional[_VisibleBinding]:
+    return max(
+        _matched_visible_bindings(state, index, mesh, exclude_low_authority=True),
+        key=lambda item: item[0],
+        default=None,
+    )
+
+
+def _has_fuzzy_visible_binding_candidates(
+    state: _SidecarAttachmentState,
+    index: int,
+    mesh: ModelPreviewMesh,
+) -> bool:
+    fuzzy_keys = set(_mesh_sidecar_candidates(state, index, mesh))
+    return bool(
+        fuzzy_keys
+        and any(
+            fuzzy_keys.intersection(_iter_model_sidecar_binding_submesh_keys(item[4]))
+            for item in state.fallback_visible_bindings
+        )
+    )
 
 
 def _apply_sidecar_base(state: _SidecarAttachmentState, mesh: ModelPreviewMesh, item: _VisibleBinding, *, set_name: bool) -> None:
@@ -225,15 +281,20 @@ def _assign_matched_sidecar_bases(state: _SidecarAttachmentState) -> None:
         raise_if_cancelled(state.stop_event)
         existing_path = str(getattr(mesh, "preview_texture_path", "") or "").strip()
         parsed = state.parsed_submeshes[index] if index < len(state.parsed_submeshes) else None
-        candidate_keys = _mesh_sidecar_candidates(state, index, mesh)
-        best = max((state.resolved_by_submesh[key] for key in candidate_keys if key in state.resolved_by_submesh), key=lambda value: value[0], default=None)
+        best = max(
+            _matched_visible_bindings(state, index, mesh),
+            key=lambda value: value[0],
+            default=None,
+        )
         promoted = False
         if state.fallback_only and existing_path and _mesh_preview_base_is_low_authority(mesh):
-            better = _best_visible_sidecar_fallback(state, candidate_keys)
+            better = _best_visible_sidecar_fallback(state, index, mesh)
             if better is not None:
                 best, promoted = better, True
         if best is None:
             if not existing_path:
+                if _has_fuzzy_visible_binding_candidates(state, index, mesh):
+                    state.ambiguous_binding_mesh_ids.add(id(mesh))
                 state.unresolved_meshes.append(mesh)
                 state.unresolved_mesh_indices_by_id[id(mesh)] = index
             continue
@@ -264,7 +325,7 @@ def _assign_ordered_sidecar_bases(state: _SidecarAttachmentState) -> None:
     best_by_key: Dict[str, _VisibleBinding] = {}
     for item in state.fallback_visible_bindings:
         binding = item[4]
-        key = next((_normalize_model_submesh_reference(value) for value in (str(getattr(binding, "submesh_name", "") or ""), str(getattr(binding, "part_name", "") or ""), str(getattr(binding, "material_name", "") or "")) if _normalize_model_submesh_reference(value)), "")
+        key = next(iter(_iter_model_sidecar_binding_exact_submesh_keys(binding)), "")
         if not key:
             continue
         order.setdefault(key, len(order))
@@ -275,6 +336,9 @@ def _assign_ordered_sidecar_bases(state: _SidecarAttachmentState) -> None:
         return
     for mesh in state.unresolved_meshes:
         index = state.unresolved_mesh_indices_by_id.get(id(mesh), -1)
+        mesh_keys = _mesh_sidecar_candidates(state, index, mesh)
+        if mesh_keys and not all(_is_anonymous_model_submesh_reference_key(key) for key in mesh_keys):
+            continue
         if str(getattr(mesh, "preview_texture_path", "") or "").strip() or not 0 <= index < len(ordered):
             continue
         try:
@@ -287,18 +351,31 @@ def _assign_ordered_sidecar_bases(state: _SidecarAttachmentState) -> None:
 
 
 def _promote_and_assign_global_sidecar_bases(state: _SidecarAttachmentState) -> None:
-    if not state.global_visible_bindings and state.unresolved_meshes and state.fallback_visible_bindings:
-        anonymous = all(not (keys := _mesh_sidecar_candidates(state, state.unresolved_mesh_indices_by_id.get(id(mesh), -1), mesh)) or all(_is_anonymous_model_submesh_reference_key(key) for key in keys) for mesh in state.unresolved_meshes)
+    promotable_unresolved = [
+        mesh
+        for mesh in state.unresolved_meshes
+        if id(mesh) not in state.ambiguous_binding_mesh_ids
+    ]
+    if not state.global_visible_bindings and promotable_unresolved and state.fallback_visible_bindings:
+        anonymous = all(not (keys := _mesh_sidecar_candidates(state, state.unresolved_mesh_indices_by_id.get(id(mesh), -1), mesh)) or all(_is_anonymous_model_submesh_reference_key(key) for key in keys) for mesh in promotable_unresolved)
         named = {_normalize_model_submesh_reference(item[3]) for item in state.fallback_visible_bindings if _normalize_model_submesh_reference(item[3])}
         all_named = {key for binding in state.bindings for key in _iter_model_sidecar_binding_submesh_keys(binding)[:1] if key}
-        promote = len(state.model_preview.meshes) == 1 or (anonymous and (len(state.unresolved_meshes) == 1 or len(state.parsed_submeshes) <= 1 or (len(named) == 1 and len(all_named) <= 1)))
+        promote = len(state.model_preview.meshes) == 1 or (anonymous and (len(promotable_unresolved) == 1 or len(state.parsed_submeshes) <= 1 or (len(named) == 1 and len(all_named) <= 1)))
         if promote:
             best = max(state.fallback_visible_bindings, key=lambda item: item[0])
             state.global_visible_bindings.append((best[1], best[2], best[3], best[4]))
             state.promoted_anonymous_fallback = True
     if not state.global_visible_bindings:
         return
-    unresolved = [mesh for mesh in state.unresolved_meshes if not str(getattr(mesh, "preview_texture_path", "") or "").strip()]
+    unresolved = [
+        mesh
+        for mesh in state.unresolved_meshes
+        if not str(getattr(mesh, "preview_texture_path", "") or "").strip()
+        and (
+            not state.promoted_anonymous_fallback
+            or id(mesh) not in state.ambiguous_binding_mesh_ids
+        )
+    ]
     selected = state.global_visible_bindings
     for index, mesh in enumerate(unresolved):
         if len(selected) != 1 and index >= len(selected):
@@ -314,7 +391,7 @@ def _promote_and_assign_global_sidecar_bases(state: _SidecarAttachmentState) -> 
 
 
 def _assign_sidecar_material_colors(state: _SidecarAttachmentState) -> None:
-    if not state.material_color_by_submesh and not state.global_material_colors:
+    if not state.material_color_bindings and not state.global_material_colors:
         return
     global_colors = sorted(state.global_material_colors, key=lambda item: item[0], reverse=True)
     global_index = 0
@@ -322,8 +399,17 @@ def _assign_sidecar_material_colors(state: _SidecarAttachmentState) -> None:
         raise_if_cancelled(state.stop_event)
         existing_color = tuple(getattr(mesh, "preview_color", ()) or ())
         existing_path = str(getattr(mesh, "preview_texture_path", "") or "").strip()
-        candidates = _mesh_sidecar_candidates(state, index, mesh)
-        best = max((state.material_color_by_submesh[key] for key in candidates if key in state.material_color_by_submesh), key=lambda item: item[0], default=None)
+        selected_bindings = _select_model_sidecar_bindings_for_submesh(
+            tuple(item[2] for item in state.material_color_bindings),
+            exact_candidates=_mesh_sidecar_exact_candidates(state, index, mesh),
+            fuzzy_candidates=_mesh_sidecar_candidates(state, index, mesh),
+        )
+        selected_ids = {id(binding) for binding in selected_bindings}
+        best = max(
+            (item for item in state.material_color_bindings if id(item[2]) in selected_ids),
+            key=lambda item: item[0],
+            default=None,
+        )
         if best is None and global_colors:
             if len(global_colors) == 1:
                 best = global_colors[0]
@@ -348,21 +434,26 @@ def _matching_sidecar_contract_bindings(
     index: int,
     mesh: ModelPreviewMesh,
 ) -> Tuple[_ArchiveModelSidecarTextureBinding, ...]:
-    candidates = set(_mesh_sidecar_candidates(state, index, mesh))
-    matched = tuple(
+    eligible = tuple(
         binding
         for binding in state.bindings
         if _model_sidecar_binding_matches_source_component(state.source_entry, binding)
-        and candidates.intersection(_iter_model_sidecar_binding_submesh_keys(binding))
+    )
+    matched = _select_model_sidecar_bindings_for_submesh(
+        eligible,
+        exact_candidates=_mesh_sidecar_exact_candidates(state, index, mesh),
+        fuzzy_candidates=_mesh_sidecar_candidates(state, index, mesh),
     )
     if matched:
         return matched
+    fuzzy_candidates = set(_mesh_sidecar_candidates(state, index, mesh))
+    if fuzzy_candidates and any(
+        fuzzy_candidates.intersection(_iter_model_sidecar_binding_submesh_keys(binding))
+        for binding in eligible
+    ):
+        return ()
     if len(state.model_preview.meshes) == 1:
-        return tuple(
-            binding
-            for binding in state.bindings
-            if _model_sidecar_binding_matches_source_component(state.source_entry, binding)
-        )
+        return eligible
     return ()
 
 

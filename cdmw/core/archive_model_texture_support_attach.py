@@ -16,6 +16,7 @@ from cdmw.models import (
 from cdmw.core.common import RunCancelled, raise_if_cancelled
 from cdmw.core.archive_model_references import (
     _ArchiveModelSidecarTextureBinding,
+    _is_anonymous_model_submesh_reference_key,
     _model_texture_slot_hint_priority,
     _normalize_model_texture_reference,
 )
@@ -30,7 +31,9 @@ from cdmw.core.archive_model_texture_semantics import (
     _append_model_preview_material_input,
     _infer_model_preview_normal_strength,
     _infer_model_preview_texture_slot,
+    _iter_model_sidecar_binding_exact_submesh_keys,
     _iter_model_sidecar_binding_submesh_keys,
+    _iter_model_submesh_exact_reference_candidates,
     _iter_model_submesh_reference_candidates,
     _iter_parsed_model_submeshes,
     _model_sidecar_binding_matches_source_component,
@@ -38,6 +41,7 @@ from cdmw.core.archive_model_texture_semantics import (
     _refine_model_texture_semantic_from_hint,
     _resolve_model_texture_semantic_details,
     _resolve_model_texture_semantics,
+    _select_model_sidecar_bindings_for_submesh,
     _set_model_preview_texture_slot,
 )
 
@@ -70,7 +74,10 @@ class _SupportAttachmentState:
     ordered_assigned: Dict[str, int] = field(default_factory=dict)
     exact_resolved: Dict[Tuple[str, str], _SupportBinding] = field(default_factory=dict)
     material_inputs: Dict[str, List[_MaterialInputBinding]] = field(default_factory=lambda: defaultdict(list))
+    support_candidates: Dict[str, List[_MaterialInputBinding]] = field(default_factory=lambda: defaultdict(list))
+    material_input_candidates: List[_MaterialInputBinding] = field(default_factory=list)
     global_bindings: Dict[str, List[_SupportBinding]] = field(default_factory=lambda: defaultdict(list))
+    ambiguous_slots_by_mesh_id: Dict[int, set[str]] = field(default_factory=lambda: defaultdict(set))
     preserved_inputs: int = 0
     culled_inputs: int = 0
 
@@ -242,7 +249,7 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
     preserve_visible = slot == "base" and _preserve_visible_material_input(parameter)
     if slot not in state.support_slots and not preserve_visible:
         return
-    submesh_keys = _iter_model_sidecar_binding_submesh_keys(binding)
+    exact_submesh_keys = _iter_model_sidecar_binding_exact_submesh_keys(binding)
     entry, status = _resolve_model_texture_archive_entry(
         state.source_entry, binding.texture_path, binding.submesh_name,
         state.texture_entries_by_normalized_path, state.texture_entries_by_basename,
@@ -259,12 +266,16 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
     if priority is None:
         return
     candidate_key = (priority[0], priority[1], confidence, -len(entry.path))
-    if submesh_keys:
-        primary = submesh_keys[0]
+    candidate = (candidate_key, entry, parameter, binding)
+    if exact_submesh_keys:
+        primary = exact_submesh_keys[0]
         if primary:
             state.ordered_keys.setdefault(slot, {}).setdefault(primary, len(state.ordered_keys.setdefault(slot, {})))
-        for key in submesh_keys:
-            candidate = (candidate_key, entry, parameter, binding)
+        if slot == "material" or preserve_visible:
+            state.material_input_candidates.append(candidate)
+        if not preserve_visible:
+            state.support_candidates[slot].append(candidate)
+        for key in exact_submesh_keys:
             if slot == "material" or preserve_visible:
                 _remember_material_input(state, key, candidate)
             if not preserve_visible:
@@ -297,21 +308,70 @@ def _support_mesh_candidates(state: _SupportAttachmentState, index: int, mesh: M
     return _iter_model_submesh_reference_candidates(
         str(getattr(parsed, "name", "") or ""), str(getattr(parsed, "material", "") or ""),
         str(getattr(parsed, "texture", "") or ""), str(getattr(mesh, "material_name", "") or ""),
+        str(getattr(mesh, "preview_sidecar_material_primitive", "") or ""),
         str(getattr(mesh, "texture_name", "") or ""),
+    )
+
+
+def _support_mesh_exact_candidates(
+    state: _SupportAttachmentState,
+    index: int,
+    mesh: ModelPreviewMesh,
+) -> Tuple[str, ...]:
+    parsed = state.parsed_submeshes[index] if index < len(state.parsed_submeshes) else None
+    return _iter_model_submesh_exact_reference_candidates(
+        str(getattr(parsed, "name", "") or ""), str(getattr(parsed, "material", "") or ""),
+        str(getattr(parsed, "texture", "") or ""), str(getattr(mesh, "material_name", "") or ""),
+        str(getattr(mesh, "preview_sidecar_material_primitive", "") or ""),
+        str(getattr(mesh, "texture_name", "") or ""),
+    )
+
+
+def _matched_support_candidates(
+    candidates: Sequence[_MaterialInputBinding],
+    *,
+    exact_keys: Sequence[str],
+    fuzzy_keys: Sequence[str],
+) -> Tuple[_MaterialInputBinding, ...]:
+    selected_bindings = _select_model_sidecar_bindings_for_submesh(
+        tuple(candidate[3] for candidate in candidates),
+        exact_candidates=exact_keys,
+        fuzzy_candidates=fuzzy_keys,
+    )
+    selected_ids = {id(binding) for binding in selected_bindings}
+    return tuple(candidate for candidate in candidates if id(candidate[3]) in selected_ids)
+
+
+def _has_fuzzy_support_candidates(
+    candidates: Sequence[_MaterialInputBinding],
+    fuzzy_keys: Sequence[str],
+) -> bool:
+    candidate_keys = {str(key or "").strip().lower() for key in fuzzy_keys if str(key or "").strip()}
+    return bool(
+        candidate_keys
+        and any(
+            candidate_keys.intersection(_iter_model_sidecar_binding_submesh_keys(candidate[3]))
+            for candidate in candidates
+        )
     )
 
 
 def _assign_exact_support_maps(state: _SupportAttachmentState) -> None:
     for index, mesh in enumerate(state.model_preview.meshes):
         raise_if_cancelled(state.stop_event)
-        keys = _support_mesh_candidates(state, index, mesh)
+        exact_keys = _support_mesh_exact_candidates(state, index, mesh)
+        fuzzy_keys = _support_mesh_candidates(state, index, mesh)
         rich: List[_MaterialInputBinding] = []
         seen: set[Tuple[str, str]] = set()
-        for key in keys:
-            for candidate in sorted(state.material_inputs.get(key, ()), key=lambda item: item[0], reverse=True):
-                identity = (_normalize_model_texture_reference(candidate[1].path), str(candidate[2] or "").strip().lower())
-                if identity not in seen:
-                    seen.add(identity); rich.append(candidate)
+        material_candidates = _matched_support_candidates(
+            state.material_input_candidates,
+            exact_keys=exact_keys,
+            fuzzy_keys=fuzzy_keys,
+        )
+        for candidate in sorted(material_candidates, key=lambda item: item[0], reverse=True):
+            identity = (_normalize_model_texture_reference(candidate[1].path), str(candidate[2] or "").strip().lower())
+            if identity not in seen:
+                seen.add(identity); rich.append(candidate)
         selected = _select_material_inputs(rich)
         state.culled_inputs += max(0, len(rich) - len(selected))
         for candidate in selected:
@@ -325,7 +385,17 @@ def _assign_exact_support_maps(state: _SupportAttachmentState) -> None:
         for slot in state.support_slots:
             if str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip():
                 continue
-            best = max((state.exact_resolved[(slot, key)] for key in keys if (slot, key) in state.exact_resolved), key=lambda item: item[0], default=None)
+            matched = _matched_support_candidates(
+                state.support_candidates.get(slot, ()),
+                exact_keys=exact_keys,
+                fuzzy_keys=fuzzy_keys,
+            )
+            if not matched and _has_fuzzy_support_candidates(
+                state.support_candidates.get(slot, ()),
+                fuzzy_keys,
+            ):
+                state.ambiguous_slots_by_mesh_id[id(mesh)].add(slot)
+            best = max(matched, key=lambda item: item[0], default=None)
             if best is None:
                 continue
             try:
@@ -352,6 +422,11 @@ def _assign_ordered_support_maps(state: _SupportAttachmentState) -> None:
         if not any(ordered):
             continue
         for index, mesh in enumerate(state.model_preview.meshes):
+            if slot in state.ambiguous_slots_by_mesh_id.get(id(mesh), set()):
+                continue
+            mesh_keys = _support_mesh_candidates(state, index, mesh)
+            if mesh_keys and not all(_is_anonymous_model_submesh_reference_key(key) for key in mesh_keys):
+                continue
             if str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip() or index >= len(ordered) or ordered[index] is None:
                 continue
             item = ordered[index]
@@ -370,7 +445,12 @@ def _assign_global_support_maps(state: _SupportAttachmentState) -> None:
         if slot == "emissive" and len(state.model_preview.meshes) > 1:
             continue
         bindings = sorted(state.global_bindings.get(slot, ()), key=lambda item: item[0], reverse=True)
-        unresolved = [mesh for mesh in state.model_preview.meshes if not str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip()]
+        unresolved = [
+            mesh
+            for mesh in state.model_preview.meshes
+            if not str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip()
+            and slot not in state.ambiguous_slots_by_mesh_id.get(id(mesh), set())
+        ]
         for index, mesh in enumerate(unresolved):
             if not bindings or (len(bindings) != 1 and index >= len(bindings)):
                 break
@@ -441,6 +521,8 @@ def _assign_fallback_support_maps(state: _SupportAttachmentState) -> None:
             continue
         for slot in state.support_slots:
             if str(getattr(mesh, f"preview_{slot}_texture_path", "") or "").strip():
+                continue
+            if slot in state.ambiguous_slots_by_mesh_id.get(id(mesh), set()):
                 continue
             if slot == "emissive" and not _mesh_declares_emissive_authority(mesh):
                 continue
