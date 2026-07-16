@@ -147,6 +147,15 @@ def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMes
     _key, entry, parameter, binding = candidate
     semantic_type, subtype, _confidence, channels = _resolve_model_texture_semantic_details(entry.path, sidecar_texts=_support_sidecar_texts(state, entry.path))
     semantic_type, subtype = _refine_model_texture_semantic_from_hint(semantic_type, subtype, parameter)
+    try:
+        preview_path = _support_preview_path(state, entry, "material")
+    except RunCancelled:
+        raise
+    except Exception:
+        # The source-side material graph remains authoritative even when the
+        # optional display conversion fails. Downstream package writers can
+        # still resolve and decode the DDS directly.
+        preview_path = ""
     return _append_model_preview_material_input(
         mesh,
         PreviewMaterialTextureInput(
@@ -155,7 +164,7 @@ def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMes
             source_texture_path=entry.path,
             source_dds_path=entry.path,
             texture_name=PurePosixPath(entry.path.replace("\\", "/")).name,
-            preview_texture_path=_support_preview_path(state, entry, "material"),
+            preview_texture_path=preview_path,
             semantic_type=str(semantic_type or "material").strip().lower(),
             semantic_subtype=str(subtype or "").strip().lower(),
             packed_channels=tuple(str(channel or "").strip().lower() for channel in channels if str(channel or "").strip()),
@@ -163,7 +172,7 @@ def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMes
             part_name=str(getattr(binding, "part_name", "") or "").strip(),
             shader_family=str(getattr(binding, "shader_family", "") or "").strip(),
             confidence="sidecar-exact",
-            visualized=True,
+            visualized=bool(preview_path),
             sidecar_kind=str(getattr(binding, "sidecar_kind", "") or "").strip(),
             sidecar_path=str(getattr(binding, "sidecar_path", "") or "").strip(),
             linked_mesh_path=str(getattr(binding, "linked_mesh_path", "") or "").strip(),

@@ -565,6 +565,48 @@ class ArchivePreviewTextureBindingSupportTests(unittest.TestCase):
         self.assertIn("channel:g", specular_input.blend_flags)
         self.assertIn("material diagnostics and preview", "\n".join(lines))
 
+    def test_exact_sidecar_material_input_survives_preview_conversion_failure(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        texture_path = "character/texture/part_a_ma.dds"
+        by_normalized, by_basename = _texture_maps(texture_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part_A", texture_name="Part_A")],
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path,
+                "_materialTexture",
+                "Part_A",
+                sidecar_kind="pac_xml",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=RuntimeError("native preview decode failed"),
+        ):
+            lines = _attach_model_support_texture_preview_paths(
+                Path("texconv.exe"),
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        material_input = next(
+            item
+            for item in model.meshes[0].preview_material_texture_inputs
+            if item.parameter_name == "_materialTexture"
+        )
+        self.assertEqual(texture_path, material_input.source_texture_path)
+        self.assertEqual(texture_path, material_input.source_dds_path)
+        self.assertEqual("", material_input.preview_texture_path)
+        self.assertFalse(material_input.visualized)
+        self.assertIn("material diagnostics and preview", "\n".join(lines))
+
     def test_exact_sidecar_material_inputs_are_capped_before_preview_conversion(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
         texture_paths = tuple(
