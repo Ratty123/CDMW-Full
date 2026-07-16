@@ -157,6 +157,41 @@ def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_short
     assert 'Name = "ResidentViewportControlsHint"' in presentation_source
 
 
+def test_dotnet_buttons_share_raised_pressed_and_latched_visual_state() -> None:
+    program_source = _source("Program.cs")
+    controls_source = _source("ExperimentForm.Controls.cs")
+    presentation_source = _source("ExperimentForm.PresentationProtocol.cs")
+
+    assert "private sealed class MeshEditorDepthButton : Button" in controls_source
+    assert "var button = new MeshEditorDepthButton" in controls_source
+    assert "button.FlatAppearance.BorderSize = 0;" in controls_source
+    assert "ControlPaint.DrawBorder(" in controls_source
+    assert "var sunken = _latched || _keyboardPressed || (_mousePressed && pointerInside);" in controls_source
+    assert "topLeft = Enabled" in controls_source
+    assert "sunken ? ThemeButtonShadow : ThemeButtonHighlight" in controls_source
+    assert "sunken ? ThemeButtonHighlight : ThemeButtonShadow" in controls_source
+    assert "FlatAppearance.MouseOverBackColor = latched ? ThemeAccentHover : ThemeButtonHover;" in controls_source
+    assert "FlatAppearance.MouseDownBackColor = latched ? ThemeAccentPressed : ThemeButtonPressed;" in controls_source
+
+    assert 'var finish = StyledButton(_options.Embedded ? "Finish Edit Mesh" : "Save Edited Package"' in program_source
+    assert "var button = StyledButton(text);" in controls_source
+    assert "private Button ToolButton(string text, string tool)" in controls_source
+    assert "private Button CommandButton(string text, string command)" in controls_source
+    assert "private Button CameraButton(string text, string preset)" in controls_source
+    assert "private Button GizmoButton(string text, string tool)" in program_source
+    assert "var button = StyledButton(text, 26);" in presentation_source
+    assert "new Button" not in program_source
+    assert "new Button" not in presentation_source
+
+    assert "RefreshToolButtonStates();" in controls_source
+    assert "RefreshGizmoButtonStates();" in controls_source
+    assert "SetButtonLatched(" in controls_source
+    assert "SetButtonLatched(button, active);" in presentation_source
+    assert "_gizmoButtons[tool] = button;" in program_source
+    assert "_scene.SetGizmoTool(tool);" in program_source
+    assert "RefreshGizmoButtonStates();" in program_source
+
+
 def test_dotnet_screen_edits_match_rendered_mesh_and_use_readable_hit_targets() -> None:
     input_source = _source("MeshViewport.Input.cs")
     picking_source = _source("MeshViewport.SelectionPicking.cs")

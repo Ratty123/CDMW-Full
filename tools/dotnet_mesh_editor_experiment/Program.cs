@@ -20,8 +20,13 @@ internal sealed partial class ExperimentForm : Form
     private static readonly Color ThemeInputBackground = Color.FromArgb(31, 39, 49);
     private static readonly Color ThemeButtonBackground = Color.FromArgb(36, 46, 58);
     private static readonly Color ThemeButtonHover = Color.FromArgb(47, 60, 75);
+    private static readonly Color ThemeButtonPressed = Color.FromArgb(25, 32, 41);
+    private static readonly Color ThemeButtonHighlight = Color.FromArgb(91, 108, 128);
+    private static readonly Color ThemeButtonShadow = Color.FromArgb(8, 12, 17);
     private static readonly Color ThemeBorder = Color.FromArgb(62, 75, 91);
     private static readonly Color ThemeAccent = Color.FromArgb(92, 169, 255);
+    private static readonly Color ThemeAccentHover = Color.FromArgb(116, 185, 255);
+    private static readonly Color ThemeAccentPressed = Color.FromArgb(68, 132, 204);
     private static readonly Color ThemeText = Color.FromArgb(222, 232, 242);
     private static readonly Color ThemeMutedText = Color.FromArgb(151, 169, 186);
     private static readonly Color ThemeStatusBackground = Color.FromArgb(18, 25, 32);
@@ -43,6 +48,7 @@ internal sealed partial class ExperimentForm : Form
     private readonly Label _fpsLabel = new();
     private readonly Label _controlsHintLabel = new();
     private readonly Dictionary<string, Button> _toolButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Button> _gizmoButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Control> _meshEditOnlySections = new();
     private readonly List<Control> _placementOnlySections = new();
     private Panel? _toolPanel;
@@ -526,7 +532,6 @@ internal sealed partial class ExperimentForm : Form
             ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
             ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Reset/Fit", _viewport.FrameMesh)),
             ToolButton("Orbit", "orbit"));
-        _toolButtons["orbit"].BackColor = ThemeAccent;
 
         left.Controls.Add(scroll);
         left.Controls.Add(statusFooter);
@@ -537,12 +542,16 @@ internal sealed partial class ExperimentForm : Form
 
     private Button GizmoButton(string text, string tool)
     {
-        return StyledActionButton(text, () =>
+        var button = StyledButton(text);
+        _gizmoButtons[tool] = button;
+        button.Click += (_, _) =>
         {
             _scene.SetGizmoTool(tool);
+            RefreshGizmoButtonStates();
             _viewport.ApplySceneState();
             _statusLabel.Text = $"Placement gizmo: {text}. Left-drag the viewport or use the Builder placement values.";
-        });
+        };
+        return button;
     }
 
     private static void ApplyDarkScrollbars(Control control)

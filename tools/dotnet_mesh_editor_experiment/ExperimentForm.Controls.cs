@@ -56,7 +56,7 @@ internal sealed partial class ExperimentForm
 
     private static Button StyledButton(string text, int height = 26)
     {
-        var button = new Button
+        var button = new MeshEditorDepthButton
         {
             Text = text,
             Height = height,
@@ -67,9 +67,9 @@ internal sealed partial class ExperimentForm
             Margin = new Padding(0, 0, 0, 6),
             UseVisualStyleBackColor = false
         };
-        button.FlatAppearance.BorderColor = ThemeBorder;
+        button.FlatAppearance.BorderSize = 0;
         button.FlatAppearance.MouseOverBackColor = ThemeButtonHover;
-        button.FlatAppearance.MouseDownBackColor = ThemeAccent;
+        button.FlatAppearance.MouseDownBackColor = ThemeButtonPressed;
         return button;
     }
 
@@ -260,17 +260,48 @@ internal sealed partial class ExperimentForm
 
     private void ActivateTool(string tool, string text)
     {
-        _viewport.ActiveTool = tool;
-        foreach (var pair in _toolButtons)
-        {
-            pair.Value.BackColor = string.Equals(pair.Key, tool, StringComparison.OrdinalIgnoreCase)
-                ? ThemeAccent
-                : ThemeButtonBackground;
-        }
+        SetActiveTool(tool);
         _statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"
             ? $"{text} active: left-drag inside the brush circle."
             : $"Tool: {text}";
         UpdateViewportControlsHint();
+    }
+
+    private void SetActiveTool(string tool)
+    {
+        _viewport.ActiveTool = tool;
+        RefreshToolButtonStates();
+    }
+
+    private void RefreshToolButtonStates()
+    {
+        foreach (var pair in _toolButtons)
+        {
+            SetButtonLatched(
+                pair.Value,
+                string.Equals(pair.Key, _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void RefreshGizmoButtonStates()
+    {
+        foreach (var pair in _gizmoButtons)
+        {
+            SetButtonLatched(
+                pair.Value,
+                string.Equals(pair.Key, _scene.GizmoTool, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private static void SetButtonLatched(Button button, bool latched)
+    {
+        if (button is MeshEditorDepthButton depthButton)
+        {
+            depthButton.SetLatched(latched);
+            return;
+        }
+        button.BackColor = latched ? ThemeAccent : ThemeButtonBackground;
+        button.ForeColor = latched ? Color.Black : ThemeText;
     }
 
     private Button CommandButton(string text, string command)
@@ -390,6 +421,8 @@ internal sealed partial class ExperimentForm
         {
             _viewport.ActiveTool = "orbit";
         }
+        RefreshToolButtonStates();
+        RefreshGizmoButtonStates();
         UpdateViewportControlsHint();
     }
 
@@ -437,5 +470,138 @@ internal sealed partial class ExperimentForm
             _statusLabel.Text = $"View layout: {combo.SelectedItem}.";
         };
         return LabeledControl("Comparison", combo);
+    }
+
+    private sealed class MeshEditorDepthButton : Button
+    {
+        private bool _latched;
+        private bool _mousePressed;
+        private bool _keyboardPressed;
+
+        public MeshEditorDepthButton()
+        {
+            ResizeRedraw = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        public void SetLatched(bool latched)
+        {
+            _latched = latched;
+            BackColor = latched ? ThemeAccent : ThemeButtonBackground;
+            ForeColor = latched ? Color.Black : ThemeText;
+            FlatAppearance.MouseOverBackColor = latched ? ThemeAccentHover : ThemeButtonHover;
+            FlatAppearance.MouseDownBackColor = latched ? ThemeAccentPressed : ThemeButtonPressed;
+            Invalidate();
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e)
+        {
+            _mousePressed = e.Button == MouseButtons.Left;
+            base.OnMouseDown(e);
+            Invalidate();
+        }
+
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            _mousePressed = false;
+            base.OnMouseUp(e);
+            Invalidate();
+        }
+
+        protected override void OnMouseMove(MouseEventArgs e)
+        {
+            base.OnMouseMove(e);
+            if (_mousePressed)
+            {
+                Invalidate();
+            }
+        }
+
+        protected override void OnMouseEnter(EventArgs e)
+        {
+            base.OnMouseEnter(e);
+            Invalidate();
+        }
+
+        protected override void OnMouseLeave(EventArgs e)
+        {
+            base.OnMouseLeave(e);
+            Invalidate();
+        }
+
+        protected override void OnMouseCaptureChanged(EventArgs e)
+        {
+            if (!Capture)
+            {
+                _mousePressed = false;
+            }
+            base.OnMouseCaptureChanged(e);
+            Invalidate();
+        }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space)
+            {
+                _keyboardPressed = true;
+            }
+            base.OnKeyDown(e);
+            Invalidate();
+        }
+
+        protected override void OnKeyUp(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Space)
+            {
+                _keyboardPressed = false;
+            }
+            base.OnKeyUp(e);
+            Invalidate();
+        }
+
+        protected override void OnLostFocus(EventArgs e)
+        {
+            _keyboardPressed = false;
+            base.OnLostFocus(e);
+            Invalidate();
+        }
+
+        protected override void OnEnabledChanged(EventArgs e)
+        {
+            base.OnEnabledChanged(e);
+            Invalidate();
+        }
+
+        protected override void OnPaint(PaintEventArgs pevent)
+        {
+            base.OnPaint(pevent);
+            if (ClientSize.Width < 4 || ClientSize.Height < 4)
+            {
+                return;
+            }
+            var pointerInside = ClientRectangle.Contains(PointToClient(Cursor.Position));
+            var sunken = _latched || _keyboardPressed || (_mousePressed && pointerInside);
+            var topLeft = Enabled
+                ? (sunken ? ThemeButtonShadow : ThemeButtonHighlight)
+                : ThemeBorder;
+            var bottomRight = Enabled
+                ? (sunken ? ThemeButtonHighlight : ThemeButtonShadow)
+                : ThemeBorder;
+            ControlPaint.DrawBorder(
+                pevent.Graphics,
+                ClientRectangle,
+                topLeft,
+                2,
+                ButtonBorderStyle.Solid,
+                topLeft,
+                2,
+                ButtonBorderStyle.Solid,
+                bottomRight,
+                2,
+                ButtonBorderStyle.Solid,
+                bottomRight,
+                2,
+                ButtonBorderStyle.Solid);
+        }
     }
 }

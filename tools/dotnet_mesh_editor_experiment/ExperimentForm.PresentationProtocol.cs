@@ -162,8 +162,7 @@ internal sealed partial class ExperimentForm
             button.Enabled = !meshEdit
                 || string.Equals(view, "editable", StringComparison.OrdinalIgnoreCase);
             var active = string.Equals(_viewport.ActivePresentationPane, view, StringComparison.OrdinalIgnoreCase);
-            button.BackColor = active ? ThemeAccent : ThemeButtonBackground;
-            button.ForeColor = active ? Color.Black : ThemeText;
+            SetButtonLatched(button, active);
         }
     }
 
