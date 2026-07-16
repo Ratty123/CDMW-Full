@@ -254,6 +254,86 @@ def test_native_emissive_color_authority_survives_numeric_and_pac_hex_transport(
     assert authoritative["emissive_color_authoritative"] is True
 
 
+def test_zero_non_authoritative_emissive_fallback_does_not_promote_generic_native_batch() -> None:
+    model = _mesh()
+    model.path = "character/model/object/machine_part.pac"
+    target = model.submeshes[0]
+    target.name = "machine_part"
+    target.material = "machine_part"
+    target.texture = ""
+    assert apply_dotnet_native_material_batch_bindings(
+        model,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "material_shader_family": "generic",
+                "emissive_color": [0.35, 0.68, 1.0],
+                "emissive_color_authoritative": False,
+                "emissive_intensity": 0.0,
+            },
+        ),
+    ) == 1
+
+    binding = mesh_dotnet_material_state_payload(
+        model,
+        session_id="inactive-emissive-fallback",
+        edit_revision=0,
+        generation=1,
+    )["submeshes"][0]
+
+    assert binding["shader_family"] == "generic"
+    assert binding["shader_family_source"] == "unresolved"
+    assert binding["parameters"]["emissive_intensity"] == 0.0
+    assert binding["parameters"]["emissive_color_authoritative"] is False
+
+    target.preview_native_material_overrides = {
+        "material_shader_family": "generic",
+        "emissive_color": [0.0, 0.0, 0.0],
+        "emissive_color_authoritative": True,
+        "emissive_intensity": 0.0,
+    }
+    black_binding = mesh_dotnet_material_state_payload(
+        model,
+        session_id="black-emissive-factor",
+        edit_revision=1,
+        generation=2,
+    )["submeshes"][0]
+
+    assert black_binding["shader_family"] == "generic"
+    assert black_binding["shader_family_source"] == "unresolved"
+
+    target.preview_native_material_overrides = {
+        "material_shader_family": "generic",
+        "emissive_color": [0.1, 0.0, 0.0],
+        "emissive_intensity": 0.0,
+    }
+    color_binding = mesh_dotnet_material_state_payload(
+        model,
+        session_id="visible-emissive-color",
+        edit_revision=2,
+        generation=3,
+    )["submeshes"][0]
+
+    assert color_binding["shader_family"] == "emissive"
+    assert color_binding["shader_family_source"] == "material_identity_inference"
+
+    target.preview_native_material_overrides = {
+        "material_shader_family": "generic",
+        "emissive_color": [0.35, 0.68, 1.0],
+        "emissive_color_authoritative": False,
+        "emissive_intensity": 4.0,
+    }
+    active_binding = mesh_dotnet_material_state_payload(
+        model,
+        session_id="active-emissive-intensity",
+        edit_revision=3,
+        generation=4,
+    )["submeshes"][0]
+
+    assert active_binding["shader_family"] == "emissive"
+    assert active_binding["shader_family_source"] == "material_identity_inference"
+
+
 def test_native_material_batches_preserve_per_submesh_category_without_name_inference() -> None:
     model = _mesh()
     model.submeshes.append(_mesh().submeshes[0])

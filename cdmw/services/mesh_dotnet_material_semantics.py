@@ -21,6 +21,7 @@ from cdmw.services.mesh_dotnet_material_bindings import (
     _safe_int,
 )
 from cdmw.services.mesh_dotnet_material_channels import (
+    _color3,
     _dotnet_initial_material_parameters,
     _dotnet_material_channel_components,
     _dotnet_material_normal_y_policy,
@@ -58,11 +59,23 @@ def _dotnet_material_shader_context(
     ).strip() or str(source_asset_path or "").strip()
     raw_overrides = getattr(source, "preview_native_material_overrides", {}) or {}
     overrides = raw_overrides if isinstance(raw_overrides, Mapping) else {}
+    emissive_intensity = _finite_float(
+        overrides.get("emissive_intensity"),
+        minimum=0.0,
+        maximum=32.0,
+    )
+    emissive_color = _color3(overrides.get("emissive_color"))
+    emissive_color_authoritative = bool(
+        overrides.get("emissive_color_authoritative", emissive_color is not None)
+    )
+    has_visible_emissive_color = bool(
+        emissive_color is not None
+        and emissive_color_authoritative
+        and any(component > 0.0 for component in emissive_color)
+    )
     has_emissive_factor = bool(
-        any(
-            key in overrides and overrides.get(key) not in (None, "")
-            for key in ("emissive_color", "emissive_intensity")
-        )
+        (emissive_intensity is not None and emissive_intensity > 0.0)
+        or has_visible_emissive_color
         or str(overrides.get("material_role", "") or "").strip().casefold()
         in {"emissive", "glow"}
     )
