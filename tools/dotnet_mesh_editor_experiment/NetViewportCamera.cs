@@ -92,6 +92,68 @@ internal readonly record struct NetViewportCamera(
             worldViewProjection);
     }
 
+    public static NetViewportCamera CreateArchiveAudit(
+        Vec3 center,
+        (Vec3 Min, Vec3 Max) bounds,
+        float yaw,
+        float pitch,
+        float zoom,
+        int viewportWidth,
+        int viewportHeight)
+    {
+        var width = Math.Max(1.0f, viewportWidth);
+        var height = Math.Max(1.0f, viewportHeight);
+        var safeZoom = Math.Max(zoom, 0.001f);
+        var size = Math.Max(
+            bounds.Max.X - bounds.Min.X,
+            Math.Max(bounds.Max.Y - bounds.Min.Y, bounds.Max.Z - bounds.Min.Z));
+        var depthScale = 1.0f / Math.Max(size * 4.0f, 0.0001f);
+        var scaleX = 2.0f * safeZoom / width;
+        var scaleY = 2.0f * safeZoom / height;
+
+        // Archive Browser rotates the normalized object in this order while its
+        // camera stays fixed. Keep that basis audit-only so the paired captures
+        // match without changing the interactive Mesh Editor camera contract.
+        var world = Matrix4x4.CreateTranslation(-center.X, -center.Y, -center.Z)
+            * Matrix4x4.CreateRotationX(pitch)
+            * Matrix4x4.CreateRotationY(yaw);
+        var orthographicProjection = new Matrix4x4(
+            scaleX,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            scaleY,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            depthScale,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.5f,
+            1.0f);
+        var worldViewProjection = world * orthographicProjection;
+
+        return new NetViewportCamera(
+            center,
+            bounds,
+            yaw,
+            pitch,
+            safeZoom,
+            0.0f,
+            0.0f,
+            width,
+            height,
+            size,
+            Vector3.UnitZ,
+            Vector3.UnitX,
+            Vector3.UnitY,
+            world,
+            worldViewProjection);
+    }
+
     public PointF Project(Vec3 vertex)
     {
         var clip = Vector4.Transform(new Vector4(vertex.X, vertex.Y, vertex.Z, 1.0f), WorldViewProjection);

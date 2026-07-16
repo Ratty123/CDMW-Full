@@ -1,20 +1,77 @@
 from __future__ import annotations
 
+import math
+
 from tools.mesh_harness.visual_audit_corpus import VISUAL_AUDIT_VIEWS
 from tools.mesh_harness.visual_audit_integrity import (
+    _camera_screen_bases_match,
     _capture_integrity,
     _dotnet_camera_mapping_matches,
     _rendered_camera_views_match,
 )
 
 
-def _test_camera_matrix(index: int, backend_offset: float) -> list[float]:
-    matrix = [0.0] * 16
-    matrix[0] = 1.0 + backend_offset + float(index)
-    matrix[5] = 1.0
-    matrix[10] = 1.0
-    matrix[15] = 1.0
-    return matrix
+def _test_camera_matrix(
+    index: int,
+    backend_offset: float,
+    *,
+    yaw_degrees: float,
+    pitch_degrees: float,
+) -> list[float]:
+    yaw = math.radians(yaw_degrees)
+    pitch = math.radians(pitch_degrees)
+    cos_yaw = math.cos(yaw)
+    sin_yaw = math.sin(yaw)
+    cos_pitch = math.cos(pitch)
+    sin_pitch = math.sin(pitch)
+    screen_x = (
+        cos_yaw,
+        sin_yaw * sin_pitch,
+        sin_yaw * cos_pitch,
+    )
+    screen_y = (0.0, cos_pitch, -sin_pitch)
+    view_direction = (
+        -sin_yaw,
+        cos_yaw * sin_pitch,
+        cos_yaw * cos_pitch,
+    )
+    scale_x = 1.0 + backend_offset + float(index)
+    scale_y = 2.0 + backend_offset + float(index)
+    depth_scale = 0.5 + backend_offset + float(index)
+    return [
+        scale_x * screen_x[0],
+        scale_y * screen_y[0],
+        depth_scale * view_direction[0],
+        0.0,
+        scale_x * screen_x[1],
+        scale_y * screen_y[1],
+        depth_scale * view_direction[1],
+        0.0,
+        scale_x * screen_x[2],
+        scale_y * screen_y[2],
+        depth_scale * view_direction[2],
+        0.0,
+        backend_offset * 0.001,
+        float(index) * 0.01,
+        0.5,
+        1.0,
+    ]
+
+
+def _mirror_screen_x(matrix: list[float]) -> None:
+    for index in (0, 4, 8):
+        matrix[index] = -matrix[index]
+
+
+def _roll_screen_basis(matrix: list[float], degrees: float) -> None:
+    radians = math.radians(degrees)
+    cosine = math.cos(radians)
+    sine = math.sin(radians)
+    screen_x = [matrix[index] for index in (0, 4, 8)]
+    screen_y = [matrix[index] for index in (1, 5, 9)]
+    for row, (x_index, y_index) in enumerate(((0, 1), (4, 5), (8, 9))):
+        matrix[x_index] = cosine * screen_x[row] + sine * screen_y[row]
+        matrix[y_index] = -sine * screen_x[row] + cosine * screen_y[row]
 
 
 def _archive_camera_report(
@@ -45,7 +102,12 @@ def _archive_camera_report(
                 ),
                 "viewport_width": 768,
                 "viewport_height": 768,
-                "world_view_projection": _test_camera_matrix(index, 0.0),
+                "world_view_projection": _test_camera_matrix(
+                    index,
+                    0.0,
+                    yaw_degrees=float(view["yaw"]),
+                    pitch_degrees=float(view["pitch"]),
+                ),
                 "solid_draw_count": 1,
             },
         }
@@ -62,11 +124,15 @@ def _dotnet_camera_report(
     renderer_pitch_overrides: dict[str, float] | None = None,
     rendered_pitch_overrides: dict[str, float] | None = None,
     omitted_views: set[str] | None = None,
+    mirrored_views: set[str] | None = None,
+    rolled_views: set[str] | None = None,
 ) -> dict[str, object]:
     pitch_overrides = pitch_overrides or {}
     renderer_pitch_overrides = renderer_pitch_overrides or {}
     rendered_pitch_overrides = rendered_pitch_overrides or {}
     omitted_views = omitted_views or set()
+    mirrored_views = mirrored_views or set()
+    rolled_views = rolled_views or set()
     captures = []
     for index, view in enumerate(VISUAL_AUDIT_VIEWS):
         name = str(view["name"])
@@ -74,8 +140,18 @@ def _dotnet_camera_report(
             continue
         yaw = float(view["yaw"])
         pitch = pitch_overrides.get(name, float(view["pitch"]))
-        renderer_yaw = 180.0 - yaw
-        renderer_pitch = renderer_pitch_overrides.get(name, -pitch)
+        renderer_yaw = yaw
+        renderer_pitch = renderer_pitch_overrides.get(name, pitch)
+        matrix = _test_camera_matrix(
+            index,
+            100.0,
+            yaw_degrees=yaw,
+            pitch_degrees=pitch,
+        )
+        if name in mirrored_views:
+            _mirror_screen_x(matrix)
+        if name in rolled_views:
+            _roll_screen_basis(matrix, 12.0)
         captures.append(
             {
                 "name": name,
@@ -83,7 +159,7 @@ def _dotnet_camera_report(
                 "pitch": pitch,
                 "renderer_yaw": renderer_yaw,
                 "renderer_pitch": renderer_pitch,
-                "camera_mapping": "archive_to_dotnet_180_minus_yaw_negate_pitch",
+                "camera_mapping": "archive_object_rotation_basis_orthographic_v1",
                 "rendered_camera": {
                     "role": "editable",
                     "yaw_degrees": renderer_yaw,
@@ -92,7 +168,7 @@ def _dotnet_camera_report(
                     ),
                     "viewport_width": 768,
                     "viewport_height": 768,
-                    "world_view_projection": _test_camera_matrix(index, 100.0),
+                    "world_view_projection": matrix,
                     "solid_draw_count": 1,
                 },
             }
@@ -109,12 +185,12 @@ def _dotnet_camera_report(
     }
 
 
-def test_visual_audit_integrity_rejects_inverted_dotnet_pitch_mapping() -> None:
+def test_visual_audit_integrity_rejects_changed_dotnet_archive_angles() -> None:
     report = _dotnet_camera_report()
     assert _dotnet_camera_mapping_matches(report) is True
 
     inverted = _dotnet_camera_report(
-        renderer_pitch_overrides={"slightly-above": -28.0}
+        renderer_pitch_overrides={"slightly-above": 28.0}
     )
     assert _dotnet_camera_mapping_matches(inverted) is False
 
@@ -222,7 +298,7 @@ def test_visual_audit_integrity_requires_angles_from_the_captured_render_camera(
     assert integrity["ok"] is False
 
     dotnet_wrong_render = _dotnet_camera_report(
-        rendered_pitch_overrides={"slightly-above": -28.0}
+        rendered_pitch_overrides={"slightly-above": 28.0}
     )
     assert _rendered_camera_views_match(
         ["001-camera"],
@@ -266,3 +342,39 @@ def test_visual_audit_integrity_rejects_stale_or_nonfinite_render_matrices() -> 
         nonfinite,
         _dotnet_camera_report(),
     ) is False
+
+
+def test_visual_audit_integrity_rejects_mirrored_or_rolled_screen_basis() -> None:
+    archive = _archive_camera_report()
+    matching = _dotnet_camera_report()
+    archive_matrix = archive["assets"][0]["captures"][1]["capture_event"][
+        "rendered_camera"
+    ]["world_view_projection"]
+    dotnet_matrix = matching["assets"][0]["captures"][1]["rendered_camera"][
+        "world_view_projection"
+    ]
+    assert _camera_screen_bases_match(archive_matrix, dotnet_matrix) is True
+
+    mirrored = _dotnet_camera_report(mirrored_views={"front"})
+    assert _dotnet_camera_mapping_matches(mirrored) is True
+    assert _rendered_camera_views_match(["001-camera"], archive, mirrored) is False
+    mirrored_integrity = _capture_integrity(
+        run_id="camera-run",
+        expected_ids=["001-camera"],
+        archive_report=archive,
+        dotnet_report=mirrored,
+        composite_rows=[
+            {
+                "id": "001-camera",
+                "archive_browser_capture_ok": True,
+                "mesh_editor_capture_ok": True,
+            }
+        ],
+    )
+    assert mirrored_integrity["paired_camera_views_match"] is True
+    assert mirrored_integrity["rendered_camera_views_match"] is False
+    assert mirrored_integrity["ok"] is False
+
+    rolled = _dotnet_camera_report(rolled_views={"three-quarter-front"})
+    assert _dotnet_camera_mapping_matches(rolled) is True
+    assert _rendered_camera_views_match(["001-camera"], archive, rolled) is False

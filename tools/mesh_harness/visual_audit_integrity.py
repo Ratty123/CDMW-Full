@@ -6,6 +6,9 @@ from collections.abc import Mapping, Sequence
 from tools.mesh_harness.visual_audit_corpus import VISUAL_AUDIT_VIEWS
 
 
+_CAMERA_BASIS_COSINE_MIN = math.cos(math.radians(0.25))
+
+
 def _capture_integrity(
     *,
     run_id: str,
@@ -55,7 +58,7 @@ def _capture_integrity(
 
 
 def _dotnet_camera_mapping_matches(report: Mapping[str, object]) -> bool:
-    expected_mapping = "archive_to_dotnet_180_minus_yaw_negate_pitch"
+    expected_mapping = "archive_object_rotation_basis_orthographic_v1"
     capture_count = 0
     for asset in tuple(report.get("assets", ()) or ()):
         if not isinstance(asset, Mapping):
@@ -78,9 +81,9 @@ def _dotnet_camera_mapping_matches(report: Mapping[str, object]) -> bool:
                 for value in (yaw, pitch, renderer_yaw, renderer_pitch)
             ):
                 return False
-            if abs(renderer_yaw - (180.0 - yaw)) > 0.05:
+            if abs(renderer_yaw - yaw) > 0.05:
                 return False
-            if abs(renderer_pitch + pitch) > 0.05:
+            if abs(renderer_pitch - pitch) > 0.05:
                 return False
     return capture_count > 0
 
@@ -243,13 +246,12 @@ def _rendered_camera_views_match(
 
             archive_rendered_angles = _finite_rendered_camera_angles(archive_camera)
             dotnet_rendered_angles = _finite_rendered_camera_angles(dotnet_camera)
-            dotnet_expected_angles = (180.0 - expected_angles[0], -expected_angles[1])
             if archive_rendered_angles is None or not _angles_match(
                 archive_rendered_angles, expected_angles
             ):
                 return False
             if dotnet_rendered_angles is None or not _angles_match(
-                dotnet_rendered_angles, dotnet_expected_angles
+                dotnet_rendered_angles, expected_angles
             ):
                 return False
             if not _rendered_camera_metrics_are_usable(archive_camera):
@@ -260,6 +262,8 @@ def _rendered_camera_views_match(
             archive_matrix = _finite_world_view_projection(archive_camera)
             dotnet_matrix = _finite_world_view_projection(dotnet_camera)
             if archive_matrix is None or dotnet_matrix is None:
+                return False
+            if not _camera_screen_bases_match(archive_matrix, dotnet_matrix):
                 return False
             archive_matrices.add(_matrix_signature(archive_matrix))
             dotnet_matrices.add(_matrix_signature(dotnet_matrix))
@@ -320,6 +324,77 @@ def _finite_world_view_projection(
 
 def _matrix_signature(matrix: Sequence[float]) -> tuple[float, ...]:
     return tuple(round(float(value), 6) for value in matrix)
+
+
+def _camera_screen_bases_match(
+    archive_matrix: Sequence[float],
+    dotnet_matrix: Sequence[float],
+) -> bool:
+    archive_basis = _camera_screen_basis(archive_matrix)
+    dotnet_basis = _camera_screen_basis(dotnet_matrix)
+    if archive_basis is None or dotnet_basis is None:
+        return False
+    return all(
+        _unit_vectors_match(archive_axis, dotnet_axis)
+        for archive_axis, dotnet_axis in zip(
+            archive_basis,
+            dotnet_basis,
+            strict=True,
+        )
+    )
+
+
+def _camera_screen_basis(
+    matrix: Sequence[float],
+) -> tuple[
+    tuple[float, float, float],
+    tuple[float, float, float],
+    tuple[float, float, float],
+] | None:
+    if len(matrix) != 16:
+        return None
+    screen_x = _normalize_vector3((matrix[0], matrix[4], matrix[8]))
+    screen_y = _normalize_vector3((matrix[1], matrix[5], matrix[9]))
+    if screen_x is None or screen_y is None:
+        return None
+    view_direction = _normalize_vector3(_cross_vector3(screen_x, screen_y))
+    if view_direction is None:
+        return None
+    return screen_x, screen_y, view_direction
+
+
+def _normalize_vector3(
+    vector: Sequence[float],
+) -> tuple[float, float, float] | None:
+    if len(vector) != 3:
+        return None
+    values = tuple(float(value) for value in vector)
+    if not all(math.isfinite(value) for value in values):
+        return None
+    length_squared = sum(value * value for value in values)
+    if length_squared <= 1.0e-12:
+        return None
+    inverse_length = 1.0 / math.sqrt(length_squared)
+    return tuple(value * inverse_length for value in values)
+
+
+def _cross_vector3(
+    left: Sequence[float],
+    right: Sequence[float],
+) -> tuple[float, float, float]:
+    return (
+        left[1] * right[2] - left[2] * right[1],
+        left[2] * right[0] - left[0] * right[2],
+        left[0] * right[1] - left[1] * right[0],
+    )
+
+
+def _unit_vectors_match(
+    actual: Sequence[float],
+    expected: Sequence[float],
+) -> bool:
+    cosine = sum(left * right for left, right in zip(actual, expected, strict=True))
+    return cosine >= _CAMERA_BASIS_COSINE_MIN
 
 
 def _finite_yaw_pitch(payload: Mapping[str, object]) -> tuple[float, float] | None:

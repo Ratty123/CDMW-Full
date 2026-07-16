@@ -143,9 +143,9 @@ internal static class VisualAuditBatch
                 var name = SafeName(JsonRequiredString(view, "name"));
                 var yaw = JsonFloat(view, "yaw", 0.0f);
                 var pitch = JsonFloat(view, "pitch", 0.0f);
-                var rendererYaw = 180.0f - yaw;
-                var rendererPitch = -pitch;
-                session.SetCamera(document, rendererYaw, rendererPitch);
+                var rendererYaw = yaw;
+                var rendererPitch = pitch;
+                session.SetArchiveCamera(document, rendererYaw, rendererPitch);
                 Application.DoEvents();
                 var capturePath = Path.Combine(assetOutput, name + ".png");
                 File.Delete(capturePath);
@@ -164,7 +164,7 @@ internal static class VisualAuditBatch
                     ["pitch"] = pitch,
                     ["renderer_yaw"] = rendererYaw,
                     ["renderer_pitch"] = rendererPitch,
-                    ["camera_mapping"] = "archive_to_dotnet_180_minus_yaw_negate_pitch",
+                    ["camera_mapping"] = "archive_object_rotation_basis_orthographic_v1",
                     ["ok"] = captured,
                     ["path"] = capturePath,
                     ["bytes"] = captured ? new FileInfo(capturePath).Length : 0L,
@@ -290,7 +290,7 @@ internal static class VisualAuditBatch
             Application.DoEvents();
         }
 
-        public void SetCamera(ObjDocument document, float yawDegrees, float pitchDegrees)
+        public void SetArchiveCamera(ObjDocument document, float yawDegrees, float pitchDegrees)
         {
             var viewport = RequireViewport();
             var bounds = document.Bounds();
@@ -302,14 +302,12 @@ internal static class VisualAuditBatch
                 bounds.Max.X - bounds.Min.X,
                 Math.Max(bounds.Max.Y - bounds.Min.Y, bounds.Max.Z - bounds.Min.Z));
             var zoom = size > 0.0001f ? 500.0f / size : 220.0f;
-            viewport.UpdateCamera(NetViewportCamera.Create(
+            viewport.UpdateCamera(NetViewportCamera.CreateArchiveAudit(
                 center,
                 bounds,
                 yawDegrees * MathF.PI / 180.0f,
                 Math.Clamp(pitchDegrees, -89.0f, 89.0f) * MathF.PI / 180.0f,
                 zoom,
-                0.0f,
-                0.0f,
                 Math.Max(1, _form.ClientSize.Width),
                 Math.Max(1, _form.ClientSize.Height)));
             viewport.Invalidate();

@@ -548,6 +548,7 @@ def test_visual_audit_preparation_resume_rejects_packages_outside_owned_temp(
 
 def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() -> None:
     batch = (DOTNET_ROOT / "VisualAuditBatch.cs").read_text(encoding="utf-8")
+    camera = (DOTNET_ROOT / "NetViewportCamera.cs").read_text(encoding="utf-8")
     dotnet_capture = (DOTNET_ROOT / "D3D11MaterialViewport.Capture.cs").read_text(
         encoding="utf-8"
     )
@@ -590,11 +591,16 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert "public void ReplaceResidentScene(" in d3d11
     assert "ResidentSceneLoadCount++" in d3d11
     assert '["device_initialization_count"] = _deviceInitializationCount' in batch
-    assert "var rendererYaw = 180.0f - yaw;" in batch
-    assert "var rendererPitch = -pitch;" in batch
-    assert "session.SetCamera(document, rendererYaw, rendererPitch);" in batch
+    assert "var rendererYaw = yaw;" in batch
+    assert "var rendererPitch = pitch;" in batch
+    assert "session.SetArchiveCamera(document, rendererYaw, rendererPitch);" in batch
     assert '["renderer_pitch"] = rendererPitch' in batch
-    assert '"archive_to_dotnet_180_minus_yaw_negate_pitch"' in batch
+    assert '"archive_object_rotation_basis_orthographic_v1"' in batch
+    assert "NetViewportCamera.CreateArchiveAudit(" in batch
+    assert "public static NetViewportCamera CreateArchiveAudit(" in camera
+    assert "* Matrix4x4.CreateRotationX(pitch)" in camera
+    assert "* Matrix4x4.CreateRotationY(yaw);" in camera
+    assert "var worldViewProjection = world * orthographicProjection;" in camera
     assert '["rendered_camera"] = new Dictionary<string, object?>' in batch
     assert "D3D11RenderedCameraEvidence" in dotnet_capture
     assert "cameraForCapture.WorldViewProjectionRowMajorArray()" in dotnet_capture
