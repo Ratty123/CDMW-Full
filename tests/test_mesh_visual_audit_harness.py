@@ -9,6 +9,7 @@ from PIL import Image
 from tools.mesh_editor_visual_audit_refresh_dotnet import (
     _link_or_copy_tree,
     _matching_source_assets,
+    _reused_runtime_assets,
 )
 from tools.mesh_harness.visual_audit_corpus import (
     VISUAL_AUDIT_VIEWS,
@@ -90,6 +91,45 @@ def test_dotnet_refresh_links_or_copies_immutable_archive_package(tmp_path: Path
     assert (source / "textures" / "base.png").read_bytes() == b"image-bytes"
 
 
+def test_dotnet_refresh_can_reuse_complete_packages_for_renderer_only_capture(
+    tmp_path: Path,
+) -> None:
+    archive_package = tmp_path / "archive"
+    dotnet_package = tmp_path / "dotnet"
+    archive_package.mkdir()
+    dotnet_package.mkdir()
+    (archive_package / "manifest.json").write_text("{}", encoding="utf-8")
+    for name in ("dotnet_scene.json", "net_materials.json", "scene.obj"):
+        (dotnet_package / name).write_text("ready", encoding="utf-8")
+
+    rows = _reused_runtime_assets(
+        (
+            {
+                "id": "001-test",
+                "virtual_path": "character/model/test.pac",
+                "archive_package_dir": str(archive_package),
+                "dotnet_package_dir": str(dotnet_package),
+                "views": [{"name": "front", "yaw": 0.0, "pitch": 0.0}],
+                "run_id": "source-run",
+            },
+        ),
+        run_id="recapture-run",
+    )
+
+    assert rows == (
+        {
+            "id": "001-test",
+            "virtual_path": "character/model/test.pac",
+            "archive_package_dir": str(archive_package.resolve()),
+            "dotnet_package_dir": str(dotnet_package.resolve()),
+            "views": [{"name": "front", "yaw": 0.0, "pitch": 0.0}],
+            "run_id": "recapture-run",
+            "archive_package_stability": {},
+            "package_reuse": "renderer_only_recapture",
+        },
+    )
+
+
 def test_dotnet_refresh_rebases_stabilized_archive_texture_paths(tmp_path: Path) -> None:
     source = tmp_path / "source"
     transient = tmp_path / "transient"
@@ -146,6 +186,8 @@ def test_dotnet_refresh_tool_preserves_provenance_and_uses_production_paths() ->
     assert "build_mesh_dotnet_experiment_package(" in source
     assert "_link_or_copy_tree(archive_source, archive_target)" in source
     assert "stabilize_visual_audit_archive_package(archive_target)" in source
+    assert "--reuse-dotnet-packages" in source
+    assert '"dotnet_packages_reused": args.reuse_dotnet_packages' in source
     assert "read_isolated_d3d11_preview_manifest(archive_target)" in source
     assert "apply_dotnet_native_material_batch_bindings(" in source
     stabilized = source.index("stabilize_visual_audit_archive_package(archive_target)")
@@ -154,7 +196,8 @@ def test_dotnet_refresh_tool_preserves_provenance_and_uses_production_paths() ->
     built = source.index("package = build_mesh_dotnet_experiment_package(")
     assert stabilized < manifest < applied < built
     assert '"archive_packages_reused": True' in source
-    assert '"archive_packages_rebased": True' in source
+    assert '"archive_packages_rebased": not args.reuse_dotnet_packages' in source
+    assert '"dotnet_packages_rebuilt": not args.reuse_dotnet_packages' in source
     assert "--phase capture" in source
 
 

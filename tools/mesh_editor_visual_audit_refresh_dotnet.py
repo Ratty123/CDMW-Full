@@ -1,11 +1,11 @@
-"""Rebuild only .NET packages for a completed visual-audit corpus.
+"""Refresh or reuse .NET packages for a completed visual-audit corpus.
 
 Archive Browser packages are immutable capture inputs. Renderer-only .NET
-changes can therefore reuse a completed run's Archive packages while the same
-real PAC payloads are re-read and hydrated through production material logic.
-The generated state is consumed by ``mesh_editor_visual_audit.py --phase
-capture`` and retains the normal run, corpus, path, and archive-fingerprint
-validation.
+changes can reuse a completed run's prepared packages directly, while material
+translation changes can rebuild only the .NET packages from the same real PAC
+payloads. The generated state is consumed by ``mesh_editor_visual_audit.py
+--phase capture`` and retains the normal run, corpus, path, and
+archive-fingerprint validation.
 """
 
 from __future__ import annotations
@@ -56,6 +56,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--game-root", type=Path, required=True)
     parser.add_argument("--source", type=Path, required=True, help="Completed visual-audit evidence root.")
     parser.add_argument("--output", type=Path, required=True, help="New evidence root for refreshed capture state.")
+    parser.add_argument(
+        "--reuse-dotnet-packages",
+        action="store_true",
+        help="Reuse the completed run's immutable Archive and .NET packages for renderer-only recapture.",
+    )
     args = parser.parse_args(argv)
 
     game_root = args.game_root.resolve()
@@ -88,69 +93,82 @@ def main(argv: Sequence[str] | None = None) -> int:
     for path in (runtime_root, output_root / "final", output_root / "comparisons", temporary_root):
         path.mkdir(parents=True, exist_ok=True)
 
-    entries = parse_archive_pamt(game_root / "0009" / "0.pamt")
-    entries_by_path, entries_by_basename = _archive_entry_indexes(entries)
     runtime_assets: list[dict[str, object]] = []
     timings: list[dict[str, object]] = []
-    package_root = temporary_root / "packages"
-    archive_root = package_root / "archive-browser"
-    dotnet_root = package_root / "mesh-editor"
+    if args.reuse_dotnet_packages:
+        print(
+            f"Reusing {len(source_assets)} prepared Archive/.NET packages for renderer recapture...",
+            flush=True,
+        )
+        runtime_assets.extend(
+            _reused_runtime_assets(source_assets, run_id=run_id)
+        )
+        timings.extend(
+            {"id": str(asset["id"]), "refresh_ms": 0.0}
+            for asset in runtime_assets
+        )
+    else:
+        entries = parse_archive_pamt(game_root / "0009" / "0.pamt")
+        entries_by_path, entries_by_basename = _archive_entry_indexes(entries)
+        package_root = temporary_root / "packages"
+        archive_root = package_root / "archive-browser"
+        dotnet_root = package_root / "mesh-editor"
 
-    print(f"Refreshing {len(source_assets)} real PAC .NET packages...", flush=True)
-    for current, source_asset in enumerate(source_assets, 1):
-        asset_id = str(source_asset["id"])
-        virtual_path = str(source_asset["virtual_path"])
-        print(f"[{current:03d}/{len(source_assets):03d}] refresh {virtual_path}", flush=True)
-        started = time.perf_counter()
-        entry = next(iter(entries_by_path.get(_archive_key(virtual_path), ())), None)
-        if entry is None:
-            raise FileNotFoundError(f"Visual-audit PAC is missing: {virtual_path}")
-        mesh = MeshService().load_mesh_bytes(_read_archive_payload(entry), entry.path)
-        _hydrate_real_archive_mesh_materials(mesh, entry, entries_by_path, entries_by_basename)
+        print(f"Refreshing {len(source_assets)} real PAC .NET packages...", flush=True)
+        for current, source_asset in enumerate(source_assets, 1):
+            asset_id = str(source_asset["id"])
+            virtual_path = str(source_asset["virtual_path"])
+            print(f"[{current:03d}/{len(source_assets):03d}] refresh {virtual_path}", flush=True)
+            started = time.perf_counter()
+            entry = next(iter(entries_by_path.get(_archive_key(virtual_path), ())), None)
+            if entry is None:
+                raise FileNotFoundError(f"Visual-audit PAC is missing: {virtual_path}")
+            mesh = MeshService().load_mesh_bytes(_read_archive_payload(entry), entry.path)
+            _hydrate_real_archive_mesh_materials(mesh, entry, entries_by_path, entries_by_basename)
 
-        archive_source = Path(str(source_asset["archive_package_dir"])).resolve()
-        archive_target = archive_root / archive_source.name
-        _link_or_copy_tree(archive_source, archive_target)
-        archive_package_stability = stabilize_visual_audit_archive_package(archive_target)
-        archive_manifest = read_isolated_d3d11_preview_manifest(archive_target)
-        apply_dotnet_native_material_batch_bindings(
-            mesh,
-            archive_manifest.get("batches", ()),
-        )
-        package = build_mesh_dotnet_experiment_package(
-            mesh,
-            output_root=dotnet_root,
-            comparison_mode="replacement_only",
-            interaction_mode="placement",
-            scene_session_id=asset_id,
-        )
-        elapsed_ms = (time.perf_counter() - started) * 1000.0
-        runtime_assets.append(
-            {
-                "id": asset_id,
-                "virtual_path": virtual_path,
-                "archive_package_dir": str(archive_target),
-                "dotnet_package_dir": str(package.package_dir),
-                "views": [dict(value) for value in tuple(source_asset.get("views", ()) or ())],
-                "run_id": run_id,
-                "archive_package_stability": archive_package_stability,
-            }
-        )
-        timings.append({"id": asset_id, "refresh_ms": elapsed_ms})
-        _atomic_write_json(
-            runtime_root / "preparation-checkpoint.json",
-            {
-                "schema": "cdmw_mesh_visual_audit_dotnet_refresh_checkpoint_v1",
-                "run_id": run_id,
-                "source_evidence_root": str(source_root),
-                "temporary_root": str(temporary_root),
-                "requested_asset_count": len(source_assets),
-                "prepared_asset_count": len(runtime_assets),
-                "runtime_assets": runtime_assets,
-                "timings": timings,
-                "updated_unix_seconds": time.time(),
-            },
-        )
+            archive_source = Path(str(source_asset["archive_package_dir"])).resolve()
+            archive_target = archive_root / archive_source.name
+            _link_or_copy_tree(archive_source, archive_target)
+            archive_package_stability = stabilize_visual_audit_archive_package(archive_target)
+            archive_manifest = read_isolated_d3d11_preview_manifest(archive_target)
+            apply_dotnet_native_material_batch_bindings(
+                mesh,
+                archive_manifest.get("batches", ()),
+            )
+            package = build_mesh_dotnet_experiment_package(
+                mesh,
+                output_root=dotnet_root,
+                comparison_mode="replacement_only",
+                interaction_mode="placement",
+                scene_session_id=asset_id,
+            )
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            runtime_assets.append(
+                {
+                    "id": asset_id,
+                    "virtual_path": virtual_path,
+                    "archive_package_dir": str(archive_target),
+                    "dotnet_package_dir": str(package.package_dir),
+                    "views": [dict(value) for value in tuple(source_asset.get("views", ()) or ())],
+                    "run_id": run_id,
+                    "archive_package_stability": archive_package_stability,
+                }
+            )
+            timings.append({"id": asset_id, "refresh_ms": elapsed_ms})
+            _atomic_write_json(
+                runtime_root / "preparation-checkpoint.json",
+                {
+                    "schema": "cdmw_mesh_visual_audit_dotnet_refresh_checkpoint_v1",
+                    "run_id": run_id,
+                    "source_evidence_root": str(source_root),
+                    "temporary_root": str(temporary_root),
+                    "requested_asset_count": len(source_assets),
+                    "prepared_asset_count": len(runtime_assets),
+                    "runtime_assets": runtime_assets,
+                    "timings": timings,
+                    "updated_unix_seconds": time.time(),
+                },
+            )
 
     corpus = json.loads(json.dumps(source_corpus))
     corpus["run_id"] = run_id
@@ -159,8 +177,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "source_evidence_root": str(source_root),
         "source_run_id": str(source_state.get("run_id", "") or ""),
         "archive_packages_reused": True,
-        "archive_packages_rebased": True,
-        "dotnet_packages_rebuilt": True,
+        "archive_packages_rebased": not args.reuse_dotnet_packages,
+        "dotnet_packages_rebuilt": not args.reuse_dotnet_packages,
+        "dotnet_packages_reused": args.reuse_dotnet_packages,
         "asset_count": len(runtime_assets),
     }
     package_state = {
@@ -237,6 +256,57 @@ def _matching_source_assets(
             raise ValueError(f"Source virtual path mismatch for {asset_id}.")
         result.append(dict(runtime_row))
     return tuple(result)
+
+
+def _reused_runtime_assets(
+    source_assets: Sequence[Mapping[str, object]],
+    *,
+    run_id: str,
+) -> tuple[dict[str, object], ...]:
+    runtime_assets: list[dict[str, object]] = []
+    for source_asset in source_assets:
+        asset_id = str(source_asset.get("id", "") or "")
+        archive_package = Path(
+            str(source_asset.get("archive_package_dir", "") or "")
+        ).resolve()
+        dotnet_package = Path(
+            str(source_asset.get("dotnet_package_dir", "") or "")
+        ).resolve()
+        if not (archive_package / "manifest.json").is_file():
+            raise ValueError(
+                f"Source Archive Browser package is incomplete for {asset_id}: {archive_package}"
+            )
+        required_dotnet_files = (
+            "dotnet_scene.json",
+            "net_materials.json",
+            "scene.obj",
+        )
+        missing = [
+            name for name in required_dotnet_files if not (dotnet_package / name).is_file()
+        ]
+        if missing:
+            raise ValueError(
+                f"Source .NET package is incomplete for {asset_id}: missing={missing}"
+            )
+        runtime_assets.append(
+            {
+                "id": asset_id,
+                "virtual_path": str(source_asset.get("virtual_path", "") or ""),
+                "archive_package_dir": str(archive_package),
+                "dotnet_package_dir": str(dotnet_package),
+                "views": [
+                    dict(value)
+                    for value in tuple(source_asset.get("views", ()) or ())
+                    if isinstance(value, Mapping)
+                ],
+                "run_id": run_id,
+                "archive_package_stability": dict(
+                    source_asset.get("archive_package_stability", {}) or {}
+                ),
+                "package_reuse": "renderer_only_recapture",
+            }
+        )
+    return tuple(runtime_assets)
 
 
 def _validated_fingerprint_paths(
