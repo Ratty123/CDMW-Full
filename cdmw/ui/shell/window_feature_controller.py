@@ -7,6 +7,7 @@ from importlib import import_module
 from typing import Any
 
 from PySide6.QtCore import QObject
+from shiboken6 import isValid as qt_object_is_valid
 
 
 _SKIPPED_PROVIDER_MEMBERS = {
@@ -18,6 +19,19 @@ _SKIPPED_PROVIDER_MEMBERS = {
     "__slots__",
     "__weakref__",
 }
+
+
+def _qt_owner_is_alive(owner: object) -> bool:
+    if not isinstance(owner, QObject):
+        return True
+    try:
+        return bool(qt_object_is_valid(owner))
+    except RuntimeError:
+        return False
+
+
+def _ignore_late_feature_callback(*_args: object, **_kwargs: object) -> None:
+    return None
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +114,8 @@ class WindowFeatureController:
         return descriptor
 
     def lazy_method(self, name: str, arity: int) -> object:
+        if not _qt_owner_is_alive(self.window):
+            return _ignore_late_feature_callback
         method = self._lazy_methods.get(name)
         if method is None:
             method = _LazyBoundFeatureMethod(self, name, arity)
@@ -131,6 +147,8 @@ class _LazyBoundFeatureMethod(QObject):
         self.callback = self._invoke
 
     def _invoke(self, *args: object, **kwargs: object) -> Any:
+        if not _qt_owner_is_alive(self._controller.window):
+            return None
         callback = self._controller.resolve(self._name)
         positional = args if self._arity < 0 else args[: self._arity]
         return callback(*positional, **kwargs)

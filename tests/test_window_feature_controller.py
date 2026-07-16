@@ -290,6 +290,49 @@ def test_lazy_provider_worker_callback_runs_on_owning_qt_thread(monkeypatch: pyt
     feature_controller._load_lazy_descriptor.cache_clear()
 
 
+def test_lazy_provider_ignores_callbacks_after_qt_owner_is_deleted(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Provider:
+        def cached_callback(self, _value: object) -> None:
+            raise AssertionError("Deleted Qt owners must not receive cached callbacks.")
+
+        def uncached_callback(self, _value: object) -> None:
+            raise AssertionError("Deleted Qt owners must not receive newly resolved callbacks.")
+
+    imports: list[str] = []
+
+    def import_provider(name: str) -> object:
+        imports.append(name)
+        return SimpleNamespace(Provider=Provider)
+
+    monkeypatch.setattr(feature_controller, "import_module", import_provider)
+    feature_controller._load_lazy_descriptor.cache_clear()
+    provider = LazyFeatureProvider(
+        "test_deleted_owner_provider",
+        "Provider",
+        ("cached_callback", "uncached_callback"),
+        {"cached_callback": 1, "uncached_callback": 1},
+    )
+
+    class Window(QObject):
+        def __init__(self) -> None:
+            super().__init__()
+            self._controller = WindowFeatureController(self, (provider,))
+
+    install_window_feature_controller(Window, controller_attribute="_controller", providers=(provider,))
+    app = QApplication.instance() or QApplication([])
+    window = Window()
+    cached_callback = window.cached_callback
+
+    window.deleteLater()
+    QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+    assert cached_callback("late") is None
+    assert window.uncached_callback("late") is None
+    assert imports == []
+    feature_controller._load_lazy_descriptor.cache_clear()
+
+
 def test_generated_window_provider_metadata_is_current() -> None:
     result = subprocess.run(
         [sys.executable, "scripts/generate_window_feature_provider_members.py", "--check"],

@@ -33,6 +33,9 @@ New worker code uses shared contracts in `cdmw/workers/`.
   the exact `QProcess` object and its monotonic generation before terminate or
   kill; stale stop records cannot suppress a later process failure, and device
   loss remains diagnostic.
+- Shell lazy-feature callbacks verify that their Qt window owner is still alive
+  before resolving or invoking provider code. Late process or worker signals
+  delivered after window destruction are ignored.
 - Output workers stage complete results beside the destination and publish by
   atomic rename; cancellation or write failure leaves prior output intact.
 
