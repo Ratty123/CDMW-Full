@@ -149,6 +149,31 @@ internal static class D3D11TexturedMetalReadabilityProof
                 });
             }
 
+            var textureResourceDiagnostics = viewport.TextureResourceDiagnosticsPayload();
+            var baseTextureDiagnostic = textureResourceDiagnostics.FirstOrDefault(item =>
+                string.Equals(
+                    Convert.ToString(item.GetValueOrDefault("resource_id")),
+                    "textured-metal:base",
+                    StringComparison.Ordinal));
+            var expectedBitmapMipCount = 1 + (int)Math.Floor(Math.Log2(64));
+            var expectedBitmapMipBytes = 21_844L;
+            var bitmapGeneratedFullMipChain = baseTextureDiagnostic is not null
+                && string.Equals(
+                    Convert.ToString(baseTextureDiagnostic.GetValueOrDefault("upload_mode")),
+                    "bitmap_bgra32_generated_mip_chain",
+                    StringComparison.Ordinal)
+                && Convert.ToInt32(baseTextureDiagnostic.GetValueOrDefault("source_mip_count") ?? 0) == 1
+                && Convert.ToInt32(baseTextureDiagnostic.GetValueOrDefault("gpu_mip_count") ?? 0) == expectedBitmapMipCount
+                && Convert.ToInt64(baseTextureDiagnostic.GetValueOrDefault("estimated_bytes") ?? 0) == expectedBitmapMipBytes
+                && string.Equals(
+                    Convert.ToString(baseTextureDiagnostic.GetValueOrDefault("color_space")),
+                    "srgb",
+                    StringComparison.Ordinal)
+                && string.Equals(
+                    Convert.ToString(baseTextureDiagnostic.GetValueOrDefault("gpu_format")),
+                    "B8G8R8A8_UNorm_SRgb",
+                    StringComparison.Ordinal)
+                && baseTextureDiagnostic.GetValueOrDefault("native_dds") is false;
             var frontBackRatio = OppositeViewLumaRatio(rows, "front", "back");
             var obliqueRatio = OppositeViewLumaRatio(rows, "front_oblique", "back_oblique");
             var allViewLumaRatio = AllViewLumaRatio(rows);
@@ -167,6 +192,7 @@ internal static class D3D11TexturedMetalReadabilityProof
                 ["native_windows_remained_hidden"] = windowsHidden,
                 ["base_texture_decoded"] = textures.BitmapForPath(texturePath) is not null
                     && textures.TextureLoadFailureCount == 0,
+                ["bitmap_fallback_generated_full_mip_chain"] = bitmapGeneratedFullMipChain,
                 ["runtime_material_category_is_metal"] = runtimeMetalCategoryBranch,
                 ["runtime_material_category_confident"] = runtimeMaterialCategoryConfidence >= 0.99f,
                 ["runtime_material_response_promoted"] = runtimeMaterialResponsePromoted,
@@ -200,6 +226,7 @@ internal static class D3D11TexturedMetalReadabilityProof
                     ["metalness"] = 1.0,
                     ["double_sided"] = true,
                 },
+                ["texture_resource_diagnostics"] = textureResourceDiagnostics,
                 ["runtime_material_authority"] = new Dictionary<string, object?>
                 {
                     ["submesh_index"] = 0,

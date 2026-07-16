@@ -104,6 +104,22 @@ def test_native_dds_mips_color_space_and_semantic_shading_are_explicit() -> None
     assert "ResourceUsage.Immutable" in resources
     assert "nativeDds.MipCount" in resources
     assert "B8G8R8A8_UNorm_SRgb" in resources
+    bitmap_upload = _method(
+        resources,
+        "var bitmap = _textureSet.BitmapForReference(reference);",
+        "private unsafe D3D11TextureBinding CreateNativeDdsSrv(",
+    )
+    assert "var mipCount = EditableMipLevelCount(converted.Width, converted.Height);" in bitmap_upload
+    assert "MipLevels = (uint)mipCount" in bitmap_upload
+    assert "Usage = ResourceUsage.Default" in bitmap_upload
+    assert "BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget" in bitmap_upload
+    assert "MiscFlags = ResourceOptionFlags.GenerateMips" in bitmap_upload
+    assert "_context.GenerateMips(view);" in bitmap_upload
+    assert '"bitmap_bgra32_generated_mip_chain"' in bitmap_upload
+    assert '"bitmap_bgra32_generated_mip_chain_v1"' in status
+    textured_metal_proof = _source("D3D11TexturedMetalReadabilityProof.cs")
+    assert '"bitmap_fallback_generated_full_mip_chain"' in textured_metal_proof
+    assert '"texture_resource_diagnostics"' in textured_metal_proof
     assert '"texture_resource_diagnostics"' in _source("D3D11MaterialViewport.Metrics.cs")
     assert "CopyResource(texture, source.Texture)" not in regions
     assert "BitmapForReference(references[0])" in regions

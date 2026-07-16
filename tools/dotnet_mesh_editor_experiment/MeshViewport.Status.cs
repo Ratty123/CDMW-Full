@@ -85,14 +85,14 @@ internal sealed partial class MeshViewport
             ["texture_decode_singleflight_joins"] = _textureSet.DecodeSingleflightJoinCount,
             ["decoded_bitmap_prunes"] = _textureSet.DecodedBitmapPruneCount,
             ["dds_upload_mode"] = _d3d11Viewport?.NativeDdsTextureCount > 0
-                ? (_d3d11Viewport.BitmapFallbackTextureCount > 0 ? "native_dds_mip_chain_with_bitmap_fallback" : "native_dds_mip_chain")
-                : "bitmap_bgra32_fallback_or_unavailable",
+                ? (_d3d11Viewport.BitmapFallbackTextureCount > 0 ? "native_dds_mip_chain_with_bitmap_generated_mips" : "native_dds_mip_chain")
+                : "bitmap_bgra32_generated_mip_chain_or_unavailable",
             ["native_dds_parity"] = false,
             ["dds_native_dxgi_upload"] = _d3d11Viewport?.NativeDdsTextureCount > 0,
             ["dds_upload_format"] = "per_resource_dxgi_view",
             ["dds_decode"] = _textureSet.NativeDdsResourceCount > 0
                 ? "source_dds_native_mip_chain_with_optional_bitmap_edit_fallback"
-                : (_textureSet.DdsDecodedCount > 0 ? "bitmap_decode_then_bgra32_fallback" : (_textureSet.DdsResourceCount > 0 ? "header_verified_not_sampled" : "not_present_or_unverified")),
+                : (_textureSet.DdsDecodedCount > 0 ? "bitmap_decode_then_bgra32_generated_mip_chain" : (_textureSet.DdsResourceCount > 0 ? "header_verified_not_sampled" : "not_present_or_unverified")),
             ["dds_decode_tools"] = new[] { "managed_dds_decoder", "cd-texture-dx.exe", "texconv.exe" },
             ["shader_model"] = _rendererBlocked ? "blocked_renderer_unavailable" : (_d3d11Viewport is not null ? "hlsl_vs5_ps5_per_pixel_materials" : (_gpuViewport is not null ? "wpf_materials" : "gdi_fallback")),
         };
@@ -169,6 +169,7 @@ internal sealed partial class MeshViewport
             capabilities.Add("resident_texture_region_updates_v1");
             capabilities.Add("resident_texture_mip_regeneration_v1");
             capabilities.Add("native_dds_2d_mip_chain_upload_v1");
+            capabilities.Add("bitmap_bgra32_generated_mip_chain_v1");
             capabilities.Add("source_color_space_views_v1");
             capabilities.Add("material_semantic_diagnostics_v1");
         }

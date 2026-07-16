@@ -501,9 +501,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   Color layers and albedo blend masks use a 512 px cap; direct native normal and
   height DDS maps retain their source resolution and mip chains. Missing or
   unreadable operands fail closed to the raw channel set instead of publishing a
-  flat neutral material. Synthesized PNG outputs still use the bitmap upload
-  path and therefore remain a one-mip parity gap until mipped synthesis output
-  or renderer-side bitmap mip generation is implemented.
+  flat neutral material. Synthesized PNG outputs use a typeless BGRA bitmap
+  resource with semantic sRGB or linear views; Vortice uploads the top level,
+  generates the complete GPU mip chain, and reports source/GPU mip counts and
+  full-chain byte accounting in renderer diagnostics.
   The production bridge prefers an existing source DDS over preview PNG and
   transports channel semantic, evidence authority, sRGB/linear interpretation,
   shader family, alpha mode/cutoff, double-sided state, and unsupported-family

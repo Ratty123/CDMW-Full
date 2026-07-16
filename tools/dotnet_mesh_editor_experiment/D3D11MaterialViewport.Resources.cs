@@ -193,49 +193,51 @@ internal sealed partial class D3D11MaterialViewport
         }
         var rect = new Rectangle(0, 0, converted.Width, converted.Height);
         var data = converted.LockBits(rect, ImageLockMode.ReadOnly, PixelFormat.Format32bppArgb);
+        ID3D11Texture2D? texture = null;
+        ID3D11ShaderResourceView? view = null;
         try
         {
+            var mipCount = EditableMipLevelCount(converted.Width, converted.Height);
             var description = new Texture2DDescription
             {
                 Width = (uint)converted.Width,
                 Height = (uint)converted.Height,
-                MipLevels = 1,
+                MipLevels = (uint)mipCount,
                 ArraySize = 1,
                 Format = Format.B8G8R8A8_Typeless,
                 SampleDescription = new SampleDescription(1, 0),
-                Usage = ResourceUsage.Immutable,
-                BindFlags = BindFlags.ShaderResource,
+                Usage = ResourceUsage.Default,
+                BindFlags = BindFlags.ShaderResource | BindFlags.RenderTarget,
+                MiscFlags = ResourceOptionFlags.GenerateMips,
             };
-            var texture = _device.CreateTexture2D(description, new[] { new SubresourceData(data.Scan0, (uint)data.Stride) });
-            ID3D11ShaderResourceView view;
-            try
-            {
-                var viewFormat = string.Equals(reference.ColorSpace, "srgb", StringComparison.OrdinalIgnoreCase)
-                    ? Format.B8G8R8A8_UNorm_SRgb
-                    : Format.B8G8R8A8_UNorm;
-                view = _device.CreateShaderResourceView(
+            texture = _device.CreateTexture2D(description);
+            _context!.UpdateSubresource(
+                texture,
+                0,
+                null,
+                data.Scan0,
+                (uint)data.Stride,
+                0);
+            var viewFormat = string.Equals(reference.ColorSpace, "srgb", StringComparison.OrdinalIgnoreCase)
+                ? Format.B8G8R8A8_UNorm_SRgb
+                : Format.B8G8R8A8_UNorm;
+            view = _device.CreateShaderResourceView(
+                texture,
+                new ShaderResourceViewDescription(
                     texture,
-                    new ShaderResourceViewDescription(
-                        texture,
-                        ShaderResourceViewDimension.Texture2D,
-                        viewFormat,
-                        0,
-                        1,
-                        0,
-                        1));
-            }
-            catch
-            {
-                texture.Dispose();
-                throw;
-            }
-            var estimatedBytes = checked((long)converted.Width * converted.Height * 4);
-            _textureSrvCache[cacheKey] = new D3D11TextureSrvCacheEntry(
+                    ShaderResourceViewDimension.Texture2D,
+                    viewFormat,
+                    0,
+                    (uint)mipCount,
+                    0,
+                    1));
+            _context.GenerateMips(view);
+            var entry = new D3D11TextureSrvCacheEntry(
                 texture,
                 view,
                 converted.Width,
                 converted.Height,
-                estimatedBytes,
+                EditableMipBytes(converted.Width, converted.Height),
                 reference.ResourceId,
                 reference.SourceReference,
                 reference.Semantic,
@@ -243,27 +245,36 @@ internal sealed partial class D3D11MaterialViewport
                 Path.GetExtension(reference.Path).TrimStart('.').ToUpperInvariant(),
                 1,
                 reference.ColorSpace,
-                "bitmap_bgra32_fallback",
-                string.Equals(reference.ColorSpace, "srgb", StringComparison.OrdinalIgnoreCase)
-                    ? "B8G8R8A8_UNorm_SRgb"
-                    : "B8G8R8A8_UNorm",
-                1,
+                "bitmap_bgra32_generated_mip_chain",
+                viewFormat.ToString(),
+                mipCount,
                 string.IsNullOrWhiteSpace(nativeFallbackReason)
                     ? nativeDds is null ? "native_dds_not_available" : string.Empty
                     : nativeFallbackReason,
                 false);
+            _textureSrvCache[cacheKey] = entry;
+            texture = null;
+            view = null;
             _textureSrvCreateCount++;
             _bitmapTextureSrvCreateCount++;
-            _textureResidentBytes += estimatedBytes;
+            _textureResidentBytes += entry.EstimatedBytes;
             _peakTextureResidentBytes = Math.Max(_peakTextureResidentBytes, _textureResidentBytes);
             _peakTextureRefreshBytesEstimate = Math.Max(
                 _peakTextureRefreshBytesEstimate,
                 _textureResidentBytes);
-            return new D3D11TextureBinding(view, cacheKey);
+            return new D3D11TextureBinding(entry.View, cacheKey);
         }
         finally
         {
-            converted.UnlockBits(data);
+            try
+            {
+                converted.UnlockBits(data);
+            }
+            finally
+            {
+                view?.Dispose();
+                texture?.Dispose();
+            }
         }
     }
 
@@ -391,6 +402,7 @@ internal sealed partial class D3D11MaterialViewport
                 ["source_width"] = pair.Value.Width,
                 ["source_height"] = pair.Value.Height,
                 ["source_mip_count"] = pair.Value.SourceMipCount,
+                ["estimated_bytes"] = pair.Value.EstimatedBytes,
                 ["color_space"] = pair.Value.ColorSpace,
                 ["upload_mode"] = pair.Value.UploadMode,
                 ["gpu_format"] = pair.Value.GpuFormat,
