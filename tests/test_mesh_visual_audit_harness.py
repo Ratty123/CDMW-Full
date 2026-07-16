@@ -114,20 +114,25 @@ def test_dotnet_refresh_can_reuse_complete_packages_for_renderer_only_capture(
             },
         ),
         run_id="recapture-run",
+        temporary_root=tmp_path / "recapture",
     )
 
+    archive_target = tmp_path / "recapture" / "packages" / "archive-browser" / "archive"
+    dotnet_target = tmp_path / "recapture" / "packages" / "mesh-editor" / "dotnet"
     assert rows == (
         {
             "id": "001-test",
             "virtual_path": "character/model/test.pac",
-            "archive_package_dir": str(archive_package.resolve()),
-            "dotnet_package_dir": str(dotnet_package.resolve()),
+            "archive_package_dir": str(archive_target),
+            "dotnet_package_dir": str(dotnet_target),
             "views": [{"name": "front", "yaw": 0.0, "pitch": 0.0}],
             "run_id": "recapture-run",
             "archive_package_stability": {},
             "package_reuse": "renderer_only_recapture",
         },
     )
+    assert (archive_target / "manifest.json").read_text(encoding="utf-8") == "{}"
+    assert (dotnet_target / "dotnet_scene.json").read_text(encoding="utf-8") == "ready"
 
 
 def test_dotnet_refresh_rebases_stabilized_archive_texture_paths(tmp_path: Path) -> None:

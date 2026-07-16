@@ -101,7 +101,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             flush=True,
         )
         runtime_assets.extend(
-            _reused_runtime_assets(source_assets, run_id=run_id)
+            _reused_runtime_assets(
+                source_assets,
+                run_id=run_id,
+                temporary_root=temporary_root,
+            )
         )
         timings.extend(
             {"id": str(asset["id"]), "refresh_ms": 0.0}
@@ -262,8 +266,11 @@ def _reused_runtime_assets(
     source_assets: Sequence[Mapping[str, object]],
     *,
     run_id: str,
+    temporary_root: Path,
 ) -> tuple[dict[str, object], ...]:
     runtime_assets: list[dict[str, object]] = []
+    archive_root = temporary_root / "packages" / "archive-browser"
+    dotnet_root = temporary_root / "packages" / "mesh-editor"
     for source_asset in source_assets:
         asset_id = str(source_asset.get("id", "") or "")
         archive_package = Path(
@@ -288,12 +295,16 @@ def _reused_runtime_assets(
             raise ValueError(
                 f"Source .NET package is incomplete for {asset_id}: missing={missing}"
             )
+        archive_target = archive_root / archive_package.name
+        dotnet_target = dotnet_root / dotnet_package.name
+        _link_or_copy_tree(archive_package, archive_target)
+        _link_or_copy_tree(dotnet_package, dotnet_target)
         runtime_assets.append(
             {
                 "id": asset_id,
                 "virtual_path": str(source_asset.get("virtual_path", "") or ""),
-                "archive_package_dir": str(archive_package),
-                "dotnet_package_dir": str(dotnet_package),
+                "archive_package_dir": str(archive_target),
+                "dotnet_package_dir": str(dotnet_target),
                 "views": [
                     dict(value)
                     for value in tuple(source_asset.get("views", ()) or ())
@@ -336,7 +347,7 @@ def _validated_fingerprint_paths(
 def _link_or_copy_tree(source: Path, target: Path) -> None:
     source = source.resolve()
     if not source.is_dir():
-        raise ValueError(f"Archive Browser package is missing: {source}")
+        raise ValueError(f"Visual-audit package is missing: {source}")
     if target.exists():
         raise FileExistsError(target)
 
