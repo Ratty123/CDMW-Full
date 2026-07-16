@@ -106,7 +106,7 @@ class ArchivePreviewD3D11PartsMixin:
                 continue
             action = menu.addAction(label)
             action.setCheckable(True)
-            action.setChecked(True)
+            action.setChecked(not prefab_component)
             action.setToolTip(model_path or "Native D3D11 preview component")
             action.setStatusTip(model_path or "")
             action.setData(list(source_indices))
@@ -131,5 +131,4 @@ class ArchivePreviewD3D11PartsMixin:
         hide_added_action.triggered.connect(_hide_added)
         self.archive_d3d11_part_visibility_button.setVisible(True)
         self.archive_d3d11_part_visibility_button.setEnabled(True)
-        visible_count = len(self.archive_d3d11_part_visibility_groups)
-        self.archive_d3d11_part_visibility_button.setText(f"Parts {visible_count}/{visible_count}")
+        self._set_archive_d3d11_hidden_parts_from_menu()

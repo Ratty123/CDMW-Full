@@ -515,10 +515,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   Native original-reference material batches are applied by authoritative local
   submesh identity. Secondary/prefab batches are decoded as separate
   original-reference-only geometry; they never enter the editable replacement,
-  export, or archive-mutation authority. Layer-only detail, damage, grime, dye,
-  and overlay textures remain diagnostic bindings and are not promoted into a
-  primary base channel when their blend graph is unavailable. None of these
-  material changes rebuilds the package, restarts the
+  export, or archive-mutation authority. Archive Browser composite previews
+  initially hide those prefab batches while leaving the base component visible;
+  the Parts menu can explicitly show them. Layer-only detail, damage, grime,
+  dye, and overlay textures remain diagnostic bindings and are not promoted
+  into a primary base channel when their blend graph is unavailable. None of
+  these material changes rebuilds the package, restarts the
   process, replaces the viewport, or moves decode work onto the UI thread.
   For standalone/headless process exits, `MeshDotNetExperimentOutputImportWorker` detects `edited_mesh`,
   `edited_obj`, `output_mesh`, `edited_package`, or `output/mesh.obj`, restores
