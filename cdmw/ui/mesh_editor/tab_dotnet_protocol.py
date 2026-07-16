@@ -398,7 +398,8 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
             request_id=int(payload.get("request_id", 0) or 0),
             scene_generation=self.standalone_dotnet_scene_acknowledged_generation,
         )
-        self._send_dotnet_presentation_state()
+        if not self._sync_embedded_builder_presentation_state():
+            self._send_dotnet_presentation_state()
         return True
     def _handle_dotnet_presentation_state_ack(self, payload: Mapping[str, object]) -> bool:
         pending = self.standalone_dotnet_presentation_pending

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from types import SimpleNamespace
@@ -27,6 +28,62 @@ _APP = QApplication.instance() or QApplication([])
 
 
 class MeshResidentEditorRegressionTests(unittest.TestCase):
+    def test_scene_ack_reapplies_current_builder_preview_mode(self) -> None:
+        settings = QSettings("CDMWTests", "MeshEditorResidentPreviewModeRestore")
+        settings.clear()
+        tab = MeshEditorTab(settings=settings)
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        builder._mesh_editor_embedded_presentation_state = lambda: {  # type: ignore[attr-defined]
+            "active_view": "comparison",
+            "comparison_mode": "side_by_side",
+        }
+        tab.standalone_dotnet_target_embedded = True
+        tab.standalone_dotnet_target_controller = builder.controller
+        tab.standalone_dotnet_process_generation = 7
+        process = _FakeProcess()
+        process._state = process.Running
+        tab.standalone_dotnet_editor_process = process
+        tab._set_embedded_dotnet_state("ready", active=True)
+        tab.standalone_dotnet_presentation_desired = {
+            "active_view": "editable",
+            "comparison_mode": "replacement_only",
+        }
+        session_id = builder.controller.session_view().session_id
+        tab.standalone_dotnet_scene_pending = {
+            "session_id": session_id,
+            "request_id": 21,
+            "process_generation": 7,
+            "source_identity": "resident-preview-source",
+            "scene_generation": 4,
+        }
+        acknowledgement = {
+            "event": "scene_state_update_ack",
+            "status": "applied",
+            "session_id": session_id,
+            "request_id": 21,
+            "process_generation": 7,
+            "source_identity": "resident-preview-source",
+            "scene_generation": 4,
+        }
+
+        self.assertTrue(tab._handle_dotnet_protocol_event(acknowledgement))
+
+        messages = [
+            json.loads(raw.decode("utf-8"))
+            for raw in process.stdin_writes
+        ]
+        presentation = next(
+            message
+            for message in reversed(messages)
+            if message.get("event") == "presentation_state_update"
+        )
+        self.assertEqual("comparison", presentation["active_view"])
+        self.assertEqual("side_by_side", presentation["comparison_mode"])
+        tab.standalone_dotnet_editor_process = None
+        tab.deleteLater()
+        _APP.processEvents()
+
     def test_embedded_finish_keeps_resident_helper_active(self) -> None:
         settings = QSettings("CDMWTests", "MeshEditorResidentFinish")
         settings.clear()

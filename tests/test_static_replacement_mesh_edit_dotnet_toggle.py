@@ -433,8 +433,8 @@ def test_finish_edit_restores_builder_controls_and_resident_placement_presentati
     presentations: list[dict[str, object]] = []
     checkbox = _Checkbox()
     placement_presentation = {
-        "active_view": "editable",
-        "comparison_mode": "replacement_only",
+        "active_view": "comparison",
+        "comparison_mode": "side_by_side",
         "display": {"mode": "textured"},
     }
 
