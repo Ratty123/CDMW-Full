@@ -60,7 +60,7 @@ def _initialize_evidence_roots(
 
 
 def _dotnet_assembly_path(args: argparse.Namespace) -> Path:
-    return args.dotnet_assembly or (
+    assembly_path = args.dotnet_assembly or (
         Path(__file__).resolve().parents[1]
         / "dotnet_mesh_editor_experiment"
         / "bin"
@@ -68,6 +68,12 @@ def _dotnet_assembly_path(args: argparse.Namespace) -> Path:
         / "net8.0-windows"
         / "cdmw-mesh-dotnet-editor.dll"
     )
+    if assembly_path.suffix.lower() != ".dll":
+        raise ValueError(
+            "--dotnet-assembly must point to cdmw-mesh-dotnet-editor.dll; "
+            "the visual-audit runner invokes it through dotnet."
+        )
+    return assembly_path
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -133,7 +139,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     )
     _atomic_write_json(runtime_root / "archive-browser-capture.json", archive_report)
 
-    assembly_path = _dotnet_assembly_path(args)
+    try:
+        assembly_path = _dotnet_assembly_path(args)
+    except ValueError as exc:
+        parser.error(str(exc))
     if not assembly_path.is_file():
         parser.error(
             "The Release .NET renderer is not built. Run: "

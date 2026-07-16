@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from argparse import Namespace
 import json
 from pathlib import Path
 
@@ -22,6 +23,7 @@ from tools.mesh_harness.visual_audit_corpus import (
 )
 from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 from tools.mesh_harness.visual_audit_cli import (
+    _dotnet_assembly_path,
     _load_preparation_resume,
     _load_specs,
     _visual_audit_temporary_root,
@@ -43,6 +45,13 @@ FOLLOWUP_MANIFEST = (
 THIRD_PASS_MANIFEST = (
     ROOT / "tools" / "mesh_harness" / "visual_audit_followup_90.manifest.json"
 )
+
+
+def test_visual_audit_rejects_dotnet_apphost_as_an_assembly(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match=r"cdmw-mesh-dotnet-editor\.dll"):
+        _dotnet_assembly_path(
+            Namespace(dotnet_assembly=tmp_path / "cdmw-mesh-dotnet-editor.exe")
+        )
 
 
 def test_dotnet_refresh_reuses_only_exactly_matching_source_assets() -> None:
