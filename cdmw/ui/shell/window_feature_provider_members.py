@@ -103,7 +103,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/shell/about_controller.py': '3f0c94ce36b3031dcd2fd952f39316206f933393fd0a08deec99aab614775d65',
     'cdmw/ui/shell/about_documentation.py': '2e0085e052855c808dbd0c842f18b7bdec7af578fc31af5587f633bf66f94716',
     'cdmw/ui/shell/about_documentation_de.py': 'bf4a5add7075d2657a0df1a7ed23b2b35aedfe4de6d3de99366f3dc9f137aa5a',
-    'cdmw/ui/shell/about_documentation_en.py': '5832dc3366f64e40297a521f29b2c620a3949035c3d993619a5f550f353e32ed',
+    'cdmw/ui/shell/about_documentation_en.py': '4a51abc5ff5e6127a9956306f8945d4cb8152cce9893ccc8c14444e8099a2171',
     'cdmw/ui/shell/about_documentation_es.py': 'a769c4dcabb26d4eb38bc33007b29d1ab3312d4161ae8fc32b5792d8d1c282ba',
     'cdmw/ui/shell/close_controller.py': '7b1a934b61a41500b75310fc234dbb049db859eb156abe9dc26e59a89b41f764',
     'cdmw/ui/shell/dashboard_controller.py': '40dbd7dd1901db40c93216ea5e4a4c5a811b27d170b569ad9828ac640bc1e36d',

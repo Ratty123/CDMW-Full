@@ -183,6 +183,77 @@ def test_graph_edge_locates_parameter_and_resolved_node_requests_preview() -> No
     view.deleteLater()
 
 
+def test_parameter_and_connection_headers_sort_without_changing_row_identity() -> None:
+    _app()
+    panel = _panel()
+    body_group = panel.tree.topLevelItem(0)
+    assert [body_group.child(index).text(5) for index in range(3)] == [
+        "_channels",
+        "_flags",
+        "_enabled",
+    ]
+
+    panel.tree.header().sectionClicked.emit(3)
+    ascending_values = [
+        body_group.child(index).text(3)
+        for index in range(body_group.childCount())
+    ]
+    assert panel.tree.active_sort_column == 3
+    assert panel.tree.active_sort_order == Qt.AscendingOrder
+    assert panel.tree.header().isSortIndicatorShown()
+    numeric_values = ["-3", "7", "305419896", "4294967295"]
+    assert [ascending_values.index(value) for value in numeric_values] == sorted(
+        ascending_values.index(value) for value in numeric_values
+    )
+
+    panel.tree.header().sectionClicked.emit(3)
+    descending_values = [
+        body_group.child(index).text(3)
+        for index in range(body_group.childCount())
+    ]
+    assert panel.tree.active_sort_order == Qt.DescendingOrder
+    assert [descending_values.index(value) for value in reversed(numeric_values)] == sorted(
+        descending_values.index(value) for value in reversed(numeric_values)
+    )
+    signed = next(row for row in panel.rows if row.parameter_name == "_signed")
+    panel.set_row_value(signed.row_id, "9999999999")
+    updated_values = [
+        body_group.child(index).text(3)
+        for index in range(body_group.childCount())
+    ]
+    assert updated_values.index("9999999999") < updated_values.index("4294967295")
+    assert panel.select_row(signed.row_id)
+    assert panel.current_row_id() == signed.row_id
+
+    document = parse_pac_xml_document(XML)
+    graph = build_pac_xml_connection_graph(
+        document,
+        root_path="character/modelproperty/body.pac_xml",
+        model_paths=("character/model/z_body.pac", "character/model/a_body.pac"),
+    )
+    view = PacXmlConnectionGraphView()
+    view.set_graph(graph)
+    view.list_tree.header().sectionClicked.emit(1)
+    names = [
+        view.list_tree.topLevelItem(index).text(1)
+        for index in range(view.list_tree.topLevelItemCount())
+    ]
+    assert names == sorted(names, key=str.casefold)
+    view.set_graph(graph)
+    refreshed_names = [
+        view.list_tree.topLevelItem(index).text(1)
+        for index in range(view.list_tree.topLevelItemCount())
+    ]
+    assert refreshed_names == names
+    texture_field = next(field for field in document.fields if field.kind == "texture")
+    requested_rows: list[str] = []
+    view.parameterRequested.connect(requested_rows.append)
+    view.select_parameter_edge(texture_field.row_id)
+    assert requested_rows == [texture_field.row_id]
+    panel.deleteLater()
+    view.deleteLater()
+
+
 def test_dense_graph_layout_keeps_text_lines_and_boxes_separate() -> None:
     _app()
     wrappers = []

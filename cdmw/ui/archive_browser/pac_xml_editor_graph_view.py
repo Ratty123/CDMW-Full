@@ -29,7 +29,6 @@ from PySide6.QtWidgets import (
     QLabel,
     QPushButton,
     QSplitter,
-    QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -39,6 +38,10 @@ from cdmw.domain.pac_xml_graph import (
     PacXmlConnectionGraph,
     PacXmlGraphEdge,
     PacXmlGraphNode,
+)
+from cdmw.ui.archive_browser.pac_xml_editor_sorting import (
+    HeaderSortableTreeWidget,
+    NaturalSortTreeWidgetItem,
 )
 
 
@@ -274,7 +277,7 @@ class PacXmlConnectionGraphView(QWidget):
                 "Keyboard-accessible connection list (Enter or double-click previews a resolved file):"
             )
         )
-        self.list_tree = QTreeWidget()
+        self.list_tree = HeaderSortableTreeWidget()
         self.list_tree.setObjectName("PacXmlConnectionList")
         self.list_tree.setColumnCount(5)
         self.list_tree.setHeaderLabels(["Kind", "File / Node", "Status", "Confidence", "Evidence"])
@@ -326,6 +329,7 @@ class PacXmlConnectionGraphView(QWidget):
         positions = _layout_node_positions(graph)
         self._populate_nodes(graph, positions)
         self._populate_edges(graph, positions)
+        self.list_tree.resort()
 
         state = "index warming" if graph.index_warming else "current indexes"
         self.status_label.setText(
@@ -343,13 +347,14 @@ class PacXmlConnectionGraphView(QWidget):
         graph: PacXmlConnectionGraph,
         positions: dict[str, QPointF],
     ) -> None:
-        for node in graph.nodes:
+        for source_order, node in enumerate(graph.nodes):
             node_item = _NodeItem(node, self._preview_node)
             node_item.setPos(positions[node.node_id])
             self.scene.addItem(node_item)
             self._node_items[node.node_id] = node_item
-            list_item = QTreeWidgetItem(
-                [node.kind, node.label, node.status, node.confidence, node.evidence]
+            list_item = NaturalSortTreeWidgetItem(
+                [node.kind, node.label, node.status, node.confidence, node.evidence],
+                source_order=source_order,
             )
             list_item.setData(0, Qt.UserRole, node.node_id)
             list_item.setToolTip(1, node.path or node.label)
@@ -372,7 +377,7 @@ class PacXmlConnectionGraphView(QWidget):
             )
             self.scene.addItem(bundle)
             self._bundle_items.append(bundle)
-        for edge in graph.edges:
+        for edge_order, edge in enumerate(graph.edges):
             path = edge_paths.get(edge.edge_id)
             if path is None:
                 continue
@@ -382,8 +387,9 @@ class PacXmlConnectionGraphView(QWidget):
             if not edge.row_id:
                 continue
             self._edge_items_by_row_id[edge.row_id] = line
-            edge_item = QTreeWidgetItem(
-                ["parameter edge", edge.label, "source", edge.confidence, edge.evidence]
+            edge_item = NaturalSortTreeWidgetItem(
+                ["parameter edge", edge.label, "source", edge.confidence, edge.evidence],
+                source_order=len(graph.nodes) + edge_order,
             )
             edge_item.setData(0, Qt.UserRole + 1, edge.row_id)
             edge_item.setData(0, Qt.UserRole + 2, edge.target_id)

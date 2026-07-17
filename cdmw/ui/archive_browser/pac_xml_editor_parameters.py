@@ -8,6 +8,7 @@ from typing import Protocol, Sequence
 
 from PySide6.QtCore import QSignalBlocker, Qt, Signal
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QCheckBox,
     QComboBox,
     QDoubleSpinBox,
@@ -19,10 +20,14 @@ from PySide6.QtWidgets import (
     QPushButton,
     QSpinBox,
     QStackedWidget,
-    QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+)
+
+from cdmw.ui.archive_browser.pac_xml_editor_sorting import (
+    HeaderSortableTreeWidget,
+    NaturalSortTreeWidgetItem,
 )
 
 
@@ -387,15 +392,15 @@ class PacXmlParameterPanel(QWidget):
         filters.addWidget(self.changed_filter)
         layout.addLayout(filters)
 
-        self.tree = QTreeWidget()
+        self.tree = HeaderSortableTreeWidget()
         self.tree.setObjectName("PacXmlParameterTree")
         self.tree.setColumnCount(6)
         self.tree.setHeaderLabels(["Part / Shader", "Type", "Friendly name", "Value", "Validation", "Exact name"])
         self.tree.setRootIsDecorated(True)
         self.tree.setAlternatingRowColors(True)
         self.tree.setUniformRowHeights(True)
-        self.tree.setSelectionMode(QTreeWidget.SingleSelection)
-        self.tree.setSelectionBehavior(QTreeWidget.SelectRows)
+        self.tree.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.tree.setSelectionBehavior(QAbstractItemView.SelectRows)
         self._populate_tree()
         layout.addWidget(self.tree, 1)
 
@@ -433,18 +438,36 @@ class PacXmlParameterPanel(QWidget):
             shaders_by_group.setdefault(row.group_label, [])
             if row.shader_name and row.shader_name not in shaders_by_group[row.group_label]:
                 shaders_by_group[row.group_label].append(row.shader_name)
-        for row in self.rows:
+        for source_order, row in enumerate(self.rows):
             group_item = group_items.get(row.group_label)
             if group_item is None:
                 shaders = ", ".join(shaders_by_group.get(row.group_label, ()))
-                group_item = QTreeWidgetItem([row.group_label, "", shaders, "", f"{sum(1 for value in self.rows if value.group_label == row.group_label)} parameters", ""])
+                group_item = NaturalSortTreeWidgetItem(
+                    [
+                        row.group_label,
+                        "",
+                        shaders,
+                        "",
+                        f"{sum(1 for value in self.rows if value.group_label == row.group_label)} parameters",
+                        "",
+                    ],
+                    source_order=len(group_items),
+                )
                 group_item.setFirstColumnSpanned(False)
                 group_item.setFlags(group_item.flags() & ~Qt.ItemIsSelectable)
                 group_items[row.group_label] = group_item
                 self.tree.addTopLevelItem(group_item)
             state = "Read only" if not row.editable else "Absent value" if not row.explicit else "High risk" if row.risk else "Valid"
-            item = QTreeWidgetItem(
-                ["", row.parameter_type or row.kind, friendly_parameter_name(row.parameter_name), row.value, state, row.parameter_name]
+            item = NaturalSortTreeWidgetItem(
+                [
+                    "",
+                    row.parameter_type or row.kind,
+                    friendly_parameter_name(row.parameter_name),
+                    row.value,
+                    state,
+                    row.parameter_name,
+                ],
+                source_order=source_order,
             )
             item.setFlags(item.flags() & ~Qt.ItemIsEditable)
             item.setData(0, Qt.UserRole, row.row_id)
@@ -497,6 +520,7 @@ class PacXmlParameterPanel(QWidget):
         item.setText(3, after)
         item.setToolTip(3, after or "Value attribute is absent")
         self._update_changed_state(item)
+        self.tree.resort()
         self._apply_filters()
         self._update_history_buttons()
         return True
