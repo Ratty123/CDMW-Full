@@ -245,6 +245,18 @@ def _sidecar_source_index_map(submesh: SubMesh, asset_submesh: object | None) ->
     return _submesh_source_index_map(submesh)
 
 
+def _sidecar_original_index_count(submesh: SubMesh, asset_submesh: object | None) -> int:
+    if asset_submesh is not None:
+        index_buffer = _metadata_value(asset_submesh, "index_buffer")
+        asset_count = _int_attr(_metadata_value(index_buffer, "original_count"), 0)
+        if asset_count > 0:
+            return asset_count
+    source_count = _int_attr(getattr(submesh, "source_index_count", 0), 0)
+    if source_count > 0:
+        return source_count
+    return len(tuple(getattr(submesh, "faces", ()) or ())) * 3
+
+
 def _sidecar_submesh_contract(
     lod_index: int,
     submesh_index: int,
@@ -265,7 +277,8 @@ def _sidecar_submesh_contract(
         "material": str(submesh.material or "").strip(),
         "texture": str(submesh.texture or "").strip(),
         "original_vertex_count": len(vertices),
-        "original_index_count": len(faces) * 3,
+        "original_index_count": _sidecar_original_index_count(submesh, asset_submesh),
+        "exported_index_count": len(faces) * 3,
         "original_vertex_stride": _int_attr(
             _metadata_value(asset_submesh, "original_vertex_stride"),
             int(getattr(submesh, "source_vertex_stride", 0) or 0),

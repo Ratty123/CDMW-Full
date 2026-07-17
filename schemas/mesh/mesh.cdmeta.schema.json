@@ -183,6 +183,7 @@
         "texture": { "type": "string" },
         "original_vertex_count": { "type": "integer", "minimum": 0 },
         "original_index_count": { "type": "integer", "minimum": 0 },
+        "exported_index_count": { "type": "integer", "minimum": 0 },
         "original_vertex_stride": { "type": "integer", "minimum": 0 },
         "original_vertex_offset": { "type": "integer" },
         "original_index_offset": { "type": "integer" },

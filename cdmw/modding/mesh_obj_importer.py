@@ -212,6 +212,17 @@ def _obj_sidecar_original_index_count(sidecar_submesh_entry: object) -> int:
     return face_count * 3 if face_count >= 0 else 0
 
 
+def _obj_sidecar_exported_index_count(sidecar_submesh_entry: object) -> int:
+    count = _obj_sidecar_int(sidecar_submesh_entry, "exported_index_count")
+    if count >= 0:
+        return count
+    count = _obj_sidecar_int(sidecar_submesh_entry, "original_index_count")
+    if count >= 0:
+        return count
+    face_count = _obj_sidecar_int(sidecar_submesh_entry, "face_count")
+    return face_count * 3 if face_count >= 0 else -1
+
+
 def _attach_obj_sidecar_unknown_fields(submesh: SubMesh, sidecar_submesh_entry: object) -> None:
     if not isinstance(sidecar_submesh_entry, dict):
         return
@@ -498,10 +509,7 @@ def _validate_obj_sidecar_topology(mesh: ParsedMesh, sidecar_payload: dict[str, 
                     "OBJ sidecar topology changed for submesh "
                     f"{submesh_index}: expected {expected_vertices} source vertices, got {actual_vertices}."
                 )
-        expected_indices = _entry_int(entry, "original_index_count")
-        if expected_indices < 0:
-            expected_faces = _entry_int(entry, "face_count")
-            expected_indices = expected_faces * 3 if expected_faces >= 0 else -1
+        expected_indices = _obj_sidecar_exported_index_count(entry)
         if expected_indices >= 0:
             actual_indices = len(tuple(getattr(submesh, "faces", ()) or ())) * 3
             if actual_indices != expected_indices:

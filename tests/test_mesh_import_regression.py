@@ -414,6 +414,63 @@ class MeshImportRegressionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "source index map"):
                 import_obj(str(obj_path))
 
+    def test_obj_import_preserves_raw_index_count_when_obj_uses_triangle_list(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            obj_path = Path(temp_dir) / "strip_topology.obj"
+            obj_path.write_text(
+                "\n".join(
+                    [
+                        "# source_path: character/model/example.pac",
+                        "# source_format: pac",
+                        "o Part",
+                        "v 0 0 0",
+                        "v 1 0 0",
+                        "v 0 1 0",
+                        "f 1 2 3",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            Path(f"{obj_path}.meta.json").write_text(
+                json.dumps(
+                    {
+                        "format": "mesh_roundtrip_manifest_v2",
+                        "schema_version": 1,
+                        "source_path": "character/model/example.pac",
+                        "source_format": "pac",
+                        "submeshes": [
+                            {
+                                "index": 0,
+                                "name": "Part",
+                                "vertex_count": 3,
+                                "face_count": 1,
+                            }
+                        ],
+                        "lods": [
+                            {
+                                "lod_index": 0,
+                                "submeshes": [
+                                    {
+                                        "stable_id": "lod0_submesh0",
+                                        "original_vertex_count": 3,
+                                        "original_index_count": 6,
+                                        "exported_index_count": 3,
+                                        "source_vertex_map": [0, 1, 2],
+                                        "source_index_map": [0, 1, 2, 3, 4, 5],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            mesh = import_obj(str(obj_path))
+
+            self.assertEqual(1, len(mesh.submeshes[0].faces))
+            self.assertEqual(6, mesh.submeshes[0].source_index_count)
+
     def test_obj_import_accepts_skinned_sidecar_with_bone_layout_and_source_map(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             obj_path = Path(temp_dir) / "with_bone_layout.obj"

@@ -187,6 +187,7 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
                     faces=[(0, 1, 2)],
                     bone_indices=[(0,), (1,), (0, 1)],
                     bone_weights=[(1.0,), (1.0,), (0.5, 0.5)],
+                    source_index_count=6,
                 )
             ],
             total_vertices=3,
@@ -224,8 +225,9 @@ class ArchiveMeshExportNamingTests(unittest.TestCase):
         self.assertFalse(payload["import_rules"]["allow_topology_change"])
         self.assertEqual("lod0_submesh0", payload["lods"][0]["submeshes"][0]["stable_id"])
         self.assertEqual(3, payload["lods"][0]["submeshes"][0]["original_vertex_count"])
-        self.assertEqual(3, payload["lods"][0]["submeshes"][0]["original_index_count"])
-        self.assertEqual([0, 1, 2], payload["lods"][0]["submeshes"][0]["source_index_map"])
+        self.assertEqual(6, payload["lods"][0]["submeshes"][0]["original_index_count"])
+        self.assertEqual(3, payload["lods"][0]["submeshes"][0]["exported_index_count"])
+        self.assertEqual([0, 1, 2, 3, 4, 5], payload["lods"][0]["submeshes"][0]["source_index_map"])
         self.assertTrue(payload["skeleton_info"]["skinned"])
         self.assertEqual(2, payload["skeleton_info"]["inferred_bone_count"])
         self.assertEqual(2, payload["skeleton_info"]["parts"][0]["max_influences"])
