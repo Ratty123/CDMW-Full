@@ -436,6 +436,9 @@ def test_compatibility_facade_wires_three_tabs_validation_graph_preview_and_orig
     assert "export_button.setEnabled(refresh_result.valid and bool(refresh_result.changed_count))" in source
     assert "connection_graph_view.entryPreviewRequested.connect" in source
     assert "self._open_archive_reference_preview_entry(resolved_entry)" in source
+    assert 'show_skeleton_checkbox.setObjectName("MaterialValuesShowSkeletonOverlay")' in source
+    assert "show_skeleton_checkbox.setChecked(not is_pac_xml)" in source
+    assert "include_skeleton_overlay=include_skeleton_overlay" in source
     assert "original_payload=document.original_payload" in source
     assert "edited_payload=preparation.edit_result.payload or None" in source
     assert "task_accepts_cancel=True" in source

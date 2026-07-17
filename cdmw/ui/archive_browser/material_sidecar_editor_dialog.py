@@ -118,7 +118,8 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         selected_value_swatch.setToolTip(material_sidecar_text.material_sidecar_selected_color_tooltip_text())
         editor_layout.addWidget(editor_tabs, stretch=1)
 
-        preview_header_row = QHBoxLayout()
+        preview_button_row = QHBoxLayout()
+        preview_options_row = QHBoxLayout()
         show_preview_label, refresh_preview_label, preview_settings_label, live_preview_label = (
             material_sidecar_text.material_sidecar_preview_control_labels()
         )
@@ -126,14 +127,21 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         refresh_preview_button = QPushButton(refresh_preview_label)
         material_preview_settings_button = QPushButton(preview_settings_label)
         material_preview_settings_button.setToolTip(material_sidecar_text.material_sidecar_preview_settings_tooltip_text())
+        show_skeleton_checkbox = QCheckBox(material_sidecar_text.material_sidecar_skeleton_overlay_label_text())
+        show_skeleton_checkbox.setObjectName("MaterialValuesShowSkeletonOverlay")
+        show_skeleton_checkbox.setChecked(not is_pac_xml)
+        show_skeleton_checkbox.setToolTip(material_sidecar_text.material_sidecar_skeleton_overlay_tooltip_text())
         live_preview_checkbox = QCheckBox(live_preview_label)
         live_preview_checkbox.setChecked(True)
-        preview_header_row.addWidget(show_preview_button)
-        preview_header_row.addWidget(refresh_preview_button)
-        preview_header_row.addWidget(material_preview_settings_button)
-        preview_header_row.addWidget(live_preview_checkbox)
-        preview_header_row.addStretch(1)
-        preview_layout.addLayout(preview_header_row)
+        preview_button_row.addWidget(show_preview_button)
+        preview_button_row.addWidget(refresh_preview_button)
+        preview_button_row.addWidget(material_preview_settings_button)
+        preview_button_row.addStretch(1)
+        preview_options_row.addWidget(show_skeleton_checkbox)
+        preview_options_row.addWidget(live_preview_checkbox)
+        preview_options_row.addStretch(1)
+        preview_layout.addLayout(preview_button_row)
+        preview_layout.addLayout(preview_options_row)
         preview_status_label = QLabel(material_sidecar_text.material_sidecar_initial_preview_status_text())
         preview_status_label.setObjectName("HintLabel")
         preview_status_label.setWordWrap(True)
@@ -604,6 +612,11 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 return None
             return result
 
+        def _archive_preview_result_has_skeleton(result: object) -> bool:
+            preview_model = getattr(result, "preview_model", None)
+            overlay = getattr(preview_model, "physics_overlay", None)
+            return bool(tuple(getattr(overlay, "bones", ()) or ()))
+
         def _archive_material_preview_source_package() -> Optional[Path]:
             current_archive_result = _current_archive_material_preview_result()
             if isinstance(current_archive_result, ArchivePreviewResult):
@@ -651,19 +664,26 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             edited_kinds = {row_kind_by_id.get(row_id, "") for row_id in material_preview_edits}
             color_edits_active = "color" in edited_kinds
             material_effects_active = bool(material_preview_edits)
+            include_skeleton_overlay = show_skeleton_checkbox.isChecked()
             preview_generation["value"] += 1
             generation = preview_generation["value"]
             companion_entry = self._find_archive_preview_companion_entry(preview_model_entry)
             preview_settings = _material_value_preview_render_settings(material_effects_active=material_effects_active)
-            base_cache_key = f"{preview_model_entry.path}|{preview_settings.visible_texture_mode}"
+            base_cache_key = (
+                f"{preview_model_entry.path}|{preview_settings.visible_texture_mode}"
+                f"|skeleton={int(include_skeleton_overlay)}"
+            )
             current_archive_result = _current_archive_material_preview_result()
+            archive_source_package = _archive_material_preview_source_package()
+            if include_skeleton_overlay and not _archive_preview_result_has_skeleton(current_archive_result):
+                archive_source_package = None
             reusable_package_dir = (
-                _archive_material_preview_source_package()
+                archive_source_package
                 if not all_preview_edits
                 else None
             )
             fast_source_package_dir = (
-                _archive_material_preview_source_package()
+                archive_source_package
                 if material_preview_edits and not texture_edits_active
                 else None
             )
@@ -672,7 +692,15 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 if str(material_preview_base_result_state.get("key") or "") == base_cache_key and not texture_edits_active
                 else None
             )
-            if cached_base_result is None and not texture_edits_active and isinstance(current_archive_result, ArchivePreviewResult):
+            if (
+                cached_base_result is None
+                and not texture_edits_active
+                and isinstance(current_archive_result, ArchivePreviewResult)
+                and (
+                    not include_skeleton_overlay
+                    or _archive_preview_result_has_skeleton(current_archive_result)
+                )
+            ):
                 cached_base_result = current_archive_result
             preview_status_label.setText(material_sidecar_text.material_sidecar_building_preview_status())
 
@@ -687,6 +715,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 live=bool(live),
                 material_effects_active=material_effects_active,
                 color_edits_active=color_edits_active,
+                include_skeleton_overlay=include_skeleton_overlay,
                 preview_settings=preview_settings,
                 base_cache_key=base_cache_key,
                 reusable_package_dir=reusable_package_dir,
@@ -907,6 +936,19 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 task_accepts_cancel=True,
             )
 
+        def _handle_skeleton_overlay_toggled(enabled: bool) -> None:
+            if self.worker_thread is not None:
+                if preview_generation.get("worker") is getattr(self, "utility_worker", None):
+                    preview_generation["queued_live"] = True
+                    preview_status_label.setText(material_sidecar_text.material_sidecar_skeleton_overlay_queued_status())
+                else:
+                    preview_status_label.setText(material_sidecar_text.material_sidecar_background_task_busy_status())
+                return
+            if material_preview_process_state.get("package_dir") is None:
+                preview_status_label.setText(material_sidecar_text.material_sidecar_skeleton_overlay_status_text(enabled))
+                return
+            _start_material_preview_refresh(include_texture_edits=True, live=False)
+
         pick_color_button.clicked.connect(_pick_color)
         reset_button.clicked.connect(_reset_selected)
         show_preview_button.clicked.connect(lambda _checked=False: _start_material_preview_refresh(include_texture_edits=True, live=False))
@@ -914,6 +956,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         material_preview_settings_button.clicked.connect(
             lambda _checked=False, parent_dialog=dialog: self._open_modal_model_preview_settings_dialog(parent_dialog)
         )
+        show_skeleton_checkbox.toggled.connect(_handle_skeleton_overlay_toggled)
         export_button.clicked.connect(_export)
         close_button.clicked.connect(dialog.accept)
         tree.currentItemChanged.connect(lambda _current, _previous: _sync_selected_value_from_tree())

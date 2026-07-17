@@ -1269,7 +1269,7 @@ def build_archive_preview_result(
             )
             model_texture_references = merge_archive_reference_rows(model_texture_references, graph_references)
             add_timing("model_texture_references_s", references_started_at)
-            if model_preview is not None and model_texture_references:
+            if enable_hkx_visual_preview and model_preview is not None and model_texture_references:
                 overlay_started_at = time.perf_counter()
                 overlay_notes = _attach_hkx_physics_overlay_to_model_preview(
                     model_preview,

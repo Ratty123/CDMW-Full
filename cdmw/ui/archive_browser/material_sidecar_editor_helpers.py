@@ -201,6 +201,27 @@ def material_sidecar_preview_settings_tooltip_text() -> str:
     )
 
 
+def material_sidecar_skeleton_overlay_label_text() -> str:
+    return "Show skeleton overlay"
+
+
+def material_sidecar_skeleton_overlay_tooltip_text() -> str:
+    return (
+        "Off by default for PAC XML because related skeleton/HKX data does not affect material values. "
+        "Enable it only when rig or deformation context is useful."
+    )
+
+
+def material_sidecar_skeleton_overlay_status_text(enabled: bool) -> str:
+    if enabled:
+        return "Skeleton overlay will be loaded in the next preview."
+    return "Skeleton overlay is off; the next preview will load only material-relevant model data."
+
+
+def material_sidecar_skeleton_overlay_queued_status() -> str:
+    return "Skeleton overlay change queued; the preview will refresh after the current build."
+
+
 def material_sidecar_initial_preview_status_text() -> str:
     return "Preview has not been built yet."
 
@@ -627,6 +648,10 @@ __all__ = [
     "material_sidecar_preview_model_entry_state",
     "material_sidecar_preview_payload_status",
     "material_sidecar_preview_settings_tooltip_text",
+    "material_sidecar_skeleton_overlay_label_text",
+    "material_sidecar_skeleton_overlay_queued_status",
+    "material_sidecar_skeleton_overlay_status_text",
+    "material_sidecar_skeleton_overlay_tooltip_text",
     "material_sidecar_preview_task_status",
     "material_sidecar_prepare_failed_message",
     "material_sidecar_reused_package_summary",

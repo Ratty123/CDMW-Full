@@ -48,6 +48,7 @@ class MaterialSidecarPreviewBuildRequest:
     live: bool
     material_effects_active: bool
     color_edits_active: bool
+    include_skeleton_overlay: bool
     preview_settings: ModelPreviewRenderSettings
     base_cache_key: str
     reusable_package_dir: Optional[Path]
@@ -131,6 +132,7 @@ def fast_material_preview_package_from_manifest(
     preview_sidecar_text: str,
     edited_values: Mapping[str, str],
     color_edits_active: bool,
+    include_skeleton_overlay: bool = True,
     stop_event: Optional[threading.Event] = None,
 ) -> Optional[Tuple[Path, int, int, Tuple[str, ...]]]:
     try:
@@ -147,7 +149,7 @@ def fast_material_preview_package_from_manifest(
     if not isinstance(source_manifest, Mapping):
         return None
     overrides = discover_material_sidecar_preview_overrides_for_edits(preview_sidecar_text, edited_values)
-    if not overrides:
+    if not overrides and include_skeleton_overlay:
         return None
     manifest = copy.deepcopy(dict(source_manifest))
     batches = manifest.get("batches")
@@ -169,6 +171,22 @@ def fast_material_preview_package_from_manifest(
             source_package_dir,
             manifest.get("cloth_collider_file"),
         )
+    if not include_skeleton_overlay:
+        skeleton_overlay = dict(manifest.get("skeleton_overlay", {})) if isinstance(
+            manifest.get("skeleton_overlay"), Mapping
+        ) else {}
+        skeleton_overlay.update(
+            enabled=False,
+            status="disabled",
+            bone_count=0,
+            pose_enabled=False,
+            selected_bone_index=-1,
+            posed_bone_count=0,
+            pose_rotations=[],
+            bones=[],
+            diagnostics=["disabled in the material sidecar editor"],
+        )
+        manifest["skeleton_overlay"] = skeleton_overlay
 
     def labels(batch: Mapping[str, object]) -> set[str]:
         result = {
@@ -240,7 +258,7 @@ def fast_material_preview_package_from_manifest(
             check_cancelled()
             if isinstance(raw_batch, dict) and apply_override(raw_batch, overrides[0]):
                 matched_count += 1
-    if matched_count <= 0:
+    if matched_count <= 0 and include_skeleton_overlay:
         shutil.rmtree(package_dir, ignore_errors=True)
         return None
     vertex_count = sum(int(batch.get("vertex_count", 0) or 0) for batch in batches if isinstance(batch, Mapping))
@@ -254,7 +272,11 @@ def fast_material_preview_package_from_manifest(
         shutil.rmtree(package_dir, ignore_errors=True)
         raise
     check_cancelled()
-    notes = [f"manifest-only material update: {matched_count:,} batch(es)"]
+    notes = []
+    if matched_count:
+        notes.append(f"manifest-only material update: {matched_count:,} batch(es)")
+    if not include_skeleton_overlay:
+        notes.append("skeleton overlay omitted for material editing")
     notes.extend(
         tuple(
             dict.fromkeys(
@@ -275,7 +297,7 @@ def _reuse_or_fast_material_preview(
 ) -> Optional[MaterialSidecarPreviewBuildResult]:
     raise_if_cancelled(stop_event, "Material live preview cancelled.")
     reusable = request.reusable_package_dir
-    if reusable is not None and material_preview_package_matches_entry(
+    if request.include_skeleton_overlay and reusable is not None and material_preview_package_matches_entry(
         reusable,
         request.preview_model_entry,
         stop_event=stop_event,
@@ -303,6 +325,8 @@ def _reuse_or_fast_material_preview(
             0,
         )
     fast_source = request.fast_source_package_dir
+    if fast_source is None and not request.include_skeleton_overlay:
+        fast_source = reusable
     if fast_source is None or not material_preview_package_matches_entry(
         fast_source,
         request.preview_model_entry,
@@ -316,6 +340,7 @@ def _reuse_or_fast_material_preview(
         preview_sidecar_text=request.preview_sidecar_text,
         edited_values=request.material_preview_edits,
         color_edits_active=request.color_edits_active,
+        include_skeleton_overlay=request.include_skeleton_overlay,
         stop_event=stop_event,
     )
     if fast_package is None:
@@ -330,7 +355,7 @@ def _reuse_or_fast_material_preview(
         notes,
         (),
         request.live,
-        True,
+        request.material_effects_active,
         request.color_edits_active,
         max(0.0, (time.perf_counter() - started) * 1000.0),
         batch_count,
@@ -364,10 +389,13 @@ def _build_full_material_preview(
             sidecar_entries_by_texture_basename=request.sidecar_entries_by_texture_basename,
             include_loose_preview_assets=False,
             visible_texture_mode=request.preview_settings.visible_texture_mode,
+            enable_hkx_visual_preview=request.include_skeleton_overlay,
             stop_event=stop_event,
         )
         preview_model = request.clone_preview_model(result.preview_model, strip_images=True)
     raise_if_cancelled(stop_event, "Material live preview cancelled.")
+    if isinstance(preview_model, ModelPreviewData) and not request.include_skeleton_overlay:
+        preview_model = dataclasses.replace(preview_model, physics_overlay=None)
     if isinstance(preview_model, ModelPreviewData):
         bindings = _parse_archive_model_sidecar_texture_bindings(
             request.preview_sidecar_text,

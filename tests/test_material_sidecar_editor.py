@@ -85,6 +85,10 @@ from cdmw.ui.archive_browser.material_sidecar_editor_helpers import (
     material_sidecar_preview_process_kill_delay_ms,
     material_sidecar_preview_process_state,
     material_sidecar_preview_settings_tooltip_text,
+    material_sidecar_skeleton_overlay_label_text,
+    material_sidecar_skeleton_overlay_queued_status,
+    material_sidecar_skeleton_overlay_status_text,
+    material_sidecar_skeleton_overlay_tooltip_text,
     material_sidecar_preview_status_poll_interval_ms,
     material_sidecar_preview_task_status,
     material_sidecar_preview_unexpected_entry_status,
@@ -705,6 +709,11 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
             material_sidecar_preview_control_labels(),
         )
         self.assertIn("global preview settings", material_sidecar_preview_settings_tooltip_text())
+        self.assertEqual("Show skeleton overlay", material_sidecar_skeleton_overlay_label_text())
+        self.assertIn("Off by default", material_sidecar_skeleton_overlay_tooltip_text())
+        self.assertIn("will be loaded", material_sidecar_skeleton_overlay_status_text(True))
+        self.assertIn("only material-relevant", material_sidecar_skeleton_overlay_status_text(False))
+        self.assertIn("change queued", material_sidecar_skeleton_overlay_queued_status())
         self.assertEqual("Preview has not been built yet.", material_sidecar_initial_preview_status_text())
         self.assertEqual(
             ("Pick Color...", "Reset Selected", "Export Edited Material Mod...", "Close"),
