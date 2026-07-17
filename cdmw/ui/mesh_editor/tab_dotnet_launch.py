@@ -231,8 +231,8 @@ class MeshEditorDotNetLaunchMixin:
         self.standalone_dotnet_target_controller = controller
         if embedded:
             self._set_embedded_dotnet_state("launching", active=False)
-        defer_reference_material_synthesis = (
-            self._dotnet_defer_reference_material_synthesis_for_package(
+        mirror_reference_materials_to_editable = (
+            self._dotnet_mirror_reference_materials_to_editable_for_package(
                 embedded=embedded
             )
         )
@@ -242,7 +242,7 @@ class MeshEditorDotNetLaunchMixin:
             session_id=session_id,
             embedded=bool(embedded),
             executable=str(executable),
-            deferred_reference_material_synthesis=defer_reference_material_synthesis,
+            mirrored_reference_materials_to_editable=mirror_reference_materials_to_editable,
         )
         reference_mesh = self._dotnet_reference_mesh_for_package(controller, embedded=embedded)
         comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(embedded=embedded)
@@ -258,7 +258,7 @@ class MeshEditorDotNetLaunchMixin:
             reference_native_package=self._dotnet_reference_native_package_for_package(
                 embedded=embedded
             ),
-            defer_reference_material_synthesis=defer_reference_material_synthesis,
+            mirror_reference_materials_to_editable=mirror_reference_materials_to_editable,
             comparison_mode=comparison_mode,
             interaction_mode=interaction_mode,
             scene_transform=scene_transform,
@@ -320,14 +320,21 @@ class MeshEditorDotNetLaunchMixin:
         except Exception:
             return None
 
-    def _dotnet_defer_reference_material_synthesis_for_package(self, *, embedded: bool) -> bool:
+    def _dotnet_mirror_reference_materials_to_editable_for_package(self, *, embedded: bool) -> bool:
         if not embedded:
             return False
+        builder = self.active_builder()
         getter = getattr(
-            self.active_builder(),
-            "_mesh_editor_embedded_defer_reference_material_synthesis",
+            builder,
+            "_mesh_editor_embedded_mirror_reference_materials_to_editable",
             None,
         )
+        if not callable(getter):
+            getter = getattr(
+                builder,
+                "_mesh_editor_embedded_defer_reference_material_synthesis",
+                None,
+            )
         if not callable(getter):
             return False
         try:

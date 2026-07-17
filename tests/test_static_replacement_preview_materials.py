@@ -4,6 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.ui.archive_browser.static_replacement_preview_materials import (
+    apply_resolved_original_materials_to_resident_editor,
     apply_original_material_preview,
     copy_exact_clone_original_preview_materials,
     copy_original_preview_material,
@@ -174,6 +175,36 @@ def test_copy_exact_clone_original_preview_materials_requires_clone_preview_stat
         original_reference_preview_model=original_model,
     )
     assert [mesh.material_name for mesh in preview_model.meshes] == ["A", "B"]
+
+
+def test_baked_modify_original_package_keeps_late_raw_bindings_out_of_resident_roles() -> None:
+    preview_model = SimpleNamespace(
+        meshes=[_mesh(preview_texture_path="C:/cache/original.dds")]
+    )
+    replacement_mesh_base = SimpleNamespace(submeshes=[SimpleNamespace()])
+    replacement_mesh = SimpleNamespace(submeshes=[SimpleNamespace()])
+    resident_updates: list[str] = []
+    dialog = SimpleNamespace(
+        _mesh_editor_embedded_apply_clone_material_resources=(
+            lambda _model: resident_updates.append("clone")
+        ),
+        _mesh_editor_embedded_apply_reference_material_resources=(
+            lambda _model: resident_updates.append("reference")
+        ),
+    )
+
+    apply_resolved_original_materials_to_resident_editor(
+        dialog=dialog,
+        replacement_mesh_base=replacement_mesh_base,
+        replacement_mesh=replacement_mesh,
+        preview_model=preview_model,
+        modify_original_clone_mode=True,
+        publish_resident_updates=False,
+    )
+
+    assert replacement_mesh_base.submeshes[0].preview_texture_path == "C:/cache/original.dds"
+    assert replacement_mesh.submeshes[0].preview_texture_path == "C:/cache/original.dds"
+    assert resident_updates == []
 
 
 def test_apply_original_material_preview_uses_direct_source_preview_map() -> None:

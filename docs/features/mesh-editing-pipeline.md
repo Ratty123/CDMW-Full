@@ -443,9 +443,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   Material Response, and Layer Mask. Each choice maps directly to a resident
   Vortice lighting or material-debug path, and partial presentation updates
   preserve the selected mode.
-  brush tools show their active button, gesture hint, and radius circle in the
+  Builder UV scale/offset/rotation and Flip U/V apply only to editable batches;
+  the immutable original/reference role keeps its own source and material
+  orientation even in Overlay mode.
+  Brush tools show their active button, gesture hint, and radius circle in the
   viewport. OBJ/glTF/GLB/DAE sources automatically apply the existing Flip V
-  normalization, including imports prepared inside the preflight worker.
+  normalization, including imports prepared inside the preflight worker. .NET
+  material synthesis preserves that source orientation across raw and generated
+  channels, so support-map baking cannot discard the automatic normalization.
   a ready acknowledgement stops any covered native D3D11 sibling once so it
   cannot paint over the child. Production readiness is emitted only after
   textures/material bindings are applied and the Vortice viewport has presented
@@ -460,11 +465,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   file identity to reuse hard-linked SRVs across package paths. The host builds
   the handoff package in
   `MeshDotNetExperimentPackageWorker`, and launches the process with input
-  metadata, status, output, and edit-operation paths. Deferred Modify Original
-  startup keeps direct source DDS/base/normal
-  bindings in that first package but defers duplicate reference material-graph
-  baking to the already-running prepared-model result. That result updates both
-  exact-clone and original-reference roles through the resident material lane.
+  metadata, status, output, and edit-operation paths. Modify Original mirrors
+  the complete native reference material graph onto its exact editable clone
+  before the first package is built, then lets the same package worker synthesize
+  both roles. A later raw prepared-model result is retained for future rebuilds
+  but cannot replace those baked resident bindings, keeping the original role
+  consistent with Import Mesh.
   Supplemental original-only parts do not prevent uniquely named clone
   materials from binding.
   Embedded interaction

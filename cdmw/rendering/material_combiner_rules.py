@@ -21,6 +21,7 @@ class MaterialPreviewCombinerSettings:
     normal_strength_cap: float = 1.0
     height_amount: float = 0.04
     support_map_max_dimension: int = 256
+    preserve_texture_orientation: bool = False
 
 
 @dataclass(frozen=True, slots=True)

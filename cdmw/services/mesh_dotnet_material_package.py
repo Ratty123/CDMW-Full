@@ -686,6 +686,7 @@ def _synthesize_dotnet_material_channels(
                 normal_strength_cap=1.0,
                 height_amount=0.028,
                 support_map_max_dimension=192,
+                preserve_texture_orientation=True,
             ),
             cancelled=cancelled,
         )

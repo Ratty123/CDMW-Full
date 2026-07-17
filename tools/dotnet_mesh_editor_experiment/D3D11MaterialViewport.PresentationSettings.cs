@@ -277,20 +277,26 @@ internal sealed partial class D3D11MaterialViewport
             "emissive" or "emissive_v2" => 6.0f,
             _ => 0.0f,
         };
+        var applyEditableUvTransform = _scene.IsEditable(batch.SubmeshIndex);
+        var uvScale = applyEditableUvTransform && !settings.DisableUvScale
+            ? settings.UvScale
+            : Vector2.One;
+        var uvOffset = applyEditableUvTransform ? settings.UvOffset : Vector2.Zero;
+        var uvRotationDegrees = applyEditableUvTransform ? settings.UvRotationDegrees : 0.0f;
+        var flipU = applyEditableUvTransform && settings.FlipU;
+        var flipV = (applyEditableUvTransform && settings.FlipV)
+            ^ settings.FlipTextureV
+            ^ _materials.TextureFlipVerticalForSubmesh(materialSubmeshIndex);
         constants.PresentationUvScaleOffset = new Vector4(
-            settings.DisableUvScale ? 1.0f : settings.UvScale.X,
-            settings.DisableUvScale ? 1.0f : settings.UvScale.Y,
-            settings.UvOffset.X,
-            settings.UvOffset.Y);
+            uvScale.X,
+            uvScale.Y,
+            uvOffset.X,
+            uvOffset.Y);
         constants.PresentationUvRotationFlip = new Vector4(
-            MathF.Cos(settings.UvRotationDegrees * MathF.PI / 180.0f),
-            MathF.Sin(settings.UvRotationDegrees * MathF.PI / 180.0f),
-            settings.FlipU ? -1.0f : 1.0f,
-            settings.FlipV
-                ^ settings.FlipTextureV
-                ^ _materials.TextureFlipVerticalForSubmesh(materialSubmeshIndex)
-                ? -1.0f
-                : 1.0f);
+            MathF.Cos(uvRotationDegrees * MathF.PI / 180.0f),
+            MathF.Sin(uvRotationDegrees * MathF.PI / 180.0f),
+            flipU ? -1.0f : 1.0f,
+            flipV ? -1.0f : 1.0f);
         constants.PresentationSurfaceTuning = new Vector4(
             settings.RoughnessBias,
             settings.MetalnessScale,

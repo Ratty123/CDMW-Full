@@ -145,14 +145,18 @@ def apply_resolved_original_materials_to_resident_editor(
     replacement_mesh: object,
     preview_model: object,
     modify_original_clone_mode: bool,
+    publish_resident_updates: bool = True,
 ) -> None:
-    """Publish late original bindings to the resident reference and exact clone."""
+    """Store late bindings and publish them when the initial package did not bake them."""
     if modify_original_clone_mode:
         copy_dotnet_preview_material_bindings(replacement_mesh_base, preview_model)
         copy_dotnet_preview_material_bindings(replacement_mesh, preview_model)
-        apply_clone = getattr(dialog, "_mesh_editor_embedded_apply_clone_material_resources", None)
-        if callable(apply_clone):
-            apply_clone(preview_model)
+        if publish_resident_updates:
+            apply_clone = getattr(dialog, "_mesh_editor_embedded_apply_clone_material_resources", None)
+            if callable(apply_clone):
+                apply_clone(preview_model)
+    if not publish_resident_updates:
+        return
     apply_reference = getattr(dialog, "_mesh_editor_embedded_apply_reference_material_resources", None)
     if callable(apply_reference):
         apply_reference(preview_model)

@@ -5656,7 +5656,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("from cdmw.ui.native_preview_panel import NativePreviewPanel", widgets_source)
         self.assertIn("class NativePreviewPanel(QWidget)", native_panel_source)
 
-    def test_modify_original_resident_bootstrap_defers_duplicate_material_synthesis(self) -> None:
+    def test_modify_original_resident_bootstrap_bakes_one_shared_material_graph(self) -> None:
         source = (
             ROOT
             / "cdmw"
@@ -5671,6 +5671,21 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_state.context.get('modify_original_clone_mode')", binding)
         self.assertIn("_state.context.get('defer_original_texture_preview')", binding)
         self.assertIn("prepared_model is None", binding)
+        worker_source = (
+            ROOT / "cdmw" / "workers" / "mesh_editor_aux_workers.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("mirror_reference_materials_to_editable", worker_source)
+        self.assertNotIn("defer_dotnet_preview_material_synthesis", worker_source)
+        launch_source = (
+            ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_launch.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn("_mesh_editor_embedded_mirror_reference_materials_to_editable", launch_source)
+        self.assertIn("_mesh_editor_embedded_defer_reference_material_synthesis", launch_source)
+        resident_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS.read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("publish_resident_updates=not (", resident_source)
+        self.assertIn("int(native_material_batches or 0) > 0", resident_source)
         self.assertIn("'_mesh_editor_embedded_set_preview_loading'", source)
 
 

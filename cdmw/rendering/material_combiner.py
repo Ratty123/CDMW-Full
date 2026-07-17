@@ -296,6 +296,9 @@ def combine_preview_material(
     outputs: list[str] = []
     decode_modes: list[str] = []
     flip_vertical = bool(getattr(payload, "texture_flip_vertical", False))
+    prepare_flip_vertical = bool(
+        flip_vertical and not settings.preserve_texture_orientation
+    )
     alpha_mode = str(getattr(payload, "alpha_mode", "") or "").strip().casefold()
     preserve_base_alpha = alpha_mode in {
         "alpha_blend",
@@ -357,7 +360,7 @@ def combine_preview_material(
             image,
             output_dir,
             f"batch_{batch_index:03d}_base",
-            flip_vertical=flip_vertical,
+            flip_vertical=prepare_flip_vertical,
             force_opaque=not preserve_base_alpha,
             max_dimension=base_map_max_dimension,
         )
@@ -400,7 +403,7 @@ def combine_preview_material(
             _mask_inputs_for_albedo(inputs),
             output_dir,
             f"batch_{batch_index:03d}",
-            flip_vertical=flip_vertical,
+            flip_vertical=prepare_flip_vertical,
             max_dimension=min(base_map_max_dimension, 512),
             neutral_base_color=neutral_base_color,
             preserve_base_alpha=preserve_base_alpha,
@@ -422,7 +425,7 @@ def combine_preview_material(
         selected_base_image=selected_base_image,
         output_dir=output_dir,
         batch_index=batch_index,
-        flip_vertical=flip_vertical,
+        flip_vertical=prepare_flip_vertical,
         base_map_max_dimension=base_map_max_dimension,
         preserve_base_alpha=preserve_base_alpha,
         base_source=base_source,
@@ -440,7 +443,7 @@ def combine_preview_material(
         output_dir=output_dir,
         batch_index=batch_index,
         tangents_usable=tangents_usable,
-        flip_vertical=flip_vertical,
+        flip_vertical=prepare_flip_vertical,
         support_map_max_dimension=support_map_max_dimension,
         notes=notes,
         outputs=outputs,
@@ -556,7 +559,7 @@ def combine_preview_material(
             layer_mask=layer_mask_image if not layer_mask_image.isNull() else None,
             layer_mask_channel=layer_mask_channel,
             layer_weight=layer_weight,
-            flip_vertical=flip_vertical,
+            flip_vertical=prepare_flip_vertical,
             max_dimension=support_map_max_dimension,
             cancelled=cancelled,
         )
@@ -666,7 +669,7 @@ def combine_preview_material(
             image,
             output_dir,
             f"batch_{batch_index:03d}_{height_index:02d}",
-            flip_vertical=flip_vertical,
+            flip_vertical=prepare_flip_vertical,
             max_dimension=support_map_max_dimension,
             cancelled=cancelled,
         )
@@ -700,7 +703,7 @@ def combine_preview_material(
             height_image,
             output_dir,
             f"batch_{batch_index:03d}",
-            flip_vertical=flip_vertical,
+            flip_vertical=prepare_flip_vertical,
             max_dimension=support_map_max_dimension,
             cancelled=cancelled,
         )
@@ -731,7 +734,11 @@ def combine_preview_material(
         notes=tuple(dict.fromkeys(notes)),
         outputs=tuple(dict.fromkeys(outputs)),
         active=bool(outputs or notes),
-        texture_flip_vertical=False if outputs else flip_vertical,
+        texture_flip_vertical=(
+            flip_vertical
+            if settings.preserve_texture_orientation
+            else (False if outputs else flip_vertical)
+        ),
     )
 
 

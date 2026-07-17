@@ -19,10 +19,7 @@ from cdmw.services.mesh_dotnet_experiment import (
     write_mesh_dotnet_experiment_evaluation,
 )
 from cdmw.services.mesh_service import MeshService
-from cdmw.services.mesh_dotnet_material_state import (
-    copy_dotnet_preview_material_bindings,
-    defer_dotnet_preview_material_synthesis,
-)
+from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
 from cdmw.services.mesh_dotnet_reference_composite import (
     apply_dotnet_native_reference_materials,
     append_dotnet_native_reference_composite,
@@ -178,7 +175,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
         reference_mesh: ParsedMesh | None = None,
         reference_material_source: object | None = None,
         reference_native_package: Path | str | None = None,
-        defer_reference_material_synthesis: bool = False,
+        mirror_reference_materials_to_editable: bool = False,
         comparison_mode: str = "side_by_side",
         interaction_mode: str = "placement",
         scene_transform: StaticReplacementTransform | None = None,
@@ -192,7 +189,9 @@ class MeshDotNetExperimentPackageWorker(QObject):
         self.reference_mesh = reference_mesh
         self.reference_material_source = reference_material_source
         self.reference_native_package = Path(reference_native_package) if reference_native_package else None
-        self.defer_reference_material_synthesis = bool(defer_reference_material_synthesis)
+        self.mirror_reference_materials_to_editable = bool(
+            mirror_reference_materials_to_editable
+        )
         self.comparison_mode = str(comparison_mode or "side_by_side")
         self.interaction_mode = str(interaction_mode or "placement")
         self.scene_transform = scene_transform
@@ -228,8 +227,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
                     self.reference_native_package,
                     cancelled=self.stop_event.is_set,
                 )
-            if reference_mesh is not None and self.defer_reference_material_synthesis:
-                defer_dotnet_preview_material_synthesis(reference_mesh)
+            if reference_mesh is not None and self.mirror_reference_materials_to_editable:
                 copy_dotnet_preview_material_bindings(mesh, reference_mesh)
             if self.stop_event.is_set():
                 return

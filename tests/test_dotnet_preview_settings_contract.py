@@ -384,6 +384,16 @@ def test_texture_toggle_and_view_mode_are_synchronized_across_resident_role_pane
     assert 'string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)' in panes
 
 
+def test_builder_uv_transforms_apply_only_to_the_editable_preview_role() -> None:
+    settings = _source("D3D11MaterialViewport.PresentationSettings.cs")
+
+    assert "var applyEditableUvTransform = _scene.IsEditable(batch.SubmeshIndex);" in settings
+    assert "var uvOffset = applyEditableUvTransform ? settings.UvOffset : Vector2.Zero;" in settings
+    assert "var flipU = applyEditableUvTransform && settings.FlipU;" in settings
+    assert "var flipV = (applyEditableUvTransform && settings.FlipV)" in settings
+    assert "^ _materials.TextureFlipVerticalForSubmesh(materialSubmeshIndex);" in settings
+
+
 def test_only_side_by_side_uses_two_resident_role_panes() -> None:
     split = _source("MeshViewport.SplitView.cs")
 

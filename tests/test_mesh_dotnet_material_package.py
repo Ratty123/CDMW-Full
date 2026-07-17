@@ -228,12 +228,15 @@ def test_package_only_replaces_base_for_authoritative_combiner_layer_graphs(
     assert (tmp_path / "package" / generated_resource["path"]).is_file()
 
 
-def test_package_expands_generic_packed_mask_into_individual_support_maps(tmp_path: Path) -> None:
+def test_package_expands_generic_packed_mask_without_losing_source_v_orientation(
+    tmp_path: Path,
+) -> None:
     base = _image(tmp_path / "generic_base.png", (52, 64, 78, 255))
     normal = _image(tmp_path / "generic_normal.png", (128, 142, 255, 255))
     height = _image(tmp_path / "generic_height.png", (32, 96, 180, 255))
     packed = _image(tmp_path / "generic_orm.png", (220, 80, 190, 255))
     submesh = _submesh("generic_packed")
+    submesh.preview_texture_flip_vertical = True
     submesh.preview_material_texture_inputs = (
         PreviewMaterialTextureInput(
             slot_kind="base",
@@ -297,6 +300,9 @@ def test_package_expands_generic_packed_mask_into_individual_support_maps(tmp_pa
         != binding["resolved_channels"].get(channel)
     }
     assert changed_channels == generated
+    assert binding["texture_flip_vertical"] is True
+    assert binding["material_synthesis"]["texture_flip_vertical"] is True
+    assert "mirrored-v" not in binding["material_synthesis"].get("base_note", "")
     assert "preview_support_maps_baked" in binding["resolved_features"]
     assert binding["channel_components"]["roughness"] == "r"
     assert binding["channel_components"]["metallic"] == "r"

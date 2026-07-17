@@ -375,6 +375,9 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
                 replacement_mesh=state.replacement_mesh_for_mapping,
                 preview_model=preview_model_object,
                 modify_original_clone_mode=bool(modify_original_clone_mode),
+                publish_resident_updates=not (
+                    bool(modify_original_clone_mode) and int(native_material_batches or 0) > 0
+                ),
             )
         if ready_state.should_apply_manifest_performance:
             _set_preview_performance_status(ready_state.manifest_performance.summary, details=ready_state.manifest_performance.details)

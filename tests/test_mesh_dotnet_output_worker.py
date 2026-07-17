@@ -10,6 +10,63 @@ from cdmw.workers import mesh_editor_aux_workers, mesh_editor_workers
 from tests.test_mesh_dotnet_experiment import _mesh
 
 
+def test_dotnet_package_worker_keeps_modify_original_graph_for_shared_synthesis(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    editable = _mesh()
+    reference = _mesh()
+    graph_input = SimpleNamespace(
+        semantic_type="layer_color",
+        slot_kind="material",
+        preview_texture_path="C:/cache/layer.dds",
+    )
+    reference.submeshes[0].preview_material_texture_inputs = (graph_input,)
+    captured: dict[str, object] = {}
+
+    class Service:
+        def working_mesh(self, _session_id: str, *, clone: bool) -> ParsedMesh:
+            assert clone
+            return editable
+
+        def session_view(self, _session_id: str) -> object:
+            return SimpleNamespace(selection=SimpleNamespace())
+
+    def capture_package(mesh: ParsedMesh, **kwargs: object) -> object:
+        captured["mesh"] = mesh
+        captured["reference_mesh"] = kwargs["reference_mesh"]
+        return SimpleNamespace(package_dir=tmp_path)
+
+    monkeypatch.setattr(
+        mesh_editor_aux_workers,
+        "build_mesh_dotnet_experiment_package",
+        capture_package,
+    )
+    worker = mesh_editor_aux_workers.MeshDotNetExperimentPackageWorker(
+        20,
+        Service(),
+        "session",
+        reference_mesh=reference,
+        mirror_reference_materials_to_editable=True,
+    )
+    errors: list[str] = []
+    worker.error.connect(lambda _request_id, message: errors.append(str(message)))
+
+    worker.run()
+
+    assert errors == []
+    packaged_editable = captured["mesh"]
+    packaged_reference = captured["reference_mesh"]
+    assert isinstance(packaged_editable, ParsedMesh)
+    assert isinstance(packaged_reference, ParsedMesh)
+    assert packaged_editable.submeshes[0].preview_material_texture_inputs
+    assert packaged_reference.submeshes[0].preview_material_texture_inputs
+    assert (
+        packaged_editable.submeshes[0].preview_material_texture_inputs[0].semantic_type
+        == "layer_color"
+    )
+
+
 def test_dotnet_output_import_worker_cancels_before_commit_without_mutation(
     tmp_path: Path,
     monkeypatch,
