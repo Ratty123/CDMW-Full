@@ -646,6 +646,38 @@ def mesh_center_for_ui(mesh: object) -> tuple[float, float, float]:
     )
 
 
+def modify_original_centered_transform_anchors(
+    mesh: object,
+    *,
+    modify_original_clone_mode: bool,
+    alignment_mode: object,
+) -> tuple[
+    tuple[float, float, float] | None,
+    tuple[float, float, float] | None,
+]:
+    """Keep Modify Original manual transforms centered without moving the mesh."""
+
+    normalized_mode = str(alignment_mode or "").strip().lower()
+    if not modify_original_clone_mode or normalized_mode not in {"manual", "none", "off"}:
+        return None, None
+    renderable_vertices = [
+        vertex
+        for submesh in getattr(mesh, "submeshes", ()) or ()
+        if not is_marker_source(submesh)
+        for vertex in getattr(submesh, "vertices", ()) or ()
+    ]
+    if renderable_vertices:
+        xs, ys, zs = zip(*renderable_vertices)
+        center = (
+            (min(xs) + max(xs)) * 0.5,
+            (min(ys) + max(ys)) * 0.5,
+            (min(zs) + max(zs)) * 0.5,
+        )
+    else:
+        center = mesh_center_for_ui(mesh)
+    return center, center
+
+
 def model_bounds_x(model: object) -> tuple[float, float]:
     values: list[float] = []
     for mesh in getattr(model, "meshes", ()) or ():
@@ -731,6 +763,7 @@ __all__ = [
     "material_routing_conflict_messages",
     "material_route_status_color",
     "mesh_center_for_ui",
+    "modify_original_centered_transform_anchors",
     "model_bounds_x",
     "native_manifest_input_from_descriptor",
     "part_specific_tokens",

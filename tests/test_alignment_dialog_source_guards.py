@@ -3604,7 +3604,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("_alignment_d3d11_live_frame_available()", queue_block)
         self.assertNotIn("alignment_d3d11_reload_timer", queue_block)
 
-    def test_alignment_d3d11_gizmo_defaults_to_whole_replacement_mesh(self) -> None:
+    def test_alignment_d3d11_gizmo_defaults_visible_and_tracks_the_checkbox(self) -> None:
         source = _main_window_source()
         prep_source = (ROOT / "cdmw" / "rendering" / "model_preview_prepare.py").read_text(encoding="utf-8")
         preview_status_source = ARCHIVE_STATIC_REPLACEMENT_PREVIEW_STATUS_STATE.read_text(encoding="utf-8")
@@ -3614,9 +3614,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('preview_mesh_edit_checkbox = QCheckBox("Edit Mesh")', source)
         self.assertIn("mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox", source)
         self.assertIn('"part_pick": "Part Pick"', preview_status_source)
-        self.assertIn("preview_gizmo_checkbox.setChecked(False)", source)
+        self.assertIn("preview_gizmo_checkbox.setChecked(True)", source)
         self.assertIn("preview_part_pick_checkbox.setChecked(False)", source)
-        self.assertNotIn("preview_gizmo_checkbox.setChecked(True)", source)
+        self.assertNotIn("preview_gizmo_checkbox.setChecked(False)", source)
         self.assertIn("def _sync_highlight_sets_when_ready(*args, **kwargs):", source)
         self.assertIn("'_sync_highlight_sets': _sync_highlight_sets_when_ready", source)
         self.assertIn("preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())", source)
@@ -3627,6 +3627,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def selection_highlight_sets_state", selection_highlight_state_source)
         selection_source = static_replacement_callback_concern_source(ROOT, "preview_mode")
         self.assertIn("preview_gizmo_checked=bool(_state.preview_gizmo_checkbox.isChecked())", selection_source)
+        self.assertIn("gizmo_visible=bool(_state.preview_gizmo_checkbox.isChecked())", selection_source)
         self.assertIn("part_pick_checked=part_pick_checked", selection_source)
         self.assertIn("_state.alignment_d3d11_preview_host.set_source_part_picking(part_pick_checked)", selection_source)
         self.assertIn("enabled=bool(selection_state['d3d11_gizmo_enabled'])", selection_source)
@@ -3648,7 +3649,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_alignment_fast_preview_does_not_replace_export_options(self) -> None:
         source = _main_window_source()
         static_source = _static_replacer_source()
+        transform_drag_source = static_replacement_callback_concern_source(ROOT, "transform_drag")
         self.assertIn("def _current_static_alignment_transform() -> StaticReplacementTransform:", source)
+        self.assertIn("modify_original_centered_transform_anchors(", source)
+        self.assertIn("source_anchor=source_anchor", source)
+        self.assertIn("target_anchor=target_anchor", source)
+        self.assertIn("modify_original_centered_transform_anchors(", transform_drag_source)
         self.assertIn("rotate_xyz_degrees=(", source)
         self.assertIn("_state._spin_value('rotate_x_spin')", source)
         self.assertIn("offset_xyz=(", source)

@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
+    modify_original_centered_transform_anchors,
+)
+
+
 def _transform_drag_step_001(_state):
     _state.Dict = _state.context.get('Dict')
     _state.List = _state.context.get('List')
@@ -475,7 +480,23 @@ def _transform_drag_step_027(_state):
         if preview_replacement_mesh is None:
             return None
         try:
-            alignment = _state._compute_anchor_alignment(_state.original_mesh_for_mapping, preview_replacement_mesh, _state.StaticReplacementTransform(scale_to_original_length=bool(_state.scale_to_length_checkbox.isChecked()), alignment_mode=str(_state.alignment_mode_combo.currentData() or 'grid_flat'), flip_target_axis=bool(_state.flip_direction_checkbox.isChecked())))
+            alignment_mode = str(_state.alignment_mode_combo.currentData() or 'grid_flat')
+            source_anchor, target_anchor = modify_original_centered_transform_anchors(
+                _state.original_mesh_for_mapping,
+                modify_original_clone_mode=bool(_state.modify_original_clone_mode),
+                alignment_mode=alignment_mode,
+            )
+            alignment = _state._compute_anchor_alignment(
+                _state.original_mesh_for_mapping,
+                preview_replacement_mesh,
+                _state.StaticReplacementTransform(
+                    scale_to_original_length=bool(_state.scale_to_length_checkbox.isChecked()),
+                    alignment_mode=alignment_mode,
+                    source_anchor=source_anchor,
+                    target_anchor=target_anchor,
+                    flip_target_axis=bool(_state.flip_direction_checkbox.isChecked()),
+                ),
+            )
             offset = (float(_state.offset_x_spin.value()), float(_state.offset_y_spin.value()), float(_state.offset_z_spin.value()))
             center = tuple(getattr(_state.original_reference_preview_model, 'normalization_center', (0.0, 0.0, 0.0)) or (0.0, 0.0, 0.0))
             while len(center) < 3:

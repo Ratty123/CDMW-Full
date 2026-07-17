@@ -1,5 +1,10 @@
 from __future__ import annotations
 
+from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
+    modify_original_centered_transform_anchors,
+)
+
+
 def _preview_model_step_001(_state):
     _state.CollapsibleSection = _state.context.get('CollapsibleSection')
     _state.Dict = _state.context.get('Dict')
@@ -371,7 +376,35 @@ def _preview_model_step_018(_state):
 def _preview_model_step_019(_state):
 
     def _current_static_alignment_transform() -> StaticReplacementTransform:
-        return _state.StaticReplacementTransform(rotate_xyz_degrees=(_state._spin_value('rotate_x_spin'), _state._spin_value('rotate_y_spin'), _state._spin_value('rotate_z_spin')), scale=_state._spin_value('scale_x_spin', 1.0), scale_xyz=(_state._spin_value('scale_x_spin', 1.0), _state._spin_value('scale_y_spin', 1.0), _state._spin_value('scale_z_spin', 1.0)), offset_xyz=(_state._spin_value('offset_x_spin'), _state._spin_value('offset_y_spin'), _state._spin_value('offset_z_spin')), scale_to_original_length=_state._checkbox_checked('scale_to_length_checkbox'), alignment_mode=str(_state._combo_data('alignment_mode_combo') or 'grid_flat'), flip_target_axis=_state._checkbox_checked('flip_direction_checkbox'))
+        alignment_mode = str(_state._combo_data('alignment_mode_combo') or 'grid_flat')
+        source_anchor, target_anchor = modify_original_centered_transform_anchors(
+            _state.original_mesh_for_mapping,
+            modify_original_clone_mode=bool(_state.modify_original_clone_mode),
+            alignment_mode=alignment_mode,
+        )
+        return _state.StaticReplacementTransform(
+            rotate_xyz_degrees=(
+                _state._spin_value('rotate_x_spin'),
+                _state._spin_value('rotate_y_spin'),
+                _state._spin_value('rotate_z_spin'),
+            ),
+            scale=_state._spin_value('scale_x_spin', 1.0),
+            scale_xyz=(
+                _state._spin_value('scale_x_spin', 1.0),
+                _state._spin_value('scale_y_spin', 1.0),
+                _state._spin_value('scale_z_spin', 1.0),
+            ),
+            offset_xyz=(
+                _state._spin_value('offset_x_spin'),
+                _state._spin_value('offset_y_spin'),
+                _state._spin_value('offset_z_spin'),
+            ),
+            scale_to_original_length=_state._checkbox_checked('scale_to_length_checkbox'),
+            alignment_mode=alignment_mode,
+            source_anchor=source_anchor,
+            target_anchor=target_anchor,
+            flip_target_axis=_state._checkbox_checked('flip_direction_checkbox'),
+        )
     _state._current_static_alignment_transform = _current_static_alignment_transform
 
 def _preview_model_step_020(_state):

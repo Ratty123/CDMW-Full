@@ -163,7 +163,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     overlay_original_locked_checkbox.setToolTip(alignment_preview_control_text["overlay_original_locked_tooltip"])
     preview_controls_row.addWidget(overlay_original_locked_checkbox)
     preview_gizmo_checkbox = QCheckBox(alignment_preview_control_text["gizmo"])
-    preview_gizmo_checkbox.setChecked(False)
+    preview_gizmo_checkbox.setChecked(True)
     preview_gizmo_checkbox.setToolTip(alignment_preview_control_text["gizmo_tooltip"])
     preview_controls_row.addWidget(preview_gizmo_checkbox)
     preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"])

@@ -15,6 +15,9 @@ from cdmw.modding.static_mesh_scene_frame import (
     static_scene_source_identity,
 )
 from cdmw.modding.static_mesh_types import StaticReplacementTransform
+from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
+    modify_original_centered_transform_anchors,
+)
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import MeshEditorDotNetProtocolMixin
 from cdmw.ui.mesh_editor.tab_state import MeshEditorStateMixin
 
@@ -136,6 +139,34 @@ def test_world_bounds_use_transformed_vertices_and_pivots_follow_authority() -> 
     _assert_vec(frame.placement_pivot, frame.transform.transform_point((1.0, 2.0, 3.0)))
     assert frame.selection_pivot is not None
     _assert_vec(frame.selection_pivot, frame.transform.transform_point((0.0, 1.0, 2.0)))
+
+
+def test_modify_original_manual_pivot_matches_edit_bounds_without_moving_mesh() -> None:
+    mesh = _mesh(
+        "original.pac",
+        [(-2.0, 1.0, 4.0), (6.0, 3.0, -2.0), (1.0, -5.0, 10.0)],
+    )
+    source_anchor, target_anchor = modify_original_centered_transform_anchors(
+        mesh,
+        modify_original_clone_mode=True,
+        alignment_mode="manual",
+    )
+    frame = build_authoritative_static_scene_frame(
+        mesh,
+        mesh,
+        StaticReplacementTransform(
+            alignment_mode="manual",
+            scale_to_original_length=False,
+            source_anchor=source_anchor,
+            target_anchor=target_anchor,
+        ),
+        comparison_mode="replacement_only",
+        interaction_mode="placement",
+    )
+
+    _assert_vec(frame.placement_pivot, frame.editable.world_bounds.center)
+    for vertex in mesh.submeshes[0].vertices:
+        _assert_vec(frame.transform.transform_point(vertex), vertex)
 
 
 def test_grid_flat_floor_correction_and_model_matrix_share_transform_frame() -> None:

@@ -21,6 +21,7 @@ from cdmw.ui.archive_browser.static_replacement_dialog_helpers import (
     is_gltf_metallic_roughness_path,
     mapping_status_summary_badge,
     mesh_center_for_ui,
+    modify_original_centered_transform_anchors,
     model_bounds_x,
     native_manifest_input_from_descriptor,
     rough_control_value_from_settings,
@@ -66,6 +67,34 @@ def test_mesh_center_for_ui_uses_vertex_bounds_midpoint() -> None:
 
 def test_mesh_center_for_ui_defaults_when_mesh_has_no_vertices() -> None:
     assert mesh_center_for_ui(SimpleNamespace(submeshes=())) == (0.0, 0.0, 0.0)
+
+
+def test_modify_original_manual_transform_anchors_use_renderable_mesh_center() -> None:
+    mesh = SimpleNamespace(
+        submeshes=(
+            SimpleNamespace(name="body", material="cloth", vertices=((-2.0, 1.0, 4.0), (6.0, 3.0, -2.0))),
+            SimpleNamespace(name="cdmw_anchor", material="marker", vertices=((100.0, 100.0, 100.0),)),
+        )
+    )
+
+    source_anchor, target_anchor = modify_original_centered_transform_anchors(
+        mesh,
+        modify_original_clone_mode=True,
+        alignment_mode="manual",
+    )
+
+    assert source_anchor == (2.0, 2.0, 1.0)
+    assert target_anchor == source_anchor
+    assert modify_original_centered_transform_anchors(
+        mesh,
+        modify_original_clone_mode=False,
+        alignment_mode="manual",
+    ) == (None, None)
+    assert modify_original_centered_transform_anchors(
+        mesh,
+        modify_original_clone_mode=True,
+        alignment_mode="grid_flat",
+    ) == (None, None)
 
 
 def test_model_bounds_x_uses_valid_position_x_values() -> None:

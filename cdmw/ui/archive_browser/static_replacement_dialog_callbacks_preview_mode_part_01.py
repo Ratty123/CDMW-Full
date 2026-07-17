@@ -178,7 +178,7 @@ def _preview_mode_step_009(_state):
             hovered_source_index=hovered_source_index,
             hidden_source_indices=tuple(_state._disabled_source_indices()),
             grid_visible=True,
-            gizmo_visible=bool(selection_state['d3d11_gizmo_enabled']),
+            gizmo_visible=bool(_state.preview_gizmo_checkbox.isChecked()),
             part_pick_enabled=part_pick_checked,
         )
         if send_resident_presentation_state(_state.dialog, resident_state):
