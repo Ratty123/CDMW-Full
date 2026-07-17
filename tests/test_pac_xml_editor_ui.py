@@ -6,12 +6,17 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QGraphicsSimpleTextItem,
+    QMessageBox,
+)
 
 from cdmw.core.material_sidecar_editor import discover_material_sidecar_values
 from cdmw.domain.pac_xml_editor import parse_pac_xml_document
 from cdmw.domain.pac_xml_graph import build_pac_xml_connection_graph
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, AssetFamilyMember
 from cdmw.ui.archive_browser.pac_xml_editor_dialog_shell import PacXmlEditorDialog
 from cdmw.ui.archive_browser.pac_xml_editor_graph_view import PacXmlConnectionGraphView
 from cdmw.ui.archive_browser.pac_xml_editor_parameters import (
@@ -175,6 +180,74 @@ def test_graph_edge_locates_parameter_and_resolved_node_requests_preview() -> No
     view.list_tree.setCurrentItem(view._list_items[texture_node.node_id])
     view._preview_list_item(view._list_items[texture_node.node_id])
     assert previews == [texture]
+    view.deleteLater()
+
+
+def test_dense_graph_layout_keeps_text_lines_and_boxes_separate() -> None:
+    _app()
+    wrappers = []
+    for group_index, group_name in enumerate(("body", "trim")):
+        textures = "\n".join(
+            f'<MaterialParameterTexture _name="_texture_{group_index}_{index}">'
+            f'<ResourceReferencePath_ITexture _path="character/texture/'
+            f'{group_name}_very_long_texture_name_{index:02d}.dds" />'
+            "</MaterialParameterTexture>"
+            for index in range(12)
+        )
+        wrappers.append(
+            f'<SkinnedMeshMaterialWrapper _subMeshName="{group_name}">'
+            f'<Material _materialName="{group_name.title()}Shader">'
+            f"{textures}</Material></SkinnedMeshMaterialWrapper>"
+        )
+    document = parse_pac_xml_document("\n".join(wrappers))
+    graph = build_pac_xml_connection_graph(
+        document,
+        root_path="character/modelproperty/body.pac_xml",
+        model_paths=("character/model/body.pac",),
+        family_members=tuple(
+            AssetFamilyMember(
+                role="related",
+                display_name=f"Related family file {index}",
+                path=f"character/family/related_{index}.pac",
+                status="Missing",
+                confidence="family",
+            )
+            for index in range(4)
+        ),
+    )
+    view = PacXmlConnectionGraphView()
+    view.resize(1200, 800)
+    view.set_graph(graph)
+    view.show()
+    _app().processEvents()
+
+    node_items = list(view._node_items.items())
+    for index, (_left_id, left) in enumerate(node_items):
+        for _right_id, right in node_items[index + 1 :]:
+            assert not left.sceneBoundingRect().intersects(right.sceneBoundingRect())
+        for child in left.childItems():
+            assert left.sceneBoundingRect().contains(child.sceneBoundingRect())
+
+    for edge_item in view._edge_items.values():
+        edge = edge_item.edge
+        for node_id, node_item in node_items:
+            if node_id in {edge.source_id, edge.target_id}:
+                continue
+            interior = node_item.sceneBoundingRect().adjusted(2, 2, -2, -2)
+            assert not edge_item.shape().intersects(interior)
+
+    top_level_text = [
+        item
+        for item in view.scene.items()
+        if isinstance(item, QGraphicsSimpleTextItem) and item.parentItem() is None
+    ]
+    assert top_level_text == []
+    readable_scale = view.graphics_view.transform().m11()
+    assert readable_scale >= 0.8
+    view.fit_graph()
+    assert view.graphics_view.transform().m11() < readable_scale
+    view.reset_readable_view()
+    assert view.graphics_view.transform().m11() == readable_scale
     view.deleteLater()
 
 
