@@ -169,6 +169,22 @@ class _EdgeItem(QGraphicsPathItem):
             self.setPen(QPen(QColor("#637083"), 1.6))
 
 
+class _BundleItem(QGraphicsPathItem):
+    """One uncluttered rail shared by a submesh's parameter branches."""
+
+    def __init__(self, source_id: str, path: QPainterPath, tooltip: str) -> None:
+        super().__init__(path)
+        self.source_id = source_id
+        self.setZValue(-3)
+        self.setPen(QPen(QColor("#7899c4"), 1.8))
+        self.setToolTip(tooltip)
+
+    def shape(self) -> QPainterPath:
+        stroker = QPainterPathStroker()
+        stroker.setWidth(12.0)
+        return stroker.createStroke(self.path())
+
+
 class _ZoomableGraphView(QGraphicsView):
     def __init__(self, scene: QGraphicsScene, parent: QWidget | None = None) -> None:
         super().__init__(scene, parent)
@@ -205,6 +221,7 @@ class PacXmlConnectionGraphView(QWidget):
         self._node_items: dict[str, _NodeItem] = {}
         self._edge_items: dict[str, _EdgeItem] = {}
         self._edge_items_by_row_id: dict[str, _EdgeItem] = {}
+        self._bundle_items: list[_BundleItem] = []
         self._list_items: dict[str, QTreeWidgetItem] = {}
         self._edge_list_items: dict[str, QTreeWidgetItem] = {}
         layout = QVBoxLayout(self)
@@ -301,6 +318,7 @@ class PacXmlConnectionGraphView(QWidget):
         self._node_items.clear()
         self._edge_items.clear()
         self._edge_items_by_row_id.clear()
+        self._bundle_items.clear()
         self._list_items.clear()
         self._edge_list_items.clear()
         self.scene.clear()
@@ -344,7 +362,16 @@ class PacXmlConnectionGraphView(QWidget):
         graph: PacXmlConnectionGraph,
         positions: dict[str, QPointF],
     ) -> None:
-        edge_paths = _layout_edge_paths(graph, positions)
+        edge_paths, bundle_paths = _layout_edge_paths(graph, positions)
+        for source_id, bundle_path in bundle_paths:
+            source = self._nodes_by_id[source_id]
+            bundle = _BundleItem(
+                source_id,
+                bundle_path,
+                f"Parameter connections from {source.label}",
+            )
+            self.scene.addItem(bundle)
+            self._bundle_items.append(bundle)
         for edge in graph.edges:
             path = edge_paths.get(edge.edge_id)
             if path is None:
@@ -601,7 +628,7 @@ def _pack_centers(desired: list[float], content_height: float) -> list[float]:
 def _layout_edge_paths(
     graph: PacXmlConnectionGraph,
     positions: dict[str, QPointF],
-) -> dict[str, QPainterPath]:
+) -> tuple[dict[str, QPainterPath], list[tuple[str, QPainterPath]]]:
     outgoing: dict[str, list[PacXmlGraphEdge]] = defaultdict(list)
     incoming: dict[str, list[PacXmlGraphEdge]] = defaultdict(list)
     for edge in graph.edges:
@@ -644,19 +671,48 @@ def _layout_edge_paths(
         > _LANE_PITCH * 1.5
     ]
     long_edge_index = {edge.edge_id: index for index, edge in enumerate(long_edges)}
-    track_groups: dict[tuple[float, float], list[PacXmlGraphEdge]] = defaultdict(list)
+    candidate_groups: dict[tuple[str, float], list[PacXmlGraphEdge]] = defaultdict(list)
     for edge in graph.edges:
-        if edge.edge_id not in outgoing_index or edge.edge_id in long_edge_index or not edge.row_id:
+        if (
+            edge.edge_id not in outgoing_index
+            or edge.edge_id in long_edge_index
+            or not edge.row_id
+        ):
             continue
-        key = (positions[edge.source_id].x(), positions[edge.target_id].x())
-        track_groups[key].append(edge)
-    for edges in track_groups.values():
-        edges.sort(key=lambda edge: (center_y(edge.target_id), center_y(edge.source_id), edge.edge_id))
-    track_index = {
-        edge.edge_id: (index, len(edges))
-        for edges in track_groups.values()
-        for index, edge in enumerate(edges)
+        candidate_groups[(edge.source_id, positions[edge.target_id].x())].append(edge)
+    bundle_groups = {
+        key: edges
+        for key, edges in candidate_groups.items()
+        if len(edges) > 1
     }
+    groups_by_gap: dict[tuple[float, float], list[tuple[str, float]]] = defaultdict(list)
+    for source_id, target_x in bundle_groups:
+        groups_by_gap[(positions[source_id].x(), target_x)].append((source_id, target_x))
+
+    bundle_rail_by_edge: dict[str, float] = {}
+    bundle_paths: list[tuple[str, QPainterPath]] = []
+    for (_source_x, target_x), group_keys in groups_by_gap.items():
+        group_keys.sort(key=lambda key: (center_y(key[0]), key[0]))
+        for group_index, group_key in enumerate(group_keys):
+            source_id, _group_target_x = group_key
+            source = positions[source_id]
+            rail_x = source.x() + _NODE_WIDTH + (
+                target_x - source.x() - _NODE_WIDTH
+            ) * ((len(group_keys) - group_index) / (len(group_keys) + 1))
+            edges = bundle_groups[group_key]
+            target_ys = [
+                positions[edge.target_id].y()
+                + _port_offset(*incoming_index[edge.edge_id])
+                for edge in edges
+            ]
+            source_y = center_y(source_id)
+            rail_path = QPainterPath(QPointF(source.x() + _NODE_WIDTH, source_y))
+            rail_path.lineTo(rail_x, source_y)
+            rail_path.moveTo(rail_x, min(source_y, *target_ys))
+            rail_path.lineTo(rail_x, max(source_y, *target_ys))
+            bundle_paths.append((source_id, rail_path))
+            for edge in edges:
+                bundle_rail_by_edge[edge.edge_id] = rail_x
     top = min(position.y() for position in positions.values()) if positions else 0.0
 
     paths: dict[str, QPainterPath] = {}
@@ -669,8 +725,11 @@ def _layout_edge_paths(
         target_port = _port_offset(*incoming_index[edge.edge_id])
         start = source + QPointF(_NODE_WIDTH, source_port)
         end = target + QPointF(0.0, target_port)
-        path = QPainterPath(start)
-        if edge.edge_id in long_edge_index:
+        if edge.edge_id in bundle_rail_by_edge:
+            path = QPainterPath(QPointF(bundle_rail_by_edge[edge.edge_id], end.y()))
+            path.lineTo(end)
+        elif edge.edge_id in long_edge_index:
+            path = QPainterPath(start)
             route_index = long_edge_index[edge.edge_id]
             route_spread = min(route_index * 2.0, _LANE_GAP - 56.0)
             bus_y = top - 58.0 - route_index * 12.0
@@ -687,16 +746,8 @@ def _layout_edge_paths(
                 QPointF(end.x() - 18.0, end.y()),
                 end,
             )
-        elif edge.edge_id in track_index:
-            route_index, route_count = track_index[edge.edge_id]
-            available_width = max(1.0, end.x() - start.x() - 36.0)
-            track_x = start.x() + 18.0 + available_width * (
-                (route_index + 0.5) / route_count
-            )
-            path.lineTo(track_x, start.y())
-            path.lineTo(track_x, end.y())
-            path.lineTo(end)
         else:
+            path = QPainterPath(start)
             control_distance = max(34.0, (end.x() - start.x()) * 0.48)
             path.cubicTo(
                 QPointF(start.x() + control_distance, start.y()),
@@ -704,7 +755,7 @@ def _layout_edge_paths(
                 end,
             )
         paths[edge.edge_id] = path
-    return paths
+    return paths, bundle_paths
 
 
 def _port_offset(index: int, count: int) -> float:

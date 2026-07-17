@@ -236,6 +236,14 @@ def test_dense_graph_layout_keeps_text_lines_and_boxes_separate() -> None:
             interior = node_item.sceneBoundingRect().adjusted(2, 2, -2, -2)
             assert not edge_item.shape().intersects(interior)
 
+    assert len(view._bundle_items) == 2
+    for bundle_item in view._bundle_items:
+        for node_id, node_item in node_items:
+            if node_id == bundle_item.source_id:
+                continue
+            interior = node_item.sceneBoundingRect().adjusted(2, 2, -2, -2)
+            assert not bundle_item.shape().intersects(interior)
+
     top_level_text = [
         item
         for item in view.scene.items()
