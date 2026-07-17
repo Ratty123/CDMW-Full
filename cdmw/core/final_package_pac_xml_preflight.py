@@ -6,7 +6,11 @@ from typing import Dict, List, Mapping, Sequence, Tuple
 
 from cdmw.core.archive_mesh_types import MeshImportPreviewResult
 from cdmw.domain.mesh.material_export_safety import material_export_safety_blockers
-from cdmw.modding.mesh_parser import _find_pac_descriptors, _parse_par_sections
+from cdmw.modding.mesh_parser import (
+    _find_pac_descriptors,
+    _parse_par_sections,
+    _validated_pac_descriptor_prefix,
+)
 from cdmw.modding.pac_xml_profiles import build_pac_xml_material_authority_report, pac_xml_texture_alias_matches_parameter
 
 from .final_package_preview_model import _material_label_for_mesh
@@ -432,7 +436,10 @@ def _pac_runtime_abi_preflight_errors(
         if not sec0:
             return ("Complete source-owned swap PAC runtime ABI validation failed: section 0 is missing.",)
         n_lods = data[int(sec0["offset"]) + 4] if int(sec0["size"]) >= 5 else 0
-        descriptors = _find_pac_descriptors(data, int(sec0["offset"]), int(sec0["size"]), n_lods)
+        descriptors = _validated_pac_descriptor_prefix(
+            _find_pac_descriptors(data, int(sec0["offset"]), int(sec0["size"]), n_lods),
+            sections,
+        )
     except Exception as exc:
         return (f"Complete source-owned swap PAC runtime ABI validation failed: {exc}",)
 

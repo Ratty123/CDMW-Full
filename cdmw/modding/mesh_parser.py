@@ -1356,6 +1356,51 @@ def _find_pac_descriptors(
     return [desc for _, desc in found]
 
 
+def _validated_pac_descriptor_prefix(
+    descriptors: list[PacDescriptor],
+    sections: list[dict],
+    *,
+    filename: str = "",
+) -> list[PacDescriptor]:
+    """Drop trailing heuristic matches only when a descriptor prefix exactly fits every LOD section."""
+
+    if len(descriptors) < 2:
+        return descriptors
+    geometry_sections = tuple(
+        (section, 4 - int(section.get("index", -1)))
+        for section in sections
+        if int(section.get("index", -1)) in {1, 2, 3, 4}
+        and int(section.get("size", 0) or 0) > 0
+    )
+    if not geometry_sections:
+        return descriptors
+
+    def _exactly_fills_geometry(prefix: list[PacDescriptor]) -> bool:
+        for section, lod in geometry_sections:
+            required_bytes = sum(
+                int(descriptor.vertex_counts[lod] or 0) * 40
+                + int(descriptor.index_counts[lod] or 0) * 2
+                for descriptor in prefix
+                if lod < len(descriptor.vertex_counts) and lod < len(descriptor.index_counts)
+            )
+            if required_bytes != int(section.get("size", 0) or 0):
+                return False
+        return True
+
+    for descriptor_count in range(len(descriptors), 0, -1):
+        prefix = descriptors[:descriptor_count]
+        if not _exactly_fills_geometry(prefix):
+            continue
+        if descriptor_count < len(descriptors):
+            logger.info(
+                "PAC %s: ignored %d trailing descriptor candidate(s) after exact LOD section validation",
+                filename,
+                len(descriptors) - descriptor_count,
+            )
+        return prefix
+    return descriptors
+
+
 def _decode_pac_position_u16(value: int, bbox_min: float, bbox_extent: float) -> float:
     if abs(bbox_extent) < 1e-8:
         return bbox_min
@@ -1652,7 +1697,11 @@ def parse_pac(data: bytes, filename: str = "") -> ParsedMesh:
     if n_lods <= 0 or n_lods > 10:
         return _pac_fallback_pam(data, filename)
 
-    descriptors = _find_pac_descriptors(data, sec0["offset"], sec0["size"], n_lods)
+    descriptors = _validated_pac_descriptor_prefix(
+        _find_pac_descriptors(data, sec0["offset"], sec0["size"], n_lods),
+        sections,
+        filename=filename,
+    )
     if not descriptors:
         return _pac_fallback_pam(data, filename)
 
@@ -1880,7 +1929,11 @@ def _build_pac_preview_mesh(data: bytes, filename: str = "") -> PreviewMesh:
 
     geom_sec = sec_by_idx[geom_section_idx]
     lod = 4 - geom_section_idx
-    descriptors = _find_pac_descriptors(data, sec0["offset"], sec0["size"], max(1, len(sections) - 1))
+    descriptors = _validated_pac_descriptor_prefix(
+        _find_pac_descriptors(data, sec0["offset"], sec0["size"], max(1, len(sections) - 1)),
+        sections,
+        filename=filename,
+    )
     if not descriptors:
         return _flatten_parsed_mesh_for_preview(parse_pac(data, filename))
 

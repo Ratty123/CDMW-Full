@@ -15,6 +15,7 @@ from .mesh_parser import (
     _compute_smooth_normals,
     _find_pac_descriptors,
     _parse_par_sections,
+    _validated_pac_descriptor_prefix,
     parse_pac,
 )
 from .mesh_skinning import pac_skin_export_palette, pac_skin_weights_changed, patch_pac_vertex_skin, source_vertex_map_is_target_donor_lineage
@@ -606,7 +607,10 @@ def _build_pac_full_rebuild(
     if n_lods <= 0 or n_lods > 10:
         raise ValueError(f"Invalid PAC LOD count: {n_lods}")
 
-    descriptors = _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], n_lods)
+    descriptors = _validated_pac_descriptor_prefix(
+        _find_pac_descriptors(original_data, sec0["offset"], sec0["size"], n_lods),
+        sections,
+    )
     sec0_data = bytearray(original_data[sec0["offset"]:sec0["offset"] + sec0["size"]])
     if len(descriptors) < len(original_mesh.submeshes):
         raise ValueError("PAC descriptor count does not match the parsed original submesh set.")

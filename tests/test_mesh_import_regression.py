@@ -19,10 +19,65 @@ from cdmw.modding.mesh_importer import (
     import_obj,
 )
 from cdmw.modding.mesh_obj_importer import validate_obj_sidecar_source_identity
-from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_pac
+from cdmw.modding.mesh_parser import (
+    PacDescriptor,
+    ParsedMesh,
+    SubMesh,
+    _validated_pac_descriptor_prefix,
+    parse_pac,
+)
 
 
 class MeshImportRegressionTests(unittest.TestCase):
+    def test_pac_descriptor_validation_drops_only_exact_trailing_false_match(self) -> None:
+        real_descriptors = [
+            PacDescriptor(
+                name="PartA",
+                material="PartA",
+                bbox_min=(0.0, 0.0, 0.0),
+                bbox_extent=(1.0, 1.0, 1.0),
+                vertex_counts=[2, 1, 0, 0],
+                index_counts=[3, 3, 0, 0],
+            ),
+            PacDescriptor(
+                name="PartB",
+                material="PartB",
+                bbox_min=(0.0, 0.0, 0.0),
+                bbox_extent=(1.0, 1.0, 1.0),
+                vertex_counts=[3, 2, 1, 1],
+                index_counts=[6, 3, 3, 3],
+            ),
+        ]
+        false_match = PacDescriptor(
+            name="unknown_false_match",
+            material="unknown_false_match",
+            bbox_min=(0.0, 0.0, 0.0),
+            bbox_extent=(1.0, 1.0, 1.0),
+            vertex_counts=[1280, 256, 0, 0],
+            index_counts=[16_778_752, 2048, 0, 0],
+        )
+        sections = [
+            {"index": 4, "size": 218},
+            {"index": 3, "size": 132},
+            {"index": 2, "size": 46},
+            {"index": 1, "size": 46},
+        ]
+
+        validated = _validated_pac_descriptor_prefix(
+            [*real_descriptors, false_match],
+            sections,
+            filename="character/example.pac",
+        )
+
+        self.assertEqual(real_descriptors, validated)
+        self.assertEqual(
+            [*real_descriptors, false_match],
+            _validated_pac_descriptor_prefix(
+                [*real_descriptors, false_match],
+                [{**section, "size": section["size"] + 1} for section in sections],
+            ),
+        )
+
     @staticmethod
     def _submesh(name: str, vertices: int = 4, faces: int = 2) -> SubMesh:
         return SubMesh(
