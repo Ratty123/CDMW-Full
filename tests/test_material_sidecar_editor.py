@@ -478,6 +478,25 @@ class MaterialSidecarEditorTests(unittest.TestCase):
             self.assertTrue(all(path.is_file() and result.package_root in path.parents for path in result.written_files))
             self.assertTrue(all(path.is_file() and result.package_root in path.parents for path in result.metadata_files))
 
+    def test_export_prefers_original_encoding_payload_when_supplied(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            sidecar = entry("character/modelproperty/test.pac_xml", root)
+            edited_payload = b"\xff\xfe" + '<MaterialParameterFloat _name="_x" _value="2" />'.encode("utf-16-le")
+
+            result = export_material_sidecar_mod_package(
+                edited_entry=sidecar,
+                edited_text="compatibility text must not be written",
+                edited_payload=edited_payload,
+                related_entries=(),
+                parent_root=root,
+                package_info=ModPackageInfo(title="Encoded Material Edit"),
+                read_entry_bytes=lambda _entry: b"",
+            )
+
+            exported = result.package_root / "character" / "modelproperty" / "test.pac_xml"
+            self.assertEqual(edited_payload, exported.read_bytes())
+
     def test_cancelled_export_preserves_existing_package_and_cleans_stage(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

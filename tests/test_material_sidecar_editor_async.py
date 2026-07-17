@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 import time
 import json
+import codecs
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -39,6 +40,33 @@ def test_material_sidecar_document_load_is_cancellable(
     stop_event.set()
     with pytest.raises(RunCancelled):
         service.load_material_sidecar_editor_document(_entry(), stop_event=stop_event)
+
+
+def test_material_sidecar_document_load_reads_complete_original_encoding_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    text = (
+        '<?xml version="1.0" encoding="utf-16"?>\r\n'
+        + "<!--"
+        + ("x" * 250_000)
+        + '-->\r\n<MaterialParameterByte4 _name="_channels" _value="7" />'
+    )
+    payload = codecs.BOM_UTF16_LE + text.encode("utf-16-le")
+
+    monkeypatch.setattr(
+        service,
+        "read_archive_entry_data",
+        lambda _entry, *, stop_event=None: (payload, False, ""),
+    )
+
+    document = service.load_material_sidecar_editor_document(_entry())
+
+    assert len(document.original_text) > 240_000
+    assert document.original_payload == payload
+    assert document.source_format.encoding == "utf-16-le"
+    assert document.source_format.bom == codecs.BOM_UTF16_LE
+    assert document.source_format.newline == "\r\n"
+    assert document.rows[0].kind == "byte4"
 
 
 def test_material_sidecar_open_handler_only_dispatches() -> None:

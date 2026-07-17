@@ -122,6 +122,7 @@ def export_material_sidecar_mod_package(
     *,
     edited_entry: ArchiveEntry,
     edited_text: str,
+    edited_payload: bytes | None = None,
     related_entries: Sequence[ArchiveEntry],
     parent_root: Path,
     package_info: ModPackageInfo,
@@ -149,7 +150,10 @@ def export_material_sidecar_mod_package(
 
         edited_payload_path = normalize_mod_package_payload_path(edited_entry.path).as_posix()
         edited_target = staged_root.joinpath(*PurePosixPath(edited_payload_path).parts)
-        _write_text(edited_target, edited_text, stop_event)
+        if edited_payload is not None:
+            _write_bytes(edited_target, edited_payload, stop_event)
+        else:
+            _write_text(edited_target, edited_text, stop_event)
         written_files.append(edited_target)
         written_virtual_paths.add(edited_payload_path.lower())
         file_rows.append(

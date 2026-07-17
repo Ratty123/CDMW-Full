@@ -362,7 +362,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Tell which duplicate is active</td><td>Read the <b>State</b> column.</td><td><b>Active mod</b> is the replacement payload currently winning over an original; <b>Shadowed original</b> or <b>Shadowed mod</b> means another row with the same virtual path has priority.</td></tr>
                   <tr><td>Find textures used by a model</td><td>Select the model and read <b>Referenced Files</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
                   <tr><td>Choose a placement source</td><td>Use <b>Edit HKX</b>, then <b>Choose Placement Source</b>, or pick through <b>Item Finder</b>.</td><td>Choose the visible source <code>.pac</code> when possible. HKX is useful context, but placement usually resolves through prefab/socket data around the model family.</td></tr>
-                  <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Use <b>Edit Material Values</b> when recognized fields are available.</td></tr>
+                  <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Use <b>Edit Material Values</b> for source-ordered guided controls. A <code>.pac_xml</code> opens the PAC XML Editor with Parameters, Connections, and Source &amp; Changes tabs.</td></tr>
                   <tr><td>Understand a selected file</td><td>Open <b>Details</b>.</td><td>Details includes package, raw/stored size, compression, preview diagnostics, readable strings, and import summaries.</td></tr>
                 </table>
                 <h4>Modded duplicates and active rows</h4>
@@ -407,7 +407,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><td>Import Mesh</td><td>You are ready to export a supported replacement.</td><td>Lets you choose archive patching or mod-ready loose output where supported.</td></tr>
                   <tr><td>Swap With In-Game Mesh</td><td>You want another loaded archive mesh to replace the selected target mesh.</td><td>Sets a target, then uses the chosen source mesh in Mesh Replacement Alignment with related files carried over where supported.</td></tr>
                   <tr><td>Edit HKX</td><td>You opened an HKX/model and need to copy placement from another weapon/model family.</td><td>Shows target context, lets you choose a placement source, compares source/target placement, and builds a loose placement-copy package.</td></tr>
-                  <tr><td>Edit Material Values</td><td>The selected mesh has a recognized XML/material sidecar.</td><td>Exports edited sidecar values as a mod-ready package instead of hand-editing raw XML blindly.</td></tr>
+                  <tr><td>Edit Material Values</td><td>The selected mesh has a recognized XML/material sidecar.</td><td>Opens an isolated structured editor. Parameters provides typed controls and undo/reset; Connections navigates current-index and Asset Family evidence without scanning or changing the browser selection; Source &amp; Changes is read-only. Export writes a mod-ready package while preserving the source encoding and untouched XML bytes.</td></tr>
                 </table>
                 <h4>Mesh Replacement Alignment</h4>
                 <ul>

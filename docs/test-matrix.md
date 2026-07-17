@@ -51,6 +51,7 @@ worker signals execute on the owning QApplication thread.
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_service_boundaries.py tests/test_architecture_import_boundaries.py::test_ui_does_not_import_archive_compatibility_facades
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_hkx_decomposition.py tests/test_archive_hkx_helper_decomposition.py tests/test_native_hkx_decomposition.py tests/test_hkx_editor_dialog_decomposition.py tests/test_hkx_preview.py tests/test_hkx_native_backend.py tests/test_hkx_ui_source_guards.py
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_binary_preview_decomposition.py tests/test_archive_binary_preview_helper_decomposition.py tests/test_archive_structured_asset_preview.py
+.\.venv\Scripts\python.exe -m pytest tests/test_pac_xml_editor_document.py tests/test_pac_xml_editor_graph.py tests/test_pac_xml_editor_ui.py tests/test_material_sidecar_editor.py tests/test_material_sidecar_editor_async.py tests/test_archive_material_sidecar_actions.py tests/test_pac_xml_profiles.py tests/test_archive_structured_asset_preview.py -p no:cacheprovider --basetemp="$env:TEMP\cdmw-pytest-pac-xml-editor"
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_preview_decomposition.py tests/test_archive_preview_texture_binding.py tests/test_mesh_import_preview_static_edit.py
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_lightweight_indexes.py
 .\.venv\Scripts\python.exe -m pytest tests/test_temp_cache.py tests/test_archive_media_preview_cache.py

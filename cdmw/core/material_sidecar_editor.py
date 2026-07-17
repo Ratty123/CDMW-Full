@@ -10,6 +10,7 @@ from cdmw.core.material_sidecar_package import (
     MaterialSidecarExportResult,
     export_material_sidecar_mod_package,
 )
+from cdmw.domain.pac_xml_editor import PacXmlDocument, parse_pac_xml_document
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference
 
 
@@ -20,7 +21,22 @@ MATERIAL_SIDECAR_COLOR_TAGS = frozenset({"RepresentColor"})
 MATERIAL_SIDECAR_COLOR_PARAMETER_TAGS = frozenset({"MaterialParameterColor"})
 MATERIAL_SIDECAR_FLOAT_PARAMETER_TAGS = frozenset({"MaterialParameterFloat"})
 MATERIAL_SIDECAR_TEXTURE_PARAMETER_TAGS = frozenset({"MaterialParameterTexture"})
-MATERIAL_SIDECAR_EDITABLE_KINDS = frozenset({"color", "float", "texture"})
+MATERIAL_SIDECAR_EDITABLE_KINDS = frozenset(
+    {
+        "texture",
+        "color",
+        "float",
+        "float2",
+        "float3",
+        "half2",
+        "bool",
+        "int",
+        "uint",
+        "byte4",
+        "bitflag32",
+        "clothcategory",
+    }
+)
 _COLOR_ATTRS = ("x", "y", "z", "r", "g", "b", "_x", "_y", "_z", "_r", "_g", "_b")
 _RGB_ATTR_GROUPS = (("x", "y", "z"), ("r", "g", "b"), ("_x", "_y", "_z"), ("_r", "_g", "_b"))
 _VALUE_ATTRS = ("Value", "_value", "value")
@@ -35,12 +51,23 @@ class MaterialSidecarEditableValue:
     parameter_name: str
     value: str
     detail: str = ""
+    parameter_type: str = ""
+    shader_name: str = ""
+    item_id: str = ""
+    index: str = ""
+    source_order: int = 0
+    source_line: int = 0
+    explicit: bool = True
+    editable: bool = True
+    risk: str = ""
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
 class MaterialSidecarEditResult:
     text: str
     changed_rows: tuple[str, ...]
+    payload: bytes = b""
+    structural_signature: tuple[tuple[str, ...], ...] = ()
 
 
 @dataclasses.dataclass(slots=True, frozen=True)
@@ -379,86 +406,34 @@ def _material_detail(base_detail: str, element: ET.Element, stack: Sequence[ET.E
 
 def discover_material_sidecar_values(sidecar_text: str) -> tuple[MaterialSidecarEditableValue, ...]:
     try:
-        root = _parse_wrapped_fragment(sidecar_text)
-    except ET.ParseError:
+        document = parse_pac_xml_document(sidecar_text)
+    except ValueError:
         return ()
-    indexes = _element_indexes(root)
-    rows: list[MaterialSidecarEditableValue] = []
+    return material_sidecar_rows_from_document(document)
 
-    def walk(element: ET.Element, stack: tuple[ET.Element, ...] = ()) -> None:
-        tag_name = _strip_namespace(element.tag)
-        group_label = _group_label_for(element, stack)
-        element_index = indexes.get(id(element), 0)
-        if tag_name in MATERIAL_SIDECAR_COLOR_TAGS:
-            values, attrs, mode = _color_target(element)
-            if values and attrs:
-                rows.append(
-                    MaterialSidecarEditableValue(
-                        row_id=_row_id("color", element_index, tag_name, ",".join(attrs)),
-                        kind="color",
-                        group_label=group_label,
-                        parameter_name=tag_name,
-                        value=_display_color_value(element, values, attrs, mode),
-                        detail=_material_detail("Material display color", element, stack),
-                    )
-                )
-        elif tag_name in MATERIAL_SIDECAR_COLOR_PARAMETER_TAGS:
-            parameter = _parameter_name(element) or tag_name
-            values, attrs, mode = _color_target(element)
-            if values and attrs:
-                rows.append(
-                    MaterialSidecarEditableValue(
-                        row_id=_row_id("color", element_index, parameter, ",".join(attrs)),
-                        kind="color",
-                        group_label=group_label,
-                        parameter_name=parameter,
-                        value=_display_color_value(element, values, attrs, mode),
-                        detail=_material_detail("Material color parameter", element, stack),
-                    )
-                )
-        elif tag_name in MATERIAL_SIDECAR_FLOAT_PARAMETER_TAGS:
-            parameter = _parameter_name(element) or tag_name
-            target_attr = next((attr for attr in _VALUE_ATTRS if _parse_float(str(element.attrib.get(attr) or "")) is not None), "")
-            if target_attr:
-                rows.append(
-                    MaterialSidecarEditableValue(
-                        row_id=_row_id("float", element_index, parameter, target_attr),
-                        kind="float",
-                        group_label=group_label,
-                        parameter_name=parameter,
-                        value=str(element.attrib.get(target_attr) or "").strip(),
-                        detail=_material_detail("Material scalar parameter", element, stack),
-                    )
-                )
-        elif tag_name in MATERIAL_SIDECAR_TEXTURE_PARAMETER_TAGS:
-            parameter = _parameter_name(element) or tag_name
-            target, target_attr = _texture_value_target(element)
-            if target is not None and target_attr:
-                rows.append(
-                    MaterialSidecarEditableValue(
-                        row_id=_row_id("texture", element_index, parameter, target_attr),
-                        kind="texture",
-                        group_label=group_label,
-                        parameter_name=parameter,
-                        value=str(target.attrib.get(target_attr) or "").strip(),
-                        detail=_material_detail("Material texture path", element, stack),
-                    )
-                )
-        for child in element:
-            walk(child, (*stack, element))
 
-    walk(root)
-    kind_order = {"color": 0, "float": 1, "texture": 2}
+def material_sidecar_rows_from_document(document: PacXmlDocument) -> tuple[MaterialSidecarEditableValue, ...]:
+    """Adapt source-ordered PAC XML fields to the compatibility row interface."""
+
     return tuple(
-        sorted(
-            rows,
-            key=lambda row: (
-                kind_order.get(row.kind, 99),
-                row.group_label.lower(),
-                row.parameter_name.lower(),
-                row.value.lower(),
-            ),
+        MaterialSidecarEditableValue(
+            row_id=field.row_id,
+            kind=field.kind,
+            group_label=field.group_label,
+            parameter_name=field.parameter_name,
+            value=field.value,
+            detail=field.detail,
+            parameter_type=field.parameter_type,
+            shader_name=field.shader_name,
+            item_id=field.item_id,
+            index=field.index,
+            source_order=field.source_order,
+            source_line=field.source_line,
+            explicit=field.explicit,
+            editable=field.editable,
+            risk=field.risk,
         )
+        for field in document.fields
     )
 
 
@@ -656,56 +631,14 @@ def apply_material_sidecar_edits(
     sidecar_text: str,
     edited_values: Mapping[str, str],
 ) -> MaterialSidecarEditResult:
-    if not edited_values:
-        return MaterialSidecarEditResult(text=_normalize_fragment(sidecar_text), changed_rows=())
-    try:
-        root = _parse_wrapped_fragment(sidecar_text)
-    except ET.ParseError as exc:
-        raise ValueError(f"Could not parse material sidecar XML: {exc}") from exc
-    original_rows = {row.row_id: row for row in discover_material_sidecar_values(sidecar_text)}
-    indexes = _element_indexes(root)
-    changed_rows: list[str] = []
-
-    for element in root.iter():
-        element_index = indexes.get(id(element), 0)
-        tag_name = _strip_namespace(element.tag)
-        candidate_rows = [
-            row
-            for row in original_rows.values()
-            if row.row_id in edited_values and row.row_id.startswith(("color:", "float:", "texture:"))
-        ]
-        if not candidate_rows:
-            continue
-        parameter = _parameter_name(element) or tag_name
-        for original in candidate_rows:
-            parts = original.row_id.split(":")
-            if len(parts) < 2 or parts[1] != str(element_index):
-                continue
-            new_value = str(edited_values.get(original.row_id) or "").strip()
-            if new_value == original.value:
-                continue
-            if original.kind == "color":
-                _values, attrs, mode = _color_target(element)
-                if not _set_color_value(element, attrs, mode, new_value):
-                    raise ValueError(f"Invalid color value for {parameter}: {new_value}")
-            elif original.kind == "float":
-                parsed = _parse_float(new_value)
-                if parsed is None:
-                    raise ValueError(f"Invalid float value for {parameter}: {new_value}")
-                target_attr = next((attr for attr in _VALUE_ATTRS if attr in element.attrib), "")
-                if not target_attr:
-                    raise ValueError(f"Could not locate float value attribute for {parameter}.")
-                element.set(target_attr, _format_float(parsed))
-            elif original.kind == "texture":
-                target, target_attr = _texture_value_target(element)
-                if target is None or not target_attr:
-                    raise ValueError(f"Could not locate texture path for {parameter}.")
-                target.set(target_attr, new_value.replace("\\", "/"))
-            changed_rows.append(original.row_id)
-
-    parts = [ET.tostring(child, encoding="unicode", short_empty_elements=True) for child in list(root)]
-    text = "\n".join(part.strip() for part in parts if part.strip())
-    return MaterialSidecarEditResult(text=text, changed_rows=tuple(changed_rows))
+    document = parse_pac_xml_document(sidecar_text)
+    result = document.render(edited_values)
+    return MaterialSidecarEditResult(
+        text=result.text,
+        changed_rows=result.changed_rows,
+        payload=result.payload,
+        structural_signature=result.structural_signature,
+    )
 
 
 def _normalized_path(value: str) -> str:

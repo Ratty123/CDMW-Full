@@ -134,8 +134,9 @@ def material_sidecar_dialog_size() -> tuple[int, int]:
 
 def material_sidecar_editor_intro_text() -> str:
     return (
-        "Edit recognized material values only. Colors accept comma-separated RGB floats such as "
-        "0.1, 0.1, 0.1 or #RRGGBB."
+        "Edit recognized values through guided controls. Structural names, shaders, IDs, indexes, raw source, "
+        "and connection edges stay locked. Colors also accept comma-separated RGB floats or #RRGGBB. "
+        "Undo/reset locally, then export a mod package when ready."
     )
 
 
@@ -168,7 +169,10 @@ def material_sidecar_selected_value_placeholder_text() -> str:
 
 
 def material_sidecar_value_edit_tooltip_text() -> str:
-    return "Colors accept comma-separated RGB floats such as 0.1, 0.1, 0.1 or #RRGGBB."
+    return (
+        "The raw value is synchronized with the selected type-specific controls. Colors accept #RRGGBB; "
+        "decimal and 0x-prefixed integers are accepted where shown."
+    )
 
 
 def material_sidecar_selected_color_tooltip_text(color_name: object | None = None) -> str:

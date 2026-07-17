@@ -6,24 +6,17 @@ import json, shutil, threading
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
-from PySide6.QtCore import QProcess, QSignalBlocker, Qt, QTimer
-from PySide6.QtGui import QColor, QIcon
+from PySide6.QtCore import QProcess, Qt, QTimer
+from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
-    QAbstractItemView,
     QCheckBox,
     QColorDialog,
-    QDialog,
-    QFrame,
-    QGridLayout,
     QHBoxLayout,
-    QHeaderView,
     QLabel,
-    QLineEdit,
     QMessageBox,
     QPushButton,
     QSizePolicy,
     QSplitter,
-    QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
@@ -61,9 +54,15 @@ from cdmw.ui.archive_browser.material_sidecar_editor_helpers import (
     material_value_swatch_icon,
     selected_value_ready_for_live_refresh,
 )
+from cdmw.ui.archive_browser.pac_xml_editor_composition import (
+    build_pac_xml_editor_views,
+    configure_pac_xml_parameter_tree,
+    confirm_pac_xml_export_risks,
+    refresh_pac_xml_editor_views,
+)
+from cdmw.ui.archive_browser.pac_xml_editor_dialog_shell import PacXmlEditorDialog
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
-from cdmw.ui.widgets import make_tree_columns_persistent
 
 class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentControllerMixin):
     def _show_material_sidecar_editor(self, document: MaterialSidecarEditorDocument) -> None:
@@ -75,8 +74,9 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             QMessageBox.information(self, title, message)
             return
 
-        dialog = QDialog(self)
-        dialog.setWindowTitle(material_sidecar_text.material_sidecar_editor_window_title(entry.basename))
+        is_pac_xml = str(getattr(entry, "extension", "") or "").strip().casefold() == ".pac_xml" or entry.basename.casefold().endswith((".pac_xml", ".pac.xml"))
+        dialog = PacXmlEditorDialog(self)
+        dialog.setWindowTitle(f"PAC XML Editor - {entry.basename}" if is_pac_xml else material_sidecar_text.material_sidecar_editor_window_title(entry.basename))
         dialog.setModal(True)
         dialog.resize(*material_sidecar_text.material_sidecar_dialog_size())
         layout = QVBoxLayout(dialog)
@@ -99,76 +99,24 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         preview_layout = QVBoxLayout(preview_panel)
         preview_layout.setContentsMargins(8, 0, 0, 0)
         preview_layout.setSpacing(8)
-        tree = QTreeWidget()
-        tree.setColumnCount(5)
-        tree.setHeaderLabels(list(material_sidecar_text.material_sidecar_tree_headers()))
-        tree.setRootIsDecorated(False)
-        tree.setAlternatingRowColors(True)
-        tree.setUniformRowHeights(True)
-        tree.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
-        tree.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        tree.setSelectionBehavior(QAbstractItemView.SelectRows)
-        tree.setSelectionMode(QAbstractItemView.SingleSelection)
-        material_value_swatch_icons: Dict[str, QIcon] = {}
-        def _update_material_value_swatch(item: Optional[QTreeWidgetItem]) -> None:
-            if item is None:
-                return
-            blocker = QSignalBlocker(tree)
-            try:
-                if item.text(1).strip().lower() != "color":
-                    item.setIcon(3, QIcon())
-                    return
-                color = material_editor_color_from_value(item.text(3))
-                if color is None:
-                    item.setIcon(3, QIcon())
-                    item.setToolTip(3, item.text(3))
-                    return
-                item.setIcon(3, material_value_swatch_icon(color, material_value_swatch_icons))
-                item.setToolTip(3, material_sidecar_text.material_sidecar_preview_color_tooltip(item.text(3), color.name()))
-            finally:
-                del blocker
-        for row in rows:
-            item = material_sidecar_text.material_sidecar_value_tree_item(row)
-            _update_material_value_swatch(item)
-            tree.addTopLevelItem(item)
-        header = tree.header()
-        header.setStretchLastSection(False)
-        for section, width in enumerate(material_sidecar_text.material_sidecar_tree_column_widths()):
-            header.resizeSection(section, width)
-        header.setSectionResizeMode(0, QHeaderView.Interactive)
-        header.setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        header.setSectionResizeMode(2, QHeaderView.Interactive)
-        header.setSectionResizeMode(3, QHeaderView.Interactive)
-        header.setSectionResizeMode(4, QHeaderView.Stretch)
-        make_tree_columns_persistent(
-            tree,
-            self.settings,
-            "dialog/material_sidecar_values",
-            minimum_width=56,
+        structured_views = build_pac_xml_editor_views(rows, original_text, is_pac_xml=is_pac_xml)
+        editor_tabs = structured_views.tabs
+        parameter_panel = structured_views.parameters
+        connection_graph_view = structured_views.connections
+        source_changes_view = structured_views.source_changes
+        selected_detail_label = structured_views.selected_detail_label
+        selected_value_swatch = structured_views.selected_swatch
+        tree = parameter_panel.tree
+        _update_material_value_swatch = configure_pac_xml_parameter_tree(
+            parameter_panel,
+            settings=self.settings,
             save_callback=self.schedule_settings_save,
         )
-        editor_layout.addWidget(tree, stretch=1)
-
-        selected_value_row = QGridLayout()
-        selected_value_row.setHorizontalSpacing(8)
-        selected_value_label = QLabel(material_sidecar_text.material_sidecar_selected_value_label_text())
-        selected_value_edit = QLineEdit()
+        selected_value_edit = parameter_panel.inspector.raw_edit
         selected_value_edit.setPlaceholderText(material_sidecar_text.material_sidecar_selected_value_placeholder_text())
-        selected_value_edit.setClearButtonEnabled(True)
         selected_value_edit.setToolTip(material_sidecar_text.material_sidecar_value_edit_tooltip_text())
-        selected_value_swatch = QFrame()
-        selected_value_swatch.setObjectName("SelectedMaterialValueColorSwatch")
-        selected_value_swatch.setFixedSize(28, 28)
         selected_value_swatch.setToolTip(material_sidecar_text.material_sidecar_selected_color_tooltip_text())
-        selected_value_row.addWidget(selected_value_label, 0, 0)
-        selected_value_row.addWidget(selected_value_edit, 0, 1)
-        selected_value_row.addWidget(selected_value_swatch, 0, 2)
-        selected_value_row.setColumnStretch(1, 1)
-        editor_layout.addLayout(selected_value_row)
-        selected_detail_label = QLabel("")
-        selected_detail_label.setObjectName("HintLabel")
-        selected_detail_label.setWordWrap(True)
-        editor_layout.addWidget(selected_detail_label)
+        editor_layout.addWidget(editor_tabs, stretch=1)
 
         preview_header_row = QHBoxLayout()
         show_preview_label, refresh_preview_label, preview_settings_label, live_preview_label = (
@@ -262,8 +210,13 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 selected_value_edit.setToolTip(item.text(3) if item is not None else "")
                 _update_selected_value_swatch(item)
                 if item is not None:
+                    row = parameter_panel.rows_by_id.get(str(item.data(0, Qt.UserRole) or ""))
                     selected_detail_label.setText(
-                        material_sidecar_text.material_sidecar_selected_detail_text(item.text(0), item.text(2), item.text(4))
+                        material_sidecar_text.material_sidecar_selected_detail_text(
+                            row.group_label if row is not None else item.text(0),
+                            row.parameter_name if row is not None else item.text(2),
+                            row.detail if row is not None else item.text(4),
+                        )
                     )
                 else:
                     selected_detail_label.clear()
@@ -289,7 +242,8 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             item = _current_item()
             if item is None:
                 return
-            item.setText(3, str(text or ""))
+            row_id = str(item.data(0, Qt.UserRole) or "")
+            parameter_panel.set_row_value(row_id, str(text or ""), record_history=True)
             item.setToolTip(3, str(text or ""))
             _update_material_value_swatch(item)
             _update_selected_value_swatch(item)
@@ -328,7 +282,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
 
         def _pick_color() -> None:
             item = _current_item()
-            if item is None or item.text(1) != "color":
+            if item is None or item.text(1).strip().casefold() != "color":
                 return
             color = QColorDialog.getColor(
                 self._qcolor_from_material_value(item.text(3)),
@@ -336,7 +290,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 material_sidecar_text.material_sidecar_choose_color_dialog_title(),
             )
             if color.isValid():
-                item.setText(3, color.name())
+                parameter_panel.set_row_value(str(item.data(0, Qt.UserRole) or ""), color.name(), record_history=True)
                 _update_material_value_swatch(item)
                 _record_selected_value_pending_edit(item)
                 _sync_selected_value_from_tree()
@@ -346,7 +300,11 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             item = _current_item()
             if item is not None:
                 original_value = str(item.data(3, Qt.UserRole) or "")
-                item.setText(3, original_value)
+                parameter_panel.set_row_value(
+                    str(item.data(0, Qt.UserRole) or ""),
+                    original_value,
+                    record_history=True,
+                )
                 _update_material_value_swatch(item)
                 _record_selected_value_pending_edit(item)
                 _sync_selected_value_from_tree()
@@ -366,27 +324,57 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 preview_status_label.setText(material_sidecar_text.material_sidecar_no_preview_model_status())
                 show_preview_button.setEnabled(False)
                 refresh_preview_button.setEnabled(False)
+                _refresh_structured_editor_views()
                 return
             preview_status_label.setText(material_sidecar_text.material_sidecar_preview_model_status(preview_model_entry.path))
             show_preview_button.setEnabled(True)
             refresh_preview_button.setEnabled(True)
+            _refresh_structured_editor_views()
 
         def _edited_values(kinds: Optional[set[str]] = None) -> Dict[str, str]:
-            edited: Dict[str, str] = {}
-            for row_id, current_value in selected_value_pending_edits.items():
-                if kinds is not None and row_kind_by_id.get(row_id) not in kinds:
-                    continue
-                edited[row_id] = current_value
-            for index in range(tree.topLevelItemCount()):
-                item = tree.topLevelItem(index)
-                row_id = str(item.data(0, Qt.UserRole) or "")
-                if kinds is not None and row_kind_by_id.get(row_id) not in kinds:
-                    continue
-                original_value = str(item.data(3, Qt.UserRole) or "")
-                current_value = item.text(3).strip()
-                if row_id and current_value != original_value:
-                    edited[row_id] = current_value
-            return edited
+            return parameter_panel.edited_values(kinds)
+
+        exported_edits_state: Dict[str, Dict[str, str]] = {"values": {}}
+        export_request_edits: Dict[int, Dict[str, str]] = {}
+        dialog.set_unexported_changes_callback(lambda: _edited_values() != exported_edits_state["values"])
+
+        def _select_parameter_from_connection(row_id: str) -> None:
+            if parameter_panel.select_row(row_id):
+                editor_tabs.setCurrentWidget(parameter_panel)
+
+        def _preview_connection_entry(resolved_entry: object) -> None:
+            if isinstance(resolved_entry, ArchiveEntry):
+                self._open_archive_reference_preview_entry(resolved_entry)
+
+        def _refresh_structured_editor_views() -> None:
+            preview_model_entry = preview_model_entry_state.get("entry")
+            refresh_result = refresh_pac_xml_editor_views(
+                parsed_document=document.parsed_document,
+                source_format=document.source_format,
+                edited_values=_edited_values(),
+                root_path=entry.path,
+                model_path=preview_model_entry.path if isinstance(preview_model_entry, ArchiveEntry) else "",
+                model_entry=preview_model_entry,
+                normalized_path_index=getattr(self, "archive_entries_by_normalized_path", None),
+                basename_index=getattr(self, "archive_entries_by_basename", None),
+                family_graph=getattr(self, "current_archive_asset_family_graph", None),
+                index_warming=bool(getattr(self, "archive_sidecar_scan_in_progress", False)),
+                include_connections=is_pac_xml,
+                source_view=source_changes_view,
+                connection_view=connection_graph_view,
+            )
+            export_button.setEnabled(refresh_result.valid and bool(refresh_result.changed_count))
+
+        structured_views_timer = QTimer(dialog)
+        structured_views_timer.setSingleShot(True)
+        structured_views_timer.setInterval(180)
+        structured_views_timer.timeout.connect(_refresh_structured_editor_views)
+        connection_graph_view.parameterRequested.connect(_select_parameter_from_connection)
+        connection_graph_view.entryPreviewRequested.connect(_preview_connection_entry)
+        connection_graph_view.refreshRequested.connect(_refresh_structured_editor_views)
+        parameter_panel.rowSelected.connect(
+            lambda row_id: source_changes_view.jump_to_line(parameter_panel.rows_by_id[row_id].source_line)
+        )
 
         def _sidecar_text_for_preview(*, include_texture_edits: bool) -> str:
             kinds = None if include_texture_edits else material_sidecar_text.material_sidecar_live_preview_kinds()
@@ -838,6 +826,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 return export_material_sidecar_mod_package(
                     edited_entry=entry,
                     edited_text=preparation.edit_result.text,
+                    edited_payload=preparation.edit_result.payload or None,
                     related_entries=selected_related_entries,
                     parent_root=export_root,
                     package_info=package_info,
@@ -859,6 +848,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                     self.set_status_message(material_sidecar_text.material_sidecar_unexpected_export_payload_status(), error=True)
                     return
                 title, message = material_sidecar_text.material_sidecar_export_complete_dialog_text(package_root)
+                exported_edits_state["values"] = dict(export_request_edits.pop(request_id, {}))
                 QMessageBox.information(dialog, title, message)
                 self.set_status_message(material_sidecar_text.material_sidecar_export_complete_status(package_root))
 
@@ -887,8 +877,16 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 title, message = material_sidecar_text.material_sidecar_no_changes_dialog_text()
                 QMessageBox.information(dialog, title, message)
                 return
+            if not confirm_pac_xml_export_risks(
+                dialog,
+                edited_values=edited_values,
+                rows_by_id=parameter_panel.rows_by_id,
+                unresolved_count=connection_graph_view.graph.unresolved_path_count,
+            ):
+                return
             request_id = int(getattr(self, "_material_sidecar_export_request_id", 0) or 0) + 1
             self._material_sidecar_export_request_id = request_id
+            export_request_edits[request_id] = dict(edited_values)
             references = tuple(self.current_archive_model_texture_references)
             archive_entries_by_basename = self.archive_entries_by_basename
             self._run_utility_task_when_idle(
@@ -899,6 +897,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                     dict(edited_values),
                     references=references,
                     archive_entries_by_basename=archive_entries_by_basename,
+                    original_payload=document.original_payload,
                     stop_event=stop_event,
                 ),
                 on_complete=lambda result: _handle_material_sidecar_export_prepared(
@@ -919,10 +918,12 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         close_button.clicked.connect(dialog.accept)
         tree.currentItemChanged.connect(lambda _current, _previous: _sync_selected_value_from_tree())
         tree.itemChanged.connect(_handle_material_tree_item_changed)
+        tree.itemChanged.connect(lambda _item, column: structured_views_timer.start() if column == 3 else None)
         selected_value_edit.textChanged.connect(_sync_tree_from_selected_value)
         selected_value_edit.textChanged.connect(_queue_selected_value_live_refresh)
         dialog.finished.connect(lambda _result=0: _shutdown_material_preview())
         _sync_selected_value_from_tree()
+        _refresh_structured_editor_views()
         QTimer.singleShot(material_sidecar_text.material_sidecar_initial_lookup_delay_ms(), _resolve_material_preview_model_entry)
         dialog.exec()
 
