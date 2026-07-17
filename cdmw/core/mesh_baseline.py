@@ -39,6 +39,56 @@ def _entry_cache_key(entry: ArchiveEntry) -> str:
     return hashlib.sha1(key_text.encode("utf-8", errors="ignore")).hexdigest()
 
 
+def _normalized_archive_file_path(value: object) -> str:
+    try:
+        return os.path.normcase(str(Path(str(value or "")).expanduser().resolve()))
+    except (OSError, RuntimeError, TypeError, ValueError):
+        return os.path.normcase(os.path.abspath(os.path.expanduser(str(value or ""))))
+
+
+def _metadata_matches_entry(metadata: object, entry: ArchiveEntry) -> bool:
+    if not isinstance(metadata, dict) or metadata.get("format") != "mesh_baseline_v1":
+        return False
+    expected_text = {
+        "path": _normalize_virtual_path(entry.path),
+        "package_group": str(getattr(entry.pamt_path.parent, "name", "") or "").strip().lower(),
+        "pamt_path": _normalized_archive_file_path(entry.pamt_path),
+        "paz_file": _normalized_archive_file_path(entry.paz_file),
+    }
+    for key, expected in expected_text.items():
+        if key not in metadata:
+            return False
+        actual = (
+            _normalize_virtual_path(metadata[key])
+            if key == "path"
+            else _normalized_archive_file_path(metadata[key])
+            if key in {"pamt_path", "paz_file"}
+            else str(metadata[key] or "").strip().lower()
+        )
+        if actual != expected:
+            return False
+    expected_numbers = {
+        "offset": int(entry.offset),
+        "compressed_size": int(entry.comp_size),
+        "original_size": int(entry.orig_size),
+        "flags": int(entry.flags),
+    }
+    for key, expected in expected_numbers.items():
+        try:
+            actual = int(metadata[key])
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return False
+        if actual != expected:
+            return False
+    if "paz_index" in metadata:
+        try:
+            if int(metadata["paz_index"]) != int(entry.paz_index):
+                return False
+        except (TypeError, ValueError, OverflowError):
+            return False
+    return True
+
+
 class MeshBaselineCache:
     def __init__(self, root: Optional[Path] = None) -> None:
         self.root = (root or _default_baseline_root()).expanduser()
@@ -58,7 +108,7 @@ class MeshBaselineCache:
 
     def get(self, entry: ArchiveEntry) -> MeshBaselineData | None:
         payload_path, metadata_path = self._paths_for_entry(entry)
-        if not payload_path.is_file():
+        if not payload_path.is_file() or not metadata_path.is_file():
             return None
         try:
             data = payload_path.read_bytes()
@@ -68,7 +118,9 @@ class MeshBaselineCache:
             return None
         message = "Using cached original mesh donor bytes."
         try:
-            metadata = json.loads(metadata_path.read_text(encoding="utf-8")) if metadata_path.is_file() else {}
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if not _metadata_matches_entry(metadata, entry):
+                return None
             byte_count = int(metadata.get("byte_count", 0) or 0)
             sha256 = str(metadata.get("sha256", "") or "")
             if byte_count and byte_count != len(data):
@@ -93,6 +145,7 @@ class MeshBaselineCache:
             "compressed_size": int(entry.comp_size),
             "original_size": int(entry.orig_size),
             "flags": int(entry.flags),
+            "paz_index": int(entry.paz_index),
             "byte_count": len(payload),
             "sha256": hashlib.sha256(payload).hexdigest(),
         }

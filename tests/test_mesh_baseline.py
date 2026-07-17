@@ -43,6 +43,77 @@ class MeshBaselineCacheTests(unittest.TestCase):
             self.assertTrue(second.from_cache)
             self.assertEqual(reads, [b"modified pac bytes"])
 
+    def test_cache_is_refreshed_when_archive_entry_identity_changes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            original_entry = _entry("character/model/example.pac", root)
+            updated_entry = ArchiveEntry(
+                path=original_entry.path,
+                pamt_path=original_entry.pamt_path,
+                paz_file=original_entry.paz_file,
+                offset=128,
+                comp_size=64,
+                orig_size=96,
+                flags=1,
+                paz_index=original_entry.paz_index,
+            )
+            cache = MeshBaselineCache(root / "cache")
+            reads = [b"old game pac bytes", b"updated game pac bytes"]
+
+            def read_current(_entry: ArchiveEntry) -> tuple[bytes, object, object]:
+                return reads.pop(0), False, ""
+
+            first = read_archive_entry_baseline_data(
+                original_entry,
+                cache=cache,
+                read_entry_data=read_current,
+            )
+            refreshed = read_archive_entry_baseline_data(
+                updated_entry,
+                cache=cache,
+                read_entry_data=read_current,
+            )
+            reused = read_archive_entry_baseline_data(
+                updated_entry,
+                cache=cache,
+                read_entry_data=read_current,
+            )
+
+            self.assertEqual(first.data, b"old game pac bytes")
+            self.assertFalse(first.from_cache)
+            self.assertEqual(refreshed.data, b"updated game pac bytes")
+            self.assertFalse(refreshed.from_cache)
+            self.assertEqual(reused.data, b"updated game pac bytes")
+            self.assertTrue(reused.from_cache)
+            self.assertEqual(reads, [])
+
+    def test_cache_is_not_shared_across_install_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            first_entry = _entry("character/model/example.pac", root / "first_install")
+            second_entry = _entry("character/model/example.pac", root / "second_install")
+            cache = MeshBaselineCache(root / "cache")
+            reads = [b"first install bytes", b"second install bytes"]
+
+            def read_current(_entry: ArchiveEntry) -> tuple[bytes, object, object]:
+                return reads.pop(0), False, ""
+
+            first = read_archive_entry_baseline_data(
+                first_entry,
+                cache=cache,
+                read_entry_data=read_current,
+            )
+            second = read_archive_entry_baseline_data(
+                second_entry,
+                cache=cache,
+                read_entry_data=read_current,
+            )
+
+            self.assertEqual(first.data, b"first install bytes")
+            self.assertEqual(second.data, b"second install bytes")
+            self.assertFalse(second.from_cache)
+            self.assertEqual(reads, [])
+
 
 if __name__ == "__main__":
     unittest.main()
