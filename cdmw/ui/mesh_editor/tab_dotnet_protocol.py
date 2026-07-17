@@ -232,6 +232,7 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
             return bool(sent)
         if event == "error":
             message = str(payload.get("message", "") or "Mesh .NET editor reported an error.")
+            self._set_embedded_dotnet_preview_loading(False, message)
             self._set_dotnet_status(message, error=True)
             return False
         return False
@@ -259,6 +260,10 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
             self.standalone_dotnet_ready_timer.stop()
             if not self._handle_dotnet_renderer_status(payload, source_event="ready"):
                 if self.standalone_dotnet_target_embedded:
+                    self._set_embedded_dotnet_preview_loading(
+                        False,
+                        "Mesh Editor preview renderer is unavailable.",
+                    )
                     self._request_or_stop_blocked_embedded_dotnet("mesh_dotnet_renderer_blocked")
                 return False
             renderer = payload.get("renderer")
@@ -292,6 +297,7 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
                 ),
             )
             self._sync_embedded_builder_presentation_state()
+            self._set_embedded_dotnet_preview_loading(False, "Preview ready.")
             return True
         if event == "protocol_ready":
             self._observe_dotnet_capabilities(payload)
@@ -317,6 +323,7 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
                 ),
             )
             self._sync_embedded_builder_presentation_state()
+            self._set_embedded_dotnet_preview_loading(False, "Preview ready.")
             return True
         if event == "deactivated":
             if self.standalone_dotnet_target_embedded:

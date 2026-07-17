@@ -5656,6 +5656,23 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("from cdmw.ui.native_preview_panel import NativePreviewPanel", widgets_source)
         self.assertIn("class NativePreviewPanel(QWidget)", native_panel_source)
 
+    def test_modify_original_resident_bootstrap_defers_duplicate_material_synthesis(self) -> None:
+        source = (
+            ROOT
+            / "cdmw"
+            / "ui"
+            / "archive_browser"
+            / "static_replacement_dialog_sections_mesh_geometry_preview_part_01.py"
+        ).read_text(encoding="utf-8")
+        binding = _nested_function_source(
+            source,
+            "_mesh_editor_embedded_defer_reference_material_synthesis",
+        )
+        self.assertIn("_state.context.get('modify_original_clone_mode')", binding)
+        self.assertIn("_state.context.get('defer_original_texture_preview')", binding)
+        self.assertIn("prepared_model is None", binding)
+        self.assertIn("'_mesh_editor_embedded_set_preview_loading'", source)
+
 
 if __name__ == "__main__":
     unittest.main()

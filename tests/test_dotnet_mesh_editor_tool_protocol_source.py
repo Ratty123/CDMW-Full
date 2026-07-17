@@ -9,6 +9,15 @@ def _source(name: str) -> str:
     return (DOTNET_EDITOR / name).read_text(encoding="utf-8")
 
 
+def test_equal_surface_resize_refreshes_initial_render_pane_layout() -> None:
+    renderer_source = _source("MeshViewport.Renderer.cs")
+    equal_bounds = renderer_source.split(
+        "if (viewport.Bounds == ClientRectangle)", maxsplit=1
+    )[1].split("_renderSurfaceResizeTimer.Start();", maxsplit=1)[0]
+
+    assert equal_bounds.index("UpdateGpuViewport();") < equal_bounds.index("return;")
+
+
 def test_part_pick_off_routes_authoritative_clear_selection() -> None:
     program_source = _source("Program.cs")
     part_pick_handler = program_source.split(

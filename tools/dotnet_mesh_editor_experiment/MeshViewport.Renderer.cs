@@ -256,6 +256,7 @@ internal sealed partial class MeshViewport
         if (viewport.Bounds == ClientRectangle)
         {
             _renderSurfaceResizeTimer.Stop();
+            UpdateGpuViewport();
             return;
         }
         _renderSurfaceResizeTimer.Stop();

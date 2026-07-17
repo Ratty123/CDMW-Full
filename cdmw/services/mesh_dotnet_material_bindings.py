@@ -138,6 +138,48 @@ def _dotnet_texture_name(source: object) -> str:
     )
 
 
+def _normalized_dotnet_material_name(source: object) -> str:
+    return _dotnet_material_name(source).strip().casefold()
+
+
+def _unique_dotnet_material_target(
+    submeshes: Sequence[object],
+    preview_mesh: object,
+    *,
+    excluded: set[int],
+) -> int:
+    """Resolve an unindexed preview part only when its material is unambiguous."""
+
+    material_name = _normalized_dotnet_material_name(preview_mesh)
+    if not material_name:
+        return -1
+    matches = [
+        index
+        for index, submesh in enumerate(submeshes)
+        if index not in excluded
+        and _normalized_dotnet_material_name(submesh) == material_name
+    ]
+    return matches[0] if len(matches) == 1 else -1
+
+
+def _copy_dotnet_preview_material_binding(
+    target: object,
+    preview_mesh: object,
+    *,
+    source_asset_path: str,
+) -> None:
+    for attr in _DOTNET_PREVIEW_MATERIAL_ATTRS:
+        if not hasattr(preview_mesh, attr):
+            continue
+        try:
+            value = copy.deepcopy(getattr(preview_mesh, attr))
+        except (TypeError, RuntimeError):
+            value = getattr(preview_mesh, attr)
+        setattr(target, attr, value)
+    if source_asset_path:
+        setattr(target, "preview_source_asset_path", source_asset_path)
+
+
 def copy_dotnet_preview_material_bindings(mesh: object, preview_model: object) -> int:
     """Copy resolved, non-image preview bindings onto a ParsedMesh-style source.
 
@@ -146,11 +188,13 @@ def copy_dotnet_preview_material_bindings(mesh: object, preview_model: object) -
     """
 
     submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
-    preview_meshes = tuple(getattr(preview_model, "meshes", ()) or ())
+    preview_meshes = _dotnet_material_sources(preview_model)
     if not submeshes or not preview_meshes:
         return 0
     preview_source_asset_path = str(getattr(preview_model, "path", "") or "").strip()
-    copied: set[int] = set()
+    assignments: list[tuple[int, object]] = []
+    unindexed: list[object] = []
+    reserved: set[int] = set()
     for fallback_index, preview_mesh in enumerate(preview_meshes):
         source_index = _safe_int(
             getattr(preview_mesh, "source_submesh_index", fallback_index),
@@ -158,21 +202,115 @@ def copy_dotnet_preview_material_bindings(mesh: object, preview_model: object) -
         )
         if source_index < 0 and len(preview_meshes) == len(submeshes):
             source_index = fallback_index
+        if source_index < 0:
+            unindexed.append(preview_mesh)
+            continue
+        if source_index >= len(submeshes) or source_index in reserved:
+            continue
+        reserved.add(source_index)
+        assignments.append((source_index, preview_mesh))
+
+    copied: set[int] = set()
+    for source_index, preview_mesh in assignments:
+        _copy_dotnet_preview_material_binding(
+            submeshes[source_index],
+            preview_mesh,
+            source_asset_path=preview_source_asset_path,
+        )
+        copied.add(source_index)
+
+    for preview_mesh in unindexed:
+        source_index = _unique_dotnet_material_target(
+            submeshes,
+            preview_mesh,
+            excluded=copied,
+        )
         if source_index < 0 or source_index >= len(submeshes) or source_index in copied:
             continue
-        submesh = submeshes[source_index]
-        for attr in _DOTNET_PREVIEW_MATERIAL_ATTRS:
-            if not hasattr(preview_mesh, attr):
-                continue
-            try:
-                value = copy.deepcopy(getattr(preview_mesh, attr))
-            except (TypeError, RuntimeError):
-                value = getattr(preview_mesh, attr)
-            setattr(submesh, attr, value)
-        if preview_source_asset_path:
-            setattr(submesh, "preview_source_asset_path", preview_source_asset_path)
+        _copy_dotnet_preview_material_binding(
+            submeshes[source_index],
+            preview_mesh,
+            source_asset_path=preview_source_asset_path,
+        )
         copied.add(source_index)
     return len(copied)
+
+
+_DOTNET_SYNTHESIS_INPUT_SEMANTICS = {
+    "detail_mask",
+    "glossiness",
+    "layer_mask",
+    "mask",
+    "material",
+    "material_mask",
+}
+
+
+def _dotnet_preview_input_requires_synthesis(value: object) -> bool:
+    values = (
+        value
+        if isinstance(value, Mapping)
+        else vars(value)
+        if hasattr(value, "__dict__")
+        else {}
+    )
+
+    def field(name: str, fallback: object = "") -> object:
+        return values.get(name, fallback) or getattr(value, name, fallback)
+
+    semantic = str(field("semantic_type") or field("slot_kind")).strip().casefold()
+    return bool(
+        semantic in _DOTNET_SYNTHESIS_INPUT_SEMANTICS
+        or tuple(field("packed_channels", ()) or ())
+        or str(field("layer_role")).strip()
+        or str(field("layer_channel")).strip()
+    )
+
+
+def defer_dotnet_preview_material_synthesis(mesh: object) -> int:
+    """Keep direct texture transport while deferring graph baking to a late update.
+
+    This is intended for a cloned bootstrap/reference mesh when a prepared
+    material model is already resolving in another worker. Direct base/normal
+    inputs and source DDS paths stay authoritative; graph-only inputs arrive in
+    the resident update instead of blocking initial process launch.
+    """
+
+    deferred = 0
+    for submesh in tuple(getattr(mesh, "submeshes", ()) or ()):
+        changed = False
+        existing_inputs = tuple(
+            getattr(submesh, "preview_material_texture_inputs", ()) or ()
+        )
+        direct_inputs = tuple(
+            item
+            for item in existing_inputs
+            if not _dotnet_preview_input_requires_synthesis(item)
+        )
+        if direct_inputs != existing_inputs:
+            setattr(submesh, "preview_material_texture_inputs", direct_inputs)
+            changed = True
+        material_path = str(
+            getattr(submesh, "preview_material_texture_path", "") or ""
+        ).strip()
+        if material_path:
+            material_dds_path = str(
+                getattr(submesh, "preview_material_texture_dds_path", "") or ""
+            ).strip()
+            material_default_path = str(
+                getattr(submesh, "preview_material_texture_default_path", "") or ""
+            ).strip()
+            if not material_dds_path and not material_default_path:
+                setattr(
+                    submesh,
+                    "preview_material_texture_default_path",
+                    material_path,
+                )
+            setattr(submesh, "preview_material_texture_path", "")
+            changed = True
+        if changed:
+            deferred += 1
+    return deferred
 
 
 def _native_material_descriptor_path(descriptor: object) -> str:

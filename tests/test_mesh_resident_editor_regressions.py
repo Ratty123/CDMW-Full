@@ -28,6 +28,40 @@ _APP = QApplication.instance() or QApplication([])
 
 
 class MeshResidentEditorRegressionTests(unittest.TestCase):
+    def test_embedded_preview_loading_tracks_resident_activation(self) -> None:
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPreviewLoading"))
+        builder = _EmbeddedMeshBuilder()
+        tab.mount_embedded_builder(builder)
+        updates: list[tuple[bool, str, str]] = []
+        builder._mesh_editor_embedded_set_preview_loading = (  # type: ignore[attr-defined]
+            lambda active, message, *, detail="": updates.append(
+                (bool(active), str(message), str(detail))
+            )
+        )
+        tab.standalone_dotnet_target_embedded = True
+
+        tab._set_embedded_dotnet_preview_loading(
+            True,
+            "Preparing Mesh Editor geometry and preview materials...",
+            detail="background",
+        )
+        with (
+            patch.object(tab, "_notify_embedded_dotnet_ready"),
+            patch.object(tab, "_send_dotnet_session_state"),
+            patch.object(tab, "_send_dotnet_scene_state", return_value=True),
+            patch.object(tab, "_sync_embedded_builder_presentation_state"),
+        ):
+            self.assertTrue(tab._handle_dotnet_lifecycle_event({}, "activated"))
+
+        self.assertEqual(
+            (True, "Preparing Mesh Editor geometry and preview materials...", "background"),
+            updates[0],
+        )
+        self.assertEqual((False, "Preview ready.", ""), updates[-1])
+        tab.deleteLater()
+        builder.deleteLater()
+        _APP.processEvents()
+
     def test_scene_ack_reapplies_current_builder_preview_mode(self) -> None:
         settings = QSettings("CDMWTests", "MeshEditorResidentPreviewModeRestore")
         settings.clear()

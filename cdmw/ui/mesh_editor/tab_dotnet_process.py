@@ -244,6 +244,7 @@ class MeshEditorDotNetProcessMixin:
             if not intentional_exit:
                 detail = message or "Embedded .NET helper exited unexpectedly."
                 self._set_embedded_dotnet_state("failed", active=False)
+                self._set_embedded_dotnet_preview_loading(False, detail)
                 self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_failed", diagnostics=detail)
                 self._set_dotnet_status(
                     "Mesh .NET editor exited; resident edits remain saved but preview is unavailable. " + detail,
@@ -311,6 +312,7 @@ class MeshEditorDotNetProcessMixin:
                     self._complete_pending_dotnet_exit()
             else:
                 self._set_embedded_dotnet_state("failed", active=False)
+                self._set_embedded_dotnet_preview_loading(False, text)
                 self._notify_embedded_dotnet_launch_failed("mesh_edit_dotnet_failed", diagnostics=detail)
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         self._set_dotnet_status(text, error=True)

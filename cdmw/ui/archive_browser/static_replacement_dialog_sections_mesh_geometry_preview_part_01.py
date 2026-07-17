@@ -426,6 +426,30 @@ def _bind_embedded_mesh_editor_preview(_state):
         current_result = getattr(_state.self, 'current_archive_preview_result', None)
         return str(getattr(current_result, 'native_preview_package_path', '') or '').strip()
 
+    def _mesh_editor_embedded_defer_reference_material_synthesis() -> bool:
+        current_getter = getattr(_state, '_current_original_reference_preview_model', None)
+        try:
+            prepared_model = current_getter() if callable(current_getter) else None
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            prepared_model = None
+        return bool(
+            _state.context.get('modify_original_clone_mode')
+            and _state.context.get('defer_original_texture_preview')
+            and prepared_model is None
+        )
+
+    def _mesh_editor_embedded_set_preview_loading(
+        active: bool,
+        message: str = '',
+        *,
+        detail: str = '',
+    ) -> None:
+        setter = getattr(_state, '_set_alignment_d3d11_loading', None)
+        if not callable(setter):
+            setter = _state.context.get('_set_alignment_d3d11_loading')
+        if callable(setter):
+            setter(bool(active), str(message or ''), detail=str(detail or ''))
+
     setattr(_state.dialog, '_mesh_editor_auto_dotnet_preview', True)
     setattr(_state.dialog, '_mesh_editor_action_bar_action_requested', _state.alignment_mesh_edit_callbacks._mesh_editor_action_bar_action_requested)
     setattr(_state.dialog, '_mesh_editor_embedded_controller', _state.alignment_mesh_edit_callbacks._mesh_editor_embedded_controller)
@@ -440,6 +464,16 @@ def _bind_embedded_mesh_editor_preview(_state):
         _state.dialog,
         '_mesh_editor_embedded_reference_native_package',
         _mesh_editor_embedded_reference_native_package,
+    )
+    setattr(
+        _state.dialog,
+        '_mesh_editor_embedded_defer_reference_material_synthesis',
+        _mesh_editor_embedded_defer_reference_material_synthesis,
+    )
+    setattr(
+        _state.dialog,
+        '_mesh_editor_embedded_set_preview_loading',
+        _mesh_editor_embedded_set_preview_loading,
     )
     setattr(
         _state.dialog,

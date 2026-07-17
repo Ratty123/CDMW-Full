@@ -6,17 +6,22 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
+from cdmw.domain.model_preview_materials import PreviewMaterialTextureInput
 from cdmw.modding.asset_replacement import infer_cd_texture_role_from_path
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services import (
     mesh_dotnet_experiment,
     mesh_dotnet_material_bindings,
     mesh_dotnet_material_channels,
+    mesh_dotnet_material_package,
     mesh_dotnet_material_payload,
     mesh_dotnet_material_semantics,
     mesh_dotnet_material_state,
 )
-from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
+from cdmw.services.mesh_dotnet_material_state import (
+    copy_dotnet_preview_material_bindings,
+    defer_dotnet_preview_material_synthesis,
+)
 from cdmw.services.mesh_dotnet_experiment import (
     build_mesh_dotnet_experiment_package,
     mesh_dotnet_material_input_signature,
@@ -28,6 +33,9 @@ from tests.test_mesh_dotnet_experiment import _mesh
 def test_material_state_facade_reexports_exact_owner_objects() -> None:
     assert mesh_dotnet_material_state.copy_dotnet_preview_material_bindings is (
         mesh_dotnet_material_bindings.copy_dotnet_preview_material_bindings
+    )
+    assert mesh_dotnet_material_state.defer_dotnet_preview_material_synthesis is (
+        mesh_dotnet_material_bindings.defer_dotnet_preview_material_synthesis
     )
     assert mesh_dotnet_material_state.mesh_dotnet_material_input_signature is (
         mesh_dotnet_material_semantics.mesh_dotnet_material_input_signature
@@ -288,6 +296,131 @@ def test_preview_material_bridge_preserves_per_role_texture_orientation(tmp_path
     assert editable_payload["submeshes"][0]["texture_flip_vertical"] is True
     assert reference_payload["submeshes"][0]["texture_flip_vertical"] is False
     assert mesh_dotnet_material_input_signature(editable) != mesh_dotnet_material_input_signature(reference)
+
+
+def test_unindexed_exact_clone_materials_ignore_original_only_supplemental_parts(
+    tmp_path: Path,
+) -> None:
+    texture = tmp_path / "resolved.dds"
+    texture.write_bytes(b"resolved")
+    editable = ParsedMesh(
+        path="exact-clone.obj",
+        format="obj",
+        submeshes=[
+            SubMesh(name=f"editable-{index}", material=f"stock-{index}")
+            for index in range(10)
+        ],
+    )
+    preview = ModelPreviewData(
+        path="archive/cd_m0001_00_de_phm_ub_32002.pac",
+        meshes=[
+            ModelPreviewMesh(
+                material_name=f"stock-{index}",
+                source_submesh_index=-1,
+                preview_texture_path=str(texture),
+                preview_texture_dds_path=str(texture),
+            )
+            for index in range(10)
+        ]
+        + [
+            ModelPreviewMesh(material_name="supplemental-a", source_submesh_index=-1),
+            ModelPreviewMesh(material_name="supplemental-b", source_submesh_index=-1),
+        ],
+    )
+
+    assert copy_dotnet_preview_material_bindings(editable, preview) == 10
+    assert all(
+        submesh.preview_texture_dds_path == str(texture)
+        for submesh in editable.submeshes
+    )
+    assert all(
+        submesh.preview_source_asset_path
+        == "archive/cd_m0001_00_de_phm_ub_32002.pac"
+        for submesh in editable.submeshes
+    )
+
+
+def test_unindexed_material_fallback_rejects_ambiguous_targets() -> None:
+    editable = ParsedMesh(
+        path="ambiguous.obj",
+        format="obj",
+        submeshes=[
+            SubMesh(name="first", material="shared"),
+            SubMesh(name="second", material="shared"),
+        ],
+    )
+    preview = ModelPreviewData(
+        path="archive/ambiguous.pac",
+        meshes=[
+            ModelPreviewMesh(
+                material_name="shared",
+                source_submesh_index=-1,
+                preview_texture_path="must-not-copy.dds",
+            ),
+            ModelPreviewMesh(material_name="supplemental-a", source_submesh_index=-1),
+            ModelPreviewMesh(material_name="supplemental-b", source_submesh_index=-1),
+        ],
+    )
+
+    assert copy_dotnet_preview_material_bindings(editable, preview) == 0
+    assert all(
+        not str(getattr(submesh, "preview_texture_path", "") or "")
+        for submesh in editable.submeshes
+    )
+
+
+def test_deferred_bootstrap_synthesis_keeps_direct_texture_transport(
+    tmp_path: Path,
+) -> None:
+    base = tmp_path / "base.dds"
+    material = tmp_path / "material.dds"
+    base.write_bytes(b"base")
+    material.write_bytes(b"material")
+    direct_base = PreviewMaterialTextureInput(
+        slot_kind="base",
+        semantic_type="color",
+        source_dds_path=str(base),
+    )
+    synthesized_layer = PreviewMaterialTextureInput(
+        slot_kind="material",
+        semantic_type="mask",
+        layer_role="detail",
+        source_dds_path=str(material),
+    )
+    submesh = SubMesh(name="body", material="stock")
+    submesh.preview_texture_path = str(base)
+    submesh.preview_texture_dds_path = str(base)
+    submesh.preview_material_texture_path = str(material)
+    submesh.preview_material_texture_dds_path = str(material)
+    submesh.preview_material_texture_inputs = (direct_base, synthesized_layer)
+    mesh = ParsedMesh(path="bootstrap.obj", format="obj", submeshes=[submesh])
+    before = mesh_dotnet_material_channels._dotnet_resolved_texture_channels(submesh)
+
+    assert defer_dotnet_preview_material_synthesis(mesh) == 1
+
+    after = mesh_dotnet_material_channels._dotnet_resolved_texture_channels(submesh)
+    assert submesh.preview_material_texture_inputs == (direct_base,)
+    assert submesh.preview_material_texture_path == ""
+    assert submesh.preview_material_texture_dds_path == str(material)
+    assert after["base"] == before["base"] == str(base)
+    assert after["material"] == before["material"] == str(material)
+    assert mesh_dotnet_material_package._package_synthesis_inputs(submesh, {}) == ()
+
+    editable = ParsedMesh(
+        path="editable.obj",
+        format="obj",
+        submeshes=[SubMesh(name="editable-body", material="stock")],
+    )
+    assert copy_dotnet_preview_material_bindings(editable, mesh) == 1
+    editable_channels = mesh_dotnet_material_channels._dotnet_resolved_texture_channels(
+        editable.submeshes[0]
+    )
+    assert editable_channels["base"] == str(base)
+    assert editable_channels["material"] == str(material)
+    assert mesh_dotnet_material_package._package_synthesis_inputs(
+        editable.submeshes[0],
+        {},
+    ) == ()
 
 
 def test_real_material_identity_inference_activates_only_supported_family_policies(

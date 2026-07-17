@@ -224,6 +224,62 @@ def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp
     app.processEvents()
 
 
+def test_late_unindexed_clone_materials_survive_original_only_supplemental_parts(
+    tmp_path: Path,
+) -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorLateUnindexedCloneMaterials"))
+    builder = _EmbeddedMeshBuilder()
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab.standalone_dotnet_editor_process = process
+    tab._connect_dotnet_protocol(process)
+    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    editable_mesh = builder.controller.working_mesh(clone=False)
+    texture_path = tmp_path / "resolved-unindexed.dds"
+    texture_path.write_bytes(b"resolved-unindexed")
+    preview_model = SimpleNamespace(
+        path="archive/original-with-supplements.pac",
+        meshes=[
+            SimpleNamespace(
+                source_submesh_index=-1,
+                material_name=submesh.material,
+                preview_texture_path=str(texture_path),
+                preview_texture_dds_path=str(texture_path),
+                preview_texture_flip_vertical=False,
+                preview_material_texture_inputs=(),
+            )
+            for submesh in editable_mesh.submeshes
+        ]
+        + [
+            SimpleNamespace(source_submesh_index=-1, material_name="supplemental-a"),
+            SimpleNamespace(source_submesh_index=-1, material_name="supplemental-b"),
+        ],
+    )
+
+    clone_hook = getattr(builder, "_mesh_editor_embedded_apply_clone_material_resources")
+    assert clone_hook(preview_model)
+    assert all(
+        submesh.preview_texture_dds_path == str(texture_path)
+        for submesh in editable_mesh.submeshes
+    )
+    material_writes = [
+        json.loads(raw.decode("utf-8"))
+        for raw in process.stdin_writes
+        if b'"event":"material_state_update"' in raw
+    ]
+    assert len(material_writes) == 1
+    assert material_writes[0]["reason"] == "late_exact_clone_resources"
+    assert len(material_writes[0]["submeshes"]) == len(editable_mesh.submeshes)
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
 def test_pre_ready_clone_materials_replay_and_stale_pending_models_clear(tmp_path: Path) -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPreReadyCloneMaterials"))

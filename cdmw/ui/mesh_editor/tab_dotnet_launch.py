@@ -73,6 +73,26 @@ class MeshEditorDotNetLaunchMixin:
         if label is not None:
             label.setText(message)
         self.status_message_requested.emit(message, error)
+    def _set_embedded_dotnet_preview_loading(
+        self,
+        active: bool,
+        message: str,
+        *,
+        detail: str = "",
+    ) -> None:
+        if not self.standalone_dotnet_target_embedded:
+            return
+        setter = getattr(
+            self.active_builder(),
+            "_mesh_editor_embedded_set_preview_loading",
+            None,
+        )
+        if not callable(setter):
+            return
+        try:
+            setter(bool(active), str(message or ""), detail=str(detail or ""))
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            pass
     def _start_standalone_dotnet_editor_requested(self) -> None:
         controller = self.standalone_controller
         if controller is None:
@@ -182,6 +202,19 @@ class MeshEditorDotNetLaunchMixin:
         if self._standalone_dotnet_editor_process_running():
             self._set_dotnet_status("Mesh .NET editor experiment is already running.")
             return
+        self._start_standalone_dotnet_package_worker(
+            controller,
+            embedded=embedded,
+            executable=executable,
+        )
+
+    def _start_standalone_dotnet_package_worker(
+        self,
+        controller: _tab.MeshEditorController,
+        *,
+        embedded: bool,
+        executable: Path,
+    ) -> None:
         self.standalone_dotnet_pending_clone_material_model = None
         self.standalone_dotnet_pending_reference_material_model = None
         session_id = controller.session_view().session_id
@@ -198,12 +231,18 @@ class MeshEditorDotNetLaunchMixin:
         self.standalone_dotnet_target_controller = controller
         if embedded:
             self._set_embedded_dotnet_state("launching", active=False)
+        defer_reference_material_synthesis = (
+            self._dotnet_defer_reference_material_synthesis_for_package(
+                embedded=embedded
+            )
+        )
         self._record_mesh_dotnet_event(
             "mesh_dotnet_package_start",
             request_id=request_id,
             session_id=session_id,
             embedded=bool(embedded),
             executable=str(executable),
+            deferred_reference_material_synthesis=defer_reference_material_synthesis,
         )
         reference_mesh = self._dotnet_reference_mesh_for_package(controller, embedded=embedded)
         comparison_mode, interaction_mode = self._dotnet_initial_scene_modes(embedded=embedded)
@@ -219,6 +258,7 @@ class MeshEditorDotNetLaunchMixin:
             reference_native_package=self._dotnet_reference_native_package_for_package(
                 embedded=embedded
             ),
+            defer_reference_material_synthesis=defer_reference_material_synthesis,
             comparison_mode=comparison_mode,
             interaction_mode=interaction_mode,
             scene_transform=scene_transform,
@@ -235,7 +275,13 @@ class MeshEditorDotNetLaunchMixin:
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_dotnet_package_worker(target_thread, target_worker))
         self.standalone_dotnet_package_thread = thread
         self.standalone_dotnet_package_worker = worker
-        self._set_dotnet_status("Preparing Mesh .NET editor experiment package...")
+        loading_message = "Preparing Mesh Editor geometry and preview materials..."
+        self._set_dotnet_status(loading_message)
+        self._set_embedded_dotnet_preview_loading(
+            True,
+            loading_message,
+            detail="The resident preview is being prepared in a background worker.",
+        )
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
         thread.start(QThread.LowPriority)
 
@@ -273,6 +319,21 @@ class MeshEditorDotNetLaunchMixin:
             return getter()
         except Exception:
             return None
+
+    def _dotnet_defer_reference_material_synthesis_for_package(self, *, embedded: bool) -> bool:
+        if not embedded:
+            return False
+        getter = getattr(
+            self.active_builder(),
+            "_mesh_editor_embedded_defer_reference_material_synthesis",
+            None,
+        )
+        if not callable(getter):
+            return False
+        try:
+            return bool(getter())
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            return False
 
     def _dotnet_reference_native_package_for_package(self, *, embedded: bool) -> Path | None:
         if not embedded:
@@ -342,6 +403,10 @@ class MeshEditorDotNetLaunchMixin:
                 elapsed_ms=float(elapsed_ms),
                 error="package worker returned an invalid package",
             )
+            self._set_embedded_dotnet_preview_loading(
+                False,
+                "Mesh Editor preview preparation failed.",
+            )
             self._set_dotnet_status("Mesh .NET editor package worker returned an invalid package.", error=True)
             return
         self.standalone_dotnet_lifecycle_counts["package_build_count"] += 1
@@ -359,9 +424,19 @@ class MeshEditorDotNetLaunchMixin:
             elapsed_ms=float(elapsed_ms),
         )
         if self._launch_standalone_dotnet_editor_package(package_object):
+            self._set_embedded_dotnet_preview_loading(
+                True,
+                "Starting resident Mesh Editor preview...",
+                detail=f"Background package preparation completed in {float(elapsed_ms) / 1000.0:.1f}s.",
+            )
             self.status_message_requested.emit(
                 f"Mesh .NET editor experiment package ready ({float(elapsed_ms):.1f} ms).",
                 False,
+            )
+        else:
+            self._set_embedded_dotnet_preview_loading(
+                False,
+                "Mesh Editor preview launch failed.",
             )
     def _handle_standalone_dotnet_package_error(self, request_id: int, message: str) -> None:
         if int(request_id) != int(self.standalone_dotnet_package_request_id):
@@ -375,6 +450,7 @@ class MeshEditorDotNetLaunchMixin:
         )
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("failed", active=False)
+        self._set_embedded_dotnet_preview_loading(False, text)
         self._set_dotnet_status(text, error=True)
         if self.standalone_dotnet_target_embedded:
             self._notify_embedded_dotnet_launch_failed("mesh_dotnet_package_error", diagnostics=str(message))

@@ -1,6 +1,6 @@
 # Mesh Editing Pipeline
 
-Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
+Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
 
 ## Current Implementation Map
 
@@ -455,7 +455,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   file identity to reuse hard-linked SRVs across package paths. The host builds
   the handoff package in
   `MeshDotNetExperimentPackageWorker`, and launches the process with input
-  metadata, status, output, and edit-operation paths. Embedded interaction
+  metadata, status, output, and edit-operation paths. Deferred Modify Original
+  startup keeps direct source DDS/base/normal
+  bindings in that first package but defers duplicate reference material-graph
+  baking to the already-running prepared-model result. That result updates both
+  exact-clone and original-reference roles through the resident material lane.
+  Supplemental original-only parts do not prevent uniquely named clone
+  materials from binding.
+  Embedded interaction
   mirrors local selection to the resident C++ session, sends incremental
   strokes, and routes screen selection plus topology commands through
   `MeshEditCommandWorker` so native picking never blocks the Qt UI thread.
