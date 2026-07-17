@@ -262,17 +262,77 @@ def test_dense_graph_layout_keeps_text_lines_and_boxes_separate() -> None:
 def test_source_changes_views_are_read_only_diffable_and_jumpable() -> None:
     _app()
     view = PacXmlSourceChangesView(XML)
+    view.resize(1000, 700)
+    view.show()
     patched = XML.replace('_value="0.5"', '_value="0.75"')
     view.set_patched_source(patched, changed_count=1)
+    _app().processEvents()
 
     assert view.original_edit.isReadOnly()
     assert view.patched_edit.isReadOnly()
     assert view.diff_edit.isReadOnly()
+    assert view.tabs.tabText(0) == "Original XML"
+    assert view.tabs.tabText(1) == "Patched XML"
+    assert view.tabs.tabText(2) == "Unified Diff"
+    assert view.original_edit.line_number_area.isVisible()
+    assert view.original_edit.viewportMargins().left() == view.original_edit.line_number_area_width()
     assert "-    <MaterialParameterFloat" in view.diff_edit.toPlainText()
     assert "+    <MaterialParameterFloat" in view.diff_edit.toPlainText()
+
+    def block_colors(editor, prefix: str) -> tuple[set[str], set[str]]:  # type: ignore[no-untyped-def]
+        block = editor.document().firstBlock()
+        while block.isValid() and not block.text().startswith(prefix):
+            block = block.next()
+        assert block.isValid(), prefix
+        foregrounds: set[str] = set()
+        backgrounds: set[str] = set()
+        for item in block.layout().formats():
+            if item.format.foreground().style() != Qt.NoBrush:
+                foregrounds.add(item.format.foreground().color().name())
+            if item.format.background().style() != Qt.NoBrush:
+                backgrounds.add(item.format.background().color().name())
+        return foregrounds, backgrounds
+
+    xml_foregrounds, _xml_backgrounds = block_colors(
+        view.original_edit,
+        '<SkinnedMeshMaterialWrapper _subMeshName="body">',
+    )
+    assert {"#569cd6", "#9cdcfe", "#ce9178"} <= xml_foregrounds
+    _removed_foregrounds, removed_backgrounds = block_colors(
+        view.diff_edit,
+        "-    <MaterialParameterFloat",
+    )
+    _added_foregrounds, added_backgrounds = block_colors(
+        view.diff_edit,
+        "+    <MaterialParameterFloat",
+    )
+    _hunk_foregrounds, hunk_backgrounds = block_colors(view.diff_edit, "@@")
+    assert "#4a1f25" in removed_backgrounds
+    assert "#173b2a" in added_backgrounds
+    assert "#24385e" in hunk_backgrounds
     view.jump_to_line(3)
     assert view.original_edit.textCursor().blockNumber() == 2
     view.deleteLater()
+
+
+def test_dialog_is_maximizable_and_uses_available_screen_size() -> None:
+    _app()
+    dialog = PacXmlEditorDialog()
+    dialog.resize(320, 240)
+
+    assert dialog.windowFlags() & Qt.WindowMaximizeButtonHint
+    assert dialog.windowFlags() & Qt.WindowMinimizeButtonHint
+    assert dialog.isSizeGripEnabled()
+
+    dialog.show()
+    _app().processEvents()
+    available = dialog.screen().availableGeometry()
+    assert int(available.width() * 0.85) <= dialog.width() <= available.width()
+    assert int(available.height() * 0.85) <= dialog.height() <= available.height()
+    dialog.showMaximized()
+    _app().processEvents()
+    assert dialog.isMaximized()
+    dialog.close()
 
 
 def test_dirty_close_requires_discard_and_exported_state_can_close(monkeypatch) -> None:
