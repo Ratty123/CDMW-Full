@@ -260,6 +260,52 @@ internal sealed class NetSceneState
         }
         PresentationGeneration++;
     }
+
+    public void RemapTopologyState(
+        IReadOnlyDictionary<int, int> topologySources,
+        int editableSubmeshCount,
+        int documentSubmeshCount)
+    {
+        var previousHidden = new HashSet<int>(_presentationHiddenSubmeshes);
+        var previousMatrices = new Dictionary<int, Matrix4x4>(_presentationPartMatrices);
+        var previousRoles = new Dictionary<int, string>(_presentationPartRoles);
+        var totalCount = Math.Max(0, documentSubmeshCount);
+        var nextEditableCount = Math.Clamp(editableSubmeshCount, 0, totalCount);
+
+        _presentationHiddenSubmeshes.Clear();
+        _presentationPartMatrices.Clear();
+        _presentationPartRoles.Clear();
+        for (var targetIndex = 0; targetIndex < totalCount; targetIndex++)
+        {
+            var sourceIndex = topologySources.TryGetValue(targetIndex, out var source)
+                ? source
+                : targetIndex;
+            if (sourceIndex < 0)
+            {
+                continue;
+            }
+            if (previousHidden.Contains(sourceIndex))
+            {
+                _presentationHiddenSubmeshes.Add(targetIndex);
+            }
+            if (targetIndex >= nextEditableCount)
+            {
+                continue;
+            }
+            if (previousMatrices.TryGetValue(sourceIndex, out var matrix))
+            {
+                _presentationPartMatrices[targetIndex] = matrix;
+            }
+            if (previousRoles.TryGetValue(sourceIndex, out var role))
+            {
+                _presentationPartRoles[targetIndex] = role;
+            }
+        }
+        EditableSubmeshCount = nextEditableCount;
+        ReferenceSubmeshCount = totalCount - nextEditableCount;
+        PresentationGeneration++;
+    }
+
     public void SetGizmoTool(string value) => GizmoTool = NormalizeGizmo(value);
     public void SetHoveredGizmoHandle(string value) => HoveredGizmoHandle = NormalizeGizmoHandle(value);
     public void SetActiveGizmoHandle(string value) => ActiveGizmoHandle = NormalizeGizmoHandle(value);

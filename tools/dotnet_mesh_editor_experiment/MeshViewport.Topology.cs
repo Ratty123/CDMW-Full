@@ -160,15 +160,16 @@ internal sealed partial class MeshViewport
     private void RebuildPartAdjacency()
     {
         _partAdjacency.Clear();
-        for (var index = 0; index < _scene.EditableSubmeshCount; index++)
+        var editableSubmeshCount = Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count);
+        for (var index = 0; index < editableSubmeshCount; index++)
         {
             _partAdjacency[index] = new HashSet<int>();
         }
         var size = Math.Max(_bounds.Max.X - _bounds.Min.X, Math.Max(_bounds.Max.Y - _bounds.Min.Y, _bounds.Max.Z - _bounds.Min.Z));
         var tolerance = Math.Max(0.0001f, size * 0.001f);
-        for (var left = 0; left < _scene.EditableSubmeshCount; left++)
+        for (var left = 0; left < editableSubmeshCount; left++)
         {
-            for (var right = left + 1; right < _scene.EditableSubmeshCount; right++)
+            for (var right = left + 1; right < editableSubmeshCount; right++)
             {
                 if (SubmeshesAdjacent(left, right, tolerance))
                 {

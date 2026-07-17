@@ -304,20 +304,46 @@ internal sealed partial class ExperimentForm
         out Dictionary<int, int> materialSources,
         out bool replaceAll)
     {
+        return TryApplyPreviewTriangleGroups(
+            document,
+            root,
+            groups,
+            document.Submeshes.Count,
+            out changedCount,
+            out affectedSubmeshes,
+            out materialSources,
+            out _,
+            out replaceAll);
+    }
+
+    internal static bool TryApplyPreviewTriangleGroups(
+        ObjDocument document,
+        JsonElement root,
+        JsonElement groups,
+        int editableSubmeshCount,
+        out int changedCount,
+        out int[] affectedSubmeshes,
+        out Dictionary<int, int> materialSources,
+        out Dictionary<int, int> topologySources,
+        out bool replaceAll)
+    {
         if (!TryPreparePreviewTriangleGroups(root, groups, out var plan) || plan is null)
         {
             changedCount = 0;
             affectedSubmeshes = Array.Empty<int>();
             materialSources = new Dictionary<int, int>();
+            topologySources = new Dictionary<int, int>();
             replaceAll = false;
             return false;
         }
         return TryCommitPreviewTriangleGroups(
             document,
             plan,
+            editableSubmeshCount,
             out changedCount,
             out affectedSubmeshes,
             out materialSources,
+            out topologySources,
             out replaceAll);
     }
 
@@ -362,13 +388,38 @@ internal sealed partial class ExperimentForm
         out Dictionary<int, int> materialSources,
         out bool replaceAll)
     {
+        return TryCommitPreviewTriangleGroups(
+            document,
+            plan,
+            document.Submeshes.Count,
+            out changedCount,
+            out affectedSubmeshes,
+            out materialSources,
+            out _,
+            out replaceAll);
+    }
+
+    internal static bool TryCommitPreviewTriangleGroups(
+        ObjDocument document,
+        PreviewTriangleUpdatePlan plan,
+        int editableSubmeshCount,
+        out int changedCount,
+        out int[] affectedSubmeshes,
+        out Dictionary<int, int> materialSources,
+        out Dictionary<int, int> topologySources,
+        out bool replaceAll)
+    {
         changedCount = 0;
         affectedSubmeshes = Array.Empty<int>();
         materialSources = new Dictionary<int, int>();
+        topologySources = new Dictionary<int, int>();
         replaceAll = plan.ReplaceAll;
+        var previousEditableCount = Math.Clamp(editableSubmeshCount, 0, document.Submeshes.Count);
+        var editableSubmeshes = document.Submeshes.Take(previousEditableCount).ToList();
+        var referenceSubmeshes = document.Submeshes.Skip(previousEditableCount).ToArray();
         var parsed = new Dictionary<int, PreviewTriangleGroup>(plan.Parsed);
         var requested = plan.Requested;
-        if (requested.Any(index => index < 0 || (index >= document.Submeshes.Count && !parsed.ContainsKey(index))))
+        if (requested.Any(index => index < 0 || (index >= previousEditableCount && !parsed.ContainsKey(index))))
         {
             return false;
         }
@@ -379,7 +430,7 @@ internal sealed partial class ExperimentForm
         {
             if (!hasExplicitFinalCount)
             {
-                finalCount = parsed.Count == 0 ? document.Submeshes.Count : parsed.Keys.Max() + 1;
+                finalCount = parsed.Count == 0 ? previousEditableCount : parsed.Keys.Max() + 1;
             }
             if (finalCount < 0
                 || parsed.Keys.Any(index => index >= finalCount)
@@ -395,9 +446,9 @@ internal sealed partial class ExperimentForm
                     next.Add(item.Submesh);
                     materialSources[index] = Math.Max(0, item.MaterialSource);
                 }
-                else if (!hasExplicitFinalCount && index < document.Submeshes.Count)
+                else if (!hasExplicitFinalCount && index < previousEditableCount)
                 {
-                    next.Add(document.Submeshes[index]);
+                    next.Add(editableSubmeshes[index]);
                     materialSources[index] = index;
                 }
                 else
@@ -405,13 +456,16 @@ internal sealed partial class ExperimentForm
                     return false;
                 }
             }
-            affected.UnionWith(Enumerable.Range(0, Math.Max(finalCount, document.Submeshes.Count)));
-            document.Submeshes.Clear();
-            document.Submeshes.AddRange(next);
+            affected.UnionWith(Enumerable.Range(0, Math.Max(finalCount, previousEditableCount)));
+            editableSubmeshes = next;
+            for (var index = 0; index < editableSubmeshes.Count; index++)
+            {
+                topologySources[index] = index < previousEditableCount ? index : -1;
+            }
         }
         else
         {
-            var previousCount = document.Submeshes.Count;
+            var previousCount = previousEditableCount;
             if (hasExplicitFinalCount
                 && (finalCount < 0
                     || parsed.Values.Any(item => item.SubmeshIndex >= finalCount
@@ -440,14 +494,14 @@ internal sealed partial class ExperimentForm
                 }
                 foreach (var removedIndex in removalMarkers)
                 {
-                    document.Submeshes.RemoveAt(removedIndex);
+                    editableSubmeshes.RemoveAt(removedIndex);
                     sourceIndices.RemoveAt(removedIndex);
                     parsed.Remove(removedIndex);
                 }
-                if (document.Submeshes.Count > finalCount)
+                if (editableSubmeshes.Count > finalCount)
                 {
                     affected.UnionWith(sourceIndices.Skip(finalCount));
-                    document.Submeshes.RemoveRange(finalCount, document.Submeshes.Count - finalCount);
+                    editableSubmeshes.RemoveRange(finalCount, editableSubmeshes.Count - finalCount);
                     sourceIndices.RemoveRange(finalCount, sourceIndices.Count - finalCount);
                 }
                 for (var submeshIndex = 0; submeshIndex < sourceIndices.Count; submeshIndex++)
@@ -464,15 +518,40 @@ internal sealed partial class ExperimentForm
             }
             foreach (var item in parsed.Values.OrderBy(item => item.SubmeshIndex))
             {
-                while (document.Submeshes.Count <= item.SubmeshIndex)
+                while (editableSubmeshes.Count <= item.SubmeshIndex)
                 {
-                    document.Submeshes.Add(new ObjSubmesh($"submesh_{document.Submeshes.Count}", 0, 0, 0));
+                    editableSubmeshes.Add(new ObjSubmesh($"submesh_{editableSubmeshes.Count}", 0, 0, 0));
+                    sourceIndices.Add(-1);
                 }
-                document.Submeshes[item.SubmeshIndex] = item.Submesh;
+                editableSubmeshes[item.SubmeshIndex] = item.Submesh;
                 materialSources[item.SubmeshIndex] = Math.Max(0, item.MaterialSource);
             }
+            for (var index = 0; index < editableSubmeshes.Count; index++)
+            {
+                topologySources[index] = sourceIndices[index];
+            }
         }
-        changedCount = replaceAll ? Math.Max(1, parsed.Count) : affected.Count;
+        var editableChangedCount = replaceAll ? Math.Max(1, parsed.Count) : affected.Count;
+        if (editableSubmeshes.Count != previousEditableCount)
+        {
+            var nextReferenceStart = editableSubmeshes.Count;
+            for (var index = 0; index < referenceSubmeshes.Length; index++)
+            {
+                var previousIndex = previousEditableCount + index;
+                var nextIndex = nextReferenceStart + index;
+                affected.Add(previousIndex);
+                affected.Add(nextIndex);
+                materialSources[nextIndex] = previousIndex;
+            }
+        }
+        for (var index = 0; index < referenceSubmeshes.Length; index++)
+        {
+            topologySources[editableSubmeshes.Count + index] = previousEditableCount + index;
+        }
+        document.Submeshes.Clear();
+        document.Submeshes.AddRange(editableSubmeshes);
+        document.Submeshes.AddRange(referenceSubmeshes);
+        changedCount = editableChangedCount;
         affectedSubmeshes = affected.Order().ToArray();
         return true;
     }

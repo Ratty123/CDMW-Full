@@ -43,8 +43,11 @@ def test_ordinary_topology_update_rebuilds_only_affected_d3d_batch() -> None:
 
     assert "TryApplyPreviewTriangleGroups" in protocol
     assert 'JsonInt(root, "final_submesh_count", -1)' in parser
-    assert "document.Submeshes.AddRange(next)" in parser
-    assert "document.Submeshes[item.SubmeshIndex] = item.Submesh" in parser
+    assert "var referenceSubmeshes = document.Submeshes.Skip(previousEditableCount).ToArray();" in parser
+    assert "document.Submeshes.AddRange(referenceSubmeshes);" in parser
+    assert "editableSubmeshes[item.SubmeshIndex] = item.Submesh" in parser
+    assert "previousEditableSubmeshCount" in protocol
+    assert "out var topologySources" in protocol
     topology_refresh = viewport.split("public void RefreshTopologyGeometry(", 1)[1].split(
         "public void RefreshVertexGeometry(", 1
     )[0]
@@ -54,7 +57,8 @@ def test_ordinary_topology_update_rebuilds_only_affected_d3d_batch() -> None:
     assert "var replaced = requested.ToHashSet();" in geometry
     assert "batch.SubmeshIndex >= _document.Submeshes.Count" in geometry
     assert "_materialSourceBySubmesh.Remove(staleIndex);" in geometry
-    assert "document.Submeshes.RemoveRange(finalCount" in parser
+    assert "editableSubmeshes.RemoveRange(finalCount" in parser
+    assert "Math.Min(_scene.EditableSubmeshCount, _document.Submeshes.Count)" in viewport
     assert "DisposeBatches();" not in geometry.split("private void ApplyPendingTopologyUpdates()", 1)[1].split(
         "private int MaterialSourceFor", 1
     )[0]
@@ -68,7 +72,14 @@ def test_ordinary_topology_update_rebuilds_only_affected_d3d_batch() -> None:
     assert '"equal_count_channels_remapped"' in soak
     assert '"malformed_vertex_channel_rejected"' in soak
     assert '"material_parameter_lineage_remapped"' in soak
+    assert '"combined_scene_references_preserved_after_delete"' in soak
+    assert '"combined_scene_references_preserved_after_add"' in soak
+    assert protocol.index("_scene.RemapTopologyState(") < protocol.index("_viewport.RefreshTopologyGeometry(")
     assert "RemapTopologyState(materialSources, _document.Submeshes.Count)" in protocol
+    scene = _source("NetSceneState.cs")
+    assert "public void RemapTopologyState(" in scene
+    assert "EditableSubmeshCount = nextEditableCount;" in scene
+    assert "ReferenceSubmeshCount = totalCount - nextEditableCount;" in scene
     resident_materials = _source("NetMaterialSet.Resident.cs")
     assert "public IReadOnlySet<int> RemapTopologyState(" in resident_materials
     assert "binding with { SubmeshIndex = targetIndex }" in resident_materials

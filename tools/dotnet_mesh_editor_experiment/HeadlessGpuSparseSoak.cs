@@ -501,12 +501,71 @@ internal static partial class HeadlessGpuSparseSoak
         using var malformedVertexDocument = JsonDocument.Parse("""{"vertex_groups":[{"source_submesh_index":0,"source_vertex_indices":[0],"positions":[0,0,0],"normals":[0,1]}]}""");
         var malformedVertexRejected = !ExperimentForm.TryParsePreviewVertexGroups(
             document, malformedVertexDocument.RootElement.GetProperty("vertex_groups"), out _);
+        var combinedSceneDocument = new ObjDocument();
+        combinedSceneDocument.Submeshes.Add(new ObjSubmesh("editable_a", 0, 0, 0));
+        combinedSceneDocument.Submeshes.Add(new ObjSubmesh("editable_b", 0, 0, 0));
+        combinedSceneDocument.Submeshes.Add(new ObjSubmesh("reference_a", 0, 0, 0));
+        combinedSceneDocument.Submeshes.Add(new ObjSubmesh("reference_b", 0, 0, 0));
+        using var combinedShrinkDocument = JsonDocument.Parse("""{"final_submesh_count":1,"triangle_source_submesh_indices":[0,1],"triangle_groups":[{"source_submesh_index":0,"positions":[],"indices":[]}]}""");
+        var combinedShrinkRoot = combinedShrinkDocument.RootElement;
+        var combinedShrinkApplied = ExperimentForm.TryApplyPreviewTriangleGroups(
+            combinedSceneDocument,
+            combinedShrinkRoot,
+            combinedShrinkRoot.GetProperty("triangle_groups"),
+            2,
+            out _,
+            out _,
+            out var combinedShrinkMaterials,
+            out var combinedShrinkSources,
+            out _);
+        var combinedReferencesPreservedAfterDelete = combinedShrinkApplied
+            && combinedSceneDocument.Submeshes.Select(submesh => submesh.Name).SequenceEqual(
+                new[] { "editable_b", "reference_a", "reference_b" })
+            && combinedShrinkMaterials.GetValueOrDefault(0) == 1
+            && combinedShrinkMaterials.GetValueOrDefault(1) == 2
+            && combinedShrinkMaterials.GetValueOrDefault(2) == 3
+            && combinedShrinkSources.GetValueOrDefault(0, -1) == 1
+            && combinedShrinkSources.GetValueOrDefault(1, -1) == 2
+            && combinedShrinkSources.GetValueOrDefault(2, -1) == 3;
+        using var combinedAddDocument = JsonDocument.Parse("""
+            {
+              "triangle_groups": [{
+                "source_submesh_index": 1,
+                "material_source_submesh_index": 0,
+                "part_name": "editable_duplicate",
+                "positions": [0,0,0, 1,0,0, 0,1,0],
+                "indices": [0,1,2]
+              }]
+            }
+            """);
+        var combinedAddRoot = combinedAddDocument.RootElement;
+        var combinedAddApplied = ExperimentForm.TryApplyPreviewTriangleGroups(
+            combinedSceneDocument,
+            combinedAddRoot,
+            combinedAddRoot.GetProperty("triangle_groups"),
+            1,
+            out _,
+            out _,
+            out var combinedAddMaterials,
+            out var combinedAddSources,
+            out _);
+        var combinedReferencesPreservedAfterAdd = combinedAddApplied
+            && combinedSceneDocument.Submeshes.Select(submesh => submesh.Name).SequenceEqual(
+                new[] { "editable_b", "editable_duplicate", "reference_a", "reference_b" })
+            && combinedAddMaterials.GetValueOrDefault(1) == 0
+            && combinedAddMaterials.GetValueOrDefault(2) == 1
+            && combinedAddMaterials.GetValueOrDefault(3) == 2
+            && combinedAddSources.GetValueOrDefault(0, -1) == 0
+            && combinedAddSources.GetValueOrDefault(1, 0) == -1
+            && combinedAddSources.GetValueOrDefault(2, -1) == 1
+            && combinedAddSources.GetValueOrDefault(3, -1) == 2;
         var ok = replaced && replaceAll && replaceChanges == 1
             && added && !addReplaceAll && addChanges == 1
             && shrunk && !shrinkReplaceAll && shrinkChanges == 1 && shrinkAffected.SequenceEqual(new[] { 1 })
             && incompleteRejected && missingChannelsInitialized && equalCountChannelsRemapped && malformedVertexRejected
             && orderedVertexRejectedBeforeTopology && orderedVertexAcceptedAfterTopology
             && topologyMaterialLineageRemapped
+            && combinedReferencesPreservedAfterDelete && combinedReferencesPreservedAfterAdd
             && document.Submeshes.Count == 1
             && document.Submeshes[0].Material == "survivor"
             && replaceMaterials.GetValueOrDefault(0) == 1
@@ -521,6 +580,8 @@ internal static partial class HeadlessGpuSparseSoak
             ["missing_vertex_channels_initialized"] = missingChannelsInitialized,
             ["equal_count_channels_remapped"] = equalCountChannelsRemapped,
             ["malformed_vertex_channel_rejected"] = malformedVertexRejected,
+            ["combined_scene_references_preserved_after_delete"] = combinedReferencesPreservedAfterDelete,
+            ["combined_scene_references_preserved_after_add"] = combinedReferencesPreservedAfterAdd,
             ["ordered_vertex_plan_revalidated_after_topology"] = orderedVertexRejectedBeforeTopology
                 && orderedVertexAcceptedAfterTopology,
             ["material_parameter_lineage_remapped"] = topologyMaterialLineageRemapped,

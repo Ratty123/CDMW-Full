@@ -775,21 +775,30 @@ internal sealed partial class ExperimentForm
         var captureTopology = PreviewPerformanceCapture.IsActive;
         var topologyAllocatedBytesBefore = captureTopology ? GC.GetAllocatedBytesForCurrentThread() : 0L;
         var topologyStarted = captureTopology ? Stopwatch.GetTimestamp() : 0L;
+        var previousEditableSubmeshCount = Math.Clamp(
+            _scene.EditableSubmeshCount,
+            0,
+            _document.Submeshes.Count);
+        var preservedReferenceSubmeshCount = _document.Submeshes.Count - previousEditableSubmeshCount;
         var applied = triangleUpdatePrepared
             ? TryCommitPreviewTriangleGroups(
                 _document,
                 preparedTriangleUpdate!,
+                previousEditableSubmeshCount,
                 out var changedCount,
                 out var affectedSubmeshes,
                 out var materialSources,
+                out var topologySources,
                 out var replaceAll)
             : TryApplyPreviewTriangleGroups(
                 _document,
                 root,
                 groups,
+                previousEditableSubmeshCount,
                 out changedCount,
                 out affectedSubmeshes,
                 out materialSources,
+                out topologySources,
                 out replaceAll);
         if (captureTopology)
         {
@@ -807,8 +816,15 @@ internal sealed partial class ExperimentForm
         }
         if (changedCount > 0)
         {
+            var editableSubmeshCount = Math.Max(
+                0,
+                _document.Submeshes.Count - preservedReferenceSubmeshCount);
+            _scene.RemapTopologyState(
+                topologySources,
+                editableSubmeshCount,
+                _document.Submeshes.Count);
             _externalTopologyDirty = true;
-            _editedSubmeshes.UnionWith(affectedSubmeshes.Where(index => index < _document.Submeshes.Count));
+            _editedSubmeshes.UnionWith(affectedSubmeshes.Where(index => index >= 0 && index < editableSubmeshCount));
             var reboundMaterials = _materials.RemapTopologyState(materialSources, _document.Submeshes.Count);
             var residentMaterialSources = materialSources.ToDictionary(
                 pair => pair.Key,
