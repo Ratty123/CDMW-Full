@@ -59,11 +59,9 @@ def _texture_material_step_016(_state):
         _state._virtual_contract_prune_unmapped_enabled = _virtual_contract_prune_unmapped_enabled
 
 def _texture_material_step_017(_state):
-    if _state._factory_advanced_material_branch:
-
-        def _copied_source_texture_slot_overrides(parsed_mappings: Sequence[StaticSubmeshMapping], *, occupied_keys: Optional[set[Tuple[str, str]]]=None) -> List[StaticTextureSlotOverride]:
-            return _state.list(_state._copied_source_texture_slot_overrides_helper(parsed_mappings, original_part_texture_intent_rows=_state._original_part_texture_intent_rows, copied_original_texture_intents_by_source=_state.copied_original_texture_intents_by_source, copied_original_texture_disabled_sources=_state.copied_original_texture_disabled_sources, source_display_name=_state._source_display_name, texture_slot_contract_key=_state._texture_slot_contract_key, occupied_keys=occupied_keys))
-        _state._copied_source_texture_slot_overrides = _copied_source_texture_slot_overrides
+    def _copied_source_texture_slot_overrides(parsed_mappings: Sequence[StaticSubmeshMapping], *, occupied_keys: Optional[set[Tuple[str, str]]]=None) -> List[StaticTextureSlotOverride]:
+        return _state.list(_state._copied_source_texture_slot_overrides_helper(parsed_mappings, original_part_texture_intent_rows=_state._original_part_texture_intent_rows, copied_original_texture_intents_by_source=_state.copied_original_texture_intents_by_source, copied_original_texture_disabled_sources=_state.copied_original_texture_disabled_sources, source_display_name=_state._source_display_name, texture_slot_contract_key=_state._texture_slot_contract_key, occupied_keys=occupied_keys))
+    _state._copied_source_texture_slot_overrides = _copied_source_texture_slot_overrides
 
 def _texture_material_step_018(_state):
     if _state._factory_advanced_material_branch:

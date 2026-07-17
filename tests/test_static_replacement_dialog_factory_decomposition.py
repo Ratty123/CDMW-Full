@@ -11,6 +11,7 @@ from unittest.mock import MagicMock
 
 from cdmw.ui.archive_browser import static_replacement_dialog_callback_factories as callbacks
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_preview_model_part_01 as preview_model_owner
+from cdmw.ui.archive_browser import static_replacement_dialog_sections_texture_material_part_02 as texture_material_owner
 from cdmw.ui.archive_browser import static_replacement_dialog_remaining_callbacks as remaining_callbacks
 from cdmw.ui.archive_browser import static_replacement_dialog_routing_callbacks as routing_callbacks
 from cdmw.ui.archive_browser import static_replacement_dialog_source_part_mutation_callbacks as source_part_mutation_callbacks
@@ -426,15 +427,48 @@ def test_preview_model_factory_exports_original_frame_and_cache_helpers() -> Non
     original_frame = MagicMock()
     geometry_key = MagicMock()
     mapped_indices = MagicMock()
+    unmapped_indices = MagicMock()
     state._preview_model_in_original_frame = original_frame
     state._source_preview_geometry_key = geometry_key
     state._mapped_source_indices = mapped_indices
+    state._unmapped_appended_source_indices = unmapped_indices
 
     preview_model_owner._preview_model_step_038(state)
 
     assert state._factory_result_values["_preview_model_in_original_frame"] is original_frame
     assert state._factory_result_values["_source_preview_geometry_key"] is geometry_key
     assert state._factory_result_values["_mapped_source_indices"] is mapped_indices
+    assert state._factory_result_values["_unmapped_appended_source_indices"] is unmapped_indices
+
+
+def test_build_mod_copied_texture_override_callback_exists_without_advanced_sidecars() -> None:
+    override_helper = MagicMock(return_value=("override",))
+    state = SimpleNamespace(
+        _factory_advanced_material_branch=(),
+        _copied_source_texture_slot_overrides_helper=override_helper,
+        _original_part_texture_intent_rows=MagicMock(),
+        copied_original_texture_intents_by_source={},
+        copied_original_texture_disabled_sources=set(),
+        _source_display_name=MagicMock(),
+        _texture_slot_contract_key=MagicMock(),
+        list=list,
+    )
+
+    texture_material_owner._texture_material_step_017(state)
+
+    occupied_keys: set[tuple[str, str]] = set()
+    assert state._copied_source_texture_slot_overrides(
+        ("mapping",), occupied_keys=occupied_keys
+    ) == ["override"]
+    override_helper.assert_called_once_with(
+        ("mapping",),
+        original_part_texture_intent_rows=state._original_part_texture_intent_rows,
+        copied_original_texture_intents_by_source={},
+        copied_original_texture_disabled_sources=set(),
+        source_display_name=state._source_display_name,
+        texture_slot_contract_key=state._texture_slot_contract_key,
+        occupied_keys=occupied_keys,
+    )
 
 
 def test_preview_target_mesh_indices_accepts_existing_positional_callback_contract() -> None:

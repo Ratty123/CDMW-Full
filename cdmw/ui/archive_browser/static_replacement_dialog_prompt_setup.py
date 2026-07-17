@@ -341,6 +341,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _current_dialog_mappings_for_preview = alignment_mesh_geometry_preview_section._current_dialog_mappings_for_preview
         _current_static_alignment_transform = alignment_mesh_geometry_preview_section._current_static_alignment_transform
         _current_static_placement_snapshot = alignment_mesh_geometry_preview_section._current_static_placement_snapshot
+        _unmapped_appended_source_indices = alignment_mesh_geometry_preview_section._unmapped_appended_source_indices
         _ensure_original_reference_texture_preview_ready = alignment_mesh_geometry_preview_section._ensure_original_reference_texture_preview_ready
         _load_native_preview_core_material_manifest_for_alignment = alignment_mesh_geometry_preview_section._load_native_preview_core_material_manifest_for_alignment
         _mesh_edit_apply_preview_payload = alignment_mesh_geometry_preview_section._mesh_edit_apply_preview_payload

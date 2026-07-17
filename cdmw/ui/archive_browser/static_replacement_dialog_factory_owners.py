@@ -18,6 +18,7 @@ from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_preview_
 from cdmw.ui.archive_browser import static_replacement_dialog_sections_setup_options_transform_part_01 as _setup_options_transform_part_01
 from cdmw.ui.archive_browser import static_replacement_dialog_sections_setup_options_transform_part_02 as _setup_options_transform_part_02
 from cdmw.ui.archive_browser import static_replacement_dialog_sections_mesh_geometry_preview_part_01 as _mesh_geometry_preview_part_01
+from cdmw.ui.archive_browser import static_replacement_dialog_sections_mesh_geometry_preview_part_02 as _mesh_geometry_preview_part_02
 from cdmw.ui.archive_browser import static_replacement_dialog_sections_texture_material_part_01 as _texture_material_part_01
 from cdmw.ui.archive_browser import static_replacement_dialog_sections_texture_material_part_02 as _texture_material_part_02
 from cdmw.ui.archive_browser import static_replacement_dialog_sections_source_parts_outliner_part_01 as _source_parts_outliner_part_01
@@ -85,7 +86,7 @@ def create_alignment_setup_options_transform_section(context: dict[str, object],
 
 def create_alignment_mesh_geometry_preview_section(context: dict[str, object], module_globals: dict[str, object]):
     return run_static_replacement_factory(
-        context, module_globals, ('AdvancedDdsRowScanRequest', 'DEFAULT_UI_DATA_FONT_SIZE', 'DEFAULT_UI_FONT_SIZE', 'MeshEditorActionBar', 'SimpleNamespace', 'StaticReplacementAdvancedDdsController', 'StaticReplacementTextureFolderScanController', 'UI_FONT_SIZE_MAX', 'UI_FONT_SIZE_MIN', '_LateLocalProxy', '__file__', '__name__', '_alignment_dialog_font_sizes', '_builtins', '_context_builtin', 'annotations', 'mesh_editor_actions_by_key',), (*_mesh_geometry_preview_part_01.STEPS,),
+        context, module_globals, ('AdvancedDdsRowScanRequest', 'DEFAULT_UI_DATA_FONT_SIZE', 'DEFAULT_UI_FONT_SIZE', 'MeshEditorActionBar', 'SimpleNamespace', 'StaticReplacementAdvancedDdsController', 'StaticReplacementTextureFolderScanController', 'UI_FONT_SIZE_MAX', 'UI_FONT_SIZE_MIN', '_LateLocalProxy', '__file__', '__name__', '_alignment_dialog_font_sizes', '_builtins', '_context_builtin', 'annotations', 'mesh_editor_actions_by_key',), (*_mesh_geometry_preview_part_01.STEPS, *_mesh_geometry_preview_part_02.STEPS,),
     )
 
 def create_alignment_texture_material_section(context: dict[str, object], module_globals: dict[str, object]):
