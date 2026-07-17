@@ -279,10 +279,11 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "uv += viewDirection.xy * height * MaterialHeightScale;" not in shader
     assert "float3 metalTintBias = clamp(" in shader
     assert "materialReferenceAlbedo * metalTintBias" in shader
-    assert "lerp(0.72f, 1.25f, neutralMetalTint)" in shader
-    assert "float colorizeStrength = lerp(0.82f, 0.96f, neutralMetalTint);" in shader
-    assert "float metalTintBlend = lerp(0.34f, 0.56f" in shader
-    assert "float ambientFloor = categoryMetal ? 0.16f" in shader
+    assert "lerp(0.05f, 1.25f, neutralMetalTint)" in shader
+    assert "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);" in shader
+    assert "materialReferenceAlbedo * metalTintBias,\n            0.34f));" in shader
+    assert "float metalTintBlend = lerp(" not in shader
+    assert "float ambientFloor = categoryMetal ? 0.24f" in shader
     assert "float diffuseDepth = saturate(" in shader
     assert "float depthAuthority = categoryMetal" in shader
     assert "glossyNonmetal ? 0.72f" in shader
@@ -310,9 +311,9 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "conservativeNonmetal ? 0.018f" in shader
     assert "* categoryEnvironmentScale" in shader
     assert "float metalCue = categoryMetal" in shader
-    assert "float metalDiffuseScale = lerp(1.0f, 0.20f, saturate(metallic));" in shader
-    assert "litDiffuse += materialReferenceAlbedo * metalCue * 0.08f;" in shader
-    assert "0.055f + roughness * 0.035f + (1.0f - ndotv) * 0.12f" in shader
+    assert "float metalDiffuseScale = lerp(1.0f, 0.34f, saturate(metallic));" in shader
+    assert "litDiffuse += materialReferenceAlbedo * metalCue * 0.16f;" in shader
+    assert "0.14f + roughness * 0.06f + (1.0f - ndotv) * 0.30f" in shader
     assert "if (categoryMetal)" in shader
     assert "float3(0.035f, 0.035f, 0.035f)" in shader
     assert "materialReferenceAlbedo," in shader
@@ -397,7 +398,9 @@ def test_texture_toggle_and_view_mode_are_synchronized_across_resident_role_pane
     assert "context.MaterialDebugMode = MaterialDebugMode;" in settings
     assert "context.TexturesEnabled = TexturesEnabled;" in settings
     assert "context.TexturesEnabled," in split
-    assert "pane.TexturesEnabled && mode is (\"textured\" or \"textured_wire\")" in panes
+    assert "TexturesEnabled = pane.TexturesEnabled" in panes
+    assert 'string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)' in panes
+    assert 'string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)' in panes
 
 
 def test_only_side_by_side_uses_two_resident_role_panes() -> None:

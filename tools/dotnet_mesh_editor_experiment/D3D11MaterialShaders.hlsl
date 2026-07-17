@@ -370,15 +370,18 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f
             && MaterialBaseTintPolicy.y < 1.5f;
         float neutralMetalTint = earlyCategoryMetal ? saturate((0.12f - tintChroma) * 8.0f) : 0.0f;
+        // Keep Archive Browser's source-tint authority.  Chromatic metal is
+        // already colored by its source-stable F0 below; amplifying this base
+        // tint a second time turns dark steel/copper sidecar hints into paint.
         float strength = saturate(MaterialBaseTintPolicy.x
-            * (earlyCategoryMetal ? lerp(0.72f, 1.25f, neutralMetalTint) : 1.0f));
+            * (earlyCategoryMetal ? lerp(0.05f, 1.25f, neutralMetalTint) : 1.0f));
         float albedoLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
         float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f) + 0.10f * strength);
         float3 multiplied = saturate(baseColor.rgb * tintBias);
         float3 colorized = saturate(liftedLuma.xxx * tintBias);
         float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);
         colorized = lerp(colorized, saturate(neutralMetalLuma.xxx * tintBias), neutralMetalTint);
-        float colorizeStrength = lerp(0.82f, 0.96f, neutralMetalTint);
+        float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);
         baseColor.rgb = lerp(baseColor.rgb, lerp(multiplied, colorized, colorizeStrength), strength);
     }
     baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x, 0.1f));
@@ -698,13 +701,10 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             metalTint / metalTintLuma,
             float3(0.58f, 0.58f, 0.58f),
             float3(1.42f, 1.42f, 1.42f));
-        float metalTintChroma = max(metalTint.r, max(metalTint.g, metalTint.b))
-            - min(metalTint.r, min(metalTint.g, metalTint.b));
-        float metalTintBlend = lerp(0.34f, 0.56f, saturate(metalTintChroma * 6.0f));
         materialReferenceAlbedo = saturate(lerp(
             materialReferenceAlbedo,
             materialReferenceAlbedo * metalTintBias,
-            metalTintBlend));
+            0.34f));
     }
     float categoryMetalFallback = categoryMetal
         ? saturate(lerp(0.28f, 0.62f, materialCategoryConfidence)
@@ -980,7 +980,10 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float fillLight = WrappedNdotL(normal, fillDirection, 0.82f);
     float cameraShape = saturate(abs(dot(normal, viewDirection)));
     float rimShape = pow(saturate(1.0f - cameraShape), lerp(2.4f, 1.2f, smoothness));
-    float ambientFloor = categoryMetal ? 0.16f : (categorySkin ? 0.60f : (conservativeNonmetal ? 0.58f : 0.52f));
+    // Keep physically shaded metal source-readable in the neutral workbench.
+    // The GGX and environment lobes remain authoritative for response, while
+    // this floor prevents dark source albedo from collapsing between lobes.
+    float ambientFloor = categoryMetal ? 0.24f : (categorySkin ? 0.60f : (conservativeNonmetal ? 0.58f : 0.52f));
     float diffuseDepth = saturate(
         ambientFloor * PresentationLightingTuning.w
         + PresentationLightingTuning.z * (keyLight * 0.58f + fillLight * 0.30f + rimShape * 0.12f));
@@ -993,7 +996,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
                         : (categoryLeather ? 0.52f : 0.50f)))));
     diffuseDepth = lerp(1.0f, diffuseDepth, depthAuthority);
     float nonmetalTextureScale = conservativeNonmetal ? 1.03f : 1.0f;
-    float metalDiffuseScale = lerp(1.0f, 0.20f, saturate(metallic));
+    float metalDiffuseScale = lerp(1.0f, 0.34f, saturate(metallic));
     float3 litDiffuse = materialReferenceAlbedo
         * ambientOcclusion
         * nonmetalTextureScale
@@ -1006,14 +1009,14 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float glossyCue = glossyNonmetal
         ? saturate(resolvedSpecular * lerp(0.06f, 0.20f, smoothness))
         : 0.0f;
-    litDiffuse += materialReferenceAlbedo * metalCue * 0.08f;
+    litDiffuse += materialReferenceAlbedo * metalCue * 0.16f;
     litDiffuse += materialReferenceAlbedo * glossyCue * 0.22f;
     litDiffuse += materialReferenceAlbedo
         * authorityGlossCue
         * (0.035f + rimShape * 0.16f);
     float3 metallicSourceAnchor = materialReferenceAlbedo
         * metallic
-        * (0.055f + roughness * 0.035f + (1.0f - ndotv) * 0.12f)
+        * (0.14f + roughness * 0.06f + (1.0f - ndotv) * 0.30f)
         * ambientOcclusion;
     float3 finalColor = PresentationSurfaceTuning.w > 0.5f
         ? baseColor.rgb + emissive

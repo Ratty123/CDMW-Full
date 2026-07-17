@@ -15,8 +15,11 @@ authorized.
   steel, dark iron, and colored armor as view-dependent metal instead of flat
   neutral paint. The fixed shader uses an RGB studio environment, physical
   Schlick Fresnel, GGX/Smith direct response, and source-colored metal F0.
-  Category-gated behavior preserves wood, cloth, leather, hair, and generic
-  controls.
+  The expanded 162-PAC audit exposed a source-readability/tint regression in
+  that response which the earlier 15-PAC ledger missed. A bounded metal floor
+  and native chromatic-tint authority now preserve dark and colored source
+  materials while category gating keeps wood, cloth, leather, hair, and generic
+  controls stable.
 - The originally reported sword is no longer white, blown out, transparent, or
   texture-starved. The yellow section in the supplied .NET screenshot was the
   editor selection overlay, not source material color.
@@ -32,9 +35,16 @@ authorized.
   different screen basis. The audit-only camera now uses Archive's
   `T(-center) * Rx(pitch) * Ry(yaw)` object-rotation basis. Interactive camera
   behavior is unchanged.
-- The remaining visible concerns are family- or asset-specific: unsupported
-  hair/fur and skin response, layered inner material regions, subtle
-  roughness/normal response, and very dark source materials.
+- Anonymous inferred hair/cutout materials now use the established `0.12`
+  cutoff instead of the generic `0.5` default. This restores previously
+  rejected eyebrow and eyelash cards without changing explicit cutoff
+  authority or producing opaque halos in the control corpus.
+- Fresh post-fix proof across 50 swords, other weapons, shields, helmets,
+  armor, boots, body, hair/fur/feather, and unusual mixed-material PACs is
+  43 PASS, 7 CONCERN, 0 FAIL. The remaining concerns are bounded to three
+  asset-specific packed roughness/normal contracts, the unsupported
+  `skinnedmeshtear` layer graph, and two smaller facial-card density/color
+  differences.
 
 ## Committed repairs
 
@@ -60,8 +70,76 @@ authorized.
 - `6a57863` implements the physical colored-metal response and upgrades the
   hidden textured-metal proof to v4 with four same-material specular-debug
   camera captures and bounded/view-varying response gates.
+- The 2026-07-17 expanded-corpus repair restores a bounded source-readable
+  floor and Archive Browser chromatic-tint authority within that physical
+  metal response, applies the established `0.12` cutoff to inferred PAC
+  hair/cutout materials, and retains custom manifests in generated rerun
+  commands.
 
 ## Current evidence
+
+### Expanded 162-PAC regression discovery
+
+Manifests:
+`tools/mesh_harness/visual_audit_followup_90.manifest.json` and
+`tools/mesh_harness/visual_audit_followup_72.manifest.json`
+
+Evidence roots:
+`workspace/mesh-editor-visual-audit/20260717-physical-metal-current-90` and
+`workspace/mesh-editor-visual-audit/20260717-physical-metal-current-72`
+
+- Runs `ca91cfb0404c4e4086ecedd514231176` and
+  `dc093f2063e347a1acb1bc3272a4af6a` covered 162 unique PACs: 156 additions
+  plus six deliberate repeat controls from the earlier metallic corpus.
+- All 972 paired views and all 162 contact sheets were directly inspected.
+  The finalized baseline ledgers total 136 PASS, 24 CONCERN, and 2 FAIL:
+  79/11/0 in the 90-PAC run and 57/13/2 in the 72-PAC run.
+- The broader swords, axes, shields, helmets, armor, boots, facial composites,
+  hair, creatures, props, glass, emissive, and unusual mixed-material coverage
+  exposed two shared defects missed by the smaller run: physical metal could
+  become too dark or over-tinted, and anonymous inferred hair/cutout batches
+  rejected fine cards at the generic `0.5` cutoff.
+- Both hidden runs used one production Archive Browser process and one resident
+  `d3d11_vortice_shader` process/device/viewport, completed without restarts,
+  resets, or stalls, and passed corpus/camera/capture integrity. Every
+  before/after PAMT/PAZ fingerprint was byte-identical.
+
+### Inferred alpha-cutoff repair proof
+
+Evidence:
+`workspace/mesh-editor-visual-audit/20260717-alpha-cutoff-repair-8`
+
+- Run `1fa88fcc22ec44beafe15e60dadffce3` finalized at 6 PASS,
+  2 CONCERN, 0 FAIL after direct inspection of all 48 paired views.
+- The two formerly missing facial-card cases now retain eyebrow and eyelash
+  geometry. Their remaining differences are smaller density/color response,
+  while six explicit/non-hair controls remain stable with no opaque halo.
+- Hidden resident runtime, paired-camera/corpus integrity, and byte-identical
+  archive fingerprints all passed.
+
+### Fresh 50-PAC post-fix cross-category proof
+
+Manifest:
+`workspace/mesh-editor-visual-audit/20260717-final-material-parity-coverage.manifest.json`
+
+Evidence:
+`workspace/mesh-editor-visual-audit/20260717-final-material-parity-50`
+
+- Run `b1f8ff56083448a6bb77150f430a4cbb` covered 50 unique PACs: 20 weapons,
+  including nine swords; eight armor/boots assets; five body/facial controls;
+  eight hair/fur/feather controls; and nine unusual mixed-material assets.
+- Final structured review is 43 PASS, 7 CONCERN, 0 FAIL. Every one of the 300
+  paired views and all 50 contact sheets was inspected. Swords, axes, musket,
+  shields, helmets, upper armor, and all hair controls passed; the shared dark
+  metal/tint and missing-card failures did not recur.
+- Residual concerns are long black boots 0166, aircastle core, and black glasses
+  0001 for asset-specific packed roughness/normal response; two tear-card PACs
+  for unsupported `skinnedmeshtear` layer graphs; and two facial composites for
+  smaller hair-card density/color differences.
+- The hidden run passed production backend, one-process/one-viewport residency,
+  camera/capture/corpus integrity, and byte-identical PAMT/PAZ fingerprints
+  with zero restarts or resets. Its generated `commands.md` retains the custom
+  `--manifest`, so both documented rerun commands reproduce the same corpus.
 
 ### Metallic equipment physical-response proof
 
@@ -196,12 +274,16 @@ supported direct native formats/mips are retained byte-identically.
 
 ## Unsupported or diagnostic material families
 
-- Skin subsurface/wrinkle response.
-- Hair/fur anisotropy, strand flow, multilayer scattering, and exact cutout
-  response.
-- Complex layer graphs and the lightsource inner-brazier layer response.
-- True alpha blend/transmission and authoritative double-sided coverage; the
-  moth, foliage, hair, and eye-cover assets are only proxies.
+- The generic `skinnedmeshtear` path lacks an authoritative supported layer
+  graph; the two reviewed tear-card bodies remain too black.
+- Long black boots 0166, the aircastle core, and black glasses 0001 retain
+  asset-specific packed roughness/normal or material-contract differences.
+- Facial cards 039/040 are restored but retain smaller alpha-density/color
+  differences. Skin subsurface/wrinkle response and advanced hair/fur
+  anisotropy, strand flow, and multilayer scattering remain diagnostic.
+- Complex layer graphs, including the lightsource inner-brazier response, and
+  true alpha blend/transmission remain unsupported. The moth, foliage, hair,
+  and eye-cover assets are cutout/thin-surface proxies, not transmission proof.
 - Exact real-game reflection/bloom environment.
 
 These are explicitly remaining diagnostic gaps. They are not evidence of
@@ -209,48 +291,48 @@ global x-ray behavior or texture downscaling.
 
 ## Validation state
 
-- Metallic-response focused validation passed the complete 61-test
-  native-preview module, five owned physical-shader/proof tests, and two
-  existing external-factor regression tests.
-- Fresh physical-metal proof v4: all response/completeness/bounds gates passed;
-  all-view luma ratio was `0.7050`, specular-debug mean span was `27.847`, and
-  white fraction was zero.
-- Fresh full-scale hidden Vortice soak: 1,000,000 vertices and 1,000 updates,
-  release-gate eligible, `0.1647 ms` handler p95, `0.3067 ms` maximum, zero
-  working-set growth, and no failed gates.
-- Focused current-change suite:
-  `tests/test_mesh_dotnet_material_visual_parity.py`,
-  `tests/test_mesh_visual_audit_harness.py`, and
-  `tests/test_mesh_visual_audit_integrity.py`: 49 passed.
-- Fresh .NET Release build: succeeded with 0 warnings and 0 errors.
-- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 889 passed, 1 skipped.
-- Dedicated real-PAC chain proof: paired-camera integrity passed.
-- Final 16-model structured review: 11 PASS, 5 CONCERN, 0 FAIL.
-- Final nine-family structured review: 8 PASS, 1 CONCERN, 0 FAIL.
-- Both final runs prove hidden resident Vortice ownership, depth enabled, no
-  X-ray/no-depth passes, complete paired captures, and byte-identical
-  before/after archive-fingerprint manifests.
+- The 12-module focused material/audit suite passed 129 tests, including shader
+  source contracts, semantic state, material packaging/parameters, native
+  authority, GPU resources, harness rerun commands, and audit integrity.
+- Fresh .NET Release build succeeded with 0 warnings and 0 errors, and the
+  material-resource-policy report passed schema/runtime eligibility.
+- Fresh full-scale hidden Vortice soak passed at 1,000,000 vertices and 1,000
+  updates: release eligible, `0.1804 ms` handler p95, `59.99965` updates/s,
+  all textured-metal readability gates true, and zero restarts/resets.
+- Fresh hidden 30-second 144 Hz frame-pacing proof captured 4,317 frames at
+  `143.869` effective FPS with `7.2341 ms` p95, `7.4005 ms` p99, no frame over
+  `20.83 ms`, and zero restarts/resets.
+- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 890 passed, 1 skipped.
+- The finalized expanded baseline is 136 PASS, 24 CONCERN, 2 FAIL across 162
+  PACs. Post-fix alpha proof is 6/2/0, and the fresh 50-PAC cross-category proof
+  is 43/7/0 with every paired view directly reviewed.
+- All visual-audit captures remained hidden and resident, passed the production
+  backend and integrity gates, and retained byte-identical before/after archive
+  fingerprints.
 - The visible/licensed real-game gate was not run because it was not authorized.
 
 ## Durable continuation point
 
 This audit pass is complete. Future texture/material-parity work should start
-from the three finalized current-code evidence roots above, including the
-15-model metallic equipment root, not from older mirrored-camera captures.
+from the finalized 50-PAC post-fix root and the two 162-PAC discovery roots
+above. Use the older 15-PAC metallic root only as historical pre-expansion
+proof, and do not use mirrored-camera captures.
 
 Highest-value remaining work:
 
-1. Implement dedicated preview support for skin subsurface/wrinkle response and
-   hair/fur anisotropy, flow, multilayer scattering, and cutout response.
-2. Resolve the lightsource's localized inner-brazier layer graph and improve
-   diagnostic readability for the dark shield and chain without inventing
-   unsupported source values.
-3. Audit synthesized material-graph output sizing. Direct authoritative DDS
+1. Implement an authoritative `skinnedmeshtear` layer graph, then extend skin
+   subsurface/wrinkle and advanced hair/fur anisotropy, flow, and multilayer
+   response without changing the proven cutout default.
+2. Resolve the packed roughness/normal/material contracts for long black boots
+   0166, the aircastle core, and black glasses 0001, then revisit the localized
+   lightsource inner-brazier layer.
+3. Refine the remaining facial-card alpha-density/color response and audit
+   synthesized material-graph output sizing. Direct authoritative DDS
    transport is proven byte-identical, but capped synthesized outputs remain a
    plausible softness source.
-4. Add authoritative alpha-blend/transmission and double-sided corpus entries
-   when real PAC examples are identified; current moth, foliage, hair, and
-   eye-cover assets are only cutout/thin-surface proxies.
+4. Add authoritative alpha-blend/transmission corpus entries when real PAC
+   examples are identified; current moth, foliage, hair, and eye-cover assets
+   remain cutout/thin-surface proxies.
 
 To refresh a completed visual ledger after a renderer change, rerun its
 manifest into a new evidence root, inspect all six paired views per model, then

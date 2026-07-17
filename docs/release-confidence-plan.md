@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-16
+Last reviewed: 2026-07-17
 
 ## Goal
 
@@ -47,6 +47,43 @@ keeps core user workflows working behind stable facades.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-17:
+
+- The hidden material-parity audit expanded to 162 unique real PACs across
+  swords and other weapons, shields, helmets, armor, boots, facial composites,
+  hair/fur, creatures, props, glass, emissive, and unusual mixed materials.
+  This was 156 additions plus six repeat controls, with all 972 paired views
+  and 162 contact sheets directly inspected. Runs
+  `ca91cfb0404c4e4086ecedd514231176` and
+  `dc093f2063e347a1acb1bc3272a4af6a` finalized at a combined 136 PASS,
+  24 CONCERN, and 2 FAIL. Evidence:
+  `workspace/mesh-editor-visual-audit/20260717-physical-metal-current-90` and
+  `workspace/mesh-editor-visual-audit/20260717-physical-metal-current-72`.
+- That larger corpus exposed two shared defects missed by the earlier
+  15-model proof: the physical metal path could suppress source readability
+  and over-amplify chromatic tint, and anonymous inferred hair/cutout batches
+  used the generic `0.5` cutoff. The repair restores a bounded source floor and
+  Archive Browser tint authority, applies the established `0.12` inferred
+  cutoff while preserving explicit authority, and retains custom manifests in
+  generated audit rerun commands.
+- Fresh alpha proof finalized at 6 PASS, 2 CONCERN, 0 FAIL, with rejected facial
+  cards restored and no control halos. Fresh 50-PAC post-fix proof finalized at
+  43 PASS, 7 CONCERN, 0 FAIL after direct review of all 300 paired views. Every
+  sword, other weapon, shield, helmet, upper-armor, and hair control passed.
+  Residuals are three asset-specific packed roughness/normal contracts, two
+  unsupported `skinnedmeshtear` layer graphs, and two smaller facial-card
+  density/color differences. Evidence:
+  `workspace/mesh-editor-visual-audit/20260717-alpha-cutoff-repair-8` and
+  `workspace/mesh-editor-visual-audit/20260717-final-material-parity-50`.
+- The 12-module focused suite passed 129 tests; the .NET Release build passed
+  with zero warnings/errors; material resource policy passed; and `mesh-unit`
+  passed 890 tests with 1 skip. The hidden 1,000,000-vertex/1,000-update soak
+  passed with `0.1804 ms` handler p95 and zero restarts/resets. The 30-second
+  144 Hz proof captured 4,317 frames at `143.869` effective FPS with `7.2341 ms`
+  p95, no frame over `20.83 ms`, and zero restarts/resets. All audit runs passed
+  integrity and retained byte-identical archive fingerprints. Visible/licensed
+  real-game proof was not run or claimed.
 
 2026-07-16:
 

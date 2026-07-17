@@ -27,6 +27,7 @@ from tools.mesh_harness.visual_audit_cli import (
     _load_preparation_resume,
     _load_specs,
     _visual_audit_temporary_root,
+    _write_commands,
     _write_preparation_checkpoint,
 )
 from tools.mesh_harness.visual_audit_capture import (
@@ -62,6 +63,25 @@ def test_visual_audit_resume_preserves_a_bounded_manifest_selection() -> None:
     assert "specs = specs[: max(1, args.limit)]" in source
     assert "allow_partial=bool(args.limit > 0)" in source
     assert "--resume-prepare cannot be combined with --limit" not in source
+
+
+def test_visual_audit_rerun_commands_preserve_custom_manifest(tmp_path: Path) -> None:
+    evidence = tmp_path / "evidence"
+    manifest = tmp_path / "custom corpus.json"
+    game_root = tmp_path / "game"
+    temporary_root = tmp_path / "temporary"
+    evidence.mkdir()
+    manifest.write_text('{"assets": []}', encoding="utf-8")
+
+    _write_commands(
+        evidence,
+        Namespace(game_root=game_root, manifest=manifest),
+        temporary_root,
+    )
+
+    commands = (evidence / "commands.md").read_text(encoding="utf-8")
+    assert f'--manifest "{manifest.resolve()}"' in commands
+    assert commands.count(f'--manifest "{manifest.resolve()}"') == 2
 
 
 def test_dotnet_refresh_reuses_only_exactly_matching_source_assets() -> None:

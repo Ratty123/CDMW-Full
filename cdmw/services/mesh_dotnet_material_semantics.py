@@ -31,6 +31,9 @@ from cdmw.services.mesh_dotnet_material_channels import (
 )
 
 
+_PAC_INFERRED_HAIR_CUTOUT_ALPHA_CUTOFF = 0.12
+
+
 def _dotnet_material_shader_context(
     source: object | None,
     channels: Mapping[str, str],
@@ -197,7 +200,11 @@ def _dotnet_material_alpha_contract(
     else:
         alpha_authority = "guess"
         alpha_reason = "no source alpha contract was available; opaque fallback retained"
-    alpha_cutoff = 0.5
+    alpha_cutoff = (
+        _PAC_INFERRED_HAIR_CUTOUT_ALPHA_CUTOFF
+        if alpha_authority == "inferred" and alpha_mode == "cutout"
+        else 0.5
+    )
     for name in ("alpha_cutoff", "alpha_clip_threshold", "alpha_threshold"):
         candidate = _finite_float(overrides.get(name), minimum=0.0, maximum=1.0)
         if candidate is not None:

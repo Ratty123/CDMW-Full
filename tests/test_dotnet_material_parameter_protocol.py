@@ -242,7 +242,7 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     assert "float neutralMetalTint = earlyCategoryMetal" in shader
     assert "float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f)" in shader
     assert "float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);" in shader
-    assert "float colorizeStrength = lerp(0.82f, 0.96f, neutralMetalTint);" in shader
+    assert "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);" in shader
     assert "baseColor.rgb = lerp(baseColor.rgb, lerp(multiplied, colorized, colorizeStrength), strength);" in shader
     assert "baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x" in shader
     base_tint = shader.index("float tintLuma = max(dot(previewTint")

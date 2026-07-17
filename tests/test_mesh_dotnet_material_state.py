@@ -328,6 +328,7 @@ def test_real_material_identity_inference_activates_only_supported_family_polici
     assert hair["shader_authority"] == "inferred"
     assert hair["alpha_mode"] == "cutout"
     assert hair["alpha_authority"] == "inferred"
+    assert hair["alpha_cutoff"] == 0.12
     assert hair["double_sided"] is True
     assert hair["double_sided_authority"] == "inferred"
     assert "hair/fur cards" in hair["double_sided_reason"]

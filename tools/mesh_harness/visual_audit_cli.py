@@ -509,6 +509,8 @@ def _write_commands(evidence_root: Path, args: argparse.Namespace, temporary_roo
         ".\\.venv\\Scripts\\python.exe tools\\mesh_editor_visual_audit.py "
         f'--game-root "{args.game_root.resolve()}" --output "{evidence_root}"'
     )
+    if args.manifest is not None:
+        command += f' --manifest "{args.manifest.resolve()}"'
     lines = [
         "# Rerun commands",
         "",
