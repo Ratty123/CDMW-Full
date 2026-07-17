@@ -12,6 +12,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from PySide6.QtCore import QUrl
+from PySide6.QtGui import QImage
 
 from cdmw.core.atomic_file import atomic_write_text
 from cdmw.domain.cancellation import RunCancelled
@@ -50,6 +51,9 @@ _GENERATED_LINEAR_CHANNELS = {
     "specular",
 }
 _GENERATED_SUPPORT_CHANNELS = _GENERATED_LINEAR_CHANNELS - {"normal"}
+_DOMINANT_ARMOR_METAL_Q50_MIN = 0.35
+_DOMINANT_ARMOR_METAL_Q90_MIN = 0.50
+_DOMINANT_ARMOR_METAL_COVERAGE_MIN = 0.50
 _PACKED_SUBTYPE_CHANNELS = {
     "arm": {"metallic", "occlusion", "roughness"},
     "gltfmetallicroughness": {"metallic", "roughness"},
@@ -336,6 +340,165 @@ def _decode_synthesis_input_previews(
     return tuple(updated_inputs), decoded
 
 
+def _decoded_base_alpha_summary(
+    inputs: tuple[object, ...],
+    *,
+    cutoff: float,
+) -> dict[str, object]:
+    """Summarize a decoded color texture only for conservative alpha policy."""
+
+    from cdmw.rendering.material_combiner_rules import _is_visible_color_input
+
+    for item in inputs:
+        if not isinstance(item, PreviewMaterialTextureInput) or not _is_visible_color_input(item):
+            continue
+        source = str(getattr(item, "preview_texture_path", "") or "").strip()
+        if not source:
+            continue
+        local_path = QUrl(source).toLocalFile() or source
+        image = QImage(local_path)
+        if image.isNull() or not image.hasAlphaChannel():
+            continue
+        image = image.convertToFormat(QImage.Format.Format_RGBA8888)
+        width = int(image.width())
+        height = int(image.height())
+        if width <= 0 or height <= 0:
+            continue
+        step = 1
+        while ((width + step - 1) // step) * ((height + step - 1) // step) > 65_536:
+            step += 1
+        samples = [
+            image.pixelColor(x, y).alphaF()
+            for y in range(0, height, step)
+            for x in range(0, width, step)
+        ]
+        if not samples:
+            continue
+        samples.sort()
+        q90 = samples[min(len(samples) - 1, int((len(samples) - 1) * 0.90))]
+        resolved_cutoff = max(0.0, min(1.0, float(cutoff)))
+        coverage = sum(value >= resolved_cutoff for value in samples) / len(samples)
+        return {
+            "source_texture_name": Path(local_path).name,
+            "sample_count": len(samples),
+            "alpha_q90": round(float(q90), 6),
+            "coverage_at_cutoff": round(float(coverage), 6),
+            "cutoff": round(resolved_cutoff, 6),
+        }
+    return {}
+
+
+def _decoded_linear_channel_summary(source: object) -> dict[str, object]:
+    """Summarize a decoded scalar map without retaining its pixel payload."""
+
+    reference = str(source or "").strip()
+    if not reference:
+        return {}
+    local_path = QUrl(reference).toLocalFile() or reference
+    image = QImage(local_path)
+    if image.isNull():
+        return {}
+    image = image.convertToFormat(QImage.Format.Format_RGBA8888)
+    width = int(image.width())
+    height = int(image.height())
+    if width <= 0 or height <= 0:
+        return {}
+    step = 1
+    while ((width + step - 1) // step) * ((height + step - 1) // step) > 65_536:
+        step += 1
+    samples = [
+        image.pixelColor(x, y).redF()
+        for y in range(0, height, step)
+        for x in range(0, width, step)
+    ]
+    if not samples:
+        return {}
+    samples.sort()
+    q50 = samples[min(len(samples) - 1, int((len(samples) - 1) * 0.50))]
+    q90 = samples[min(len(samples) - 1, int((len(samples) - 1) * 0.90))]
+    coverage = sum(value > 0.25 for value in samples) / len(samples)
+    return {
+        "source_texture_name": Path(local_path).name,
+        "sample_count": len(samples),
+        "mean": round(float(sum(samples) / len(samples)), 6),
+        "q50": round(float(q50), 6),
+        "q90": round(float(q90), 6),
+        "coverage_above_0_25": round(float(coverage), 6),
+    }
+
+
+def _refine_synthesized_material_contract(
+    semantic_contract: Mapping[str, object],
+    synthesis: Mapping[str, object],
+) -> dict[str, object]:
+    """Apply evidence available only after shared material-map synthesis."""
+
+    refined = dict(semantic_contract)
+    generated = {
+        str(value or "").strip().casefold()
+        for value in tuple(synthesis.get("generated_channels", ()) or ())
+    }
+    if (
+        str(refined.get("shader_family", "") or "").strip().casefold()
+        in {"standard", "standard_v2"}
+        and str(refined.get("material_category", "") or "").strip().casefold()
+        == "metal"
+        and str(refined.get("material_category_reason", "") or "").strip().casefold()
+        == "metal:armor_family_material_response"
+    ):
+        metallic_summary = synthesis.get("metallic_summary")
+        dominant_metal = (
+            "metallic" in generated
+            and isinstance(metallic_summary, Mapping)
+            and float(metallic_summary.get("q50", 0.0) or 0.0)
+            >= _DOMINANT_ARMOR_METAL_Q50_MIN
+            and float(metallic_summary.get("q90", 0.0) or 0.0)
+            >= _DOMINANT_ARMOR_METAL_Q90_MIN
+            and float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
+            >= _DOMINANT_ARMOR_METAL_COVERAGE_MIN
+        )
+        if dominant_metal:
+            refined["material_category_confidence"] = 0.88
+            refined["material_category_reason"] = (
+                "metal:dominant_decoded_armor_metal_channel"
+            )
+            refined["material_response_promoted"] = True
+        else:
+            refined["material_category"] = "generic"
+            refined["material_category_confidence"] = 0.72 if "metallic" in generated else 0.68
+            if "metallic" in generated:
+                # Mixed leather/cloth and metal armor still keeps its decoded
+                # per-pixel map; it must not receive a whole-submesh metal
+                # fallback merely because the PAC lives in an armor slot.
+                refined["material_category_reason"] = (
+                    "generic:armor_material_response_without_dominant_decoded_metal_channel"
+                )
+            else:
+                refined["material_category_reason"] = (
+                    "generic:armor_material_response_without_decoded_metal_channel"
+                )
+            refined["material_response_promoted"] = False
+
+    alpha_summary = synthesis.get("base_alpha_summary")
+    if (
+        isinstance(alpha_summary, Mapping)
+        and str(refined.get("alpha_mode", "") or "").strip().casefold() == "cutout"
+        and str(refined.get("alpha_authority", "") or "").strip().casefold() == "inferred"
+    ):
+        cutoff = float(refined.get("alpha_cutoff", 0.5) or 0.5)
+        q90 = float(alpha_summary.get("alpha_q90", 1.0) or 0.0)
+        coverage = float(alpha_summary.get("coverage_at_cutoff", 1.0) or 0.0)
+        if q90 <= cutoff and coverage <= 0.10:
+            refined["alpha_mode"] = "opaque"
+            refined["alpha_cutoff"] = 0.5
+            refined["alpha_authority"] = "inferred_fallback"
+            refined["alpha_reason"] = (
+                "inferred hair cutout would discard at least 90% of the decoded color texture; "
+                "opaque card fallback retained"
+            )
+    return refined
+
+
 def _source_has_usable_tangents(source: object | None) -> bool:
     if source is None:
         return False
@@ -494,6 +657,16 @@ def _synthesize_dotnet_material_channels(
             raw_channels,
             cancelled=cancelled,
         )
+        base_alpha_summary = (
+            _decoded_base_alpha_summary(
+                inputs,
+                cutoff=float(raw_contract.get("alpha_cutoff", 0.5) or 0.5),
+            )
+            if str(raw_contract.get("alpha_mode", "") or "").strip().casefold() == "cutout"
+            and str(raw_contract.get("alpha_authority", "") or "").strip().casefold()
+            == "inferred"
+            else {}
+        )
         combined = combine_preview_material(
             SimpleNamespace(
                 material_name=str(getattr(source, "material", "") or getattr(source, "name", "") or ""),
@@ -552,6 +725,11 @@ def _synthesize_dotnet_material_channels(
         "texture_flip_vertical": bool(getattr(combined, "texture_flip_vertical", False)),
         "decoded_preview_input_count": int(decoded_preview_input_count),
     }
+    if base_alpha_summary:
+        metadata["base_alpha_summary"] = base_alpha_summary
+    metallic_summary = _decoded_linear_channel_summary(generated.get("metallic", ""))
+    if metallic_summary:
+        metadata["metallic_summary"] = metallic_summary
     if getattr(combined, "base_note", ""):
         metadata["base_note"] = str(combined.base_note)
     if generated.get("normal"):
@@ -610,6 +788,10 @@ def _dotnet_submesh_material_payload(
         resolved_channels,
         source_asset_path=source_asset_path,
     )
+    semantic_contract = _refine_synthesized_material_contract(
+        semantic_contract,
+        synthesis,
+    )
     semantic_contract["unsupported_features"] = list(raw_contract["unsupported_features"])
     semantic_contract["resolved_features"] = _resolved_synthesis_features(generated, raw_contract)
     for channel in generated:
@@ -639,6 +821,12 @@ def _dotnet_submesh_material_payload(
     for channel in generated:
         if channel in _GENERATED_LINEAR_CHANNELS and channel != "normal":
             components[channel] = "r"
+    parameters = _dotnet_initial_material_parameters(source_submesh, resolved_channels)
+    if "base_tint_metallic" in parameters:
+        parameters["base_tint_metallic"] = (
+            str(semantic_contract.get("material_category", "") or "").strip().casefold()
+            == "metal"
+        )
     return {
         "submesh_index": submesh_index,
         "name": str(submesh_map.get("name", "") or "").strip(),
@@ -662,7 +850,7 @@ def _dotnet_submesh_material_payload(
         **semantic_contract,
         "raw_material_contract": raw_contract,
         "material_synthesis": synthesis,
-        "parameters": _dotnet_initial_material_parameters(source_submesh, resolved_channels),
+        "parameters": parameters,
         "resolved_texture_count": len([value for value in resolved_channels.values() if value]),
         "packaged_texture_count": len(packaged_channels),
     }

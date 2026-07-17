@@ -64,6 +64,15 @@ def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
     if any(marker in shader_key for marker in ("skinnedmeshanimalhair", "skinnedmeshhairstandard", "skinnedmeshhair", "skinnedmeshfur")):
         if parameter_key in {"materialtexture", "masktexture", "flowtexture"}:
             return "hair_material"
+    if (
+        ("skinnedmeshstandard" in shader_key or shader_key in {"standard", "standardv2"})
+        and parameter_key in {"", "materialtexture", "materialmap"}
+        and last_token in {"sp", "spec", "specular"}
+    ):
+        # Older sidecars sometimes omit the parameter name even though the
+        # SkinnedMeshStandard ``_sp`` texture retains Crimson's packed
+        # material-response layout.
+        return "standard_v2_specular"
     if any(marker in shader_key for marker in ("skinnedmeshstandardver2", "skinnedmeshemissivever2", "skinnedmeshemissive", "skinnedmeshclothver2", "skinnedmeshcloth")):
         if parameter_key in {"materialtexture", "materialmap"} and last_token in {"sp", "spec", "specular"}:
             return "standard_v2_specular"
@@ -494,9 +503,13 @@ def decode_material_sample(
         specular = _clamp(0.10 + (max(b, a) * 0.34) + (variance * 0.16), 0.05, 0.54)
         metalness = 0.0
     elif mode == "standard_v2_specular":
-        specular = _clamp(max(r, g, b, a), 0.08, 1.0)
-        roughness = _clamp(0.16 + ((1.0 - max(g, average)) * 0.62), 0.06, 0.92)
-        metalness = 0.0
+        # Real-PAC ``_sp`` maps keep R/A at an opaque control value.  Treating
+        # max(RGBA) as specular therefore made every cloth/leather pixel fully
+        # glossy and inverted the actual G roughness response.  G is the
+        # direct roughness signal; B carries the metal/specular response.
+        roughness = _clamp(0.18 + (g * 0.68), 0.08, 0.96)
+        specular = _clamp(0.08 + (b * 0.80), 0.08, 0.88)
+        metalness = _clamp(max(0.0, b - 0.18) * 1.22, 0.0, 0.92)
     elif mode == "standard_v2_mask":
         ao = _clamp(1.0 - (r * 0.16), 0.72, 1.0)
         roughness = _clamp(0.22 + (g * 0.62), 0.08, 0.96)

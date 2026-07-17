@@ -11,6 +11,18 @@ authorized.
 
 ## Current verdict
 
+- The fourth material-classification audit adds 120 real PACs that do not
+  overlap the previous 197 unique paths. Every one of the 720 paired views was
+  inspected only after classifying the visible material, including mixed
+  regions. The original ledger was 99 PASS, 4 CONCERN, and 17 FAIL; the fully
+  rebuilt repaired run is 119 PASS, 1 CONCERN, and 0 FAIL. The sole remaining
+  concern is sword 004's guard tint/material-region mismatch.
+- Equipment slot or filename is not material authority. Cloth, leather, skin,
+  hair/fur/feather, wood, foliage, bone/horn, and organic shell are expected to
+  remain matte when the Archive Browser reference is matte. Mixed assets keep
+  metal response only on decoded metal regions. In particular, footwear 082's
+  pale stitched shafts were classified as cloth or soft leather, with only
+  small trim/hardware classified as metal.
 - The metallic equipment follow-up now renders authoritative gold, bronze,
   steel, dark iron, and colored armor as view-dependent metal instead of flat
   neutral paint. The fixed shader uses an RGB studio environment, physical
@@ -75,8 +87,57 @@ authorized.
   metal response, applies the established `0.12` cutoff to inferred PAC
   hair/cutout materials, and retains custom manifests in generated rerun
   commands.
+- The fourth-corpus repair decodes older unnamed `SkinnedMeshStandard` `_sp`
+  maps as direct G-channel roughness plus B-channel metal/specular response,
+  instead of using opaque R/A controls as full gloss. Armor-family placement
+  now promotes a whole submesh to metal only when the decoded metal channel is
+  dominant; localized metal remains per-pixel on an otherwise generic mixed
+  material. Sparse inferred beard alpha falls back to an opaque card only when
+  the inferred cutoff would discard at least 90% of the decoded color texture;
+  explicit authored cutout authority is unchanged.
+- Square offscreen capture resizing now preserves the source camera's world
+  basis. This keeps Archive-audit object-rotation cameras and interactive
+  editor cameras in their respective contracts while rebuilding only the
+  projection for the capture dimensions.
 
 ## Current evidence
+
+### Fourth 120-PAC material-classification proof
+
+Manifest:
+`tools/mesh_harness/visual_audit_followup_120.manifest.json`
+
+Original evidence:
+`workspace/mesh-editor-visual-audit/20260717-fourth-material-classification-120`
+
+Repaired evidence:
+`workspace/mesh-editor-visual-audit/20260717-fourth-material-classification-after-repair-120`
+
+- The corpus contains 120 unique non-overlapping PACs: 40 weapons, including
+  16 swords and eight shields; 52 armor items, including 20 helmets; eight
+  body/head controls; ten hair/beard controls; and 12 unusual mixed-material
+  assets. Geometry preflight parsed 120/120 assets, 286 submeshes, 762,110
+  vertices, and 941,905 faces.
+- Original run `8e03f569ddaf47378d3f1e8d9c067e7d` finalized at 99 PASS,
+  4 CONCERN, and 17 FAIL. Shared failures were excessive hard gloss on soft
+  helmet cloth/fur, wet/metal response on leather footwear, and an inferred
+  beard cutoff that removed most of the silhouette. Four bounded concerns
+  covered sword 004's guard and localized mixed-footwear response.
+- Repaired run `5e60be0453064ad7a27d1741ad1c184e` rebuilt all packages
+  under the corrected semantics and finalized at 119 PASS, 1 CONCERN, and
+  0 FAIL with zero unreviewed assets. Soft cloth/leather/fur regions stay matte,
+  true-metal helmet controls retain view-dependent response, beard 101 retains
+  its broad Archive Browser silhouette, and authored cutout control 102 keeps
+  its fine strands. Sword 004's guard remains the only concern.
+- Every ledger row has an explicit visual material classification from metal,
+  leather, cloth, skin, hair/fur/feather, wood, glass-like, emissive,
+  stone/ceramic, painted/coated, bone/horn, organic shell, foliage, or unknown.
+  Mixed assets include region-level observations; the review finalizer rejects
+  missing or invalid classifications when the manifest requires them.
+- Both production renderers stayed hidden and resident for all 120 assets with
+  no device reset or restart. Run identity, all six rendered camera views,
+  composite completeness, and paired-camera mapping pass. All 25 referenced
+  PAMT/PAZ sources remained byte-identical.
 
 ### Expanded 162-PAC regression discovery
 
@@ -291,18 +352,20 @@ global x-ray behavior or texture downscaling.
 
 ## Validation state
 
-- The 12-module focused material/audit suite passed 129 tests, including shader
-  source contracts, semantic state, material packaging/parameters, native
-  authority, GPU resources, harness rerun commands, and audit integrity.
+- The current focused material/package/audit/capture suite passed 121 tests.
+  This includes `_sp` decoding, dominant-versus-localized armor metal,
+  inferred sparse-alpha fallback, required material classification, manifest
+  coverage, capture-camera basis preservation, and audit integrity.
 - Fresh .NET Release build succeeded with 0 warnings and 0 errors, and the
   material-resource-policy report passed schema/runtime eligibility.
 - Fresh full-scale hidden Vortice soak passed at 1,000,000 vertices and 1,000
-  updates: release eligible, `0.1804 ms` handler p95, `59.99965` updates/s,
+  updates: release eligible, `0.2001 ms` handler p95, `59.9617` updates/s,
   all textured-metal readability gates true, and zero restarts/resets.
 - Fresh hidden 30-second 144 Hz frame-pacing proof captured 4,317 frames at
-  `143.869` effective FPS with `7.2341 ms` p95, `7.4005 ms` p99, no frame over
+  `143.85` effective FPS with `7.1480 ms` p95, `7.2613 ms` p99, no frame over
   `20.83 ms`, and zero restarts/resets.
-- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 890 passed, 1 skipped.
+- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 901 passed, 1 skipped.
+- The fourth 120-PAC original/repaired ledgers are 99/4/17 and 119/1/0.
 - The finalized expanded baseline is 136 PASS, 24 CONCERN, 2 FAIL across 162
   PACs. Post-fix alpha proof is 6/2/0, and the fresh 50-PAC cross-category proof
   is 43/7/0 with every paired view directly reviewed.
@@ -314,23 +377,26 @@ global x-ray behavior or texture downscaling.
 ## Durable continuation point
 
 This audit pass is complete. Future texture/material-parity work should start
-from the finalized 50-PAC post-fix root and the two 162-PAC discovery roots
-above. Use the older 15-PAC metallic root only as historical pre-expansion
-proof, and do not use mirrored-camera captures.
+from the finalized repaired 120-PAC root, with the finalized 50-PAC post-fix
+root and the two 162-PAC discovery roots as prior coverage. Use the older
+15-PAC metallic root only as historical pre-expansion proof, and do not use
+mirrored or capture-resized-with-a-recreated-basis camera evidence.
 
 Highest-value remaining work:
 
-1. Implement an authoritative `skinnedmeshtear` layer graph, then extend skin
+1. Resolve sword 004's localized guard tint/material-region mismatch without
+   changing the now-proven soft-material and true-metal controls.
+2. Implement an authoritative `skinnedmeshtear` layer graph, then extend skin
    subsurface/wrinkle and advanced hair/fur anisotropy, flow, and multilayer
    response without changing the proven cutout default.
-2. Resolve the packed roughness/normal/material contracts for long black boots
+3. Resolve the packed roughness/normal/material contracts for long black boots
    0166, the aircastle core, and black glasses 0001, then revisit the localized
    lightsource inner-brazier layer.
-3. Refine the remaining facial-card alpha-density/color response and audit
+4. Refine the remaining facial-card alpha-density/color response and audit
    synthesized material-graph output sizing. Direct authoritative DDS
    transport is proven byte-identical, but capped synthesized outputs remain a
    plausible softness source.
-4. Add authoritative alpha-blend/transmission corpus entries when real PAC
+5. Add authoritative alpha-blend/transmission corpus entries when real PAC
    examples are identified; current moth, foliage, hair, and eye-cover assets
    remain cutout/thin-surface proxies.
 

@@ -11,6 +11,22 @@ from pathlib import Path
 
 _VERDICTS = {"PASS", "CONCERN", "FAIL"}
 _CONFIDENCE = {"high", "medium", "low"}
+_MATERIAL_CLASSIFICATIONS = {
+    "metal",
+    "leather",
+    "cloth",
+    "skin",
+    "hair_fur_feather",
+    "wood",
+    "glass_like",
+    "emissive",
+    "stone_ceramic",
+    "painted_coated",
+    "bone_horn",
+    "organic_shell",
+    "foliage",
+    "unknown",
+}
 _DEFECT_CATEGORIES = {
     "missing_texture",
     "incorrect_base_color",
@@ -51,6 +67,7 @@ def finalize_visual_audit_review(evidence_root: Path, verdicts_path: Path) -> di
     dotnet_map = {str(row.get("id", "")): row for row in _mapping_rows(dotnet_report, "assets")}
     verdict_rows = _mapping_rows(verdicts, "assets")
     verdict_map = {str(row.get("id", "")): row for row in verdict_rows}
+    require_material_classification = verdicts.get("require_material_classification") is True
     if [str(row.get("id", "")) for row in verdict_rows] != expected_ids:
         raise ValueError("Visual-audit verdict order must exactly match the corpus.")
     if set(composite_map) != set(expected_ids):
@@ -75,7 +92,10 @@ def finalize_visual_audit_review(evidence_root: Path, verdicts_path: Path) -> di
     for corpus_row in corpus_rows:
         asset_id = str(corpus_row.get("asset_id", ""))
         verdict = verdict_map[asset_id]
-        _validate_verdict_row(verdict)
+        _validate_verdict_row(
+            verdict,
+            require_material_classification=require_material_classification,
+        )
         composite = composite_map[asset_id]
         selected = str(verdict.get("selected_camera_angle", "") or "")
         candidates = composite.get("candidate_comparisons")
@@ -87,6 +107,9 @@ def finalize_visual_audit_review(evidence_root: Path, verdicts_path: Path) -> di
         final_path = final_root / f"{asset_id}.png"
         _atomic_copy(source, final_path)
         defect_categories = [str(value) for value in tuple(verdict.get("defect_categories", ()) or ())]
+        material_classification = [
+            str(value) for value in tuple(verdict.get("material_classification", ()) or ())
+        ]
         archive_row = archive_map.get(asset_id, {})
         dotnet_row = dotnet_map.get(asset_id, {})
         summary_row = {
@@ -99,6 +122,7 @@ def finalize_visual_audit_review(evidence_root: Path, verdicts_path: Path) -> di
             "shader_profile_classification": list(corpus_row.get("shader_profile_classification", ()) or ()),
             "expected_texture_channels": list(corpus_row.get("expected_texture_channels", ()) or ()),
             "alpha_modes": list(corpus_row.get("alpha_modes", ()) or ()),
+            "material_classification": material_classification,
             "selected_camera_angle": selected,
             "archive_browser_verdict": str(verdict["archive_browser_verdict"]),
             "mesh_editor_verdict": str(verdict["mesh_editor_verdict"]),
@@ -138,6 +162,7 @@ def finalize_visual_audit_review(evidence_root: Path, verdicts_path: Path) -> di
         "concern_count": counts["CONCERN"],
         "fail_count": counts["FAIL"],
         "unreviewed_count": 0,
+        "material_classification_required": require_material_classification,
         "archive_browser_batch_ok": archive_report.get("ok") is True,
         "dotnet_batch_ok": dotnet_report.get("ok") is True,
         "integrity_ok": integrity.get("ok") is True,
@@ -152,7 +177,11 @@ def finalize_visual_audit_review(evidence_root: Path, verdicts_path: Path) -> di
     return summary
 
 
-def _validate_verdict_row(row: Mapping[str, object]) -> None:
+def _validate_verdict_row(
+    row: Mapping[str, object],
+    *,
+    require_material_classification: bool = False,
+) -> None:
     for key in ("archive_browser_verdict", "mesh_editor_verdict", "overall_verdict"):
         if str(row.get(key, "")) not in _VERDICTS:
             raise ValueError(f"Invalid visual-audit verdict {key}: {row.get(key)!r}")
@@ -161,6 +190,16 @@ def _validate_verdict_row(row: Mapping[str, object]) -> None:
     categories = {str(value) for value in tuple(row.get("defect_categories", ()) or ())}
     if not categories <= _DEFECT_CATEGORIES:
         raise ValueError(f"Invalid visual-audit defect categories: {sorted(categories - _DEFECT_CATEGORIES)}")
+    material_classification = {
+        str(value) for value in tuple(row.get("material_classification", ()) or ())
+    }
+    if require_material_classification and not material_classification:
+        raise ValueError("Visual-audit material classification is required.")
+    if not material_classification <= _MATERIAL_CLASSIFICATIONS:
+        raise ValueError(
+            "Invalid visual-audit material classifications: "
+            f"{sorted(material_classification - _MATERIAL_CLASSIFICATIONS)}"
+        )
     for key in (
         "selected_camera_angle",
         "visual_observations",
@@ -181,6 +220,7 @@ def _review_entry(row: Mapping[str, object]) -> list[str]:
         f"- Archive provenance: `{json.dumps(row['archive_provenance'], sort_keys=True)}`",
         f"- Model category: `{row['model_category']}`",
         f"- Material families: `{', '.join(row['material_families'])}`",
+        f"- Visual material classification: `{json.dumps(row['material_classification'])}`",
         f"- Selected camera angle: `{row['selected_camera_angle']}`",
         f"- Archive Browser verdict: {row['archive_browser_verdict']}",
         f"- Mesh Editor verdict: {row['mesh_editor_verdict']}",

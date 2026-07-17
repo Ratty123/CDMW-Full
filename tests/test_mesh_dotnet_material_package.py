@@ -283,6 +283,10 @@ def test_package_expands_generic_packed_mask_into_individual_support_maps(tmp_pa
     generated = set(binding["material_synthesis"]["generated_channels"])
     assert {"roughness", "metallic"}.issubset(generated)
     assert generated <= {"occlusion", "roughness", "metallic", "specular"}
+    metallic_summary = binding["material_synthesis"]["metallic_summary"]
+    assert metallic_summary["sample_count"] > 0
+    assert metallic_summary["q50"] > 0.5
+    assert metallic_summary["coverage_above_0_25"] == 1.0
     assert binding["resolved_channels"]["base"] == str(base)
     assert binding["resolved_channels"]["normal"] == str(normal)
     assert binding["resolved_channels"]["height"] == str(height)
@@ -578,6 +582,108 @@ def test_package_carries_archive_base_tint_and_texture_tint_separately(tmp_path:
     assert parameters["base_tint_metallic"] is True
     assert parameters["texture_tint"] == [0.73, 0.44, 0.24]
     assert "tint_color" not in parameters
+
+
+@pytest.mark.parametrize("shader_family", ["standard", "standard_v2"])
+def test_synthesized_contract_requires_dominant_decoded_metal_for_armor(
+    shader_family: str,
+) -> None:
+    source_contract = {
+        "shader_family": shader_family,
+        "material_category": "metal",
+        "material_category_confidence": 0.9,
+        "material_category_reason": "metal:armor_family_material_response",
+        "material_response_promoted": True,
+        "alpha_mode": "opaque",
+        "alpha_authority": "guess",
+    }
+
+    soft = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        source_contract,
+        {"generated_channels": ["roughness", "specular"]},
+    )
+    metal = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        source_contract,
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "q50": 0.72,
+                "q90": 0.86,
+                "coverage_above_0_25": 0.91,
+            },
+        },
+    )
+    mixed = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        source_contract,
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "q50": 0.03,
+                "q90": 0.28,
+                "coverage_above_0_25": 0.18,
+            },
+        },
+    )
+
+    assert soft["material_category"] == "generic"
+    assert soft["material_response_promoted"] is False
+    assert soft["material_category_reason"] == (
+        "generic:armor_material_response_without_decoded_metal_channel"
+    )
+    assert mixed["material_category"] == "generic"
+    assert mixed["material_response_promoted"] is False
+    assert mixed["material_category_reason"] == (
+        "generic:armor_material_response_without_dominant_decoded_metal_channel"
+    )
+    assert metal["material_category"] == "metal"
+    assert metal["material_response_promoted"] is True
+    assert metal["material_category_reason"] == (
+        "metal:dominant_decoded_armor_metal_channel"
+    )
+
+
+def test_sparse_inferred_hair_alpha_uses_opaque_card_fallback(tmp_path: Path) -> None:
+    base = tmp_path / "sparse_inferred_hair.png"
+    material = _image(tmp_path / "sparse_inferred_hair_sp.png", (255, 180, 0, 255))
+    image = QImage(10, 10, QImage.Format.Format_RGBA8888)
+    image.fill(QColor(86, 58, 42, 15))
+    for x in range(9):
+        image.setPixelColor(x, 0, QColor(86, 58, 42, 255))
+    assert image.save(str(base), "PNG")
+    submesh = _submesh("beard_card")
+    submesh.preview_texture_path = str(base)
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_baseColorTexture",
+            source_texture_path=str(base),
+            preview_texture_path=str(base),
+            semantic_type="color",
+            semantic_subtype="albedo",
+            shader_family="SkinnedMeshHairStandard",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_materialTexture",
+            source_texture_path=str(material),
+            preview_texture_path=str(material),
+            semantic_type="material",
+            semantic_subtype="specular",
+            shader_family="SkinnedMeshHairStandard",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "sparse-hair-package", [submesh])
+    binding = payload["submeshes"][0]
+
+    assert binding["raw_material_contract"]["alpha_mode"] == "cutout"
+    assert binding["raw_material_contract"]["alpha_authority"] == "inferred"
+    assert binding["material_synthesis"]["base_alpha_summary"]["coverage_at_cutoff"] == 0.09
+    assert binding["alpha_mode"] == "opaque"
+    assert binding["alpha_authority"] == "inferred_fallback"
+    assert "discard at least 90%" in binding["alpha_reason"]
 
 
 def test_native_batch_tint_preserves_prepared_typed_inputs_for_package_synthesis(

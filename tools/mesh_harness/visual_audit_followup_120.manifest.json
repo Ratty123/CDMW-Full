@@ -1,0 +1,1765 @@
+{
+  "schema": "cdmw_mesh_visual_audit_selection_v1",
+  "name": "followup-120-additional-material-parity-variants",
+  "minimum_asset_count": 120,
+  "required_coverage": {
+    "weapon": 40,
+    "sword": 16,
+    "armor": 52,
+    "helmet": 20,
+    "body": 8,
+    "hair": 10,
+    "unusual": 12
+  },
+  "excluded_virtual_paths": [
+    "character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0003.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_4001.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_10_0001.pac",
+    "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0011.pac",
+    "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_00_0370.pac",
+    "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0027.pac",
+    "character/model/1_pc/14_ptm/armor/19_cloak/cd_ptm_01_cloak_0052.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_00_m0001_00_ub_belt_0001.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0001.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0010.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0048.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0050.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0083.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_07_ub_00_0319.pac",
+    "character/model/1_pc/14_ptm/head/hair/cd_ptm_00_hair_00_0003.pac",
+    "character/model/1_pc/14_ptm/head/hair/cd_ptm_01_hair_00_0024.pac",
+    "character/model/1_pc/14_ptm/head/head/cd_ptm_00_head_0001.pac",
+    "character/model/1_pc/14_ptm/head/head/cd_ptm_00_head_0003.pac",
+    "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac",
+    "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_01_0001.pac",
+    "character/model/1_pc/19_ppdm/nude/cd_ppdm_00_nude_00_0001.pac",
+    "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_0150.pac",
+    "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_m0001_00_gears_lb_0001.pac",
+    "character/model/1_pc/1_phm/armor/11_hand/cd_phm_14_hand_belt_0022.pac",
+    "character/model/1_pc/1_phm/armor/12_foot/cd_phm_00_foot_00_0437.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0193.pac",
+    "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0047.pac",
+    "character/model/1_pc/1_phm/armor/16_jacket/cd_phm_00_jacket_0054_03.pac",
+    "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0009.pac",
+    "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_00_0447.pac",
+    "character/model/1_pc/1_phm/armor/20_mask/cd_phm_00_mask_0207.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0001.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0002.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0003.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0001.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0004.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0021.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0054.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0083.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_00_0039.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0110.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0165.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_artis_ub_0001.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_bliss_redknight_ub_0001.pac",
+    "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0105.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0001.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0002.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0036.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_uptail_00_0025.pac",
+    "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0207.pac",
+    "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0414.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_00_0215_tear.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_sub_00_0001.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_sub_00_0005.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_4001.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_4001_hand_hair.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_10_0001.pac",
+    "character/model/1_pc/1_phm/weapon/10_thrownweapon/cd_phm_10_bomb_0009.pac",
+    "character/model/1_pc/1_phm/weapon/12_pike/cd_phm_12_pike_0034.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_axe_0039.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0005.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0011.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0036.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0046.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0053.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0070.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0102.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0166.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_axe_0017.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_axe_0056.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0012.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0014.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0034.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0039.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0007.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0097.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0126.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0056.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0100.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0101.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0110.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0119.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0122.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0132.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0133.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0136.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0006.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0011.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0104.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0119.pac",
+    "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0003.pac",
+    "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0012.pac",
+    "character/model/1_pc/1_phm/weapon/5_crossbow/cd_phm_05_crossbow_0004.pac",
+    "character/model/1_pc/1_phm/weapon/6_pistol/cd_phm_06_pst_0052.pac",
+    "character/model/1_pc/1_phm/weapon/7_shotgun/cd_phm_07_shotgun_0054.pac",
+    "character/model/1_pc/1_phm/weapon/8_musket/cd_phm_08_musket_0001.pac",
+    "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_00_0148.pac",
+    "character/model/1_pc/2_phw/armor/12_foot/cd_phw_00_foot_00_0166.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0097_04.pac",
+    "character/model/1_pc/2_phw/armor/19_cloak/cd_phw_00_cloak_0114.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_0055.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0151.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0163.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0181.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0007.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0008.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0010_01.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_base_00_0001.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_01_hair_uptail_00_0005.pac",
+    "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0005_tear.pac",
+    "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0207.pac",
+    "character/model/1_pc/2_phw/head/head_sub/cd_phw_00_head_sub_00_0006.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0002.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_4001.pac",
+    "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_sword_0008.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0135.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0136.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0139.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0141.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0142.pac",
+    "character/model/1_pc/5_pom/armor/9_upperbody/cd_pom_m0001_00_greenorc_ub_0007.pac",
+    "character/model/1_pc/5_pom/head/head_sub/cd_pom_00_head_sub_00_0001.pac",
+    "character/model/1_pc/5_pom/nude/cd_pom_00_nude_00_0001.pac",
+    "character/model/1_pc/6_pow/nude/cd_pow_00_nude_00_0001.pac",
+    "character/model/1_pc/7_pdm/armor/18_acc/cd_pdm_01_bag_0041.pac",
+    "character/model/1_pc/7_pdm/armor/40_glasses/cd_pdm_01_glasses_00_0001.pac",
+    "character/model/1_pc/7_pdm/nude/cd_pdm_00_nude_00_0001.pac",
+    "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_00_hel_0033.pac",
+    "character/model/1_pc/9_pgm/armor/19_cloak/cd_pgm_00_cloak_00_0001.pac",
+    "character/model/1_pc/9_pgm/armor/40_glasses/cd_pgm_01_glasses_00_0002.pac",
+    "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0006.pac",
+    "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0012.pac",
+    "character/model/1_pc/9_pgm/head/head/cd_pgm_00_head_00_0005.pac",
+    "character/model/1_pc/9_pgm/head/head_sub/cd_pgm_00_head_sub_00_0004.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_beastman/cd_m0001_00_beastman_fur_0001.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_muscan/cd_m0001_00_muscan_fur_0001.pac",
+    "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_dog/cd_m0002_00_wolf/cd_m0002_00_wolf_00_0001_dm03.pac",
+    "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_reindeer/cd_m0002_00_stag/cd_m0002_00_stag_00_0001.pac",
+    "character/model/2_mon/cd_m0003_00_bird/cd_m0003_00_harpy/cd_m0003_00_harpy_00_0001.pac",
+    "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_dragon/cd_m0004_00_dragon_ub_00_0003.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_cropspider/cd_m0006_00_cropspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_glass_marblespider/cd_m0006_00_glassmarblespider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_glass_marblespider/cd_m0006_00_glassmarblespider_00_0002.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_potspider/cd_m0006_00_potspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_stonelampspider/cd_m0006_00_stonelampspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_webspider/cd_m0006_00_webspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_00_0026.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_rock_00_0016.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_machinemosquito/cd_m0006_00_machinebeetle/cd_m0006_00_machinebeetle_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_spider_boss/cd_m0006_00_spider_boss_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_spider_queen/cd_m0006_00_spider_queen_body_00_0001.pac",
+    "character/model/2_mon/cd_m0009_00_fish/cd_m0009_00_bass/cd_m0009_00_giantoctopus/cd_m0009_00_giantoctopus_00_0001.pac",
+    "character/model/2_mon/cd_m0024_00_spidermachine/cd_m0024_00_spidermachine_00_0001.pac",
+    "character/model/2_mon/cd_m0063_00_seraphim/cd_m0063_00_seraphim_0001.pac",
+    "character/model/3_npc/14_ntm/armor_north/9_upperbody/cd_ntm_00_no_ub_00034.pac",
+    "character/model/3_npc/1_nhm/armor_desert/9_upperbody/cd_nhm_00_de_ub_10081.pac",
+    "character/model/3_npc/2_nhw/armor_south/9_upperbody/cd_nhw_00_so_ub_00012.pac",
+    "character/model/3_npc/5_nom/armor_desert/9_upperbody/cd_nom_00_de_ub_00001.pac",
+    "character/model/3_npc/7_ndm/armor_north/9_upperbody/cd_ndm_00_no_ub_10010.pac",
+    "character/model/3_npc/7_ndm/armor_south/9_upperbody/cd_ndm_00_so_ub_00003.pac",
+    "character/model/4_riding/cd_r0002_00_fourfeet/cd_r0002_00_alpineibex/cd_r0002_00_alpineibex_0001.pac",
+    "character/model/4_riding/cd_r0015_00_elephant/cd_r0015_00_elephant_0001.pac",
+    "character/model/4_riding/cd_r0016_00_moth/cd_r0016_00_moth_0001.pac",
+    "character/model/4_riding/cd_r0024_00_airplane/cd_r0024_00_airplane_0001_02.pac",
+    "character/model/4_riding/cd_r0035_00_carmabirdsaurus/cd_r0035_00_carmabirdsaurus_0001.pac",
+    "character/model/4_riding/cd_r0039_00_warrobot/cd_r0039_00_warrobot_lantern_0001.pac",
+    "character/model/4_riding/cd_r0039_00_warrobot/cd_r0039_00_warrobot_ub_0001.pac",
+    "character/model/6_object/object/t0081_doorstatue/cd_0081_doorstatue_mirror.pac",
+    "character/model/6_object/object/t0083_reflector/cd_t0083_reflector_0001.pac",
+    "character/model/6_object/object/t0089_lightsource/cd_t0089_lightsource_001.pac",
+    "character/model/6_object/object/t0108_flag/cd_t0108_flag_0004.pac",
+    "character/model/6_object/object/t0150_sandglass/cd_t0150_sandglass_0001.pac",
+    "character/model/6_object/object/t0215_flowerbutterfly/cd_t0215_flowerbutterfly_0002.pac",
+    "character/model/6_object/object/t0231_gimmickchain/cd_t0231_gimmickchain_05_45m_0001.pac",
+    "character/model/6_object/object/t0254_dropitem/cd_gimmick_item_trade_fur_01.pac",
+    "character/model/6_object/object/t0254_dropitem/cd_gimmick_item_trade_fur_02.pac",
+    "character/model/6_object/object/t0263_harpyfeather/cd_t0263_harpyfeather_0001.pac",
+    "character/model/6_object/object/t0267_aircastlecore/cd_t0267_aircastlecore_0001.pac",
+    "character/model/6_object/object/t0273_seraphim_wing/cd_t0273_seraphim_wing_0002.pac",
+    "character/model/6_object/tools/cd_t0000_battery_0001.pac",
+    "character/model/6_object/tools/cd_t0000_breakbottle_0001.pac",
+    "character/model/6_object/tools/cd_t0000_bushdeerpelt_0001_01.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0001.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0002.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0006.pac",
+    "character/model/6_object/tools/cd_t0000_potion_0002.pac",
+    "character/model/6_object/tools/cd_t0000_seed_basket_0001.pac",
+    "character/model/6_object/tools/cd_t0000_stagpelt_0001.pac",
+    "character/model/6_object/tools/cd_t0000_wolfpelt_0001.pac"
+  ],
+  "assets": [
+    {
+      "index": 1,
+      "asset_id": "001-onehand-sword-cd-phm-01-sword-0002",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0002.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 2,
+      "asset_id": "002-onehand-sword-cd-phm-01-sword-0015",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0015.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 3,
+      "asset_id": "003-onehand-sword-cd-phm-01-sword-0031",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0031.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 4,
+      "asset_id": "004-onehand-sword-cd-phm-01-sword-0059",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0059.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 5,
+      "asset_id": "005-onehand-sword-cd-phm-01-sword-0067",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0067.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 6,
+      "asset_id": "006-onehand-sword-cd-phm-01-sword-0078",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0078.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 7,
+      "asset_id": "007-onehand-sword-cd-phm-01-sword-0110",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0110.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 8,
+      "asset_id": "008-onehand-sword-cd-phm-01-sword-0283",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0283.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 9,
+      "asset_id": "009-twohand-sword-cd-phm-02-sword-0001",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 10,
+      "asset_id": "010-twohand-sword-cd-phm-02-sword-0006",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0006.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 11,
+      "asset_id": "011-twohand-sword-cd-phm-02-sword-0011",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0011.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 12,
+      "asset_id": "012-twohand-sword-cd-phm-02-sword-0020",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0020.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 13,
+      "asset_id": "013-twohand-sword-cd-phm-02-sword-0024",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0024.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 14,
+      "asset_id": "014-twohand-sword-cd-phm-02-sword-0029",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0029.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 15,
+      "asset_id": "015-twohand-sword-cd-phm-02-sword-0037",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0037.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 16,
+      "asset_id": "016-twohand-sword-cd-phm-02-sword-0114",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0114.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "metal",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon sword selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 17,
+      "asset_id": "017-onehand-axe-cd-phm-01-axe-0001",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_axe_0001.pac",
+      "model_category": "weapon_axe",
+      "coverage_tags": [
+        "weapon",
+        "axe",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon axe selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 18,
+      "asset_id": "018-onehand-axe-cd-phm-01-axe-0100",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_axe_0100.pac",
+      "model_category": "weapon_axe",
+      "coverage_tags": [
+        "weapon",
+        "axe",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon axe selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 19,
+      "asset_id": "019-onehand-dagger-cd-phm-01-dagger-0004",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_dagger_0004.pac",
+      "model_category": "weapon_dagger",
+      "coverage_tags": [
+        "weapon",
+        "dagger",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon dagger selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 20,
+      "asset_id": "020-onehand-dagger-cd-phm-01-dagger-0172",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_dagger_0172.pac",
+      "model_category": "weapon_dagger",
+      "coverage_tags": [
+        "weapon",
+        "dagger",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon dagger selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 21,
+      "asset_id": "021-onehand-mace-cd-phm-01-mace-0001",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_mace_0001.pac",
+      "model_category": "weapon_mace",
+      "coverage_tags": [
+        "weapon",
+        "mace",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon mace selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 22,
+      "asset_id": "022-onehand-mace-cd-phm-01-mace-0214",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_mace_0214.pac",
+      "model_category": "weapon_mace",
+      "coverage_tags": [
+        "weapon",
+        "mace",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon mace selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 23,
+      "asset_id": "023-onehand-flail-cd-phm-01-flail-0005",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_flail_0005.pac",
+      "model_category": "weapon_flail",
+      "coverage_tags": [
+        "weapon",
+        "flail",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon flail selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 24,
+      "asset_id": "024-onehand-whip-cd-phm-01-whip-0001",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_whip_0001.pac",
+      "model_category": "weapon_whip",
+      "coverage_tags": [
+        "weapon",
+        "whip",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon whip selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 25,
+      "asset_id": "025-twohand-spear-cd-phm-02-spear-0001",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_spear_0001.pac",
+      "model_category": "weapon_spear",
+      "coverage_tags": [
+        "weapon",
+        "spear",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon spear selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 26,
+      "asset_id": "026-twohand-spear-cd-phm-02-spear-0120",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_spear_0120.pac",
+      "model_category": "weapon_spear",
+      "coverage_tags": [
+        "weapon",
+        "spear",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon spear selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 27,
+      "asset_id": "027-twohand-warhammer-cd-phm-02-warhammer-0001",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_warhammer_0001.pac",
+      "model_category": "weapon_warhammer",
+      "coverage_tags": [
+        "weapon",
+        "warhammer",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon warhammer selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 28,
+      "asset_id": "028-twohand-warhammer-cd-phm-02-warhammer-0109",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_warhammer_0109.pac",
+      "model_category": "weapon_warhammer",
+      "coverage_tags": [
+        "weapon",
+        "warhammer",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon warhammer selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 29,
+      "asset_id": "029-twohand-axe-cd-phm-02-axe-0012",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_axe_0012.pac",
+      "model_category": "weapon_axe",
+      "coverage_tags": [
+        "weapon",
+        "axe",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon axe selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 30,
+      "asset_id": "030-twohand-rod-cd-phm-02-rod-0007",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_rod_0007.pac",
+      "model_category": "weapon_rod",
+      "coverage_tags": [
+        "weapon",
+        "rod",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon rod selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 31,
+      "asset_id": "031-twohand-flail-cd-phm-02-flail-0004",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_flail_0004.pac",
+      "model_category": "weapon_flail",
+      "coverage_tags": [
+        "weapon",
+        "flail",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon flail selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 32,
+      "asset_id": "032-twohand-cannon-cd-phm-02-cannon-0005",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_cannon_0005.pac",
+      "model_category": "weapon_cannon",
+      "coverage_tags": [
+        "weapon",
+        "cannon",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon cannon selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 33,
+      "asset_id": "033-shield-cd-phm-03-shield-0003",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0003.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 34,
+      "asset_id": "034-shield-cd-phm-03-shield-0090",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0090.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 35,
+      "asset_id": "035-shield-cd-phm-03-shield-0142",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0142.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 36,
+      "asset_id": "036-kiteshield-cd-phm-03-kiteshield-0002",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0002.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 37,
+      "asset_id": "037-kiteshield-cd-phm-03-kiteshield-0071",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0071.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 38,
+      "asset_id": "038-kiteshield-cd-phm-03-kiteshield-0125",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0125.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 39,
+      "asset_id": "039-towershield-cd-phm-03-towershield-0005",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0005.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 40,
+      "asset_id": "040-towershield-cd-phm-03-towershield-0122",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0122.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "broad_surface",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping weapon shield selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 41,
+      "asset_id": "041-phm-helmet-cd-phm-00-hel-0001",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0001.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 42,
+      "asset_id": "042-phm-helmet-cd-phm-00-hel-0061",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0061.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 43,
+      "asset_id": "043-phm-helmet-cd-phm-00-hel-0122",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0122.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 44,
+      "asset_id": "044-phm-helmet-cd-phm-00-hel-0202",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0202.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 45,
+      "asset_id": "045-phm-helmet-cd-phm-00-hel-0253",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0253.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 46,
+      "asset_id": "046-phm-helmet-cd-phm-02-hel-0002",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_02_hel_0002.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 47,
+      "asset_id": "047-phm-helmet-cd-phm-02-hel-0068",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_02_hel_0068.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 48,
+      "asset_id": "048-phm-helmet-fs-phm-00-hel-0005",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/fs_phm_00_hel_0005.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 49,
+      "asset_id": "049-phw-helmet-cd-nhw-00-hel-0010",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_nhw_00_hel_0010.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 50,
+      "asset_id": "050-phw-helmet-cd-phw-00-hel-0031",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0031.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 51,
+      "asset_id": "051-phw-helmet-cd-phw-00-hel-0076",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0076.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 52,
+      "asset_id": "052-phw-helmet-cd-phw-00-hel-0119",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0119.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 53,
+      "asset_id": "053-phw-helmet-cd-phw-01-hel-0041",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_0041.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 54,
+      "asset_id": "054-phw-helmet-cd-phw-01-hel-0107",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_0107.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 55,
+      "asset_id": "055-phw-helmet-fs-phw-00-hel-0001",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/fs_phw_00_hel_0001.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 56,
+      "asset_id": "056-ptm-helmet-cd-ptm-00-hel-0001",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_00_hel_0001.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 57,
+      "asset_id": "057-ptm-helmet-cd-ptm-02-hel-0119",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_02_hel_0119.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 58,
+      "asset_id": "058-pgm-helmet-cd-pgm-01-hel-0083",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_01_hel_0083.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "pgm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 59,
+      "asset_id": "059-pdm-helmet-cd-pdm-00-hel-0029",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/13_hel/cd_pdm_00_hel_0029.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "pdm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 60,
+      "asset_id": "060-pom-helmet-cd-pom-01-hel-0021",
+      "virtual_path": "character/model/1_pc/5_pom/armor/13_hel/cd_pom_01_hel_0021.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "pom",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor helmet selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 61,
+      "asset_id": "061-phm-upper-cd-phm-00-ub-0002",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0002.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 62,
+      "asset_id": "062-phm-upper-cd-phm-00-ub-0050",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0050.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 63,
+      "asset_id": "063-phm-upper-cd-phm-00-ub-0122",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0122.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 64,
+      "asset_id": "064-phm-upper-cd-phm-02-ub-0028",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_02_ub_0028.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 65,
+      "asset_id": "065-phm-upper-cd-phm-m0001-00-ub-0038",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_ub_0038.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 66,
+      "asset_id": "066-phw-upper-cd-phw-00-ub-0002",
+      "virtual_path": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_0002.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 67,
+      "asset_id": "067-phw-upper-cd-phw-00-ub-0066",
+      "virtual_path": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_0066.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 68,
+      "asset_id": "068-phw-upper-cd-phw-01-ub-0041",
+      "virtual_path": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_01_ub_0041.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 69,
+      "asset_id": "069-phw-upper-cd-phw-m0001-00-titan-ub-0002",
+      "virtual_path": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_m0001_00_titan_ub_0002.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 70,
+      "asset_id": "070-ptm-upper-cd-ptm-01-ub-0003",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0003.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 71,
+      "asset_id": "071-ptm-upper-cd-ptm-01-ub-0158",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0158.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 72,
+      "asset_id": "072-pgm-upper-cd-pgm-00-ub-00-0003",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0003.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "upperbody",
+        "pgm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor upperbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 73,
+      "asset_id": "073-phm-lower-cd-phm-00-lb-0002",
+      "virtual_path": "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_0002.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "lowerbody",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor lowerbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 74,
+      "asset_id": "074-phm-lower-cd-phm-m0001-00-titan-lb-0002",
+      "virtual_path": "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_m0001_00_titan_lb_0002.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "lowerbody",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor lowerbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 75,
+      "asset_id": "075-phw-lower-cd-phw-00-lb-0005",
+      "virtual_path": "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_0005.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "lowerbody",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor lowerbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 76,
+      "asset_id": "076-phw-lower-cd-phw-m0001-00-titan-lb-0002",
+      "virtual_path": "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_m0001_00_titan_lb_0002.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "lowerbody",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor lowerbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 77,
+      "asset_id": "077-ptm-lower-cd-ptm-00-m0001-00-lb-0010",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_m0001_00_lb_0010.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "lowerbody",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor lowerbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 78,
+      "asset_id": "078-ptm-lower-cd-ptm-02-lb-0123",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_02_lb_0123.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "lowerbody",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor lowerbody selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 79,
+      "asset_id": "079-phm-foot-cd-phm-00-foot-0001",
+      "virtual_path": "character/model/1_pc/1_phm/armor/12_foot/cd_phm_00_foot_0001.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "boots",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor foot selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 80,
+      "asset_id": "080-phm-foot-fs-phm-00-foot-0005",
+      "virtual_path": "character/model/1_pc/1_phm/armor/12_foot/fs_phm_00_foot_0005.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "boots",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor foot selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 81,
+      "asset_id": "081-phw-foot-cd-phw-00-foot-0003",
+      "virtual_path": "character/model/1_pc/2_phw/armor/12_foot/cd_phw_00_foot_0003.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "boots",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor foot selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 82,
+      "asset_id": "082-phw-foot-fs-phw-00-foot-0001",
+      "virtual_path": "character/model/1_pc/2_phw/armor/12_foot/fs_phw_00_foot_0001.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "boots",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor foot selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 83,
+      "asset_id": "083-ptm-foot-cd-ptm-00-m0001-00-foot-0001",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/12_foot/cd_ptm_00_m0001_00_foot_0001.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "boots",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor foot selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 84,
+      "asset_id": "084-ptm-foot-cd-ptm-02-foot-0042",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/12_foot/cd_ptm_02_foot_0042.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "boots",
+        "ptm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor foot selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 85,
+      "asset_id": "085-hand-cd-phm-00-hand-0001",
+      "virtual_path": "character/model/1_pc/1_phm/armor/11_hand/cd_phm_00_hand_0001.pac",
+      "model_category": "armor_hand",
+      "coverage_tags": [
+        "armor",
+        "hand",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor hand selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 86,
+      "asset_id": "086-hand-cd-phw-01-hand-0165",
+      "virtual_path": "character/model/1_pc/2_phw/armor/11_hand/cd_phw_01_hand_0165.pac",
+      "model_category": "armor_hand",
+      "coverage_tags": [
+        "armor",
+        "hand",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor hand selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 87,
+      "asset_id": "087-cloak-cd-phm-00-cloak-0002",
+      "virtual_path": "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0002.pac",
+      "model_category": "armor_cloak",
+      "coverage_tags": [
+        "armor",
+        "cloak",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor cloak selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 88,
+      "asset_id": "088-cloak-cd-phw-14-cloak-0022",
+      "virtual_path": "character/model/1_pc/2_phw/armor/19_cloak/cd_phw_14_cloak_0022.pac",
+      "model_category": "armor_cloak",
+      "coverage_tags": [
+        "armor",
+        "cloak",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor cloak selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 89,
+      "asset_id": "089-vest-cd-phm-00-vest-0002",
+      "virtual_path": "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0002.pac",
+      "model_category": "armor_vest",
+      "coverage_tags": [
+        "armor",
+        "vest",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor vest selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 90,
+      "asset_id": "090-vest-cd-phw-01-vest-0266",
+      "virtual_path": "character/model/1_pc/2_phw/armor/15_vest/cd_phw_01_vest_0266.pac",
+      "model_category": "armor_vest",
+      "coverage_tags": [
+        "armor",
+        "vest",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor vest selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 91,
+      "asset_id": "091-mask-cd-phm-00-mask-0271",
+      "virtual_path": "character/model/1_pc/1_phm/armor/20_mask/cd_phm_00_mask_0271.pac",
+      "model_category": "armor_mask",
+      "coverage_tags": [
+        "armor",
+        "mask",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor mask selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 92,
+      "asset_id": "092-sho-cd-phm-00-sho-0215",
+      "virtual_path": "character/model/1_pc/1_phm/armor/14_sho/cd_phm_00_sho_0215.pac",
+      "model_category": "armor_shoulder",
+      "coverage_tags": [
+        "armor",
+        "sho",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping armor shoulder selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 93,
+      "asset_id": "093-phm-hair-cd-phm-00-hair-00-0000",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0000.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 94,
+      "asset_id": "094-phm-hair-cd-phm-00-hair-00-0023",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0023.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 95,
+      "asset_id": "095-phm-hair-cd-phm-00-hair-00-0502",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0502.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 96,
+      "asset_id": "096-phm-hair-cd-phm-02-hair-00-0505",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_02_hair_00_0505.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phm",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 97,
+      "asset_id": "097-phw-hair-cd-phw-00-hair-00-0001",
+      "virtual_path": "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0001.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 98,
+      "asset_id": "098-phw-hair-cd-phw-00-hair-00-0016",
+      "virtual_path": "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0016.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 99,
+      "asset_id": "099-phw-hair-cd-phw-00-hair-00-0512",
+      "virtual_path": "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0512.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 100,
+      "asset_id": "100-phw-hair-cd-phw-01-hair-00-0505",
+      "virtual_path": "character/model/1_pc/2_phw/head/hair/cd_phw_01_hair_00_0505.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "alpha_cutout",
+        "phw",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 101,
+      "asset_id": "101-phm-beard-cd-phm-00-beard-00-0002",
+      "virtual_path": "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0002.pac",
+      "model_category": "body_hair_alpha",
+      "coverage_tags": [
+        "body",
+        "hair",
+        "beard",
+        "alpha_cutout",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 102,
+      "asset_id": "102-phm-beard-cd-phm-00-beard-00-0104",
+      "virtual_path": "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0104.pac",
+      "model_category": "body_hair_alpha",
+      "coverage_tags": [
+        "body",
+        "hair",
+        "beard",
+        "alpha_cutout",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body hair alpha selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 103,
+      "asset_id": "103-phm-head-cd-phm-00-head-00-0001",
+      "virtual_path": "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0001.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "head",
+        "skin",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body head selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 104,
+      "asset_id": "104-phm-head-cd-phm-00-head-00-4203",
+      "virtual_path": "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_4203.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "head",
+        "skin",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body head selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 105,
+      "asset_id": "105-phw-head-cd-phw-00-head-00-0001",
+      "virtual_path": "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0001.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "head",
+        "skin",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body head selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 106,
+      "asset_id": "106-phw-head-cd-phw-00-head-00-4004",
+      "virtual_path": "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_4004.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "head",
+        "skin",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body head selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 107,
+      "asset_id": "107-body-nude-cd-pdw-00-nude-00-0001",
+      "virtual_path": "character/model/1_pc/8_pdw/nude/cd_pdw_00_nude_00_0001.pac",
+      "model_category": "body_skin",
+      "coverage_tags": [
+        "body",
+        "skin",
+        "character_variant",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body skin selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 108,
+      "asset_id": "108-body-nude-cd-pgm-00-nude-00-0001",
+      "virtual_path": "character/model/1_pc/9_pgm/nude/cd_pgm_00_nude_00_0001.pac",
+      "model_category": "body_skin",
+      "coverage_tags": [
+        "body",
+        "skin",
+        "character_variant",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping body skin selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 109,
+      "asset_id": "109-unusual-cd-m0006-00-bismuthspider-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_bismuthspider/cd_m0006_00_bismuthspider_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 110,
+      "asset_id": "110-unusual-cd-m0001-00-circusmachine-boss-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_circusmachine_boss/cd_m0001_00_circusmachine_boss_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 111,
+      "asset_id": "111-unusual-cd-m0001-00-steelrobot-nude-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_steelrobot/cd_m0001_00_steelrobot_nude_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 112,
+      "asset_id": "112-unusual-cd-m0004-00-golemdragon-wing-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_golemdragon/cd_m0004_00_golemdragon_wing_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 113,
+      "asset_id": "113-unusual-cd-t0000-lantern-0003",
+      "virtual_path": "character/model/6_object/tools/cd_t0000_lantern_0003.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 114,
+      "asset_id": "114-unusual-cd-t0000-lamp-0001",
+      "virtual_path": "character/model/6_object/tools/cd_t0000_lamp_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 115,
+      "asset_id": "115-unusual-cd-t0019-scaffold-chain",
+      "virtual_path": "character/model/6_object/object/t0019_sacffold/cd_t0019_scaffold_chain.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 116,
+      "asset_id": "116-unusual-cd-t0000-feather-pen-0001",
+      "virtual_path": "character/model/6_object/tools/cd_t0000_feather_pen_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 117,
+      "asset_id": "117-unusual-cd-t0194-bushdevill-cloth-0001",
+      "virtual_path": "character/model/6_object/object/t0194_bushdevill_cloth/cd_t0194_bushdevill_cloth_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 118,
+      "asset_id": "118-unusual-cd-t0108-flag-0001",
+      "virtual_path": "character/model/6_object/object/t0108_flag/cd_t0108_flag_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 119,
+      "asset_id": "119-unusual-cd-m0006-00-jewelbeetle-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_beetle/cd_m0006_00_jewelbeetle_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    },
+    {
+      "index": 120,
+      "asset_id": "120-unusual-cd-m0004-00-dragon-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_dragon/cd_m0004_00_dragon_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "mixed_material",
+        "fourth_pass"
+      ],
+      "selection_reason": "Fourth-pass non-overlapping unusual mixed selected after the prior 197-path review to widen real-PAC material and renderer-response coverage."
+    }
+  ]
+}

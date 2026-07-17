@@ -3002,3 +3002,21 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertAlmostEqual(0.25, rma[1], places=2)
         self.assertAlmostEqual(0.50, rma[2], places=2)
         self.assertAlmostEqual(0.25, mra[2], places=2)
+
+    def test_standard_sp_decode_uses_green_roughness_and_blue_metal_response(self) -> None:
+        texture_input = PreviewMaterialTextureInput(
+            slot_kind="material",
+            source_texture_path="character/texture/soft_helmet_sp.dds",
+            texture_name="soft_helmet_sp.dds",
+            shader_family="SkinnedMeshStandard",
+        )
+
+        self.assertEqual("standard_v2_specular", _decode_mode_for_input(texture_input))
+        soft = decode_material_sample(1.0, 0.82, 0.0, 1.0, "standard_v2_specular")
+        metal = decode_material_sample(1.0, 0.24, 0.92, 1.0, "standard_v2_specular")
+
+        self.assertGreater(soft[1], metal[1])
+        self.assertEqual(0.0, soft[2])
+        self.assertLessEqual(soft[3], 0.081)
+        self.assertGreater(metal[2], 0.80)
+        self.assertGreater(metal[3], 0.80)

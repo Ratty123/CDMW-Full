@@ -1,0 +1,137 @@
+{
+  "schema": "cdmw_mesh_visual_audit_selection_v1",
+  "name": "material-classification-regression-15",
+  "minimum_asset_count": 15,
+  "required_coverage": {
+    "weapon": 1,
+    "sword": 1,
+    "armor": 12,
+    "helmet": 7,
+    "boots": 4,
+    "body": 2,
+    "hair": 2
+  },
+  "excluded_virtual_paths": [],
+  "assets": [
+    {
+      "index": 1,
+      "asset_id": "001-onehand-sword-cd-phm-01-sword-0002",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0002.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": ["weapon", "sword", "metal", "regression"],
+      "selection_reason": "Metal/leather/wood sword control for packed-response regression."
+    },
+    {
+      "index": 41,
+      "asset_id": "041-phm-helmet-cd-phm-00-hel-0001",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0001.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": ["armor", "helmet", "leather", "regression"],
+      "selection_reason": "Soft standard-v2 helmet control that must not be judged as all-metal."
+    },
+    {
+      "index": 42,
+      "asset_id": "042-phm-helmet-cd-phm-00-hel-0061",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0061.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": ["armor", "helmet", "cloth", "regression"],
+      "selection_reason": "Older standard soft helmet with an unnamed packed _sp input."
+    },
+    {
+      "index": 43,
+      "asset_id": "043-phm-helmet-cd-phm-00-hel-0122",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0122.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": ["armor", "helmet", "cloth", "regression"],
+      "selection_reason": "Padded standard-v2 helmet control for unresolved mixed classification."
+    },
+    {
+      "index": 47,
+      "asset_id": "047-phm-helmet-cd-phm-02-hel-0068",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_02_hel_0068.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": ["armor", "helmet", "cloth", "regression"],
+      "selection_reason": "Matte cloth bonnet that exposed the packed-response defect."
+    },
+    {
+      "index": 50,
+      "asset_id": "050-phw-helmet-cd-phw-00-hel-0031",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0031.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": ["armor", "helmet", "cloth", "regression"],
+      "selection_reason": "Correctly matte cloth-v2 helmet control."
+    },
+    {
+      "index": 56,
+      "asset_id": "056-ptm-helmet-cd-ptm-00-hel-0001",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_00_hel_0001.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": ["armor", "helmet", "metal", "regression"],
+      "selection_reason": "Older standard true-metal helmet control."
+    },
+    {
+      "index": 59,
+      "asset_id": "059-pdm-helmet-cd-pdm-00-hel-0029",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/13_hel/cd_pdm_00_hel_0029.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": ["armor", "helmet", "metal", "regression"],
+      "selection_reason": "Dark painted true-metal helmet control."
+    },
+    {
+      "index": 79,
+      "asset_id": "079-phm-foot-cd-phm-00-foot-0001",
+      "virtual_path": "character/model/1_pc/1_phm/armor/12_foot/cd_phm_00_foot_0001.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": ["armor", "boots", "leather", "regression"],
+      "selection_reason": "Standard-v2 leather boot control for unresolved category ambiguity."
+    },
+    {
+      "index": 80,
+      "asset_id": "080-phm-foot-fs-phm-00-foot-0005",
+      "virtual_path": "character/model/1_pc/1_phm/armor/12_foot/fs_phm_00_foot_0005.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": ["armor", "boots", "metal", "leather", "regression"],
+      "selection_reason": "Mixed metal, chainmail, and leather footwear control."
+    },
+    {
+      "index": 81,
+      "asset_id": "081-phw-foot-cd-phw-00-foot-0003",
+      "virtual_path": "character/model/1_pc/2_phw/armor/12_foot/cd_phw_00_foot_0003.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": ["armor", "boots", "leather", "regression"],
+      "selection_reason": "Standard-v2 leather shoe control for unresolved category ambiguity."
+    },
+    {
+      "index": 84,
+      "asset_id": "084-ptm-foot-cd-ptm-02-foot-0042",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/12_foot/cd_ptm_02_foot_0042.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": ["armor", "boots", "leather", "regression"],
+      "selection_reason": "Older standard suede/leather boot that exposed the packed-response defect."
+    },
+    {
+      "index": 89,
+      "asset_id": "089-vest-cd-phm-00-vest-0002",
+      "virtual_path": "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0002.pac",
+      "model_category": "armor_vest",
+      "coverage_tags": ["armor", "leather", "cloth", "regression"],
+      "selection_reason": "Correctly subdued leather/cloth control."
+    },
+    {
+      "index": 101,
+      "asset_id": "101-phm-beard-cd-phm-00-beard-00-0002",
+      "virtual_path": "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0002.pac",
+      "model_category": "body_hair_alpha",
+      "coverage_tags": ["body", "hair", "beard", "alpha_cutout", "regression"],
+      "selection_reason": "Sparse inferred-alpha beard card regression."
+    },
+    {
+      "index": 102,
+      "asset_id": "102-phm-beard-cd-phm-00-beard-00-0104",
+      "virtual_path": "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0104.pac",
+      "model_category": "body_hair_alpha",
+      "coverage_tags": ["body", "hair", "beard", "alpha_cutout", "regression"],
+      "selection_reason": "Sidecar-authored moustache cutout control."
+    }
+  ]
+}

@@ -35,7 +35,10 @@ from tools.mesh_harness.visual_audit_capture import (
     _dotnet_audit_presentation_is_safe,
 )
 from tools.mesh_harness.visual_audit_report import build_visual_audit_composites
-from tools.mesh_harness.visual_audit_review import finalize_visual_audit_review
+from tools.mesh_harness.visual_audit_review import (
+    _validate_verdict_row,
+    finalize_visual_audit_review,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,6 +48,12 @@ FOLLOWUP_MANIFEST = (
 )
 THIRD_PASS_MANIFEST = (
     ROOT / "tools" / "mesh_harness" / "visual_audit_followup_90.manifest.json"
+)
+FOURTH_PASS_MANIFEST = (
+    ROOT / "tools" / "mesh_harness" / "visual_audit_followup_120.manifest.json"
+)
+MATERIAL_REGRESSION_MANIFEST = (
+    ROOT / "tools" / "mesh_harness" / "visual_audit_material_regression_15.manifest.json"
 )
 
 
@@ -351,6 +360,52 @@ def test_third_visual_audit_corpus_is_diverse_unique_and_excludes_both_prior_cor
         assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
 
 
+def test_fourth_visual_audit_corpus_adds_120_balanced_nonoverlapping_pacs() -> None:
+    specs = _load_specs(FOURTH_PASS_MANIFEST)
+    selected_paths = {spec.virtual_path.casefold() for spec in specs}
+    prior_paths = {
+        spec.virtual_path.casefold()
+        for manifest_specs in (
+            default_visual_audit_specs(),
+            _load_specs(FOLLOWUP_MANIFEST),
+            _load_specs(THIRD_PASS_MANIFEST),
+        )
+        for spec in manifest_specs
+    }
+
+    assert len(specs) == 120
+    assert len({spec.asset_id for spec in specs}) == 120
+    assert len(selected_paths) == 120
+    assert not prior_paths & selected_paths
+    assert validate_visual_audit_specs(specs) == {
+        "weapon": 40,
+        "sword": 16,
+        "armor": 52,
+        "body": 8,
+        "hair_fur_feather": 10,
+        "unusual": 12,
+    }
+    payload = json.loads(FOURTH_PASS_MANIFEST.read_text(encoding="utf-8"))
+    excluded_paths = {str(value).casefold() for value in payload["excluded_virtual_paths"]}
+    assert len(excluded_paths) == 197
+    assert prior_paths <= excluded_paths
+    assert not selected_paths & excluded_paths
+    for tag, minimum in payload["required_coverage"].items():
+        assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
+
+
+def test_material_regression_manifest_covers_soft_metal_and_alpha_controls() -> None:
+    specs = _load_specs(MATERIAL_REGRESSION_MANIFEST)
+    payload = json.loads(MATERIAL_REGRESSION_MANIFEST.read_text(encoding="utf-8"))
+
+    assert len(specs) == 15
+    assert len({spec.asset_id for spec in specs}) == 15
+    assert len({spec.virtual_path.casefold() for spec in specs}) == 15
+    assert all("regression" in spec.coverage_tags for spec in specs)
+    for tag, minimum in payload["required_coverage"].items():
+        assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
+
+
 def test_visual_audit_manifest_constraints_reject_partial_overlap_and_missing_tags(
     tmp_path: Path,
 ) -> None:
@@ -624,6 +679,8 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert '["rendered_camera"] = new Dictionary<string, object?>' in batch
     assert "D3D11RenderedCameraEvidence" in dotnet_capture
     assert "cameraForCapture.WorldViewProjectionRowMajorArray()" in dotnet_capture
+    assert "WorldViewProjection = camera.World * captureProjection" in dotnet_capture
+    assert "return NetViewportCamera.Create(" not in dotnet_capture
     assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings());" in batch
     assert '["presentation"] = viewport.PresentationEvidencePayload()' in batch
     assert "_form.CreateControl();" in batch
@@ -732,6 +789,29 @@ def test_visual_audit_composites_preserve_source_pixels_without_resampling(tmp_p
     )
 
 
+def test_visual_audit_review_rejects_missing_or_unknown_material_classification() -> None:
+    row = {
+        "selected_camera_angle": "front",
+        "archive_browser_verdict": "PASS",
+        "mesh_editor_verdict": "PASS",
+        "overall_verdict": "PASS",
+        "defect_categories": [],
+        "visual_observations": "Soft stitched regions remain matte.",
+        "likely_cause": "No parity defect observed.",
+        "confidence": "high",
+        "code_changes_made": "None.",
+        "targeted_validation_performed": "All paired views inspected.",
+        "remaining_uncertainty": "None.",
+    }
+
+    with pytest.raises(ValueError, match="material classification is required"):
+        _validate_verdict_row(row, require_material_classification=True)
+
+    row["material_classification"] = ["inventory_slot_armor"]
+    with pytest.raises(ValueError, match="Invalid visual-audit material classifications"):
+        _validate_verdict_row(row, require_material_classification=True)
+
+
 def test_visual_audit_review_finalizer_requires_complete_structured_verdicts(tmp_path: Path) -> None:
     evidence = tmp_path / "evidence"
     runtime = evidence / "runtime"
@@ -790,6 +870,7 @@ def test_visual_audit_review_finalizer_requires_complete_structured_verdicts(tmp
         verdicts,
         {
             "run_id": run_id,
+            "require_material_classification": True,
             "assets": [
                 {
                     "id": asset_id,
@@ -798,6 +879,7 @@ def test_visual_audit_review_finalizer_requires_complete_structured_verdicts(tmp
                     "mesh_editor_verdict": "CONCERN",
                     "overall_verdict": "CONCERN",
                     "defect_categories": ["metallic_roughness"],
+                    "material_classification": ["metal", "leather"],
                     "visual_observations": "Stable base identity; highlight width needs source confirmation.",
                     "likely_cause": "Presentation or packed-channel interpretation remains ambiguous.",
                     "confidence": "medium",
@@ -813,9 +895,12 @@ def test_visual_audit_review_finalizer_requires_complete_structured_verdicts(tmp
 
     assert summary["status"] == "complete_visual_review"
     assert summary["concern_count"] == 1
+    assert summary["material_classification_required"] is True
+    assert summary["assets"][0]["material_classification"] == ["metal", "leather"]
     assert summary["archive_sources_unchanged"] is True
     final_path = evidence / "final" / f"{asset_id}.png"
     assert final_path.read_bytes() == comparison.read_bytes()
     review = (evidence / "review.md").read_text(encoding="utf-8")
     assert "Archive Browser verdict: PASS" in review
     assert "Mesh Editor verdict: CONCERN" in review
+    assert 'Visual material classification: `["metal", "leather"]`' in review

@@ -1,6 +1,7 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.IO;
+using System.Numerics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using Vortice.Direct3D11;
@@ -209,15 +210,40 @@ internal sealed partial class D3D11MaterialViewport
         var uniformScale = Math.Max(
             0.001f,
             Math.Min(width / sourceWidth, height / sourceHeight));
-        return NetViewportCamera.Create(
-            camera.Center,
-            camera.Bounds,
-            camera.Yaw,
-            camera.Pitch,
-            camera.Zoom * uniformScale,
-            camera.PanX * uniformScale,
-            camera.PanY * uniformScale,
-            width,
-            height);
+        var captureZoom = Math.Max(0.001f, camera.Zoom * uniformScale);
+        var captureWidth = Math.Max(1.0f, width);
+        var captureHeight = Math.Max(1.0f, height);
+        var depthScale = 1.0f / Math.Max(camera.SceneSize * 4.0f, 0.0001f);
+        var captureProjection = new Matrix4x4(
+            2.0f * captureZoom / captureWidth,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            2.0f * captureZoom / captureHeight,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            depthScale,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.5f,
+            1.0f);
+
+        // Preserve the source camera's world/basis contract. Visual-audit
+        // cameras intentionally use Archive Browser object-rotation order,
+        // while interactive cameras use the editor's camera basis. Recreating
+        // either through the other constructor silently rotates the capture.
+        return camera with
+        {
+            Zoom = captureZoom,
+            PanX = camera.PanX * uniformScale,
+            PanY = camera.PanY * uniformScale,
+            ViewportWidth = captureWidth,
+            ViewportHeight = captureHeight,
+            WorldViewProjection = camera.World * captureProjection,
+        };
     }
 }

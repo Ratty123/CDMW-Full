@@ -468,6 +468,7 @@ def _write_draft_review(
                 f"- Archive provenance: `{asset.get('archive_provenance', {})}`",
                 f"- Model category: `{asset.get('model_category', '')}`",
                 f"- Material families: `{', '.join(asset.get('expected_material_families', ()) or ())}`",
+                "- Visual material classification: PENDING",
                 f"- Selected camera angle: `{composite.get('selected_camera_angle', '')}`",
                 "- Archive Browser verdict: PENDING",
                 "- Mesh Editor verdict: PENDING",

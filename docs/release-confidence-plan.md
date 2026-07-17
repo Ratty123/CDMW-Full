@@ -50,6 +50,43 @@ keeps core user workflows working behind stable facades.
 
 2026-07-17:
 
+- A fourth hidden material-classification audit added 120 real PACs with no
+  overlap against the previous 197 unique paths: 40 weapons (16 swords and
+  eight shields), 52 armor items (20 helmets), eight body/head controls, ten
+  hair/beard controls, and 12 unusual mixed-material assets. All 720 paired
+  views were inspected after classifying visible material and mixed regions.
+  Original run `8e03f569ddaf47378d3f1e8d9c067e7d` finalized at
+  99 PASS / 4 CONCERN / 17 FAIL; repaired run
+  `5e60be0453064ad7a27d1741ad1c184e` finalized at
+  119 PASS / 1 CONCERN / 0 FAIL with zero unreviewed. Evidence:
+  `workspace/mesh-editor-visual-audit/20260717-fourth-material-classification-120`
+  and
+  `workspace/mesh-editor-visual-audit/20260717-fourth-material-classification-after-repair-120`.
+- The shared repair decodes older standard `_sp` maps as direct G roughness and
+  B metal/specular response, requires dominant decoded metal before promoting
+  an armor submesh to global metal, and retains localized metal per pixel on
+  mixed cloth/leather assets. Sparse inferred beard alpha now preserves the
+  card when cutoff would discard at least 90% of the decoded texture; explicit
+  authored cutout authority remains unchanged. The one remaining concern is
+  sword 004's localized guard tint/material-region mismatch.
+- The audit review schema now requires explicit visual material classification
+  for this corpus. Slot names do not imply metal: footwear 082's stitched pale
+  shafts were classified as cloth or soft leather, its dark cuffs as leather,
+  and only small trim/hardware as metal. Matte soft material is treated as
+  correct when it matches Archive Browser.
+- A full recapture exposed offscreen resizing recreating an Archive-audit
+  camera through the interactive basis. Capture now preserves the source
+  camera world matrix and rebuilds only its projection; all six rendered-view
+  integrity checks pass. Both production renderer windows remained hidden and
+  resident, all 25 PAMT/PAZ sources stayed byte-identical, and there were zero
+  restarts or device resets.
+- Fresh focused validation passed 121 tests; .NET Release built with zero
+  warnings/errors; the material-resource-policy report passed; and `mesh-unit`
+  passed 901 tests with 1 skip. The hidden 1,000,000-vertex/1,000-update soak
+  passed at `0.2001 ms` handler p95 and `59.9617` updates/s. The 30-second
+  144 Hz proof captured 4,317 frames at `143.85` effective FPS with
+  `7.1480 ms` p95, hidden windows, and zero resets. Visible/licensed real-game
+  proof was not run or claimed.
 - The hidden material-parity audit expanded to 162 unique real PACs across
   swords and other weapons, shields, helmets, armor, boots, facial composites,
   hair/fur, creatures, props, glass, emissive, and unusual mixed materials.
