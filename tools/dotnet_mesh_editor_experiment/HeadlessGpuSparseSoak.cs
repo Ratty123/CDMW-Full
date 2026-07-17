@@ -191,7 +191,9 @@ internal static partial class HeadlessGpuSparseSoak
         gates["fit_relative_vertex_markers_and_wire"] =
             fitRelativeOverlayProof.GetValueOrDefault("ok") is true;
         gates["xray_overlay_draws_wire_and_vertices_without_depth"] =
-            xrayOverlayProof.GetValueOrDefault("ok") is true;
+            xrayOverlayProof.GetValueOrDefault("xray_ok") is true;
+        gates["configurable_wire_width_and_vertex_size"] =
+            xrayOverlayProof.GetValueOrDefault("configured_sizing_active") is true;
         var ok = gates.Values.All(value => value);
         var report = BuildReport(
             options,
@@ -277,6 +279,8 @@ internal static partial class HeadlessGpuSparseSoak
             return new Dictionary<string, object?>
             {
                 ["ok"] = true,
+                ["xray_ok"] = true,
+                ["configured_sizing_active"] = true,
                 ["exercised"] = false,
                 ["reason"] = "The dedicated X-Ray draw proof runs in smoke mode.",
             };
@@ -285,7 +289,10 @@ internal static partial class HeadlessGpuSparseSoak
         var configuredColors = new MeshOverlayColors(
             System.Drawing.Color.FromArgb(12, 34, 56),
             System.Drawing.Color.FromArgb(78, 90, 123));
-        viewport.SetOverlayColors(configuredColors);
+        var configuredSizing = new MeshOverlaySizing(
+            WireWidthPixels: 2.75f,
+            VertexMarkerSizePixels: 11.0f);
+        viewport.SetOverlaySettings(new MeshOverlaySettings(configuredColors, configuredSizing));
         var before = viewport.ResourceMetricsPayload();
         viewport.UpdateRenderPanes(new[]
         {
@@ -331,8 +338,19 @@ internal static partial class HeadlessGpuSparseSoak
             Metric(after, "xray_wire_no_depth_draws") > Metric(before, "xray_wire_no_depth_draws");
         var vertexNoDepthAdvanced =
             Metric(after, "xray_vertex_no_depth_passes") > Metric(before, "xray_vertex_no_depth_passes");
+        var configuredSizingActive =
+            Math.Abs(
+                Convert.ToSingle(after.GetValueOrDefault("wire_overlay_width_pixels"), CultureInfo.InvariantCulture)
+                - configuredSizing.WireWidthPixels) <= 0.0001f
+            && Math.Abs(
+                Convert.ToSingle(after.GetValueOrDefault("vertex_marker_fit_size_pixels"), CultureInfo.InvariantCulture)
+                - configuredSizing.VertexMarkerSizePixels) <= 0.0001f;
+        var xrayOk = normalColorsRetained
+            && automaticPaletteActive
+            && wireNoDepthAdvanced
+            && vertexNoDepthAdvanced;
 
-        viewport.SetOverlayColors(MeshOverlayColors.Default);
+        viewport.SetOverlaySettings(MeshOverlaySettings.Default);
         ConfigureSmokeViewport(viewport, camera, clientSize, smoke: true);
         if (!viewport.TryRunHeadlessFrame(out _, out _, out var restoreError))
         {
@@ -341,16 +359,17 @@ internal static partial class HeadlessGpuSparseSoak
 
         return new Dictionary<string, object?>
         {
-            ["ok"] = normalColorsRetained
-                && automaticPaletteActive
-                && wireNoDepthAdvanced
-                && vertexNoDepthAdvanced,
+            ["ok"] = xrayOk && configuredSizingActive,
+            ["xray_ok"] = xrayOk,
             ["exercised"] = true,
             ["frame_ms"] = frameMs,
             ["normal_colors_retained"] = normalColorsRetained,
             ["automatic_palette_active"] = automaticPaletteActive,
             ["wire_no_depth_draw_advanced"] = wireNoDepthAdvanced,
             ["vertex_no_depth_pass_advanced"] = vertexNoDepthAdvanced,
+            ["configured_sizing_active"] = configuredSizingActive,
+            ["configured_wire_width_pixels"] = after.GetValueOrDefault("wire_overlay_width_pixels"),
+            ["configured_vertex_marker_size_pixels"] = after.GetValueOrDefault("vertex_marker_fit_size_pixels"),
             ["configured_wire_color"] = after.GetValueOrDefault("wire_overlay_color"),
             ["configured_vertex_color"] = after.GetValueOrDefault("vertex_overlay_color"),
             ["xray_wire_color"] = after.GetValueOrDefault("xray_wire_overlay_color"),

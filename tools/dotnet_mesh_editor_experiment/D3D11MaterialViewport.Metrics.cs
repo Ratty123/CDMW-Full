@@ -57,7 +57,7 @@ internal sealed partial class D3D11MaterialViewport
 
     public Dictionary<string, object?> ResourceMetricsPayload()
     {
-        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
+        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera, _overlaySettings.Sizing);
         var videoMemory = QueryLocalVideoMemory();
         _peakDxgiLocalUsageBytes = Math.Max(_peakDxgiLocalUsageBytes, videoMemory.CurrentUsage);
         var oldestGeometryAgeMs = _batches.Count == 0
@@ -90,10 +90,11 @@ internal sealed partial class D3D11MaterialViewport
             ["vertex_overlay_batch_draws"] = _vertexOverlayBatchDrawCount,
             ["fit_relative_overlay_zoom_ratio"] = overlayStyle.ZoomRatio,
             ["vertex_marker_size_pixels"] = overlayStyle.VertexMarkerSizePixels,
+            ["vertex_marker_fit_size_pixels"] = _overlaySettings.Sizing.VertexMarkerSizePixels,
             ["wire_overlay_opacity_scale"] = overlayStyle.WireOpacityScale,
-            ["wire_overlay_width_pixels"] = WireOverlayWidthPixels,
-            ["wire_overlay_color"] = MeshOverlayColors.Hex(_overlayColors.Wire),
-            ["vertex_overlay_color"] = MeshOverlayColors.Hex(_overlayColors.Vertex),
+            ["wire_overlay_width_pixels"] = _overlaySettings.Sizing.WireWidthPixels,
+            ["wire_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Wire),
+            ["vertex_overlay_color"] = MeshOverlayColors.Hex(_overlaySettings.Colors.Vertex),
             ["xray_wire_overlay_color"] = MeshOverlayColors.Hex(MeshOverlayColors.AutomaticXRayWire),
             ["xray_vertex_overlay_color"] = MeshOverlayColors.Hex(MeshOverlayColors.AutomaticXRayVertex),
             ["xray_overlay_active"] = _overlayShowXRay,

@@ -28,10 +28,10 @@ internal sealed partial class MeshViewport
         e.Graphics.Clear(BackColor);
         e.Graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
         var normalAlpha = ShowXRay ? 70 : 150;
-        var activeWireColor = _overlayColors.ActiveWire(ShowXRay);
+        var activeWireColor = _overlaySettings.Colors.ActiveWire(ShowXRay);
         using var normalPen = new Pen(
             Color.FromArgb(ShowXRay ? 240 : 225, activeWireColor),
-            ShowXRay ? 1.35f : 1.0f);
+            _overlaySettings.Sizing.WireWidthPixels);
         using var selectedPen = new Pen(Color.FromArgb(245, 211, 95), 1.6f);
         using var normalBrush = new SolidBrush(Color.FromArgb(normalAlpha, 79, 112, 152));
         using var selectedBrush = new SolidBrush(Color.FromArgb(190, 225, 190, 58));

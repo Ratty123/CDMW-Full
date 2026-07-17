@@ -163,24 +163,27 @@ def test_dotnet_experiment_renderer_source_contract() -> None:
 
 def test_dotnet_wire_overlay_style_contract() -> None:
     context = _dotnet_source_context()
+    source = context["source"]
     d3d_source = context["d3d_source"]
     d3d_overlay_source = context["d3d_overlay_source"]
     hlsl_source = context["hlsl_source"]
 
-    assert "WireOverlayWidthPixels = 1.35f" in d3d_overlay_source
+    assert "DefaultWireWidthPixels = 1.35f" in source
+    assert "DefaultVertexMarkerSizePixels = 7.0f" in source
     assert "_wireOverlayColor = OverlayColor(0, 0, 0, 225)" in d3d_overlay_source
     assert "_vertexOverlayColor = OverlayColor(255, 174, 40, 255)" in d3d_overlay_source
     assert "XRayWireOverlayColor = OverlayColor(245, 248, 252, 240)" in d3d_overlay_source
     assert "XRayVertexOverlayColor = OverlayColor(255, 88, 214, 255)" in d3d_overlay_source
     assert "_overlayShowXRay ? XRayWireOverlayColor : _wireOverlayColor" in d3d_overlay_source
     assert "_overlayShowXRay ? XRayVertexOverlayColor : _vertexOverlayColor" in d3d_overlay_source
-    assert "SetOverlayColors(MeshOverlayColors colors)" in d3d_overlay_source
-    assert "lineWidthPixels: WireOverlayWidthPixels" in d3d_overlay_source
+    assert "SetOverlaySettings(MeshOverlaySettings settings)" in d3d_overlay_source
+    assert "lineWidthPixels: _overlaySettings.Sizing.WireWidthPixels" in d3d_overlay_source
     assert "command.LineWidthPixels > 1.0f" in d3d_overlay_source
     assert "GSWireLine" in hlsl_source
     assert "halfWidthPixels" in hlsl_source
     assert "_wireGeometryShader" in d3d_source
-    assert '["wire_overlay_width_pixels"] = WireOverlayWidthPixels' in d3d_source
+    assert '["wire_overlay_width_pixels"] = _overlaySettings.Sizing.WireWidthPixels' in d3d_source
+    assert '["vertex_marker_fit_size_pixels"] = _overlaySettings.Sizing.VertexMarkerSizePixels' in d3d_source
 
 
 def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:

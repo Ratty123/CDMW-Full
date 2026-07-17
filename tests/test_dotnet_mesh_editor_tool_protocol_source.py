@@ -222,9 +222,9 @@ def test_dotnet_screen_edits_match_rendered_mesh_and_use_readable_hit_targets() 
     assert "SelectionClickRadiusPixels = 14.0" in picking_source
     assert "ScreenPayload(point, SelectionClickRadiusPixels)" in picking_source
 
-    assert "FitVertexMarkerSizePixels = 7.0f" in overlay_policy_source
+    assert "DefaultVertexMarkerSizePixels = 7.0f" in _source("MeshOverlayColors.cs")
     assert "MinimumVertexMarkerSizePixels = 2.0f" in overlay_policy_source
-    assert "FitRelativeOverlayPolicy.ForCamera(_camera)" in overlay_source
+    assert "FitRelativeOverlayPolicy.ForCamera(_camera, _overlaySettings.Sizing)" in overlay_source
     assert "GSVertexMarker" in shader_source
     assert "_vertexMarkerGeometryShader" in viewport_source
     assert "GSSetShader(_vertexMarkerGeometryShader)" in overlay_source

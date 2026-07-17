@@ -9,8 +9,7 @@ internal sealed partial class D3D11MaterialViewport
 {
     private const int InitialOverlayVertexCapacity = 4096;
     private const float SelectedVertexMarkerRadiusPixels = 7.0f;
-    private const float WireOverlayWidthPixels = 1.35f;
-    private MeshOverlayColors _overlayColors = MeshOverlayColors.Default;
+    private MeshOverlaySettings _overlaySettings = MeshOverlaySettings.Default;
     private Vector4 _wireOverlayColor = OverlayColor(0, 0, 0, 225);
     private Vector4 _vertexOverlayColor = OverlayColor(255, 174, 40, 255);
     private static readonly Vector4 XRayWireOverlayColor = OverlayColor(245, 248, 252, 240);
@@ -53,18 +52,19 @@ internal sealed partial class D3D11MaterialViewport
         _overlayCommandDepthMode = 0;
     }
 
-    public void SetOverlayColors(MeshOverlayColors colors)
+    public void SetOverlaySettings(MeshOverlaySettings settings)
     {
-        _overlayColors = colors.Normalized();
+        _overlaySettings = settings.Normalized();
+        var colors = _overlaySettings.Colors;
         _wireOverlayColor = OverlayColor(
-            _overlayColors.Wire.R,
-            _overlayColors.Wire.G,
-            _overlayColors.Wire.B,
+            colors.Wire.R,
+            colors.Wire.G,
+            colors.Wire.B,
             225);
         _vertexOverlayColor = OverlayColor(
-            _overlayColors.Vertex.R,
-            _overlayColors.Vertex.G,
-            _overlayColors.Vertex.B,
+            colors.Vertex.R,
+            colors.Vertex.G,
+            colors.Vertex.B,
             255);
     }
 
@@ -398,7 +398,7 @@ internal sealed partial class D3D11MaterialViewport
 
     private void DrawD3D11WireOverlay()
     {
-        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
+        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera, _overlaySettings.Sizing);
         var cache = WireOverlayCacheForActivePane();
         var generation = OverlayGeometryGenerationKey();
         if (!cache.Valid || cache.Generation != generation)
@@ -432,7 +432,7 @@ internal sealed partial class D3D11MaterialViewport
                 _overlayShowXRay ? XRayWireOverlayColor : _wireOverlayColor,
                 overlayStyle.WireOpacityScale),
             _camera.WorldViewProjection,
-            lineWidthPixels: WireOverlayWidthPixels);
+            lineWidthPixels: _overlaySettings.Sizing.WireWidthPixels);
         if (cache.Lines.Count > 0)
         {
             _wireOverlayDrawCount++;
@@ -469,7 +469,7 @@ internal sealed partial class D3D11MaterialViewport
         {
             return;
         }
-        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera);
+        var overlayStyle = FitRelativeOverlayPolicy.ForCamera(_camera, _overlaySettings.Sizing);
         var constants = new D3D11OverlayConstants
         {
             WorldViewProjection = _camera.WorldViewProjection,

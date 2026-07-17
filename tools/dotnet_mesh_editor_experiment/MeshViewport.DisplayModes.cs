@@ -2,11 +2,11 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class MeshViewport
 {
-    public void SetOverlayColors(MeshOverlayColors colors)
+    public void SetOverlaySettings(MeshOverlaySettings settings)
     {
-        _overlayColors = colors.Normalized();
-        _d3d11Viewport?.SetOverlayColors(_overlayColors);
-        _gpuViewport?.SetOverlayColors(_overlayColors);
+        _overlaySettings = settings.Normalized();
+        _d3d11Viewport?.SetOverlaySettings(_overlaySettings);
+        _gpuViewport?.SetOverlaySettings(_overlaySettings);
         UpdateGpuViewport();
         Invalidate();
     }

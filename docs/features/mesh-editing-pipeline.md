@@ -706,15 +706,19 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   texture/material brightness settings and does not restart or reload the
   resident scene. Wheel and programmatic zoom are clamped from `0.1x` through
   `64x` the pane's fitted zoom. Ordinary vertex dots and wire visual weight are
-  also pane-local and fit-relative below `1x`: dots shrink from 7 pixels to a
-  2-pixel readability floor, while 1.35-pixel D3D11 wire lines reduce opacity
-  to a 20% floor. The normal wire and vertex colors are user-selectable and
-  persisted in the local mesh-editor preferences. X-Ray is carried separately
-  in each presentation context, switches automatically to high-contrast white
-  wire and magenta vertices, and draws wire, vertices, and selection overlays
-  without depth rejection; X-Ray picking likewise includes occluded topology.
-  Zooming in does not enlarge either overlay beyond its fitted weight; selected
-  markers, hover feedback, and picking tolerances stay unchanged.
+  pane-local and user-adjustable: wire width ranges from 1 to 6 pixels with a
+  1.35-pixel default, while fitted vertex size ranges from 1 to 24 pixels with a
+  7-pixel default. Below `1x`, dots remain fit-relative and shrink toward the
+  smaller of the chosen size or the 2-pixel readability floor, while wire
+  opacity reduces to a 20% floor. Normal wire and vertex colors plus both sizes
+  are persisted in the local mesh-editor preferences; existing color-only
+  preferences retain their saved palette and receive the default sizes. X-Ray
+  is carried separately in each presentation context, switches automatically
+  to high-contrast white wire and magenta vertices, keeps the chosen sizes, and
+  draws wire, vertices, and selection overlays without depth rejection; X-Ray
+  picking likewise includes occluded topology. Zooming in does not enlarge
+  either overlay beyond its chosen fitted weight; selected markers, hover
+  feedback, and picking tolerances stay unchanged.
 - Initial external imports and appended parts share the same work-area fit
   helper. External imports are centered against the reference/work area and
   bottom-aligned to the Y-up D3D11 preview grid, while Modify Original clones

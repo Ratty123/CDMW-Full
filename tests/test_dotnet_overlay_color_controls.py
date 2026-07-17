@@ -10,23 +10,42 @@ def _source(name: str) -> str:
     ).read_text(encoding="utf-8")
 
 
-def test_overlay_color_controls_persist_normal_palette_and_define_xray_palette() -> None:
-    colors = _source("MeshOverlayColors.cs")
+def test_overlay_appearance_controls_persist_colors_and_bounded_sizes() -> None:
+    settings = _source("MeshOverlayColors.cs")
     controls = _source("ExperimentForm.Controls.cs")
     program = _source("Program.cs")
+    display_modes = _source("MeshViewport.DisplayModes.cs")
+    painting = _source("MeshViewport.Painting.cs")
+    wpf = _source("WpfGpuMeshViewport.cs")
 
-    assert 'Schema = "cdmw_mesh_overlay_colors_v1"' in colors
-    assert '"mesh-editor-overlay-colors.json"' in colors
-    assert "Color.FromArgb(0, 0, 0)" in colors
-    assert "Color.FromArgb(255, 174, 40)" in colors
-    assert "AutomaticXRayWire" in colors
-    assert "Color.FromArgb(245, 248, 252)" in colors
-    assert "AutomaticXRayVertex" in colors
-    assert "Color.FromArgb(255, 88, 214)" in colors
+    assert 'Schema = "cdmw_mesh_overlay_preferences_v2"' in settings
+    assert 'LegacyColorSchema = "cdmw_mesh_overlay_colors_v1"' in settings
+    assert '"mesh-editor-overlay-colors.json"' in settings
+    assert "Color.FromArgb(0, 0, 0)" in settings
+    assert "Color.FromArgb(255, 174, 40)" in settings
+    assert "DefaultWireWidthPixels = 1.35f" in settings
+    assert "MinimumWireWidthPixels = 1.0f" in settings
+    assert "MaximumWireWidthPixels = 6.0f" in settings
+    assert "DefaultVertexMarkerSizePixels = 7.0f" in settings
+    assert "MinimumVertexMarkerSizePixels = 1.0f" in settings
+    assert "MaximumVertexMarkerSizePixels = 24.0f" in settings
+    assert '"wire_width_pixels"' in settings
+    assert '"vertex_marker_size_pixels"' in settings
+    assert "AutomaticXRayWire" in settings
+    assert "Color.FromArgb(245, 248, 252)" in settings
+    assert "AutomaticXRayVertex" in settings
+    assert "Color.FromArgb(255, 88, 214)" in settings
     assert "ColorDialog" in controls
-    assert '"Topology colors"' in controls
-    assert "MeshOverlayColorPreferences.TrySave" in controls
-    assert "_viewport.SetOverlayColors(_overlayColors)" in program
+    assert '"Topology appearance"' in controls
+    assert 'LabeledControl("Wire width (px)", _wireOverlayWidth)' in controls
+    assert 'LabeledControl("Vertex size (px)", _vertexMarkerSize)' in controls
+    assert "MeshOverlayPreferences.TrySave" in controls
+    assert "_viewport.SetOverlaySettings(_overlaySettings)" in program
+    assert "public void SetOverlaySettings(MeshOverlaySettings settings)" in display_modes
+    assert "_d3d11Viewport?.SetOverlaySettings(_overlaySettings)" in display_modes
+    assert "_gpuViewport?.SetOverlaySettings(_overlaySettings)" in display_modes
+    assert "_overlaySettings.Sizing.WireWidthPixels" in painting
+    assert "_overlaySettings.Sizing.WireWidthPixels" in wpf
 
 
 def test_xray_state_reaches_each_render_pane_and_refreshes_the_gpu_viewport() -> None:
@@ -65,4 +84,6 @@ def test_xray_renderer_uses_no_depth_wire_and_vertex_passes_with_hidden_gpu_proo
     assert "!ShowXRay" in selection
     assert "ApplyXRayOverlayProof" in headless
     assert 'gates["xray_overlay_draws_wire_and_vertices_without_depth"]' in headless
+    assert 'gates["configurable_wire_width_and_vertex_size"]' in headless
     assert '["automatic_palette_active"]' in headless
+    assert '["configured_sizing_active"]' in headless

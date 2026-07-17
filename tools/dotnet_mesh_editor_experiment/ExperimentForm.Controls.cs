@@ -130,15 +130,37 @@ internal sealed partial class ExperimentForm
         return LabeledControl("Preview mode", _previewMode);
     }
 
-    private Control OverlayColorControls()
+    private Control OverlayAppearanceControls()
     {
         _wireColorButton = OverlayColorButton("Wire", wire: true);
         _vertexColorButton = OverlayColorButton("Vertices", wire: false);
-        var reset = StyledActionButton("Reset", ResetOverlayColors);
+        ConfigureNumeric(
+            _wireOverlayWidth,
+            decimalPlaces: 2,
+            minimum: (decimal)MeshOverlaySizing.MinimumWireWidthPixels,
+            maximum: (decimal)MeshOverlaySizing.MaximumWireWidthPixels,
+            value: (decimal)_overlaySettings.Sizing.WireWidthPixels,
+            increment: 0.05M);
+        ConfigureNumeric(
+            _vertexMarkerSize,
+            decimalPlaces: 1,
+            minimum: (decimal)MeshOverlaySizing.MinimumVertexMarkerSizePixels,
+            maximum: (decimal)MeshOverlaySizing.MaximumVertexMarkerSizePixels,
+            value: (decimal)_overlaySettings.Sizing.VertexMarkerSizePixels,
+            increment: 0.5M);
+        _wireOverlayWidth.Name = "WireOverlayWidthControl";
+        _wireOverlayWidth.AccessibleName = "Wire width in pixels";
+        _vertexMarkerSize.Name = "VertexMarkerSizeControl";
+        _vertexMarkerSize.AccessibleName = "Vertex size in pixels";
+        _wireOverlayWidth.ValueChanged += (_, _) => ApplyOverlaySizing(
+            $"Wire width set to {_wireOverlayWidth.Value:0.##} px.");
+        _vertexMarkerSize.ValueChanged += (_, _) => ApplyOverlaySizing(
+            $"Vertex size set to {_vertexMarkerSize.Value:0.#} px.");
+        var reset = StyledActionButton("Reset", ResetOverlayAppearance);
         var note = new Label
         {
-            Name = "OverlayColorXRayHint",
-            Text = "Normal colors are saved. X-Ray automatically uses white wire and magenta vertices for dark-background contrast.",
+            Name = "OverlayAppearanceXRayHint",
+            Text = "Colors and sizes are saved. X-Ray uses white wire and magenta vertices while keeping your chosen sizes.",
             AutoSize = true,
             MaximumSize = new Size(248, 0),
             ForeColor = ThemeMutedText,
@@ -146,9 +168,12 @@ internal sealed partial class ExperimentForm
             Margin = new Padding(0, 0, 0, 6),
         };
         return LabeledControl(
-            "Topology colors",
+            "Topology appearance",
             StackControls(
                 ButtonRow(_wireColorButton, _vertexColorButton, reset),
+                ButtonRow(
+                    LabeledControl("Wire width (px)", _wireOverlayWidth),
+                    LabeledControl("Vertex size (px)", _vertexMarkerSize)),
                 note));
     }
 
@@ -156,13 +181,16 @@ internal sealed partial class ExperimentForm
     {
         var button = StyledButton(label);
         button.Click += (_, _) => ChooseOverlayColor(label, wire);
-        ApplyOverlayColorButtonStyle(button, label, wire ? _overlayColors.Wire : _overlayColors.Vertex);
+        ApplyOverlayColorButtonStyle(
+            button,
+            label,
+            wire ? _overlaySettings.Colors.Wire : _overlaySettings.Colors.Vertex);
         return button;
     }
 
     private void ChooseOverlayColor(string label, bool wire)
     {
-        var current = wire ? _overlayColors.Wire : _overlayColors.Vertex;
+        var current = wire ? _overlaySettings.Colors.Wire : _overlaySettings.Colors.Vertex;
         using var dialog = new ColorDialog
         {
             Color = current,
@@ -175,31 +203,57 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
-        _overlayColors = wire
-            ? _overlayColors with { Wire = dialog.Color }
-            : _overlayColors with { Vertex = dialog.Color };
-        ApplyOverlayColors($"{label} color set to {MeshOverlayColors.Hex(dialog.Color)}.");
+        var colors = wire
+            ? _overlaySettings.Colors with { Wire = dialog.Color }
+            : _overlaySettings.Colors with { Vertex = dialog.Color };
+        _overlaySettings = _overlaySettings with { Colors = colors };
+        ApplyOverlaySettings($"{label} color set to {MeshOverlayColors.Hex(dialog.Color)}.");
     }
 
-    private void ResetOverlayColors()
+    private void ApplyOverlaySizing(string status)
     {
-        _overlayColors = MeshOverlayColors.Default;
-        ApplyOverlayColors("Topology colors reset to black wire and amber vertices.");
+        if (_syncingOverlayAppearanceControls)
+        {
+            return;
+        }
+        _overlaySettings = _overlaySettings with
+        {
+            Sizing = new MeshOverlaySizing(
+                (float)_wireOverlayWidth.Value,
+                (float)_vertexMarkerSize.Value),
+        };
+        ApplyOverlaySettings(status);
     }
 
-    private void ApplyOverlayColors(string status)
+    private void ResetOverlayAppearance()
     {
-        _overlayColors = _overlayColors.Normalized();
-        _viewport.SetOverlayColors(_overlayColors);
+        _overlaySettings = MeshOverlaySettings.Default;
+        ApplyOverlaySettings("Topology appearance reset to black wire, amber vertices, 1.35 px wire, and 7 px vertices.");
+    }
+
+    private void ApplyOverlaySettings(string status)
+    {
+        _overlaySettings = _overlaySettings.Normalized();
+        _viewport.SetOverlaySettings(_overlaySettings);
         if (_wireColorButton is not null)
         {
-            ApplyOverlayColorButtonStyle(_wireColorButton, "Wire", _overlayColors.Wire);
+            ApplyOverlayColorButtonStyle(_wireColorButton, "Wire", _overlaySettings.Colors.Wire);
         }
         if (_vertexColorButton is not null)
         {
-            ApplyOverlayColorButtonStyle(_vertexColorButton, "Vertices", _overlayColors.Vertex);
+            ApplyOverlayColorButtonStyle(_vertexColorButton, "Vertices", _overlaySettings.Colors.Vertex);
         }
-        _statusLabel.Text = MeshOverlayColorPreferences.TrySave(_overlayColors, out var error)
+        _syncingOverlayAppearanceControls = true;
+        try
+        {
+            _wireOverlayWidth.Value = (decimal)_overlaySettings.Sizing.WireWidthPixels;
+            _vertexMarkerSize.Value = (decimal)_overlaySettings.Sizing.VertexMarkerSizePixels;
+        }
+        finally
+        {
+            _syncingOverlayAppearanceControls = false;
+        }
+        _statusLabel.Text = MeshOverlayPreferences.TrySave(_overlaySettings, out var error)
             ? status
             : $"{status} Preference save failed: {error}";
     }
