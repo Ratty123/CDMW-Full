@@ -52,6 +52,15 @@ _RENDER_SETTING_FIELDS = (
     "invert_orbit_y",
     "invert_pan_x",
     "invert_pan_y",
+    "gizmo_x_axis_color",
+    "gizmo_y_axis_color",
+    "gizmo_z_axis_color",
+    "gizmo_highlight_color",
+    "gizmo_label_color",
+    "gizmo_line_thickness_pixels",
+    "gizmo_size_scale",
+    "gizmo_label_size_pixels",
+    "gizmo_handle_size_pixels",
 )
 
 
@@ -162,7 +171,7 @@ def builder_presentation_state(
             "mode": display_mode,
             "material_debug_mode": material_debug_mode,
             "grid_visible": bool(grid_visible),
-            "gizmo_visible": bool(gizmo_visible),
+            "gizmo_visible": bool(gizmo_visible) and not bool(mesh_edit_active),
             "part_pick_enabled": bool(part_pick_enabled),
             "quality": settings,
         },
@@ -197,6 +206,7 @@ def builder_part_highlight_state(
     grid_visible: bool,
     gizmo_visible: bool,
     part_pick_enabled: bool,
+    mesh_edit_active: bool = False,
 ) -> dict[str, object]:
     """Build a resident selection update from logical Builder part indices."""
     try:
@@ -218,7 +228,7 @@ def builder_part_highlight_state(
     return {
         "display": {
             "grid_visible": bool(grid_visible),
-            "gizmo_visible": bool(gizmo_visible),
+            "gizmo_visible": bool(gizmo_visible) and not bool(mesh_edit_active),
             "part_pick_enabled": bool(part_pick_enabled),
         },
         "highlights": {

@@ -234,10 +234,14 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_mesh_editor_dotnet_context_exposes_only_resident_camera_input(self) -> None:
+    def test_mesh_editor_dotnet_context_exposes_camera_input_and_gizmo_settings(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(
-            settings=ModelPreviewRenderSettings(enable_tool_pbd_cloth_preview=True),
+            settings=ModelPreviewRenderSettings(
+                enable_tool_pbd_cloth_preview=True,
+                gizmo_x_axis_color="#123456",
+                gizmo_line_thickness_pixels=2.5,
+            ),
             archive_renderer_backend="d3d11_native",
             preview_target="dotnet_vortice",
         )
@@ -247,7 +251,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
             for index in range(dialog.tabs.count())
             if dialog.tabs.isTabVisible(index)
         ]
-        self.assertEqual(["Camera Input"], visible_tabs)
+        self.assertEqual(["Camera Input", "Gizmo"], visible_tabs)
         widgets_by_tab = preview_setting_widgets_by_tab(dialog)
         self.assertEqual(set(DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB), set(widgets_by_tab))
         for tab_name, widgets in widgets_by_tab.items():
@@ -270,6 +274,35 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertIn("Each role pane keeps its own camera", dialog.controls_usage_hint_label.text())
         self.assertEqual("Reset Camera Input", dialog.reset_button.text())
         self.assertIn("hidden renderer settings", dialog.controls_hint_label.text())
+        self.assertEqual("#123456", dialog.current_settings().gizmo_x_axis_color)
+        self.assertEqual(2.5, dialog.current_settings().gizmo_line_thickness_pixels)
+
+        dialog.close()
+        dialog.deleteLater()
+
+    def test_mesh_editor_gizmo_settings_apply_live_reset_and_keep_the_active_tab(self) -> None:
+        _app()
+        dialog = ModelPreviewSettingsDialog(
+            settings=ModelPreviewRenderSettings(
+                orbit_sensitivity=0.75,
+                gizmo_line_thickness_pixels=1.0,
+            ),
+            preview_target="dotnet_vortice",
+        )
+        changes: list[ModelPreviewRenderSettings] = []
+        dialog.settings_changed.connect(changes.append)
+        dialog.tabs.setCurrentWidget(dialog._gizmo_tab)
+
+        line_width = dialog.gizmo_settings_panel.controls_by_key["gizmo_line_thickness_pixels"]
+        line_width.setValue(2.75)  # type: ignore[attr-defined]
+
+        self.assertEqual(2.75, changes[-1].gizmo_line_thickness_pixels)
+        dialog.set_settings(changes[-1])
+        self.assertIs(dialog.tabs.currentWidget(), dialog._gizmo_tab)
+
+        dialog.gizmo_settings_panel.reset_to_defaults()
+        self.assertEqual(ModelPreviewRenderSettings().gizmo_line_thickness_pixels, changes[-1].gizmo_line_thickness_pixels)
+        self.assertEqual(0.75, changes[-1].orbit_sensitivity)
 
         dialog.close()
         dialog.deleteLater()
@@ -288,6 +321,8 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
                 invert_orbit_y=True,
                 invert_pan_x=True,
                 invert_pan_y=True,
+                gizmo_x_axis_color="#123456",
+                gizmo_size_scale=2.0,
             ),
             archive_renderer_backend="d3d11_native",
             preview_target="dotnet_vortice",
@@ -302,6 +337,8 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertEqual("normal", current.d3d11_view_mode)
         self.assertTrue(current.disable_lighting)
         self.assertEqual(0.35, current.d3d11_tone_exposure)
+        self.assertEqual("#123456", current.gizmo_x_axis_color)
+        self.assertEqual(2.0, current.gizmo_size_scale)
         self.assertTrue(current.invert_orbit_x)
         self.assertTrue(current.invert_orbit_y)
         self.assertTrue(current.invert_pan_x)

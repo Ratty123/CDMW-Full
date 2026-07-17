@@ -568,6 +568,7 @@ internal sealed partial class ExperimentForm
             _viewport.ActivatePresentationView("editable");
             if (enteringMeshEdit)
             {
+                _viewport.SuppressPlacementGizmoInteraction();
                 if (_previewMode.SelectedIndex != 5)
                 {
                     _previewMode.SelectedIndex = 5;

@@ -46,6 +46,7 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
+from cdmw.ui.model_preview_gizmo_settings import GizmoPreviewSettingsPanel
 from cdmw.ui.model_preview_settings_visibility import initialize_preview_settings_state, sync_renderer_specific_controls
 
 
@@ -177,17 +178,20 @@ class ModelPreviewSettingsDialog(QDialog):
         general_tab, general_layout = self._create_scroll_tab()
         quality_tab, quality_layout = self._create_scroll_tab()
         controls_tab, controls_layout = self._create_scroll_tab()
+        gizmo_tab = GizmoPreviewSettingsPanel()
         diagnostics_tab, diagnostics_layout = self._create_scroll_tab()
         performance_tab, performance_layout = self._create_scroll_tab()
         self._general_tab = general_tab
         self._quality_tab = quality_tab
         self._controls_tab = controls_tab
+        self._gizmo_tab = gizmo_tab
         self._diagnostics_tab = diagnostics_tab
 
         self.tabs.addTab(general_tab, "General")
         self.tabs.addTab(quality_tab, "Quality / Lighting")
         self.tabs.addTab(diagnostics_tab, "Render Diagnostics")
         self.tabs.addTab(controls_tab, "Controls")
+        self.tabs.addTab(gizmo_tab, "Gizmo")
         self._archive_performance_tab = performance_tab
 
         general_form = QFormLayout()
@@ -751,6 +755,8 @@ class ModelPreviewSettingsDialog(QDialog):
         self.solo_batch_spin.valueChanged.connect(self._emit_settings_changed)
         for control in self._slider_controls.values():
             control.valueChanged.connect(self._emit_settings_changed)
+        self.gizmo_settings_panel = gizmo_tab
+        self.gizmo_settings_panel.settings_changed.connect(self._emit_settings_changed)
         self.sidecar_worker_mode_combo.currentIndexChanged.connect(self._handle_archive_performance_changed)
         self.sidecar_indexing_enabled_checkbox.toggled.connect(self._handle_archive_performance_changed)
         self.sidecar_worker_spin.valueChanged.connect(self._handle_archive_performance_changed)
@@ -884,6 +890,7 @@ class ModelPreviewSettingsDialog(QDialog):
         for key, control in self._slider_controls.items():
             if hasattr(current, key):
                 setattr(current, key, control.value())
+        self.gizmo_settings_panel.apply_to(current)
         return clamp_model_preview_render_settings(current)
 
     def current_archive_performance_settings(self) -> ArchivePerformanceSettings:
@@ -958,6 +965,7 @@ class ModelPreviewSettingsDialog(QDialog):
             self.invert_pan_y_checkbox.setChecked(clamped.invert_pan_y)
             for key, control in self._slider_controls.items():
                 control.set_value(float(getattr(clamped, key)))
+            self.gizmo_settings_panel.set_settings(clamped)
         finally:
             self._applying_settings = False
         self._sync_renderer_specific_controls()

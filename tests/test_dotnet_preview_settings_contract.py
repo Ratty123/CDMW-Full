@@ -25,7 +25,12 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
         / "archive_browser"
         / "static_replacement_dotnet_presentation.py"
     ).read_text(encoding="utf-8")
-    parser = _source("MeshViewport.PresentationSettings.cs")
+    parser = "\n".join(
+        (
+            _source("MeshViewport.PresentationSettings.cs"),
+            _source("MeshViewport.GizmoAppearance.cs"),
+        )
+    )
     renderer = "\n".join(
         (
             _source("D3D11MaterialViewport.PresentationSettings.cs"),
@@ -34,6 +39,10 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
             _source("D3D11MaterialShaders.hlsl"),
             _source("MeshViewport.Input.cs"),
             _source("MeshViewport.Presentation.cs"),
+            _source("MeshViewport.Gizmo.cs"),
+            _source("D3D11MaterialViewport.Gizmo.cs"),
+            _source("D3D11MaterialViewport.Metrics.cs"),
+            _source("GizmoAppearance.cs"),
         )
     )
     consumer_tokens = {
@@ -43,6 +52,15 @@ def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer(
         "invert_orbit_y": ("InvertOrbitY",),
         "invert_pan_x": ("InvertPanX",),
         "invert_pan_y": ("InvertPanY",),
+        "gizmo_x_axis_color": ("XAxis",),
+        "gizmo_y_axis_color": ("YAxis",),
+        "gizmo_z_axis_color": ("ZAxis",),
+        "gizmo_highlight_color": ("Highlight",),
+        "gizmo_label_color": ("Label",),
+        "gizmo_line_thickness_pixels": ("LineThicknessPixels",),
+        "gizmo_size_scale": ("SizeScale",),
+        "gizmo_label_size_pixels": ("LabelSizePixels",),
+        "gizmo_handle_size_pixels": ("HandleSizePixels",),
     }
 
     assert set(consumer_tokens) == DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS

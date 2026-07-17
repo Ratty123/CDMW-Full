@@ -300,6 +300,39 @@ class ArchivePreviewSettingsMixin:
                 invert_orbit_y=self._read_bool("preview/invert_orbit_y", defaults.invert_orbit_y),
                 invert_pan_x=self._read_bool("preview/invert_pan_x", defaults.invert_pan_x),
                 invert_pan_y=self._read_bool("preview/invert_pan_y", defaults.invert_pan_y),
+                gizmo_x_axis_color=str(
+                    self.settings.value("preview/gizmo_x_axis_color", defaults.gizmo_x_axis_color)
+                    or defaults.gizmo_x_axis_color
+                ),
+                gizmo_y_axis_color=str(
+                    self.settings.value("preview/gizmo_y_axis_color", defaults.gizmo_y_axis_color)
+                    or defaults.gizmo_y_axis_color
+                ),
+                gizmo_z_axis_color=str(
+                    self.settings.value("preview/gizmo_z_axis_color", defaults.gizmo_z_axis_color)
+                    or defaults.gizmo_z_axis_color
+                ),
+                gizmo_highlight_color=str(
+                    self.settings.value("preview/gizmo_highlight_color", defaults.gizmo_highlight_color)
+                    or defaults.gizmo_highlight_color
+                ),
+                gizmo_label_color=str(
+                    self.settings.value("preview/gizmo_label_color", defaults.gizmo_label_color)
+                    or defaults.gizmo_label_color
+                ),
+                gizmo_line_thickness_pixels=self._read_float(
+                    "preview/gizmo_line_thickness_pixels",
+                    defaults.gizmo_line_thickness_pixels,
+                ),
+                gizmo_size_scale=self._read_float("preview/gizmo_size_scale", defaults.gizmo_size_scale),
+                gizmo_label_size_pixels=self._read_float(
+                    "preview/gizmo_label_size_pixels",
+                    defaults.gizmo_label_size_pixels,
+                ),
+                gizmo_handle_size_pixels=self._read_float(
+                    "preview/gizmo_handle_size_pixels",
+                    defaults.gizmo_handle_size_pixels,
+                ),
                 normal_strength_cap=self._read_float("preview/normal_strength_cap", defaults.normal_strength_cap),
                 normal_strength_floor=self._read_float("preview/normal_strength_floor", defaults.normal_strength_floor),
                 height_effect_max=self._read_float("preview/height_effect_max", defaults.height_effect_max),

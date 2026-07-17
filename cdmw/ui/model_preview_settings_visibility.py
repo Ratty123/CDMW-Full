@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from cdmw.models import clamp_archive_performance_settings, clamp_model_preview_render_settings
+from cdmw.ui.model_preview_gizmo_settings import GIZMO_APPEARANCE_SETTING_FIELDS
 
 
 _QUALITY_LIGHTING_SETTING_FIELDS = (
@@ -39,13 +40,16 @@ DOTNET_CAMERA_INPUT_SETTING_FIELDS = (
     "invert_pan_y",
 )
 
-# Mesh Editor owns viewport appearance directly in its resident .NET/Builder
-# surfaces. Do not duplicate material, sampler, lighting, or topology controls
-# in this generic dialog merely because a renderer consumer exists.
+DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS = GIZMO_APPEARANCE_SETTING_FIELDS
+
+# The shared dialog owns camera input and placement-Gizmo preferences. Material,
+# sampler, lighting, topology, and display controls stay on their resident
+# .NET/Builder surfaces.
 DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
     "General": (),
     "Quality / Lighting": (),
     "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
+    "Gizmo": DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS,
 }
 
 DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS = frozenset(
@@ -61,6 +65,15 @@ _DOTNET_SETTING_EFFECTS = {
     "invert_orbit_y": "reverses vertical resident-camera orbit input",
     "invert_pan_x": "reverses horizontal resident-camera pan input",
     "invert_pan_y": "reverses vertical resident-camera pan input",
+    "gizmo_x_axis_color": "sets the placement Gizmo X-axis color",
+    "gizmo_y_axis_color": "sets the placement Gizmo Y-axis color",
+    "gizmo_z_axis_color": "sets the placement Gizmo Z-axis color",
+    "gizmo_highlight_color": "sets the active and hovered Gizmo color",
+    "gizmo_label_color": "sets the Gizmo label color",
+    "gizmo_line_thickness_pixels": "sets Gizmo line thickness",
+    "gizmo_size_scale": "scales the complete Gizmo",
+    "gizmo_label_size_pixels": "sets Gizmo label font size",
+    "gizmo_handle_size_pixels": "sets Gizmo handle size and hit geometry",
 }
 
 
@@ -113,6 +126,7 @@ def preview_setting_widgets_by_tab(dialog: object) -> dict[str, dict[str, object
             "invert_pan_x": dialog.invert_pan_x_checkbox,
             "invert_pan_y": dialog.invert_pan_y_checkbox,
         },
+        "Gizmo": dict(dialog.gizmo_settings_panel.controls_by_key),
     }
 
 
@@ -146,6 +160,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         (dialog._general_tab, not dotnet),
         (dialog._quality_tab, not dotnet),
         (dialog._controls_tab, True),
+        (dialog._gizmo_tab, dotnet),
     ):
         tab_index = dialog.tabs.indexOf(tab)
         if tab_index >= 0:
@@ -153,7 +168,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
     controls_index = dialog.tabs.indexOf(dialog._controls_tab)
     if controls_index >= 0:
         dialog.tabs.setTabText(controls_index, "Camera Input" if dotnet else "Controls")
-    if dotnet:
+    if dotnet and dialog.tabs.currentWidget() not in (dialog._controls_tab, dialog._gizmo_tab):
         dialog.tabs.setCurrentWidget(dialog._controls_tab)
     dialog._set_form_field_visible(dialog.render_diagnostic_mode_combo, legacy)
     dialog._set_form_field_visible(dialog.visible_texture_mode_combo, not dotnet)
@@ -227,7 +242,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         dialog.disable_brightness_checkbox.setText("Ignore texture brightness")
         dialog.disable_uv_scale_checkbox.setText("Ignore preview UV scale")
         dialog.intro_label.setText(
-            "Camera input settings for the embedded .NET/Vortice Mesh Editor preview. Changes are sent to the resident preview immediately."
+            "Camera input and placement-Gizmo settings for the embedded .NET/Vortice Mesh Editor preview. Changes are sent live and saved with Preview Settings."
         )
         dialog.general_hint_label.setText(
             "Renderer appearance is controlled directly from the Mesh Editor viewport."
@@ -294,6 +309,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
 
 __all__ = [
     "DOTNET_CAMERA_INPUT_SETTING_FIELDS",
+    "DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS",
     "DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS",
     "DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB",
     "initialize_preview_settings_state",

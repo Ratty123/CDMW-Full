@@ -89,7 +89,7 @@ def alignment_preview_control_text() -> dict[str, str]:
         ),
         "gizmo": "Gizmo",
         "gizmo_tooltip": (
-            "Show move/rotate axis handles in the D3D11 alignment preview. This only affects the preview controls."
+            "Show move/rotate/scale handles in the placement preview. The Gizmo is hidden and inactive in Edit Mesh; customize its appearance in Preview Settings."
         ),
         "part_pick": "Part Pick",
         "part_pick_tooltip": (

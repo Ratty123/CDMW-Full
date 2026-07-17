@@ -28,6 +28,11 @@ def _changed_settings(field_name: str) -> ModelPreviewRenderSettings:
         "d3d11_view_mode": "normal",
         "d3d11_normal_y_mode": "force_no_flip",
         "d3d11_texture_address_mode": "clamp",
+        "gizmo_x_axis_color": "#123456",
+        "gizmo_y_axis_color": "#123456",
+        "gizmo_z_axis_color": "#123456",
+        "gizmo_highlight_color": "#123456",
+        "gizmo_label_color": "#123456",
     }
     old_value = getattr(base, field_name)
     if field_name in explicit_values:
@@ -101,6 +106,15 @@ _EXPECTED_CHANGE_ROUTES: dict[str, set[str]] = {
     "invert_orbit_y": {"d3d11_render_tuning_changed"},
     "invert_pan_x": {"d3d11_render_tuning_changed"},
     "invert_pan_y": {"d3d11_render_tuning_changed"},
+    "gizmo_x_axis_color": set(),
+    "gizmo_y_axis_color": set(),
+    "gizmo_z_axis_color": set(),
+    "gizmo_highlight_color": set(),
+    "gizmo_label_color": set(),
+    "gizmo_line_thickness_pixels": set(),
+    "gizmo_size_scale": set(),
+    "gizmo_label_size_pixels": set(),
+    "gizmo_handle_size_pixels": set(),
     "normal_strength_cap": {"d3d11_package_affecting_changed"},
     "normal_strength_floor": {"d3d11_package_affecting_changed"},
     "height_effect_max": {"d3d11_package_affecting_changed"},

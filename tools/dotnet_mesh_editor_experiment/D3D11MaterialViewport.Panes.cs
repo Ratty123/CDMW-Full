@@ -132,7 +132,8 @@ internal sealed partial class D3D11MaterialViewport
 
     private bool ActivePaneGizmoVisible =>
         (_activeRenderPane?.GizmoVisible ?? _scene.GizmoVisible)
-        && !string.Equals(_activeRenderPane?.Role, "reference", StringComparison.OrdinalIgnoreCase);
+        && !string.Equals(_activeRenderPane?.Role, "reference", StringComparison.OrdinalIgnoreCase)
+        && !string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
 
     private bool ActivePaneInteractionAllowed => _activeRenderPane?.InteractionAllowed ?? true;
 

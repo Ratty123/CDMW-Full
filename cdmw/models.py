@@ -1471,6 +1471,10 @@ MODEL_PREVIEW_RENDER_LIMITS: Dict[str, Tuple[float, float]] = {
     "d3d11_tone_gamma": (0.50, 2.20),
     "orbit_sensitivity": (0.05, 1.0),
     "pan_sensitivity": (0.05, 3.0),
+    "gizmo_line_thickness_pixels": (1.0, 6.0),
+    "gizmo_size_scale": (0.5, 3.0),
+    "gizmo_label_size_pixels": (8.0, 32.0),
+    "gizmo_handle_size_pixels": (4.0, 24.0),
     "normal_strength_cap": (0.0, 1.0),
     "normal_strength_floor": (0.0, 1.0),
     "height_effect_max": (0.0, 1.0),
@@ -1751,6 +1755,15 @@ class ModelPreviewRenderSettings:
     invert_orbit_y: bool = False
     invert_pan_x: bool = False
     invert_pan_y: bool = False
+    gizmo_x_axis_color: str = "#EB4B4B"
+    gizmo_y_axis_color: str = "#50DC69"
+    gizmo_z_axis_color: str = "#4B91FF"
+    gizmo_highlight_color: str = "#FFE15F"
+    gizmo_label_color: str = "#F5F8FC"
+    gizmo_line_thickness_pixels: float = 1.0
+    gizmo_size_scale: float = 1.0
+    gizmo_label_size_pixels: float = 12.0
+    gizmo_handle_size_pixels: float = 8.0
     normal_strength_cap: float = 1.00
     normal_strength_floor: float = 0.50
     height_effect_max: float = 1.00
@@ -1828,10 +1841,10 @@ def clamp_archive_performance_settings(
 def clamp_model_preview_render_settings(
     settings: Optional[ModelPreviewRenderSettings] = None,
 ) -> ModelPreviewRenderSettings:
+    defaults = ModelPreviewRenderSettings()
     if settings is None:
         value = ModelPreviewRenderSettings()
     else:
-        defaults = ModelPreviewRenderSettings()
         value = ModelPreviewRenderSettings(
             **{
                 field_info.name: getattr(settings, field_info.name, getattr(defaults, field_info.name))
@@ -1855,6 +1868,21 @@ def clamp_model_preview_render_settings(
             setattr(value, field_name, int(round(clamped_value)))
         else:
             setattr(value, field_name, float(clamped_value))
+
+    for field_name in (
+        "gizmo_x_axis_color",
+        "gizmo_y_axis_color",
+        "gizmo_z_axis_color",
+        "gizmo_highlight_color",
+        "gizmo_label_color",
+    ):
+        fallback = str(getattr(defaults, field_name))
+        candidate = str(getattr(value, field_name, fallback) or "").strip()
+        try:
+            valid = len(candidate) == 7 and candidate[0] == "#" and int(candidate[1:], 16) >= 0
+        except ValueError:
+            valid = False
+        setattr(value, field_name, candidate.upper() if valid else fallback)
 
     value.normal_strength_floor = min(value.normal_strength_floor, value.normal_strength_cap)
     value.cavity_clamp_min = min(value.cavity_clamp_min, value.cavity_clamp_max)

@@ -180,6 +180,7 @@ def _preview_mode_step_009(_state):
             grid_visible=True,
             gizmo_visible=bool(_state.preview_gizmo_checkbox.isChecked()),
             part_pick_enabled=part_pick_checked,
+            mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()),
         )
         if send_resident_presentation_state(_state.dialog, resident_state):
             return

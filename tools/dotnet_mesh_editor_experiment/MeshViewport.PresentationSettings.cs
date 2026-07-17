@@ -79,6 +79,7 @@ internal sealed partial class MeshViewport
             FlipU = JsonBool(uv, "flip_u", defaults.FlipU),
             FlipV = JsonBool(uv, "flip_v", defaults.FlipV),
         };
+        ApplyGizmoAppearanceFromPresentation(quality);
         _d3d11Viewport?.ApplyPresentationSettings(_residentPresentationSettings);
     }
 

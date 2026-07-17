@@ -1,7 +1,4 @@
 using System.Drawing;
-using System.IO;
-using System.Text;
-using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
@@ -58,129 +55,17 @@ internal readonly record struct GizmoAppearance(
 
     public static string Hex(Color color) => $"#{color.R:X2}{color.G:X2}{color.B:X2}";
 
-    private static Color Opaque(Color color) => Color.FromArgb(color.R, color.G, color.B);
-}
-
-internal static class GizmoAppearancePreferences
-{
-    internal const string Schema = "cdmw_mesh_gizmo_appearance_v1";
-
-    internal static string SettingsPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "CrimsonDesertModWorkbench",
-        "mesh-editor-gizmo-appearance.json");
-
-    internal static GizmoAppearance Load()
+    public static Color ParseColor(string value, Color fallback)
     {
-        try
-        {
-            var path = SettingsPath;
-            if (!File.Exists(path))
-            {
-                return GizmoAppearance.Default;
-            }
-            using var document = JsonDocument.Parse(File.ReadAllText(path, Encoding.UTF8));
-            var root = document.RootElement;
-            if (!string.Equals(
-                    root.TryGetProperty("schema", out var schema) ? schema.GetString() : string.Empty,
-                    Schema,
-                    StringComparison.Ordinal))
-            {
-                return GizmoAppearance.Default;
-            }
-            var defaults = GizmoAppearance.Default;
-            return new GizmoAppearance(
-                ParseColor(root, "x_axis_color", defaults.XAxis),
-                ParseColor(root, "y_axis_color", defaults.YAxis),
-                ParseColor(root, "z_axis_color", defaults.ZAxis),
-                ParseColor(root, "highlight_color", defaults.Highlight),
-                ParseColor(root, "label_color", defaults.Label),
-                ParseFloat(root, "line_thickness_pixels", defaults.LineThicknessPixels),
-                ParseFloat(root, "size_scale", defaults.SizeScale),
-                ParseFloat(root, "label_size_pixels", defaults.LabelSizePixels),
-                ParseFloat(root, "handle_size_pixels", defaults.HandleSizePixels)).Normalized();
-        }
-        catch
-        {
-            return GizmoAppearance.Default;
-        }
-    }
-
-    internal static bool TrySave(GizmoAppearance appearance, out string error)
-    {
-        var path = SettingsPath;
-        var staging = $"{path}.{Environment.ProcessId}.tmp";
-        try
-        {
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var normalized = appearance.Normalized();
-            var payload = new Dictionary<string, object?>
-            {
-                ["schema"] = Schema,
-                ["x_axis_color"] = GizmoAppearance.Hex(normalized.XAxis),
-                ["y_axis_color"] = GizmoAppearance.Hex(normalized.YAxis),
-                ["z_axis_color"] = GizmoAppearance.Hex(normalized.ZAxis),
-                ["highlight_color"] = GizmoAppearance.Hex(normalized.Highlight),
-                ["label_color"] = GizmoAppearance.Hex(normalized.Label),
-                ["line_thickness_pixels"] = normalized.LineThicknessPixels,
-                ["size_scale"] = normalized.SizeScale,
-                ["label_size_pixels"] = normalized.LabelSizePixels,
-                ["handle_size_pixels"] = normalized.HandleSizePixels,
-            };
-            File.WriteAllText(
-                staging,
-                JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine,
-                new UTF8Encoding(false));
-            File.Move(staging, path, overwrite: true);
-            error = string.Empty;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            error = ex.Message;
-            return false;
-        }
-        finally
-        {
-            try
-            {
-                if (File.Exists(staging))
-                {
-                    File.Delete(staging);
-                }
-            }
-            catch
-            {
-                // A failed preference cleanup must not affect the editor session.
-            }
-        }
-    }
-
-    private static float ParseFloat(JsonElement root, string propertyName, float fallback)
-    {
-        return root.TryGetProperty(propertyName, out var value)
-            && value.ValueKind == JsonValueKind.Number
-            && value.TryGetSingle(out var parsed)
-            && float.IsFinite(parsed)
-                ? parsed
-                : fallback;
-    }
-
-    private static Color ParseColor(JsonElement root, string propertyName, Color fallback)
-    {
-        if (!root.TryGetProperty(propertyName, out var value) || value.ValueKind != JsonValueKind.String)
-        {
-            return fallback;
-        }
-        var text = (value.GetString() ?? string.Empty).Trim();
-        if (text.Length != 7 || text[0] != '#')
-        {
-            return fallback;
-        }
-        return int.TryParse(text.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var red)
+        var text = (value ?? string.Empty).Trim();
+        return text.Length == 7
+            && text[0] == '#'
+            && int.TryParse(text.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, null, out var red)
             && int.TryParse(text.AsSpan(3, 2), System.Globalization.NumberStyles.HexNumber, null, out var green)
             && int.TryParse(text.AsSpan(5, 2), System.Globalization.NumberStyles.HexNumber, null, out var blue)
                 ? Color.FromArgb(red, green, blue)
                 : fallback;
     }
+
+    private static Color Opaque(Color color) => Color.FromArgb(color.R, color.G, color.B);
 }

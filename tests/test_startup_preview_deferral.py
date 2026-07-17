@@ -121,6 +121,8 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
         high_quality_by_default=True,
         preview_texture_max_dimension=2048,
         d3d11_tone_gamma=1.23,
+        gizmo_x_axis_color="#123456",
+        gizmo_line_thickness_pixels=2.5,
         alignment_use_final_output_preview=True,
     )
     window = SimpleNamespace(
@@ -132,12 +134,51 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
     saved = SettingsPersistenceMixin._save_model_preview_settings_if_loaded(window)  # type: ignore[arg-type]
 
     assert saved is True
-    assert len(writes) == 68
+    assert len(writes) == 77
     assert writes["archive/model_use_textures"] is False
     assert writes["archive/model_high_quality"] is True
     assert writes["preview/texture_max_dimension"] == 2048
     assert writes["preview/d3d11_tone_gamma"] == 1.23
+    assert writes["preview/gizmo_x_axis_color"] == "#123456"
+    assert writes["preview/gizmo_line_thickness_pixels"] == 2.5
     assert "preview/alignment_use_final_output_preview" not in writes
+
+
+def test_gizmo_preview_settings_restore_from_main_preview_config() -> None:
+    values: dict[str, object] = {
+        "preview/d3d11_lighting_defaults_version": 6,
+        "preview/gizmo_x_axis_color": "#123456",
+        "preview/gizmo_y_axis_color": "#234567",
+        "preview/gizmo_z_axis_color": "#345678",
+        "preview/gizmo_highlight_color": "#456789",
+        "preview/gizmo_label_color": "#56789A",
+        "preview/gizmo_line_thickness_pixels": 2.75,
+        "preview/gizmo_size_scale": 1.8,
+        "preview/gizmo_label_size_pixels": 18.0,
+        "preview/gizmo_handle_size_pixels": 11.0,
+    }
+    settings_store = SimpleNamespace(
+        value=lambda key, default=None: values.get(key, default),
+        setValue=values.__setitem__,
+    )
+    reader = SimpleNamespace(
+        settings=settings_store,
+        _read_bool=lambda key, default: bool(values.get(key, default)),
+        _read_float=lambda key, default: float(values.get(key, default)),
+        _read_int=lambda key, default: int(values.get(key, default)),
+    )
+
+    restored = ArchivePreviewSettingsMixin._read_model_preview_render_settings(reader)  # type: ignore[arg-type]
+
+    assert restored.gizmo_x_axis_color == "#123456"
+    assert restored.gizmo_y_axis_color == "#234567"
+    assert restored.gizmo_z_axis_color == "#345678"
+    assert restored.gizmo_highlight_color == "#456789"
+    assert restored.gizmo_label_color == "#56789A"
+    assert restored.gizmo_line_thickness_pixels == 2.75
+    assert restored.gizmo_size_scale == 1.8
+    assert restored.gizmo_label_size_pixels == 18.0
+    assert restored.gizmo_handle_size_pixels == 11.0
 
 
 def test_main_window_keeps_saved_preview_values_and_placeholder_without_preview_use() -> None:

@@ -15,6 +15,8 @@ from cdmw.ui.archive_browser.static_replacement_dialog_sections_mesh_geometry_pr
     _bind_embedded_mesh_editor_preview,
 )
 from cdmw.ui.model_preview_settings_visibility import (
+    DOTNET_CAMERA_INPUT_SETTING_FIELDS,
+    DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS,
     DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS,
 )
 from cdmw.ui.mesh_editor.tab_dotnet_protocol import MeshEditorDotNetProtocolMixin
@@ -53,7 +55,7 @@ def test_builder_presentation_state_carries_all_outer_control_families() -> None
         camera={"yaw": 30.0, "pitch": -10.0, "fit_to_view": True},
         render_settings=settings,
         grid_visible=True,
-        gizmo_visible=False,
+        gizmo_visible=True,
         part_pick_enabled=True,
         selected_source_indices=(4,),
         selected_target_source_indices=(2,),
@@ -94,12 +96,13 @@ def test_builder_presentation_state_defaults_mesh_edit_to_wire_vertices() -> Non
         camera=None,
         render_settings=ModelPreviewRenderSettings(d3d11_view_mode="lit"),
         grid_visible=True,
-        gizmo_visible=False,
+        gizmo_visible=True,
         part_pick_enabled=False,
         mesh_edit_active=True,
     )
 
     assert state["display"]["mode"] == "wire_vertices"  # type: ignore[index]
+    assert state["display"]["gizmo_visible"] is False  # type: ignore[index]
 
 
 def test_builder_part_highlight_state_uses_logical_scene_indices() -> None:
@@ -110,8 +113,9 @@ def test_builder_part_highlight_state_uses_logical_scene_indices() -> None:
         hovered_source_index=2,
         hidden_source_indices=(6, 1, 6),
         grid_visible=True,
-        gizmo_visible=False,
+        gizmo_visible=True,
         part_pick_enabled=True,
+        mesh_edit_active=True,
     )
 
     assert state["highlights"] == {
@@ -120,6 +124,7 @@ def test_builder_part_highlight_state_uses_logical_scene_indices() -> None:
         "hovered_source_index": 2,
     }
     assert state["visibility"] == {"hidden_submesh_indices": [1, 6]}
+    assert state["display"]["gizmo_visible"] is False  # type: ignore[index]
 
 
 def test_parts_routing_incremental_highlight_does_not_reuse_legacy_preview_ids() -> None:
@@ -138,24 +143,27 @@ def test_parts_routing_incremental_highlight_does_not_reuse_legacy_preview_ids()
     assert "selection_state['highlighted_original_indices']" in resident_update
     assert "selection_state['d3d11_highlighted_indices']" not in resident_update
     assert "selection_state['d3d11_original_highlighted_indices']" not in resident_update
+    assert "mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked())" in resident_update
 
 
-def test_builder_presentation_state_carries_every_exposed_dotnet_camera_setting() -> None:
+def test_builder_presentation_state_carries_every_exposed_dotnet_preview_setting() -> None:
     state = builder_presentation_state(
         comparison_mode="side_by_side",
         camera=None,
-        render_settings=ModelPreviewRenderSettings(),
+        render_settings=ModelPreviewRenderSettings(
+            gizmo_x_axis_color="#123456",
+            gizmo_line_thickness_pixels=2.5,
+        ),
         grid_visible=True,
         gizmo_visible=True,
         part_pick_enabled=True,
     )
     quality = state["display"]["quality"]  # type: ignore[index]
-    expected = {
-        "orbit_sensitivity", "pan_sensitivity",
-        "invert_orbit_x", "invert_orbit_y", "invert_pan_x", "invert_pan_y",
-    }
+    expected = set(DOTNET_CAMERA_INPUT_SETTING_FIELDS) | set(DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS)
     assert expected == DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS
     assert expected <= set(quality)
+    assert quality["gizmo_x_axis_color"] == "#123456"
+    assert quality["gizmo_line_thickness_pixels"] == 2.5
     assert "visible_texture_mode" not in quality
 
 

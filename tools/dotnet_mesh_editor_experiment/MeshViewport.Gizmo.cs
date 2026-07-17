@@ -17,6 +17,10 @@ internal sealed partial class MeshViewport
 
     private GizmoDragState? _gizmoDragState;
 
+    private bool PlacementGizmoEnabled =>
+        _scene.GizmoVisible
+        && !string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
+
     private static readonly Vector3[] GizmoAxes =
     {
         Vector3.UnitX,
@@ -37,7 +41,7 @@ internal sealed partial class MeshViewport
 
     private bool TryBeginPlacementGizmoDrag(Point point)
     {
-        if (!_scene.GizmoVisible || _scene.EditableSubmeshCount <= 0)
+        if (!PlacementGizmoEnabled || _scene.EditableSubmeshCount <= 0)
         {
             return false;
         }
@@ -122,7 +126,7 @@ internal sealed partial class MeshViewport
 
     private void UpdateGizmoHover(Point point)
     {
-        if (_placementDragActive || !_scene.GizmoVisible)
+        if (_placementDragActive || !PlacementGizmoEnabled)
         {
             return;
         }
@@ -132,6 +136,15 @@ internal sealed partial class MeshViewport
             return;
         }
         _scene.SetHoveredGizmoHandle(handle);
+        ApplySceneState();
+    }
+
+    public void SuppressPlacementGizmoInteraction()
+    {
+        _placementDragActive = false;
+        _gizmoDragState = null;
+        _scene.SetActiveGizmoHandle(string.Empty);
+        _scene.SetHoveredGizmoHandle(string.Empty);
         ApplySceneState();
     }
 
