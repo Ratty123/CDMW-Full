@@ -58,7 +58,9 @@ def test_alignment_preview_control_text_preserves_header_and_control_copy() -> N
     assert "hidden and inactive in Edit Mesh" in text["gizmo_tooltip"]
     assert text["part_pick"] == "Part Pick"
     assert "hover highlights source parts" in text["part_pick_tooltip"]
-    assert text["d3d11_view_label"] == "D3D11 view"
+    assert text["dotnet_view_label"] == ".NET view"
+    assert ".NET/Vortice" in text["dotnet_view_tooltip"]
+    assert "Only renderer-backed modes" in text["dotnet_view_tooltip"]
     assert text["settings_button"] == "Preview Settings..."
     assert text["use_global"] == "Use Global"
     assert text["camera_label"] == "Camera"

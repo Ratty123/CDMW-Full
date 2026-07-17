@@ -95,8 +95,11 @@ def alignment_preview_control_text() -> dict[str, str]:
         "part_pick_tooltip": (
             "In the D3D11 preview, hover highlights source parts and right-click opens the selected part menu."
         ),
-        "d3d11_view_tooltip": "D3D11 view mode for the live alignment and mesh-edit preview.",
-        "d3d11_view_label": "D3D11 view",
+        "dotnet_view_tooltip": (
+            ".NET/Vortice view mode for the resident Original and Replacement preview panes. "
+            "Only renderer-backed modes are listed."
+        ),
+        "dotnet_view_label": ".NET view",
         "settings_button": "Preview Settings...",
         "use_global": "Use Global",
         "use_global_tooltip": "Reset the alignment render controls to the current global 3D preview settings.",

@@ -100,8 +100,6 @@ from cdmw.services.texture_workflow_service import parse_dds
 from cdmw.services.preview_workflow_service import ensure_dds_display_preview_png
 from cdmw.services.texture_workflow_service import SourceMixCandidate, scan_loose_folder_source, scan_mod_archive_source
 from cdmw.models import (
-    D3D11_PREVIEW_VIEW_MODE_LABELS,
-    D3D11_PREVIEW_VIEW_MODES,
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS,
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES,
     MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS,

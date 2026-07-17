@@ -438,6 +438,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   merged pending state and rejects stale session/process acknowledgements.
   While production .NET presentation is active, migrated Builder callbacks
   return through that lane instead of mutating only the legacy preview host.
+  The Builder `.NET view` selector is an exact renderer-owned allow-list: Lit,
+  Game Outdoor Approx, Base Texture, Normals, UV Checker, Alpha, Part ID,
+  Material Response, and Layer Mask. Each choice maps directly to a resident
+  Vortice lighting or material-debug path, and partial presentation updates
+  preserve the selected mode.
   brush tools show their active button, gesture hint, and radius circle in the
   viewport. OBJ/glTF/GLB/DAE sources automatically apply the existing Flip V
   normalization, including imports prepared inside the preflight worker.

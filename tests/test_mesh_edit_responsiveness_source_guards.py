@@ -5297,7 +5297,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("dialog.settings_changed.connect(settings_changed_handler)", source)
         self.assertIn("alignment_d3d11_view_mode_combo = QComboBox()", source)
         self.assertIn(
-            "_d3d11_view_mode_options_helper(D3D11_PREVIEW_VIEW_MODES, D3D11_PREVIEW_VIEW_MODE_LABELS)",
+            "DOTNET_PREVIEW_VIEW_MODE_OPTIONS,",
             source,
         )
         self.assertIn("_populate_combo_options_helper(", source)

@@ -11,6 +11,10 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
     effective_builder_comparison_mode,
     send_resident_presentation_state,
 )
+from cdmw.ui.archive_browser.static_replacement_dotnet_view_modes import (
+    DOTNET_PREVIEW_VIEW_MODE_DEBUG_MODES,
+    DOTNET_PREVIEW_VIEW_MODES,
+)
 from cdmw.ui.archive_browser.static_replacement_dialog_sections_mesh_geometry_preview_part_01 import (
     _bind_embedded_mesh_editor_preview,
 )
@@ -284,6 +288,8 @@ def test_every_dotnet_view_mode_routes_to_a_supported_shader_output() -> None:
         "material_response": 11,
         "layer_mask": 12,
     }
+    assert tuple(expected_debug_modes) == DOTNET_PREVIEW_VIEW_MODES
+    assert expected_debug_modes == DOTNET_PREVIEW_VIEW_MODE_DEBUG_MODES
 
     for view_mode, debug_mode in expected_debug_modes.items():
         state = builder_presentation_state(
@@ -295,6 +301,7 @@ def test_every_dotnet_view_mode_routes_to_a_supported_shader_output() -> None:
             part_pick_enabled=True,
         )
         assert state["display"]["material_debug_mode"] == debug_mode  # type: ignore[index]
+        assert state["display"]["quality"]["dotnet_view_mode"] == view_mode  # type: ignore[index]
 
 
 def test_resident_visible_texture_mode_change_reloads_reference_materials_before_return() -> None:
@@ -459,8 +466,8 @@ def test_resident_presentation_queue_has_one_active_and_one_merged_pending_state
     assert sent[3]["camera"]["command_generation"] == 2
 
 
-def test_builder_diagnostic_modes_route_to_production_display_modes() -> None:
-    wire = builder_presentation_state(
+def test_legacy_diagnostic_mode_does_not_override_the_selected_dotnet_view() -> None:
+    lit = builder_presentation_state(
         comparison_mode="replacement_only",
         camera=None,
         render_settings=ModelPreviewRenderSettings(
@@ -471,7 +478,9 @@ def test_builder_diagnostic_modes_route_to_production_display_modes() -> None:
         gizmo_visible=False,
         part_pick_enabled=False,
     )
-    assert wire["display"]["mode"] == "wire"  # type: ignore[index]
+    assert lit["display"]["mode"] == "textured"  # type: ignore[index]
+    assert lit["display"]["material_debug_mode"] == 0  # type: ignore[index]
+    assert "render_diagnostic_mode" not in lit["display"]["quality"]  # type: ignore[index]
 
     uv = builder_presentation_state(
         comparison_mode="replacement_only",

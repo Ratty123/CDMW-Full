@@ -20,15 +20,20 @@ internal sealed partial class MeshViewport
             && uvValue.ValueKind == JsonValueKind.Object
                 ? uvValue
                 : display;
-        var defaults = new D3D11PresentationSettings();
+        var defaults = _residentPresentationSettings;
         var texturesEnabled = JsonBool(quality, "use_textures_by_default", TexturesEnabled);
-        var viewMode = JsonText(quality, "d3d11_view_mode", defaults.ViewMode).ToLowerInvariant();
+        var hasDotNetViewMode = quality.TryGetProperty("dotnet_view_mode", out _);
+        var hasLegacyViewMode = quality.TryGetProperty("d3d11_view_mode", out _);
+        var requestedViewMode = hasDotNetViewMode
+            ? JsonText(quality, "dotnet_view_mode", defaults.ViewMode)
+            : JsonText(quality, "d3d11_view_mode", defaults.ViewMode);
+        var viewMode = DotNetPreviewViewModes.Normalize(requestedViewMode);
         TexturesEnabled = texturesEnabled;
         _residentPresentationSettings = new D3D11PresentationSettings
         {
             HighQuality = JsonBool(quality, "high_quality_by_default", defaults.HighQuality),
             ViewMode = viewMode,
-            GameOutdoorApprox = string.Equals(viewMode, "game_outdoor", StringComparison.Ordinal),
+            GameOutdoorApprox = DotNetPreviewViewModes.UsesGameOutdoorLighting(viewMode),
             ForceNearestSampling = JsonBool(quality, "force_nearest_no_mipmaps", defaults.ForceNearestSampling),
             CullBackFaces = JsonBool(quality, "d3d11_cull_back_faces", defaults.CullBackFaces),
             DisableLighting = JsonBool(quality, "disable_lighting", defaults.DisableLighting),
@@ -79,6 +84,10 @@ internal sealed partial class MeshViewport
             FlipU = JsonBool(uv, "flip_u", defaults.FlipU),
             FlipV = JsonBool(uv, "flip_v", defaults.FlipV),
         };
+        if (hasDotNetViewMode || hasLegacyViewMode)
+        {
+            MaterialDebugMode = DotNetPreviewViewModes.MaterialDebugMode(viewMode);
+        }
         ApplyGizmoAppearanceFromPresentation(quality);
         _d3d11Viewport?.ApplyPresentationSettings(_residentPresentationSettings);
     }

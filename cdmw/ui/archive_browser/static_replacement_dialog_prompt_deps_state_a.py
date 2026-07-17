@@ -477,8 +477,10 @@ from cdmw.ui.archive_browser.static_replacement_combo_options import (
     SOURCE_TREE_ROLE_OPTIONS,
     TEXTURE_OUTPUT_SIZE_OPTIONS,
     TEXTURE_UV_ROTATION_OPTIONS,
-    d3d11_view_mode_options as _d3d11_view_mode_options_helper,
     populate_combo_options as _populate_combo_options_helper,
+)
+from cdmw.ui.archive_browser.static_replacement_dotnet_view_modes import (
+    DOTNET_PREVIEW_VIEW_MODE_OPTIONS,
 )
 from cdmw.ui.archive_browser.static_replacement_build_footer import (
     make_alignment_build_footer as _make_alignment_build_footer_helper,

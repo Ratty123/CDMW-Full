@@ -405,6 +405,7 @@ internal sealed partial class MeshViewport
             ["quality_state"] = new Dictionary<string, object?>
             {
                 ["use_textures_by_default"] = TexturesEnabled,
+                ["dotnet_view_mode"] = _residentPresentationSettings.ViewMode,
                 ["d3d11_view_mode"] = _residentPresentationSettings.ViewMode,
                 ["high_quality"] = _residentPresentationSettings.HighQuality,
                 ["force_nearest_sampling"] = _residentPresentationSettings.ForceNearestSampling,

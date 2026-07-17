@@ -91,6 +91,7 @@ internal static partial class HeadlessGpuSparseSoak
         {
             throw new InvalidOperationException($"Hidden D3D11 first frame failed: {firstFrameError}");
         }
+        var dotnetViewModeProof = DotNetViewModeProof(viewport, camera, host.ClientSize);
         var xrayOverlayProof = ApplyXRayOverlayProof(
             viewport,
             document,
@@ -154,6 +155,8 @@ internal static partial class HeadlessGpuSparseSoak
         var gates = EvaluateGates(options, durations, cadence.Elapsed.TotalSeconds, workingSetBaseline, workingSetFinal, resourcesBefore, resourcesAfter, boundsProof);
         gates["production_d3d11_backend"] = viewport.IsInitialized
             && string.Equals(viewport.BackendName, "d3d11_vortice_shader", StringComparison.Ordinal);
+        gates["resident_dotnet_view_modes_rendered"] =
+            dotnetViewModeProof.GetValueOrDefault("ok") is true;
         gates["untextured_faces_readable_front_back_and_oblique"] =
             untexturedReadabilityProof.GetValueOrDefault("ok") is true;
         gates["textured_metal_readable_front_back_and_oblique"] =
@@ -220,6 +223,7 @@ internal static partial class HeadlessGpuSparseSoak
         report["presentation_mode_proof"] = presentationModeProof;
         report["camera_zoom_proof"] = cameraZoomProof;
         report["fit_relative_overlay_proof"] = fitRelativeOverlayProof;
+        report["dotnet_view_mode_proof"] = dotnetViewModeProof;
         report["xray_overlay_proof"] = xrayOverlayProof;
         report["untextured_readability_proof"] = untexturedReadabilityProof;
         report["textured_metal_readability_proof"] = texturedMetalReadabilityProof;

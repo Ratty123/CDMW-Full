@@ -20,8 +20,7 @@ def _legacy_preview_rows(QWidget, QHBoxLayout, parent):
 
 
 def create_alignment_preview_shell_section(context: dict[str, object]) -> SimpleNamespace:
-    D3D11_PREVIEW_VIEW_MODES = context.get('D3D11_PREVIEW_VIEW_MODES')
-    D3D11_PREVIEW_VIEW_MODE_LABELS = context.get('D3D11_PREVIEW_VIEW_MODE_LABELS')
+    DOTNET_PREVIEW_VIEW_MODE_OPTIONS = context.get('DOTNET_PREVIEW_VIEW_MODE_OPTIONS')
     Dict = context.get('Dict')
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES = context.get('MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES')
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS = context.get('MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS')
@@ -58,7 +57,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _alignment_preview_render_control_text_helper = context.get('_alignment_preview_render_control_text_helper')
     _alignment_preview_view_sync_initial_state_helper = context.get('_alignment_preview_view_sync_initial_state_helper')
     _custom_item_icon_control_text_helper = context.get('_custom_item_icon_control_text_helper')
-    _d3d11_view_mode_options_helper = context.get('_d3d11_view_mode_options_helper')
     _mesh_editor_diagnostics_initial_state_helper = context.get('_mesh_editor_diagnostics_initial_state_helper')
     _original_texture_preview_material_preview_enabled_helper = context.get('_original_texture_preview_material_preview_enabled_helper')
     _populate_combo_options_helper = context.get('_populate_combo_options_helper')
@@ -188,18 +186,18 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_view_mode_combo = QComboBox()
     _populate_combo_options_helper(
         alignment_d3d11_view_mode_combo,
-        _d3d11_view_mode_options_helper(D3D11_PREVIEW_VIEW_MODES, D3D11_PREVIEW_VIEW_MODE_LABELS),
+        DOTNET_PREVIEW_VIEW_MODE_OPTIONS,
     )
     d3d11_view_index = alignment_d3d11_view_mode_combo.findData(
         self._current_model_preview_render_settings().d3d11_view_mode
     )
     alignment_d3d11_view_mode_combo.setCurrentIndex(max(0, d3d11_view_index))
-    alignment_d3d11_view_mode_combo.setToolTip(alignment_preview_control_text["d3d11_view_tooltip"])
+    alignment_d3d11_view_mode_combo.setToolTip(alignment_preview_control_text["dotnet_view_tooltip"])
     alignment_d3d11_view_mode_combo.setMinimumWidth(0)
     alignment_d3d11_view_mode_combo.setMinimumContentsLength(14)
     alignment_d3d11_view_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
     alignment_d3d11_view_mode_combo.setMaximumWidth(190)
-    preview_controls_row.addWidget(QLabel(alignment_preview_control_text["d3d11_view_label"]))
+    preview_controls_row.addWidget(QLabel(alignment_preview_control_text["dotnet_view_label"]))
     preview_controls_row.addWidget(alignment_d3d11_view_mode_combo)
     alignment_preview_settings_button = QPushButton(alignment_preview_control_text["settings_button"])
     alignment_preview_settings_button.setToolTip(alignment_preview_default_help.settings_tooltip)

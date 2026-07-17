@@ -274,11 +274,13 @@ def test_resident_material_generation_order_is_independent_of_packet_kind_duplic
 def test_dotnet_preview_settings_have_distinct_support_outdoor_and_layer_mask_paths() -> None:
     settings_source = _source("D3D11MaterialViewport.PresentationSettings.cs")
     parser_source = _source("MeshViewport.PresentationSettings.cs")
+    view_modes_source = _source("DotNetPreviewViewModes.cs")
     resource_source = _source("D3D11MaterialViewport.Resources.cs")
     shader_source = _source("D3D11MaterialShaders.hlsl")
 
     assert "!settings.HighQuality || settings.DisableAllSupportMaps" in settings_source
-    assert 'string.Equals(viewMode, "game_outdoor"' in parser_source
+    assert "DotNetPreviewViewModes.UsesGameOutdoorLighting(viewMode)" in parser_source
+    assert '"game_outdoor"' in view_modes_source
     assert "settings.GameOutdoorApprox" in settings_source
     assert 'TextureReferenceForSubmesh(submeshIndex, "layer_mask", "mask")' in resource_source
     assert "Texture2D LayerMaskTexture : register(t7);" in shader_source

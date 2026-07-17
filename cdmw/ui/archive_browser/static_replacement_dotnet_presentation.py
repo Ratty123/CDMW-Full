@@ -6,11 +6,15 @@ from collections.abc import Mapping, Sequence
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
+from cdmw.ui.archive_browser.static_replacement_dotnet_view_modes import (
+    dotnet_preview_material_debug_mode,
+    normalize_dotnet_preview_view_mode,
+)
+
 
 _RENDER_SETTING_FIELDS = (
     "use_textures_by_default",
     "high_quality_by_default",
-    "render_diagnostic_mode",
     "disable_lighting",
     "disable_depth_test",
     "disable_tint",
@@ -124,41 +128,15 @@ def builder_presentation_state(
         for field in _RENDER_SETTING_FIELDS
         if hasattr(render_settings, field)
     }
-    d3d11_view_mode = str(settings.get("d3d11_view_mode", "lit") or "lit").strip().lower()
-    diagnostic_mode = str(settings.get("render_diagnostic_mode", "lit") or "lit").strip().lower()
-    effective_view_mode = d3d11_view_mode if d3d11_view_mode != "lit" else diagnostic_mode
-    display_mode = {
-        "wire": "wire",
-        "wireframe": "wire",
-        "vertices": "vertices",
-        "wire_vertices": "wire_vertices",
-        "xray": "xray",
-    }.get(effective_view_mode, "textured")
+    dotnet_view_mode = normalize_dotnet_preview_view_mode(settings.get("d3d11_view_mode"))
+    # Keep the stored D3D11 field as a compatibility alias for older helpers,
+    # while making the resident .NET field authoritative for current builds.
+    settings["d3d11_view_mode"] = dotnet_view_mode
+    settings["dotnet_view_mode"] = dotnet_view_mode
+    display_mode = "textured"
     if mesh_edit_active:
         display_mode = "wire_vertices"
-    material_debug_mode = {
-        "base": 1,
-        "base_color": 1,
-        "base_direct": 1,
-        "base_no_tint": 1,
-        "albedo_base_only": 1,
-        "normal": 2,
-        "normal_raw": 2,
-        "roughness": 3,
-        "metallic": 4,
-        "metalness": 4,
-        "emissive": 5,
-        "specular": 6,
-        "specular_gloss": 6,
-        "uv": 8,
-        "uv_checker": 8,
-        "base_alpha": 9,
-        "part_id": 10,
-        "material_raw": 11,
-        "material_response": 11,
-        "layer_mask": 12,
-        "masked_layer_contribution": 12,
-    }.get(effective_view_mode, 0)
+    material_debug_mode = dotnet_preview_material_debug_mode(dotnet_view_mode)
     return {
         "active_view": active_view,
         "comparison_mode": mode,
