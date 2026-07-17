@@ -1130,6 +1130,12 @@ class ModelPreviewSettingsDialog(QDialog):
     def _reset_defaults(self) -> None:
         current = self.current_settings()
         defaults = clamp_model_preview_render_settings()
+        if self._preview_target == self.PREVIEW_TARGET_DOTNET_VORTICE:
+            current.orbit_sensitivity = defaults.orbit_sensitivity
+            current.pan_sensitivity = defaults.pan_sensitivity
+            self.set_settings(current)
+            self.settings_changed.emit(self.current_settings())
+            return
         defaults.invert_orbit_x = current.invert_orbit_x
         defaults.invert_orbit_y = current.invert_orbit_y
         defaults.invert_pan_x = current.invert_pan_x

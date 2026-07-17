@@ -234,7 +234,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_embedded_dotnet_context_exposes_only_resident_supported_controls(self) -> None:
+    def test_mesh_editor_dotnet_context_exposes_only_resident_camera_input(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(
             settings=ModelPreviewRenderSettings(enable_tool_pbd_cloth_preview=True),
@@ -247,7 +247,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
             for index in range(dialog.tabs.count())
             if dialog.tabs.isTabVisible(index)
         ]
-        self.assertEqual(["General", "Quality / Lighting", "Controls"], visible_tabs)
+        self.assertEqual(["Camera Input"], visible_tabs)
         widgets_by_tab = preview_setting_widgets_by_tab(dialog)
         self.assertEqual(set(DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB), set(widgets_by_tab))
         for tab_name, widgets in widgets_by_tab.items():
@@ -262,57 +262,51 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
                         self.assertFalse(label.isHidden(), field)
                 elif label is not None:
                     self.assertTrue(label.isHidden(), field)
-        for widget in (
-            dialog.disable_tint_checkbox,
-            dialog.disable_brightness_checkbox,
-            dialog.disable_uv_scale_checkbox,
-            dialog.disable_depth_test_checkbox,
-        ):
-            self.assertTrue(dialog._general_tab.widget().isAncestorOf(widget))
-        for widget in (
-            dialog.force_nearest_no_mipmaps_checkbox,
-            dialog.disable_lighting_checkbox,
-        ):
-            self.assertTrue(dialog._quality_tab.widget().isAncestorOf(widget))
+        self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._general_tab)))
+        self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._quality_tab)))
+        self.assertIs(dialog.tabs.currentWidget(), dialog._controls_tab)
         self.assertIn(".NET/Vortice", dialog.intro_label.text())
-        self.assertIn("Only settings with an active .NET/Vortice", dialog.advanced_warning_label.text())
-        self.assertIn("Archive-only texture-selection policy", dialog.d3d11_hint_label.text())
-        self.assertIn("Every visible control", dialog.quality_hint_label.text())
+        self.assertIn("not duplicated here", dialog.advanced_warning_label.text())
+        self.assertIn("viewport surfaces", dialog.advanced_warning_label.text())
         self.assertIn("Each role pane keeps its own camera", dialog.controls_usage_hint_label.text())
-        self.assertNotIn("Native D3D11 supports", dialog.d3d11_hint_label.text())
-        self.assertNotIn("PBD", dialog.d3d11_hint_label.text())
-        self.assertEqual("View mode", dialog._form_field_label(dialog.d3d11_view_mode_combo).text())
-        self.assertEqual("Normal-map Y", dialog._form_field_label(dialog.d3d11_normal_y_mode_combo).text())
-        self.assertEqual("Texture address", dialog._form_field_label(dialog.d3d11_texture_address_mode_combo).text())
+        self.assertEqual("Reset Camera Input", dialog.reset_button.text())
+        self.assertIn("hidden renderer settings", dialog.controls_hint_label.text())
 
         dialog.close()
         dialog.deleteLater()
 
-    def test_embedded_dotnet_context_disables_controls_with_inactive_dependencies(self) -> None:
+    def test_mesh_editor_dotnet_reset_preserves_hidden_renderer_and_inversion_settings(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(
-            settings=ModelPreviewRenderSettings(),
+            settings=ModelPreviewRenderSettings(
+                use_textures_by_default=False,
+                d3d11_view_mode="normal",
+                disable_lighting=True,
+                d3d11_tone_exposure=0.35,
+                orbit_sensitivity=0.91,
+                pan_sensitivity=2.10,
+                invert_orbit_x=True,
+                invert_orbit_y=True,
+                invert_pan_x=True,
+                invert_pan_y=True,
+            ),
             archive_renderer_backend="d3d11_native",
             preview_target="dotnet_vortice",
         )
 
-        self.assertTrue(dialog._slider_controls["max_anisotropy"].isEnabled())
-        self.assertTrue(dialog._slider_controls["normal_strength_cap"].isEnabled())
-        dialog.disable_normal_map_checkbox.setChecked(True)
-        self.assertFalse(dialog._slider_controls["normal_strength_cap"].isEnabled())
-        dialog.use_textures_checkbox.setChecked(False)
-        self.assertFalse(dialog.d3d11_view_mode_combo.isEnabled())
-        self.assertFalse(dialog.d3d11_texture_address_mode_combo.isEnabled())
-        self.assertFalse(dialog._slider_controls["max_anisotropy"].isEnabled())
-        self.assertFalse(dialog._slider_controls["d3d11_tone_exposure"].isEnabled())
-        self.assertFalse(dialog.force_nearest_no_mipmaps_checkbox.isEnabled())
-        self.assertFalse(dialog.disable_tint_checkbox.isEnabled())
-        self.assertIn("Currently inactive", dialog._slider_controls["d3d11_tone_exposure"].toolTip())
-        dialog.use_textures_checkbox.setChecked(True)
-        self.assertTrue(dialog.d3d11_view_mode_combo.isEnabled())
-        self.assertTrue(dialog._slider_controls["d3d11_tone_exposure"].isEnabled())
-        self.assertTrue(dialog.force_nearest_no_mipmaps_checkbox.isEnabled())
-        self.assertTrue(dialog.disable_tint_checkbox.isEnabled())
+        dialog._reset_defaults()
+        current = dialog.current_settings()
+        defaults = ModelPreviewRenderSettings()
+        self.assertEqual(defaults.orbit_sensitivity, current.orbit_sensitivity)
+        self.assertEqual(defaults.pan_sensitivity, current.pan_sensitivity)
+        self.assertFalse(current.use_textures_by_default)
+        self.assertEqual("normal", current.d3d11_view_mode)
+        self.assertTrue(current.disable_lighting)
+        self.assertEqual(0.35, current.d3d11_tone_exposure)
+        self.assertTrue(current.invert_orbit_x)
+        self.assertTrue(current.invert_orbit_y)
+        self.assertTrue(current.invert_pan_x)
+        self.assertTrue(current.invert_pan_y)
 
         dialog.close()
         dialog.deleteLater()

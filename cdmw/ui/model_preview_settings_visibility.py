@@ -5,56 +5,47 @@ from __future__ import annotations
 from cdmw.models import clamp_archive_performance_settings, clamp_model_preview_render_settings
 
 
+_QUALITY_LIGHTING_SETTING_FIELDS = (
+    "max_anisotropy",
+    "d3d11_mip_lod_bias",
+    "force_nearest_no_mipmaps",
+    "disable_lighting",
+    "ambient_strength",
+    "diffuse_light_scale",
+    "diffuse_wrap_bias",
+    "d3d11_light_azimuth_degrees",
+    "d3d11_light_elevation_degrees",
+    "normal_strength_cap",
+    "height_effect_max",
+    "specular_base",
+    "specular_max",
+    "shininess_max",
+    "d3d11_ao_strength",
+    "d3d11_roughness_bias",
+    "d3d11_metalness_scale",
+    "d3d11_environment_strength",
+    "d3d11_emissive_gain",
+    "d3d11_tone_exposure",
+    "d3d11_tone_contrast",
+    "d3d11_tone_gamma",
+)
+
+DOTNET_CAMERA_INPUT_SETTING_FIELDS = (
+    "orbit_sensitivity",
+    "pan_sensitivity",
+    "invert_orbit_x",
+    "invert_orbit_y",
+    "invert_pan_x",
+    "invert_pan_y",
+)
+
+# Mesh Editor owns viewport appearance directly in its resident .NET/Builder
+# surfaces. Do not duplicate material, sampler, lighting, or topology controls
+# in this generic dialog merely because a renderer consumer exists.
 DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
-    "General": (
-        "use_textures_by_default",
-        "high_quality_by_default",
-        "disable_all_support_maps",
-        "disable_normal_map",
-        "disable_material_map",
-        "disable_height_map",
-        "flip_texture_v",
-        "d3d11_cull_back_faces",
-        "disable_tint",
-        "disable_brightness",
-        "disable_uv_scale",
-        "disable_depth_test",
-        "d3d11_view_mode",
-        "d3d11_normal_y_mode",
-        "d3d11_texture_address_mode",
-    ),
-    "Quality / Lighting": (
-        "max_anisotropy",
-        "d3d11_mip_lod_bias",
-        "force_nearest_no_mipmaps",
-        "disable_lighting",
-        "ambient_strength",
-        "diffuse_light_scale",
-        "diffuse_wrap_bias",
-        "d3d11_light_azimuth_degrees",
-        "d3d11_light_elevation_degrees",
-        "normal_strength_cap",
-        "height_effect_max",
-        "specular_base",
-        "specular_max",
-        "shininess_max",
-        "d3d11_ao_strength",
-        "d3d11_roughness_bias",
-        "d3d11_metalness_scale",
-        "d3d11_environment_strength",
-        "d3d11_emissive_gain",
-        "d3d11_tone_exposure",
-        "d3d11_tone_contrast",
-        "d3d11_tone_gamma",
-    ),
-    "Controls": (
-        "orbit_sensitivity",
-        "pan_sensitivity",
-        "invert_orbit_x",
-        "invert_orbit_y",
-        "invert_pan_x",
-        "invert_pan_y",
-    ),
+    "General": (),
+    "Quality / Lighting": (),
+    "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
 }
 
 DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS = frozenset(
@@ -64,43 +55,6 @@ DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS = frozenset(
 )
 
 _DOTNET_SETTING_EFFECTS = {
-    "use_textures_by_default": "toggles base-texture sampling in every resident role pane",
-    "high_quality_by_default": "enables resolved support maps and the requested anisotropic filtering",
-    "disable_all_support_maps": "disables normal, material, height, and emissive support-map shading",
-    "disable_normal_map": "removes the resolved normal map from the HLSL lighting path",
-    "disable_material_map": "removes resolved roughness, metallic, and specular maps from HLSL shading",
-    "disable_height_map": "removes resolved height-map UV displacement from HLSL shading",
-    "flip_texture_v": "flips sampled material UVs vertically in the HLSL constant buffer",
-    "d3d11_cull_back_faces": "rebuilds the Vortice rasterizer state with back-face culling on or off",
-    "disable_tint": "bypasses resolved material tint parameters in the HLSL base-color path",
-    "disable_brightness": "bypasses resolved material texture-brightness parameters",
-    "disable_uv_scale": "bypasses the active preview UV scale while retaining offset and rotation",
-    "disable_depth_test": "switches resident solid rendering between normal and disabled depth testing",
-    "d3d11_view_mode": "selects the resident textured or material-debug shader output in every role pane",
-    "d3d11_normal_y_mode": "uses the asset normal-Y convention or forces its HLSL inversion state",
-    "d3d11_texture_address_mode": "rebuilds the Vortice sampler with wrap or clamp addressing",
-    "max_anisotropy": "sets the Vortice sampler anisotropy while support-map preview shading is enabled",
-    "d3d11_mip_lod_bias": "sets the Vortice sampler mip LOD bias",
-    "force_nearest_no_mipmaps": "switches the Vortice sampler to nearest point filtering",
-    "disable_lighting": "bypasses direct and ambient material lighting in the HLSL path",
-    "ambient_strength": "scales ambient light supplied to the material shader",
-    "diffuse_light_scale": "scales direct diffuse light supplied to the material shader",
-    "diffuse_wrap_bias": "changes wrapped diffuse response in the material shader",
-    "d3d11_light_azimuth_degrees": "rotates the material shader light horizontally",
-    "d3d11_light_elevation_degrees": "rotates the material shader light vertically",
-    "normal_strength_cap": "scales tangent-space normal-map strength in the material shader",
-    "height_effect_max": "scales height-map UV displacement in the material shader",
-    "specular_base": "sets fallback dielectric specular response when no specular map is resolved",
-    "specular_max": "scales the final specular response in the material shader",
-    "shininess_max": "sets the maximum specular highlight power",
-    "d3d11_ao_strength": "controls the ambient-occlusion approximation applied to ambient light",
-    "d3d11_roughness_bias": "adds a bias to resolved or fallback roughness",
-    "d3d11_metalness_scale": "scales resolved or fallback metalness",
-    "d3d11_environment_strength": "scales environment-derived ambient light",
-    "d3d11_emissive_gain": "scales resolved or overridden emissive output",
-    "d3d11_tone_exposure": "scales final shader exposure",
-    "d3d11_tone_contrast": "adjusts final shader contrast",
-    "d3d11_tone_gamma": "adjusts final shader gamma",
     "orbit_sensitivity": "sets resident camera orbit degrees per dragged pixel",
     "pan_sensitivity": "sets resident camera pan distance per dragged pixel",
     "invert_orbit_x": "reverses horizontal resident-camera orbit input",
@@ -149,7 +103,7 @@ def preview_setting_widgets_by_tab(dialog: object) -> dict[str, dict[str, object
                 if field == "disable_lighting"
                 else sliders[field]
             )
-            for field in DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB["Quality / Lighting"]
+            for field in _QUALITY_LIGHTING_SETTING_FIELDS
         },
         "Controls": {
             "orbit_sensitivity": sliders["orbit_sensitivity"],
@@ -188,6 +142,19 @@ def sync_renderer_specific_controls(dialog: object) -> None:
     diagnostics_index = dialog.tabs.indexOf(dialog._diagnostics_tab)
     if diagnostics_index >= 0:
         dialog.tabs.setTabVisible(diagnostics_index, legacy)
+    for tab, visible in (
+        (dialog._general_tab, not dotnet),
+        (dialog._quality_tab, not dotnet),
+        (dialog._controls_tab, True),
+    ):
+        tab_index = dialog.tabs.indexOf(tab)
+        if tab_index >= 0:
+            dialog.tabs.setTabVisible(tab_index, visible)
+    controls_index = dialog.tabs.indexOf(dialog._controls_tab)
+    if controls_index >= 0:
+        dialog.tabs.setTabText(controls_index, "Camera Input" if dotnet else "Controls")
+    if dotnet:
+        dialog.tabs.setCurrentWidget(dialog._controls_tab)
     dialog._set_form_field_visible(dialog.render_diagnostic_mode_combo, legacy)
     dialog._set_form_field_visible(dialog.visible_texture_mode_combo, not dotnet)
     dialog._set_form_field_visible(dialog.d3d11_view_mode_combo, d3d11)
@@ -259,19 +226,19 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         dialog.disable_brightness_checkbox.setText("Ignore texture brightness")
         dialog.disable_uv_scale_checkbox.setText("Ignore preview UV scale")
         dialog.intro_label.setText(
-            "Realtime settings for the embedded .NET/Vortice Mesh Editor preview. Changes are sent to the resident preview immediately."
+            "Camera input settings for the embedded .NET/Vortice Mesh Editor preview. Changes are sent to the resident preview immediately."
         )
         dialog.advanced_warning_label.setText(
-            "Only settings with an active .NET/Vortice renderer or camera consumer are shown. Texture-dependent controls have an effect only when the mesh provides the corresponding maps."
+            "Display, topology, X-Ray, grid, gizmo, material, texture, and lighting controls live on the Mesh Editor's .NET/Builder viewport surfaces and are not duplicated here."
         )
         dialog.general_hint_label.setText(
-            "Texture, support-map, material-adjustment, view-mode, sampler, lighting, and camera controls update the resident .NET/Vortice preview. They do not edit or reload the mesh asset."
+            "Renderer appearance is controlled directly from the Mesh Editor viewport."
         )
         dialog.d3d11_hint_label.setText(
-            ".NET/Vortice preview settings are limited to controls handled by its resident D3D11 renderer and camera. Archive-only texture-selection policy and unsupported simulation controls are hidden here."
+            "Archive Browser renderer settings are hidden while .NET/Vortice owns the Mesh Editor preview."
         )
         dialog.quality_hint_label.setText(
-            "Every visible control on this tab is applied live to the resident .NET/Vortice sampler, shader constants, or rasterizer state. Texture- and map-dependent controls require the corresponding resolved material resource."
+            "Material, texture, sampler, and lighting controls are owned by the resident viewport surfaces."
         )
         dialog.controls_usage_hint_label.setText(
             ".NET/Vortice camera controls: left-drag orbits; middle-drag, right-drag, or Shift+left-drag pans; the mouse wheel zooms; Fit resets framing. Each role pane keeps its own camera."
@@ -280,8 +247,9 @@ def sync_renderer_specific_controls(dialog: object) -> None:
             "Orbit and pan inversion are consumed directly by resident .NET pointer handling and never edit mesh placement or export data."
         )
         dialog.controls_hint_label.setText(
-            "Reset preserves camera inversion preferences while restoring the other preview defaults."
+            "Reset Camera Input restores orbit and pan sensitivity while preserving inversion preferences and hidden renderer settings."
         )
+        dialog.reset_button.setText("Reset Camera Input")
     else:
         dialog.disable_tint_checkbox.setText("Disable base tint")
         dialog.disable_brightness_checkbox.setText("Disable brightness")
@@ -310,6 +278,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         dialog.controls_hint_label.setText(
             "Reset keeps the inversion checkboxes as-is so you do not lose your preferred camera controls."
         )
+        dialog.reset_button.setText("Reset to Defaults")
     for widget, native_label, dotnet_label in (
         (dialog.d3d11_view_mode_combo, "D3D11 view mode", "View mode"),
         (dialog.d3d11_normal_y_mode_combo, "D3D11 normal Y", "Normal-map Y"),
@@ -326,6 +295,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
 
 
 __all__ = [
+    "DOTNET_CAMERA_INPUT_SETTING_FIELDS",
     "DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS",
     "DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB",
     "initialize_preview_settings_state",

@@ -140,7 +140,7 @@ def test_parts_routing_incremental_highlight_does_not_reuse_legacy_preview_ids()
     assert "selection_state['d3d11_original_highlighted_indices']" not in resident_update
 
 
-def test_builder_presentation_state_carries_every_visible_dotnet_settings_field() -> None:
+def test_builder_presentation_state_carries_every_exposed_dotnet_camera_setting() -> None:
     state = builder_presentation_state(
         comparison_mode="side_by_side",
         camera=None,
@@ -151,24 +151,29 @@ def test_builder_presentation_state_carries_every_visible_dotnet_settings_field(
     )
     quality = state["display"]["quality"]  # type: ignore[index]
     expected = {
-        "use_textures_by_default", "high_quality_by_default",
-        "d3d11_view_mode", "d3d11_cull_back_faces", "d3d11_normal_y_mode",
-        "d3d11_texture_address_mode", "flip_texture_v", "disable_normal_map",
-        "disable_material_map", "disable_height_map", "disable_all_support_maps",
-        "disable_tint", "disable_brightness", "disable_uv_scale", "disable_depth_test",
-        "force_nearest_no_mipmaps", "disable_lighting",
-        "max_anisotropy", "d3d11_mip_lod_bias", "ambient_strength",
-        "diffuse_light_scale", "diffuse_wrap_bias", "d3d11_light_azimuth_degrees",
-        "d3d11_light_elevation_degrees", "normal_strength_cap", "height_effect_max",
-        "specular_base", "specular_max", "shininess_max", "d3d11_ao_strength",
-        "d3d11_roughness_bias", "d3d11_metalness_scale", "d3d11_environment_strength",
-        "d3d11_emissive_gain", "d3d11_tone_exposure", "d3d11_tone_contrast",
-        "d3d11_tone_gamma", "orbit_sensitivity", "pan_sensitivity",
+        "orbit_sensitivity", "pan_sensitivity",
         "invert_orbit_x", "invert_orbit_y", "invert_pan_x", "invert_pan_y",
     }
     assert expected == DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS
     assert expected <= set(quality)
     assert "visible_texture_mode" not in quality
+
+
+def test_preview_settings_dotnet_target_covers_the_whole_embedded_mesh_editor() -> None:
+    source = (
+        ROOT
+        / "cdmw"
+        / "ui"
+        / "archive_browser"
+        / "static_replacement_dialog_callbacks_remaining_preview_render_settings_part_01.py"
+    ).read_text(encoding="utf-8")
+    start = source.index("preview_target = (")
+    end = source.index("_state.self._open_modal_model_preview_settings_dialog(", start)
+    target_selection = source[start:end]
+
+    assert "_mesh_editor_embedded_dotnet_active" in target_selection
+    assert "mesh_edit_enabled_checkbox" not in target_selection
+    assert "mesh_edit_active" not in target_selection
 
 
 def test_builder_presentation_state_maps_every_preview_mode_to_its_resident_view() -> None:

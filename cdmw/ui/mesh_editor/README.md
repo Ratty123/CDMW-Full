@@ -107,11 +107,16 @@ camera framing bounds and the world grid stay fixed through resident placement
 updates. Only an explicit, role-addressed Fit command reframes a pane, and
 camera command generations prevent persistent presentation replay from
 reapplying an earlier Fit or camera nudge.
-Preview Settings opened while .NET/Vortice owns the embedded session use an
-explicit .NET preview target. The dialog shows only controls with a resident
-renderer or camera consumer; Archive Browser texture-selection policy and
-tool-side simulation controls remain hidden. Each role pane keeps its own
-camera, and wheel zoom uses reciprocal steps with fit-relative bounds so a
+Preview Settings opened anywhere while .NET/Vortice owns the embedded Mesh
+Editor session use an explicit .NET preview target. In that context the dialog
+shows one Camera Input tab: orbit sensitivity, pan sensitivity, and the four
+orbit/pan inversion switches. Display, topology, X-Ray, grid, gizmo, material,
+texture, and lighting controls stay on their owning .NET/Builder viewport
+surfaces instead of being duplicated in this modal. General and Quality /
+Lighting remain available only to the Archive Browser/native preview context.
+Reset Camera Input restores the two sensitivity values while preserving the
+inversion choices and every hidden renderer setting. Each role pane keeps its
+own camera, and wheel zoom uses reciprocal steps with fit-relative bounds so a
 large mesh whose fitted zoom is below `1.0` can always zoom back out. The same
 wheel path is used in placement and Edit Mesh.
 Embedded .NET Mesh Edit screen payloads pair the active camera with a
@@ -123,16 +128,14 @@ overlay expands vertex points to round 7-pixel screen-space markers. Smooth defa
 to three iterations per dab, while Inflate and Pinch include native
 `screen_radius` amount context; brush tools paint under the cursor without a
 selection prerequisite.
-The three visible Preview Settings tabs are governed by one explicit support
-registry: General exposes texture/support-map toggles, culling, view mode,
-normal-Y, sampler addressing, material adjustments, and depth testing;
-Quality / Lighting exposes only sampler and HLSL lighting/tuning consumers;
-Controls exposes only resident orbit/pan input settings. A field must have a
-Python presentation payload key, a .NET parser,
-and a renderer or camera consumer before it can appear for .NET. Texture and
-view-mode choices synchronize across both role panes without merging their
-independent cameras, and the material-debug range covers every view mode shown
-by the dialog. In Edit Mesh, clicking the currently active Select, Move, Grab,
+The .NET Preview Settings support registry contains only the six resident
+camera-input fields. Each field has a Python presentation payload key, a .NET
+parser, and a resident pointer-input consumer. Renderer settings may still
+travel through the correlated presentation state from their owning viewport
+surface, but that transport alone does not make them appropriate modal
+controls. Texture and view-mode choices synchronize across both role panes
+without merging their independent cameras. In Edit Mesh, clicking the currently
+active Select, Move, Grab,
 or brush-tool button again returns the viewport to Orbit navigation. Host
 `tool_state` synchronization still applies its requested tool directly and does
 not toggle it off during resident-state replay. Every .NET button uses the same
