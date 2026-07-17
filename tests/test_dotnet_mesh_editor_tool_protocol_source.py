@@ -299,6 +299,7 @@ def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
     scene_source = _source("NetSceneState.cs")
     protocol_source = _source("ExperimentForm.Protocol.cs")
     overlay_source = _source("D3D11MaterialViewport.Overlay.cs")
+    gizmo_render_source = _source("D3D11MaterialViewport.Gizmo.cs")
     output_source = _source("ExperimentForm.Output.cs")
     program_source = _source("Program.cs")
     input_source = _source("MeshViewport.Input.cs")
@@ -321,8 +322,8 @@ def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
     assert "ReferenceSubmeshCount" in scene_source
     assert "DrawSceneGrid();" in overlay_source
     assert "DrawSceneGizmo();" in overlay_source
-    assert 'GizmoTool == "rotate"' in overlay_source
-    assert 'GizmoTool == "scale"' in overlay_source
+    assert 'GizmoTool == "rotate"' in gizmo_render_source
+    assert 'GizmoTool == "scale"' in gizmo_render_source
     assert "scene.EditableSubmeshCount" in output_source
     assert 'AddSection(stack, "Placement"' in program_source
     assert 'GizmoButton("Move", "move")' in program_source

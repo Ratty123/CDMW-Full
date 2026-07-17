@@ -139,6 +139,12 @@ not toggle it off during resident-state replay. Every .NET button uses the same
 dark-theme depth treatment: raised at rest and visibly sunken while held by
 mouse or keyboard. Stateful tool, placement-gizmo, and active-pane buttons keep
 the sunken bevel after release, with color serving as a secondary state cue.
+The Viewport section also exposes live Gizmo appearance controls for X/Y/Z,
+active, and label colors, line width, overall scale, font size, and handle size.
+Every change is saved immediately to
+`%LOCALAPPDATA%\CrimsonDesertModWorkbench\mesh-editor-gizmo-appearance.json` and
+restored on the next launch; rendered size and pointer hit testing share the
+same settings so customized handles remain aligned with interaction.
 Native D3D11 viewport Move/Grab/Smooth/Inflate/Pinch stroke events also route
 through `MeshEditorController`/`MeshService` as resident native-session
 `transform`/`brush` commands with `stroke_phase` and `stroke_id` payloads.

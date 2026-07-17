@@ -43,6 +43,7 @@ internal sealed partial class MeshViewport
                 Bounds = ClientRectangle,
             };
             viewport.SetOverlaySettings(_overlaySettings);
+            viewport.SetGizmoAppearance(_gizmoAppearance);
             viewport.MouseDown += (_, e) => ForwardRendererMouseDown(e);
             viewport.MouseUp += (_, e) => ForwardRendererMouseUp(e);
             viewport.MouseMove += (_, e) => ForwardRendererMouseMove(e);

@@ -117,6 +117,7 @@ internal sealed partial class ExperimentForm : Form
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
         _viewport.SetOverlaySettings(_overlaySettings);
+        _viewport.SetGizmoAppearance(_gizmoAppearance);
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += HandleViewportEditorEvent;
         _viewport.StatusRequested += message => _statusLabel.Text = message;
@@ -545,6 +546,7 @@ internal sealed partial class ExperimentForm : Form
         AddSection(stack, "Viewport",
             PreviewModeControl(),
             OverlayAppearanceControls(),
+            GizmoAppearanceControls(),
             ButtonRow(CameraButton("Front", "front"), CameraButton("Left", "left"), CameraButton("Right", "right")),
             ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
             ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Reset/Fit", _viewport.FrameMesh)),

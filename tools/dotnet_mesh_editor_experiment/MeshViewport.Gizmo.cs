@@ -24,7 +24,11 @@ internal sealed partial class MeshViewport
         Vector3.UnitZ,
     };
 
-    private float GizmoLength() => Math.Max(_scene.SceneExtent * 0.18f, _scene.GridSpacing * 2.0f);
+    private float GizmoLength() => _gizmoAppearance.ScaleLength(
+        Math.Max(_scene.SceneExtent * 0.18f, _scene.GridSpacing * 2.0f));
+
+    private double GizmoLineHitTolerancePixels() =>
+        Math.Max(9.0, _gizmoAppearance.LineThicknessPixels + 4.0);
 
     private static PointF GizmoProjectedPoint(Vector3 value, NetViewportCamera camera)
     {
@@ -140,7 +144,7 @@ internal sealed partial class MeshViewport
         if (_scene.GizmoTool == "rotate")
         {
             var bestHandle = string.Empty;
-            var bestDistance = 9.0;
+            var bestDistance = GizmoLineHitTolerancePixels();
             for (var axisIndex = 0; axisIndex < 3; axisIndex++)
             {
                 var marker = GizmoProjectedPoint(GizmoRotationHandlePoint(pivot, length, axisIndex), camera);
@@ -186,7 +190,7 @@ internal sealed partial class MeshViewport
         }
 
         var bestAxis = string.Empty;
-        var bestAxisDistance = 9.0;
+        var bestAxisDistance = GizmoLineHitTolerancePixels();
         for (var axisIndex = 0; axisIndex < 3; axisIndex++)
         {
             var endpoint = GizmoProjectedPoint(pivot + (GizmoAxes[axisIndex] * length), camera);
@@ -204,7 +208,7 @@ internal sealed partial class MeshViewport
         if (_scene.GizmoTool == "scale")
         {
             var centerDistance = Math.Sqrt(Math.Pow(point.X - center.X, 2.0) + Math.Pow(point.Y - center.Y, 2.0));
-            if (centerDistance <= 8.0)
+            if (centerDistance <= Math.Max(8.0, (_gizmoAppearance.HandleSizePixels * 0.5f) + 4.0f))
             {
                 return "center";
             }
@@ -347,11 +351,13 @@ internal sealed partial class MeshViewport
         return GizmoCirclePoint(origin, radius, axis, angle);
     }
 
-    private static bool GizmoMarkerContains(Point point, PointF marker)
+    private bool GizmoMarkerContains(Point point, PointF marker)
     {
-        const float left = -7.0f;
-        const float right = 23.0f;
-        const float vertical = 13.0f;
+        var handleHalfSize = _gizmoAppearance.HandleSizePixels * 0.5f;
+        var labelWidth = _gizmoAppearance.LabelSizePixels * (7.0f / 12.0f);
+        var left = -(handleHalfSize + 3.0f);
+        var right = handleHalfSize + 4.0f + labelWidth + 8.0f;
+        var vertical = Math.Max(handleHalfSize + 3.0f, (_gizmoAppearance.LabelSizePixels * 0.5f) + 7.0f);
         return point.X >= marker.X + left
             && point.X <= marker.X + right
             && point.Y >= marker.Y - vertical
