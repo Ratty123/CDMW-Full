@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Optional, Sequence
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QImage
+from PySide6.QtGui import QImage, QPainter
 
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.library.item_icons import ITEM_ICON_SOURCE_EXTENSIONS, ItemIconOverrideSpec
@@ -63,8 +63,8 @@ def custom_item_icon_control_text() -> dict[str, str]:
         "choose_folder_title": "Choose Custom Item Icon Folder",
         "generate_preview_button": "Generate Icon",
         "generate_preview_tooltip": (
-            "Generate Icon From Preview: capture the replacement preview without gizmo/axis overlays "
-            "and use it as this replacement's custom item icon."
+            "Generate Icon From Preview: capture the replacement preview without gizmo/axis overlays, "
+            "then drag a rectangle around the area to use as this replacement's custom item icon."
         ),
         "generate_preview_warning_title": "Generate Icon From Preview",
         "generate_preview_not_ready": "The replacement preview is not ready to capture yet.",
@@ -405,6 +405,54 @@ def custom_item_icon_preview_image(
     return scaled.copy(x, y, min(output_size, scaled.width()), min(output_size, scaled.height()))
 
 
+def custom_item_icon_selected_preview_image(
+    image: QImage,
+    selection: tuple[int, int, int, int],
+    *,
+    size: int = 512,
+) -> QImage:
+    """Crop a chosen source region, then fit and pad it without stretching."""
+
+    if image.isNull() or image.width() <= 0 or image.height() <= 0:
+        raise ValueError("generated item icon image is empty")
+    x, y, width, height = (int(value) for value in selection)
+    left = min(max(0, x), image.width())
+    top = min(max(0, y), image.height())
+    right = min(max(left, x + width), image.width())
+    bottom = min(max(top, y + height), image.height())
+    if right <= left or bottom <= top:
+        raise ValueError("generated item icon selection is empty")
+
+    output_size = max(1, int(size))
+    full_source = image.convertToFormat(QImage.Format.Format_RGBA8888)
+    background = full_source.pixelColor(0, 0)
+    source = full_source.copy(
+        left,
+        top,
+        right - left,
+        bottom - top,
+    )
+    scaled = source.scaled(
+        output_size,
+        output_size,
+        Qt.AspectRatioMode.KeepAspectRatio,
+        Qt.TransformationMode.SmoothTransformation,
+    )
+    output = QImage(output_size, output_size, QImage.Format.Format_RGBA8888)
+    output.fill(background)
+    painter = QPainter(output)
+    try:
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform, True)
+        painter.drawImage(
+            (output_size - scaled.width()) // 2,
+            (output_size - scaled.height()) // 2,
+            scaled,
+        )
+    finally:
+        painter.end()
+    return output
+
+
 def custom_item_icon_preview_image_from_pixmap(
     pixmap: object,
     *,
@@ -469,6 +517,7 @@ __all__ = [
     "custom_item_icon_override_spec",
     "custom_item_icon_preview_image",
     "custom_item_icon_preview_image_from_pixmap",
+    "custom_item_icon_selected_preview_image",
     "custom_item_icon_register_generated_icon",
     "custom_item_icon_status_text",
     "custom_item_icon_setup_state",

@@ -202,6 +202,7 @@ from cdmw.ui.archive_browser.static_replacement_custom_icon import (
     custom_item_icon_generation_status_message as _custom_item_icon_generation_status_message_helper,
     custom_item_icon_override_spec as _custom_item_icon_override_spec_helper,
     custom_item_icon_preview_image as _custom_item_icon_preview_image_helper,
+    custom_item_icon_selected_preview_image as _custom_item_icon_selected_preview_image_helper,
     custom_item_icon_maybe_register_generated_icon as _custom_item_icon_maybe_register_generated_icon_helper,
     custom_item_icon_setup_state as _custom_item_icon_setup_state_helper,
     custom_item_icon_status_text as _custom_item_icon_status_text_helper,

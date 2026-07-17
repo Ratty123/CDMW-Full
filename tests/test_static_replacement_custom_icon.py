@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from PySide6.QtGui import QColor, QImage
+from PySide6.QtGui import QColor, QImage, QPainter
 
 from cdmw.ui.archive_browser.static_replacement_custom_icon import (
     CUSTOM_ITEM_ICON_DISABLED_STATUS,
@@ -25,6 +25,7 @@ from cdmw.ui.archive_browser.static_replacement_custom_icon import (
     custom_item_icon_override_spec,
     custom_item_icon_preview_image,
     custom_item_icon_preview_image_from_pixmap,
+    custom_item_icon_selected_preview_image,
     custom_item_icon_register_generated_icon,
     custom_item_icon_status_text,
     custom_item_icon_setup_state,
@@ -414,6 +415,50 @@ def test_custom_item_icon_preview_image_falls_back_to_square_crop() -> None:
     assert result.width() == 8
     assert result.height() == 8
     assert result.format() == QImage.Format.Format_RGBA8888
+
+
+def test_custom_item_icon_selected_preview_image_fits_and_pads_without_stretching(
+) -> None:
+    source = QImage(400, 200, QImage.Format.Format_RGBA8888)
+    source.fill(QColor(0, 0, 0, 0))
+    painter = QPainter(source)
+    painter.fillRect(40, 40, 320, 120, QColor(220, 30, 20, 255))
+    painter.end()
+
+    result = custom_item_icon_selected_preview_image(source, (0, 0, 400, 200), size=100)
+
+    assert result.size().width() == 100
+    assert result.size().height() == 100
+    opaque = [
+        (x, y)
+        for y in range(result.height())
+        for x in range(result.width())
+        if result.pixelColor(x, y).alpha() > 127
+    ]
+    opaque_x = [point[0] for point in opaque]
+    opaque_y = [point[1] for point in opaque]
+    assert 79 <= max(opaque_x) - min(opaque_x) + 1 <= 82
+    assert 29 <= max(opaque_y) - min(opaque_y) + 1 <= 32
+    assert result.pixelColor(50, 10).alpha() == 0
+    assert result.pixelColor(50, 50).red() > 200
+
+
+def test_custom_item_icon_selected_preview_image_clamps_and_rejects_empty_regions(
+) -> None:
+    source = QImage(20, 10, QImage.Format.Format_RGBA8888)
+    source.fill(QColor("red"))
+
+    result = custom_item_icon_selected_preview_image(source, (-5, -5, 15, 12), size=16)
+
+    assert result.size().width() == 16
+    assert result.size().height() == 16
+
+    try:
+        custom_item_icon_selected_preview_image(source, (30, 0, 4, 4), size=16)
+    except ValueError as exc:
+        assert "selection is empty" in str(exc)
+    else:
+        raise AssertionError("Expected an out-of-bounds icon selection to be rejected.")
 
 
 def test_custom_item_icon_suggested_generated_path_uses_item_icon_tab(tmp_path) -> None:

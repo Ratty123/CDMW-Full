@@ -340,7 +340,7 @@ costly encode.
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_restructure_runtime_regression_smoke.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_supplemental_folder_scan.py tests/test_directory_scan_workers.py
-.\.venv\Scripts\python.exe -m pytest tests/test_item_icon_output_workers.py tests/test_item_icon_workers.py tests/test_item_icon_loose_mod_patch.py tests/test_archive_item_icon_worker_decode.py tests/test_static_replacement_custom_icon_capture_async.py
+.\.venv\Scripts\python.exe -m pytest tests/test_item_icon_output_workers.py tests/test_item_icon_workers.py tests/test_item_icon_loose_mod_patch.py tests/test_archive_item_icon_worker_decode.py tests/test_static_replacement_custom_icon.py tests/test_static_replacement_icon_selection.py tests/test_static_replacement_custom_icon_capture_async.py
 .\.venv\Scripts\python.exe -m pytest tests/test_material_sidecar_editor_async.py tests/test_material_sidecar_editor.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mod_package_export.py tests/test_mod_package_retrofit.py tests/test_mod_package_retrofit_async.py
 ```

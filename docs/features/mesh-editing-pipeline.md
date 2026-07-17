@@ -650,8 +650,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-16.
   development identity, process/assembly/shader SHA-256, renderer/edit backend,
   and capabilities; Python rejects release Ready when the launched files and
   report do not match. Deterministic icon generation uses a correlated
-  replacement-only offscreen D3D11 target inside the package output root and
-  excludes UI, grid, gizmo, selection, hover, and visible-state mutation.
+  replacement-only 1024x1024 offscreen D3D11 target inside the package output
+  root. Its camera is uniformly fit from the visible viewport so the square
+  target preserves the preview proportions. Generate Icon then opens a
+  non-blocking rectangle selector and fit-pads the chosen area into the final
+  512x512 PNG without stretching. Capture excludes UI, grid, gizmo, selection,
+  hover, and visible-state mutation.
 - Embedded .NET launch diagnostics are persisted through Mesh Editor runtime
   events and the handoff package. Failed launches record executable resolution,
   package paths, parent HWND, process state, QProcess error details, exit

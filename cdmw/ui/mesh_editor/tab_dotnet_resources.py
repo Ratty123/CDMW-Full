@@ -420,8 +420,8 @@ class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
             "process_generation": self.standalone_dotnet_process_generation,
             "protocol_version": 2,
             "output_path": output_path.relative_to(package.output_dir).as_posix(),
-            "width": 512,
-            "height": 512,
+            "width": 1024,
+            "height": 1024,
         }
         if not self._send_dotnet_protocol_message(payload):
             self._finish_dotnet_capture(request_id, None)

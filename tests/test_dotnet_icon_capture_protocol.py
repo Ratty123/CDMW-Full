@@ -74,6 +74,8 @@ def test_resident_icon_capture_is_correlated_and_accepts_only_the_requested_pack
     assert request["session_id"] == "session"
     assert request["process_generation"] == 7
     assert request["output_path"] == "icon_capture_1.png"
+    assert request["width"] == 1024
+    assert request["height"] == 1024
     expected_path = output_dir / str(request["output_path"])
     image = QImage(16, 16, QImage.Format.Format_RGBA8888)
     image.fill(QColor("red"))
@@ -163,6 +165,11 @@ def test_icon_capture_uses_deterministic_offscreen_d3d_target_without_visible_st
     assert "CopyResource(stagingTexture, captureSource)" in capture
     assert "_offscreenMultisampleResolveCount++;" in capture
     assert "RenderFrame(present: false, includeOverlays: false, replacementOnly: true)" in capture
+    assert "CameraForCaptureViewport(visibleCamera, width, height)" in capture
+    assert "Math.Min(width / sourceWidth, height / sourceHeight)" in capture
+    assert "camera.Zoom * uniformScale" in capture
+    assert "camera.PanX * uniformScale" in capture
+    assert "_camera = visibleCamera;" in capture
     assert "_renderTargetView = previousTarget;" in capture
     assert "_depthStencilView = previousDepth;" in capture
     assert "bitmap.Save(temporaryPath, ImageFormat.Png)" in capture

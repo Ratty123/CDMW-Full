@@ -18,6 +18,9 @@ from cdmw.models import RunCancelled
 from cdmw.ui.archive_browser.static_replacement_dialog_custom_icon_callbacks import (
     create_alignment_custom_icon_callbacks,
 )
+from cdmw.ui.archive_browser.static_replacement_generated_icon_output import (
+    AlignmentGeneratedIconOutputController,
+)
 from cdmw.ui.archive_browser.static_replacement_custom_icon import (
     write_custom_item_icon_image_atomic,
 )
@@ -159,6 +162,99 @@ def test_capture_source_has_no_nested_event_pump_or_ui_sleep() -> None:
     assert "pixmap.toImage().copy()" in output_source
     assert "shell._run_utility_task_when_idle(" in output_source
     assert "task_accepts_cancel=True" in output_source
+    assert "selection_dialog.open()" in output_source
+    assert "selection_dialog.exec(" not in output_source
+
+
+class _SignalProbe:
+    def __init__(self) -> None:
+        self.callback = None
+
+    def connect(self, callback) -> None:  # type: ignore[no-untyped-def]
+        self.callback = callback
+
+    def emit(self) -> None:
+        assert self.callback is not None
+        self.callback()
+
+
+class _SelectionDialogProbe:
+    def __init__(self, selection: tuple[int, int, int, int]) -> None:
+        self.accepted = _SignalProbe()
+        self.rejected = _SignalProbe()
+        self.selection = selection
+        self.opened = False
+        self.deleted = False
+
+    def selected_source_rect(self) -> tuple[int, int, int, int]:
+        return self.selection
+
+    def open(self) -> None:
+        self.opened = True
+
+    def deleteLater(self) -> None:
+        self.deleted = True
+
+
+def test_generated_icon_capture_waits_for_region_acceptance_before_queueing_output(
+) -> None:
+    _app()
+    pixmap = QPixmap(40, 20)
+    pixmap.fill(QColor("red"))
+    selection_dialog = _SelectionDialogProbe((3, 4, 20, 10))
+    queued: list[tuple[object, tuple[int, int, int, int], int]] = []
+    context = {
+        "dialog": SimpleNamespace(isVisible=lambda: True),
+        "generate_alignment_icon_button": SimpleNamespace(setEnabled=lambda _enabled: None),
+        "_alignment_icon_selection_dialog_factory": lambda _image, _parent: selection_dialog,
+    }
+    controller = AlignmentGeneratedIconOutputController(
+        context,
+        capture=lambda _callback: None,
+        refresh_status=lambda: None,
+    )
+    controller.generation = 6
+    controller._queue_output = lambda image, selection, generation: queued.append(  # type: ignore[method-assign]
+        (image, selection, generation)
+    )
+
+    controller._finish_capture(pixmap, 6)
+
+    assert selection_dialog.opened
+    assert queued == []
+    selection_dialog.accepted.emit()
+    assert len(queued) == 1
+    assert queued[0][1:] == ((3, 4, 20, 10), 6)
+    assert selection_dialog.deleted
+    assert controller.selection_dialog is None
+
+
+def test_cancelling_icon_region_selection_reenables_generate_button() -> None:
+    _app()
+    pixmap = QPixmap(40, 20)
+    pixmap.fill(QColor("red"))
+    selection_dialog = _SelectionDialogProbe((0, 0, 40, 20))
+    enabled: list[bool] = []
+    context = {
+        "dialog": SimpleNamespace(isVisible=lambda: True),
+        "generate_alignment_icon_button": SimpleNamespace(
+            setEnabled=lambda value: enabled.append(bool(value))
+        ),
+        "_alignment_icon_selection_dialog_factory": lambda _image, _parent: selection_dialog,
+    }
+    controller = AlignmentGeneratedIconOutputController(
+        context,
+        capture=lambda _callback: None,
+        refresh_status=lambda: None,
+    )
+    controller.generation = 2
+
+    controller._finish_capture(pixmap, 2)
+    selection_dialog.rejected.emit()
+
+    assert enabled == [True]
+    assert selection_dialog.deleted
+    assert controller.selection_dialog is None
 
 
 def test_cancelled_generated_icon_encode_preserves_previous_file(tmp_path: Path) -> None:

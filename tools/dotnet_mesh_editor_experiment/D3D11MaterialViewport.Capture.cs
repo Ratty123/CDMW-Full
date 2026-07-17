@@ -90,7 +90,8 @@ internal sealed partial class D3D11MaterialViewport
         var previousDepth = _depthStencilView;
         var previousWidth = _renderWidth;
         var previousHeight = _renderHeight;
-        var cameraForCapture = _camera;
+        var visibleCamera = _camera;
+        var cameraForCapture = CameraForCaptureViewport(visibleCamera, width, height);
         var solidDrawCountBefore = _texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount;
         var mapped = false;
         var multisampleResolved = false;
@@ -101,6 +102,7 @@ internal sealed partial class D3D11MaterialViewport
             _depthStencilView = depthView;
             _renderWidth = width;
             _renderHeight = height;
+            _camera = cameraForCapture;
             _ = RenderFrame(present: false, includeOverlays: false, replacementOnly: true);
             _context.OMSetRenderTargets((ID3D11RenderTargetView?)null, null);
             ID3D11Texture2D captureSource = targetTexture;
@@ -188,11 +190,34 @@ internal sealed partial class D3D11MaterialViewport
             _depthStencilView = previousDepth;
             _renderWidth = previousWidth;
             _renderHeight = previousHeight;
+            _camera = visibleCamera;
             if (previousTarget is not null)
             {
                 _context.OMSetRenderTargets(previousTarget, previousDepth);
             }
             _offscreenCaptureSurfaceBytesEstimate = 0;
         }
+    }
+
+    private static NetViewportCamera CameraForCaptureViewport(
+        NetViewportCamera camera,
+        int width,
+        int height)
+    {
+        var sourceWidth = Math.Max(1.0f, camera.ViewportWidth);
+        var sourceHeight = Math.Max(1.0f, camera.ViewportHeight);
+        var uniformScale = Math.Max(
+            0.001f,
+            Math.Min(width / sourceWidth, height / sourceHeight));
+        return NetViewportCamera.Create(
+            camera.Center,
+            camera.Bounds,
+            camera.Yaw,
+            camera.Pitch,
+            camera.Zoom * uniformScale,
+            camera.PanX * uniformScale,
+            camera.PanY * uniformScale,
+            width,
+            height);
     }
 }

@@ -370,9 +370,14 @@ the live service. Only the current UI result may enter the locked,
 noninterruptible commit; cancellation remains effective until that boundary and
 cannot suppress completion after mutation begins.
 
-Generate Icon requests a correlated 512x512 offscreen D3D11 replacement render
-inside the package output root. It excludes controls, grid, gizmo, selection,
-hover, and brush overlays and does not alter the visible camera or scene state.
+Generate Icon requests a correlated 1024x1024 offscreen D3D11 replacement
+render inside the package output root. The offscreen camera uniformly fits the
+visible camera into the square target, so wide previews keep their proportions
+instead of being rescaled independently on X and Y. A non-blocking selection
+dialog then lets the user drag any source rectangle; the chosen area is fit and
+padded into the final 512x512 PNG without stretching. Capture excludes controls,
+grid, gizmo, selection, hover, and brush overlays and does not alter the visible
+camera or scene state.
 `shell_bridge.py` may forward action-bar signals to the active embedded builder
 handler and update shell status/active-tool state; it must not implement mesh
 edit commands. The embedded static builder handler may delegate selected-geometry

@@ -5,7 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QImage, QPixmap
+
+from cdmw.ui.archive_browser.static_replacement_icon_selection import AlignmentIconSelectionDialog
 
 
 class AlignmentGeneratedIconOutputController:
@@ -22,6 +24,7 @@ class AlignmentGeneratedIconOutputController:
         self.capture = capture
         self.refresh_status = refresh_status
         self.generation = 0
+        self.selection_dialog: Optional[AlignmentIconSelectionDialog] = None
 
     def _apply(
         self,
@@ -76,18 +79,15 @@ class AlignmentGeneratedIconOutputController:
             str(message or context["_custom_item_icon_write_failure_message_helper"](output_path)),
         )
 
-    def _finish_capture(self, pixmap: Optional[QPixmap], generation: int) -> None:
+    def _queue_output(
+        self,
+        captured_image: QImage,
+        selection: tuple[int, int, int, int],
+        generation: int,
+    ) -> None:
         context = self.context
         dialog = context["dialog"]
         if generation != self.generation or not dialog.isVisible():
-            return
-        if pixmap is None or pixmap.isNull():
-            context["generate_alignment_icon_button"].setEnabled(True)
-            context["QMessageBox"].warning(
-                dialog,
-                context["custom_icon_control_text"]["generate_preview_warning_title"],
-                context["custom_icon_control_text"]["generate_preview_not_ready"],
-            )
             return
         shell = context["self"]
         entry = context["entry"]
@@ -105,13 +105,11 @@ class AlignmentGeneratedIconOutputController:
             source_model_path=source_model_path,
             fallback_dir=Path.cwd(),
         )
-        formatter = getattr(getattr(shell, "model_library_tab", None), "_model_preview_icon_image", None)
-        captured_image = pixmap.toImage().copy()
 
         def task(_log: object, stop_event: object) -> Path:
-            image = context["_custom_item_icon_preview_image_helper"](
+            image = context["_custom_item_icon_selected_preview_image_helper"](
                 captured_image,
-                formatter=formatter,
+                selection,
                 size=512,
             )
             return context["_write_custom_item_icon_image_atomic_helper"](
@@ -146,7 +144,79 @@ class AlignmentGeneratedIconOutputController:
         except Exception as exc:
             self._show_error(generation, output_path, exc)
 
+    def _release_selection_dialog(self, selection_dialog: object) -> None:
+        if self.selection_dialog is selection_dialog:
+            self.selection_dialog = None
+        try:
+            selection_dialog.deleteLater()
+        except (AttributeError, RuntimeError):
+            pass
+
+    def _choose_capture_region(self, pixmap: QPixmap, generation: int) -> None:
+        context = self.context
+        dialog = context["dialog"]
+        captured_image = pixmap.toImage().copy()
+        factory = context.get("_alignment_icon_selection_dialog_factory", AlignmentIconSelectionDialog)
+        try:
+            selection_dialog = factory(captured_image, dialog)
+        except Exception as exc:
+            context["generate_alignment_icon_button"].setEnabled(True)
+            context["QMessageBox"].warning(
+                dialog,
+                context["custom_icon_control_text"]["generate_preview_warning_title"],
+                f"Could not open icon area selection:\n{exc}",
+            )
+            return
+        self.selection_dialog = selection_dialog
+
+        def accepted() -> None:
+            try:
+                selection = tuple(int(value) for value in selection_dialog.selected_source_rect())
+            except Exception as exc:
+                self._release_selection_dialog(selection_dialog)
+                if generation == self.generation and dialog.isVisible():
+                    context["generate_alignment_icon_button"].setEnabled(True)
+                    context["QMessageBox"].warning(
+                        dialog,
+                        context["custom_icon_control_text"]["generate_preview_warning_title"],
+                        f"Could not use the selected icon area:\n{exc}",
+                    )
+                return
+            self._release_selection_dialog(selection_dialog)
+            if generation != self.generation or not dialog.isVisible():
+                return
+            self._queue_output(captured_image, selection, generation)
+
+        def rejected() -> None:
+            self._release_selection_dialog(selection_dialog)
+            if generation == self.generation and dialog.isVisible():
+                context["generate_alignment_icon_button"].setEnabled(True)
+
+        selection_dialog.accepted.connect(accepted)
+        selection_dialog.rejected.connect(rejected)
+        selection_dialog.open()
+
+    def _finish_capture(self, pixmap: Optional[QPixmap], generation: int) -> None:
+        context = self.context
+        dialog = context["dialog"]
+        if generation != self.generation or not dialog.isVisible():
+            return
+        if pixmap is None or pixmap.isNull():
+            context["generate_alignment_icon_button"].setEnabled(True)
+            context["QMessageBox"].warning(
+                dialog,
+                context["custom_icon_control_text"]["generate_preview_warning_title"],
+                context["custom_icon_control_text"]["generate_preview_not_ready"],
+            )
+            return
+        self._choose_capture_region(pixmap, generation)
+
     def generate(self) -> None:
+        if self.selection_dialog is not None:
+            try:
+                self.selection_dialog.reject()
+            except RuntimeError:
+                self.selection_dialog = None
         self.generation += 1
         generation = self.generation
         self.context["generate_alignment_icon_button"].setEnabled(False)
