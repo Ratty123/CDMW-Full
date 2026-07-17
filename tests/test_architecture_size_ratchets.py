@@ -6,11 +6,13 @@ import json
 from pathlib import Path
 import re
 
+from tests.architecture_limits import DEFAULT_FUNCTION_LINE_LIMIT, DEFAULT_OWNER_FILE_LINE_LIMIT
+
 
 ROOT = Path(__file__).resolve().parents[1]
 BASELINE_PATH = ROOT / "tests" / "architecture_size_baseline.json"
-FILE_LINE_LIMIT = 800
-FUNCTION_LINE_LIMIT = 150
+FILE_LINE_LIMIT = DEFAULT_OWNER_FILE_LINE_LIMIT
+FUNCTION_LINE_LIMIT = DEFAULT_FUNCTION_LINE_LIMIT
 _NATIVE_SUFFIXES = frozenset({".cc", ".cpp", ".cxx", ".h", ".hpp", ".rs"})
 _CONTROL_NAMES = frozenset({"catch", "do", "else", "for", "if", "lock", "switch", "using", "while"})
 

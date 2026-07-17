@@ -13,6 +13,7 @@ from cdmw.ui.mesh_editor.workspace_shell_builder import WorkspaceShellBuilderMix
 from cdmw.ui.mesh_editor.workspace_skeleton_state import WorkspaceSkeletonStateMixin
 from cdmw.ui.mesh_editor.workspace_state import WorkspaceStateMixin
 from cdmw.ui.mesh_editor.workspace_views import MeshUvCanvas as OwnedMeshUvCanvas
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -39,7 +40,7 @@ def test_workspace_owners_obey_size_caps() -> None:
     for path in sorted(owner_root.glob("workspace_*.py")):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         sizes = (
             int(node.end_lineno or node.lineno) - node.lineno + 1
             for node in ast.walk(tree)

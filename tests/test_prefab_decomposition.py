@@ -8,6 +8,7 @@ import sys
 from pathlib import Path
 
 from cdmw.core import prefab_corpus, prefab_json
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -50,7 +51,7 @@ def test_prefab_owner_modules_obey_new_size_limits() -> None:
     for path in owners:
         source = path.read_text(encoding="utf-8-sig")
         tree = ast.parse(source)
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         functions = [node for node in ast.walk(tree) if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))]
         assert max((node.end_lineno - node.lineno + 1 for node in functions), default=0) <= 150, path
         assert not any(

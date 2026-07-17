@@ -17,6 +17,7 @@ from cdmw.core.archive_hkx import build_hkx_editable_geometry_xml
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser import hkx_editor_dialog
 from cdmw.ui.archive_browser.hkx_editor_dialog_owners import DIALOG_STEPS
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 from tests.test_hkx_preview import _tag_item, _tna1_payload
 
 
@@ -99,7 +100,7 @@ def test_hkx_editor_owners_obey_phase6_caps() -> None:
     assert len({id(step) for step in DIALOG_STEPS}) == len(DIALOG_STEPS)
     for path in paths:
         source = path.read_text(encoding="utf-8")
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         for node in ast.walk(ast.parse(source)):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 assert node.end_lineno - node.lineno + 1 <= 150, (path, node.name)

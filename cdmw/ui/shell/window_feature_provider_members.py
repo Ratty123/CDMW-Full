@@ -81,7 +81,7 @@ PROVIDER_SOURCE_HASHES = {
     'cdmw/ui/archive_browser/preview_panel.py': '37ccb35ce68b805400d3a389a823ee46e679eac08c000d54efafe593fdebeb30',
     'cdmw/ui/archive_browser/preview_renderer_controls.py': 'ae198e486e64e30413494dc205b2e1757ca804fe4a428b229a7ae19f4134d31a',
     'cdmw/ui/archive_browser/preview_result.py': '70c24b0bd3d8f6215d09a492ac14c95e0abde4c2117607fb231bcad8c2735ded',
-    'cdmw/ui/archive_browser/preview_settings.py': '6a7aaf188b45fa07e7eaf029de834df27592dd37f727592ce5588ebea821be33',
+    'cdmw/ui/archive_browser/preview_settings.py': '63518449643dbdbfd2efbfc0dca553e1908ae661ba00b2607774883d2562e13a',
     'cdmw/ui/archive_browser/preview_state.py': '71d0415a0a9a87bc69bc82197fcc50bd5b6ca032fb1e4004cf8ccd6fe8d3df42',
     'cdmw/ui/archive_browser/preview_timing.py': 'c084bdbc6fffdebe8229895ce9d23787b7e3ee7d7f6c4c63b4ae9142cb0c9911',
     'cdmw/ui/archive_browser/preview_zoom.py': '0b463e20b2702585bcde0bd968ff15d416be21b5e044d8a92de169dd1f27d63f',

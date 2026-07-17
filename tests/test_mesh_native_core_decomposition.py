@@ -7,6 +7,7 @@ import subprocess
 import sys
 
 from cdmw.modding import mesh_native_core
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,7 +21,7 @@ OWNER_PATHS = tuple(
 def test_native_mesh_owners_obey_new_size_ceiling() -> None:
     for path in OWNER_PATHS:
         source = path.read_text(encoding="utf-8-sig")
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         for node in ast.walk(ast.parse(source)):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 assert (node.end_lineno or node.lineno) - node.lineno + 1 <= 150, f"{path}:{node.name}"
@@ -28,7 +29,7 @@ def test_native_mesh_owners_obey_new_size_ceiling() -> None:
 
 def test_native_mesh_facade_is_materially_smaller_and_directly_reexports_owners() -> None:
     facade_path = ROOT / "cdmw/modding/mesh_native_core.py"
-    assert len(facade_path.read_text(encoding="utf-8-sig").splitlines()) <= 800
+    assert len(facade_path.read_text(encoding="utf-8-sig").splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT
 
     owners = [
         (

@@ -14,6 +14,7 @@ from cdmw.ui.mesh_editor.tab_native_preview import MeshEditorNativePreviewMixin
 from cdmw.ui.mesh_editor.tab_reports import MeshEditorReportsMixin
 from cdmw.ui.mesh_editor.tab_session_runtime import MeshEditorSessionMixin
 from cdmw.ui.mesh_editor.tab_shell import MeshEditorTabShellMixin
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +41,7 @@ def test_mesh_editor_tab_owners_obey_size_caps() -> None:
     for path in sorted(owner_root.glob("tab_*.py")):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         sizes = (
             int(node.end_lineno or node.lineno) - node.lineno + 1
             for node in ast.walk(tree)

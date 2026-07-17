@@ -19,7 +19,8 @@ not mutate game archives directly.
 - `cdmw/core/prefab_corpus.py`: stable compatibility facade. Probe values,
   descriptor/offset metrics, sample audit, loose/archive loading, report
   stages, normalized output, merge, and JSON publication live in focused
-  `prefab_corpus_*.py` owners capped at 800 lines and 150 lines per function.
+  `prefab_corpus_*.py` owners use the shared 1,000-line default ceiling and the
+  150-line function ceiling.
 - `cdmw/ui/archive_browser/prefab_json_actions.py`: Archive Browser export/import
   actions and loose output handoff.
 - `cdmw/ui/archive_browser/binary_sidecar_actions.py`: diagnostic Decode JSON

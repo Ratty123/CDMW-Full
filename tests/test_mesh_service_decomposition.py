@@ -10,6 +10,7 @@ import cdmw.services.mesh_service as facade
 from cdmw.services import mesh_service_history, mesh_service_kernel, mesh_service_payloads, mesh_service_reports
 from cdmw.services.mesh_service_rebuild import MeshRebuildServiceMixin
 from cdmw.services.mesh_service_rigging import MeshRiggingServiceMixin
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,7 +41,7 @@ class MeshServiceDecompositionTests(unittest.TestCase):
     def test_new_owners_and_service_class_obey_size_ceiling(self) -> None:
         for path in OWNER_PATHS:
             source = path.read_text(encoding="utf-8-sig")
-            self.assertLessEqual(len(source.splitlines()), 800, path)
+            self.assertLessEqual(len(source.splitlines()), DEFAULT_OWNER_FILE_LINE_LIMIT, path)
             tree = ast.parse(source)
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -48,7 +49,10 @@ class MeshServiceDecompositionTests(unittest.TestCase):
         facade_source = (ROOT / "cdmw/services/mesh_service.py").read_text(encoding="utf-8-sig")
         facade_tree = ast.parse(facade_source)
         service = next(node for node in facade_tree.body if isinstance(node, ast.ClassDef) and node.name == "MeshService")
-        self.assertLessEqual((service.end_lineno or service.lineno) - service.lineno + 1, 800)
+        self.assertLessEqual(
+            (service.end_lineno or service.lineno) - service.lineno + 1,
+            DEFAULT_OWNER_FILE_LINE_LIMIT,
+        )
         self.assertLess(len(facade_source.splitlines()), 2_600)
 
     def test_owner_first_and_facade_first_imports_keep_identity(self) -> None:

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 import re
 
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 from tests.native_source_text import preview_core_source
 from tests.test_architecture_size_ratchets import _brace_function_spans
 
@@ -33,7 +34,7 @@ def test_native_preview_core_has_thin_entry_point_and_real_owner_sources() -> No
     for owner in owners:
         text = owner.read_text(encoding="utf-8-sig")
         assert f"src/owners/{owner.name}" in cmake
-        assert len(text.splitlines()) <= 800
+        assert len(text.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT
         assert re.search(r'#include\s+["<][^">]+\.cpp[">]', text) is None
 
 

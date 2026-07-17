@@ -6,6 +6,7 @@ from pathlib import Path
 
 from cdmw.ui.archive_browser import static_replacement_dialog_mesh_edit_callbacks as facade
 from cdmw.ui.archive_browser import static_replacement_mesh_edit_builder as builder
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -160,7 +161,7 @@ def test_mesh_edit_owners_are_bounded_static_python() -> None:
         path = ROOT / relative_path
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        assert len(source.splitlines()) <= 800, relative_path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, relative_path
         assert "exec(" not in source
         assert "compile(" not in source
         for node in ast.walk(tree):

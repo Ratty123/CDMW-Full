@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 from tests.test_architecture_size_ratchets import _brace_function_spans
 
 
@@ -38,7 +39,7 @@ def test_cd_hkx_owner_files_and_functions_stay_bounded() -> None:
     assert len(owners) >= 30
     for owner in owners:
         source = owner.read_text(encoding="utf-8")
-        assert len(source.splitlines()) <= 800, owner
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, owner
         assert "include!(" not in source, owner
         for key, span in _brace_function_spans(owner).items():
             assert span <= 150, f"{key}: {span} lines"

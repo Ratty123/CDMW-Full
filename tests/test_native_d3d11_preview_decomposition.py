@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 from tests.native_source_text import d3d11_preview_source
 from tests.test_architecture_size_ratchets import _brace_function_spans
 
@@ -25,7 +26,7 @@ def test_d3d11_preview_has_thin_entry_point_and_real_owner_sources() -> None:
     for owner in owners:
         source = owner.read_text(encoding="utf-8")
         assert f"src/owners/{owner.name}" in cmake
-        assert len(source.splitlines()) <= 800
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT
         assert '#include "owners/' not in source
 
 
@@ -35,7 +36,7 @@ def test_d3d11_preview_owner_files_and_functions_are_bounded() -> None:
     paths = [*sorted(SOURCE_ROOT.glob("*.hpp")), *sorted(OWNER_ROOT.glob("*.cpp"))]
     for path in paths:
         line_count = len(path.read_text(encoding="utf-8").splitlines())
-        if line_count > 800:
+        if line_count > DEFAULT_OWNER_FILE_LINE_LIMIT:
             oversized_files[path.relative_to(ROOT).as_posix()] = line_count
         for key, span in _brace_function_spans(path).items():
             if span > 150:

@@ -48,23 +48,24 @@ behind compatibility wrappers.
   geometry, topology, interchange, report, preview, session, history, and
   service owners under `src/owners/`. CMake's named unity group preserves their
   shared private state and deterministic dependency order without source-level
-  `.cpp` includes; every owner is capped at 800 lines and every real function at
-  150 lines.
+  `.cpp` includes; every owner uses the 1,000-line default ceiling and every real
+  function is capped at 150 lines.
 - `native/cdmw_preview_core/`: native archive preview/package, name-index, and
   mesh-rebuild executable. Its five-line entry delegates to ordered protocol,
   archive decode/index, PAC/static geometry, material resolution/selection,
   package/cache payload, report, rebuild, name-index, and command owners under
   `src/owners/`. A named CMake unity group preserves the legacy private-type
   dependency order without source-level `.cpp` includes. Owners/functions are
-  capped at 800/150 lines; executable names, commands, package schema, report
+  capped at 1,000/150 lines; executable names, commands, package schema, report
   fields, texture provenance, and no-fallback behavior remain compatible.
 - `native/cdmw_d3d11_preview/`: isolated legacy compatibility/protocol preview
   host. It is not the canonical user-facing Mesh Editor renderer. Its thin entry
   delegates to ordered protocol, package/material, renderer lifecycle/resource,
   draw, picking, interaction, sparse-update, command, cloth, and app owners.
   CMake's named unity group retains private translation-unit ordering without
-  source-level `.cpp` includes. Owner/header and function ceilings are 800 and
+  source-level `.cpp` includes. Owner/header and function ceilings are 1,000 and
   150 lines respectively; the wire protocol and executable name remain stable.
+
 - `tools/dotnet_mesh_editor_experiment/`: production embedded Mesh Editor
   presentation and input host. Its required renderer backend is the
   .NET/Vortice D3D11 path `d3d11_vortice_shader`; WPF/GDI rendering is available
@@ -85,6 +86,13 @@ behind compatibility wrappers.
   material combiner from `MeshDotNetExperimentPackageWorker`. Generated preview base and
   support maps are packaged with their raw source diagnostics; lightweight
   resident material-state snapshots never run image synthesis or package I/O.
+
+Focused owner source files use a shared 1,000-line default ceiling. Smaller
+feature-specific caps remain valid. A cohesive, static-data, or generated owner
+may exceed the default only through an explicit per-file exception in its owning
+architecture guard; existing larger files remain under the repository-wide
+non-growth ratchet until reduced. The default real-function ceiling remains 150
+lines.
 
 ## Layer Rules
 
@@ -125,8 +133,8 @@ The static-replacement callback-factory and UI-section import paths are thin
 compatibility facades over ordered
 `static_replacement_dialog_{callbacks,sections}_*_part_*.py` owners. Facade
 globals pass explicitly into the state builders so existing patch seams and
-signal construction order remain stable; new owners stay below 800 lines and
-150 lines per function. The mesh-edit factory has its own bounded
+signal construction order remain stable; new owners stay within the 1,000-line
+default and 150 lines per function. The mesh-edit factory has its own bounded
 `static_replacement_mesh_edit_*.py` state, session, action, history, live
 preview, stroke, payload, topology, and selection owners; one registry reuses
 the same callback objects for the ordered public namespace and Qt wiring.
@@ -175,8 +183,8 @@ in `hkx_native.py`.
 The optional `native/cd_hkx` Rust backend keeps `src/lib.rs` as a thin public
 facade over bounded parsing, fixup, layout, schema/evidence, graph/readiness,
 editing, lossless no-edit writer, and JSON owners. These are normal Rust
-modules, not source-level includes; focused architecture tests cap every owner
-at 800 lines and every owner function at 150 lines.
+modules, not source-level includes; focused architecture tests apply the
+1,000-line default to every owner and cap every owner function at 150 lines.
 
 The Archive Browser HKX editor keeps `ArchiveHkxEditorDialogMixin` and
 `_open_archive_hkx_editor_dialog` in `hkx_editor_dialog.py`. The thin facade
@@ -184,7 +192,8 @@ passes current module globals into one runtime context so existing monkeypatch
 seams remain live; registry-ordered shell, placement, preview, workspace,
 physics, catalog, collision, and wiring owners build the dialog and create each
 Qt callback once. Owner-source guards read those real modules in registry order.
-Every owner is capped at 800 lines and every function at 150 lines.
+Every owner uses the 1,000-line default ceiling and every function is capped at
+150 lines.
 
 `cdmw/core/prefab_json.py` and `cdmw/core/prefab_corpus.py` remain direct-export
 compatibility facades. Editable-document construction, validation, and apply
@@ -215,8 +224,8 @@ focused native client/dispatch, binary payload, session/state/history, snapshot,
 selection, preview, transform, morph/rigging/brush, topology, normals/UV, and
 report owners. Facade and owner imports retain object identity in either order;
 owner calls resolve the facade's established monkeypatch seams at execution
-time. Every focused owner is capped at 800 lines and every function at 150
-lines. Native command names, JSON/binary descriptors, edit revisions, history
+time. Every focused owner uses the 1,000-line default ceiling and every function
+is capped at 150 lines. Native command names, JSON/binary descriptors, edit revisions, history
 limits, delta acknowledgement, and temporary-file cleanup remain wire-compatible.
 Dependency-light binary discovery lives in `mesh_native_availability.py`, so UI
 capability checks do not import the edit kernels before a mesh operation needs them.
@@ -261,8 +270,8 @@ publication through owned workers; notes publish by atomic replacement.
 state, payload construction, report normalization, history, edit kernels,
 rigging, and rebuild behavior live in the focused `mesh_service_*.py` owners;
 the facade composes the history, rigging, and rebuild mixins and reexports the
-original helper objects for import compatibility. New owners stay below 800
-lines and 150 lines per function.
+original helper objects for import compatibility. New owners stay within the
+1,000-line default ceiling and 150 lines per function.
 Resident export snapshots pin session ID, mesh revision, material generation,
 texture revisions, and exact source hash/size before worker export. Final
 GLB/OBJ/DDS/sidecar/draw/rig/reference readback must match that snapshot.

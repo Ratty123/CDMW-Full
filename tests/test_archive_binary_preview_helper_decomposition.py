@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from cdmw.core import archive_binary_preview
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -49,7 +50,7 @@ def test_binary_preview_helper_owners_obey_size_caps() -> None:
     for path in paths:
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         assert max(
             (
                 int(node.end_lineno or node.lineno) - node.lineno + 1

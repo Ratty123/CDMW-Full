@@ -16,6 +16,7 @@ from cdmw.ui.archive_browser import static_replacement_dialog_remaining_callback
 from cdmw.ui.archive_browser import static_replacement_dialog_routing_callbacks as routing_callbacks
 from cdmw.ui.archive_browser import static_replacement_dialog_source_part_mutation_callbacks as source_part_mutation_callbacks
 from cdmw.ui.archive_browser import static_replacement_dialog_texture_callbacks as texture_callbacks
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -236,7 +237,7 @@ def _owner_paths() -> tuple[Path, ...]:
 def test_static_replacement_factory_owners_are_bounded() -> None:
     for path in _owner_paths():
         source = path.read_text(encoding="utf-8")
-        assert len(source.splitlines()) <= 800, path.name
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path.name
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -505,7 +506,7 @@ def test_moved_callback_facades_and_owners_are_bounded() -> None:
     }
     for path in facade_paths:
         source = path.read_text(encoding="utf-8")
-        assert len(source.splitlines()) <= 800, path.name
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path.name
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):

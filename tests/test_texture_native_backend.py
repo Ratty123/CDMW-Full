@@ -9,6 +9,7 @@ from unittest.mock import patch
 from cdmw.core import texture_native
 from cdmw.core.dds_native import dds_native_report_dict, inspect_dds_native, inspect_dds_native_path
 from cdmw.models import RunCancelled
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 from tests.native_source_text import texture_dx_source
 
 _MINIMAL_PNG = base64.b64decode(
@@ -131,7 +132,7 @@ class NativeTextureBackendTests(unittest.TestCase):
         for relative in ("src/main.cpp", *expected_sources):
             source = (root / relative).read_text(encoding="utf-8")
             with self.subTest(relative=relative):
-                self.assertLessEqual(len(source.splitlines()), 800)
+                self.assertLessEqual(len(source.splitlines()), DEFAULT_OWNER_FILE_LINE_LIMIT)
                 self.assertNotRegex(source, r'#include\s*["<][^">]+\.cpp[">]')
 
         main = (root / "src/main.cpp").read_text(encoding="utf-8")

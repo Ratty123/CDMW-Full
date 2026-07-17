@@ -10,8 +10,8 @@ fallback.
 geometry, material, package, report, rebuild, index, and command owners live in
 `src/owners/`. CMake compiles those owners in one named unity group because the
 legacy implementation has translation-unit-private types and helpers. There
-are no source-level `.cpp` includes; each owner is capped at 800 lines and each
-real function at 150 lines.
+are no source-level `.cpp` includes; each owner uses the shared 1,000-line
+default ceiling, and each real function stays at or below 150 lines.
 
 ## Build
 

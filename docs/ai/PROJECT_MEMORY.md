@@ -167,9 +167,10 @@ Last updated: 2026-07-17
   preserves public lookup and owns Qt palette/stylesheet generation.
 - Research UI imports dependency-free `cdmw/domain/research/` contracts/rules
   and the composed `ResearchService`; `cdmw.core.research` is compatibility-only.
-- Split cohesive hotspots behind unchanged facades. New owner modules are at
-  most 800 lines and functions at most 150 lines unless static/generated data;
-  ratchets may only lower grandfathered maxima.
+- Split cohesive hotspots behind unchanged facades. New owner modules use a
+  1,000-line default and functions stay at most 150 lines. Valid cohesive,
+  static-data, or generated exceptions must be explicit in the owning guard;
+  grandfathered oversize ratchets may only stay level or decrease.
 - `MainWindow` has one direct base (`QMainWindow`) and owns shell, archive,
   texture, mesh, and activation controllers. Legacy provider methods are bound
   through stable compatibility descriptors; never add another window base.

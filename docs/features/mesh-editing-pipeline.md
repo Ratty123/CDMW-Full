@@ -35,14 +35,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
     reports, preview, resident session state, selection, history, apply stages,
     snapshots, command dispatch, and service I/O. CMake composes these normal
     sources through one named unity group; no owner source includes another.
-    `tests/test_native_mesh_core_decomposition.py` enforces the 800-line file and
-    150-line real-function ceilings.
+    `tests/test_native_mesh_core_decomposition.py` enforces the 1,000-line
+    default file and 150-line real-function ceilings.
   - `native/cdmw_d3d11_preview/src/main.cpp` is likewise a thin host entry.
     Ordered CMake unity owners under `src/owners/` retain the existing package,
     renderer, picking, interaction, sparse-update, command, and status protocols
     without source-level owner includes. `tests/native_source_text.py` provides
     the ordered aggregate used by legacy source guards, while
-    `tests/test_native_d3d11_preview_decomposition.py` enforces the same 800/150
+    `tests/test_native_d3d11_preview_decomposition.py` enforces the same 1,000/150
     ceilings.
 - Import/export formats:
   - GLB editable packages are handled by

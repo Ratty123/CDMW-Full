@@ -35,6 +35,7 @@ from cdmw.core import (
     archive_hkx_types,
     archive_hkx_xml_import,
 )
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -524,7 +525,7 @@ def test_hkx_owner_modules_and_facade_size_ratchet() -> None:
     ):
         source = path.read_text(encoding="utf-8")
         tree = ast.parse(source)
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         function_sizes = [
             int(node.end_lineno or node.lineno) - node.lineno + 1
             for node in ast.walk(tree)

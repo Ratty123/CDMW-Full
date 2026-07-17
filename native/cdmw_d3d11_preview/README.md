@@ -31,7 +31,8 @@ renderer lifecycle, resources, drawing, picking, interaction, sparse mesh
 updates, command dispatch, cloth, and application hosting live in normal
 `src/owners/*.cpp` sources. CMake composes those owners through one named unity
 group in dependency order. Owners do not include one another. The decomposition
-gate limits every owner/header to 800 lines and each real function to 150 lines.
+gate applies the shared 1,000-line default to every owner/header and limits each
+real function to 150 lines.
 
 Focused validation:
 

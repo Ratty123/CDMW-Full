@@ -23,6 +23,7 @@ from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBindin
 from cdmw.core.archive_model_texture_reporting import build_archive_model_texture_references
 from cdmw.core.archive_model_texture_support_attach import _attach_model_support_texture_preview_paths
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh, RunCancelled
+from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -104,7 +105,7 @@ def test_preview_owners_are_bounded_and_have_no_wildcard_imports() -> None:
     assert paths
     for path in paths:
         source = path.read_text(encoding="utf-8-sig")
-        assert len(source.splitlines()) <= 800, path
+        assert len(source.splitlines()) <= DEFAULT_OWNER_FILE_LINE_LIMIT, path
         tree = ast.parse(source)
         for node in ast.walk(tree):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
