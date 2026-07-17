@@ -90,6 +90,9 @@ def test_dotnet_renderer_contract_matches_the_python_view_menu() -> None:
     soak_source = (DOTNET_ROOT / "HeadlessGpuSparseSoak.cs").read_text(encoding="utf-8")
     assert "foreach (var mode in DotNetPreviewViewModes.Supported)" in proof_source
     assert "viewport.TryRunHeadlessFrame" in proof_source
+    assert "viewport.TryCaptureReplacementPng" in proof_source
+    assert "outputHashes.Add(sha256)" in proof_source
+    assert '["all_non_lit_outputs_change_from_lit"]' in proof_source
     assert 'gates["resident_dotnet_view_modes_rendered"]' in soak_source
     assert 'report["dotnet_view_mode_proof"]' in soak_source
 
