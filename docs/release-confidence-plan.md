@@ -50,6 +50,28 @@ keeps core user workflows working behind stable facades.
 
 2026-07-17:
 
+- A fifth hidden material-first audit added 120 real PACs while excluding all
+  317 paths in the prior evidence ledger. Its 40 weapons (16 swords and eight
+  shields), 52 armor items (20 helmets), eight body/head controls, ten
+  hair/beard controls, and 12 unusual assets produced 720 paired views. Every
+  image was inspected after classifying the visible material and the ledger
+  finalized at 120 PASS / 0 CONCERN / 0 FAIL with zero unreviewed. Evidence:
+  `workspace/mesh-editor-visual-audit/20260717-fifth-material-classification-120`.
+- Run `875c065c8a9b4005849f125621272d9b` parsed 428 submeshes,
+  878,512 vertices, and 1,043,787 faces. Cloth, leather, fur, hair, skin, bone,
+  feather, organic shell, and stone controls remained matte; response on mixed
+  items stayed localized to visible plate and hardware. A pale mask that looked
+  superficially like ivory was checked against its extracted source contract
+  and correctly retained its dominant authored metal response.
+- Archive Browser and production `d3d11_vortice_shader` capture batches,
+  rendered-camera integrity, and all before/after PAMT/PAZ fingerprints passed.
+  One resident device/viewport captured all 120 scenes with no reset or restart.
+  Focused audit/material validation passed 121 tests; .NET Release built with
+  zero warnings/errors; material-resource policy returned `ok: true`; and
+  `mesh-unit` passed 902 tests with 1 skip. The full-scale hidden GPU soak passed
+  at `0.2111 ms` handler p95 and `59.9553` updates/s. The 30-second 144 Hz proof
+  captured 4,316 frames at `143.865` FPS with `7.3750 ms` p95 and zero resets.
+  Visible/licensed real-game proof was not run or claimed.
 - A fourth hidden material-classification audit added 120 real PACs with no
   overlap against the previous 197 unique paths: 40 weapons (16 swords and
   eight shields), 52 armor items (20 helmets), eight body/head controls, ten

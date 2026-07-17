@@ -11,6 +11,13 @@ authorized.
 
 ## Current verdict
 
+- A fifth material-first audit adds another 120 real PACs while excluding all
+  317 paths in the prior evidence ledger. All 720 paired views were directly
+  inspected and finalized at 120 PASS, 0 CONCERN, and 0 FAIL with zero
+  unreviewed assets. It found no new shared renderer defect across swords,
+  shields, other weapons, helmets, upper/lower armor, boots, gloves, cloaks,
+  vests, hair/beard, skin, bone, fur, crystal, organic shell, and unusual mixed
+  creatures.
 - The fourth material-classification audit adds 120 real PACs that do not
   overlap the previous 197 unique paths. Every one of the 720 paired views was
   inspected only after classifying the visible material, including mixed
@@ -101,6 +108,36 @@ authorized.
   projection for the capture dimensions.
 
 ## Current evidence
+
+### Fifth 120-PAC material-first expansion
+
+Manifest:
+`tools/mesh_harness/visual_audit_followup_fifth_120.manifest.json`
+
+Evidence:
+`workspace/mesh-editor-visual-audit/20260717-fifth-material-classification-120`
+
+- Run `875c065c8a9b4005849f125621272d9b` finalized at 120 PASS,
+  0 CONCERN, and 0 FAIL with zero unreviewed. The manifest contains 120 unique
+  PACs and excludes 317 previously reviewed paths: 40 weapons, including
+  16 swords and eight shields; 52 armor items, including 20 helmets; eight
+  body/head controls; ten hair/beard controls; and 12 unusual assets.
+- Geometry preflight parsed 120/120 non-empty meshes with 428 submeshes,
+  878,512 vertices, and 1,043,787 faces. Archive Browser and the production
+  `d3d11_vortice_shader` each captured six paired angles per PAC while one
+  process/device/viewport remained resident. All 720 comparisons, all contact
+  sheets, and all material classifications were directly reviewed.
+- The review deliberately treated inventory placement as non-authoritative.
+  Cloth trousers, leather boots and guards, fur cloaks, hair, skin, bone,
+  feathers, organic shells, and stone-like creatures stayed matte. Mixed armor
+  kept response localized to visible plate/rivet regions. Pale mask 091 was
+  visually ambiguous enough to inspect its extracted contract; the source
+  identifies it as armor metal with about 92% decoded metal coverage, so its
+  polished highlight is intentional rather than a soft-material error.
+- Both capture batches and rendered-camera integrity passed. The resident
+  session loaded 120 scenes with one viewport/device initialization, no reset
+  or process restart, 720 MSAA-resolved offscreen captures, and no DDS upload
+  fallback. Every referenced PAMT/PAZ fingerprint remained byte-identical.
 
 ### Fourth 120-PAC material-classification proof
 
@@ -353,18 +390,22 @@ global x-ray behavior or texture downscaling.
 ## Validation state
 
 - The current focused material/package/audit/capture suite passed 121 tests.
-  This includes `_sp` decoding, dominant-versus-localized armor metal,
+  This includes the fifth non-overlapping 120-PAC manifest, `_sp` decoding,
+  dominant-versus-localized armor metal,
   inferred sparse-alpha fallback, required material classification, manifest
   coverage, capture-camera basis preservation, and audit integrity.
 - Fresh .NET Release build succeeded with 0 warnings and 0 errors, and the
   material-resource-policy report passed schema/runtime eligibility.
 - Fresh full-scale hidden Vortice soak passed at 1,000,000 vertices and 1,000
-  updates: release eligible, `0.2001 ms` handler p95, `59.9617` updates/s,
-  all textured-metal readability gates true, and zero restarts/resets.
-- Fresh hidden 30-second 144 Hz frame-pacing proof captured 4,317 frames at
-  `143.85` effective FPS with `7.1480 ms` p95, `7.2613 ms` p99, no frame over
+  updates: release eligible, `0.2111 ms` handler p95, `59.9553` updates/s,
+  all textured-metal readability gates true, hidden windows, and no capture
+  device reset.
+- Fresh hidden 30-second 144 Hz frame-pacing proof captured 4,316 frames at
+  `143.865` effective FPS with `7.3750 ms` p95, `7.5837 ms` p99, no frame over
   `20.83 ms`, and zero restarts/resets.
-- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 901 passed, 1 skipped.
+- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 902 passed, 1 skipped.
+- The fifth 120-PAC ledger is 120/0/0 with every image reviewed and every row
+  explicitly material-classified.
 - The fourth 120-PAC original/repaired ledgers are 99/4/17 and 119/1/0.
 - The finalized expanded baseline is 136 PASS, 24 CONCERN, 2 FAIL across 162
   PACs. Post-fix alpha proof is 6/2/0, and the fresh 50-PAC cross-category proof
@@ -377,10 +418,11 @@ global x-ray behavior or texture downscaling.
 ## Durable continuation point
 
 This audit pass is complete. Future texture/material-parity work should start
-from the finalized repaired 120-PAC root, with the finalized 50-PAC post-fix
-root and the two 162-PAC discovery roots as prior coverage. Use the older
-15-PAC metallic root only as historical pre-expansion proof, and do not use
-mirrored or capture-resized-with-a-recreated-basis camera evidence.
+from the finalized fifth 120-PAC material-first root and the finalized repaired
+fourth 120-PAC root, with the finalized 50-PAC post-fix root and the two
+162-PAC discovery roots as prior coverage. Use the older 15-PAC metallic root
+only as historical pre-expansion proof, and do not use mirrored or
+capture-resized-with-a-recreated-basis camera evidence.
 
 Highest-value remaining work:
 

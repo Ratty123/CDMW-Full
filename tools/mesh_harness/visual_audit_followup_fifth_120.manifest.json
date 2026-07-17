@@ -1,0 +1,1711 @@
+{
+  "schema": "cdmw_mesh_visual_audit_selection_v1",
+  "name": "fifth-120-additional-material-classification-variants",
+  "minimum_asset_count": 120,
+  "required_coverage": {
+    "weapon": 40,
+    "sword": 16,
+    "armor": 52,
+    "helmet": 20,
+    "body": 8,
+    "hair": 10,
+    "unusual": 12
+  },
+  "excluded_virtual_paths": [
+    "character/model/1_pc/10_pgw/head/head_sub/cd_pgw_00_head_sub_00_0003.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_0001.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_00_4001.pac",
+    "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_10_0001.pac",
+    "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_m0001_00_lb_0010.pac",
+    "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_0011.pac",
+    "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_01_lb_00_0370.pac",
+    "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_02_lb_0123.pac",
+    "character/model/1_pc/14_ptm/armor/12_foot/cd_ptm_00_m0001_00_foot_0001.pac",
+    "character/model/1_pc/14_ptm/armor/12_foot/cd_ptm_02_foot_0042.pac",
+    "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_00_hel_0001.pac",
+    "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0027.pac",
+    "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_02_hel_0119.pac",
+    "character/model/1_pc/14_ptm/armor/19_cloak/cd_ptm_01_cloak_0052.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_00_m0001_00_ub_belt_0001.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0001.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0003.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0010.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0048.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0050.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0083.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0158.pac",
+    "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_07_ub_00_0319.pac",
+    "character/model/1_pc/14_ptm/head/hair/cd_ptm_00_hair_00_0003.pac",
+    "character/model/1_pc/14_ptm/head/hair/cd_ptm_01_hair_00_0024.pac",
+    "character/model/1_pc/14_ptm/head/head/cd_ptm_00_head_0001.pac",
+    "character/model/1_pc/14_ptm/head/head/cd_ptm_00_head_0003.pac",
+    "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac",
+    "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_01_0001.pac",
+    "character/model/1_pc/19_ppdm/nude/cd_ppdm_00_nude_00_0001.pac",
+    "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_0002.pac",
+    "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_00_lb_0150.pac",
+    "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_m0001_00_gears_lb_0001.pac",
+    "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_m0001_00_titan_lb_0002.pac",
+    "character/model/1_pc/1_phm/armor/11_hand/cd_phm_00_hand_0001.pac",
+    "character/model/1_pc/1_phm/armor/11_hand/cd_phm_14_hand_belt_0022.pac",
+    "character/model/1_pc/1_phm/armor/12_foot/cd_phm_00_foot_0001.pac",
+    "character/model/1_pc/1_phm/armor/12_foot/cd_phm_00_foot_00_0437.pac",
+    "character/model/1_pc/1_phm/armor/12_foot/fs_phm_00_foot_0005.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0001.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0061.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0122.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0193.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0202.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0253.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_02_hel_0002.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/cd_phm_02_hel_0068.pac",
+    "character/model/1_pc/1_phm/armor/13_hel/fs_phm_00_hel_0005.pac",
+    "character/model/1_pc/1_phm/armor/14_sho/cd_phm_00_sho_0215.pac",
+    "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0002.pac",
+    "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0047.pac",
+    "character/model/1_pc/1_phm/armor/16_jacket/cd_phm_00_jacket_0054_03.pac",
+    "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0002.pac",
+    "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_0009.pac",
+    "character/model/1_pc/1_phm/armor/19_cloak/cd_phm_00_cloak_00_0447.pac",
+    "character/model/1_pc/1_phm/armor/20_mask/cd_phm_00_mask_0207.pac",
+    "character/model/1_pc/1_phm/armor/20_mask/cd_phm_00_mask_0271.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0001.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0002.pac",
+    "character/model/1_pc/1_phm/armor/40_glasses/cd_phm_00_glasses_00_0003.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0001.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0002.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0004.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0021.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0050.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0054.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0083.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_00_0039.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0110.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0122.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0165.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_02_ub_0028.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_artis_ub_0001.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_bliss_redknight_ub_0001.pac",
+    "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_m0001_00_ub_0038.pac",
+    "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0002.pac",
+    "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0104.pac",
+    "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_00_0105.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0000.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0001.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0002.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0023.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0036.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0502.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_uptail_00_0025.pac",
+    "character/model/1_pc/1_phm/head/hair/cd_phm_02_hair_00_0505.pac",
+    "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0001.pac",
+    "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0207.pac",
+    "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0414.pac",
+    "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_4203.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_00_0215_tear.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_sub_00_0001.pac",
+    "character/model/1_pc/1_phm/head/head_sub/cd_phm_00_head_sub_00_0005.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_4001.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_4001_hand_hair.pac",
+    "character/model/1_pc/1_phm/nude/cd_phm_00_nude_10_0001.pac",
+    "character/model/1_pc/1_phm/weapon/10_thrownweapon/cd_phm_10_bomb_0009.pac",
+    "character/model/1_pc/1_phm/weapon/12_pike/cd_phm_12_pike_0034.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_axe_0001.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_axe_0039.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_axe_0100.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_dagger_0004.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_dagger_0172.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_flail_0005.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_mace_0001.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_mace_0214.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0001.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0002.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0005.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0011.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0015.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0031.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0036.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0046.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0053.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0059.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0067.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0070.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0078.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0102.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0110.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0166.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0283.pac",
+    "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_whip_0001.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_axe_0012.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_axe_0017.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_axe_0056.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_cannon_0005.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_flail_0004.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_rod_0007.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_spear_0001.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_spear_0120.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0001.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0006.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0011.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0012.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0014.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0020.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0024.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0029.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0034.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0036.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0037.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0039.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0114.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_warhammer_0001.pac",
+    "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_warhammer_0109.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0002.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0007.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0071.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0097.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0125.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_kiteshield_0126.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0003.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0056.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0090.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0100.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0101.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0110.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0119.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0122.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0132.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0133.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0136.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0142.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0005.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0006.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0011.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0104.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0119.pac",
+    "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_towershield_0122.pac",
+    "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0003.pac",
+    "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0012.pac",
+    "character/model/1_pc/1_phm/weapon/5_crossbow/cd_phm_05_crossbow_0004.pac",
+    "character/model/1_pc/1_phm/weapon/6_pistol/cd_phm_06_pst_0052.pac",
+    "character/model/1_pc/1_phm/weapon/7_shotgun/cd_phm_07_shotgun_0054.pac",
+    "character/model/1_pc/1_phm/weapon/8_musket/cd_phm_08_musket_0001.pac",
+    "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_0005.pac",
+    "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_00_0148.pac",
+    "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_m0001_00_titan_lb_0002.pac",
+    "character/model/1_pc/2_phw/armor/11_hand/cd_phw_01_hand_0165.pac",
+    "character/model/1_pc/2_phw/armor/12_foot/cd_phw_00_foot_0003.pac",
+    "character/model/1_pc/2_phw/armor/12_foot/cd_phw_00_foot_00_0166.pac",
+    "character/model/1_pc/2_phw/armor/12_foot/fs_phw_00_foot_0001.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_nhw_00_hel_0010.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0031.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0076.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0097_04.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_0119.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_0041.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_0107.pac",
+    "character/model/1_pc/2_phw/armor/13_hel/fs_phw_00_hel_0001.pac",
+    "character/model/1_pc/2_phw/armor/15_vest/cd_phw_01_vest_0266.pac",
+    "character/model/1_pc/2_phw/armor/19_cloak/cd_phw_00_cloak_0114.pac",
+    "character/model/1_pc/2_phw/armor/19_cloak/cd_phw_14_cloak_0022.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_0002.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_0055.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_0066.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0151.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0163.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0181.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_01_ub_0041.pac",
+    "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_m0001_00_titan_ub_0002.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0001.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0007.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0008.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0010_01.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0016.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0512.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_base_00_0001.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_01_hair_00_0505.pac",
+    "character/model/1_pc/2_phw/head/hair/cd_phw_01_hair_uptail_00_0005.pac",
+    "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0001.pac",
+    "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0005_tear.pac",
+    "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_0207.pac",
+    "character/model/1_pc/2_phw/head/head/cd_phw_00_head_00_4004.pac",
+    "character/model/1_pc/2_phw/head/head_sub/cd_phw_00_head_sub_00_0006.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0001.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_0002.pac",
+    "character/model/1_pc/2_phw/nude/cd_phw_00_nude_00_4001.pac",
+    "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_sword_0008.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0135.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0136.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0139.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0141.pac",
+    "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0142.pac",
+    "character/model/1_pc/5_pom/armor/13_hel/cd_pom_01_hel_0021.pac",
+    "character/model/1_pc/5_pom/armor/9_upperbody/cd_pom_m0001_00_greenorc_ub_0007.pac",
+    "character/model/1_pc/5_pom/head/head_sub/cd_pom_00_head_sub_00_0001.pac",
+    "character/model/1_pc/5_pom/nude/cd_pom_00_nude_00_0001.pac",
+    "character/model/1_pc/6_pow/nude/cd_pow_00_nude_00_0001.pac",
+    "character/model/1_pc/7_pdm/armor/13_hel/cd_pdm_00_hel_0029.pac",
+    "character/model/1_pc/7_pdm/armor/18_acc/cd_pdm_01_bag_0041.pac",
+    "character/model/1_pc/7_pdm/armor/40_glasses/cd_pdm_01_glasses_00_0001.pac",
+    "character/model/1_pc/7_pdm/nude/cd_pdm_00_nude_00_0001.pac",
+    "character/model/1_pc/8_pdw/nude/cd_pdw_00_nude_00_0001.pac",
+    "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_00_hel_0033.pac",
+    "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_01_hel_0083.pac",
+    "character/model/1_pc/9_pgm/armor/19_cloak/cd_pgm_00_cloak_00_0001.pac",
+    "character/model/1_pc/9_pgm/armor/40_glasses/cd_pgm_01_glasses_00_0002.pac",
+    "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0003.pac",
+    "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0006.pac",
+    "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0012.pac",
+    "character/model/1_pc/9_pgm/head/head/cd_pgm_00_head_00_0005.pac",
+    "character/model/1_pc/9_pgm/head/head_sub/cd_pgm_00_head_sub_00_0004.pac",
+    "character/model/1_pc/9_pgm/nude/cd_pgm_00_nude_00_0001.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_beastman/cd_m0001_00_beastman_fur_0001.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_circusmachine_boss/cd_m0001_00_circusmachine_boss_00_0001.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_muscan/cd_m0001_00_muscan_fur_0001.pac",
+    "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_steelrobot/cd_m0001_00_steelrobot_nude_00_0001.pac",
+    "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_dog/cd_m0002_00_wolf/cd_m0002_00_wolf_00_0001_dm03.pac",
+    "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_reindeer/cd_m0002_00_stag/cd_m0002_00_stag_00_0001.pac",
+    "character/model/2_mon/cd_m0003_00_bird/cd_m0003_00_harpy/cd_m0003_00_harpy_00_0001.pac",
+    "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_dragon/cd_m0004_00_dragon_00_0001.pac",
+    "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_dragon/cd_m0004_00_dragon_ub_00_0003.pac",
+    "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_golemdragon/cd_m0004_00_golemdragon_wing_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_beetle/cd_m0006_00_jewelbeetle_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_bismuthspider/cd_m0006_00_bismuthspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_cropspider/cd_m0006_00_cropspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_glass_marblespider/cd_m0006_00_glassmarblespider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_glass_marblespider/cd_m0006_00_glassmarblespider_00_0002.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_potspider/cd_m0006_00_potspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_stonelampspider/cd_m0006_00_stonelampspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_glassmarblespider/cd_m0006_00_webspider/cd_m0006_00_webspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_00_0026.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_rock_00_0016.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_machinemosquito/cd_m0006_00_machinebeetle/cd_m0006_00_machinebeetle_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_spider_boss/cd_m0006_00_spider_boss_00_0001.pac",
+    "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_spider_queen/cd_m0006_00_spider_queen_body_00_0001.pac",
+    "character/model/2_mon/cd_m0009_00_fish/cd_m0009_00_bass/cd_m0009_00_giantoctopus/cd_m0009_00_giantoctopus_00_0001.pac",
+    "character/model/2_mon/cd_m0024_00_spidermachine/cd_m0024_00_spidermachine_00_0001.pac",
+    "character/model/2_mon/cd_m0063_00_seraphim/cd_m0063_00_seraphim_0001.pac",
+    "character/model/3_npc/14_ntm/armor_north/9_upperbody/cd_ntm_00_no_ub_00034.pac",
+    "character/model/3_npc/1_nhm/armor_desert/9_upperbody/cd_nhm_00_de_ub_10081.pac",
+    "character/model/3_npc/2_nhw/armor_south/9_upperbody/cd_nhw_00_so_ub_00012.pac",
+    "character/model/3_npc/5_nom/armor_desert/9_upperbody/cd_nom_00_de_ub_00001.pac",
+    "character/model/3_npc/7_ndm/armor_north/9_upperbody/cd_ndm_00_no_ub_10010.pac",
+    "character/model/3_npc/7_ndm/armor_south/9_upperbody/cd_ndm_00_so_ub_00003.pac",
+    "character/model/4_riding/cd_r0002_00_fourfeet/cd_r0002_00_alpineibex/cd_r0002_00_alpineibex_0001.pac",
+    "character/model/4_riding/cd_r0015_00_elephant/cd_r0015_00_elephant_0001.pac",
+    "character/model/4_riding/cd_r0016_00_moth/cd_r0016_00_moth_0001.pac",
+    "character/model/4_riding/cd_r0024_00_airplane/cd_r0024_00_airplane_0001_02.pac",
+    "character/model/4_riding/cd_r0035_00_carmabirdsaurus/cd_r0035_00_carmabirdsaurus_0001.pac",
+    "character/model/4_riding/cd_r0039_00_warrobot/cd_r0039_00_warrobot_lantern_0001.pac",
+    "character/model/4_riding/cd_r0039_00_warrobot/cd_r0039_00_warrobot_ub_0001.pac",
+    "character/model/6_object/object/t0019_sacffold/cd_t0019_scaffold_chain.pac",
+    "character/model/6_object/object/t0081_doorstatue/cd_0081_doorstatue_mirror.pac",
+    "character/model/6_object/object/t0083_reflector/cd_t0083_reflector_0001.pac",
+    "character/model/6_object/object/t0089_lightsource/cd_t0089_lightsource_001.pac",
+    "character/model/6_object/object/t0108_flag/cd_t0108_flag_0001.pac",
+    "character/model/6_object/object/t0108_flag/cd_t0108_flag_0004.pac",
+    "character/model/6_object/object/t0150_sandglass/cd_t0150_sandglass_0001.pac",
+    "character/model/6_object/object/t0194_bushdevill_cloth/cd_t0194_bushdevill_cloth_0001.pac",
+    "character/model/6_object/object/t0215_flowerbutterfly/cd_t0215_flowerbutterfly_0002.pac",
+    "character/model/6_object/object/t0231_gimmickchain/cd_t0231_gimmickchain_05_45m_0001.pac",
+    "character/model/6_object/object/t0254_dropitem/cd_gimmick_item_trade_fur_01.pac",
+    "character/model/6_object/object/t0254_dropitem/cd_gimmick_item_trade_fur_02.pac",
+    "character/model/6_object/object/t0263_harpyfeather/cd_t0263_harpyfeather_0001.pac",
+    "character/model/6_object/object/t0267_aircastlecore/cd_t0267_aircastlecore_0001.pac",
+    "character/model/6_object/object/t0273_seraphim_wing/cd_t0273_seraphim_wing_0002.pac",
+    "character/model/6_object/tools/cd_t0000_battery_0001.pac",
+    "character/model/6_object/tools/cd_t0000_breakbottle_0001.pac",
+    "character/model/6_object/tools/cd_t0000_bushdeerpelt_0001_01.pac",
+    "character/model/6_object/tools/cd_t0000_feather_pen_0001.pac",
+    "character/model/6_object/tools/cd_t0000_lamp_0001.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0001.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0002.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0003.pac",
+    "character/model/6_object/tools/cd_t0000_lantern_0006.pac",
+    "character/model/6_object/tools/cd_t0000_potion_0002.pac",
+    "character/model/6_object/tools/cd_t0000_seed_basket_0001.pac",
+    "character/model/6_object/tools/cd_t0000_stagpelt_0001.pac",
+    "character/model/6_object/tools/cd_t0000_wolfpelt_0001.pac"
+  ],
+  "assets": [
+    {
+      "index": 1,
+      "asset_id": "001-weapon-sword-cd-phm-01-sword-0077",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0077.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 2,
+      "asset_id": "002-weapon-sword-cd-phm-02-sword-0015-in",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0015_in.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 3,
+      "asset_id": "003-weapon-sword-cd-phw-01-sword-0005",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_sword_0005.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 4,
+      "asset_id": "004-weapon-sword-cd-phw-02-sword-0001",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/2_twohandweapon/cd_phw_02_sword_0001.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 5,
+      "asset_id": "005-weapon-sword-cd-phm-01-sword-0081",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0081.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 6,
+      "asset_id": "006-weapon-sword-cd-phm-02-sword-0022",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0022.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 7,
+      "asset_id": "007-weapon-sword-cd-phw-01-sword-0019",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_sword_0019.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 8,
+      "asset_id": "008-weapon-sword-cd-phw-02-sword-0004",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/2_twohandweapon/cd_phw_02_sword_0004.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 9,
+      "asset_id": "009-weapon-sword-cd-phm-01-sword-0010",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0010.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 10,
+      "asset_id": "010-weapon-sword-cd-phm-02-sword-0028",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0028.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 11,
+      "asset_id": "011-weapon-sword-cd-phw-01-sword-0025",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_sword_0025.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 12,
+      "asset_id": "012-weapon-sword-cd-phw-02-sword-0006",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/2_twohandweapon/cd_phw_02_sword_0006.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 13,
+      "asset_id": "013-weapon-sword-cd-phm-01-sword-0045",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0045.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 14,
+      "asset_id": "014-weapon-sword-cd-phm-02-sword-0013",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0013.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 15,
+      "asset_id": "015-weapon-sword-cd-phw-01-sword-0020",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_sword_0020.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 16,
+      "asset_id": "016-weapon-sword-cd-phw-02-sword-0002",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/2_twohandweapon/cd_phw_02_sword_0002.pac",
+      "model_category": "weapon_sword",
+      "coverage_tags": [
+        "weapon",
+        "sword",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass sword selected for direct material-first visual classification; weapon naming is not treated as metal authority."
+    },
+    {
+      "index": 17,
+      "asset_id": "017-weapon-shield-cd-phm-03-shield-0116",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0116.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 18,
+      "asset_id": "018-weapon-shield-cd-phw-03-shield-0137",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0137.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 19,
+      "asset_id": "019-weapon-shield-cd-phm-03-shield-0096",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0096.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 20,
+      "asset_id": "020-weapon-shield-cd-phw-03-shield-0131",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0131.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 21,
+      "asset_id": "021-weapon-shield-cd-phm-03-shield-0121",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0121.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 22,
+      "asset_id": "022-weapon-shield-cd-phw-03-shield-0140",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0140.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 23,
+      "asset_id": "023-weapon-shield-cd-phm-03-shield-0086",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/3_shield/cd_phm_03_shield_0086.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 24,
+      "asset_id": "024-weapon-shield-cd-phw-03-shield-0143",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/3_shield/cd_phw_03_shield_0143.pac",
+      "model_category": "weapon_shield",
+      "coverage_tags": [
+        "weapon",
+        "shield",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass shield selected to distinguish wood, leather, cloth, painted/coated, and metal regions from the pictures."
+    },
+    {
+      "index": 25,
+      "asset_id": "025-weapon-bow-cd-phm-04-bow-0004",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/4_bow/cd_phm_04_bow_0004.pac",
+      "model_category": "weapon_bow",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 26,
+      "asset_id": "026-weapon-crossbow-cd-phm-05-crossbow-0002",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/5_crossbow/cd_phm_05_crossbow_0002.pac",
+      "model_category": "weapon_crossbow",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 27,
+      "asset_id": "027-weapon-pistol-cd-phm-06-pst-0089",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/6_pistol/cd_phm_06_pst_0089.pac",
+      "model_category": "weapon_pistol",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 28,
+      "asset_id": "028-weapon-shotgun-cd-phm-07-shotgun-0005",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/7_shotgun/cd_phm_07_shotgun_0005.pac",
+      "model_category": "weapon_shotgun",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 29,
+      "asset_id": "029-weapon-musket-cd-phm-08-musket-0007",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/8_musket/cd_phm_08_musket_0007.pac",
+      "model_category": "weapon_musket",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 30,
+      "asset_id": "030-weapon-bomb-cd-phm-10-bomb-0006",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/10_thrownweapon/cd_phm_10_bomb_0006.pac",
+      "model_category": "weapon_bomb",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 31,
+      "asset_id": "031-weapon-pike-cd-phm-12-pike-0033",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/12_pike/cd_phm_12_pike_0033.pac",
+      "model_category": "weapon_pike",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 32,
+      "asset_id": "032-weapon-fist-cd-phm-13-fist-0002-r",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/13_fist/cd_phm_13_fist_0002_r.pac",
+      "model_category": "weapon_fist",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 33,
+      "asset_id": "033-weapon-axe-cd-phm-01-axe-0008",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_axe_0008.pac",
+      "model_category": "weapon_axe",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 34,
+      "asset_id": "034-weapon-dagger-cd-phm-01-dagger-0010",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_dagger_0010.pac",
+      "model_category": "weapon_dagger",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 35,
+      "asset_id": "035-weapon-mace-cd-phm-01-mace-0022",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_mace_0022.pac",
+      "model_category": "weapon_mace",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 36,
+      "asset_id": "036-weapon-flail-cd-phm-02-flail-0007",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_flail_0007.pac",
+      "model_category": "weapon_flail",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 37,
+      "asset_id": "037-weapon-spear-cd-phm-02-spear-0044",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_spear_0044.pac",
+      "model_category": "weapon_spear",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 38,
+      "asset_id": "038-weapon-warhammer-cd-phm-02-warhammer-0003",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_warhammer_0003.pac",
+      "model_category": "weapon_warhammer",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 39,
+      "asset_id": "039-weapon-hammer-cd-phm-02-hammer-0002",
+      "virtual_path": "character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_hammer_0002.pac",
+      "model_category": "weapon_hammer",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 40,
+      "asset_id": "040-weapon-gauntlet-cd-phw-01-gauntlet-0009",
+      "virtual_path": "character/model/1_pc/2_phw/weapon/1_onehandweapon/cd_phw_01_gauntlet_0009.pac",
+      "model_category": "weapon_gauntlet",
+      "coverage_tags": [
+        "weapon",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass non-sword weapon selected to broaden wood, leather, cloth, painted/coated, organic, and metal region evidence."
+    },
+    {
+      "index": 41,
+      "asset_id": "041-armor-helmet-cd-ptm-01-hel-0002",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0002.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 42,
+      "asset_id": "042-armor-helmet-cd-phm-02-hel-0005",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_02_hel_0005.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 43,
+      "asset_id": "043-armor-helmet-cd-phw-00-hel-00-0203",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_00_hel_00_0203.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 44,
+      "asset_id": "044-armor-helmet-cd-pom-01-hel-set-0017",
+      "virtual_path": "character/model/1_pc/5_pom/armor/13_hel/cd_pom_01_hel_set_0017.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 45,
+      "asset_id": "045-armor-helmet-cd-pdm-00-hel-0026",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/13_hel/cd_pdm_00_hel_0026.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 46,
+      "asset_id": "046-armor-helmet-cd-pgm-01-hel-0027",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_01_hel_0027.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 47,
+      "asset_id": "047-armor-helmet-cd-nhm-00-fat-hel-set-0066",
+      "virtual_path": "character/model/3_npc/1_nhm/armor/13_hel/cd_nhm_00_fat_hel_set_0066.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 48,
+      "asset_id": "048-armor-helmet-cd-ptm-01-hel-0157",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0157.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 49,
+      "asset_id": "049-armor-helmet-cd-phm-00-hel-0120",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_0120.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 50,
+      "asset_id": "050-armor-helmet-cd-phw-01-hel-00-0467-slim",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_00_0467_slim.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 51,
+      "asset_id": "051-armor-helmet-cd-pom-01-hel-0010",
+      "virtual_path": "character/model/1_pc/5_pom/armor/13_hel/cd_pom_01_hel_0010.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 52,
+      "asset_id": "052-armor-helmet-cd-pdm-00-hel-0030",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/13_hel/cd_pdm_00_hel_0030.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 53,
+      "asset_id": "053-armor-helmet-cd-pgm-01-hel-0001",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_01_hel_0001.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 54,
+      "asset_id": "054-armor-helmet-cd-nhm-00-fat-hel-set-0015",
+      "virtual_path": "character/model/3_npc/1_nhm/armor/13_hel/cd_nhm_00_fat_hel_set_0015.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 55,
+      "asset_id": "055-armor-helmet-cd-ptm-01-hel-0190",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/13_hel/cd_ptm_01_hel_0190.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 56,
+      "asset_id": "056-armor-helmet-cd-phm-00-hel-set-0098",
+      "virtual_path": "character/model/1_pc/1_phm/armor/13_hel/cd_phm_00_hel_set_0098.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 57,
+      "asset_id": "057-armor-helmet-cd-phw-01-hel-0072",
+      "virtual_path": "character/model/1_pc/2_phw/armor/13_hel/cd_phw_01_hel_0072.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 58,
+      "asset_id": "058-armor-helmet-cd-pom-01-hel-01-0332",
+      "virtual_path": "character/model/1_pc/5_pom/armor/13_hel/cd_pom_01_hel_01_0332.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 59,
+      "asset_id": "059-armor-helmet-cd-pdm-00-hel-00-0321",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/13_hel/cd_pdm_00_hel_00_0321.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 60,
+      "asset_id": "060-armor-helmet-cd-pgm-00-hel-00-0115",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/13_hel/cd_pgm_00_hel_00_0115.pac",
+      "model_category": "armor_helmet",
+      "coverage_tags": [
+        "armor",
+        "helmet",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 61,
+      "asset_id": "061-armor-upperbody-cd-ptm-01-ub-0018",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_0018.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 62,
+      "asset_id": "062-armor-upperbody-cd-ppdm-00-ub-00-0001",
+      "virtual_path": "character/model/1_pc/19_ppdm/armor/9_upperbody/cd_ppdm_00_ub_00_0001.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 63,
+      "asset_id": "063-armor-upperbody-cd-phm-00-ub-0073",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_0073.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 64,
+      "asset_id": "064-armor-upperbody-cd-phw-00-ub-00-0138",
+      "virtual_path": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0138.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 65,
+      "asset_id": "065-armor-upperbody-cd-pom-m0001-00-greenorc-ub-0006",
+      "virtual_path": "character/model/1_pc/5_pom/armor/9_upperbody/cd_pom_m0001_00_greenorc_ub_0006.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 66,
+      "asset_id": "066-armor-upperbody-cd-pdm-00-ub-00-0319",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/9_upperbody/cd_pdm_00_ub_00_0319.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 67,
+      "asset_id": "067-armor-upperbody-cd-pgm-00-ub-00-0007",
+      "virtual_path": "character/model/1_pc/9_pgm/armor/9_upperbody/cd_pgm_00_ub_00_0007.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 68,
+      "asset_id": "068-armor-upperbody-cd-ptm-01-ub-inner-0001",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/9_upperbody/cd_ptm_01_ub_inner_0001.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 69,
+      "asset_id": "069-armor-upperbody-cd-ppdm-00-ub-00-0002",
+      "virtual_path": "character/model/1_pc/19_ppdm/armor/9_upperbody/cd_ppdm_00_ub_00_0002.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 70,
+      "asset_id": "070-armor-upperbody-cd-phm-00-ub-01-0332",
+      "virtual_path": "character/model/1_pc/1_phm/armor/9_upperbody/cd_phm_00_ub_01_0332.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 71,
+      "asset_id": "071-armor-upperbody-cd-phw-00-ub-00-0093",
+      "virtual_path": "character/model/1_pc/2_phw/armor/9_upperbody/cd_phw_00_ub_00_0093.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 72,
+      "asset_id": "072-armor-upperbody-cd-pom-m0001-00-greenorc-ub-0003",
+      "virtual_path": "character/model/1_pc/5_pom/armor/9_upperbody/cd_pom_m0001_00_greenorc_ub_0003.pac",
+      "model_category": "armor_upperbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 73,
+      "asset_id": "073-armor-lowerbody-cd-ptm-00-lb-00-0318",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/10_lowerbody/cd_ptm_00_lb_00_0318.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 74,
+      "asset_id": "074-armor-lowerbody-cd-ppdm-00-lb-00-0001",
+      "virtual_path": "character/model/1_pc/19_ppdm/armor/10_lowerbody/cd_ppdm_00_lb_00_0001.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 75,
+      "asset_id": "075-armor-lowerbody-cd-phm-m0001-00-orcumer-lb-0003",
+      "virtual_path": "character/model/1_pc/1_phm/armor/10_lowerbody/cd_phm_m0001_00_orcumer_lb_0003.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 76,
+      "asset_id": "076-armor-lowerbody-cd-phw-00-lb-00-0187",
+      "virtual_path": "character/model/1_pc/2_phw/armor/10_lowerbody/cd_phw_00_lb_00_0187.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 77,
+      "asset_id": "077-armor-lowerbody-cd-pom-m0001-00-greenorc-lb-0003",
+      "virtual_path": "character/model/1_pc/5_pom/armor/10_lowerbody/cd_pom_m0001_00_greenorc_lb_0003.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 78,
+      "asset_id": "078-armor-lowerbody-cd-pdm-00-lb-00-0319",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/10_lowerbody/cd_pdm_00_lb_00_0319.pac",
+      "model_category": "armor_lowerbody",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 79,
+      "asset_id": "079-armor-foot-cd-ptm-01-foot-0057",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/12_foot/cd_ptm_01_foot_0057.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 80,
+      "asset_id": "080-armor-foot-cd-phm-00-foot-00-0379",
+      "virtual_path": "character/model/1_pc/1_phm/armor/12_foot/cd_phm_00_foot_00_0379.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 81,
+      "asset_id": "081-armor-foot-cd-phw-m0001-00-samuel-foot-00-0001",
+      "virtual_path": "character/model/1_pc/2_phw/armor/12_foot/cd_phw_m0001_00_samuel_foot_00_0001.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 82,
+      "asset_id": "082-armor-foot-cd-pom-m0001-00-greenorc-foot-0001",
+      "virtual_path": "character/model/1_pc/5_pom/armor/12_foot/cd_pom_m0001_00_greenorc_foot_0001.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 83,
+      "asset_id": "083-armor-foot-cd-pdm-00-foot-0040",
+      "virtual_path": "character/model/1_pc/7_pdm/armor/12_foot/cd_pdm_00_foot_0040.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 84,
+      "asset_id": "084-armor-foot-cd-ngm-01-foot-set-0012",
+      "virtual_path": "character/model/3_npc/9_ngm/armor/12_foot/cd_ngm_01_foot_set_0012.pac",
+      "model_category": "armor_foot",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 85,
+      "asset_id": "085-armor-hand-cd-ptm-01-hand-set-0056",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/11_hand/cd_ptm_01_hand_set_0056.pac",
+      "model_category": "armor_hand",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 86,
+      "asset_id": "086-armor-hand-cd-phm-00-hand-0105",
+      "virtual_path": "character/model/1_pc/1_phm/armor/11_hand/cd_phm_00_hand_0105.pac",
+      "model_category": "armor_hand",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 87,
+      "asset_id": "087-armor-cloak-cd-ptm-02-cloak-0043",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/19_cloak/cd_ptm_02_cloak_0043.pac",
+      "model_category": "armor_cloak",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 88,
+      "asset_id": "088-armor-cloak-cd-ppdm-00-cloak-00-0001",
+      "virtual_path": "character/model/1_pc/19_ppdm/armor/19_cloak/cd_ppdm_00_cloak_00_0001.pac",
+      "model_category": "armor_cloak",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 89,
+      "asset_id": "089-armor-vest-cd-ptm-01-vest-0007",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/15_vest/cd_ptm_01_vest_0007.pac",
+      "model_category": "armor_vest",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 90,
+      "asset_id": "090-armor-vest-cd-phm-00-vest-0201",
+      "virtual_path": "character/model/1_pc/1_phm/armor/15_vest/cd_phm_00_vest_0201.pac",
+      "model_category": "armor_vest",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 91,
+      "asset_id": "091-armor-mask-cd-ptm-01-mask-0100",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/20_mask/cd_ptm_01_mask_0100.pac",
+      "model_category": "armor_mask",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 92,
+      "asset_id": "092-armor-shoulder-cd-ptm-01-sho-0042",
+      "virtual_path": "character/model/1_pc/14_ptm/armor/14_sho/cd_ptm_01_sho_0042.pac",
+      "model_category": "armor_shoulder",
+      "coverage_tags": [
+        "armor",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass armor-slot asset selected for picture-led material classification; armor placement alone is never metal evidence."
+    },
+    {
+      "index": 93,
+      "asset_id": "093-hair-alpha-cd-ptm-01-hair-00-0021",
+      "virtual_path": "character/model/1_pc/14_ptm/head/hair/cd_ptm_01_hair_00_0021.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 94,
+      "asset_id": "094-hair-alpha-cd-phm-00-hair-00-0511",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0511.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 95,
+      "asset_id": "095-hair-alpha-cd-phw-00-hair-00-0002",
+      "virtual_path": "character/model/1_pc/2_phw/head/hair/cd_phw_00_hair_00_0002.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 96,
+      "asset_id": "096-hair-alpha-cd-ptm-00-hair-00-0002",
+      "virtual_path": "character/model/1_pc/14_ptm/head/hair/cd_ptm_00_hair_00_0002.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 97,
+      "asset_id": "097-hair-alpha-cd-phm-02-hair-00-0004",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_02_hair_00_0004.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 98,
+      "asset_id": "098-hair-alpha-cd-phw-01-hair-uptail-00-0025",
+      "virtual_path": "character/model/1_pc/2_phw/head/hair/cd_phw_01_hair_uptail_00_0025.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 99,
+      "asset_id": "099-hair-alpha-cd-ptm-00-hair-00-0001",
+      "virtual_path": "character/model/1_pc/14_ptm/head/hair/cd_ptm_00_hair_00_0001.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 100,
+      "asset_id": "100-hair-alpha-cd-phm-00-hair-00-0513",
+      "virtual_path": "character/model/1_pc/1_phm/head/hair/cd_phm_00_hair_00_0513.pac",
+      "model_category": "hair_alpha",
+      "coverage_tags": [
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass hair asset selected for silhouette, alpha, strand color, and nonmetal response review."
+    },
+    {
+      "index": 101,
+      "asset_id": "101-body-hair-alpha-cd-ptm-00-beard-00-0013-01",
+      "virtual_path": "character/model/1_pc/14_ptm/head/beard/cd_ptm_00_beard_00_0013_01.pac",
+      "model_category": "body_hair_alpha",
+      "coverage_tags": [
+        "body",
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass beard asset selected for material-first hair-card and silhouette review."
+    },
+    {
+      "index": 102,
+      "asset_id": "102-body-hair-alpha-cd-phm-00-beard-long-00-0010-07-player",
+      "virtual_path": "character/model/1_pc/1_phm/head/beard/cd_phm_00_beard_long_00_0010_07_player.pac",
+      "model_category": "body_hair_alpha",
+      "coverage_tags": [
+        "body",
+        "hair",
+        "hair_fur_feather",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass beard asset selected for material-first hair-card and silhouette review."
+    },
+    {
+      "index": 103,
+      "asset_id": "103-body-head-cd-pgw-00-head-00-0004",
+      "virtual_path": "character/model/1_pc/10_pgw/head/head/cd_pgw_00_head_00_0004.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass head asset selected for skin, eye, cloth, hair-card, and mixed-region classification."
+    },
+    {
+      "index": 104,
+      "asset_id": "104-body-head-cd-ptm-00-head-0005",
+      "virtual_path": "character/model/1_pc/14_ptm/head/head/cd_ptm_00_head_0005.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass head asset selected for skin, eye, cloth, hair-card, and mixed-region classification."
+    },
+    {
+      "index": 105,
+      "asset_id": "105-body-head-cd-ppdm-00-head-00-0001",
+      "virtual_path": "character/model/1_pc/19_ppdm/head/head/cd_ppdm_00_head_00_0001.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass head asset selected for skin, eye, cloth, hair-card, and mixed-region classification."
+    },
+    {
+      "index": 106,
+      "asset_id": "106-body-head-cd-phm-00-head-00-0203",
+      "virtual_path": "character/model/1_pc/1_phm/head/head/cd_phm_00_head_00_0203.pac",
+      "model_category": "body_head",
+      "coverage_tags": [
+        "body",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass head asset selected for skin, eye, cloth, hair-card, and mixed-region classification."
+    },
+    {
+      "index": 107,
+      "asset_id": "107-body-skin-cd-pgw-00-nude-20-0001",
+      "virtual_path": "character/model/1_pc/10_pgw/nude/cd_pgw_00_nude_20_0001.pac",
+      "model_category": "body_skin",
+      "coverage_tags": [
+        "body",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass body asset selected as a skin/nonmetal control; source anatomy and open boundaries are not metal defects."
+    },
+    {
+      "index": 108,
+      "asset_id": "108-body-skin-cd-ptm-00-nude-20-0001",
+      "virtual_path": "character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_20_0001.pac",
+      "model_category": "body_skin",
+      "coverage_tags": [
+        "body",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass body asset selected as a skin/nonmetal control; source anatomy and open boundaries are not metal defects."
+    },
+    {
+      "index": 109,
+      "asset_id": "109-unusual-mixed-cd-m0006-00-landspider-body-00-0008",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_landspider/cd_m0006_00_landspider_body_00_0008.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 110,
+      "asset_id": "110-unusual-mixed-cd-m0033-00-ancientworm-nude-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0033_00_stoneworm/cd_m0033_00_ancientworm/cd_m0033_00_ancientworm_nude_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 111,
+      "asset_id": "111-unusual-mixed-cd-m0001-00-ghost-nude-0001",
+      "virtual_path": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_ghost/cd_m0001_00_ghost_nude_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 112,
+      "asset_id": "112-unusual-mixed-cd-m0001-00-skeleton-nude-0001",
+      "virtual_path": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_skeleton/cd_m0001_00_skeleton_nude_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 113,
+      "asset_id": "113-unusual-mixed-cd-m0003-00-machine-eagle-00-0001-sub01",
+      "virtual_path": "character/model/2_mon/cd_m0003_00_bird/cd_m0003_00_eagle/cd_m0003_00_machine_eagle_0001/cd_m0003_00_machine_eagle_00_0001_sub01.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 114,
+      "asset_id": "114-unusual-mixed-cd-m0003-00-phoenix-00-0001-sub01",
+      "virtual_path": "character/model/2_mon/cd_m0003_00_bird/cd_m0003_00_eagle/cd_m0003_00_phoenix_0001/cd_m0003_00_phoenix_00_0001_sub01.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 115,
+      "asset_id": "115-unusual-mixed-cd-m0008-00-snake-boss-bismuth-00-0001-sub01",
+      "virtual_path": "character/model/2_mon/cd_m0008_00_snake_boss/cd_m0008_00_snake_boss_bismuth_00_0001_sub01.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 116,
+      "asset_id": "116-unusual-mixed-cd-m0004-00-dragon-ub-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0004_00_dragon/cd_m0004_00_dragon/cd_m0004_00_dragon_ub_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 117,
+      "asset_id": "117-unusual-mixed-cd-m0001-00-golem-armor-0001",
+      "virtual_path": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_golem/cd_m0001_00_golem_armor_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 118,
+      "asset_id": "118-unusual-mixed-cd-m0001-00-sir-catfish-ub-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0001_00_twofeet/cd_m0001_00_sir_catfish/cd_m0001_00_sir_catfish_ub_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 119,
+      "asset_id": "119-unusual-mixed-cd-m0002-00-wolf-ub-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0002_00_fourfeet/cd_m0002_00_dog/cd_m0002_00_wolf/cd_m0002_00_wolf_ub_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    },
+    {
+      "index": 120,
+      "asset_id": "120-unusual-mixed-cd-m0006-00-grub-00-0001",
+      "virtual_path": "character/model/2_mon/cd_m0006_00_insect/cd_m0006_00_grub/cd_m0006_00_grub_0001/cd_m0006_00_grub_00_0001.pac",
+      "model_category": "unusual_mixed",
+      "coverage_tags": [
+        "unusual",
+        "fifth_pass"
+      ],
+      "selection_reason": "Fifth-pass unusual asset selected to classify organic shell, fur, bone, stone, skin, emissive, glass-like, painted, or metal regions directly from the paired pictures."
+    }
+  ]
+}

@@ -52,6 +52,9 @@ THIRD_PASS_MANIFEST = (
 FOURTH_PASS_MANIFEST = (
     ROOT / "tools" / "mesh_harness" / "visual_audit_followup_120.manifest.json"
 )
+FIFTH_PASS_MANIFEST = (
+    ROOT / "tools" / "mesh_harness" / "visual_audit_followup_fifth_120.manifest.json"
+)
 MATERIAL_REGRESSION_MANIFEST = (
     ROOT / "tools" / "mesh_harness" / "visual_audit_material_regression_15.manifest.json"
 )
@@ -390,6 +393,43 @@ def test_fourth_visual_audit_corpus_adds_120_balanced_nonoverlapping_pacs() -> N
     assert len(excluded_paths) == 197
     assert prior_paths <= excluded_paths
     assert not selected_paths & excluded_paths
+    for tag, minimum in payload["required_coverage"].items():
+        assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
+
+
+def test_fifth_visual_audit_corpus_adds_120_material_first_nonoverlapping_pacs() -> None:
+    specs = _load_specs(FIFTH_PASS_MANIFEST)
+    selected_paths = {spec.virtual_path.casefold() for spec in specs}
+    prior_paths = {
+        spec.virtual_path.casefold()
+        for manifest_specs in (
+            default_visual_audit_specs(),
+            _load_specs(FOLLOWUP_MANIFEST),
+            _load_specs(THIRD_PASS_MANIFEST),
+            _load_specs(FOURTH_PASS_MANIFEST),
+        )
+        for spec in manifest_specs
+    }
+
+    assert len(specs) == 120
+    assert len({spec.asset_id for spec in specs}) == 120
+    assert len(selected_paths) == 120
+    assert len(prior_paths) == 312
+    assert not prior_paths & selected_paths
+    assert validate_visual_audit_specs(specs) == {
+        "weapon": 40,
+        "sword": 16,
+        "armor": 52,
+        "body": 8,
+        "hair_fur_feather": 10,
+        "unusual": 12,
+    }
+    payload = json.loads(FIFTH_PASS_MANIFEST.read_text(encoding="utf-8"))
+    excluded_paths = {str(value).casefold() for value in payload["excluded_virtual_paths"]}
+    assert len(excluded_paths) == 317
+    assert prior_paths <= excluded_paths
+    assert not selected_paths & excluded_paths
+    assert all("fifth-pass" in spec.selection_reason.casefold() for spec in specs)
     for tag, minimum in payload["required_coverage"].items():
         assert sum(tag in spec.coverage_tags for spec in specs) >= minimum
 
