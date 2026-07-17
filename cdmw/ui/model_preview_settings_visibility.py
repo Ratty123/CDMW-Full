@@ -221,15 +221,13 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         for key in ("tool_pbd_cloth_wind_strength", "tool_pbd_cloth_wind_direction_degrees"):
             dialog._set_form_field_visible(dialog._slider_controls[key], True)
     dialog.d3d11_hint_label.setVisible(d3d11)
+    dialog.advanced_warning_label.setVisible(not dotnet)
     if dotnet:
         dialog.disable_tint_checkbox.setText("Ignore material tint")
         dialog.disable_brightness_checkbox.setText("Ignore texture brightness")
         dialog.disable_uv_scale_checkbox.setText("Ignore preview UV scale")
         dialog.intro_label.setText(
             "Camera input settings for the embedded .NET/Vortice Mesh Editor preview. Changes are sent to the resident preview immediately."
-        )
-        dialog.advanced_warning_label.setText(
-            "Display, topology, X-Ray, grid, gizmo, material, texture, and lighting controls live on the Mesh Editor's .NET/Builder viewport surfaces and are not duplicated here."
         )
         dialog.general_hint_label.setText(
             "Renderer appearance is controlled directly from the Mesh Editor viewport."
