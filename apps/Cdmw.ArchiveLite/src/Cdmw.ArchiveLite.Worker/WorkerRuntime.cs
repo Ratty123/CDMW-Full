@@ -99,6 +99,27 @@ internal sealed class WorkerRuntime : IDisposable
                     var result = await _textSearch.SearchAsync(payload, cancellationToken).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
                 }
+            case WorkerProtocol.TextDocument:
+                {
+                    var payload = RequirePayload<TextDocumentRequest>(request);
+                    PreviewResult result;
+                    if (payload.SourceKind == TextSearchSourceKind.Archive)
+                    {
+                        if (payload.EntryId is not { } entryId)
+                        {
+                            throw new InvalidDataException("Archive text-document preview requires an entry id.");
+                        }
+                        result = await _previews.BuildAsync(
+                            new PreviewRequest(payload.Source, entryId),
+                            cancellationToken,
+                            publishProgress).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        result = await _textSearch.BuildPreviewAsync(payload, cancellationToken).ConfigureAwait(false);
+                    }
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
             case WorkerProtocol.Export:
                 {
                     var payload = RequirePayload<ExportPlanRequest>(request);

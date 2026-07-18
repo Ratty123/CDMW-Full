@@ -45,17 +45,19 @@ public sealed class ArchiveExportService(
         string? singleOutputPath = null;
         if (!string.IsNullOrWhiteSpace(request.SingleOutputPath))
         {
-            if (!isMeshExport || archiveEntries.Count != 1 || loosePaths.Length != 0)
+            if ((request.Kind != ExportKind.RawEntries && !isMeshExport)
+                || archiveEntries.Count != 1
+                || loosePaths.Length != 0)
             {
-                throw new InvalidDataException("An explicit output file is only valid for one selected mesh export.");
+                throw new InvalidDataException("An explicit output file is only valid for one selected archive entry.");
             }
             singleOutputPath = Path.GetFullPath(request.SingleOutputPath);
             if (!ExportPathPolicy.IsWithinOrEqual(destination, singleOutputPath)
                 || singleOutputPath.Equals(destination, StringComparison.OrdinalIgnoreCase))
             {
-                throw new InvalidDataException("The explicit mesh output must be inside the selected export directory.");
+                throw new InvalidDataException("The explicit output file must be inside the selected export directory.");
             }
-            if (!Path.GetExtension(singleOutputPath).Equals(
+            if (isMeshExport && !Path.GetExtension(singleOutputPath).Equals(
                 NativeModelExportService.FileExtension(request.Kind),
                 StringComparison.OrdinalIgnoreCase))
             {

@@ -41,6 +41,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private string _previewTitle = LocalizationManager.Get("Preview");
     private string _previewMetadata = string.Empty;
     private string _previewText = LocalizationManager.Get("PreviewEmpty");
+    private string _previewSyntax = string.Empty;
     private string _previewWarnings = string.Empty;
     private BitmapSource? _previewImage;
     private Uri? _previewMediaSource;
@@ -88,8 +89,6 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         _archiveRoot = archiveRoot ?? string.Empty;
         _pathFilter = browserSettings.PathFilter ?? string.Empty;
         _extensionFilter = browserSettings.ExtensionFilter ?? string.Empty;
-        _packageFilter = browserSettings.PackageFilter ?? string.Empty;
-        _previewableOnly = browserSettings.PreviewableOnly;
         _viewMode = Enum.IsDefined(browserSettings.ViewMode) ? browserSettings.ViewMode : ArchiveViewMode.Flat;
         _sortField = Enum.IsDefined(initialSortField) ? initialSortField : ArchiveSortField.Path;
         _sortDescending = initialSortDescending;
@@ -121,15 +120,11 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
         CancelCommand = new RelayCommand(CancelForeground, () => IsBusy);
         ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, () => CanExportSelectedEntries() && !IsBusy);
-        ExportMeshCommand = new AsyncCommand(ExportMeshAsync, () => CanExportSelectedMesh && !IsBusy);
         ExportFolderCommand = new AsyncCommand(
             ExportFolderAsync,
             () => !string.IsNullOrWhiteSpace(SessionId) && !string.IsNullOrWhiteSpace(SelectedFolder?.Path) && !IsBusy);
         ExportFilteredCommand = new AsyncCommand(ExportFilteredAsync, () => TotalMatches > 0 && !IsBusy);
-        var initialRole = browserSettings.Role is { } role && Enum.IsDefined(role)
-            ? role
-            : (ArchiveEntryRole?)null;
-        RebuildLocalizedOptions(initialRole);
+        RebuildLocalizedOptions(null);
         ExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(LocalizationManager.Get("AllFiles"), LocalizationManager.Get("ExtensionGroupAll")));
         ExtensionChoicesView = CollectionViewSource.GetDefaultView(ExtensionChoices);
         ExtensionChoicesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ArchiveExtensionChoice.Group)));
@@ -157,7 +152,6 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public AsyncCommand NextPageCommand { get; }
     public RelayCommand CancelCommand { get; }
     public AsyncCommand ExportSelectedCommand { get; }
-    public AsyncCommand ExportMeshCommand { get; }
     public AsyncCommand ExportFolderCommand { get; }
     public AsyncCommand ExportFilteredCommand { get; }
 
@@ -437,8 +431,6 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                 }
                 AssociatedAssets.SelectSource(SessionId, value);
                 ExportSelectedCommand.RaiseCanExecuteChanged();
-                ExportMeshCommand.RaiseCanExecuteChanged();
-                OnPropertyChanged(nameof(CanExportSelectedMesh));
                 if (!_suppressPreviewSelection)
                 {
                     _ = LoadPreviewLatestAsync(value);
@@ -463,6 +455,12 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         get => _previewText;
         private set => SetProperty(ref _previewText, value);
+    }
+
+    public string PreviewSyntax
+    {
+        get => _previewSyntax;
+        private set => SetProperty(ref _previewSyntax, value);
     }
 
     public string PreviewWarnings
@@ -605,9 +603,6 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         get => _manifestFormat;
         set => SetProperty(ref _manifestFormat, value);
     }
-
-    public bool CanExportSelectedMesh => SelectedEntry is not null
-        && SelectedEntry.Extension.ToLowerInvariant() is ".pac" or ".pam" or ".pamlod";
 
     public void RequestShutdown()
     {
@@ -1350,6 +1345,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private async Task PresentPreviewAsync(PreviewResult result, long generation, CancellationToken cancellationToken)
     {
         BitmapSource? image = null;
+        var text = string.IsNullOrWhiteSpace(result.Text) ? result.Metadata : result.Text;
         var warnings = result.Warnings?.ToList() ?? [];
         if (result.Kind == PreviewKind.Image && !string.IsNullOrWhiteSpace(result.ArtifactPath))
         {
@@ -1362,6 +1358,20 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                 warnings.Add($"Image decoder: {exception.Message}");
             }
         }
+        if (result.Kind == PreviewKind.Text && !string.IsNullOrWhiteSpace(result.ArtifactPath))
+        {
+            try
+            {
+                text = await PreviewTextLoader.LoadAsync(result.ArtifactPath, cancellationToken).ConfigureAwait(true);
+            }
+            catch (Exception exception) when (exception is IOException
+                or UnauthorizedAccessException
+                or NotSupportedException
+                or InvalidDataException)
+            {
+                warnings.Add($"Text decoder: {exception.Message}");
+            }
+        }
 
         cancellationToken.ThrowIfCancellationRequested();
         if (generation != Volatile.Read(ref _previewGeneration))
@@ -1371,7 +1381,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
         PreviewTitle = result.Title;
         PreviewMetadata = result.Metadata;
-        PreviewText = string.IsNullOrWhiteSpace(result.Text) ? result.Metadata : result.Text;
+        PreviewText = text;
+        PreviewSyntax = result.Syntax ?? string.Empty;
         PreviewWarnings = string.Join(Environment.NewLine, warnings);
         PreviewImage = image;
         PreviewMediaSource = result.Kind is PreviewKind.Audio or PreviewKind.Video && !string.IsNullOrWhiteSpace(result.ArtifactPath)
@@ -1392,6 +1403,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         PreviewTitle = LocalizationManager.Get("Preview");
         PreviewMetadata = string.Empty;
         PreviewText = LocalizationManager.Get("PreviewEmpty");
+        PreviewSyntax = string.Empty;
         PreviewWarnings = string.Empty;
         PreviewImage = null;
         PreviewMediaSource = null;
@@ -1430,6 +1442,15 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             return;
         }
 
+        if (entryIds.Count == 1
+            && SelectedEntry is { } selected
+            && selected.EntryId == entryIds[0]
+            && selected.Extension.ToLowerInvariant() is ".pac" or ".pam" or ".pamlod")
+        {
+            await ExportSelectedModelAsync(selected, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
         var destination = PickExportFolder();
         if (destination is null)
         {
@@ -1439,22 +1460,22 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         await RunExportAsync(entryIds, destination, ExportKind.RawEntries, cancellationToken).ConfigureAwait(true);
     }
 
-    private async Task ExportMeshAsync(CancellationToken cancellationToken)
+    private async Task ExportSelectedModelAsync(ArchiveEntryDto selectedEntry, CancellationToken cancellationToken)
     {
-        if (!CanExportSelectedMesh || SelectedEntry is null || string.IsNullOrWhiteSpace(SessionId))
+        if (string.IsNullOrWhiteSpace(SessionId))
         {
             return;
         }
 
-        var baseName = Path.GetFileNameWithoutExtension(SelectedEntry.Name);
+        var baseName = Path.GetFileNameWithoutExtension(selectedEntry.Name);
         var dialog = new SaveFileDialog
         {
-            Title = LocalizationManager.Get("ExportMesh"),
+            Title = LocalizationManager.Get("ExportSelected"),
             FileName = $"{baseName}.glb",
             DefaultExt = ".glb",
             AddExtension = true,
-            OverwritePrompt = CollisionPolicy == ExportCollisionPolicy.Overwrite,
-            Filter = LocalizationManager.Get("MeshExportFilter"),
+            OverwritePrompt = true,
+            Filter = LocalizationManager.Format("SelectedModelExportFilter", selectedEntry.Extension),
             FilterIndex = 1,
         };
         if (dialog.ShowDialog() != true)
@@ -1467,6 +1488,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             1 => (Kind: ExportKind.Glb, Extension: ".glb"),
             2 => (Kind: ExportKind.Obj, Extension: ".obj"),
             3 => (Kind: ExportKind.Fbx, Extension: ".fbx"),
+            4 => (Kind: ExportKind.RawEntries, Extension: selectedEntry.Extension),
             _ => ((ExportKind Kind, string Extension)?)null,
         };
         if (selection is null)
@@ -1482,7 +1504,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         }
 
         await RunExportAsync(
-            [SelectedEntry.EntryId],
+            [selectedEntry.EntryId],
             destination,
             selection.Value.Kind,
             cancellationToken,
@@ -1730,7 +1752,6 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         NextPageCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
         ExportSelectedCommand.RaiseCanExecuteChanged();
-        ExportMeshCommand.RaiseCanExecuteChanged();
         ExportFolderCommand.RaiseCanExecuteChanged();
         ExportFilteredCommand.RaiseCanExecuteChanged();
         AssociatedAssets.RaiseCommandStates();

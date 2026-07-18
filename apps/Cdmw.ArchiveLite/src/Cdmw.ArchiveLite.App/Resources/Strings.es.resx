@@ -233,4 +233,12 @@
   <data name="Close" xml:space="preserve"><value>Cerrar</value></data>
   <data name="ReadOnlyFooter" xml:space="preserve"><value>Espacio de archivo de solo lectura</value></data>
   <data name="All" xml:space="preserve"><value>Todo</value></data>
+  <data name="FindInFile" xml:space="preserve"><value>Buscar en el archivo</value></data>
+  <data name="FindPrevious" xml:space="preserve"><value>Buscar anterior (Mayus+Enter)</value></data>
+  <data name="FindNext" xml:space="preserve"><value>Buscar siguiente (Enter)</value></data>
+  <data name="ExportSelectedHint" xml:space="preserve"><value>Exporta los archivos seleccionados. Un solo modelo PAC puede guardarse como GLB, OBJ, FBX o en su formato de archivo original.</value></data>
+  <data name="SelectedModelExportFilter" xml:space="preserve"><value>Binario glTF (*.glb)|*.glb|Wavefront OBJ (*.obj)|*.obj|Autodesk FBX (*.fbx)|*.fbx|Archivo original (*{0})|*{0}</value></data>
+  <data name="Play" xml:space="preserve"><value>Reproducir</value></data>
+  <data name="Pause" xml:space="preserve"><value>Pausa</value></data>
+  <data name="Stop" xml:space="preserve"><value>Detener</value></data>
 </root>

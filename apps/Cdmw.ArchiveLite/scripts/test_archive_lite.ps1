@@ -16,6 +16,8 @@ $acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
 $acceleratorBuild = Join-Path $acceleratorRoot "build"
 $meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
 $meshCoreBuild = Join-Path $meshCoreRoot "build"
+$textureRoot = Join-Path $repositoryRoot "native\cd_texture_dx"
+$textureBuild = Join-Path $textureRoot "build"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $solution = Join-Path $liteRoot "Cdmw.ArchiveLite.slnx"
 $tests = Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj"
@@ -64,6 +66,15 @@ try {
     Assert-LastExitCode "Native mesh-core build"
     $meshCoreExecutable = Join-Path $meshCoreBuild "$Configuration\cdmw-mesh-core.exe"
 
+    & cmake -S $textureRoot -B $textureBuild
+    Assert-LastExitCode "Native DirectXTex configure"
+
+    & cmake --build $textureBuild --config $Configuration --parallel
+    Assert-LastExitCode "Native DirectXTex build"
+    $textureExecutable = Join-Path $textureBuild "$Configuration\cd-texture-dx.exe"
+    & $textureExecutable self-test
+    Assert-LastExitCode "Native DirectXTex self-test"
+
     & dotnet build $solution -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
 
@@ -73,10 +84,12 @@ try {
     $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH
     $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
     $previousMeshCorePath = $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH
+    $previousTextureHelperPath = $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $meshCoreExecutable
+        $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $textureExecutable
         & dotnet run --project $tests -c $Configuration --no-build
         Assert-LastExitCode "Archive Lite focused tests"
     }
@@ -84,6 +97,7 @@ try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $previousRendererPath
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $previousMeshCorePath
+        $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $previousTextureHelperPath
     }
 }
 finally {

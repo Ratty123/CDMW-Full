@@ -14,6 +14,10 @@ The bundled `cdmw-mesh-core.exe` statically includes these native dependencies:
 - xatlas, Copyright (c) 2018-2020 Jonathan Young, with bundled MIT components credited in its source notice. Project: <https://github.com/jpcy/xatlas>.
 - MikkTSpace, Copyright (c) 2011 Morten S. Mikkelsen, under the notice reproduced below. Project: <https://github.com/mmikk/MikkTSpace>.
 
+The bundled `cd-texture-dx.exe` statically includes Microsoft DirectXTex at the commit pinned by `native/cd_texture_dx/CMakeLists.txt`. DirectXTex is distributed under the MIT License. Project: <https://github.com/microsoft/DirectXTex>.
+
+The `media/` runtime contains the pinned vgmstream r1980 CLI and its codec DLLs for read-only Wwise audio preview. The upstream vgmstream permission notice is included beside those files as `media/COPYING`. Project: <https://github.com/vgmstream/vgmstream>.
+
 ## MIT License
 
 Copyright (c) the contributors identified above

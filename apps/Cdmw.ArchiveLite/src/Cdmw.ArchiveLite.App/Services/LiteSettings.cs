@@ -20,11 +20,8 @@ public sealed record LiteSettings(
 public sealed record ArchiveBrowserSettings(
     string PathFilter = "",
     string ExtensionFilter = "",
-    string PackageFilter = "",
-    bool PreviewableOnly = false,
     ArchiveViewMode ViewMode = ArchiveViewMode.Flat,
     string? FolderPath = null,
-    ArchiveEntryRole? Role = null,
     ExportCollisionPolicy CollisionPolicy = ExportCollisionPolicy.Skip,
     ExportManifestFormat ManifestFormat = ExportManifestFormat.Json);
 

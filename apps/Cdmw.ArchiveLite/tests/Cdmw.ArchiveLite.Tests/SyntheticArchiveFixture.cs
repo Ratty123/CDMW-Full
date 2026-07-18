@@ -190,6 +190,7 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         var header = new byte[0x80];
         "DDS "u8.CopyTo(header);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(4), 124);
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(8), 0x00081007);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(12), 4);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(16), 4);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(20), 8);
@@ -199,6 +200,7 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(76), 32);
         BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(80), 4);
         "DXT1"u8.CopyTo(header.AsSpan(84));
+        BinaryPrimitives.WriteUInt32LittleEndian(header.AsSpan(108), 0x00001000);
 
         using var payload = new MemoryStream();
         payload.Write(header);

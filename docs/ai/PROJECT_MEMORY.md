@@ -1,6 +1,6 @@
 # Project Memory
 
-Last updated: 2026-07-17
+Last updated: 2026-07-19
 
 ## Repository rules
 
@@ -100,6 +100,7 @@ Last updated: 2026-07-17
 - .NET helper-authored OBJ/package/operation paths and generated sidecars stay under the package output root after canonical link-aware resolution. Archive Preview expected stops are keyed by exact process plus generation; unmatched nonzero exits and device loss remain failures.
 - The .NET/Vortice editor is the production embedded/standalone presentation child; Python/C++ retain data authority. One resident document/resource owner backs separate Original and Imported/Modify contexts with independent normal cameras and explicit linked comparison. Edit Mesh forces Replacement Only and pins the editable camera context across scene/presentation replay; leaving it restores the selected placement preview mode without restarting the renderer. Builder presentation is correlated; placement previews locally at input cadence with an exact provisional editable matrix while Original, role camera frames, and the resident world grid stay fixed. Camera Fit/nudge commands are role-addressed and generation-gated so persistent presentation replay is state-only. Authority requests coalesce at approximately 30 Hz with an exact final transform, and close uses acknowledged deactivation plus one final sync.
 - Resident material protocol v2 updates parameters, resources, and bindings in-process. Python owns criticality: required failures block Ready, optional failures use declared fallbacks, and late reference generations are render-only. Deferred Modify Original bootstrap retains direct DDS bindings but leaves duplicate layer-graph synthesis to that late generation; uniquely named editable materials still map when the original preview contains supplemental-only parts. Source DDS wins over preview PNG and preserves supported 2D formats/mips through semantic sRGB/linear SRVs; PAC shader/alpha/two-sided contracts remain independent of DDS resolution.
+- Material Authority exactness is artifact-scoped: one revisioned fingerprint covers canonical DDS bindings, affected submeshes, and residual parameters; the .NET preview acknowledges them atomically and Build Mod reuses the same DDS bytes plus read-back-verified emissive/height sidecar values. First user edits activate the existing complete-source route, pending/stale/mismatched state blocks Build, and per-part glow requires exactly one selected source part with shared-material cloning. Proprietary game lighting, layer graphs, and post-processing are not part of this parity claim.
 - glTF green-up normals invert in HLSL and base alpha is constant opacity. Exact PAC ownership prevents emissive leakage; proven color-blending masks use R=AO, G=roughness, B=metalness while `_mg` stays layer-only. Zero intensity plus non-authoritative fallback color is not emissive-family evidence; active intensity/color/role/channel is authoritative.
 - Production shading uses linear GGX/Smith/Schlick, proven opacity/cutout/occlusion, and authority-gated culling. Blend draws are depth-read/no-write and sorted by transformed submesh center; global fallback culling stays disabled for mixed PAC winding, and depth stays enabled. Source tint and Archive's luminance ACES operator with a 0.5 contrast pivot remain active.
 - The RGB warm-front/cool-side environment anchors reflections to source-colored F0; physical Fresnel and GGX/Smith replace the flattened grayscale/ad-hoc metal path. The expanded corpus requires a bounded source-readable metal floor plus Archive Browser chromatic-tint authority so dark and colored assets do not collapse or double-color. Two-sided backfaces flip the tangent frame and final contrast preserves luminance chromaticity. Hidden textured-metal proof v4 retains texture detail and captures four same-material specular-debug views whose brightness/color response is complete, varying, and bounded.
@@ -133,6 +134,7 @@ Last updated: 2026-07-17
 
 ## Startup and packaging contracts
 
+- Archive Lite is the Python-free read-only WPF application under `apps/Cdmw.ArchiveLite`. It starts in Archive Browser, stores settings/cache/logs beside the EXE, publishes full text through bounded preview artifacts, decodes DDS with packaged DirectXTex and WEM with pinned vgmstream, and exposes PAC/PAM/PAMLOD raw or GLB/OBJ/FBX output through unified Export selected. Its focused and release owners are `scripts/test_archive_lite.ps1` and `scripts/build_archive_lite.ps1` within that app.
 - Public `run_gui()` imports implementation only when called; lazy optional tabs
   must not pull NumPy, OpenCV, or preview stacks into cold facade import.
 - Startup smoke uses a unique instance namespace and an atomic marker written

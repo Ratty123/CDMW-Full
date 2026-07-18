@@ -19,6 +19,10 @@ $requiredFiles = @(
     "preview\cdmw-preview-core.exe",
     "indexer\cdmw-archive-accelerator.exe",
     "mesh\cdmw-mesh-core.exe",
+    "texture\cd-texture-dx.exe",
+    "media\vgmstream-cli.exe",
+    "media\COPYING",
+    "media\.cdmw-dependency.json",
     "renderer\cdmw-mesh-dotnet-editor.exe",
     "README.md",
     "THIRD-PARTY-NOTICES.md",
@@ -78,7 +82,11 @@ Assert-X64Pe (Join-Path $artifactRoot "cdmw-archive-core.dll")
 Assert-X64Pe (Join-Path $artifactRoot "preview\cdmw-preview-core.exe")
 Assert-X64Pe (Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe")
 Assert-X64Pe (Join-Path $artifactRoot "mesh\cdmw-mesh-core.exe")
+Assert-X64Pe (Join-Path $artifactRoot "texture\cd-texture-dx.exe")
 Assert-X64Pe (Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe")
+foreach ($mediaBinary in Get-ChildItem -LiteralPath (Join-Path $artifactRoot "media") -File | Where-Object { $_.Extension -in @(".exe", ".dll") }) {
+    Assert-X64Pe $mediaBinary.FullName
+}
 
 function Quote-ProcessArgument([string]$Value) {
     return '"' + $Value.Replace('"', '\"') + '"'
@@ -111,6 +119,7 @@ $application = Join-Path $artifactRoot "CdmwArchiveLite.exe"
 $previewCore = Join-Path $artifactRoot "preview\cdmw-preview-core.exe"
 $itemIndexer = Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe"
 $meshCore = Join-Path $artifactRoot "mesh\cdmw-mesh-core.exe"
+$textureDecoder = Join-Path $artifactRoot "texture\cd-texture-dx.exe"
 $renderer = Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe"
 $testDataRoot = Join-Path ([IO.Path]::GetTempPath()) "cdmw-archive-lite-artifact-$([Guid]::NewGuid().ToString('N'))"
 $previousTestMode = $env:CDMW_ARCHIVE_LITE_TEST_MODE
@@ -128,6 +137,28 @@ try {
     $indexerExitCode = Invoke-HiddenProcess -Path $itemIndexer -Arguments @("--version")
     if ($indexerExitCode -ne 0) {
         throw "Packaged native archive-accelerator version check failed with exit code $indexerExitCode."
+    }
+
+    $textureExitCode = Invoke-HiddenProcess -Path $textureDecoder -Arguments @("self-test")
+    if ($textureExitCode -ne 0) {
+        throw "Packaged DirectXTex decoder self-test failed with exit code $textureExitCode."
+    }
+
+    $mediaManifestPath = Join-Path $artifactRoot "media\.cdmw-dependency.json"
+    $mediaManifest = Get-Content -LiteralPath $mediaManifestPath -Raw | ConvertFrom-Json
+    if ($mediaManifest.version -ne "r1980" -or
+        $mediaManifest.build_commit -ne "21bfb6f0a513271f2e18a51322128756bb59f365") {
+        throw "Packaged vgmstream runtime does not match the pinned r1980 build."
+    }
+    foreach ($fileProperty in $mediaManifest.files.PSObject.Properties) {
+        $mediaPath = Join-Path (Join-Path $artifactRoot "media") $fileProperty.Name
+        if (-not (Test-Path -LiteralPath $mediaPath -PathType Leaf)) {
+            throw "Packaged vgmstream file is missing: $($fileProperty.Name)"
+        }
+        $mediaHash = (Get-FileHash -LiteralPath $mediaPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($mediaHash -ne ([string]$fileProperty.Value).ToLowerInvariant()) {
+            throw "Packaged vgmstream file hash mismatch: $($fileProperty.Name)"
+        }
     }
 
     $meshJob = Join-Path $testDataRoot "mesh-export-job.json"
@@ -291,4 +322,4 @@ finally {
     }
 }
 
-Write-Host "Artifact guard passed: x64, self-contained, native preview/name index/mesh export, hidden Vortice GPU, worker-connected, and Python-free."
+Write-Host "Artifact guard passed: x64, self-contained, native DDS/media/model preview and mesh export, hidden Vortice GPU, worker-connected, and Python-free."

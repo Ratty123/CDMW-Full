@@ -35,3 +35,9 @@ public sealed record TextSearchResultBatch(
     bool LimitReached,
     IReadOnlyList<string> TimedOutPaths,
     IReadOnlyList<string> Warnings);
+
+public sealed record TextDocumentRequest(
+    TextSearchSourceKind SourceKind,
+    string Source,
+    string Path,
+    long? EntryId = null);

@@ -7,6 +7,7 @@ using System.Windows.Interop;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
 using Cdmw.ArchiveLite.Contracts;
+using ICSharpCode.AvalonEdit;
 
 namespace Cdmw.ArchiveLite.App;
 
@@ -165,6 +166,80 @@ public partial class MainWindow : Window
     private void OnAssociatedAssetsSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
         _viewModel.ArchiveBrowser.AssociatedAssets.SetSelectedAssets(
             AssociatedAssetsList.SelectedItems.OfType<AssociatedAssetRow>());
+
+    private void OnArchivePreviewFindNextClick(object sender, RoutedEventArgs eventArgs) =>
+        FindInEditor(ArchiveTextPreviewEditor, ArchivePreviewFindBox.Text, findPrevious: false);
+
+    private void OnArchivePreviewFindPreviousClick(object sender, RoutedEventArgs eventArgs) =>
+        FindInEditor(ArchiveTextPreviewEditor, ArchivePreviewFindBox.Text, findPrevious: true);
+
+    private void OnTextSearchPreviewFindNextClick(object sender, RoutedEventArgs eventArgs) =>
+        FindInEditor(TextSearchPreviewEditor, TextSearchPreviewFindBox.Text, findPrevious: false);
+
+    private void OnTextSearchPreviewFindPreviousClick(object sender, RoutedEventArgs eventArgs) =>
+        FindInEditor(TextSearchPreviewEditor, TextSearchPreviewFindBox.Text, findPrevious: true);
+
+    private void OnMediaPlayClick(object sender, RoutedEventArgs eventArgs) => ArchiveMediaPreview.Play();
+
+    private void OnMediaPauseClick(object sender, RoutedEventArgs eventArgs) => ArchiveMediaPreview.Pause();
+
+    private void OnMediaStopClick(object sender, RoutedEventArgs eventArgs) => ArchiveMediaPreview.Stop();
+
+    private void OnArchivePreviewFindKeyDown(object sender, KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Key == Key.Enter)
+        {
+            FindInEditor(ArchiveTextPreviewEditor, ArchivePreviewFindBox.Text, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            eventArgs.Handled = true;
+        }
+    }
+
+    private void OnTextSearchPreviewFindKeyDown(object sender, KeyEventArgs eventArgs)
+    {
+        if (eventArgs.Key == Key.Enter)
+        {
+            FindInEditor(TextSearchPreviewEditor, TextSearchPreviewFindBox.Text, Keyboard.Modifiers.HasFlag(ModifierKeys.Shift));
+            eventArgs.Handled = true;
+        }
+    }
+
+    private static void FindInEditor(TextEditor editor, string query, bool findPrevious)
+    {
+        if (string.IsNullOrEmpty(query) || editor.Document.TextLength == 0)
+        {
+            return;
+        }
+
+        var text = editor.Text;
+        int match;
+        if (findPrevious)
+        {
+            var start = editor.SelectionStart > 0
+                ? Math.Min(text.Length - 1, editor.SelectionStart - 1)
+                : text.Length - 1;
+            match = text.LastIndexOf(query, start, StringComparison.OrdinalIgnoreCase);
+            if (match < 0)
+            {
+                match = text.LastIndexOf(query, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        else
+        {
+            var start = Math.Min(text.Length, editor.SelectionStart + editor.SelectionLength);
+            match = text.IndexOf(query, start, StringComparison.OrdinalIgnoreCase);
+            if (match < 0)
+            {
+                match = text.IndexOf(query, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+        if (match < 0)
+        {
+            return;
+        }
+
+        editor.Select(match, query.Length);
+        editor.ScrollToLine(editor.Document.GetLineByOffset(match).LineNumber);
+    }
 
     private void OnArchiveBrowserPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {

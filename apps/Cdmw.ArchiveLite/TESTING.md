@@ -8,23 +8,23 @@ All commands are Python-free and use system temporary directories for synthetic 
 .\apps\Cdmw.ArchiveLite\scripts\test_archive_lite.ps1 -Configuration Debug
 ```
 
-This gate configures and builds `cdmw_archive_core`, `cdmw_preview_core`, `cdmw_archive_accelerator`, and `cdmw_mesh_core`; runs the available native self-tests/version checks; builds the .NET 10 solution and .NET/Vortice renderer; and runs the managed console test runner. Covered behavior includes:
+This gate configures and builds `cdmw_archive_core`, `cdmw_preview_core`, `cdmw_archive_accelerator`, `cdmw_mesh_core`, and the DirectXTex-backed `cd-texture-dx`; runs the available native self-tests/version checks; builds the .NET 10 solution and .NET/Vortice renderer; and runs the managed console test runner. Covered behavior includes:
 
 - versioned native index ABI and caller-owned decode buffers;
 - raw, LZ4, filename-derived ChaCha20, and PATHC-backed partial DDS decode;
 - safe virtual-path normalization and traversal/root rejection;
-- archive scan/query/preview/text-search behavior and source-file SHA-256 immutability;
+- archive scan/query/preview/text-search behavior, DDS-to-PNG decode, complete text-document artifact publication, and source-file SHA-256 immutability;
 - game-folder recognition and Steam-library parsing, plus missing/current/stale archive-cache health transitions;
 - portable settings/cache/log/crash routing beside the distributable with isolated test overrides; round-trip persistence for archive/text-search filters, export options, window placement, split panes, and grid columns; deterministic Archive Browser startup; startup auto-load of a current persistent cache without prompting; full-fingerprint rejection without an automatic rebuild after same-size/same-timestamp source changes; and a manual Refresh recommendation for stale caches;
 - persistent index build/reuse and forced-rebuild routing, one-time index isolation and shutdown cleanup, source-byte immutability, and the shared themed cache-choice flow for manual Open and Refresh;
 - native mesh-only model-package adaptation, hidden grid/gizmo state, empty texture channels, exact geometry-length checks, path-containment rejection, and a headless synthetic package load through the real .NET renderer;
 - synthetic mesh-only GLB 2.0, OBJ, and binary FBX exports, source-geometry immutability, determinate conversion progress, and cancellation that preserves an existing destination;
-- exact known-name versus related-hint classification, categorized extension facets whose grouped picker exposes the individual extensions, configurable file-grid columns, and server-side sorting for every displayed field;
+- exact known-name versus related-hint classification, categorized extension facets whose grouped picker exposes individual extensions with pixel scrolling, configurable file-grid columns, and server-side sorting for every displayed field;
 - associated-asset discovery from exact material-sidecar paths, embedded DDS/HKX references, same-family mesh/prefab companions, categorized and explicitly one-way evidence bindings, multi-selected/family raw export, learned DDS-to-PAC reverse navigation, cancellation/stale-result ownership, worker progress forwarding, and source-byte immutability;
 - contained atomic export, skip-on-collision, preserved virtual paths, and manifests;
 - content-addressed standalone extraction, package-manifest verification, atomic publication, damaged-cache quarantine/rebuild, cached reuse, and ZIP traversal rejection;
-- JSON snake-case protocol serialization, compiled resource parity, portable fatal diagnostics, title-row workspace navigation without a secondary tab band, rounded transparent cache-dialog chrome, cache/game controls, and Enter-to-search wiring; and
-- a real named-pipe worker process that opens and queries a synthetic PAMT/PAZ archive, performs an associated-asset request with progress, reports its cache current, shuts down cleanly, and leaves source bytes unchanged.
+- JSON snake-case protocol serialization, compiled resource parity, portable fatal diagnostics, title-row workspace navigation without a secondary tab band, preview-side associated-assets drawer, rich full-document editor/search bindings, rounded transparent cache-dialog chrome, cache/game controls, and Enter-to-search wiring; and
+- a real named-pipe worker process that opens and queries a synthetic PAMT/PAZ archive, publishes the full selected text document outside the bounded protocol message, performs an associated-asset request with progress, reports its cache current, shuts down cleanly, and leaves source bytes unchanged.
 
 ## Release/package gate
 
@@ -32,17 +32,17 @@ This gate configures and builds `cdmw_archive_core`, `cdmw_preview_core`, `cdmw_
 .\apps\Cdmw.ArchiveLite\scripts\build_archive_lite.ps1
 ```
 
-In addition to rerunning the focused checks in Release, this gate publishes the app, worker, and .NET/Vortice renderer self-contained for `win-x64`, includes the native archive, preview, item-name-index, and mesh-interchange helpers, writes a SHA-256 package-content manifest, and calls:
+In addition to rerunning the focused checks in Release, this gate publishes the app, worker, and .NET/Vortice renderer self-contained for `win-x64`, includes the native archive, model-preview, item-name-index, mesh-interchange, DirectXTex DDS, and pinned vgmstream media helpers, writes a SHA-256 package-content manifest, and calls:
 
 ```powershell
 .\apps\Cdmw.ArchiveLite\scripts\verify_archive_lite_artifact.ps1 -ArtifactDirectory <published-folder>
 .\apps\Cdmw.ArchiveLite\scripts\verify_archive_lite_standalone.ps1 -ExecutablePath <standalone-exe>
 ```
 
-The portable artifact guard rejects Python source/bytecode/extensions/runtimes, Python-named runtime folders, and PE files that reference a Python DLL. It also checks every native/application entry point is x64; runs the native preview-core and worker self-tests; verifies the packaged mesh core writes binary FBX 7400; loads and exports a synthetic native package through the packaged renderer without changing its source bytes; runs a hidden synthetic GPU smoke that requires `d3d11_vortice_shader` and measurable textureless contour separation on a faceted form from four angles; constructs and lays out the real WPF `MainWindow` without showing it; exercises the application-to-worker protocol; and rejects an orphaned packaged worker.
+The portable artifact guard rejects Python source/bytecode/extensions/runtimes, Python-named runtime folders, and PE files that reference a Python DLL. It also checks every native/application entry point is x64; runs the native model-preview and DirectXTex self-tests; verifies every packaged vgmstream file against the pinned dependency manifest; verifies the packaged mesh core writes binary FBX 7400; loads and exports a synthetic native package through the packaged renderer without changing its source bytes; runs a hidden synthetic GPU smoke that requires `d3d11_vortice_shader` and measurable textureless contour separation on a faceted form from four angles; constructs and lays out the real WPF `MainWindow` without showing it; exercises the application-to-worker protocol; and rejects an orphaned packaged worker.
 
 The standalone guard requires one x64 Native AOT executable with no runtime companion files. It launches that EXE against an isolated system-temporary data and portable-cache root, verifies first-run extraction and cache routing, launches it again to prove content-addressed runtime reuse without marker mutation, exercises the extracted application's worker-connected self-test both times, rejects an orphaned worker, and removes the isolated runtime afterward.
 
 ## Proof boundaries
 
-Passing these gates proves synthetic archive correctness, exact and same-family associated-asset routing for the covered metadata shapes, native package-to-renderer compatibility, synthetic Blender-interchange structure, hidden production-backend initialization, process lifecycle, portable and standalone packaging composition, first-run/cached launcher behavior, and the absence of a packaged Python runtime/import. Associated-asset name-family matches are intentionally labeled as hints and are not a claim of a dependency-complete game graph. The gates do not prove Blender import or visual fidelity for real PAC/PAM/PAMLOD content, provide an HKX visualizer, cover every DDS codec supported by Windows, prove playback of proprietary BK2/WEM assets, or provide publisher code signing. Real-asset, Blender, and visible model-fidelity validation remains a separately authorized gate.
+Passing these gates proves synthetic archive correctness, exact and same-family associated-asset routing for the covered metadata shapes, full text-document handoff, native DDS decode, native package-to-renderer compatibility, synthetic Blender-interchange structure, hidden production-backend initialization, process lifecycle, portable and standalone packaging composition, first-run/cached launcher behavior, and the absence of a packaged Python runtime/import. Associated-asset name-family matches are intentionally labeled as hints and are not a claim of a dependency-complete game graph. The gates do not prove Blender import or visual fidelity for real PAC/PAM/PAMLOD content, provide an HKX visualizer, cover every game DDS/WEM/BK2 variant, prove that an installed Windows codec can play proprietary BK2, or provide publisher code signing. Real-asset, Blender, media-corpus, and visible model-fidelity validation remains a separately authorized gate.

@@ -360,15 +360,6 @@
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
                                         </ComboBox>
-                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=PackageFilter}" />
-                                        <TextBox Margin="0,0,0,10" Text="{Binding ArchiveBrowser.PackageFilter, UpdateSourceTrigger=PropertyChanged}">
-                                            <TextBox.InputBindings>
-                                                <KeyBinding Key="Enter" Command="{Binding ArchiveBrowser.ApplyFilterCommand}" />
-                                            </TextBox.InputBindings>
-                                        </TextBox>
-                                        <CheckBox Margin="0,1,0,10"
-                                                  Content="{infra:Loc Key=PreviewableOnly}"
-                                                  IsChecked="{Binding ArchiveBrowser.PreviewableOnly}" />
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ViewMode}" />
                                         <ComboBox Margin="0,0,0,10"
                                                   ItemsSource="{Binding ArchiveBrowser.ViewModes}"
@@ -379,10 +370,6 @@
                                         <ComboBox Margin="0,0,0,10"
                                                   ItemsSource="{Binding ArchiveBrowser.Folders}"
                                                   SelectedItem="{Binding ArchiveBrowser.SelectedFolder}" />
-                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=RoleFilter}" />
-                                        <ComboBox Margin="0,0,0,10"
-                                                  ItemsSource="{Binding ArchiveBrowser.RoleFilters}"
-                                                  SelectedItem="{Binding ArchiveBrowser.SelectedRole}" />
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=SortBy}" />
                                         <ComboBox Margin="0,0,0,7"
                                                   ItemsSource="{Binding ArchiveBrowser.SortFields}"
@@ -428,11 +415,8 @@
                                                   SelectedValue="{Binding ArchiveBrowser.ManifestFormat}" />
                                         <Button Margin="0,0,0,8"
                                                 Style="{StaticResource PrimaryButtonStyle}"
-                                                Content="{infra:Loc Key=ExportMesh}"
-                                                ToolTip="{infra:Loc Key=ExportMeshHint}"
-                                                Command="{Binding ArchiveBrowser.ExportMeshCommand}" />
-                                        <Button Margin="0,0,0,8"
                                                 Content="{infra:Loc Key=ExportSelected}"
+                                                ToolTip="{infra:Loc Key=ExportSelectedHint}"
                                                 Command="{Binding ArchiveBrowser.ExportSelectedCommand}" />
                                         <Button Margin="0,0,0,8"
                                                 Content="{infra:Loc Key=ExportFolder}"
@@ -597,11 +581,17 @@
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0"
                                                Style="{StaticResource SectionTitleStyle}"
                                                Text="{Binding ArchiveBrowser.PreviewTitle}" />
-                                    <Border Grid.Column="1" Style="{StaticResource BadgeBorderStyle}" Margin="10,0,0,0">
+                                    <Button Grid.Column="1"
+                                            Margin="10,0,0,0"
+                                            Style="{StaticResource CompactButtonStyle}"
+                                            Content="{Binding ArchiveBrowser.AssociatedAssets.Header}"
+                                            Command="{Binding ArchiveBrowser.AssociatedAssets.ToggleDrawerCommand}" />
+                                    <Border Grid.Column="2" Style="{StaticResource BadgeBorderStyle}" Margin="8,0,0,0">
                                         <TextBlock FontSize="10"
                                                    FontWeight="Bold"
                                                    Foreground="{DynamicResource TextMutedBrush}"
@@ -640,10 +630,57 @@
                                         CornerRadius="5"
                                         ClipToBounds="True">
                                     <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Border Grid.Row="0"
+                                                Padding="7,6"
+                                                Background="{DynamicResource SurfaceRaisedBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="0,0,0,1"
+                                                Visibility="{Binding ArchiveBrowser.IsTextPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <DockPanel Grid.Column="0" LastChildFill="True">
+                                                    <TextBlock Margin="0,0,7,0"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextMutedBrush}"
+                                                               Text="{infra:Loc Key=FindInFile}" />
+                                                    <TextBox x:Name="ArchivePreviewFindBox"
+                                                             MinWidth="120"
+                                                             Padding="8,4"
+                                                             VerticalContentAlignment="Center"
+                                                             KeyDown="OnArchivePreviewFindKeyDown"
+                                                             ToolTip="{infra:Loc Key=FindInFile}" />
+                                                </DockPanel>
+                                                <Button Grid.Column="1"
+                                                        Margin="6,0,0,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="&#x2191;"
+                                                        ToolTip="{infra:Loc Key=FindPrevious}"
+                                                        Click="OnArchivePreviewFindPreviousClick" />
+                                                <Button Grid.Column="2"
+                                                        Margin="4,0,0,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="&#x2193;"
+                                                        ToolTip="{infra:Loc Key=FindNext}"
+                                                        Click="OnArchivePreviewFindNextClick" />
+                                            </Grid>
+                                        </Border>
                                         <controls:DotNetModelPreviewHost x:Name="ModelPreviewHost"
+                                                                         Grid.Row="0"
+                                                                         Grid.RowSpan="3"
                                                                          PackagePath="{Binding ArchiveBrowser.ModelPreviewPackagePath, Mode=OneWay}"
                                                                          Visibility="{Binding ArchiveBrowser.IsModelPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                        <ScrollViewer Grid.Row="0"
+                                                      Grid.RowSpan="3"
+                                                      HorizontalScrollBarVisibility="Auto"
                                                       VerticalScrollBarVisibility="Auto"
                                                       Visibility="{Binding ArchiveBrowser.IsImagePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <Image Margin="12"
@@ -651,15 +688,20 @@
                                                    Stretch="Uniform"
                                                    RenderOptions.BitmapScalingMode="HighQuality" />
                                         </ScrollViewer>
-                                        <MediaElement Source="{Binding ArchiveBrowser.PreviewMediaSource}"
-                                                      LoadedBehavior="Play"
+                                        <MediaElement x:Name="ArchiveMediaPreview"
+                                                      Grid.Row="1"
+                                                      Source="{Binding ArchiveBrowser.PreviewMediaSource}"
+                                                      LoadedBehavior="Manual"
                                                       UnloadedBehavior="Close"
                                                       Stretch="Uniform"
                                                       ScrubbingEnabled="True"
                                                       Visibility="{Binding ArchiveBrowser.IsMediaPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <avalonEdit:TextEditor IsReadOnly="True"
+                                        <avalonEdit:TextEditor x:Name="ArchiveTextPreviewEditor"
+                                                               Grid.Row="1"
+                                                               Grid.RowSpan="2"
+                                                               IsReadOnly="True"
                                                                ShowLineNumbers="True"
-                                                               WordWrap="True"
+                                                               WordWrap="False"
                                                                FontFamily="Consolas"
                                                                FontSize="12.5"
                                                                Background="{DynamicResource InputBackgroundBrush}"
@@ -668,7 +710,28 @@
                                                                HorizontalScrollBarVisibility="Auto"
                                                                VerticalScrollBarVisibility="Auto"
                                                                Visibility="{Binding ArchiveBrowser.IsTextPreview, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                                               infra:AvalonEditBinding.Syntax="{Binding ArchiveBrowser.PreviewSyntax}"
                                                                infra:AvalonEditBinding.Text="{Binding ArchiveBrowser.PreviewText}" />
+                                        <Border Grid.Row="2"
+                                                Padding="7,6"
+                                                Background="{DynamicResource SurfaceRaisedBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="0,1,0,0"
+                                                Visibility="{Binding ArchiveBrowser.IsMediaPreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <StackPanel HorizontalAlignment="Center" Orientation="Horizontal">
+                                                <Button Margin="0,0,5,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=Play}"
+                                                        Click="OnMediaPlayClick" />
+                                                <Button Margin="0,0,5,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=Pause}"
+                                                        Click="OnMediaPauseClick" />
+                                                <Button Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=Stop}"
+                                                        Click="OnMediaStopClick" />
+                                            </StackPanel>
+                                        </Border>
                                     </Grid>
                                 </Border>
 
@@ -722,48 +785,80 @@
                                              Text="{Binding ArchiveBrowser.PreviewMetadata, Mode=OneWay}" />
                                 </Expander>
 
-                                <Expander Grid.Row="5"
-                                          Margin="0,7,0,0"
-                                          Header="{Binding ArchiveBrowser.AssociatedAssets.Header}"
-                                          IsExpanded="{Binding ArchiveBrowser.AssociatedAssets.IsExpanded}">
-                                    <Grid MaxHeight="300">
+                                <Border Grid.Row="0"
+                                        Grid.RowSpan="7"
+                                        Panel.ZIndex="30"
+                                        MaxWidth="360"
+                                        Margin="26,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource AccentBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="7"
+                                        ClipToBounds="True"
+                                        Visibility="{Binding ArchiveBrowser.AssociatedAssets.IsExpanded, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Grid>
                                         <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                             <RowDefinition Height="Auto" />
                                         </Grid.RowDefinitions>
-                                        <Grid Margin="0,2,0,7">
+                                        <Border Padding="12,9"
+                                                Background="{DynamicResource SurfaceRaisedBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="0,0,0,1">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <TextBlock VerticalAlignment="Center"
+                                                           Style="{StaticResource SectionTitleStyle}"
+                                                           Text="{Binding ArchiveBrowser.AssociatedAssets.Header}" />
+                                                <Button Grid.Column="1"
+                                                        Width="30"
+                                                        Height="28"
+                                                        Margin="8,0,0,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="&#x2715;"
+                                                        ToolTip="{infra:Loc Key=Close}"
+                                                        Command="{Binding ArchiveBrowser.AssociatedAssets.CloseDrawerCommand}" />
+                                            </Grid>
+                                        </Border>
+                                        <Grid Grid.Row="1" Margin="10,9,10,7">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-                                            <TextBlock Margin="2,0,10,0"
+                                            <TextBlock Margin="1,0,8,0"
                                                        VerticalAlignment="Center"
+                                                       FontSize="11"
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        TextWrapping="Wrap"
                                                        Text="{Binding ArchiveBrowser.AssociatedAssets.Status}" />
                                             <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                                <Button MinWidth="118"
-                                                        Style="{StaticResource CompactButtonStyle}"
+                                                <Button Style="{StaticResource CompactButtonStyle}"
                                                         Content="{infra:Loc Key=FindAssociatedAssets}"
                                                         Command="{Binding ArchiveBrowser.AssociatedAssets.FindCommand}" />
-                                                <Button Margin="6,0,0,0"
+                                                <Button Margin="5,0,0,0"
                                                         Style="{StaticResource CompactButtonStyle}"
                                                         Content="{infra:Loc Key=Cancel}"
                                                         Command="{Binding ArchiveBrowser.AssociatedAssets.CancelCommand}"
                                                         Visibility="{Binding ArchiveBrowser.AssociatedAssets.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                             </StackPanel>
                                         </Grid>
-                                        <ProgressBar Grid.Row="1"
-                                                     Height="5"
-                                                     Margin="0,0,0,7"
+                                        <ProgressBar Grid.Row="2"
+                                                     Height="4"
+                                                     Margin="10,0,10,7"
                                                      IsIndeterminate="True"
                                                      Visibility="{Binding ArchiveBrowser.AssociatedAssets.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <ListBox x:Name="AssociatedAssetsList"
-                                                 Grid.Row="2"
-                                                 MaxHeight="220"
+                                                 Grid.Row="3"
+                                                 Margin="8,0"
                                                  HorizontalContentAlignment="Stretch"
+                                                 ScrollViewer.CanContentScroll="False"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ItemsSource="{Binding ArchiveBrowser.AssociatedAssets.AssetsView}"
                                                  SelectedItem="{Binding ArchiveBrowser.AssociatedAssets.SelectedAsset}"
@@ -775,10 +870,11 @@
                                                     <GroupStyle.HeaderTemplate>
                                                         <DataTemplate>
                                                             <Border Margin="0,4,0,2"
-                                                                    Padding="8,5"
+                                                                    Padding="7,4"
                                                                     Background="{DynamicResource SurfaceRaisedBrush}"
                                                                     CornerRadius="4">
-                                                                <TextBlock FontWeight="SemiBold"
+                                                                <TextBlock FontSize="11"
+                                                                           FontWeight="SemiBold"
                                                                            Foreground="{DynamicResource AccentBrush}"
                                                                            Text="{Binding Name}" />
                                                             </Border>
@@ -788,9 +884,18 @@
                                             </ListBox.GroupStyle>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <Grid Margin="5,4" ToolTip="{Binding Path}">
+                                                    <Grid Margin="5,3">
+                                                        <Grid.ToolTip>
+                                                            <StackPanel MaxWidth="430">
+                                                                <TextBlock FontWeight="SemiBold"
+                                                                           Text="{Binding Path}" />
+                                                                <TextBlock Margin="0,4,0,0"
+                                                                           Foreground="{DynamicResource TextMutedBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           Text="{Binding Reason}" />
+                                                            </StackPanel>
+                                                        </Grid.ToolTip>
                                                         <Grid.RowDefinitions>
-                                                            <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
                                                             <RowDefinition Height="Auto" />
@@ -799,46 +904,42 @@
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Text="{Binding Name}" />
                                                         <TextBlock Grid.Row="1"
-                                                                   Margin="0,2,0,0"
+                                                                   Margin="0,1,0,0"
+                                                                   FontSize="10.5"
                                                                    Foreground="{DynamicResource AccentBrush}"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Text="{Binding KnownName}" />
                                                         <TextBlock Grid.Row="2"
-                                                                   Margin="0,2,0,0"
+                                                                   Margin="0,1,0,0"
                                                                    FontSize="10.5"
                                                                    Foreground="{DynamicResource TextMutedBrush}"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Text="{Binding Path}" />
-                                                        <TextBlock Grid.Row="3"
-                                                                   Margin="0,3,0,0"
-                                                                   FontSize="10.5"
-                                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                                   TextWrapping="Wrap">
-                                                            <Run FontWeight="SemiBold" Text="{Binding EvidenceLabel, Mode=OneWay}" />
-                                                            <Run Text="  " />
-                                                            <Run Text="{Binding Reason, Mode=OneWay}" />
-                                                        </TextBlock>
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
-                                        <WrapPanel Grid.Row="3"
-                                                   Margin="0,8,0,0"
-                                                   HorizontalAlignment="Right">
-                                            <Button Margin="0,0,6,0"
-                                                    Style="{StaticResource CompactButtonStyle}"
-                                                    Content="{infra:Loc Key=ExportAssociatedSelected}"
-                                                    Command="{Binding ArchiveBrowser.AssociatedAssets.ExportSelectedCommand}" />
-                                            <Button Margin="0,0,6,0"
-                                                    Style="{StaticResource CompactButtonStyle}"
-                                                    Content="{infra:Loc Key=ShowAssociatedAsset}"
-                                                    Command="{Binding ArchiveBrowser.AssociatedAssets.ShowInBrowserCommand}" />
-                                            <Button Style="{StaticResource CompactButtonStyle}"
-                                                    Content="{infra:Loc Key=ExportAssociatedFamily}"
-                                                    Command="{Binding ArchiveBrowser.AssociatedAssets.ExportFamilyCommand}" />
-                                        </WrapPanel>
+                                        <Border Grid.Row="4"
+                                                Padding="9,8"
+                                                Background="{DynamicResource SurfaceRaisedBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="0,1,0,0">
+                                            <WrapPanel HorizontalAlignment="Right">
+                                                <Button Margin="0,0,5,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=ExportAssociatedSelected}"
+                                                        Command="{Binding ArchiveBrowser.AssociatedAssets.ExportSelectedCommand}" />
+                                                <Button Margin="0,0,5,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=ShowAssociatedAsset}"
+                                                        Command="{Binding ArchiveBrowser.AssociatedAssets.ShowInBrowserCommand}" />
+                                                <Button Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=ExportAssociatedFamily}"
+                                                        Command="{Binding ArchiveBrowser.AssociatedAssets.ExportFamilyCommand}" />
+                                            </WrapPanel>
+                                        </Border>
                                     </Grid>
-                                </Expander>
+                                </Border>
 
                                 <TextBlock Grid.Row="6"
                                            Margin="4,7,4,0"
@@ -956,21 +1057,69 @@
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0"
                                        Margin="0,0,0,11"
                                        Style="{StaticResource SectionTitleStyle}"
                                        Text="{infra:Loc Key=Preview}" />
-                            <Border Grid.Row="1"
+                            <ProgressBar Grid.Row="1"
+                                         Height="4"
+                                         Margin="0,0,0,7"
+                                         IsIndeterminate="True"
+                                         Visibility="{Binding TextSearch.IsPreviewBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                            <Border Grid.Row="2"
+                                    Margin="0,0,0,7"
+                                    Padding="7,6"
+                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    Visibility="{Binding TextSearch.HasPreviewDocument, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <DockPanel Grid.Column="0" LastChildFill="True">
+                                        <TextBlock Margin="0,0,7,0"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   Text="{infra:Loc Key=FindInFile}" />
+                                        <TextBox x:Name="TextSearchPreviewFindBox"
+                                                 MinWidth="120"
+                                                 Padding="8,4"
+                                                 VerticalContentAlignment="Center"
+                                                 KeyDown="OnTextSearchPreviewFindKeyDown"
+                                                 ToolTip="{infra:Loc Key=FindInFile}" />
+                                    </DockPanel>
+                                    <Button Grid.Column="1"
+                                            Margin="6,0,0,0"
+                                            Style="{StaticResource CompactButtonStyle}"
+                                            Content="&#x2191;"
+                                            ToolTip="{infra:Loc Key=FindPrevious}"
+                                            Click="OnTextSearchPreviewFindPreviousClick" />
+                                    <Button Grid.Column="2"
+                                            Margin="4,0,0,0"
+                                            Style="{StaticResource CompactButtonStyle}"
+                                            Content="&#x2193;"
+                                            ToolTip="{infra:Loc Key=FindNext}"
+                                            Click="OnTextSearchPreviewFindNextClick" />
+                                </Grid>
+                            </Border>
+                            <Border Grid.Row="3"
                                     Background="{DynamicResource InputBackgroundBrush}"
                                     BorderBrush="{DynamicResource BorderBrush}"
                                     BorderThickness="1"
                                     CornerRadius="5"
                                     ClipToBounds="True">
-                                <avalonEdit:TextEditor IsReadOnly="True"
-                                                       ShowLineNumbers="False"
-                                                       WordWrap="True"
+                                <avalonEdit:TextEditor x:Name="TextSearchPreviewEditor"
+                                                       IsReadOnly="True"
+                                                       ShowLineNumbers="True"
+                                                       WordWrap="False"
                                                        FontFamily="Consolas"
                                                        FontSize="12.5"
                                                        Background="{DynamicResource InputBackgroundBrush}"
@@ -978,6 +1127,10 @@
                                                        Padding="12"
                                                        HorizontalScrollBarVisibility="Auto"
                                                        VerticalScrollBarVisibility="Auto"
+                                                       infra:AvalonEditBinding.SelectionLine="{Binding TextSearch.PreviewLine}"
+                                                       infra:AvalonEditBinding.SelectionColumn="{Binding TextSearch.PreviewColumn}"
+                                                       infra:AvalonEditBinding.SelectionLength="{Binding TextSearch.PreviewLength}"
+                                                       infra:AvalonEditBinding.Syntax="{Binding TextSearch.PreviewSyntax}"
                                                        infra:AvalonEditBinding.Text="{Binding TextSearch.PreviewText}" />
                             </Border>
                         </Grid>

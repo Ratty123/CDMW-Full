@@ -28,4 +28,5 @@ public sealed record PreviewResult(
     string? Text = null,
     string? ArtifactPath = null,
     string? MediaKind = null,
-    IReadOnlyList<string>? Warnings = null);
+    IReadOnlyList<string>? Warnings = null,
+    string? Syntax = null);

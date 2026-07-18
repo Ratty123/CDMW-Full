@@ -12,7 +12,9 @@ public sealed class TextSearchViewModel : ObservableObject
     private readonly Func<string?> _archiveSession;
     private readonly Action<string> _setShellStatus;
     private CancellationTokenSource? _operation;
+    private CancellationTokenSource? _previewOperation;
     private long _generation;
+    private long _previewGeneration;
     private TextSearchSourceKind _sourceKind = TextSearchSourceKind.Archive;
     private string _looseFolder = string.Empty;
     private string _query = string.Empty;
@@ -22,6 +24,11 @@ public sealed class TextSearchViewModel : ObservableObject
     private bool _caseSensitive;
     private TextSearchMatchDto? _selectedMatch;
     private string _previewText = LocalizationManager.Get("PreviewEmpty");
+    private string _previewSyntax = string.Empty;
+    private int _previewLine = 1;
+    private int _previewColumn = 1;
+    private int _previewLength;
+    private bool _isPreviewBusy;
     private bool _isBusy;
     private IReadOnlyList<LocalizedOption<TextSearchSourceKind>> _sourceOptions = [];
 
@@ -65,6 +72,7 @@ public sealed class TextSearchViewModel : ObservableObject
         {
             if (SetProperty(ref _sourceKind, value))
             {
+                CancelPreviewAndClear();
                 BrowseCommand.RaiseCanExecuteChanged();
                 SearchCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(IsArchiveSource));
@@ -83,6 +91,7 @@ public sealed class TextSearchViewModel : ObservableObject
         {
             if (SetProperty(ref _looseFolder, value))
             {
+                CancelPreviewAndClear();
                 SearchCommand.RaiseCanExecuteChanged();
             }
         }
@@ -131,7 +140,8 @@ public sealed class TextSearchViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedMatch, value))
             {
-                PreviewText = value?.Context ?? LocalizationManager.Get("PreviewEmpty");
+                OnPropertyChanged(nameof(HasPreviewDocument));
+                _ = LoadPreviewLatestAsync(value);
             }
         }
     }
@@ -141,6 +151,38 @@ public sealed class TextSearchViewModel : ObservableObject
         get => _previewText;
         private set => SetProperty(ref _previewText, value);
     }
+
+    public string PreviewSyntax
+    {
+        get => _previewSyntax;
+        private set => SetProperty(ref _previewSyntax, value);
+    }
+
+    public int PreviewLine
+    {
+        get => _previewLine;
+        private set => SetProperty(ref _previewLine, value);
+    }
+
+    public int PreviewColumn
+    {
+        get => _previewColumn;
+        private set => SetProperty(ref _previewColumn, value);
+    }
+
+    public int PreviewLength
+    {
+        get => _previewLength;
+        private set => SetProperty(ref _previewLength, value);
+    }
+
+    public bool IsPreviewBusy
+    {
+        get => _isPreviewBusy;
+        private set => SetProperty(ref _isPreviewBusy, value);
+    }
+
+    public bool HasPreviewDocument => SelectedMatch is not null;
 
     public bool IsBusy
     {
@@ -159,8 +201,11 @@ public sealed class TextSearchViewModel : ObservableObject
     public void RequestShutdown()
     {
         Interlocked.Increment(ref _generation);
-        _operation?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _operation, null));
+        Interlocked.Increment(ref _previewGeneration);
+        CancelOperation(Interlocked.Exchange(ref _previewOperation, null));
         IsBusy = false;
+        IsPreviewBusy = false;
     }
 
     public void NotifyArchiveSessionChanged() => SearchCommand.RaiseCanExecuteChanged();
@@ -217,6 +262,8 @@ public sealed class TextSearchViewModel : ObservableObject
         using var operation = BeginOperation(commandToken);
         try
         {
+            SelectedMatch = null;
+            Matches.Clear();
             var generation = Interlocked.Increment(ref _generation);
             var request = new TextSearchRequest(
                 SourceKind,
@@ -309,6 +356,127 @@ public sealed class TextSearchViewModel : ObservableObject
         if (ReferenceEquals(Interlocked.CompareExchange(ref _operation, null, operation), operation))
         {
             IsBusy = false;
+        }
+    }
+
+    private async Task LoadPreviewLatestAsync(TextSearchMatchDto? match)
+    {
+        var generation = Interlocked.Increment(ref _previewGeneration);
+        var operation = new CancellationTokenSource();
+        CancelOperation(Interlocked.Exchange(ref _previewOperation, operation));
+        if (match is null)
+        {
+            ClearPreview();
+            Interlocked.CompareExchange(ref _previewOperation, null, operation);
+            operation.Dispose();
+            return;
+        }
+
+        var sourceKind = SourceKind;
+        var source = sourceKind == TextSearchSourceKind.Archive ? _archiveSession() : LooseFolder;
+        if (string.IsNullOrWhiteSpace(source))
+        {
+            PreviewText = match.Context;
+            PreviewSyntax = TextDocumentSyntax(match.Path);
+            ApplyMatchSelection(match);
+            Interlocked.CompareExchange(ref _previewOperation, null, operation);
+            operation.Dispose();
+            return;
+        }
+
+        try
+        {
+            IsPreviewBusy = true;
+            await Task.Delay(80, operation.Token).ConfigureAwait(true);
+            var result = await _worker.SendAsync<TextDocumentRequest, PreviewResult>(
+                WorkerProtocol.TextDocument,
+                generation,
+                new TextDocumentRequest(sourceKind, source, match.Path, match.EntryId),
+                operation.Token).ConfigureAwait(true);
+            var text = !string.IsNullOrWhiteSpace(result.ArtifactPath)
+                ? await PreviewTextLoader.LoadAsync(result.ArtifactPath, operation.Token).ConfigureAwait(true)
+                : result.Text ?? match.Context;
+            operation.Token.ThrowIfCancellationRequested();
+            if (generation != Volatile.Read(ref _previewGeneration))
+            {
+                return;
+            }
+            PreviewText = text;
+            PreviewSyntax = result.Syntax ?? TextDocumentSyntax(match.Path);
+            ApplyMatchSelection(match);
+        }
+        catch (OperationCanceledException)
+        {
+            // Selection changed or the application is closing.
+        }
+        catch (Exception exception)
+        {
+            if (generation == Volatile.Read(ref _previewGeneration))
+            {
+                PreviewText = match.Context;
+                PreviewSyntax = TextDocumentSyntax(match.Path);
+                ApplyMatchSelection(match);
+                _setShellStatus(exception.Message);
+            }
+        }
+        finally
+        {
+            if (generation == Volatile.Read(ref _previewGeneration))
+            {
+                IsPreviewBusy = false;
+            }
+            Interlocked.CompareExchange(ref _previewOperation, null, operation);
+            operation.Dispose();
+        }
+    }
+
+    private void ApplyMatchSelection(TextSearchMatchDto match)
+    {
+        PreviewLine = Math.Max(1, match.Line);
+        PreviewColumn = Math.Max(1, match.Column);
+        PreviewLength = Math.Max(0, match.Length);
+    }
+
+    private void CancelPreviewAndClear()
+    {
+        Interlocked.Increment(ref _previewGeneration);
+        CancelOperation(Interlocked.Exchange(ref _previewOperation, null));
+        SelectedMatch = null;
+        ClearPreview();
+    }
+
+    private void ClearPreview()
+    {
+        PreviewText = LocalizationManager.Get("PreviewEmpty");
+        PreviewSyntax = string.Empty;
+        PreviewLine = 1;
+        PreviewColumn = 1;
+        PreviewLength = 0;
+        IsPreviewBusy = false;
+    }
+
+    private static string TextDocumentSyntax(string path) => Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".pac_xml" or ".pam_xml" or ".pamlod_xml" or ".prefabdata_xml" or ".app_xml" => ".xml",
+        ".material" or ".shader" => ".hlsl",
+        ".cfg" or ".ini" => ".ini",
+        ".yml" => ".yaml",
+        var extension => extension,
+    };
+
+    private static void CancelOperation(CancellationTokenSource? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+        try
+        {
+            operation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // A latest-wins completion may dispose the operation concurrently.
         }
     }
 }

@@ -27,11 +27,11 @@ public static class ArchiveEntryClassifier
     };
     private static readonly HashSet<string> AudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp3", ".ogg", ".wem", ".wav", ".bnk",
+        ".aac", ".bnk", ".flac", ".m4a", ".mp3", ".ogg", ".wav", ".wem", ".wma",
     };
     private static readonly HashSet<string> VideoExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
-        ".bk2", ".mp4",
+        ".avi", ".bk2", ".m4v", ".mov", ".mp4", ".mpeg", ".mpg", ".webm", ".wmv",
     };
     private static readonly HashSet<string> TextExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -95,7 +95,9 @@ public static class ArchiveEntryClassifier
         {
             return ArchiveExtensionCategory.AnimationScene;
         }
-        if (normalized is ".wem" or ".bnk" or ".mp4" or ".wav" or ".ogg" or ".mp3")
+        if (normalized is ".aac" or ".avi" or ".bk2" or ".bnk" or ".flac" or ".m4a"
+            or ".m4v" or ".mov" or ".mp3" or ".mp4" or ".mpeg" or ".mpg" or ".ogg"
+            or ".wav" or ".webm" or ".wem" or ".wma" or ".wmv")
         {
             return ArchiveExtensionCategory.AudioVideo;
         }

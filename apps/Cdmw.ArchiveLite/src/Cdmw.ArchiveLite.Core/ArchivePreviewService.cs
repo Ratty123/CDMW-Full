@@ -7,19 +7,36 @@ namespace Cdmw.ArchiveLite.Core;
 public sealed class ArchivePreviewService
 {
     private const long MaximumPreviewBytes = 64L * 1024L * 1024L;
-    private const string PreviewArtifactVersion = "preview_v2_pathc";
+    private const string PreviewArtifactVersion = "preview_v3_native_media";
+    private static readonly HashSet<string> DirectAudioExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav", ".wma",
+    };
+    private static readonly HashSet<string> DirectVideoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".avi", ".bk2", ".m4v", ".mov", ".mp4", ".mpeg", ".mpg", ".webm", ".wmv",
+    };
     private readonly ArchiveSessionManager _sessions;
     private readonly NativeArchiveCore _native;
     private readonly NativeModelPreviewService _modelPreviews;
+    private readonly NativeTexturePreviewService _texturePreviews;
+    private readonly NativeMediaPreviewService _mediaPreviews;
+    private readonly TextDocumentPreviewService _textDocuments;
 
     public ArchivePreviewService(
         ArchiveSessionManager sessions,
         NativeArchiveCore native,
-        NativeModelPreviewService? modelPreviews = null)
+        NativeModelPreviewService? modelPreviews = null,
+        NativeTexturePreviewService? texturePreviews = null,
+        NativeMediaPreviewService? mediaPreviews = null,
+        TextDocumentPreviewService? textDocuments = null)
     {
         _sessions = sessions;
         _native = native;
         _modelPreviews = modelPreviews ?? new NativeModelPreviewService();
+        _texturePreviews = texturePreviews ?? new NativeTexturePreviewService();
+        _mediaPreviews = mediaPreviews ?? new NativeMediaPreviewService();
+        _textDocuments = textDocuments ?? new TextDocumentPreviewService();
     }
 
     public Task<PreviewResult> BuildAsync(
@@ -89,27 +106,82 @@ public sealed class ArchivePreviewService
 
         if (entry.Role is ArchiveEntryRole.Text or ArchiveEntryRole.Metadata || LooksTextual(decoded.Bytes))
         {
-            var text = TextDecoding.Decode(decoded.Bytes);
-            var characterLimit = Math.Clamp(request.TextCharacterLimit, 1_000, 120_000);
-            if (text.Length > characterLimit)
-            {
-                text = text[..characterLimit];
-                warnings.Add($"Text preview is limited to {characterLimit:N0} characters.");
-            }
-            return new PreviewResult(session.Id, entry.EntryId, PreviewKind.Text, entry.Name, metadata, text, Warnings: warnings);
+            var artifact = await _textDocuments.PublishAsync(
+                $"archive|{session.Fingerprint}|{entry.EntryId}|{entry.Path}",
+                entry.Path,
+                decoded.Bytes,
+                cancellationToken).ConfigureAwait(false);
+            return new PreviewResult(
+                session.Id,
+                entry.EntryId,
+                PreviewKind.Text,
+                entry.Name,
+                metadata,
+                ArtifactPath: artifact.Path,
+                Warnings: warnings,
+                Syntax: artifact.Syntax);
         }
 
         if (entry.Role is ArchiveEntryRole.Image or ArchiveEntryRole.Normal or ArchiveEntryRole.Material or ArchiveEntryRole.UserInterface or ArchiveEntryRole.Impostor)
         {
             var artifact = await PublishArtifactAsync(session, entry, decoded.Bytes, cancellationToken).ConfigureAwait(false);
+            if (entry.Extension.Equals(".dds", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    artifact = await _texturePreviews.BuildAsync(session, entry, artifact, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    warnings.Add($"DirectXTex DDS preview unavailable: {exception.Message}");
+                    return new PreviewResult(
+                        session.Id,
+                        entry.EntryId,
+                        PreviewKind.Hex,
+                        entry.Name,
+                        metadata,
+                        BuildHex(decoded.Bytes, request.BinaryByteLimit),
+                        Warnings: warnings);
+                }
+            }
             return new PreviewResult(session.Id, entry.EntryId, PreviewKind.Image, entry.Name, metadata, ArtifactPath: artifact, Warnings: warnings);
         }
 
         if (entry.Role is ArchiveEntryRole.Audio or ArchiveEntryRole.Video)
         {
-            if (entry.Extension is not (".mp3" or ".mp4" or ".wav"))
+            var artifact = await PublishArtifactAsync(session, entry, decoded.Bytes, cancellationToken).ConfigureAwait(false);
+            if (NativeMediaPreviewService.Supports(entry.Extension))
             {
-                warnings.Add($"Direct playback for {entry.Extension} is not available through Windows Media Foundation in Archive Lite.");
+                try
+                {
+                    artifact = await _mediaPreviews.BuildAsync(session, entry, artifact, cancellationToken).ConfigureAwait(false);
+                    warnings.Add("Decoded for playback with bundled vgmstream.");
+                }
+                catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (Exception exception)
+                {
+                    warnings.Add($"Wwise audio decode unavailable: {exception.Message}");
+                    return new PreviewResult(
+                        session.Id,
+                        entry.EntryId,
+                        PreviewKind.Hex,
+                        entry.Name,
+                        metadata,
+                        BuildHex(decoded.Bytes, request.BinaryByteLimit),
+                        Warnings: warnings);
+                }
+            }
+            else if ((entry.Role == ArchiveEntryRole.Audio && !DirectAudioExtensions.Contains(entry.Extension))
+                || (entry.Role == ArchiveEntryRole.Video && !DirectVideoExtensions.Contains(entry.Extension)))
+            {
+                warnings.Add($"No bundled decoder is available for {entry.Extension}; showing a binary preview instead.");
                 return new PreviewResult(
                     session.Id,
                     entry.EntryId,
@@ -119,7 +191,10 @@ public sealed class ArchivePreviewService
                     BuildHex(decoded.Bytes, request.BinaryByteLimit),
                     Warnings: warnings);
             }
-            var artifact = await PublishArtifactAsync(session, entry, decoded.Bytes, cancellationToken).ConfigureAwait(false);
+            if (entry.Extension.Equals(".bk2", StringComparison.OrdinalIgnoreCase))
+            {
+                warnings.Add("BK2 playback requires a compatible Bink/Media Foundation codec installed on Windows.");
+            }
             var kind = entry.Role == ArchiveEntryRole.Audio ? PreviewKind.Audio : PreviewKind.Video;
             return new PreviewResult(session.Id, entry.EntryId, kind, entry.Name, metadata, ArtifactPath: artifact, MediaKind: entry.Role.ToString().ToLowerInvariant(), Warnings: warnings);
         }

@@ -20,6 +20,7 @@ public static class WorkerProtocol
     public const string FindAssociatedAssets = "find_associated_assets";
     public const string Preview = "preview";
     public const string TextSearch = "text_search";
+    public const string TextDocument = "text_document";
     public const string Export = "export";
 
     public static JsonSerializerOptions JsonOptions { get; } = CreateJsonOptions();

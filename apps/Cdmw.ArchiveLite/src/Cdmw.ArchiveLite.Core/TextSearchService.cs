@@ -6,10 +6,57 @@ using Cdmw.ArchiveLite.Contracts;
 
 namespace Cdmw.ArchiveLite.Core;
 
-public sealed class TextSearchService(ArchiveSessionManager sessions, NativeArchiveCore native)
+public sealed class TextSearchService(
+    ArchiveSessionManager sessions,
+    NativeArchiveCore native,
+    TextDocumentPreviewService? textDocuments = null)
 {
     private const long MaximumDecodedTextBytes = 64L * 1024L * 1024L;
     private const int MaximumMatchPayloadBytes = 700 * 1024;
+    private readonly TextDocumentPreviewService _textDocuments = textDocuments ?? new TextDocumentPreviewService();
+
+    public async Task<PreviewResult> BuildPreviewAsync(
+        TextDocumentRequest request,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.SourceKind != TextSearchSourceKind.LooseFolder)
+        {
+            throw new InvalidDataException("Loose text-document preview requires a loose-folder source.");
+        }
+
+        var root = Path.GetFullPath(request.Source);
+        if (!Directory.Exists(root))
+        {
+            throw new DirectoryNotFoundException($"Text-search folder does not exist: {root}");
+        }
+        var path = ExportPathPolicy.ResolveContainedPath(root, request.Path);
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException("The selected text-search file no longer exists.", path);
+        }
+        EnsureNoReparsePoints(root, path);
+
+        var bytes = await ReadLooseFileAsync(path, cancellationToken).ConfigureAwait(false);
+        var artifact = await _textDocuments.PublishAsync(
+            $"loose|{root}|{request.Path}|{new FileInfo(path).LastWriteTimeUtc.Ticks}",
+            request.Path,
+            bytes,
+            cancellationToken).ConfigureAwait(false);
+        var metadata = string.Join(
+            Environment.NewLine,
+            $"Path: {request.Path}",
+            $"Size: {bytes.LongLength:N0} bytes",
+            $"Source: {root}");
+        return new PreviewResult(
+            string.Empty,
+            -1,
+            PreviewKind.Text,
+            Path.GetFileName(request.Path),
+            metadata,
+            ArtifactPath: artifact.Path,
+            Syntax: artifact.Syntax);
+    }
 
     public async Task<TextSearchResultBatch> SearchAsync(TextSearchRequest request, CancellationToken cancellationToken)
     {
@@ -260,6 +307,30 @@ public sealed class TextSearchService(ArchiveSessionManager sessions, NativeArch
         }
         if (offset != bytes.Length) Array.Resize(ref bytes, offset);
         return bytes;
+    }
+
+    private static void EnsureNoReparsePoints(string root, string file)
+    {
+        var canonicalRoot = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
+        FileSystemInfo? current = new FileInfo(file);
+        while (current is not null)
+        {
+            if ((current.Attributes & FileAttributes.ReparsePoint) != 0)
+            {
+                throw new InvalidDataException("Text preview does not follow reparse-point paths.");
+            }
+            if (Path.TrimEndingDirectorySeparator(current.FullName).Equals(canonicalRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+            current = current switch
+            {
+                FileInfo fileInfo => fileInfo.Directory,
+                DirectoryInfo directoryInfo => directoryInfo.Parent,
+                _ => null,
+            };
+        }
+        throw new InvalidDataException("Text preview path is not contained by its search root.");
     }
 
     private sealed class LineTracker(string text)

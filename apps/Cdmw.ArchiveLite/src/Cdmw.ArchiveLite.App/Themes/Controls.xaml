@@ -280,7 +280,7 @@
                                     BorderBrush="{DynamicResource BorderStrongBrush}"
                                     BorderThickness="1"
                                     CornerRadius="8">
-                                <ScrollViewer CanContentScroll="True" VerticalScrollBarVisibility="Auto">
+                                <ScrollViewer CanContentScroll="False" VerticalScrollBarVisibility="Auto">
                                     <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
                                 </ScrollViewer>
                             </Border>

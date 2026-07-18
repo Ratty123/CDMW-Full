@@ -104,6 +104,16 @@ internal static class ArchiveLiteTestRunner
         Require(
             WorkerProtocol.ReadPayload<FindAssociatedAssetsRequest>(associationMessage)?.EntryId == 42,
             "associated-asset request did not round-trip");
+        var textDocumentMessage = WorkerProtocol.Request(
+            Guid.Parse("35353535-3535-3535-3535-353535353535"),
+            10,
+            WorkerProtocol.TextDocument,
+            new TextDocumentRequest(TextSearchSourceKind.Archive, "session", "text/hello.txt", 17));
+        var textDocumentJson = JsonSerializer.Serialize(textDocumentMessage, WorkerProtocol.JsonOptions);
+        Require(
+            textDocumentJson.Contains("\"entry_id\":17", StringComparison.Ordinal)
+            && textDocumentJson.Contains("\"source_kind\":\"archive\"", StringComparison.Ordinal),
+            "full text-document preview request is not snake case");
         var folderExportMessage = WorkerProtocol.Request(
             Guid.Parse("34343434-3434-3434-3434-343434343434"),
             10,
@@ -244,7 +254,6 @@ internal static class ArchiveLiteTestRunner
             .Select(element => (string?)element.Attribute("Text"))
             .Where(static value => value?.StartsWith("{Binding", StringComparison.Ordinal) == true)
             .ToArray();
-        Require(runTextBindings.Length > 0, "MainWindow has no inline Run binding to validate");
         Require(
             runTextBindings.All(static binding => binding!.Contains("Mode=OneWay", StringComparison.Ordinal)),
             "an inline Run uses WPF's write-back binding mode for a read-only row property");
@@ -280,15 +289,12 @@ internal static class ArchiveLiteTestRunner
             ArchiveSortDescending: true,
             ArchiveVisibleColumns: ["Name", "Path"],
             ArchiveBrowser: new ArchiveBrowserSettings(
-                "character/model",
-                ".pac;.pam",
-                "base",
-                true,
-                ArchiveViewMode.CategoriesAndFolders,
-                "character/model/player",
-                ArchiveEntryRole.Model,
-                ExportCollisionPolicy.Overwrite,
-                ExportManifestFormat.Csv),
+                PathFilter: "character/model",
+                ExtensionFilter: ".pac;.pam",
+                ViewMode: ArchiveViewMode.CategoriesAndFolders,
+                FolderPath: "character/model/player",
+                CollisionPolicy: ExportCollisionPolicy.Overwrite,
+                ManifestFormat: ExportManifestFormat.Csv),
             TextSearch: new TextSearchSettings(
                 TextSearchSourceKind.LooseFolder,
                 "C:\\loose",
@@ -357,11 +363,11 @@ internal static class ArchiveLiteTestRunner
             var search = new TextSearchViewModel(null!, () => null, _ => { }, actual.TextSearch);
             Require(browser.PathFilter == "character/model", "archive path filter was not restored into the view model");
             Require(browser.ExtensionFilter == ".pac;.pam", "archive extension filter was not restored into the view model");
-            Require(browser.PackageFilter == "base", "archive package filter was not restored into the view model");
-            Require(browser.PreviewableOnly, "previewable-only filter was not restored into the view model");
+            Require(browser.PackageFilter.Length == 0, "removed package filter still affects archive queries");
+            Require(!browser.PreviewableOnly, "removed previewable-only filter still affects archive queries");
             Require(browser.ViewMode == ArchiveViewMode.CategoriesAndFolders, "archive view filter was not restored into the view model");
             Require(browser.SelectedFolder?.Path == "character/model/player", "folder filter was not ready before the first archive query");
-            Require(browser.SelectedRole.Role == ArchiveEntryRole.Model, "role filter was not restored into the view model");
+            Require(browser.SelectedRole.Role is null, "removed role filter still affects archive queries");
             Require(browser.CollisionPolicy == ExportCollisionPolicy.Overwrite, "export collision policy was not restored");
             Require(browser.ManifestFormat == ExportManifestFormat.Csv, "export manifest format was not restored");
             Require(search.SourceKind == TextSearchSourceKind.LooseFolder, "text-search source was not restored");
@@ -446,8 +452,9 @@ internal static class ArchiveLiteTestRunner
             window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains("DetectGameCommand", StringComparison.Ordinal) == true),
             "MainWindow has no game-folder detection action");
         Require(
-            window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains("ExportMeshCommand", StringComparison.Ordinal) == true),
-            "MainWindow has no selected PAC/PAM mesh export action");
+            !window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains("ExportMeshCommand", StringComparison.Ordinal) == true)
+            && window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains("ExportSelectedCommand", StringComparison.Ordinal) == true),
+            "selected mesh export is not unified under Export selected");
         Require(
             window.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("CacheHealthLabel", StringComparison.Ordinal) == true),
             "MainWindow does not expose archive cache health");
@@ -487,6 +494,22 @@ internal static class ArchiveLiteTestRunner
         Require(
             string.Equals((string?)topTabs.Attribute("SelectedIndex"), "0", StringComparison.Ordinal),
             "Archive Browser is not the explicit default startup workspace");
+        var xamlText = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml"));
+        Require(
+            !xamlText.Contains("ArchiveBrowser.PackageFilter", StringComparison.Ordinal)
+            && !xamlText.Contains("ArchiveBrowser.PreviewableOnly", StringComparison.Ordinal)
+            && !xamlText.Contains("ArchiveBrowser.SelectedRole", StringComparison.Ordinal),
+            "removed Package, Previewable only, or Role controls still appear in Filters");
+        Require(
+            xamlText.Contains("AssociatedAssets.CloseDrawerCommand", StringComparison.Ordinal)
+            && xamlText.Contains("Grid.RowSpan=\"7\"", StringComparison.Ordinal),
+            "associated assets are not exposed as a compact preview-side drawer");
+        Require(
+            xamlText.Contains("x:Name=\"ArchiveTextPreviewEditor\"", StringComparison.Ordinal)
+            && xamlText.Contains("x:Name=\"TextSearchPreviewEditor\"", StringComparison.Ordinal)
+            && xamlText.Contains("AvalonEditBinding.Syntax", StringComparison.Ordinal)
+            && xamlText.Contains("FindInFile", StringComparison.Ordinal),
+            "text previews do not expose full-document syntax coloring and in-file search");
         var namedLayoutElements = window.Descendants()
             .SelectMany(element => element.Attributes()
                 .Where(attribute => attribute.Name.LocalName == "Name")
@@ -638,12 +661,18 @@ internal static class ArchiveLiteTestRunner
         var controlsSource = File.ReadAllText(Path.Combine(appRoot, "Themes", "Controls.xaml"));
         Require(
             controlsSource.Contains("<ItemsPresenter KeyboardNavigation.DirectionalNavigation=\"Contained\"", StringComparison.Ordinal)
-            && !controlsSource.Contains("<StackPanel IsItemsHost=\"True\"", StringComparison.Ordinal),
+            && !controlsSource.Contains("<StackPanel IsItemsHost=\"True\"", StringComparison.Ordinal)
+            && controlsSource.Contains("<ScrollViewer CanContentScroll=\"False\"", StringComparison.Ordinal),
             "the shared ComboBox template cannot expand grouped extension children");
         Require(
             window.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("ItemCount", StringComparison.Ordinal) == true)
             && window.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("{Binding Label}", StringComparison.Ordinal) == true),
             "extension categories do not expose both their extensions and counts");
+        Require(
+            ArchiveEntryClassifier.Classify("audio/music.flac", ".flac") == ArchiveEntryRole.Audio
+            && ArchiveEntryClassifier.Classify("movie/intro.webm", ".webm") == ArchiveEntryRole.Video
+            && ArchiveEntryClassifier.ClassifyExtensionCategory(".wmv") == ArchiveExtensionCategory.AudioVideo,
+            "common sound/movie formats are not routed into media preview");
 
         var archiveViewModelSource = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "ArchiveBrowserViewModel.cs"));
         Require(
@@ -1584,7 +1613,14 @@ internal static class ArchiveLiteTestRunner
         var preview = await previewService.BuildAsync(
             new PreviewRequest(opened.SessionId, textEntry.EntryId),
             CancellationToken.None).ConfigureAwait(false);
-        Require(preview.Kind == PreviewKind.Text && preview.Text?.Contains("Crimson", StringComparison.Ordinal) == true, "text preview is wrong");
+        Require(
+            preview.Kind == PreviewKind.Text
+            && preview.ArtifactPath is not null
+            && preview.Syntax == ".txt",
+            "full text preview artifact is missing");
+        Require(
+            (await File.ReadAllTextAsync(preview.ArtifactPath!).ConfigureAwait(false)).Contains("Crimson", StringComparison.Ordinal),
+            "full text preview artifact has the wrong content");
         var imagePage = await queries.QueryAsync(
             new ArchiveQuerySpec(opened.SessionId, Extensions: [".dds"]),
             12,
@@ -1594,7 +1630,9 @@ internal static class ArchiveLiteTestRunner
             CancellationToken.None).ConfigureAwait(false);
         Require(imagePreview.Kind == PreviewKind.Image && imagePreview.ArtifactPath is not null, "DDS preview artifact is missing");
         var imageBytes = await File.ReadAllBytesAsync(imagePreview.ArtifactPath!).ConfigureAwait(false);
-        Require(imageBytes.AsSpan(0, 4).SequenceEqual("DDS "u8), "DDS preview artifact is not reconstructed");
+        Require(
+            imageBytes.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
+            "DDS preview was not decoded to a displayable PNG");
         var search = new TextSearchService(sessions, native);
         var result = await search.SearchAsync(
             new TextSearchRequest(
@@ -1701,6 +1739,24 @@ internal static class ArchiveLiteTestRunner
         Require(await File.ReadAllTextAsync(output).ConfigureAwait(false) == "Hello Crimson\nline 2", "archive export bytes are wrong");
         Require(result.ManifestPath is not null && File.Exists(result.ManifestPath), "JSON manifest was not written");
 
+        var singleRoot = Path.Combine(fixture.OutputRoot, "single-selected");
+        var singlePath = Path.Combine(singleRoot, "hello-original.txt");
+        var singleRaw = await service.ExportAsync(
+            new ExportPlanRequest(
+                opened.SessionId,
+                ExportKind.RawEntries,
+                singleRoot,
+                [page.Entries.Single().EntryId],
+                null,
+                ManifestFormat: ExportManifestFormat.None,
+                SingleOutputPath: singlePath),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(
+            singleRaw.Exported == 1
+            && await File.ReadAllTextAsync(singlePath).ConfigureAwait(false) == "Hello Crimson\nline 2",
+            "unified Export selected cannot save one entry to an explicit original-format file");
+
         var folderExportRoot = Path.Combine(fixture.OutputRoot, "folder-tree");
         var folderExport = await service.ExportAsync(
             new ExportPlanRequest(
@@ -1744,6 +1800,17 @@ internal static class ArchiveLiteTestRunner
                 [".txt"]),
             CancellationToken.None).ConfigureAwait(false);
         Require(looseSearch.Matches.Count == 1, "loose-folder search did not find its text file");
+        var loosePreview = await textSearch.BuildPreviewAsync(
+            new TextDocumentRequest(
+                TextSearchSourceKind.LooseFolder,
+                looseRoot,
+                looseSearch.Matches[0].Path),
+            CancellationToken.None).ConfigureAwait(false);
+        Require(
+            loosePreview.Kind == PreviewKind.Text
+            && loosePreview.ArtifactPath is not null
+            && await File.ReadAllTextAsync(loosePreview.ArtifactPath!).ConfigureAwait(false) == "Crimson loose result",
+            "loose text-search preview did not publish the complete file");
         await RequireThrowsAsync<InvalidDataException>(() => service.ExportAsync(
             new ExportPlanRequest(
                 null,
@@ -1830,12 +1897,30 @@ internal static class ArchiveLiteTestRunner
                 ?? throw new InvalidDataException("worker query response is missing");
             Require(page.TotalMatches == 1 && page.Entries.Single().Path == "text/hello.txt", "worker query result is wrong");
 
+            var documentMessage = await ExchangeAsync(
+                writer,
+                reader,
+                WorkerProtocol.TextDocument,
+                4,
+                new TextDocumentRequest(
+                    TextSearchSourceKind.Archive,
+                    opened.SessionId,
+                    page.Entries.Single().Path,
+                    page.Entries.Single().EntryId),
+                timeout.Token).ConfigureAwait(false);
+            var documentPreview = WorkerProtocol.ReadPayload<PreviewResult>(documentMessage)
+                ?? throw new InvalidDataException("worker text-document response is missing");
+            Require(
+                documentPreview.ArtifactPath is not null
+                && await File.ReadAllTextAsync(documentPreview.ArtifactPath, timeout.Token).ConfigureAwait(false) == "Hello Crimson\nline 2",
+                "worker did not publish the complete selected text file");
+
             var associationProgress = new List<ProgressUpdate>();
             var associationMessage = await ExchangeAsync(
                 writer,
                 reader,
                 WorkerProtocol.FindAssociatedAssets,
-                4,
+                5,
                 new FindAssociatedAssetsRequest(opened.SessionId, page.Entries.Single().EntryId),
                 timeout.Token,
                 associationProgress).ConfigureAwait(false);
@@ -1850,14 +1935,14 @@ internal static class ArchiveLiteTestRunner
                 writer,
                 reader,
                 WorkerProtocol.InspectArchiveCache,
-                5,
+                6,
                 new ArchiveCacheHealthRequest(fixture.Root),
                 timeout.Token).ConfigureAwait(false);
             var health = WorkerProtocol.ReadPayload<ArchiveCacheHealthResult>(healthMessage)
                 ?? throw new InvalidDataException("worker cache-health response is missing");
             Require(health.State == ArchiveCacheHealthState.Current, "worker did not report the freshly opened archive cache as current");
 
-            await ExchangeAsync(writer, reader, WorkerProtocol.Shutdown, 6, new { }, timeout.Token).ConfigureAwait(false);
+            await ExchangeAsync(writer, reader, WorkerProtocol.Shutdown, 7, new { }, timeout.Token).ConfigureAwait(false);
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
             Require(process.ExitCode == 0, "worker did not exit cleanly");
         }

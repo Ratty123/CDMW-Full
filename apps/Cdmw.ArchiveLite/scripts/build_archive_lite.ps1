@@ -19,7 +19,7 @@ if ($resolvedOutputRoot.Equals($driveRoot, [StringComparison]::OrdinalIgnoreCase
     throw "Refusing to use a broad output root: $resolvedOutputRoot"
 }
 
-$version = "0.5.3"
+$version = "0.5.4"
 $nativeRoot = Join-Path $repositoryRoot "native\cdmw_archive_core"
 $nativeBuild = Join-Path $nativeRoot "build"
 $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
@@ -28,6 +28,10 @@ $acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
 $acceleratorBuild = Join-Path $acceleratorRoot "build"
 $meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
 $meshCoreBuild = Join-Path $meshCoreRoot "build"
+$textureRoot = Join-Path $repositoryRoot "native\cd_texture_dx"
+$textureBuild = Join-Path $textureRoot "build"
+$vgmstreamRoot = Join-Path $repositoryRoot ".tools\vgmstream"
+$vgmstreamManifestPath = Join-Path $vgmstreamRoot ".cdmw-dependency.json"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $appProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.App\Cdmw.ArchiveLite.App.csproj"
 $workerProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.Worker\Cdmw.ArchiveLite.Worker.csproj"
@@ -116,6 +120,14 @@ try {
     Assert-LastExitCode "Native mesh-core build"
     $meshCoreExecutable = Join-Path $meshCoreBuild "$Configuration\cdmw-mesh-core.exe"
 
+    & cmake -S $textureRoot -B $textureBuild
+    Assert-LastExitCode "Native DirectXTex configure"
+    & cmake --build $textureBuild --config $Configuration --parallel
+    Assert-LastExitCode "Native DirectXTex build"
+    $textureExecutable = Join-Path $textureBuild "$Configuration\cd-texture-dx.exe"
+    & $textureExecutable self-test
+    Assert-LastExitCode "Native DirectXTex self-test"
+
     & dotnet build (Join-Path $liteRoot "Cdmw.ArchiveLite.slnx") -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
 
@@ -127,10 +139,12 @@ try {
     $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH
     $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
     $previousMeshCorePath = $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH
+    $previousTextureHelperPath = $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $meshCoreExecutable
+        $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $textureExecutable
         & dotnet run --project (Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj") -c $Configuration --no-build
         Assert-LastExitCode "Archive Lite focused tests"
     }
@@ -138,6 +152,7 @@ try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $previousRendererPath
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $previousMeshCorePath
+        $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $previousTextureHelperPath
     }
 
     & dotnet publish $appProject -c $Configuration -r win-x64 --self-contained true --nologo --output $stage -p:Version=$version -p:DebugType=None
@@ -168,14 +183,37 @@ $previewPayload = Join-Path $stage "preview"
 $rendererPayload = Join-Path $stage "renderer"
 $indexerPayload = Join-Path $stage "indexer"
 $meshPayload = Join-Path $stage "mesh"
+$texturePayload = Join-Path $stage "texture"
+$mediaPayload = Join-Path $stage "media"
 New-Item -ItemType Directory -Path $previewPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $rendererPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $indexerPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $meshPayload -Force | Out-Null
+New-Item -ItemType Directory -Path $texturePayload -Force | Out-Null
+New-Item -ItemType Directory -Path $mediaPayload -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $previewBuild "$Configuration\cdmw-preview-core.exe") -Destination $previewPayload -Force
 Copy-Item -LiteralPath $acceleratorExecutable -Destination $indexerPayload -Force
 Copy-Item -LiteralPath $meshCoreExecutable -Destination $meshPayload -Force
+Copy-Item -LiteralPath $textureExecutable -Destination $texturePayload -Force
 Copy-Item -Path (Join-Path $rendererStage "*") -Destination $rendererPayload -Recurse -Force
+$vgmstreamManifest = Get-Content -LiteralPath $vgmstreamManifestPath -Raw | ConvertFrom-Json
+if ($vgmstreamManifest.version -ne "r1980" -or
+    $vgmstreamManifest.build_commit -ne "21bfb6f0a513271f2e18a51322128756bb59f365") {
+    throw "The bundled vgmstream dependency does not match the pinned r1980 build."
+}
+foreach ($fileProperty in $vgmstreamManifest.files.PSObject.Properties) {
+    $sourcePath = Join-Path $vgmstreamRoot $fileProperty.Name
+    if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+        throw "Pinned vgmstream file is missing: $($fileProperty.Name)"
+    }
+    $actualHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $expectedHash = ([string]$fileProperty.Value).ToLowerInvariant()
+    if ($actualHash -ne $expectedHash) {
+        throw "Pinned vgmstream file hash mismatch: $($fileProperty.Name)"
+    }
+    Copy-Item -LiteralPath $sourcePath -Destination $mediaPayload -Force
+}
+Copy-Item -LiteralPath $vgmstreamManifestPath -Destination $mediaPayload -Force
 Copy-Item -LiteralPath (Join-Path $liteRoot "README.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $liteRoot "THIRD-PARTY-NOTICES.md") -Destination $stage -Force
 

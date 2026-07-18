@@ -44,6 +44,8 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         _setShellStatus = setShellStatus;
         FindCommand = new AsyncCommand(FindAsync, CanFind);
         CancelCommand = new RelayCommand(CancelFind, () => IsBusy);
+        ToggleDrawerCommand = new RelayCommand(() => IsExpanded = !IsExpanded);
+        CloseDrawerCommand = new RelayCommand(() => IsExpanded = false);
         ShowInBrowserCommand = new AsyncCommand(ShowSelectedInBrowserAsync, CanShowInBrowser);
         ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, CanExportSelected);
         ExportFamilyCommand = new AsyncCommand(ExportFamilyAsync, CanExportFamily);
@@ -55,6 +57,8 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
     public ICollectionView AssetsView { get; }
     public AsyncCommand FindCommand { get; }
     public RelayCommand CancelCommand { get; }
+    public RelayCommand ToggleDrawerCommand { get; }
+    public RelayCommand CloseDrawerCommand { get; }
     public AsyncCommand ShowInBrowserCommand { get; }
     public AsyncCommand ExportSelectedCommand { get; }
     public AsyncCommand ExportFamilyCommand { get; }
@@ -122,6 +126,10 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         Assets.Clear();
         SelectedAsset = null;
         IsBusy = false;
+        if (source is null)
+        {
+            IsExpanded = false;
+        }
         Status = LocalizationManager.Get(source is null
             ? "AssociatedAssetsSelectFile"
             : "AssociatedAssetsNotLoaded");
