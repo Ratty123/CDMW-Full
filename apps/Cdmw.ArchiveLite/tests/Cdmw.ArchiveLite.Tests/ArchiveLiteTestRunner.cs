@@ -2,12 +2,14 @@ using System.Buffers.Binary;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Diagnostics;
+using System.IO.Compression;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.Contracts;
 using Cdmw.ArchiveLite.Core;
+using Cdmw.ArchiveLite.Standalone;
 
 namespace Cdmw.ArchiveLite.Tests;
 
@@ -27,6 +29,7 @@ internal static class ArchiveLiteTestRunner
             ("associated assets resolve references and same-family companions read-only", TestAssociatedAssetsAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
+            ("standalone payload extraction is atomic, reusable, and traversal-safe", TestStandaloneRuntimeAsync),
             ("game discovery recognizes archive roots and Steam libraries", TestGameInstallDiscoveryAsync),
             ("archive cache health detects missing, current, and stale indexes", TestArchiveCacheHealthAsync),
             ("archive loading supports reusable and session-only indexes", TestArchiveCacheModesAsync),
@@ -600,6 +603,107 @@ internal static class ArchiveLiteTestRunner
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static async Task TestStandaloneRuntimeAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-archive-lite-standalone-test-{Guid.NewGuid():N}");
+        try
+        {
+            var payloadBytes = CreateStandaloneTestPayload();
+            await using var firstPayload = new MemoryStream(payloadBytes, writable: false);
+            var extracted = await StandaloneRuntime.EnsureExtractedAsync(
+                firstPayload,
+                root,
+                CancellationToken.None).ConfigureAwait(false);
+            var workerPath = Path.Combine(extracted, "CdmwArchiveLite.Worker.exe");
+            var markerPath = Path.Combine(extracted, StandaloneRuntime.ReadyMarkerName);
+            Require(File.Exists(Path.Combine(extracted, "CdmwArchiveLite.exe")), "standalone application was not extracted");
+            Require(File.Exists(workerPath), "standalone worker was not extracted");
+            Require(File.Exists(markerPath), "standalone ready marker was not published");
+            var markerTimestamp = File.GetLastWriteTimeUtc(markerPath);
+            var markerContents = await File.ReadAllTextAsync(markerPath).ConfigureAwait(false);
+
+            await using var secondPayload = new MemoryStream(payloadBytes, writable: false);
+            var reused = await StandaloneRuntime.EnsureExtractedAsync(
+                secondPayload,
+                root,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(reused == extracted, "standalone runtime did not reuse its content-addressed cache");
+            Require(File.GetLastWriteTimeUtc(markerPath) == markerTimestamp, "standalone cache reuse rewrote its ready marker");
+            Require(await File.ReadAllTextAsync(markerPath).ConfigureAwait(false) == markerContents, "standalone cache marker changed during reuse");
+
+            File.Delete(workerPath);
+            await using var repairPayload = new MemoryStream(payloadBytes, writable: false);
+            var repaired = await StandaloneRuntime.EnsureExtractedAsync(
+                repairPayload,
+                root,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(repaired == extracted && File.Exists(workerPath), "standalone runtime did not rebuild a damaged cache");
+            Require(
+                Directory.GetDirectories(Path.Combine(root, "payloads"), "*.invalid-*").Length == 1,
+                "damaged standalone runtime was not quarantined before replacement");
+
+            var maliciousPayloadBytes = CreateStandaloneTraversalPayload();
+            await using var maliciousPayload = new MemoryStream(maliciousPayloadBytes, writable: false);
+            await RequireThrowsAsync<InvalidDataException>(() => StandaloneRuntime.EnsureExtractedAsync(
+                maliciousPayload,
+                root,
+                CancellationToken.None)).ConfigureAwait(false);
+            Require(!File.Exists(Path.Combine(root, "escape.txt")), "standalone payload escaped its runtime root");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static byte[] CreateStandaloneTestPayload()
+    {
+        var files = new Dictionary<string, byte[]>(StringComparer.Ordinal)
+        {
+            ["CdmwArchiveLite.exe"] = Encoding.UTF8.GetBytes("test application"),
+            ["CdmwArchiveLite.Worker.exe"] = Encoding.UTF8.GetBytes("test worker"),
+            ["cdmw-archive-core.dll"] = Encoding.UTF8.GetBytes("test archive core"),
+            ["preview/cdmw-preview-core.exe"] = Encoding.UTF8.GetBytes("test preview"),
+            ["indexer/cdmw-archive-accelerator.exe"] = Encoding.UTF8.GetBytes("test indexer"),
+            ["mesh/cdmw-mesh-core.exe"] = Encoding.UTF8.GetBytes("test mesh exporter"),
+            ["renderer/cdmw-mesh-dotnet-editor.exe"] = Encoding.UTF8.GetBytes("test renderer"),
+        };
+        var manifest = JsonSerializer.SerializeToUtf8Bytes(files.Select(file => new
+        {
+            path = file.Key,
+            bytes = file.Value.LongLength,
+            sha256 = Convert.ToHexString(SHA256.HashData(file.Value)).ToLowerInvariant(),
+        }));
+
+        using var payload = new MemoryStream();
+        using (var archive = new ZipArchive(payload, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var file in files)
+            {
+                WriteZipEntry(archive, $"CDMW-Archive-Lite-win-x64/{file.Key}", file.Value);
+            }
+            WriteZipEntry(archive, "CDMW-Archive-Lite-win-x64/PACKAGE-CONTENTS.json", manifest);
+        }
+        return payload.ToArray();
+    }
+
+    private static byte[] CreateStandaloneTraversalPayload()
+    {
+        using var payload = new MemoryStream();
+        using (var archive = new ZipArchive(payload, ZipArchiveMode.Create, leaveOpen: true))
+        {
+            WriteZipEntry(archive, "CDMW-Archive-Lite-win-x64/../../escape.txt", Encoding.UTF8.GetBytes("unsafe"));
+        }
+        return payload.ToArray();
+    }
+
+    private static void WriteZipEntry(ZipArchive archive, string path, byte[] contents)
+    {
+        var entry = archive.CreateEntry(path, CompressionLevel.Fastest);
+        using var output = entry.Open();
+        output.Write(contents);
     }
 
     private static async Task TestGameInstallDiscoveryAsync()

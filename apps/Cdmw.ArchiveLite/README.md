@@ -35,13 +35,15 @@ dotnet run --project .\apps\Cdmw.ArchiveLite\src\Cdmw.ArchiveLite.App\Cdmw.Archi
 
 The second command launches a visible desktop window and is intentionally not part of automated validation.
 
-## Build the portable ZIP
+## Build the standalone EXE and portable ZIP
 
 ```powershell
 .\apps\Cdmw.ArchiveLite\scripts\build_archive_lite.ps1
 ```
 
-The package is written beneath `apps/Cdmw.ArchiveLite/artifacts/`. Packaging builds the native archive, preview, item-name-index, and mesh-interchange helpers; publishes the app, worker, and renderer self-contained for `win-x64`; scans every packaged PE for Python runtime references; verifies x64 architecture; smokes binary FBX output; loads a synthetic native preview package in the packaged renderer; proves the hidden production Vortice backend; constructs and lays out the real WPF window without showing it; exercises the packaged application-to-worker connection; and checks that no worker remains.
+The build writes both `CDMW-Archive-Lite-0.5.0-Standalone-win-x64.exe` and the conventional portable ZIP beneath `apps/Cdmw.ArchiveLite/artifacts/`. The standalone file is the simplest distribution: copy that one EXE and run it. On first launch it verifies and atomically extracts its worker, native codecs, exporters, and renderer into a content-addressed local runtime; later launches reuse that verified runtime. Separate worker and renderer processes remain intact after extraction because they provide crash isolation and responsive archive/preview work.
+
+Packaging builds the native archive, preview, item-name-index, and mesh-interchange helpers; publishes the app, worker, and renderer self-contained for `win-x64`; scans every packaged PE for Python runtime references; verifies x64 architecture; smokes binary FBX output; loads a synthetic native preview package in the packaged renderer; proves the hidden production Vortice backend; constructs and lays out the real WPF window without showing it; exercises the packaged application-to-worker connection; and checks that no worker remains. It then publishes the single-file Native AOT launcher, runs it once through first-run extraction and again through cached reuse, and requires both hidden application/worker self-tests to exit cleanly.
 
 ## Data isolation
 
@@ -56,9 +58,12 @@ Archive Lite writes only to its chosen export destination and to:
   cache\preview\models\
   cache\preview\native\
   cache\preview\runtime\
+  standalone\payloads\<payload-sha256>\
   logs\
   crash\
 ```
+
+The `standalone` folder contains only the extracted runtime bundled inside the EXE; it does not contain game data or exported assets. A damaged or incomplete runtime is never reused: it is quarantined under the same app-owned folder and replaced from the embedded, manifest-verified payload. Different standalone versions use different content hashes, so an application that is already running is not disrupted by launching a newer build.
 
 It does not read or write the full workbench's settings, caches, restore points, mod workspace, or Python environment. PAMT, PAZ, and PATHC sources are opened read-only. Before export, the worker recomputes the source fingerprint and refuses stale sessions.
 
@@ -69,6 +74,10 @@ This choice controls the main archive-list index. Bounded known-name and preview
 ## Architecture
 
 ```text
+CDMW-Archive-Lite-0.5.0-Standalone-win-x64.exe (single-file Native AOT launcher)
+          |
+          | verified, atomic first-run extraction; content-addressed reuse
+          v
 CdmwArchiveLite.exe (WPF dispatcher)
           |
           | private named pipe, protocol v1, request IDs + generations

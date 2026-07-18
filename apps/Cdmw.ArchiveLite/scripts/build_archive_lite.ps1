@@ -31,11 +31,15 @@ $meshCoreBuild = Join-Path $meshCoreRoot "build"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $appProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.App\Cdmw.ArchiveLite.App.csproj"
 $workerProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.Worker\Cdmw.ArchiveLite.Worker.csproj"
+$standaloneProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.Standalone\Cdmw.ArchiveLite.Standalone.csproj"
 $stage = Join-Path $resolvedOutputRoot "CDMW-Archive-Lite-win-x64"
 $workerStage = Join-Path $resolvedOutputRoot ".worker-publish"
 $rendererStage = Join-Path $resolvedOutputRoot ".renderer-publish"
+$standaloneStage = Join-Path $resolvedOutputRoot ".standalone-publish"
 $zipStaging = Join-Path $resolvedOutputRoot ".CDMW-Archive-Lite-$version-win-x64.tmp.zip"
 $zipPath = Join-Path $resolvedOutputRoot "CDMW-Archive-Lite-$version-win-x64.zip"
+$standaloneStaging = Join-Path $resolvedOutputRoot ".CDMW-Archive-Lite-$version-Standalone-win-x64.tmp.exe"
+$standalonePath = Join-Path $resolvedOutputRoot "CDMW-Archive-Lite-$version-Standalone-win-x64.exe"
 
 function Assert-ContainedOutput([string]$Path) {
     $resolved = [IO.Path]::GetFullPath($Path)
@@ -54,10 +58,22 @@ function Assert-LastExitCode([string]$Operation) {
 Assert-ContainedOutput $stage
 Assert-ContainedOutput $workerStage
 Assert-ContainedOutput $rendererStage
+Assert-ContainedOutput $standaloneStage
 Assert-ContainedOutput $zipStaging
 Assert-ContainedOutput $zipPath
+Assert-ContainedOutput $standaloneStaging
+Assert-ContainedOutput $standalonePath
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
-foreach ($target in @($stage, $workerStage, $rendererStage, $zipStaging, $zipPath)) {
+foreach ($target in @(
+    $stage,
+    $workerStage,
+    $rendererStage,
+    $standaloneStage,
+    $zipStaging,
+    $zipPath,
+    $standaloneStaging,
+    $standalonePath
+)) {
     if (Test-Path -LiteralPath $target) {
         Remove-Item -LiteralPath $target -Recurse -Force
     }
@@ -65,6 +81,7 @@ foreach ($target in @($stage, $workerStage, $rendererStage, $zipStaging, $zipPat
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 New-Item -ItemType Directory -Path $workerStage -Force | Out-Null
 New-Item -ItemType Directory -Path $rendererStage -Force | Out-Null
+New-Item -ItemType Directory -Path $standaloneStage -Force | Out-Null
 
 Push-Location $repositoryRoot
 try {
@@ -176,7 +193,27 @@ Assert-LastExitCode "Archive Lite artifact guard"
 
 Compress-Archive -LiteralPath $stage -DestinationPath $zipStaging -CompressionLevel Optimal
 Move-Item -LiteralPath $zipStaging -Destination $zipPath
+
+& dotnet publish $standaloneProject -c $Configuration -r win-x64 --self-contained true --nologo --output $standaloneStage `
+    -p:Version=$version -p:DebugType=None "-p:ArchiveLitePayloadPath=$zipPath"
+Assert-LastExitCode "Archive Lite standalone launcher publish"
+$standaloneExecutable = Join-Path $standaloneStage "CdmwArchiveLite.Standalone.exe"
+if (-not (Test-Path -LiteralPath $standaloneExecutable -PathType Leaf)) {
+    throw "Standalone publish did not produce CdmwArchiveLite.Standalone.exe."
+}
+$standaloneRuntimeFiles = @(Get-ChildItem -LiteralPath $standaloneStage -File | Where-Object { $_.Extension -ne ".pdb" })
+if ($standaloneRuntimeFiles.Count -ne 1 -or
+    -not $standaloneRuntimeFiles[0].FullName.Equals($standaloneExecutable, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Standalone publish requires runtime companion files: $($standaloneRuntimeFiles.Name -join ', ')"
+}
+Copy-Item -LiteralPath $standaloneExecutable -Destination $standaloneStaging
+& (Join-Path $PSScriptRoot "verify_archive_lite_standalone.ps1") -ExecutablePath $standaloneStaging
+Assert-LastExitCode "Archive Lite standalone artifact guard"
+Move-Item -LiteralPath $standaloneStaging -Destination $standalonePath
+
 Remove-Item -LiteralPath $workerStage -Recurse -Force
 Remove-Item -LiteralPath $rendererStage -Recurse -Force
+Remove-Item -LiteralPath $standaloneStage -Recurse -Force
 
 Write-Host "Portable Archive Lite package: $zipPath"
+Write-Host "Standalone Archive Lite executable: $standalonePath"

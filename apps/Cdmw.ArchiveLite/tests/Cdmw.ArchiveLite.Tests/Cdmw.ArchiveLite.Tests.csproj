@@ -11,6 +11,7 @@
     <ProjectReference Include="../../src/Cdmw.ArchiveLite.App/Cdmw.ArchiveLite.App.csproj" />
     <ProjectReference Include="../../src/Cdmw.ArchiveLite.Contracts/Cdmw.ArchiveLite.Contracts.csproj" />
     <ProjectReference Include="../../src/Cdmw.ArchiveLite.Core/Cdmw.ArchiveLite.Core.csproj" />
+    <ProjectReference Include="../../src/Cdmw.ArchiveLite.Standalone/Cdmw.ArchiveLite.Standalone.csproj" />
   </ItemGroup>
   <PropertyGroup>
     <NativeArchiveCorePath>$(MSBuildThisFileDirectory)..\..\..\..\native\cdmw_archive_core\build\$(Configuration)\cdmw-archive-core.dll</NativeArchiveCorePath>
