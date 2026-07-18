@@ -24,6 +24,7 @@ internal static class ArchiveLiteTestRunner
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
             ("modern shell exposes cache health, game detection, and Enter search", TestModernShellAsync),
             ("archive grid exposes configurable sortable columns and categorized extensions", TestArchiveGridFeaturesAsync),
+            ("associated assets resolve references and same-family companions read-only", TestAssociatedAssetsAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
             ("game discovery recognizes archive roots and Steam libraries", TestGameInstallDiscoveryAsync),
@@ -76,6 +77,18 @@ internal static class ArchiveLiteTestRunner
         Require(
             WorkerProtocol.ReadPayload<OpenArchiveRequest>(openMessage)?.CacheMode == ArchiveCacheMode.SessionOnly,
             "archive cache mode did not round-trip");
+        var associationMessage = WorkerProtocol.Request(
+            Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            9,
+            WorkerProtocol.FindAssociatedAssets,
+            new FindAssociatedAssetsRequest("session", 42, 96));
+        var associationJson = JsonSerializer.Serialize(associationMessage, WorkerProtocol.JsonOptions);
+        Require(
+            associationJson.Contains("\"maximum_results\":96", StringComparison.Ordinal),
+            "associated-asset request is not snake case");
+        Require(
+            WorkerProtocol.ReadPayload<FindAssociatedAssetsRequest>(associationMessage)?.EntryId == 42,
+            "associated-asset request did not round-trip");
         return Task.CompletedTask;
     }
 
@@ -450,6 +463,108 @@ internal static class ArchiveLiteTestRunner
             && materialShader.Contains("keyLight * 0.48f", StringComparison.Ordinal),
             "textureless preview shading does not preserve enough part and contour separation");
         return Task.CompletedTask;
+    }
+
+    private static async Task TestAssociatedAssetsAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAssociatedAssetsAsync().ConfigureAwait(false);
+        var beforePamt = await Sha256Async(fixture.Pamt).ConfigureAwait(false);
+        var beforePaz = await Sha256Async(fixture.Paz).ConfigureAwait(false);
+        var native = new NativeArchiveCore();
+        using var sessions = new ArchiveSessionManager(native);
+        var opened = await sessions.OpenAsync(
+            new OpenArchiveRequest(fixture.Root, true, ArchiveCacheMode.SessionOnly),
+            CancellationToken.None).ConfigureAwait(false);
+        var query = new ArchiveQueryService(sessions);
+        var modelPage = await query.QueryAsync(
+            new ArchiveQuerySpec(opened.SessionId, PathText: "character/model/hero.pac"),
+            1,
+            CancellationToken.None).ConfigureAwait(false);
+        var model = modelPage.Entries.Single(entry => entry.Path == "character/model/hero.pac");
+        var progress = new List<ProgressUpdate>();
+        var associations = new ArchiveAssociationService(sessions, native);
+        var result = await associations.FindAsync(
+            new FindAssociatedAssetsRequest(opened.SessionId, model.EntryId),
+            update =>
+            {
+                progress.Add(update);
+                return Task.CompletedTask;
+            },
+            CancellationToken.None).ConfigureAwait(false);
+
+        Require(result.Assets.Count == 6, "the synthetic model family did not resolve all six companions");
+        Require(!result.Truncated, "the bounded synthetic model family was unexpectedly truncated");
+        Require(result.ScannedEntries == opened.EntryCount, "associated assets did not use one bounded index pass");
+        Require(progress.Any(update => update.Phase == "association_scan"), "associated-asset scan progress was not published");
+        Require(
+            result.Assets.Single(asset => asset.Entry.Path == "character/modelproperty/hero.pac_xml").Evidence
+                == AssociationEvidence.ExactCompanion,
+            "PAC material sidecar was not identified as an expected companion");
+        Require(
+            result.Assets.Count(asset => asset.Category == AssociatedAssetCategory.Texture
+                && asset.Evidence == AssociationEvidence.ExplicitReference) == 2,
+            "material-sidecar DDS references were not resolved as explicit textures");
+        Require(
+            result.Assets.Any(asset => asset.Category == AssociatedAssetCategory.Physics
+                && asset.Entry.Path == "character/physics/hero.hkx"),
+            "explicit HKX physics reference was not categorized");
+        Require(
+            result.Assets.Any(asset => asset.Category == AssociatedAssetCategory.MeshMetadata
+                && asset.Entry.Path == "character/model/hero.meshinfo"),
+            "same-family mesh metadata was not found");
+        Require(
+            result.Assets.Any(asset => asset.Category == AssociatedAssetCategory.PrefabMetadata
+                && asset.Entry.Path == "character/model/hero.prefab"),
+            "same-family prefab metadata was not found");
+        Require(
+            result.Assets.All(asset => asset.Entry.Path != "unrelated/other.dds"),
+            "an unrelated texture leaked into the model family");
+        Require(
+            result.Assets.Single(asset => asset.Entry.Path.EndsWith(".pac_xml", StringComparison.Ordinal)).Entry.Role
+                == ArchiveEntryRole.Text,
+            "material sidecars are not previewable as text");
+
+        var diffuse = result.Assets.Single(asset => asset.Entry.Path.EndsWith("hero_body_d.dds", StringComparison.Ordinal)).Entry;
+        var reverse = await associations.FindAsync(
+            new FindAssociatedAssetsRequest(opened.SessionId, diffuse.EntryId),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(reverse.ScannedEntries == 0, "a learned reverse family performed another full index scan");
+        Require(reverse.Assets.Any(asset => asset.Entry.EntryId == model.EntryId), "DDS reverse lookup did not return its PAC model");
+        Require(
+            reverse.Assets.Any(asset => asset.Entry.Path == "character/modelproperty/hero.pac_xml"),
+            "DDS reverse lookup did not return its material sidecar");
+
+        var unrelatedPage = await query.QueryAsync(
+            new ArchiveQuerySpec(opened.SessionId, PathText: "unrelated/other.dds"),
+            2,
+            CancellationToken.None).ConfigureAwait(false);
+        using (var cancelled = new CancellationTokenSource())
+        {
+            cancelled.Cancel();
+            await RequireThrowsAsync<OperationCanceledException>(() => associations.FindAsync(
+                new FindAssociatedAssetsRequest(opened.SessionId, unrelatedPage.Entries.Single().EntryId),
+                null,
+                cancelled.Token)).ConfigureAwait(false);
+        }
+
+        var repositoryRoot = FindRepositoryRoot();
+        var appRoot = Path.Combine(repositoryRoot, "apps", "Cdmw.ArchiveLite", "src", "Cdmw.ArchiveLite.App");
+        var windowSource = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml"));
+        Require(
+            windowSource.Contains("AssociatedAssets.AssetsView", StringComparison.Ordinal)
+            && windowSource.Contains("AssociatedAssets.FindCommand", StringComparison.Ordinal)
+            && windowSource.Contains("AssociatedAssets.ShowInBrowserCommand", StringComparison.Ordinal),
+            "Archive Browser does not expose grouped find-and-open associated assets controls");
+        var viewModelSource = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "AssociatedAssetsViewModel.cs"));
+        Require(
+            viewModelSource.Contains("CancellationTokenSource.CreateLinkedTokenSource", StringComparison.Ordinal)
+            && viewModelSource.Contains("IsCurrent(sessionId, source.EntryId, generation)", StringComparison.Ordinal)
+            && viewModelSource.Contains("RequestShutdown()", StringComparison.Ordinal),
+            "associated-asset UI work is missing cancellation, stale-result, or shutdown ownership");
+
+        Require(await Sha256Async(fixture.Pamt).ConfigureAwait(false) == beforePamt, "associated-asset lookup changed PAMT bytes");
+        Require(await Sha256Async(fixture.Paz).ConfigureAwait(false) == beforePaz, "associated-asset lookup changed PAZ bytes");
     }
 
     private static Task TestExportPathPolicyAsync()
@@ -1232,18 +1347,34 @@ internal static class ArchiveLiteTestRunner
                 ?? throw new InvalidDataException("worker query response is missing");
             Require(page.TotalMatches == 1 && page.Entries.Single().Path == "text/hello.txt", "worker query result is wrong");
 
+            var associationProgress = new List<ProgressUpdate>();
+            var associationMessage = await ExchangeAsync(
+                writer,
+                reader,
+                WorkerProtocol.FindAssociatedAssets,
+                4,
+                new FindAssociatedAssetsRequest(opened.SessionId, page.Entries.Single().EntryId),
+                timeout.Token,
+                associationProgress).ConfigureAwait(false);
+            var associations = WorkerProtocol.ReadPayload<FindAssociatedAssetsResult>(associationMessage)
+                ?? throw new InvalidDataException("worker associated-assets response is missing");
+            Require(associations.Assets.Count == 0, "worker invented associations for an isolated text file");
+            Require(
+                associationProgress.Any(update => update.Phase == "association_scan"),
+                "worker did not forward associated-asset progress");
+
             var healthMessage = await ExchangeAsync(
                 writer,
                 reader,
                 WorkerProtocol.InspectArchiveCache,
-                4,
+                5,
                 new ArchiveCacheHealthRequest(fixture.Root),
                 timeout.Token).ConfigureAwait(false);
             var health = WorkerProtocol.ReadPayload<ArchiveCacheHealthResult>(healthMessage)
                 ?? throw new InvalidDataException("worker cache-health response is missing");
             Require(health.State == ArchiveCacheHealthState.Current, "worker did not report the freshly opened archive cache as current");
 
-            await ExchangeAsync(writer, reader, WorkerProtocol.Shutdown, 5, new { }, timeout.Token).ConfigureAwait(false);
+            await ExchangeAsync(writer, reader, WorkerProtocol.Shutdown, 6, new { }, timeout.Token).ConfigureAwait(false);
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
             Require(process.ExitCode == 0, "worker did not exit cleanly");
         }

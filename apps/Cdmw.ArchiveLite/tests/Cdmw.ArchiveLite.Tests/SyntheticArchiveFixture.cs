@@ -56,6 +56,52 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    public static async Task<SyntheticArchiveFixture> CreateAssociatedAssetsAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-archive-lite-associations-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        Directory.CreateDirectory(Path.GetDirectoryName(fixture.Pamt)!);
+
+        var payloads = new (string Path, byte[] Bytes)[]
+        {
+            ("character/model/hero.pac", [0x50, 0x41, 0x43, 0x00, 0x01]),
+            (
+                "character/modelproperty/hero.pac_xml",
+                Encoding.UTF8.GetBytes(
+                    "<material><texture path=\"character/texture/hero_body_d.dds\" />"
+                    + "<texture path=\"character/texture/hero_body_n.dds\" />"
+                    + "<physics path=\"character/physics/hero.hkx\" /></material>")),
+            ("character/texture/hero_body_d.dds", "DDS synthetic diffuse"u8.ToArray()),
+            ("character/texture/hero_body_n.dds", "DDS synthetic normal"u8.ToArray()),
+            ("character/physics/hero.hkx", [0x48, 0x4B, 0x58, 0x00]),
+            ("character/model/hero.meshinfo", Encoding.UTF8.GetBytes("mesh metadata")),
+            ("character/model/hero.prefab", Encoding.UTF8.GetBytes("prefab metadata")),
+            ("unrelated/other.dds", "DDS unrelated"u8.ToArray()),
+        };
+
+        var entries = new List<EntrySpec>(payloads.Length);
+        uint offset = 0;
+        await using (var stream = new FileStream(fixture.Paz, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.Asynchronous))
+        {
+            foreach (var payload in payloads)
+            {
+                await stream.WriteAsync(payload.Bytes).ConfigureAwait(false);
+                entries.Add(new EntrySpec(
+                    payload.Path,
+                    offset,
+                    checked((uint)payload.Bytes.Length),
+                    checked((uint)payload.Bytes.Length),
+                    0));
+                offset = checked(offset + (uint)payload.Bytes.Length);
+            }
+            await stream.FlushAsync().ConfigureAwait(false);
+            stream.Flush(flushToDisk: true);
+        }
+        await File.WriteAllBytesAsync(fixture.Pamt, BuildPamt(entries)).ConfigureAwait(false);
+        return fixture;
+    }
+
     public ValueTask DisposeAsync()
     {
         try

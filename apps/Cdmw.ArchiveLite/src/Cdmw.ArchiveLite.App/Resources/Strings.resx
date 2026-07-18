@@ -26,6 +26,38 @@
   <data name="ItemFinder" xml:space="preserve"><value>Item Finder</value></data>
   <data name="MaterialFinder" xml:space="preserve"><value>Material Finder</value></data>
   <data name="AssetFamily" xml:space="preserve"><value>Asset Family</value></data>
+  <data name="AssociatedAssets" xml:space="preserve"><value>Associated assets</value></data>
+  <data name="AssociatedAssetsHeaderCount" xml:space="preserve"><value>Associated assets ({0:N0})</value></data>
+  <data name="FindAssociatedAssets" xml:space="preserve"><value>Find assets</value></data>
+  <data name="ShowAssociatedAsset" xml:space="preserve"><value>Show in browser</value></data>
+  <data name="AssociatedAssetsSelectFile" xml:space="preserve"><value>Select a file to find its related assets.</value></data>
+  <data name="AssociatedAssetsNotLoaded" xml:space="preserve"><value>Click Find assets to inspect archive references and same-family files.</value></data>
+  <data name="AssociatedAssetsSearching" xml:space="preserve"><value>Finding associated assets...</value></data>
+  <data name="AssociatedAssetsScanningProgress" xml:space="preserve"><value>Scanning archive names: {0:N0} / {1:N0}</value></data>
+  <data name="AssociatedAssetsFound" xml:space="preserve"><value>{0:N0} associated assets found.</value></data>
+  <data name="AssociatedAssetsFoundTruncated" xml:space="preserve"><value>Showing the first {0:N0} associated assets.</value></data>
+  <data name="AssociatedAssetsNone" xml:space="preserve"><value>No associated assets were found.</value></data>
+  <data name="AssociatedAssetsFailed" xml:space="preserve"><value>Associated asset search failed: {0}</value></data>
+  <data name="AssociatedAssetNotLocated" xml:space="preserve"><value>The associated asset is no longer present in the current archive view.</value></data>
+  <data name="AssociatedCategoryModel" xml:space="preserve"><value>Models</value></data>
+  <data name="AssociatedCategoryMaterial" xml:space="preserve"><value>Material</value></data>
+  <data name="AssociatedCategoryTexture" xml:space="preserve"><value>Textures</value></data>
+  <data name="AssociatedCategoryPhysics" xml:space="preserve"><value>Physics</value></data>
+  <data name="AssociatedCategoryMeshMetadata" xml:space="preserve"><value>Mesh metadata</value></data>
+  <data name="AssociatedCategoryPrefabMetadata" xml:space="preserve"><value>Prefab / metadata</value></data>
+  <data name="AssociatedCategorySkeletonRig" xml:space="preserve"><value>Skeleton / rig</value></data>
+  <data name="AssociatedCategoryAnimationMotion" xml:space="preserve"><value>Animation / motion</value></data>
+  <data name="AssociatedCategoryAudioVideo" xml:space="preserve"><value>Audio / video</value></data>
+  <data name="AssociatedCategoryUserInterface" xml:space="preserve"><value>User interface</value></data>
+  <data name="AssociatedCategoryOther" xml:space="preserve"><value>Other</value></data>
+  <data name="AssociationEvidenceExplicitReference" xml:space="preserve"><value>Explicit reference</value></data>
+  <data name="AssociationEvidenceExactCompanion" xml:space="preserve"><value>Expected companion</value></data>
+  <data name="AssociationEvidenceSameStem" xml:space="preserve"><value>Same name family</value></data>
+  <data name="AssociationEvidenceCachedFamily" xml:space="preserve"><value>Resolved family</value></data>
+  <data name="AssociationReasonExplicitReference" xml:space="preserve"><value>Referenced by {0}.</value></data>
+  <data name="AssociationReasonExactCompanion" xml:space="preserve"><value>Expected companion for {0}.</value></data>
+  <data name="AssociationReasonSameStem" xml:space="preserve"><value>Shares the asset-family name of {0}.</value></data>
+  <data name="AssociationReasonCachedFamily" xml:space="preserve"><value>Resolved in the same asset family as {0}.</value></data>
   <data name="ExportMesh" xml:space="preserve"><value>Export mesh...</value></data>
   <data name="ExportMeshHint" xml:space="preserve"><value>Export the selected PAC/PAM mesh for Blender or another 3D tool.</value></data>
   <data name="MeshExportFilter" xml:space="preserve"><value>glTF Binary (*.glb)|*.glb|Wavefront OBJ (*.obj)|*.obj|Autodesk FBX (*.fbx)|*.fbx</value></data>

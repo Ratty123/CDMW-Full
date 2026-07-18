@@ -17,6 +17,7 @@ public static class WorkerProtocol
     public const string QueryArchive = "query_archive";
     public const string ArchiveFacets = "archive_facets";
     public const string BuildNameIndex = "build_name_index";
+    public const string FindAssociatedAssets = "find_associated_assets";
     public const string Preview = "preview";
     public const string TextSearch = "text_search";
     public const string Export = "export";

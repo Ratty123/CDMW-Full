@@ -85,6 +85,11 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         _archiveRoot = archiveRoot ?? string.Empty;
         _sortField = initialSortField;
         _sortDescending = initialSortDescending;
+        AssociatedAssets = new AssociatedAssetsViewModel(
+            worker,
+            ShowAssociatedAssetInBrowserAsync,
+            () => !IsBusy && !IsEnvironmentBusy,
+            setShellStatus);
         BrowseCommand = new AsyncCommand(BrowseAsync, () => !IsBusy && !IsEnvironmentBusy);
         DetectGameCommand = new AsyncCommand(
             token => DetectAndInspectEnvironmentAsync(preferDetectedRoot: true, token),
@@ -111,6 +116,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public ObservableCollection<ArchiveCategoryCount> Categories { get; } = [];
     public ObservableCollection<ArchiveExtensionChoice> ExtensionChoices { get; } = [];
     public ICollectionView ExtensionChoicesView { get; }
+    public AssociatedAssetsViewModel AssociatedAssets { get; }
 
     public IReadOnlyList<LocalizedOption<ArchiveViewMode>> ViewModes => _viewModes;
     public IReadOnlyList<LocalizedOption<ArchiveSortField>> SortFields => _sortFields;
@@ -137,6 +143,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         RebuildLocalizedOptions(SelectedRole.Role);
         RefreshNavigationLabels();
         RefreshExtensionLabels();
+        AssociatedAssets.RefreshLocalization();
         OnPropertyChanged(nameof(CacheHealthLabel));
         OnPropertyChanged(nameof(PageSummary));
         OnPropertyChanged(nameof(TotalMatchesLabel));
@@ -252,6 +259,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         {
             if (SetProperty(ref _sessionId, value))
             {
+                AssociatedAssets.SelectSource(value, null);
                 RaiseCommandStates();
                 SessionChanged?.Invoke(this, EventArgs.Empty);
             }
@@ -382,6 +390,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedEntry, value))
             {
+                AssociatedAssets.SelectSource(SessionId, value);
                 ExportSelectedCommand.RaiseCanExecuteChanged();
                 ExportMeshCommand.RaiseCanExecuteChanged();
                 OnPropertyChanged(nameof(CanExportSelectedMesh));
@@ -563,6 +572,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         _previewOperation?.Cancel();
         Interlocked.Increment(ref _catalogueGeneration);
         Interlocked.Exchange(ref _catalogueOperation, null)?.Cancel();
+        AssociatedAssets.RequestShutdown();
     }
 
     public Task InitializeEnvironmentAsync(CancellationToken cancellationToken) =>
@@ -827,6 +837,56 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         OnPropertyChanged(nameof(PageSummary));
         RaiseCommandStates();
         _setShellStatus(LocalizationManager.Format("ShowingEntries", PageSummary));
+    }
+
+    private async Task ShowAssociatedAssetInBrowserAsync(
+        string sessionId,
+        ArchiveEntryDto target,
+        CancellationToken commandToken)
+    {
+        if (IsBusy || !string.Equals(SessionId, sessionId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        PathFilter = target.Path;
+        ExtensionFilter = string.Empty;
+        PackageFilter = string.Empty;
+        PreviewableOnly = false;
+        ViewMode = ArchiveViewMode.Flat;
+        SortField = ArchiveSortField.Path;
+        SortDescending = false;
+        SelectedFolder = Folders.FirstOrDefault(static folder => folder.Path is null);
+        SelectedRole = RoleFilters.First(static role => role.Role is null);
+        SelectedCategory = null;
+
+        using var operation = BeginForegroundOperation(commandToken);
+        var generation = Interlocked.Increment(ref _foregroundGeneration);
+        try
+        {
+            SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
+            await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
+            if (generation != Volatile.Read(ref _foregroundGeneration))
+            {
+                return;
+            }
+
+            var located = Entries.FirstOrDefault(entry => entry.EntryId == target.EntryId);
+            if (located is null)
+            {
+                _setShellStatus(LocalizationManager.Get("AssociatedAssetNotLocated"));
+                return;
+            }
+            SelectedEntry = located;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _setShellStatus(exception.Message);
+        }
+        finally
+        {
+            EndForegroundOperation(operation);
+        }
     }
 
     private ArchiveQuerySpec CreateQuerySpec(string sessionId, int pageStart)
@@ -1534,6 +1594,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         ExportSelectedCommand.RaiseCanExecuteChanged();
         ExportMeshCommand.RaiseCanExecuteChanged();
         ExportFilteredCommand.RaiseCanExecuteChanged();
+        AssociatedAssets.RaiseCommandStates();
     }
 }
 

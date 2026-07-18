@@ -26,6 +26,38 @@
   <data name="ItemFinder" xml:space="preserve"><value>Buscador de objetos</value></data>
   <data name="MaterialFinder" xml:space="preserve"><value>Buscador de materiales</value></data>
   <data name="AssetFamily" xml:space="preserve"><value>Familia de recursos</value></data>
+  <data name="AssociatedAssets" xml:space="preserve"><value>Recursos asociados</value></data>
+  <data name="AssociatedAssetsHeaderCount" xml:space="preserve"><value>Recursos asociados ({0:N0})</value></data>
+  <data name="FindAssociatedAssets" xml:space="preserve"><value>Buscar recursos</value></data>
+  <data name="ShowAssociatedAsset" xml:space="preserve"><value>Mostrar en el navegador</value></data>
+  <data name="AssociatedAssetsSelectFile" xml:space="preserve"><value>Seleccione un archivo para buscar sus recursos relacionados.</value></data>
+  <data name="AssociatedAssetsNotLoaded" xml:space="preserve"><value>Pulse Buscar recursos para revisar referencias y archivos de la misma familia.</value></data>
+  <data name="AssociatedAssetsSearching" xml:space="preserve"><value>Buscando recursos asociados...</value></data>
+  <data name="AssociatedAssetsScanningProgress" xml:space="preserve"><value>Revisando nombres del archivo: {0:N0} / {1:N0}</value></data>
+  <data name="AssociatedAssetsFound" xml:space="preserve"><value>Se encontraron {0:N0} recursos asociados.</value></data>
+  <data name="AssociatedAssetsFoundTruncated" xml:space="preserve"><value>Se muestran los primeros {0:N0} recursos asociados.</value></data>
+  <data name="AssociatedAssetsNone" xml:space="preserve"><value>No se encontraron recursos asociados.</value></data>
+  <data name="AssociatedAssetsFailed" xml:space="preserve"><value>Error al buscar recursos asociados: {0}</value></data>
+  <data name="AssociatedAssetNotLocated" xml:space="preserve"><value>El recurso asociado ya no está presente en la vista actual del archivo.</value></data>
+  <data name="AssociatedCategoryModel" xml:space="preserve"><value>Modelos</value></data>
+  <data name="AssociatedCategoryMaterial" xml:space="preserve"><value>Material</value></data>
+  <data name="AssociatedCategoryTexture" xml:space="preserve"><value>Texturas</value></data>
+  <data name="AssociatedCategoryPhysics" xml:space="preserve"><value>Física</value></data>
+  <data name="AssociatedCategoryMeshMetadata" xml:space="preserve"><value>Metadatos de malla</value></data>
+  <data name="AssociatedCategoryPrefabMetadata" xml:space="preserve"><value>Prefab / metadatos</value></data>
+  <data name="AssociatedCategorySkeletonRig" xml:space="preserve"><value>Esqueleto / rig</value></data>
+  <data name="AssociatedCategoryAnimationMotion" xml:space="preserve"><value>Animación / movimiento</value></data>
+  <data name="AssociatedCategoryAudioVideo" xml:space="preserve"><value>Audio / vídeo</value></data>
+  <data name="AssociatedCategoryUserInterface" xml:space="preserve"><value>Interfaz de usuario</value></data>
+  <data name="AssociatedCategoryOther" xml:space="preserve"><value>Otros</value></data>
+  <data name="AssociationEvidenceExplicitReference" xml:space="preserve"><value>Referencia explícita</value></data>
+  <data name="AssociationEvidenceExactCompanion" xml:space="preserve"><value>Archivo relacionado esperado</value></data>
+  <data name="AssociationEvidenceSameStem" xml:space="preserve"><value>Misma familia de nombre</value></data>
+  <data name="AssociationEvidenceCachedFamily" xml:space="preserve"><value>Familia resuelta</value></data>
+  <data name="AssociationReasonExplicitReference" xml:space="preserve"><value>Referenciado por {0}.</value></data>
+  <data name="AssociationReasonExactCompanion" xml:space="preserve"><value>Archivo relacionado esperado para {0}.</value></data>
+  <data name="AssociationReasonSameStem" xml:space="preserve"><value>Comparte la familia de recursos de {0}.</value></data>
+  <data name="AssociationReasonCachedFamily" xml:space="preserve"><value>Resuelto en la misma familia de recursos que {0}.</value></data>
   <data name="ExportMesh" xml:space="preserve"><value>Exportar malla...</value></data>
   <data name="ExportMeshHint" xml:space="preserve"><value>Exporta la malla PAC/PAM seleccionada para Blender u otra herramienta 3D.</value></data>
   <data name="MeshExportFilter" xml:space="preserve"><value>glTF Binary (*.glb)|*.glb|Wavefront OBJ (*.obj)|*.obj|Autodesk FBX (*.fbx)|*.fbx</value></data>

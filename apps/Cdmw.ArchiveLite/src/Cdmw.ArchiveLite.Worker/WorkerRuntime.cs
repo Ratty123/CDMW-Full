@@ -12,6 +12,7 @@ internal sealed class WorkerRuntime : IDisposable
     private readonly GameInstallDiscoveryService _gameDiscovery;
     private readonly ArchiveFacetsService _facets;
     private readonly ArchiveItemNameIndexService _nameIndex;
+    private readonly ArchiveAssociationService _associations;
     private readonly ArchivePreviewService _previews;
     private readonly TextSearchService _textSearch;
     private readonly ArchiveExportService _exports;
@@ -26,6 +27,7 @@ internal sealed class WorkerRuntime : IDisposable
         _gameDiscovery = new GameInstallDiscoveryService();
         _facets = new ArchiveFacetsService(_sessions);
         _nameIndex = new ArchiveItemNameIndexService(_sessions, _native);
+        _associations = new ArchiveAssociationService(_sessions, _native);
         var modelPreviews = new NativeModelPreviewService();
         _previews = new ArchivePreviewService(_sessions, _native, modelPreviews);
         _textSearch = new TextSearchService(_sessions, _native);
@@ -77,6 +79,12 @@ internal sealed class WorkerRuntime : IDisposable
                 {
                     var payload = RequirePayload<BuildNameIndexRequest>(request);
                     var result = await _nameIndex.BuildAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
+            case WorkerProtocol.FindAssociatedAssets:
+                {
+                    var payload = RequirePayload<FindAssociatedAssetsRequest>(request);
+                    var result = await _associations.FindAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
                 }
             case WorkerProtocol.Preview:

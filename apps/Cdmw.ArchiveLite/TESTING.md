@@ -19,9 +19,10 @@ This gate configures and builds `cdmw_archive_core`, `cdmw_preview_core`, `cdmw_
 - native mesh-only model-package adaptation, hidden grid/gizmo state, empty texture channels, exact geometry-length checks, path-containment rejection, and a headless synthetic package load through the real .NET renderer;
 - synthetic mesh-only GLB 2.0, OBJ, and binary FBX exports, source-geometry immutability, determinate conversion progress, and cancellation that preserves an existing destination;
 - exact known-name versus related-hint classification, categorized extension facets whose grouped picker exposes the individual extensions, configurable file-grid columns, and server-side sorting for every displayed field;
+- associated-asset discovery from exact material-sidecar paths, embedded DDS/HKX references, same-family mesh/prefab companions, categorized and evidence-labeled UI rows, learned DDS-to-PAC reverse navigation, cancellation/stale-result ownership, worker progress forwarding, and source-byte immutability;
 - contained atomic export, skip-on-collision, preserved virtual paths, and manifests;
 - JSON snake-case protocol serialization, compiled resource parity, live one-way localization refresh, inset tab borders, rounded transparent cache-dialog chrome, cache/game controls, and Enter-to-search wiring; and
-- a real named-pipe worker process that opens and queries a synthetic PAMT/PAZ archive, reports its cache current, shuts down cleanly, and leaves source bytes unchanged.
+- a real named-pipe worker process that opens and queries a synthetic PAMT/PAZ archive, performs an associated-asset request with progress, reports its cache current, shuts down cleanly, and leaves source bytes unchanged.
 
 ## Release/package gate
 
@@ -39,4 +40,4 @@ The artifact guard rejects Python source/bytecode/extensions/runtimes, Python-na
 
 ## Proof boundaries
 
-Passing these gates proves synthetic archive correctness, native package-to-renderer compatibility, synthetic Blender-interchange structure, hidden production-backend initialization, process lifecycle, packaging composition, and the absence of a packaged Python runtime/import. It does not prove Blender import or visual fidelity for real PAC/PAM/PAMLOD content, provide an HKX visualizer, cover every DDS codec supported by Windows, or prove playback of proprietary BK2/WEM assets. Real-asset, Blender, and visible model-fidelity validation remains a separately authorized gate.
+Passing these gates proves synthetic archive correctness, exact and same-family associated-asset routing for the covered metadata shapes, native package-to-renderer compatibility, synthetic Blender-interchange structure, hidden production-backend initialization, process lifecycle, packaging composition, and the absence of a packaged Python runtime/import. Associated-asset name-family matches are intentionally labeled as hints and are not a claim of a dependency-complete game graph. The gates do not prove Blender import or visual fidelity for real PAC/PAM/PAMLOD content, provide an HKX visualizer, cover every DDS codec supported by Windows, or prove playback of proprietary BK2/WEM assets. Real-asset, Blender, and visible model-fidelity validation remains a separately authorized gate.

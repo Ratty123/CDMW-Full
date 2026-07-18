@@ -37,6 +37,7 @@ public static class ArchiveEntryClassifier
     {
         ".cfg", ".css", ".csv", ".dae", ".html", ".gltf", ".h", ".hpp", ".ini",
         ".json", ".log", ".lua", ".material", ".mtl", ".obj", ".paloc", ".app_xml",
+        ".pac_xml", ".pam_xml", ".pamlod_xml", ".pami", ".prefabdata_xml",
         ".prefab_xml", ".shader", ".txt", ".xml", ".yaml", ".yml",
     };
 

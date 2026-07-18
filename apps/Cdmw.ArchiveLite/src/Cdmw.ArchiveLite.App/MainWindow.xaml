@@ -561,6 +561,7 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
                                 <Grid Grid.Row="0" Margin="0,0,0,11">
                                     <Grid.ColumnDefinitions>
@@ -691,7 +692,113 @@
                                              Text="{Binding ArchiveBrowser.PreviewMetadata, Mode=OneWay}" />
                                 </Expander>
 
-                                <TextBlock Grid.Row="5"
+                                <Expander Grid.Row="5"
+                                          Margin="0,7,0,0"
+                                          Header="{Binding ArchiveBrowser.AssociatedAssets.Header}"
+                                          IsExpanded="{Binding ArchiveBrowser.AssociatedAssets.IsExpanded}">
+                                    <Grid MaxHeight="300">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <Grid Margin="0,2,0,7">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Margin="2,0,10,0"
+                                                       VerticalAlignment="Center"
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextWrapping="Wrap"
+                                                       Text="{Binding ArchiveBrowser.AssociatedAssets.Status}" />
+                                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                                <Button MinWidth="118"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=FindAssociatedAssets}"
+                                                        Command="{Binding ArchiveBrowser.AssociatedAssets.FindCommand}" />
+                                                <Button Margin="6,0,0,0"
+                                                        Style="{StaticResource CompactButtonStyle}"
+                                                        Content="{infra:Loc Key=Cancel}"
+                                                        Command="{Binding ArchiveBrowser.AssociatedAssets.CancelCommand}"
+                                                        Visibility="{Binding ArchiveBrowser.AssociatedAssets.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            </StackPanel>
+                                        </Grid>
+                                        <ProgressBar Grid.Row="1"
+                                                     Height="5"
+                                                     Margin="0,0,0,7"
+                                                     IsIndeterminate="True"
+                                                     Visibility="{Binding ArchiveBrowser.AssociatedAssets.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        <ListBox Grid.Row="2"
+                                                 MaxHeight="220"
+                                                 HorizontalContentAlignment="Stretch"
+                                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ItemsSource="{Binding ArchiveBrowser.AssociatedAssets.AssetsView}"
+                                                 SelectedItem="{Binding ArchiveBrowser.AssociatedAssets.SelectedAsset}"
+                                                 Visibility="{Binding ArchiveBrowser.AssociatedAssets.HasAssets, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                            <ListBox.GroupStyle>
+                                                <GroupStyle>
+                                                    <GroupStyle.HeaderTemplate>
+                                                        <DataTemplate>
+                                                            <Border Margin="0,4,0,2"
+                                                                    Padding="8,5"
+                                                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                                                    CornerRadius="4">
+                                                                <TextBlock FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource AccentBrush}"
+                                                                           Text="{Binding Name}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </GroupStyle.HeaderTemplate>
+                                                </GroupStyle>
+                                            </ListBox.GroupStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid Margin="5,4" ToolTip="{Binding Path}">
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock FontWeight="SemiBold"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Text="{Binding Name}" />
+                                                        <TextBlock Grid.Row="1"
+                                                                   Margin="0,2,0,0"
+                                                                   Foreground="{DynamicResource AccentBrush}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Text="{Binding KnownName}" />
+                                                        <TextBlock Grid.Row="2"
+                                                                   Margin="0,2,0,0"
+                                                                   FontSize="10.5"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   Text="{Binding Path}" />
+                                                        <TextBlock Grid.Row="3"
+                                                                   Margin="0,3,0,0"
+                                                                   FontSize="10.5"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   TextWrapping="Wrap">
+                                                            <Run FontWeight="SemiBold" Text="{Binding EvidenceLabel}" />
+                                                            <Run Text="  " />
+                                                            <Run Text="{Binding Reason}" />
+                                                        </TextBlock>
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        <Button Grid.Row="3"
+                                                Margin="0,8,0,0"
+                                                HorizontalAlignment="Right"
+                                                Style="{StaticResource CompactButtonStyle}"
+                                                Content="{infra:Loc Key=ShowAssociatedAsset}"
+                                                Command="{Binding ArchiveBrowser.AssociatedAssets.ShowInBrowserCommand}" />
+                                    </Grid>
+                                </Expander>
+
+                                <TextBlock Grid.Row="6"
                                            Margin="4,7,4,0"
                                            Foreground="{DynamicResource WarningBrush}"
                                            TextWrapping="Wrap"
