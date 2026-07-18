@@ -235,7 +235,7 @@
                                              IsReadOnly="True"
                                              TextWrapping="Wrap"
                                              VerticalScrollBarVisibility="Auto"
-                                             Text="{Binding ArchiveBrowser.PreviewMetadata}" />
+                                             Text="{Binding ArchiveBrowser.PreviewMetadata, Mode=OneWay}" />
                                 </Expander>
                                 <TextBlock Grid.Row="2"
                                            Margin="2,6,2,0"

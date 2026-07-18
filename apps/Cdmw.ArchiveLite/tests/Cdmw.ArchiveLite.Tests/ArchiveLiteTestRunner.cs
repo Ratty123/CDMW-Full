@@ -16,6 +16,7 @@ internal static class ArchiveLiteTestRunner
         {
             ("protocol serializes snake-case messages", TestProtocolAsync),
             ("English, German, and Spanish resources have identical keys", TestLocalizationResourcesAsync),
+            ("read-only WPF text bindings are explicitly one-way", TestReadOnlyWpfBindingsAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
@@ -78,6 +79,30 @@ internal static class ArchiveLiteTestRunner
             Require(resource.Keys.Order(StringComparer.Ordinal).SequenceEqual(expected), "localized resource keys do not match");
             Require(resource.Values.All(static value => !string.IsNullOrWhiteSpace(value)), "localized resource contains an empty value");
         }
+        return Task.CompletedTask;
+    }
+
+    private static Task TestReadOnlyWpfBindingsAsync()
+    {
+        var windowPath = Path.Combine(
+            FindRepositoryRoot(),
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App",
+            "MainWindow.xaml");
+        var document = System.Xml.Linq.XDocument.Load(windowPath);
+        var readOnlyTextBindings = document
+            .Descendants()
+            .Where(element => element.Name.LocalName == "TextBox")
+            .Where(element => string.Equals((string?)element.Attribute("IsReadOnly"), "True", StringComparison.OrdinalIgnoreCase))
+            .Select(element => (string?)element.Attribute("Text"))
+            .Where(static value => value?.StartsWith("{Binding", StringComparison.Ordinal) == true)
+            .ToArray();
+        Require(readOnlyTextBindings.Length > 0, "MainWindow has no read-only TextBox binding to validate");
+        Require(
+            readOnlyTextBindings.All(static binding => binding!.Contains("Mode=OneWay", StringComparison.Ordinal)),
+            "a read-only TextBox uses WPF's default TwoWay Text binding");
         return Task.CompletedTask;
     }
 

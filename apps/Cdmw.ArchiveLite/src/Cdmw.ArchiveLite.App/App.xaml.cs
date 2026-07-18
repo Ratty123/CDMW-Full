@@ -49,6 +49,7 @@ public partial class App : Application
     {
         try
         {
+            LocalizationManager.ApplyCulture("en");
             _worker = await WorkerProcessHost.StartAsync(CancellationToken.None).ConfigureAwait(true);
             var result = await _worker.SendAsync<PingRequest, PingResult>(
                 WorkerProtocol.Ping,
@@ -59,6 +60,11 @@ public partial class App : Application
             {
                 throw new InvalidDataException("Worker protocol self-test failed.");
             }
+            var viewModel = new MainWindowViewModel(_worker, new LiteSettings());
+            var window = new MainWindow(viewModel);
+            window.ApplyTemplate();
+            window.Measure(new Size(1500, 900));
+            window.Arrange(new Rect(0, 0, 1500, 900));
             await _worker.ShutdownAsync().ConfigureAwait(true);
             Shutdown(0);
         }

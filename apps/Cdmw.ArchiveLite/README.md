@@ -35,7 +35,7 @@ The second command launches a visible desktop window and is intentionally not pa
 .\apps\Cdmw.ArchiveLite\scripts\build_archive_lite.ps1
 ```
 
-The package is written beneath `apps/Cdmw.ArchiveLite/artifacts/`. Packaging runs native and managed tests, publishes both executables self-contained for `win-x64`, scans every packaged PE for Python runtime references, verifies x64 architecture, runs the packaged worker self-test, runs the packaged application-to-worker self-test, and checks that no worker remains.
+The package is written beneath `apps/Cdmw.ArchiveLite/artifacts/`. Packaging runs native and managed tests, publishes both executables self-contained for `win-x64`, scans every packaged PE for Python runtime references, verifies x64 architecture, runs the packaged worker self-test, constructs and lays out the real WPF window without showing it, exercises the packaged application-to-worker connection, and checks that no worker remains.
 
 ## Data isolation
 

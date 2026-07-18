@@ -30,7 +30,7 @@ In addition to rerunning the focused checks in Release, this gate publishes the 
 .\apps\Cdmw.ArchiveLite\scripts\verify_archive_lite_artifact.ps1 -ArtifactDirectory <published-folder>
 ```
 
-The artifact guard rejects Python source/bytecode/extensions/runtimes, Python-named runtime folders, and PE files that reference a Python DLL. It also checks the app, worker, and native decoder are x64 PE files; runs the worker ABI self-test; runs the application-to-worker protocol self-test without showing a window; and rejects an orphaned packaged worker.
+The artifact guard rejects Python source/bytecode/extensions/runtimes, Python-named runtime folders, and PE files that reference a Python DLL. It also checks the app, worker, and native decoder are x64 PE files; runs the worker ABI self-test; constructs and lays out the real WPF `MainWindow` without showing it; exercises the application-to-worker protocol; and rejects an orphaned packaged worker.
 
 ## Proof boundaries
 
