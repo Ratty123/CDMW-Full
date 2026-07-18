@@ -134,7 +134,7 @@ Last updated: 2026-07-19
 
 ## Startup and packaging contracts
 
-- Archive Lite is the Python-free read-only WPF application under `apps/Cdmw.ArchiveLite`. It starts in Archive Browser, stores settings/cache/logs beside the EXE, publishes full text through bounded preview artifacts, decodes DDS with packaged DirectXTex and WEM with pinned vgmstream, and exposes PAC/PAM/PAMLOD raw or GLB/OBJ/FBX output through unified Export selected. Its focused and release owners are `scripts/test_archive_lite.ps1` and `scripts/build_archive_lite.ps1` within that app.
+- Archive Lite is the Python-free read-only WPF application under `apps/Cdmw.ArchiveLite`. It starts in Archive Browser, stores settings/cache/logs beside the EXE, publishes full text through bounded preview artifacts, decodes DDS with packaged DirectXTex and WEM with pinned vgmstream, and exposes PAC/PAM/PAMLOD raw or GLB/OBJ/FBX output through unified Export selected. Keep Associated assets in a real column beside the native child HWND because WPF overlays cannot win that airspace; theme switches must rebuild both AvalonEdit surfaces from the cached Dark+/Light+ definitions. Its focused and release owners are `scripts/test_archive_lite.ps1` and `scripts/build_archive_lite.ps1` within that app.
 - Public `run_gui()` imports implementation only when called; lazy optional tabs
   must not pull NumPy, OpenCV, or preview stacks into cold facade import.
 - Startup smoke uses a unique instance namespace and an atomic marker written

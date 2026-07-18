@@ -4,14 +4,17 @@ using System.Security.Cryptography;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.IO.Pipes;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Threading;
+using Cdmw.ArchiveLite.App.Infrastructure;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
 using Cdmw.ArchiveLite.Contracts;
 using Cdmw.ArchiveLite.Core;
 using Cdmw.ArchiveLite.Standalone;
+using ICSharpCode.AvalonEdit.Highlighting;
 
 namespace Cdmw.ArchiveLite.Tests;
 
@@ -29,6 +32,7 @@ internal static class ArchiveLiteTestRunner
             ("portable settings retain filters, window placement, panes, and columns", TestPortableUiSettingsAsync),
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
             ("modern shell exposes cache health, game detection, and Enter search", TestModernShellAsync),
+            ("preview drawer and syntax colors stay readable across themes", TestPreviewPresentationAsync),
             ("archive grid exposes configurable sortable columns and categorized extensions", TestArchiveGridFeaturesAsync),
             ("associated assets resolve references and same-family companions read-only", TestAssociatedAssetsAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
@@ -575,6 +579,111 @@ internal static class ArchiveLiteTestRunner
             && archiveViewModelSource.Contains("ChooseAndOpenArchiveAsync(true", StringComparison.Ordinal),
             "Load and Refresh do not share the cache-choice flow");
         return Task.CompletedTask;
+    }
+
+    private static Task TestPreviewPresentationAsync()
+    {
+        var appRoot = Path.Combine(
+            FindRepositoryRoot(),
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App");
+        var window = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "MainWindow.xaml"));
+        var previewLayout = window.Descendants().Single(element => element.Attributes().Any(
+            attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ArchivePreviewCardLayout"));
+        var associatedAssetsDrawer = previewLayout.Descendants().Single(element =>
+            ((string?)element.Attribute("Visibility"))?.Contains(
+                "ArchiveBrowser.AssociatedAssets.IsExpanded",
+                StringComparison.Ordinal) == true);
+        Require(
+            associatedAssetsDrawer.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Grid.Column" && attribute.Value == "1")
+            && !associatedAssetsDrawer.Attributes().Any(attribute => attribute.Name.LocalName == "Panel.ZIndex"),
+            "associated assets still overlap the native preview instead of occupying the adjacent layout column");
+
+        var previewEditors = window.Descendants()
+            .Where(element => element.Name.LocalName == "TextEditor")
+            .ToArray();
+        Require(
+            previewEditors.Length == 2
+            && previewEditors.All(element => element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "LineNumbersForeground"
+                && attribute.Value.Contains("TextMutedBrush", StringComparison.Ordinal))),
+            "text-preview line numbers do not use the theme's readable muted foreground");
+
+        var controls = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "Themes", "Controls.xaml"));
+        var sectionTitleStyle = controls.Root!.Elements().Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Key" && attribute.Value == "SectionTitleStyle"));
+        Require(
+            sectionTitleStyle.Elements().Any(element =>
+                string.Equals((string?)element.Attribute("Property"), "Foreground", StringComparison.Ordinal)
+                && ((string?)element.Attribute("Value"))?.Contains("TextBrush", StringComparison.Ordinal) == true),
+            "preview and associated-assets headings can inherit the platform's black default foreground");
+
+        var highlightingSource = File.ReadAllText(Path.Combine(appRoot, "Infrastructure", "AvalonEditBinding.cs"));
+        foreach (var color in new[]
+        {
+            "#D4D4D4", "#6A9955", "#569CD6", "#9CDCFE", "#CE9178", "#B5CEA8",
+            "#1F1F1F", "#008000", "#0000FF", "#001080", "#A31515", "#098658",
+        })
+        {
+            Require(
+                highlightingSource.Contains(color, StringComparison.Ordinal),
+                $"the common light/dark editor palette is missing {color}");
+        }
+        Require(
+            highlightingSource.Contains("ThemeManager.Current.IsDark", StringComparison.Ordinal)
+            && highlightingSource.Contains("HighlightingLoader.Load", StringComparison.Ordinal),
+            "syntax definitions are not rebuilt against the active theme palette");
+
+        var resolver = typeof(AvalonEditBinding).GetMethod(
+            "ResolveHighlighting",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException(nameof(AvalonEditBinding), "ResolveHighlighting");
+        ThemeManager.Apply("graphite");
+        var darkXml = ResolveTestHighlighting(resolver, ".xml", "dark XML");
+        ThemeManager.Apply("light");
+        var lightXml = ResolveTestHighlighting(resolver, ".xml", "light XML");
+        ThemeManager.Apply("graphite");
+        Require(
+            HighlightingForeground(darkXml, "XmlTag").Contains("569CD6", StringComparison.OrdinalIgnoreCase)
+            && HighlightingForeground(darkXml, "AttributeName").Contains("9CDCFE", StringComparison.OrdinalIgnoreCase)
+            && HighlightingForeground(darkXml, "AttributeValue").Contains("CE9178", StringComparison.OrdinalIgnoreCase)
+            && HighlightingForeground(darkXml, "Comment").Contains("6A9955", StringComparison.OrdinalIgnoreCase),
+            "the runtime XML highlighter did not apply the readable Dark+ palette");
+        Require(
+            HighlightingForeground(lightXml, "XmlTag").Contains("0000FF", StringComparison.OrdinalIgnoreCase)
+            && HighlightingForeground(lightXml, "AttributeName").Contains("001080", StringComparison.OrdinalIgnoreCase)
+            && HighlightingForeground(lightXml, "AttributeValue").Contains("A31515", StringComparison.OrdinalIgnoreCase)
+            && HighlightingForeground(lightXml, "Comment").Contains("008000", StringComparison.OrdinalIgnoreCase),
+            "the runtime XML highlighter did not apply the readable Light+ palette");
+
+        var windowSource = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml.cs"));
+        Require(
+            windowSource.Contains("AvalonEditBinding.RefreshSyntax(ArchiveTextPreviewEditor)", StringComparison.Ordinal)
+            && windowSource.Contains("AvalonEditBinding.RefreshSyntax(TextSearchPreviewEditor)", StringComparison.Ordinal),
+            "live theme changes do not refresh both text preview editors");
+        return Task.CompletedTask;
+    }
+
+    private static string HighlightingForeground(IHighlightingDefinition definition, string colorName) =>
+        definition.GetNamedColor(colorName)?.Foreground?.ToString() ?? string.Empty;
+
+    private static IHighlightingDefinition ResolveTestHighlighting(MethodInfo resolver, string syntax, string label)
+    {
+        try
+        {
+            return resolver.Invoke(null, [syntax]) as IHighlightingDefinition
+                ?? throw new InvalidDataException($"{label} highlighting did not load");
+        }
+        catch (TargetInvocationException exception) when (exception.InnerException is not null)
+        {
+            throw new InvalidOperationException(
+                $"{label} highlighting failed: {exception.InnerException.GetType().Name}: {exception.InnerException.Message}",
+                exception.InnerException);
+        }
     }
 
     private static Task TestArchiveGridFeaturesAsync()

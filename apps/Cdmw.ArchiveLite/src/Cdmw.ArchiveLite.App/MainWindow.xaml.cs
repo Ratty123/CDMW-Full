@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
+using Cdmw.ArchiveLite.App.Infrastructure;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
 using Cdmw.ArchiveLite.Contracts;
@@ -62,12 +63,19 @@ public partial class MainWindow : Window
     {
         if (Dispatcher.CheckAccess())
         {
-            ApplyTitleBarTheme();
+            ApplyThemePresentation();
         }
         else
         {
-            _ = Dispatcher.BeginInvoke(ApplyTitleBarTheme);
+            _ = Dispatcher.BeginInvoke(ApplyThemePresentation);
         }
+    }
+
+    private void ApplyThemePresentation()
+    {
+        ApplyTitleBarTheme();
+        AvalonEditBinding.RefreshSyntax(ArchiveTextPreviewEditor);
+        AvalonEditBinding.RefreshSyntax(TextSearchPreviewEditor);
     }
 
     private void ApplyTitleBarTheme()

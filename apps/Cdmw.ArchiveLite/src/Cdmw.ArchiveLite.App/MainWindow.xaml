@@ -567,7 +567,11 @@
                         <GridSplitter Grid.Column="3" Width="7" HorizontalAlignment="Stretch" />
 
                         <Border Grid.Column="4" Margin="10,0,0,0" Style="{StaticResource CardBorderStyle}">
-                            <Grid>
+                            <Grid x:Name="ArchivePreviewCardLayout">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
@@ -706,6 +710,7 @@
                                                                FontSize="12.5"
                                                                Background="{DynamicResource InputBackgroundBrush}"
                                                                Foreground="{DynamicResource TextBrush}"
+                                                               LineNumbersForeground="{DynamicResource TextMutedBrush}"
                                                                Padding="12"
                                                                HorizontalScrollBarVisibility="Auto"
                                                                VerticalScrollBarVisibility="Auto"
@@ -787,10 +792,9 @@
 
                                 <Border Grid.Row="0"
                                         Grid.RowSpan="7"
-                                        Panel.ZIndex="30"
-                                        MaxWidth="360"
-                                        Margin="26,0,0,0"
-                                        HorizontalAlignment="Right"
+                                        Grid.Column="1"
+                                        Width="320"
+                                        Margin="8,0,0,0"
                                         Background="{DynamicResource SurfaceBrush}"
                                         BorderBrush="{DynamicResource AccentBrush}"
                                         BorderThickness="1"
@@ -1124,6 +1128,7 @@
                                                        FontSize="12.5"
                                                        Background="{DynamicResource InputBackgroundBrush}"
                                                        Foreground="{DynamicResource TextBrush}"
+                                                       LineNumbersForeground="{DynamicResource TextMutedBrush}"
                                                        Padding="12"
                                                        HorizontalScrollBarVisibility="Auto"
                                                        VerticalScrollBarVisibility="Auto"
