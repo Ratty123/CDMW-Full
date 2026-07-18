@@ -42,6 +42,7 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -85,10 +86,30 @@
                            Foreground="{DynamicResource AccentBrush}"
                            Text="{infra:Loc Key=ReadOnlyPill}" />
             </Border>
-            <Border Grid.Column="2"
+            <StackPanel Grid.Column="2"
+                        Margin="0,0,14,0"
+                        VerticalAlignment="Center"
+                        Orientation="Horizontal"
+                        shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                <ToggleButton x:Name="ArchiveBrowserNavigationButton"
+                              MinWidth="112"
+                              IsChecked="True"
+                              Style="{StaticResource WorkspaceNavigationButtonStyle}"
+                              Tag="0"
+                              Content="{infra:Loc Key=ArchiveBrowserTab}"
+                              Click="OnWorkspaceNavigationClick" />
+                <ToggleButton x:Name="TextSearchNavigationButton"
+                              MinWidth="94"
+                              Margin="6,0,0,0"
+                              Style="{StaticResource WorkspaceNavigationButtonStyle}"
+                              Tag="1"
+                              Content="{infra:Loc Key=TextSearchTab}"
+                              Click="OnWorkspaceNavigationClick" />
+            </StackPanel>
+            <Border Grid.Column="3"
                     Background="Transparent"
                     MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown" />
-            <ComboBox Grid.Column="3"
+            <ComboBox Grid.Column="4"
                       Width="132"
                       Margin="0,11,8,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
@@ -96,7 +117,7 @@
                       ItemsSource="{Binding Themes}"
                       SelectedItem="{Binding SelectedTheme}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <ComboBox Grid.Column="4"
+            <ComboBox Grid.Column="5"
                       Width="106"
                       Margin="0,11,12,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
@@ -104,36 +125,40 @@
                       ItemsSource="{Binding Languages}"
                       SelectedItem="{Binding SelectedLanguage}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <Button Grid.Column="5"
+            <Button Grid.Column="6"
                     Style="{StaticResource WindowCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Minimize}"
                     Click="OnMinimizeClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <Border Width="11" Height="1" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
             </Button>
-            <Button Grid.Column="6"
+            <Button Grid.Column="7"
                     Style="{StaticResource WindowCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Maximize}"
                     Click="OnMaximizeRestoreClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <Border Width="10" Height="10" BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" BorderThickness="1" />
             </Button>
-            <Button Grid.Column="7"
+            <Button Grid.Column="8"
                     Style="{StaticResource CloseCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Close}"
                     Content="&#x00D7;"
                     FontSize="19"
                     Click="OnCloseClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <Border Grid.ColumnSpan="8"
+            <Border Grid.ColumnSpan="9"
                     VerticalAlignment="Bottom"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,0,1" />
         </Grid>
 
-        <TabControl Grid.Row="1" Margin="16,6,16,8">
+        <TabControl x:Name="WorkspaceTabs"
+                    Grid.Row="1"
+                    Margin="16,8,16,10"
+                    Style="{StaticResource WorkspaceContentTabControlStyle}"
+                    SelectionChanged="OnWorkspaceTabSelectionChanged">
             <TabItem Header="{infra:Loc Key=ArchiveBrowserTab}">
-                <Grid Margin="16,4,16,16">
+                <Grid Margin="0">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -408,6 +433,9 @@
                                         <Button Margin="0,0,0,8"
                                                 Content="{infra:Loc Key=ExportSelected}"
                                                 Command="{Binding ArchiveBrowser.ExportSelectedCommand}" />
+                                        <Button Margin="0,0,0,8"
+                                                Content="{infra:Loc Key=ExportFolder}"
+                                                Command="{Binding ArchiveBrowser.ExportFolderCommand}" />
                                         <Button Content="{infra:Loc Key=ExportFiltered}"
                                                 Command="{Binding ArchiveBrowser.ExportFilteredCommand}" />
                                     </StackPanel>
@@ -493,7 +521,8 @@
                                           SelectedItem="{Binding ArchiveBrowser.SelectedEntry}"
                                           AutoGenerateColumns="False"
                                           IsReadOnly="True"
-                                          SelectionMode="Single"
+                                          SelectionMode="Extended"
+                                          SelectionChanged="OnArchiveGridSelectionChanged"
                                           CanUserSortColumns="True"
                                           CanUserReorderColumns="True"
                                           CanUserResizeColumns="True"
@@ -730,12 +759,15 @@
                                                      Margin="0,0,0,7"
                                                      IsIndeterminate="True"
                                                      Visibility="{Binding ArchiveBrowser.AssociatedAssets.IsBusy, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <ListBox Grid.Row="2"
+                                        <ListBox x:Name="AssociatedAssetsList"
+                                                 Grid.Row="2"
                                                  MaxHeight="220"
                                                  HorizontalContentAlignment="Stretch"
                                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ItemsSource="{Binding ArchiveBrowser.AssociatedAssets.AssetsView}"
                                                  SelectedItem="{Binding ArchiveBrowser.AssociatedAssets.SelectedAsset}"
+                                                 SelectionMode="Extended"
+                                                 SelectionChanged="OnAssociatedAssetsSelectionChanged"
                                                  Visibility="{Binding ArchiveBrowser.AssociatedAssets.HasAssets, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <ListBox.GroupStyle>
                                                 <GroupStyle>
@@ -781,20 +813,29 @@
                                                                    FontSize="10.5"
                                                                    Foreground="{DynamicResource TextMutedBrush}"
                                                                    TextWrapping="Wrap">
-                                                            <Run FontWeight="SemiBold" Text="{Binding EvidenceLabel}" />
+                                                            <Run FontWeight="SemiBold" Text="{Binding EvidenceLabel, Mode=OneWay}" />
                                                             <Run Text="  " />
-                                                            <Run Text="{Binding Reason}" />
+                                                            <Run Text="{Binding Reason, Mode=OneWay}" />
                                                         </TextBlock>
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
-                                        <Button Grid.Row="3"
-                                                Margin="0,8,0,0"
-                                                HorizontalAlignment="Right"
-                                                Style="{StaticResource CompactButtonStyle}"
-                                                Content="{infra:Loc Key=ShowAssociatedAsset}"
-                                                Command="{Binding ArchiveBrowser.AssociatedAssets.ShowInBrowserCommand}" />
+                                        <WrapPanel Grid.Row="3"
+                                                   Margin="0,8,0,0"
+                                                   HorizontalAlignment="Right">
+                                            <Button Margin="0,0,6,0"
+                                                    Style="{StaticResource CompactButtonStyle}"
+                                                    Content="{infra:Loc Key=ExportAssociatedSelected}"
+                                                    Command="{Binding ArchiveBrowser.AssociatedAssets.ExportSelectedCommand}" />
+                                            <Button Margin="0,0,6,0"
+                                                    Style="{StaticResource CompactButtonStyle}"
+                                                    Content="{infra:Loc Key=ShowAssociatedAsset}"
+                                                    Command="{Binding ArchiveBrowser.AssociatedAssets.ShowInBrowserCommand}" />
+                                            <Button Style="{StaticResource CompactButtonStyle}"
+                                                    Content="{infra:Loc Key=ExportAssociatedFamily}"
+                                                    Command="{Binding ArchiveBrowser.AssociatedAssets.ExportFamilyCommand}" />
+                                        </WrapPanel>
                                     </Grid>
                                 </Expander>
 
@@ -811,7 +852,7 @@
             </TabItem>
 
             <TabItem Header="{infra:Loc Key=TextSearchTab}">
-                <Grid Margin="16,4,16,16">
+                <Grid Margin="0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="300" MinWidth="270" />
                         <ColumnDefinition Width="7" />

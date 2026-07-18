@@ -10,6 +10,13 @@ public partial class App : Application
 {
     private WorkerProcessHost? _worker;
 
+    public App()
+    {
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+    }
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
@@ -90,11 +97,32 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        DispatcherUnhandledException -= OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException -= OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException -= OnUnobservedTaskException;
         if (_worker is not null)
         {
             _worker.DisposeImmediately();
         }
 
         base.OnExit(e);
+    }
+
+    private static void OnDispatcherUnhandledException(
+        object sender,
+        System.Windows.Threading.DispatcherUnhandledExceptionEventArgs eventArgs) =>
+        DiagnosticLog.WriteFatal("dispatcher-unhandled", eventArgs.Exception);
+
+    private static void OnDomainUnhandledException(object? sender, UnhandledExceptionEventArgs eventArgs)
+    {
+        var exception = eventArgs.ExceptionObject as Exception
+            ?? new InvalidOperationException($"Unhandled non-exception object: {eventArgs.ExceptionObject}");
+        DiagnosticLog.WriteFatal("domain-unhandled", exception);
+    }
+
+    private static void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs eventArgs)
+    {
+        DiagnosticLog.WriteFatal("task-unobserved", eventArgs.Exception);
+        eventArgs.SetObserved();
     }
 }

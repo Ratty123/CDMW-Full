@@ -416,73 +416,56 @@
         </Setter>
     </Style>
 
-    <Style TargetType="TabControl">
+    <Style x:Key="WorkspaceContentTabControlStyle" TargetType="TabControl">
         <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}" />
-        <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="TabControl">
-                    <Grid Background="{TemplateBinding Background}"
-                          KeyboardNavigation.TabNavigation="Local">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TabPanel Grid.Row="0"
-                                  Margin="4,2,0,4"
-                                  ClipToBounds="False"
-                                  IsItemsHost="True"
-                                  KeyboardNavigation.TabIndex="1" />
-                        <Border Grid.Row="1"
-                                Background="Transparent"
-                                BorderThickness="0">
-                            <ContentPresenter x:Name="PART_SelectedContentHost"
-                                              Margin="0"
-                                              ContentSource="SelectedContent" />
-                        </Border>
-                    </Grid>
+                    <Border Background="{TemplateBinding Background}"
+                            BorderThickness="0">
+                        <ContentPresenter x:Name="PART_SelectedContentHost"
+                                          Margin="0"
+                                          ContentSource="SelectedContent" />
+                    </Border>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
     </Style>
 
-    <Style TargetType="TabItem">
+    <Style x:Key="WorkspaceNavigationButtonStyle" TargetType="ToggleButton">
         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
         <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="Padding" Value="17,8" />
-        <Setter Property="Margin" Value="1,1,7,1" />
-        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Padding" Value="14,7" />
+        <Setter Property="Height" Value="36" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisualStyle}" />
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="TabItem">
-                    <Grid Margin="0,0,1,0"
-                          Background="Transparent"
-                          ClipToBounds="False">
-                        <Border x:Name="TabBorder"
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Border x:Name="NavigationBorder"
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="1"
+                                BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="9"
                                 SnapsToDevicePixels="True">
                             <ContentPresenter Margin="{TemplateBinding Padding}"
                                               HorizontalAlignment="Center"
                                               VerticalAlignment="Center"
-                                              ContentSource="Header"
+                                              ContentSource="Content"
                                               RecognizesAccessKey="True" />
                         </Border>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+                            <Setter TargetName="NavigationBorder" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
                             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                         </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="TabBorder" Property="Background" Value="{DynamicResource SelectionInactiveBrush}" />
-                            <Setter TargetName="TabBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
-                            <Setter Property="Panel.ZIndex" Value="1" />
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="NavigationBorder" Property="Background" Value="{DynamicResource SelectionInactiveBrush}" />
+                            <Setter TargetName="NavigationBorder" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
                             <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
                             <Setter Property="FontWeight" Value="SemiBold" />
                         </Trigger>

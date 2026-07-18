@@ -28,6 +28,14 @@ public sealed class ArchiveExportService(
         {
             throw new NotSupportedException($"Archive Lite does not support the {request.Kind} export format.");
         }
+        if (request.Kind == ExportKind.FolderTree && string.IsNullOrWhiteSpace(request.FolderPath))
+        {
+            throw new InvalidDataException("A folder-tree export requires an archive folder path.");
+        }
+        if (request.Kind != ExportKind.FolderTree && !string.IsNullOrWhiteSpace(request.FolderPath))
+        {
+            throw new InvalidDataException("An archive folder path is only valid for a folder-tree export.");
+        }
         var destination = Path.GetFullPath(request.Destination);
         var items = new List<ExportItemResult>();
         var outputPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -128,7 +136,7 @@ public sealed class ArchiveExportService(
             {
                 await PublishProgressAsync(progress, new ProgressUpdate(completed, requested, "export", entry.Path)).ConfigureAwait(false);
             }
-            var relative = ExportPathPolicy.NormalizeVirtualPath(entry.Path);
+            var relative = BuildArchiveOutputRelativePath(entry);
             var outputRelative = isMeshExport
                 ? ExportPathPolicy.NormalizeVirtualPath(Path.ChangeExtension(relative, NativeModelExportService.FileExtension(request.Kind)))
                 : relative;
@@ -218,8 +226,35 @@ public sealed class ArchiveExportService(
                 total,
                 queries.EnumerateMatchingEntries(session, query, cancellationToken));
         }
+        if (request.Kind == ExportKind.FolderTree)
+        {
+            var folder = ExportPathPolicy.NormalizeVirtualPath(request.FolderPath!);
+            var query = new ArchiveQuerySpec(
+                session.Id,
+                Folder: folder,
+                ViewMode: ArchiveViewMode.Flat,
+                SortField: ArchiveSortField.Path);
+            var entryIds = queries
+                .EnumerateMatchingEntries(session, query, cancellationToken)
+                .Select(static entry => entry.EntryId)
+                .ToArray();
+            return new ArchiveEntrySet(
+                entryIds.LongLength,
+                entryIds.Select(session.Index.ReadEntry));
+        }
         var ids = request.EntryIds.Distinct().ToArray();
         return new ArchiveEntrySet(ids.LongLength, ids.Select(session.Index.ReadEntry));
+    }
+
+    private static string BuildArchiveOutputRelativePath(ArchiveEntryDto entry)
+    {
+        var packageRoot = Path.GetFileName(Path.GetDirectoryName(entry.SourcePamt))?.Trim();
+        if (string.IsNullOrWhiteSpace(packageRoot))
+        {
+            packageRoot = "package";
+        }
+        return ExportPathPolicy.NormalizeVirtualPath(
+            $"{ExportPathPolicy.NormalizeVirtualPath(packageRoot)}/{ExportPathPolicy.NormalizeVirtualPath(entry.Path)}");
     }
 
     private async Task<ExportOutcome> ExportArchiveEntryAsync(

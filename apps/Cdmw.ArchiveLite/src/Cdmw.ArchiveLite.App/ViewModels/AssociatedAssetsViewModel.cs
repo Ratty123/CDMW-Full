@@ -11,6 +11,7 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
 {
     private readonly WorkerProcessHost _worker;
     private readonly Func<string, ArchiveEntryDto, CancellationToken, Task> _showInBrowser;
+    private readonly Func<IReadOnlyList<long>, CancellationToken, Task> _exportEntries;
     private readonly Func<bool> _canInteract;
     private readonly Action<string> _setShellStatus;
     private CancellationTokenSource? _findOperation;
@@ -18,6 +19,7 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
     private string? _sessionId;
     private ArchiveEntryDto? _source;
     private IReadOnlyList<AssociatedAssetDto> _assetDtos = [];
+    private IReadOnlyList<long> _selectedAssetEntryIds = [];
     private AssociatedAssetRow? _selectedAsset;
     private bool _isBusy;
     private bool _isExpanded;
@@ -31,16 +33,20 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
     public AssociatedAssetsViewModel(
         WorkerProcessHost worker,
         Func<string, ArchiveEntryDto, CancellationToken, Task> showInBrowser,
+        Func<IReadOnlyList<long>, CancellationToken, Task> exportEntries,
         Func<bool> canInteract,
         Action<string> setShellStatus)
     {
         _worker = worker;
         _showInBrowser = showInBrowser;
+        _exportEntries = exportEntries;
         _canInteract = canInteract;
         _setShellStatus = setShellStatus;
         FindCommand = new AsyncCommand(FindAsync, CanFind);
         CancelCommand = new RelayCommand(CancelFind, () => IsBusy);
         ShowInBrowserCommand = new AsyncCommand(ShowSelectedInBrowserAsync, CanShowInBrowser);
+        ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, CanExportSelected);
+        ExportFamilyCommand = new AsyncCommand(ExportFamilyAsync, CanExportFamily);
         AssetsView = CollectionViewSource.GetDefaultView(Assets);
         AssetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(AssociatedAssetRow.CategoryLabel)));
     }
@@ -50,6 +56,8 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
     public AsyncCommand FindCommand { get; }
     public RelayCommand CancelCommand { get; }
     public AsyncCommand ShowInBrowserCommand { get; }
+    public AsyncCommand ExportSelectedCommand { get; }
+    public AsyncCommand ExportFamilyCommand { get; }
 
     public AssociatedAssetRow? SelectedAsset
     {
@@ -58,7 +66,12 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedAsset, value))
             {
+                if (value is null)
+                {
+                    _selectedAssetEntryIds = [];
+                }
                 ShowInBrowserCommand.RaiseCanExecuteChanged();
+                ExportSelectedCommand.RaiseCanExecuteChanged();
             }
         }
     }
@@ -96,10 +109,11 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
     public void SelectSource(string? sessionId, ArchiveEntryDto? source)
     {
         Interlocked.Increment(ref _generation);
-        Interlocked.Exchange(ref _findOperation, null)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _findOperation, null));
         _sessionId = sessionId;
         _source = source;
         _assetDtos = [];
+        _selectedAssetEntryIds = [];
         _hasLoaded = false;
         _truncated = false;
         _lastError = null;
@@ -123,19 +137,32 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         OnPropertyChanged(nameof(Header));
     }
 
+    public void SetSelectedAssets(IEnumerable<AssociatedAssetRow> assets)
+    {
+        _selectedAssetEntryIds = assets
+            .Select(static asset => asset.Entry.EntryId)
+            .Distinct()
+            .ToArray();
+        ExportSelectedCommand.RaiseCanExecuteChanged();
+    }
+
     public void RaiseCommandStates()
     {
         FindCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
         ShowInBrowserCommand.RaiseCanExecuteChanged();
+        ExportSelectedCommand.RaiseCanExecuteChanged();
+        ExportFamilyCommand.RaiseCanExecuteChanged();
     }
 
     public void RequestShutdown()
     {
         Interlocked.Increment(ref _generation);
-        Interlocked.Exchange(ref _findOperation, null)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _findOperation, null));
         FindCommand.Cancel();
         ShowInBrowserCommand.Cancel();
+        ExportSelectedCommand.Cancel();
+        ExportFamilyCommand.Cancel();
         IsBusy = false;
     }
 
@@ -151,10 +178,23 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         && !string.IsNullOrWhiteSpace(_sessionId)
         && _canInteract();
 
+    private bool CanExportSelected() =>
+        !IsBusy
+        && !string.IsNullOrWhiteSpace(_sessionId)
+        && (_selectedAssetEntryIds.Count > 0 || SelectedAsset is not null)
+        && _canInteract();
+
+    private bool CanExportFamily() =>
+        _source is not null
+        && _hasLoaded
+        && !IsBusy
+        && !string.IsNullOrWhiteSpace(_sessionId)
+        && _canInteract();
+
     private void CancelFind()
     {
         Interlocked.Increment(ref _generation);
-        Interlocked.Exchange(ref _findOperation, null)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _findOperation, null));
         _lastError = null;
         IsBusy = false;
         RefreshStatus();
@@ -171,7 +211,7 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
 
         var generation = Interlocked.Increment(ref _generation);
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(commandToken);
-        Interlocked.Exchange(ref _findOperation, operation)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _findOperation, operation));
         try
         {
             IsBusy = true;
@@ -185,7 +225,7 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
             var result = await _worker.SendAsync<FindAssociatedAssetsRequest, FindAssociatedAssetsResult>(
                 WorkerProtocol.FindAssociatedAssets,
                 generation,
-                new FindAssociatedAssetsRequest(sessionId, source.EntryId),
+                new FindAssociatedAssetsRequest(sessionId, source.EntryId, 256),
                 operation.Token,
                 progress).ConfigureAwait(true);
             if (!IsCurrent(sessionId, source.EntryId, generation))
@@ -241,6 +281,33 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         }
     }
 
+    private async Task ExportSelectedAsync(CancellationToken cancellationToken)
+    {
+        var entryIds = _selectedAssetEntryIds.Count > 0
+            ? _selectedAssetEntryIds
+            : SelectedAsset is not null
+                ? [SelectedAsset.Entry.EntryId]
+                : [];
+        if (entryIds.Count == 0)
+        {
+            return;
+        }
+        await _exportEntries(entryIds, cancellationToken).ConfigureAwait(true);
+    }
+
+    private async Task ExportFamilyAsync(CancellationToken cancellationToken)
+    {
+        if (_source is null || !_hasLoaded)
+        {
+            return;
+        }
+        var entryIds = new[] { _source.EntryId }
+            .Concat(_assetDtos.Select(static asset => asset.Entry.EntryId))
+            .Distinct()
+            .ToArray();
+        await _exportEntries(entryIds, cancellationToken).ConfigureAwait(true);
+    }
+
     private void ApplyProgress(string sessionId, long entryId, long generation, ProgressUpdate update)
     {
         if (!IsCurrent(sessionId, entryId, generation))
@@ -292,6 +359,22 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
                                 : LocalizationManager.Format(
                                     _truncated ? "AssociatedAssetsFoundTruncated" : "AssociatedAssetsFound",
                                     Assets.Count);
+    }
+
+    private static void CancelOperation(CancellationTokenSource? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+        try
+        {
+            operation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Completion may dispose the request while selection or shutdown takes ownership.
+        }
     }
 }
 

@@ -63,7 +63,10 @@
   <data name="MeshExportFilter" xml:space="preserve"><value>glTF Binary (*.glb)|*.glb|Wavefront OBJ (*.obj)|*.obj|Autodesk FBX (*.fbx)|*.fbx</value></data>
   <data name="MeshExportUnsupportedExtension" xml:space="preserve"><value>Wählen Sie eine .glb-, .obj- oder .fbx-Ausgabedatei.</value></data>
   <data name="ExportSelected" xml:space="preserve"><value>Auswahl exportieren</value></data>
+  <data name="ExportFolder" xml:space="preserve"><value>Ordner exportieren</value></data>
   <data name="ExportFiltered" xml:space="preserve"><value>Gefilterte exportieren</value></data>
+  <data name="ExportAssociatedSelected" xml:space="preserve"><value>Ausgewähltes Asset exportieren</value></data>
+  <data name="ExportAssociatedFamily" xml:space="preserve"><value>Familie exportieren</value></data>
   <data name="Path" xml:space="preserve"><value>Pfad</value></data>
   <data name="Name" xml:space="preserve"><value>Name</value></data>
   <data name="Type" xml:space="preserve"><value>Typ</value></data>

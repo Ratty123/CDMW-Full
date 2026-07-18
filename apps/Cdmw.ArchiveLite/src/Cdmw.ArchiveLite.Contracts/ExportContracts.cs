@@ -40,7 +40,8 @@ public sealed record ExportPlanRequest(
     string? LooseSourceRoot = null,
     ExportCollisionPolicy CollisionPolicy = ExportCollisionPolicy.Skip,
     ExportManifestFormat ManifestFormat = ExportManifestFormat.Json,
-    string? SingleOutputPath = null);
+    string? SingleOutputPath = null,
+    string? FolderPath = null);
 
 public sealed record ExportItemResult(string SourcePath, string? OutputPath, string Status, string? Message);
 

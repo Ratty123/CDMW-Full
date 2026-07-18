@@ -3,7 +3,7 @@ namespace Cdmw.ArchiveLite.Contracts;
 public sealed record FindAssociatedAssetsRequest(
     string SessionId,
     long EntryId,
-    int MaximumResults = 128);
+    int MaximumResults = 256);
 
 public sealed record FindAssociatedAssetsResult(
     string SessionId,

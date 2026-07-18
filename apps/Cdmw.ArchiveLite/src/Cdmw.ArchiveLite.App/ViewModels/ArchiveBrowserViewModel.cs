@@ -37,6 +37,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private ArchiveRoleFilter _selectedRole = null!;
     private ArchiveCategoryCount? _selectedCategory;
     private ArchiveEntryDto? _selectedEntry;
+    private IReadOnlyList<long> _selectedEntryIds = [];
     private string _previewTitle = LocalizationManager.Get("Preview");
     private string _previewMetadata = string.Empty;
     private string _previewText = LocalizationManager.Get("PreviewEmpty");
@@ -88,6 +89,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         AssociatedAssets = new AssociatedAssetsViewModel(
             worker,
             ShowAssociatedAssetInBrowserAsync,
+            ExportAssociatedEntriesAsync,
             () => !IsBusy && !IsEnvironmentBusy,
             setShellStatus);
         BrowseCommand = new AsyncCommand(BrowseAsync, () => !IsBusy && !IsEnvironmentBusy);
@@ -102,8 +104,11 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         PreviousPageCommand = new AsyncCommand(token => QueryAsync(Math.Max(0, PageStart - PageSize), token), () => PageStart > 0 && !IsBusy);
         NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
         CancelCommand = new RelayCommand(CancelForeground, () => IsBusy);
-        ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, () => SelectedEntry is not null && !IsBusy);
+        ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, () => CanExportSelectedEntries() && !IsBusy);
         ExportMeshCommand = new AsyncCommand(ExportMeshAsync, () => CanExportSelectedMesh && !IsBusy);
+        ExportFolderCommand = new AsyncCommand(
+            ExportFolderAsync,
+            () => !string.IsNullOrWhiteSpace(SessionId) && !string.IsNullOrWhiteSpace(SelectedFolder?.Path) && !IsBusy);
         ExportFilteredCommand = new AsyncCommand(ExportFilteredAsync, () => TotalMatches > 0 && !IsBusy);
         RebuildLocalizedOptions();
         ExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(LocalizationManager.Get("AllFiles"), LocalizationManager.Get("ExtensionGroupAll")));
@@ -134,6 +139,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public RelayCommand CancelCommand { get; }
     public AsyncCommand ExportSelectedCommand { get; }
     public AsyncCommand ExportMeshCommand { get; }
+    public AsyncCommand ExportFolderCommand { get; }
     public AsyncCommand ExportFilteredCommand { get; }
 
     public event EventHandler? SessionChanged;
@@ -355,10 +361,25 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         ApplyFilterCommand.Execute(null);
     }
 
+    public void SetSelectedEntries(IEnumerable<ArchiveEntryDto> entries)
+    {
+        _selectedEntryIds = entries
+            .Select(static entry => entry.EntryId)
+            .Distinct()
+            .ToArray();
+        ExportSelectedCommand.RaiseCanExecuteChanged();
+    }
+
     public ArchiveFolderFilter? SelectedFolder
     {
         get => _selectedFolder;
-        set => SetProperty(ref _selectedFolder, value);
+        set
+        {
+            if (SetProperty(ref _selectedFolder, value))
+            {
+                ExportFolderCommand.RaiseCanExecuteChanged();
+            }
+        }
     }
 
     public ArchiveRoleFilter SelectedRole
@@ -391,6 +412,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         {
             if (SetProperty(ref _selectedEntry, value))
             {
+                if (value is null)
+                {
+                    _selectedEntryIds = [];
+                }
                 AssociatedAssets.SelectSource(SessionId, value);
                 ExportSelectedCommand.RaiseCanExecuteChanged();
                 ExportMeshCommand.RaiseCanExecuteChanged();
@@ -1371,7 +1396,17 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
     private async Task ExportSelectedAsync(CancellationToken cancellationToken)
     {
-        if (SelectedEntry is null || string.IsNullOrWhiteSpace(SessionId))
+        if (string.IsNullOrWhiteSpace(SessionId))
+        {
+            return;
+        }
+
+        var entryIds = _selectedEntryIds.Count > 0
+            ? _selectedEntryIds
+            : SelectedEntry is not null
+                ? [SelectedEntry.EntryId]
+                : [];
+        if (entryIds.Count == 0)
         {
             return;
         }
@@ -1382,7 +1417,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             return;
         }
 
-        await RunExportAsync([SelectedEntry.EntryId], destination, ExportKind.RawEntries, cancellationToken).ConfigureAwait(true);
+        await RunExportAsync(entryIds, destination, ExportKind.RawEntries, cancellationToken).ConfigureAwait(true);
     }
 
     private async Task ExportMeshAsync(CancellationToken cancellationToken)
@@ -1447,13 +1482,50 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         await RunExportAsync([], destination, ExportKind.FilteredEntries, cancellationToken).ConfigureAwait(true);
     }
 
+    private async Task ExportFolderAsync(CancellationToken cancellationToken)
+    {
+        var folderPath = SelectedFolder?.Path;
+        if (string.IsNullOrWhiteSpace(folderPath))
+        {
+            return;
+        }
+        var destination = PickExportFolder();
+        if (destination is null)
+        {
+            return;
+        }
+        await RunExportAsync(
+            [],
+            destination,
+            ExportKind.FolderTree,
+            cancellationToken,
+            folderPath: folderPath).ConfigureAwait(true);
+    }
+
+    private async Task ExportAssociatedEntriesAsync(
+        IReadOnlyList<long> entryIds,
+        CancellationToken cancellationToken)
+    {
+        if (entryIds.Count == 0)
+        {
+            return;
+        }
+        var destination = PickExportFolder();
+        if (destination is null)
+        {
+            return;
+        }
+        await RunExportAsync(entryIds, destination, ExportKind.RawEntries, cancellationToken).ConfigureAwait(true);
+    }
+
     private async Task RunExportAsync(
         IReadOnlyList<long> entryIds,
         string destination,
         ExportKind kind,
         CancellationToken cancellationToken,
         string? singleOutputPath = null,
-        ExportManifestFormat? manifestFormat = null)
+        ExportManifestFormat? manifestFormat = null,
+        string? folderPath = null)
     {
         if (string.IsNullOrWhiteSpace(SessionId))
         {
@@ -1477,7 +1549,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                     null,
                     CollisionPolicy: CollisionPolicy,
                     ManifestFormat: manifestFormat ?? ManifestFormat,
-                    SingleOutputPath: singleOutputPath),
+                    SingleOutputPath: singleOutputPath,
+                    FolderPath: folderPath),
                 operation.Token,
                 progress).ConfigureAwait(true);
             if (generation == Volatile.Read(ref _foregroundGeneration))
@@ -1639,9 +1712,14 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         CancelCommand.RaiseCanExecuteChanged();
         ExportSelectedCommand.RaiseCanExecuteChanged();
         ExportMeshCommand.RaiseCanExecuteChanged();
+        ExportFolderCommand.RaiseCanExecuteChanged();
         ExportFilteredCommand.RaiseCanExecuteChanged();
         AssociatedAssets.RaiseCommandStates();
     }
+
+    private bool CanExportSelectedEntries() =>
+        !string.IsNullOrWhiteSpace(SessionId)
+        && (_selectedEntryIds.Count > 0 || SelectedEntry is not null);
 }
 
 public sealed record ArchiveRoleFilter(ArchiveEntryRole? Role, string Label)

@@ -40,7 +40,17 @@ public sealed class AsyncCommand(
         }
     }
 
-    public void Cancel() => _operation?.Cancel();
+    public void Cancel()
+    {
+        try
+        {
+            _operation?.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The awaited operation can complete and dispose between the read and cancellation.
+        }
+    }
 
     public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 }

@@ -25,6 +25,7 @@ internal static class ArchiveLiteTestRunner
             ("English, German, and Spanish resources have identical keys", TestLocalizationResourcesAsync),
             ("compiled localization persists across later UI work", TestCompiledLocalizationAsync),
             ("read-only WPF text bindings are explicitly one-way", TestReadOnlyWpfBindingsAsync),
+            ("fatal diagnostics are written to portable log and crash folders", TestFatalDiagnosticsAsync),
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
             ("modern shell exposes cache health, game detection, and Enter search", TestModernShellAsync),
             ("archive grid exposes configurable sortable columns and categorized extensions", TestArchiveGridFeaturesAsync),
@@ -102,6 +103,19 @@ internal static class ArchiveLiteTestRunner
         Require(
             WorkerProtocol.ReadPayload<FindAssociatedAssetsRequest>(associationMessage)?.EntryId == 42,
             "associated-asset request did not round-trip");
+        var folderExportMessage = WorkerProtocol.Request(
+            Guid.Parse("34343434-3434-3434-3434-343434343434"),
+            10,
+            WorkerProtocol.Export,
+            new ExportPlanRequest(
+                "session",
+                ExportKind.FolderTree,
+                "C:\\output",
+                [],
+                null,
+                FolderPath: "character/model"));
+        var folderExportJson = JsonSerializer.Serialize(folderExportMessage, WorkerProtocol.JsonOptions);
+        Require(folderExportJson.Contains("\"folder_path\":\"character/model\"", StringComparison.Ordinal), "folder export scope is not serialized");
         return Task.CompletedTask;
     }
 
@@ -223,6 +237,35 @@ internal static class ArchiveLiteTestRunner
         Require(
             readOnlyTextBindings.All(static binding => binding!.Contains("Mode=OneWay", StringComparison.Ordinal)),
             "a read-only TextBox uses WPF's default TwoWay Text binding");
+        var runTextBindings = document
+            .Descendants()
+            .Where(element => element.Name.LocalName == "Run")
+            .Select(element => (string?)element.Attribute("Text"))
+            .Where(static value => value?.StartsWith("{Binding", StringComparison.Ordinal) == true)
+            .ToArray();
+        Require(runTextBindings.Length > 0, "MainWindow has no inline Run binding to validate");
+        Require(
+            runTextBindings.All(static binding => binding!.Contains("Mode=OneWay", StringComparison.Ordinal)),
+            "an inline Run uses WPF's write-back binding mode for a read-only row property");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestFatalDiagnosticsAsync()
+    {
+        var portableRoot = Path.GetFullPath(Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_DATA_ROOT")!);
+        var appAssembly = typeof(MainWindowViewModel).Assembly;
+        var diagnosticLog = appAssembly.GetType("Cdmw.ArchiveLite.App.Services.DiagnosticLog")
+            ?? throw new InvalidOperationException("DiagnosticLog type was not found");
+        var writeFatal = diagnosticLog.GetMethod("WriteFatal", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("DiagnosticLog.WriteFatal was not found");
+        writeFatal.Invoke(null, ["test-fatal", new InvalidOperationException("synthetic fatal diagnostic")]);
+        var logPath = Path.Combine(portableRoot, "logs", "archive-lite.log");
+        var crashFiles = Directory.GetFiles(Path.Combine(portableRoot, "crash"), "archive-lite-crash-*.log");
+        Require(File.Exists(logPath), "fatal diagnostic did not reach the portable log folder");
+        Require(crashFiles.Length > 0, "fatal diagnostic did not reach the portable crash folder");
+        Require(
+            File.ReadAllText(crashFiles[^1]).Contains("synthetic fatal diagnostic", StringComparison.Ordinal),
+            "portable crash diagnostic omitted the underlying exception");
         return Task.CompletedTask;
     }
 
@@ -319,20 +362,27 @@ internal static class ArchiveLiteTestRunner
             .ToHashSet(StringComparer.Ordinal);
         Require(styleKeys.Contains("WindowCaptionButtonStyle"), "custom chrome has no theme-aware caption button style");
         Require(styleKeys.Contains("TopBarComboBoxStyle"), "custom chrome has no compact top-bar selector style");
+        Require(styleKeys.Contains("WorkspaceNavigationButtonStyle"), "title row has no shared workspace navigation style");
+        Require(styleKeys.Contains("WorkspaceContentTabControlStyle"), "workspace content has no headerless tab host style");
+        var navigationButtons = window.Descendants()
+            .Where(element => element.Name.LocalName == "ToggleButton"
+                && string.Equals((string?)element.Attribute("Click"), "OnWorkspaceNavigationClick", StringComparison.Ordinal))
+            .ToArray();
+        Require(navigationButtons.Length == 2, "Archive Browser and Text Search were not both moved into the title row");
         var topTabs = window.Descendants().Single(element => element.Name.LocalName == "TabControl");
         Require(
-            string.Equals((string?)topTabs.Attribute("Margin"), "16,6,16,8", StringComparison.Ordinal)
+            string.Equals((string?)topTabs.Attribute("Margin"), "16,8,16,10", StringComparison.Ordinal)
+            && ((string?)topTabs.Attribute("Style"))?.Contains("WorkspaceContentTabControlStyle", StringComparison.Ordinal) == true
             && topTabs.Elements().Where(element => element.Name.LocalName == "TabItem")
                 .SelectMany(element => element.Elements().Where(child => child.Name.LocalName == "Grid"))
-                .All(element => string.Equals((string?)element.Attribute("Margin"), "16,4,16,16", StringComparison.Ordinal)),
-            "top tabs still stack excessive page padding above the workspace");
+                .All(element => string.Equals((string?)element.Attribute("Margin"), "0", StringComparison.Ordinal)),
+            "workspace content still stacks a separate tab row or duplicate page margins");
         var controlsSource = File.ReadAllText(Path.Combine(appRoot, "Themes", "Controls.xaml"));
         Require(
-            controlsSource.Contains("Margin=\"4,2,0,4\"", StringComparison.Ordinal)
-            && controlsSource.Contains("<Setter Property=\"Margin\" Value=\"1,1,7,1\"", StringComparison.Ordinal)
-            && controlsSource.Contains("<Setter Property=\"MinHeight\" Value=\"36\"", StringComparison.Ordinal)
-            && controlsSource.Contains("<Grid Margin=\"0,0,1,0\"", StringComparison.Ordinal),
-            "top tabs do not reserve enough space for their complete rounded borders");
+            !controlsSource.Contains("<TabPanel", StringComparison.Ordinal)
+            && controlsSource.Contains("CornerRadius=\"9\"", StringComparison.Ordinal)
+            && controlsSource.Contains("BorderThickness=\"{TemplateBinding BorderThickness}\"", StringComparison.Ordinal),
+            "title-row navigation still uses the clipped secondary tab panel");
 
         var cacheDialog = System.Xml.Linq.XDocument.Load(
             Path.Combine(appRoot, "Dialogs", "ArchiveCacheChoiceDialog.xaml"));
@@ -391,6 +441,10 @@ internal static class ArchiveLiteTestRunner
             string.Equals((string?)archiveGrid.Attribute("CanUserReorderColumns"), "True", StringComparison.OrdinalIgnoreCase),
             "archive grid column reordering is disabled");
         Require(
+            string.Equals((string?)archiveGrid.Attribute("SelectionMode"), "Extended", StringComparison.OrdinalIgnoreCase)
+            && string.Equals((string?)archiveGrid.Attribute("SelectionChanged"), "OnArchiveGridSelectionChanged", StringComparison.Ordinal),
+            "archive grid does not support exporting multiple selected files");
+        Require(
             double.TryParse((string?)archiveGrid.Attribute("MinColumnWidth"), out var minimumColumnWidth)
             && minimumColumnWidth >= 70,
             "archive grid allows columns to collapse into unreadable slivers");
@@ -422,6 +476,25 @@ internal static class ArchiveLiteTestRunner
             window.Descendants().Any(element => element.Attributes().Any(
                 attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ArchiveColumnChooser")),
             "archive grid has no column chooser");
+        foreach (var commandName in new[]
+        {
+            "ExportSelectedCommand",
+            "ExportFolderCommand",
+            "ExportFilteredCommand",
+            "AssociatedAssets.ExportSelectedCommand",
+            "AssociatedAssets.ExportFamilyCommand",
+        })
+        {
+            Require(
+                window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains(commandName, StringComparison.Ordinal) == true),
+                $"Archive Browser does not expose {commandName}");
+        }
+        var associatedAssetsList = window.Descendants().Single(element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "AssociatedAssetsList"));
+        Require(
+            string.Equals((string?)associatedAssetsList.Attribute("SelectionMode"), "Extended", StringComparison.OrdinalIgnoreCase)
+            && string.Equals((string?)associatedAssetsList.Attribute("SelectionChanged"), "OnAssociatedAssetsSelectionChanged", StringComparison.Ordinal),
+            "associated-assets export does not support multiple selected family rows");
         Require(
             window.Descendants()
                 .Where(element => element.Name.LocalName == "ComboBox")
@@ -545,6 +618,30 @@ internal static class ArchiveLiteTestRunner
                 == ArchiveEntryRole.Text,
             "material sidecars are not previewable as text");
 
+        var familyExportRoot = Path.Combine(fixture.OutputRoot, "family");
+        var exportService = new ArchiveExportService(
+            sessions,
+            query,
+            native,
+            new NativeModelExportService(new NativeModelPreviewService()));
+        var familyEntryIds = new[] { model.EntryId }
+            .Concat(result.Assets.Select(static asset => asset.Entry.EntryId))
+            .ToArray();
+        var familyExport = await exportService.ExportAsync(
+            new ExportPlanRequest(
+                opened.SessionId,
+                ExportKind.RawEntries,
+                familyExportRoot,
+                familyEntryIds,
+                null),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(familyExport.Exported == 7 && familyExport.Failed == 0, "asset-family raw export did not include the source and six companions");
+        Require(
+            File.Exists(Path.Combine(familyExportRoot, "base", "character", "model", "hero.pac"))
+            && File.Exists(Path.Combine(familyExportRoot, "base", "character", "texture", "hero_body_d.dds")),
+            "asset-family export did not preserve the full-app package and virtual folder structure");
+
         var diffuse = result.Assets.Single(asset => asset.Entry.Path.EndsWith("hero_body_d.dds", StringComparison.Ordinal)).Entry;
         var reverse = await associations.FindAsync(
             new FindAssociatedAssetsRequest(opened.SessionId, diffuse.EntryId),
@@ -575,13 +672,16 @@ internal static class ArchiveLiteTestRunner
         Require(
             windowSource.Contains("AssociatedAssets.AssetsView", StringComparison.Ordinal)
             && windowSource.Contains("AssociatedAssets.FindCommand", StringComparison.Ordinal)
-            && windowSource.Contains("AssociatedAssets.ShowInBrowserCommand", StringComparison.Ordinal),
-            "Archive Browser does not expose grouped find-and-open associated assets controls");
+            && windowSource.Contains("AssociatedAssets.ShowInBrowserCommand", StringComparison.Ordinal)
+            && windowSource.Contains("AssociatedAssets.ExportSelectedCommand", StringComparison.Ordinal)
+            && windowSource.Contains("AssociatedAssets.ExportFamilyCommand", StringComparison.Ordinal),
+            "Archive Browser does not expose grouped find, open, and export associated-assets controls");
         var viewModelSource = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "AssociatedAssetsViewModel.cs"));
         Require(
             viewModelSource.Contains("CancellationTokenSource.CreateLinkedTokenSource", StringComparison.Ordinal)
             && viewModelSource.Contains("IsCurrent(sessionId, source.EntryId, generation)", StringComparison.Ordinal)
-            && viewModelSource.Contains("RequestShutdown()", StringComparison.Ordinal),
+            && viewModelSource.Contains("RequestShutdown()", StringComparison.Ordinal)
+            && viewModelSource.Contains("CancelOperation(Interlocked.Exchange", StringComparison.Ordinal),
             "associated-asset UI work is missing cancellation, stale-result, or shutdown ownership");
 
         Require(await Sha256Async(fixture.Pamt).ConfigureAwait(false) == beforePamt, "associated-asset lookup changed PAMT bytes");
@@ -1450,7 +1550,7 @@ internal static class ArchiveLiteTestRunner
             unsupportedMesh.Failed == 1 && unsupportedMesh.Exported == 0,
             "non-model OBJ export did not fail closed");
         Require(
-            !File.Exists(Path.Combine(exportRoot, "unsupported-mesh", "text", "hello.obj")),
+            !File.Exists(Path.Combine(exportRoot, "unsupported-mesh", "base", "text", "hello.obj")),
             "non-model OBJ export silently wrote a differently formatted file");
         var result = await service.ExportAsync(
             new ExportPlanRequest(
@@ -1462,10 +1562,26 @@ internal static class ArchiveLiteTestRunner
             null,
             CancellationToken.None).ConfigureAwait(false);
         Require(result.Exported == 1 && result.Failed == 0, "archive export result is wrong");
-        var output = Path.Combine(exportRoot, "text", "hello.txt");
-        Require(File.Exists(output), "archive export did not preserve the virtual path");
+        var output = Path.Combine(exportRoot, "base", "text", "hello.txt");
+        Require(File.Exists(output), "archive export did not preserve the package and virtual path");
         Require(await File.ReadAllTextAsync(output).ConfigureAwait(false) == "Hello Crimson\nline 2", "archive export bytes are wrong");
         Require(result.ManifestPath is not null && File.Exists(result.ManifestPath), "JSON manifest was not written");
+
+        var folderExportRoot = Path.Combine(fixture.OutputRoot, "folder-tree");
+        var folderExport = await service.ExportAsync(
+            new ExportPlanRequest(
+                opened.SessionId,
+                ExportKind.FolderTree,
+                folderExportRoot,
+                [],
+                null,
+                FolderPath: "text"),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(folderExport.Exported == 1 && folderExport.Failed == 0, "folder-tree export did not resolve the selected archive folder");
+        Require(
+            File.Exists(Path.Combine(folderExportRoot, "base", "text", "hello.txt")),
+            "folder-tree export did not preserve the full-app package folder structure");
 
         var collision = await service.ExportAsync(
             new ExportPlanRequest(

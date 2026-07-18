@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
+using Cdmw.ArchiveLite.Contracts;
 
 namespace Cdmw.ArchiveLite.App;
 
@@ -39,8 +40,8 @@ public partial class MainWindow : Window
 
     public MainWindow(MainWindowViewModel viewModel)
     {
+        _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
-        _viewModel = viewModel;
         DataContext = viewModel;
         Closing += OnClosing;
         Closed += OnClosed;
@@ -105,6 +106,31 @@ public partial class MainWindow : Window
 
     private void OnCloseClick(object sender, RoutedEventArgs eventArgs) => Close();
 
+    private void OnWorkspaceNavigationClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (sender is System.Windows.Controls.Primitives.ToggleButton { Tag: string rawIndex }
+            && int.TryParse(rawIndex, out var index)
+            && index >= 0
+            && index < WorkspaceTabs.Items.Count)
+        {
+            WorkspaceTabs.SelectedIndex = index;
+        }
+        UpdateWorkspaceNavigationState();
+    }
+
+    private void OnWorkspaceTabSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
+        UpdateWorkspaceNavigationState();
+
+    private void UpdateWorkspaceNavigationState()
+    {
+        if (ArchiveBrowserNavigationButton is null || TextSearchNavigationButton is null || WorkspaceTabs is null)
+        {
+            return;
+        }
+        ArchiveBrowserNavigationButton.IsChecked = WorkspaceTabs.SelectedIndex == 0;
+        TextSearchNavigationButton.IsChecked = WorkspaceTabs.SelectedIndex == 1;
+    }
+
     private void ToggleMaximizedState() =>
         WindowState = WindowState == WindowState.Maximized
             ? WindowState.Normal
@@ -121,7 +147,15 @@ public partial class MainWindow : Window
         ArchiveColumnChooser.ItemsSource = ArchiveGrid.Columns;
         ApplyArchiveColumnLayout();
         UpdateArchiveSortIndicators();
+        UpdateWorkspaceNavigationState();
     }
+
+    private void OnArchiveGridSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
+        _viewModel.ArchiveBrowser.SetSelectedEntries(ArchiveGrid.SelectedItems.OfType<ArchiveEntryDto>());
+
+    private void OnAssociatedAssetsSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
+        _viewModel.ArchiveBrowser.AssociatedAssets.SetSelectedAssets(
+            AssociatedAssetsList.SelectedItems.OfType<AssociatedAssetRow>());
 
     private void OnArchiveBrowserPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
     {
