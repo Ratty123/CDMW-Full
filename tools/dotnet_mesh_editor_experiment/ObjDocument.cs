@@ -12,6 +12,11 @@ internal sealed class ObjDocument
 
     public static ObjDocument Load(string path)
     {
+        if (string.Equals(Path.GetFileName(path), "manifest.json", StringComparison.OrdinalIgnoreCase))
+        {
+            return NativePreviewPackageDocument.Load(path);
+        }
+
         var document = new ObjDocument();
         var globalVertices = new List<Vec3>();
         var globalUvs = new List<Vec2>();
