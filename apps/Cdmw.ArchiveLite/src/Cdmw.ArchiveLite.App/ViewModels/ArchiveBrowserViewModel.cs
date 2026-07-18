@@ -40,6 +40,9 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private long _totalMatches;
     private int _pageStart;
     private bool _isBusy;
+    private string _operationProgressText = string.Empty;
+    private double _operationProgressPercent;
+    private bool _isOperationProgressIndeterminate = true;
     private ExportCollisionPolicy _collisionPolicy = ExportCollisionPolicy.Skip;
     private ExportManifestFormat _manifestFormat = ExportManifestFormat.Json;
 
@@ -312,9 +315,30 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         {
             if (SetProperty(ref _isBusy, value))
             {
+                OnPropertyChanged(nameof(IsOperationProgressVisible));
                 RaiseCommandStates();
             }
         }
+    }
+
+    public bool IsOperationProgressVisible => IsBusy;
+
+    public string OperationProgressText
+    {
+        get => _operationProgressText;
+        private set => SetProperty(ref _operationProgressText, value);
+    }
+
+    public double OperationProgressPercent
+    {
+        get => _operationProgressPercent;
+        private set => SetProperty(ref _operationProgressPercent, value);
+    }
+
+    public bool IsOperationProgressIndeterminate
+    {
+        get => _isOperationProgressIndeterminate;
+        private set => SetProperty(ref _isOperationProgressIndeterminate, value);
     }
 
     public ExportCollisionPolicy CollisionPolicy
@@ -361,11 +385,14 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         try
         {
             _setShellStatus(LocalizationManager.Format("OpeningArchive", ArchiveRoot));
+            SetOperationProgress(LocalizationManager.Get("ProgressDiscovering"));
+            var progress = new Progress<ProgressUpdate>(update => ApplyForegroundProgress(generation, update));
             var result = await _worker.SendAsync<OpenArchiveRequest, OpenArchiveResult>(
                 WorkerProtocol.OpenArchive,
                 generation,
                 new OpenArchiveRequest(ArchiveRoot, forceRefresh),
-                operation.Token).ConfigureAwait(true);
+                operation.Token,
+                progress).ConfigureAwait(true);
             if (generation != Volatile.Read(ref _foregroundGeneration))
             {
                 return;
@@ -373,6 +400,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
             SessionId = result.SessionId;
             _setShellStatus(LocalizationManager.Format("OpenedEntries", result.EntryCount));
+            SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
             await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -396,6 +424,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         var generation = Interlocked.Increment(ref _foregroundGeneration);
         try
         {
+            SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
             await QueryPageCoreAsync(pageStart, generation, operation.Token).ConfigureAwait(true);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
@@ -623,6 +652,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         var generation = Interlocked.Increment(ref _foregroundGeneration);
         try
         {
+            SetOperationProgress(LocalizationManager.Get("ProgressExporting"));
+            var progress = new Progress<ProgressUpdate>(update => ApplyForegroundProgress(generation, update));
             var result = await _worker.SendAsync<ExportPlanRequest, ExportPlanResult>(
                 WorkerProtocol.Export,
                 generation,
@@ -634,7 +665,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                     null,
                     CollisionPolicy: CollisionPolicy,
                     ManifestFormat: ManifestFormat),
-                operation.Token).ConfigureAwait(true);
+                operation.Token,
+                progress).ConfigureAwait(true);
             if (generation == Volatile.Read(ref _foregroundGeneration))
             {
                 _setShellStatus(LocalizationManager.Format("ExportSummary", result.Exported, result.Skipped, result.Failed));
@@ -667,6 +699,40 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         prior?.Cancel();
         IsBusy = true;
         return operation;
+    }
+
+    private void ApplyForegroundProgress(long generation, ProgressUpdate update)
+    {
+        if (generation != Volatile.Read(ref _foregroundGeneration) || !IsBusy)
+        {
+            return;
+        }
+
+        var phase = update.Phase switch
+        {
+            "discover" => LocalizationManager.Get("ProgressDiscovering"),
+            "fingerprint" => LocalizationManager.Get("ProgressFingerprinting"),
+            "index_cache" => LocalizationManager.Get("ProgressOpeningIndex"),
+            "index_build" => LocalizationManager.Get("ProgressBuildingIndex"),
+            "validate" => LocalizationManager.Get("ProgressValidating"),
+            "export" => LocalizationManager.Get("ProgressExporting"),
+            "complete" => LocalizationManager.Get("ProgressFinishing"),
+            _ => LocalizationManager.Get("ProgressWorking"),
+        };
+        OperationProgressText = string.IsNullOrWhiteSpace(update.CurrentItem) || update.CurrentItem == "complete"
+            ? phase
+            : $"{phase}  ·  {update.CurrentItem}";
+        IsOperationProgressIndeterminate = update.Total <= 0;
+        OperationProgressPercent = update.Total <= 0
+            ? 0
+            : Math.Clamp(update.Completed * 100.0 / update.Total, 0, 100);
+    }
+
+    private void SetOperationProgress(string text)
+    {
+        OperationProgressText = text;
+        OperationProgressPercent = 0;
+        IsOperationProgressIndeterminate = true;
     }
 
     private void EndForegroundOperation(CancellationTokenSource operation)

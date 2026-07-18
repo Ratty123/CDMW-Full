@@ -28,6 +28,7 @@
                 <Grid Margin="8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
                     <Grid Grid.Row="0" Margin="0,0,0,8">
@@ -49,7 +50,29 @@
                         <Button Grid.Column="5" Content="{infra:Loc Key=Cancel}" Command="{Binding ArchiveBrowser.CancelCommand}" />
                     </Grid>
 
-                    <Grid Grid.Row="1">
+                    <Border Grid.Row="1"
+                            Margin="0,0,0,8"
+                            Padding="10,7"
+                            Background="{StaticResource PanelRaisedBrush}"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            Visibility="{Binding ArchiveBrowser.IsOperationProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Text="{Binding ArchiveBrowser.OperationProgressText}" />
+                            <ProgressBar Grid.Row="1"
+                                         Margin="0,6,0,0"
+                                         Height="5"
+                                         Maximum="100"
+                                         Value="{Binding ArchiveBrowser.OperationProgressPercent}"
+                                         IsIndeterminate="{Binding ArchiveBrowser.IsOperationProgressIndeterminate}" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="245" MinWidth="210" />
                             <ColumnDefinition Width="5" />

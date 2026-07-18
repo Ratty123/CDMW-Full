@@ -185,8 +185,25 @@ internal static class ArchiveLiteTestRunner
         var beforePathc = await Sha256Async(fixture.Pathc).ConfigureAwait(false);
         var native = new NativeArchiveCore();
         using var sessions = new ArchiveSessionManager(native);
-        var opened = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root, true), CancellationToken.None).ConfigureAwait(false);
+        var openProgress = new List<ProgressUpdate>();
+        var opened = await sessions.OpenAsync(
+            new OpenArchiveRequest(fixture.Root, true),
+            CancellationToken.None,
+            update =>
+            {
+                openProgress.Add(update);
+                return Task.CompletedTask;
+            }).ConfigureAwait(false);
+        Require(openProgress.Any(update => update.Phase == "fingerprint"), "archive open did not publish fingerprint progress");
+        Require(openProgress.Any(update => update.Phase == "index_build"), "archive open did not publish index-build progress");
+        Require(openProgress.Any(update => update.Phase == "validate"), "archive open did not publish validation progress");
         var queries = new ArchiveQueryService(sessions);
+        var directPage = await queries.QueryAsync(
+            new ArchiveQuerySpec(opened.SessionId, PageSize: 2),
+            8,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(directPage.TotalMatches == 4 && directPage.Entries.Count == 2, "direct flat-path page is wrong");
+        Require(directPage.Folders.Count == 0 && directPage.Categories.Count == 0, "direct flat-path page performed navigation aggregation");
         var page = await queries.QueryAsync(
             new ArchiveQuerySpec(opened.SessionId, Extensions: [".txt", ".material"]),
             9,
@@ -401,16 +418,19 @@ internal static class ArchiveLiteTestRunner
             var pingResult = WorkerProtocol.ReadPayload<PingResult>(ping);
             Require(pingResult?.ProtocolVersion == WorkerProtocol.Version, "worker ping protocol version is wrong");
 
+            var workerProgress = new List<ProgressUpdate>();
             var openedMessage = await ExchangeAsync(
                 writer,
                 reader,
                 WorkerProtocol.OpenArchive,
                 2,
                 new OpenArchiveRequest(fixture.Root, true),
-                timeout.Token).ConfigureAwait(false);
+                timeout.Token,
+                workerProgress).ConfigureAwait(false);
             var opened = WorkerProtocol.ReadPayload<OpenArchiveResult>(openedMessage)
                 ?? throw new InvalidDataException("worker open response is missing");
             Require(opened.EntryCount == 4, "worker archive count is wrong");
+            Require(workerProgress.Any(update => update.Phase == "fingerprint"), "worker did not forward archive-open progress");
 
             var queryMessage = await ExchangeAsync(
                 writer,
@@ -450,7 +470,8 @@ internal static class ArchiveLiteTestRunner
         string kind,
         long generation,
         T payload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ICollection<ProgressUpdate>? progress = null)
     {
         var request = WorkerProtocol.Request(Guid.NewGuid(), generation, kind, payload);
         var json = JsonSerializer.Serialize(request, WorkerProtocol.JsonOptions);
@@ -462,7 +483,19 @@ internal static class ArchiveLiteTestRunner
             Require(Encoding.UTF8.GetByteCount(line) <= WorkerProtocol.MaximumMessageBytes, "worker response exceeds the protocol limit");
             var response = JsonSerializer.Deserialize<WorkerMessage>(line, WorkerProtocol.JsonOptions)
                 ?? throw new InvalidDataException("worker response could not be decoded");
-            if (response.RequestId != request.RequestId || response.Status is WorkerMessageStatus.Started or WorkerMessageStatus.Progress)
+            if (response.RequestId != request.RequestId)
+            {
+                continue;
+            }
+            if (response.Status == WorkerMessageStatus.Progress)
+            {
+                if (WorkerProtocol.ReadPayload<ProgressUpdate>(response) is { } update)
+                {
+                    progress?.Add(update);
+                }
+                continue;
+            }
+            if (response.Status == WorkerMessageStatus.Started)
             {
                 continue;
             }

@@ -16,7 +16,7 @@ public sealed class WorkerProcessHost : IAsyncDisposable
     private readonly StreamReader _reader;
     private readonly StreamWriter _writer;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
-    private readonly ConcurrentDictionary<Guid, TaskCompletionSource<WorkerMessage>> _pending = new();
+    private readonly ConcurrentDictionary<Guid, PendingRequest> _pending = new();
     private readonly CancellationTokenSource _lifetime = new();
     private readonly BoundedTextTail _stderr = new(64 * 1024);
     private readonly Task _readTask;
@@ -101,13 +101,14 @@ public sealed class WorkerProcessHost : IAsyncDisposable
         string kind,
         long generation,
         TRequest payload,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<ProgressUpdate>? progress = null)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         var requestId = Guid.NewGuid();
         var request = WorkerProtocol.Request(requestId, generation, kind, payload);
         var completion = new TaskCompletionSource<WorkerMessage>(TaskCreationOptions.RunContinuationsAsynchronously);
-        if (!_pending.TryAdd(requestId, completion))
+        if (!_pending.TryAdd(requestId, new PendingRequest(completion, progress)))
         {
             throw new InvalidOperationException("Could not register the worker request.");
         }
@@ -203,11 +204,18 @@ public sealed class WorkerProcessHost : IAsyncDisposable
                 }
 
                 MessageReceived?.Invoke(this, message);
+                if (message.Status == WorkerMessageStatus.Progress &&
+                    _pending.TryGetValue(message.RequestId, out var progressRequest) &&
+                    progressRequest.Progress is not null &&
+                    WorkerProtocol.ReadPayload<ProgressUpdate>(message) is { } update)
+                {
+                    progressRequest.Progress.Report(update);
+                }
                 if (message.Status is WorkerMessageStatus.Result or WorkerMessageStatus.Cancelled or WorkerMessageStatus.Error)
                 {
-                    if (_pending.TryGetValue(message.RequestId, out var completion))
+                    if (_pending.TryGetValue(message.RequestId, out var pending))
                     {
-                        completion.TrySetResult(message);
+                        pending.Completion.TrySetResult(message);
                     }
                 }
             }
@@ -223,9 +231,9 @@ public sealed class WorkerProcessHost : IAsyncDisposable
         finally
         {
             var failure = terminalError ?? new IOException("Archive Lite worker disconnected.");
-            foreach (var completion in _pending.Values)
+            foreach (var pending in _pending.Values)
             {
-                completion.TrySetException(failure);
+                pending.Completion.TrySetException(failure);
             }
         }
     }
@@ -403,6 +411,10 @@ public sealed class WorkerProcessHost : IAsyncDisposable
     }
 
     private sealed record WorkerLaunchPath(string Path, bool IsDll);
+
+    private sealed record PendingRequest(
+        TaskCompletionSource<WorkerMessage> Completion,
+        IProgress<ProgressUpdate>? Progress);
 }
 
 public sealed class WorkerRequestException(WorkerError error) : Exception(error.Message)

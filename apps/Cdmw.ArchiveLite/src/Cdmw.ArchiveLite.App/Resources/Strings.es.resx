@@ -102,5 +102,14 @@
   <data name="SearchSummary" xml:space="preserve"><value>Se encontraron {0:N0} coincidencias en {1:N0} archivos.</value></data>
   <data name="SearchExportSummary" xml:space="preserve"><value>Se exportaron {0:N0} archivos de resultados.</value></data>
   <data name="OpenArchiveFirst" xml:space="preserve"><value>Usa el archivo abierto actualmente en el explorador.</value></data>
+  <data name="ProgressDiscovering" xml:space="preserve"><value>Buscando archivos del juego...</value></data>
+  <data name="ProgressFingerprinting" xml:space="preserve"><value>Comprobando la identidad del archivo...</value></data>
+  <data name="ProgressOpeningIndex" xml:space="preserve"><value>Abriendo el índice guardado...</value></data>
+  <data name="ProgressBuildingIndex" xml:space="preserve"><value>Creando el índice del archivo...</value></data>
+  <data name="ProgressValidating" xml:space="preserve"><value>Comprobando referencias del paquete...</value></data>
+  <data name="ProgressLoadingEntries" xml:space="preserve"><value>Cargando entradas...</value></data>
+  <data name="ProgressExporting" xml:space="preserve"><value>Exportando...</value></data>
+  <data name="ProgressFinishing" xml:space="preserve"><value>Finalizando...</value></data>
+  <data name="ProgressWorking" xml:space="preserve"><value>Procesando...</value></data>
   <data name="All" xml:space="preserve"><value>Todo</value></data>
 </root>

@@ -14,16 +14,23 @@ public sealed class ArchiveSessionManager : IDisposable
         _native = native;
     }
 
-    public async Task<OpenArchiveResult> OpenAsync(OpenArchiveRequest request, CancellationToken cancellationToken)
+    public async Task<OpenArchiveResult> OpenAsync(
+        OpenArchiveRequest request,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress = null)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         ArgumentNullException.ThrowIfNull(request);
         var root = Path.GetFullPath(request.PackageRoot);
-        var fingerprint = await ArchiveFingerprint.ComputeAsync(root, cancellationToken).ConfigureAwait(false);
+        await PublishProgressAsync(progress, new ProgressUpdate(0, 0, "discover", root)).ConfigureAwait(false);
+        var fingerprint = await ArchiveFingerprint.ComputeAsync(root, cancellationToken, progress).ConfigureAwait(false);
         ArchiveLiteDataPaths.EnsureCreated();
         var indexPath = Path.Combine(ArchiveLiteDataPaths.IndexCache, $"{fingerprint.Value}.ali");
         var usedCache = !request.ForceRefresh && File.Exists(indexPath);
         ArchiveIndex? index = null;
+        await PublishProgressAsync(
+            progress,
+            new ProgressUpdate(0, 0, usedCache ? "index_cache" : "index_build", Path.GetFileName(indexPath))).ConfigureAwait(false);
         if (usedCache)
         {
             try
@@ -43,9 +50,22 @@ public sealed class ArchiveSessionManager : IDisposable
         if (index is null)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            await PublishProgressAsync(progress, new ProgressUpdate(0, 0, "index_build", root)).ConfigureAwait(false);
             await Task.Run(() => _native.BuildIndex(root, indexPath), cancellationToken).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
             index = ArchiveIndex.Open(indexPath);
+        }
+
+        List<string> warnings;
+        try
+        {
+            warnings = await ValidatePazReferencesAsync(index, progress, cancellationToken).ConfigureAwait(false);
+            await PublishProgressAsync(progress, new ProgressUpdate(1, 1, "complete", root)).ConfigureAwait(false);
+        }
+        catch
+        {
+            index.Dispose();
+            throw;
         }
 
         var sessionId = Guid.NewGuid().ToString("N");
@@ -55,16 +75,55 @@ public sealed class ArchiveSessionManager : IDisposable
             session.Dispose();
             throw new InvalidOperationException("Could not register the archive session.");
         }
-
-        var warnings = new List<string>();
-        var missingPaz = 0;
-        for (long entryId = 0; entryId < index.EntryCount && missingPaz < 20; entryId++)
-        {
-            if (!File.Exists(index.ReadEntry(entryId).PazFile)) missingPaz++;
-        }
-        if (missingPaz > 0) warnings.Add($"At least {missingPaz} indexed entries reference missing PAZ files.");
         return new OpenArchiveResult(sessionId, root, fingerprint.Value, index.EntryCount, ArchiveIndex.Version, usedCache, warnings);
     }
+
+    private static async Task<List<string>> ValidatePazReferencesAsync(
+        ArchiveIndex index,
+        Func<ProgressUpdate, Task>? progress,
+        CancellationToken cancellationToken)
+    {
+        const int maximumSamples = 4_096;
+        var sampleCount = (int)Math.Min(maximumSamples, index.EntryCount);
+        var missingPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        await PublishProgressAsync(progress, new ProgressUpdate(0, sampleCount, "validate", null)).ConfigureAwait(false);
+        for (var sample = 0; sample < sampleCount; sample++)
+        {
+            if ((sample & 0x1FF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await PublishProgressAsync(progress, new ProgressUpdate(sample, sampleCount, "validate", null)).ConfigureAwait(false);
+            }
+
+            var entryId = EvenlySpacedEntryId(sample, sampleCount, index.EntryCount);
+            var pazFile = index.ReadEntry(entryId).PazFile;
+            if (!File.Exists(pazFile) && missingPaths.Count < 20)
+            {
+                missingPaths.Add(pazFile);
+            }
+        }
+
+        await PublishProgressAsync(progress, new ProgressUpdate(sampleCount, sampleCount, "validate", null)).ConfigureAwait(false);
+        return missingPaths.Count == 0
+            ? []
+            : [$"The bounded archive check found {missingPaths.Count} missing PAZ file(s)."];
+    }
+
+    private static long EvenlySpacedEntryId(int sample, int sampleCount, long entryCount)
+    {
+        if (sampleCount <= 1 || entryCount <= 1)
+        {
+            return 0;
+        }
+
+        var span = entryCount - 1;
+        var divisor = sampleCount - 1L;
+        return (span / divisor * sample) + (span % divisor * sample / divisor);
+    }
+
+    private static Task PublishProgressAsync(
+        Func<ProgressUpdate, Task>? progress,
+        ProgressUpdate update) => progress is null ? Task.CompletedTask : progress(update);
 
     public ArchiveSession GetRequired(string sessionId)
     {

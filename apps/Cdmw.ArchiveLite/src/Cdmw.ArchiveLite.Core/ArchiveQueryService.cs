@@ -39,6 +39,11 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         long generation,
         CancellationToken cancellationToken)
     {
+        if (IsDirectPathPage(query))
+        {
+            return ReadDirectPathPage(session, query, generation, cancellationToken);
+        }
+
         var page = new List<ArchiveEntryDto>(query.PageSize);
         var candidateComparer = query.SortField == ArchiveSortField.Path
             ? null
@@ -94,6 +99,50 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             folders.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
             categories);
     }
+
+    private static ArchivePageResult ReadDirectPathPage(
+        ArchiveSession session,
+        ArchiveQuerySpec query,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        var page = new List<ArchiveEntryDto>(query.PageSize);
+        var total = session.Index.EntryCount;
+        var available = Math.Max(0L, total - query.PageStart);
+        var count = (int)Math.Min(query.PageSize, available);
+        for (var offset = 0; offset < count; offset++)
+        {
+            if ((offset & 0xFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            var ascendingId = (long)query.PageStart + offset;
+            var entryId = query.SortDescending ? total - ascendingId - 1 : ascendingId;
+            page.Add(session.Index.ReadEntry(entryId));
+        }
+
+        session.StoreQuery(query, generation, total);
+        return new ArchivePageResult(
+            session.Id,
+            generation,
+            total,
+            query.PageStart,
+            page,
+            [],
+            new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase));
+    }
+
+    private static bool IsDirectPathPage(ArchiveQuerySpec query) =>
+        query.ViewMode == ArchiveViewMode.Flat &&
+        query.SortField == ArchiveSortField.Path &&
+        string.IsNullOrWhiteSpace(query.PathText) &&
+        query.Extensions is not { Count: > 0 } &&
+        string.IsNullOrWhiteSpace(query.Package) &&
+        string.IsNullOrWhiteSpace(query.Folder) &&
+        query.Roles is not { Count: > 0 } &&
+        query.MinimumSize is null &&
+        !query.PreviewableOnly;
 
     private static bool Matches(ArchiveEntryDto entry, ArchiveQuerySpec query)
     {

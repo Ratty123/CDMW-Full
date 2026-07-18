@@ -102,5 +102,14 @@
   <data name="SearchSummary" xml:space="preserve"><value>{0:N0} Treffer in {1:N0} Dateien gefunden.</value></data>
   <data name="SearchExportSummary" xml:space="preserve"><value>{0:N0} Suchergebnisdateien exportiert.</value></data>
   <data name="OpenArchiveFirst" xml:space="preserve"><value>Verwendet das derzeit im Archive Browser geöffnete Archiv.</value></data>
+  <data name="ProgressDiscovering" xml:space="preserve"><value>Archivdateien werden gesucht...</value></data>
+  <data name="ProgressFingerprinting" xml:space="preserve"><value>Archividentität wird geprüft...</value></data>
+  <data name="ProgressOpeningIndex" xml:space="preserve"><value>Gespeicherter Index wird geöffnet...</value></data>
+  <data name="ProgressBuildingIndex" xml:space="preserve"><value>Archivindex wird erstellt...</value></data>
+  <data name="ProgressValidating" xml:space="preserve"><value>Paketverweise werden geprüft...</value></data>
+  <data name="ProgressLoadingEntries" xml:space="preserve"><value>Einträge werden geladen...</value></data>
+  <data name="ProgressExporting" xml:space="preserve"><value>Export läuft...</value></data>
+  <data name="ProgressFinishing" xml:space="preserve"><value>Vorgang wird abgeschlossen...</value></data>
+  <data name="ProgressWorking" xml:space="preserve"><value>Vorgang läuft...</value></data>
   <data name="All" xml:space="preserve"><value>Alle</value></data>
 </root>

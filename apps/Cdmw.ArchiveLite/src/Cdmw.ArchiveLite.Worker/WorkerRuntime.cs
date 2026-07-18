@@ -33,7 +33,7 @@ internal sealed class WorkerRuntime : IDisposable
             case WorkerProtocol.OpenArchive:
                 {
                     var payload = RequirePayload<OpenArchiveRequest>(request);
-                    var result = await _sessions.OpenAsync(payload, cancellationToken).ConfigureAwait(false);
+                    var result = await _sessions.OpenAsync(payload, cancellationToken, publishProgress).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
                 }
             case WorkerProtocol.QueryArchive:
