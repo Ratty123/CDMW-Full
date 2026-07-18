@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.IO;
+using System.Numerics;
 using System.Runtime.InteropServices;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -9,6 +10,7 @@ internal static class D3D11UntexturedReadabilityProof
     private const int CaptureSize = 128;
     private const double MinimumCenterMeanLuma = 60.0;
     private const double MinimumCenterP10Luma = 52.0;
+    private const double MinimumCenterLumaRange = 10.0;
     private const double MaximumCenterBackgroundFraction = 0.02;
 
     public static Dictionary<string, object?> Run()
@@ -21,7 +23,7 @@ internal static class D3D11UntexturedReadabilityProof
         try
         {
             Directory.CreateDirectory(evidenceDirectory);
-            var document = BuildTwoSidedPlane();
+            var document = BuildFacetedShape();
             var bounds = document.Bounds();
             var center = new Vec3(
                 (bounds.Min.X + bounds.Max.X) * 0.5f,
@@ -90,6 +92,9 @@ internal static class D3D11UntexturedReadabilityProof
                         >= MinimumCenterMeanLuma
                     && Convert.ToDouble(metrics.GetValueOrDefault("center_p10_luma") ?? 0.0)
                         >= MinimumCenterP10Luma
+                    && Convert.ToDouble(metrics.GetValueOrDefault("center_p90_luma") ?? 0.0)
+                        - Convert.ToDouble(metrics.GetValueOrDefault("center_p10_luma") ?? 0.0)
+                        >= MinimumCenterLumaRange
                     && Convert.ToDouble(metrics.GetValueOrDefault("center_background_fraction") ?? 1.0)
                         <= MaximumCenterBackgroundFraction;
                 rows.Add(new Dictionary<string, object?>
@@ -127,6 +132,7 @@ internal static class D3D11UntexturedReadabilityProof
                 ["evidence_class"] = "hidden_synthetic_gpu_regression",
                 ["minimum_center_mean_luma"] = MinimumCenterMeanLuma,
                 ["minimum_center_p10_luma"] = MinimumCenterP10Luma,
+                ["minimum_center_luma_range"] = MinimumCenterLumaRange,
                 ["maximum_center_background_fraction"] = MaximumCenterBackgroundFraction,
                 ["captures"] = rows,
                 ["gates"] = gates,
@@ -146,39 +152,49 @@ internal static class D3D11UntexturedReadabilityProof
         }
     }
 
-    private static ObjDocument BuildTwoSidedPlane()
+    private static ObjDocument BuildFacetedShape()
     {
         var document = new ObjDocument();
         var submesh = new ObjSubmesh("untextured_readability", 0, 0, 0);
         document.Submeshes.Add(submesh);
-        submesh.Vertices.AddRange(new[]
+        var top = new Vector3(0.0f, 1.2f, 0.0f);
+        var bottom = new Vector3(0.0f, -1.2f, 0.0f);
+        var left = new Vector3(-1.0f, 0.0f, 0.0f);
+        var right = new Vector3(1.0f, 0.0f, 0.0f);
+        var near = new Vector3(0.0f, 0.0f, -0.85f);
+        var far = new Vector3(0.0f, 0.0f, 0.85f);
+        AddTriangle(submesh, top, near, right);
+        AddTriangle(submesh, top, right, far);
+        AddTriangle(submesh, top, far, left);
+        AddTriangle(submesh, top, left, near);
+        AddTriangle(submesh, bottom, right, near);
+        AddTriangle(submesh, bottom, far, right);
+        AddTriangle(submesh, bottom, left, far);
+        AddTriangle(submesh, bottom, near, left);
+        return document;
+    }
+
+    private static void AddTriangle(ObjSubmesh submesh, Vector3 first, Vector3 second, Vector3 third)
+    {
+        var normal = Vector3.Normalize(Vector3.Cross(second - first, third - first));
+        var offset = submesh.Vertices.Count;
+        foreach (var vertex in new[] { first, second, third })
         {
-            new Vec3(-1.0f, -1.0f, 0.0f),
-            new Vec3(1.0f, -1.0f, 0.0f),
-            new Vec3(1.0f, 1.0f, 0.0f),
-            new Vec3(-1.0f, 1.0f, 0.0f),
-        });
-        submesh.Normals.AddRange(Enumerable.Repeat(new Vec3(0.0f, 0.0f, 1.0f), 4));
+            submesh.Vertices.Add(new Vec3(vertex.X, vertex.Y, vertex.Z));
+            submesh.Normals.Add(new Vec3(normal.X, normal.Y, normal.Z));
+        }
         submesh.Uvs.AddRange(new[]
         {
+            new Vec2(0.5f, 0.0f),
             new Vec2(0.0f, 1.0f),
             new Vec2(1.0f, 1.0f),
-            new Vec2(1.0f, 0.0f),
-            new Vec2(0.0f, 0.0f),
         });
         submesh.Faces.Add(new ObjFace(new[]
         {
-            new ObjCorner(0, 0, 0),
-            new ObjCorner(1, 1, 1),
-            new ObjCorner(2, 2, 2),
+            new ObjCorner(offset, offset, offset),
+            new ObjCorner(offset + 1, offset + 1, offset + 1),
+            new ObjCorner(offset + 2, offset + 2, offset + 2),
         }));
-        submesh.Faces.Add(new ObjFace(new[]
-        {
-            new ObjCorner(0, 0, 0),
-            new ObjCorner(2, 2, 2),
-            new ObjCorner(3, 3, 3),
-        }));
-        return document;
     }
 
     private static Dictionary<string, object?> CenterPatchMetrics(string path)
@@ -204,11 +220,13 @@ internal static class D3D11UntexturedReadabilityProof
         }
         lumas.Sort();
         var p10Index = Math.Clamp((int)Math.Floor(lumas.Count * 0.10), 0, Math.Max(0, lumas.Count - 1));
+        var p90Index = Math.Clamp((int)Math.Floor(lumas.Count * 0.90), 0, Math.Max(0, lumas.Count - 1));
         return new Dictionary<string, object?>
         {
             ["center_sample_count"] = lumas.Count,
             ["center_mean_luma"] = lumas.Count > 0 ? lumas.Average() : 0.0,
             ["center_p10_luma"] = lumas.Count > 0 ? lumas[p10Index] : 0.0,
+            ["center_p90_luma"] = lumas.Count > 0 ? lumas[p90Index] : 0.0,
             ["center_background_fraction"] = lumas.Count > 0
                 ? (double)backgroundCount / lumas.Count
                 : 1.0,

@@ -19,13 +19,15 @@ if ($resolvedOutputRoot.Equals($driveRoot, [StringComparison]::OrdinalIgnoreCase
     throw "Refusing to use a broad output root: $resolvedOutputRoot"
 }
 
-$version = "0.4.0"
+$version = "0.5.0"
 $nativeRoot = Join-Path $repositoryRoot "native\cdmw_archive_core"
 $nativeBuild = Join-Path $nativeRoot "build"
 $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
 $previewBuild = Join-Path $previewRoot "build"
 $acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
 $acceleratorBuild = Join-Path $acceleratorRoot "build"
+$meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
+$meshCoreBuild = Join-Path $meshCoreRoot "build"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $appProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.App\Cdmw.ArchiveLite.App.csproj"
 $workerProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.Worker\Cdmw.ArchiveLite.Worker.csproj"
@@ -91,6 +93,12 @@ try {
     & $acceleratorExecutable --version
     Assert-LastExitCode "Native archive-accelerator version check"
 
+    & cmake -S $meshCoreRoot -B $meshCoreBuild
+    Assert-LastExitCode "Native mesh-core configure"
+    & cmake --build $meshCoreBuild --config $Configuration --parallel
+    Assert-LastExitCode "Native mesh-core build"
+    $meshCoreExecutable = Join-Path $meshCoreBuild "$Configuration\cdmw-mesh-core.exe"
+
     & dotnet build (Join-Path $liteRoot "Cdmw.ArchiveLite.slnx") -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
 
@@ -101,15 +109,18 @@ try {
     $rendererExecutable = Join-Path $rendererStage "cdmw-mesh-dotnet-editor.exe"
     $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH
     $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
+    $previousMeshCorePath = $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
+        $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $meshCoreExecutable
         & dotnet run --project (Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj") -c $Configuration --no-build
         Assert-LastExitCode "Archive Lite focused tests"
     }
     finally {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $previousRendererPath
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
+        $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $previousMeshCorePath
     }
 
     & dotnet publish $appProject -c $Configuration -r win-x64 --self-contained true --nologo --output $stage -p:Version=$version -p:DebugType=None
@@ -139,11 +150,14 @@ Copy-Item -LiteralPath (Join-Path $nativeBuild "$Configuration\cdmw-archive-core
 $previewPayload = Join-Path $stage "preview"
 $rendererPayload = Join-Path $stage "renderer"
 $indexerPayload = Join-Path $stage "indexer"
+$meshPayload = Join-Path $stage "mesh"
 New-Item -ItemType Directory -Path $previewPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $rendererPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $indexerPayload -Force | Out-Null
+New-Item -ItemType Directory -Path $meshPayload -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $previewBuild "$Configuration\cdmw-preview-core.exe") -Destination $previewPayload -Force
 Copy-Item -LiteralPath $acceleratorExecutable -Destination $indexerPayload -Force
+Copy-Item -LiteralPath $meshCoreExecutable -Destination $meshPayload -Force
 Copy-Item -Path (Join-Path $rendererStage "*") -Destination $rendererPayload -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $liteRoot "README.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $liteRoot "THIRD-PARTY-NOTICES.md") -Destination $stage -Force

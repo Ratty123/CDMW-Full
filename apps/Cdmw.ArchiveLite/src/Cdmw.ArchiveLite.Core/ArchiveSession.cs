@@ -11,6 +11,7 @@ public sealed class ArchiveSession : IDisposable
     private long _lastQueryTotal;
     private ArchiveItemNameIndex? _nameIndex;
     private IReadOnlyList<ArchiveExtensionFacet>? _extensionFacets;
+    private readonly string? _ownedIndexPath;
     private int _disposed;
 
     internal ArchiveSession(
@@ -18,13 +19,15 @@ public sealed class ArchiveSession : IDisposable
         string packageRoot,
         string fingerprint,
         ArchiveIndex index,
-        IReadOnlyList<string> sourceFiles)
+        IReadOnlyList<string> sourceFiles,
+        string? ownedIndexPath = null)
     {
         Id = id;
         PackageRoot = packageRoot;
         Fingerprint = fingerprint;
         Index = index;
         SourceFiles = sourceFiles;
+        _ownedIndexPath = ownedIndexPath;
     }
 
     public string Id { get; }
@@ -103,7 +106,24 @@ public sealed class ArchiveSession : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) == 0)
         {
             NameIndexBuildGate.Dispose();
-            Index.Dispose();
+            try
+            {
+                Index.Dispose();
+            }
+            finally
+            {
+                if (_ownedIndexPath is not null)
+                {
+                    try
+                    {
+                        File.Delete(_ownedIndexPath);
+                    }
+                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+                    {
+                        // Session-only indexes are best-effort cleanup during process teardown.
+                    }
+                }
+            }
         }
     }
 }

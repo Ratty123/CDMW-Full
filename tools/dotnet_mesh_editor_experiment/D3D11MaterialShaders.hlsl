@@ -305,7 +305,13 @@ float3 SourceStableFresnel(float cosTheta, float3 reflectanceAtNormal)
 
 float3 WorkbenchGeometryColor(VSOutput input)
 {
-    const float3 geometryColor = float3(0.55f, 0.62f, 0.72f);
+    // Textureless previews use a neutral clay surface. A small deterministic
+    // per-part tone shift separates adjacent pieces without implying a real
+    // material or texture, while the studio lights preserve surface contour.
+    float partTone = (frac((PresentationDiagnosticTuning.x + 1.0f) * 0.6180339f) - 0.5f) * 0.08f;
+    float3 geometryColor = saturate(
+        float3(0.58f, 0.65f, 0.75f)
+        + partTone * float3(0.75f, 1.0f, 1.15f));
     if (PresentationSurfaceTuning.w > 0.5f)
     {
         return geometryColor;
@@ -314,20 +320,18 @@ float3 WorkbenchGeometryColor(VSOutput input)
     const float3 viewDirection = float3(0.0f, 0.0f, -1.0f);
     float3 normal = SafeNormalize(input.Normal, viewDirection);
     normal = dot(normal, viewDirection) < 0.0f ? -normal : normal;
-    float3 keyDirection = SafeNormalize(LightDirection, float3(-0.18f, 0.35f, -0.92f));
-    float3 fillDirection = SafeNormalize(
-        float3(-keyDirection.x * 0.55f, 0.55f, -0.80f),
-        float3(0.35f, 0.45f, -0.82f));
-    float keyLight = WrappedNdotL(normal, keyDirection, max(PresentationLightingTuning.y, 0.58f));
-    float fillLight = WrappedNdotL(normal, fillDirection, 0.82f);
+    const float3 keyDirection = float3(-0.42f, 0.58f, -0.70f);
+    const float3 fillDirection = float3(0.55f, -0.22f, -0.80f);
+    float keyLight = pow(WrappedNdotL(normal, keyDirection, 0.10f), 1.12f);
+    float fillLight = WrappedNdotL(normal, fillDirection, 0.28f);
     float cameraShape = saturate(dot(normal, viewDirection));
-    float rimShape = pow(saturate(1.0f - cameraShape), 1.5f);
-    const float minimumIllumination = 0.48f;
+    float rimShape = pow(saturate(1.0f - cameraShape), 1.35f);
+    const float minimumIllumination = 0.38f;
     float illumination = minimumIllumination
-        + keyLight * 0.27f
-        + fillLight * 0.13f
-        + cameraShape * 0.08f
-        + rimShape * 0.10f;
+        + keyLight * 0.48f
+        + fillLight * 0.16f
+        + cameraShape * 0.05f
+        + rimShape * 0.12f;
     return saturate(SrgbUiColorToLinear(geometryColor) * illumination);
 }
 

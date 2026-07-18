@@ -4,8 +4,11 @@
     <TargetFramework>net10.0-windows</TargetFramework>
     <AssemblyName>CdmwArchiveLite.Tests</AssemblyName>
     <RootNamespace>Cdmw.ArchiveLite.Tests</RootNamespace>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/Cdmw.ArchiveLite.App/Cdmw.ArchiveLite.App.csproj" />
     <ProjectReference Include="../../src/Cdmw.ArchiveLite.Contracts/Cdmw.ArchiveLite.Contracts.csproj" />
     <ProjectReference Include="../../src/Cdmw.ArchiveLite.Core/Cdmw.ArchiveLite.Core.csproj" />
   </ItemGroup>

@@ -937,6 +937,8 @@ internal sealed partial class MeshViewport : Control
         _textureSet = textureSet;
         _scene = scene;
         _options = options;
+        _presentationGridVisible = scene.GridVisible;
+        _presentationGizmoVisible = scene.GizmoVisible;
         DoubleBuffered = true;
         BackColor = Color.FromArgb(23, 25, 29);
         ForeColor = Color.White;

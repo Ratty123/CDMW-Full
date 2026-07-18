@@ -26,9 +26,14 @@ internal sealed class WorkerRuntime : IDisposable
         _gameDiscovery = new GameInstallDiscoveryService();
         _facets = new ArchiveFacetsService(_sessions);
         _nameIndex = new ArchiveItemNameIndexService(_sessions, _native);
-        _previews = new ArchivePreviewService(_sessions, _native);
+        var modelPreviews = new NativeModelPreviewService();
+        _previews = new ArchivePreviewService(_sessions, _native, modelPreviews);
         _textSearch = new TextSearchService(_sessions, _native);
-        _exports = new ArchiveExportService(_sessions, _queries, _native);
+        _exports = new ArchiveExportService(
+            _sessions,
+            _queries,
+            _native,
+            new NativeModelExportService(modelPreviews));
     }
 
     public async Task<WorkerMessage> HandleAsync(

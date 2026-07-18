@@ -1,3 +1,4 @@
+using System.Windows;
 using Cdmw.ArchiveLite.App.Infrastructure;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.Contracts;
@@ -13,6 +14,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private bool _isShuttingDown;
     private LanguageOption _selectedLanguage;
     private ThemeOption _selectedTheme;
+    private IReadOnlyList<ThemeOption> _themes = [];
 
     public MainWindowViewModel(WorkerProcessHost worker, LiteSettings settings)
     {
@@ -25,14 +27,14 @@ public sealed class MainWindowViewModel : ObservableObject
             new LanguageOption("es", "Español"),
         ];
         _selectedLanguage = Languages.FirstOrDefault(option => option.Code.Equals(settings.Language, StringComparison.OrdinalIgnoreCase)) ?? Languages[0];
-        Themes = ThemeManager.AvailableThemes
-            .Select(definition => new ThemeOption(definition.Id, LocalizationManager.Get(definition.ResourceKey)))
-            .ToArray();
+        _themes = BuildThemeOptions();
         _selectedTheme = Themes.FirstOrDefault(option => option.Id.Equals(settings.Theme, StringComparison.OrdinalIgnoreCase)) ?? Themes[0];
+        var cacheChoicePrompt = new ArchiveCacheChoicePrompt(() => Application.Current?.MainWindow);
         ArchiveBrowser = new ArchiveBrowserViewModel(
             worker,
             settings.ArchiveRoot,
             UpdateStatus,
+            cacheChoicePrompt.Choose,
             settings.ArchiveSortField,
             settings.ArchiveSortDescending);
         TextSearch = new TextSearchViewModel(worker, () => ArchiveBrowser.SessionId, UpdateStatus);
@@ -45,7 +47,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<LanguageOption> Languages { get; }
 
-    public IReadOnlyList<ThemeOption> Themes { get; }
+    public IReadOnlyList<ThemeOption> Themes => _themes;
 
     public IReadOnlyList<string>? ArchiveVisibleColumns => _settings.ArchiveVisibleColumns;
 
@@ -68,7 +70,11 @@ public sealed class MainWindowViewModel : ObservableObject
             if (value is not null && SetProperty(ref _selectedLanguage, value))
             {
                 _settings = _settings with { Language = value.Code };
-                Status = LocalizationManager.Get("LanguageRestart");
+                LocalizationManager.ApplyCulture(value.Code);
+                ArchiveBrowser.RefreshLocalization();
+                TextSearch.RefreshLocalization();
+                RefreshThemeLabels();
+                Status = LocalizationManager.Get("LanguageApplied");
             }
         }
     }
@@ -153,6 +159,19 @@ public sealed class MainWindowViewModel : ObservableObject
     }
 
     private void UpdateStatus(string status) => Status = status;
+
+    private static IReadOnlyList<ThemeOption> BuildThemeOptions() => ThemeManager.AvailableThemes
+        .Select(definition => new ThemeOption(definition.Id, LocalizationManager.Get(definition.ResourceKey)))
+        .ToArray();
+
+    private void RefreshThemeLabels()
+    {
+        var selectedThemeId = _selectedTheme.Id;
+        _themes = BuildThemeOptions();
+        OnPropertyChanged(nameof(Themes));
+        _selectedTheme = Themes.First(option => option.Id.Equals(selectedThemeId, StringComparison.OrdinalIgnoreCase));
+        OnPropertyChanged(nameof(SelectedTheme));
+    }
 }
 
 public sealed record LanguageOption(string Code, string Label)

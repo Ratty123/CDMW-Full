@@ -64,7 +64,16 @@ public enum ArchiveSortField
     Role,
 }
 
-public sealed record OpenArchiveRequest(string PackageRoot, bool ForceRefresh = false);
+public enum ArchiveCacheMode
+{
+    Persistent,
+    SessionOnly,
+}
+
+public sealed record OpenArchiveRequest(
+    string PackageRoot,
+    bool ForceRefresh = false,
+    ArchiveCacheMode CacheMode = ArchiveCacheMode.Persistent);
 
 public sealed record OpenArchiveResult(
     string SessionId,
@@ -73,7 +82,8 @@ public sealed record OpenArchiveResult(
     long EntryCount,
     int IndexVersion,
     bool UsedCachedIndex,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    ArchiveCacheMode CacheMode = ArchiveCacheMode.Persistent);
 
 public sealed record ArchiveQuerySpec(
     string SessionId,

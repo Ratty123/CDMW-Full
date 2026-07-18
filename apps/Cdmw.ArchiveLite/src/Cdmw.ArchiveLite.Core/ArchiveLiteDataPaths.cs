@@ -10,6 +10,10 @@ public static class ArchiveLiteDataPaths
     public static string PreviewCache { get; } = Path.Combine(Cache, "preview");
     public static string NameIndexCache { get; } = Path.Combine(Cache, "names");
 
+    public static string CreateSessionIndexPath() => Path.Combine(
+        Path.GetTempPath(),
+        $"cdmw-archive-lite-session-{Environment.ProcessId}-{Guid.NewGuid():N}.ali");
+
     public static void EnsureCreated()
     {
         Directory.CreateDirectory(IndexCache);

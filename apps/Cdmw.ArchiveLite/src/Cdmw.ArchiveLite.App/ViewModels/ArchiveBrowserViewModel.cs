@@ -15,6 +15,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
     private readonly WorkerProcessHost _worker;
     private readonly Action<string> _setShellStatus;
+    private readonly Func<string, bool, ArchiveCacheMode?> _chooseCacheMode;
     private CancellationTokenSource? _foregroundOperation;
     private CancellationTokenSource? _previewOperation;
     private CancellationTokenSource? _catalogueOperation;
@@ -33,7 +34,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private ArchiveSortField _sortField = ArchiveSortField.Path;
     private bool _sortDescending;
     private ArchiveFolderFilter? _selectedFolder;
-    private ArchiveRoleFilter _selectedRole;
+    private ArchiveRoleFilter _selectedRole = null!;
     private ArchiveCategoryCount? _selectedCategory;
     private ArchiveEntryDto? _selectedEntry;
     private string _previewTitle = LocalizationManager.Get("Preview");
@@ -64,16 +65,23 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private string _cacheHealthDetail = LocalizationManager.Get("CacheNotChecked");
     private string _cacheHealthRoot = string.Empty;
     private string _environmentStatus = string.Empty;
+    private IReadOnlyList<LocalizedOption<ArchiveViewMode>> _viewModes = [];
+    private IReadOnlyList<LocalizedOption<ArchiveSortField>> _sortFields = [];
+    private IReadOnlyList<ArchiveRoleFilter> _roleFilters = [];
+    private IReadOnlyList<LocalizedOption<ExportCollisionPolicy>> _collisionPolicies = [];
+    private IReadOnlyList<LocalizedOption<ExportManifestFormat>> _manifestFormats = [];
 
     public ArchiveBrowserViewModel(
         WorkerProcessHost worker,
         string? archiveRoot,
         Action<string> setShellStatus,
+        Func<string, bool, ArchiveCacheMode?> chooseCacheMode,
         ArchiveSortField initialSortField = ArchiveSortField.Path,
         bool initialSortDescending = false)
     {
         _worker = worker;
         _setShellStatus = setShellStatus;
+        _chooseCacheMode = chooseCacheMode ?? throw new ArgumentNullException(nameof(chooseCacheMode));
         _archiveRoot = archiveRoot ?? string.Empty;
         _sortField = initialSortField;
         _sortDescending = initialSortDescending;
@@ -81,32 +89,18 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         DetectGameCommand = new AsyncCommand(
             token => DetectAndInspectEnvironmentAsync(preferDetectedRoot: true, token),
             () => !IsBusy && !IsEnvironmentBusy);
-        OpenCommand = new AsyncCommand(token => OpenArchiveAsync(false, token), CanOpenArchive);
-        RefreshCommand = new AsyncCommand(token => OpenArchiveAsync(true, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
+        OpenCommand = new AsyncCommand(token => ChooseAndOpenArchiveAsync(false, token), CanOpenArchive);
+        RefreshCommand = new AsyncCommand(
+            token => ChooseAndOpenArchiveAsync(true, token),
+            () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy && !IsEnvironmentBusy);
         ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
         PreviousPageCommand = new AsyncCommand(token => QueryAsync(Math.Max(0, PageStart - PageSize), token), () => PageStart > 0 && !IsBusy);
         NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
         CancelCommand = new RelayCommand(CancelForeground, () => IsBusy);
         ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, () => SelectedEntry is not null && !IsBusy);
+        ExportMeshCommand = new AsyncCommand(ExportMeshAsync, () => CanExportSelectedMesh && !IsBusy);
         ExportFilteredCommand = new AsyncCommand(ExportFilteredAsync, () => TotalMatches > 0 && !IsBusy);
-        ViewModes =
-        [
-            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Folders, LocalizationManager.Get("FoldersView")),
-            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Categories, LocalizationManager.Get("CategoriesView")),
-            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.CategoriesAndFolders, LocalizationManager.Get("CategoriesFoldersView")),
-            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Flat, LocalizationManager.Get("FlatView")),
-        ];
-        SortFields = Enum.GetValues<ArchiveSortField>()
-            .Select(field => new LocalizedOption<ArchiveSortField>(field, LocalizationManager.Get($"Sort{field}")))
-            .ToArray();
-        CollisionPolicies = Enum.GetValues<ExportCollisionPolicy>()
-            .Select(policy => new LocalizedOption<ExportCollisionPolicy>(policy, LocalizationManager.Get($"Collision{policy}")))
-            .ToArray();
-        ManifestFormats = Enum.GetValues<ExportManifestFormat>()
-            .Select(format => new LocalizedOption<ExportManifestFormat>(format, LocalizationManager.Get($"Manifest{format}")))
-            .ToArray();
-        RoleFilters = [new ArchiveRoleFilter(null, LocalizationManager.Get("All")), .. Enum.GetValues<ArchiveEntryRole>().Select(role => new ArchiveRoleFilter(role, LocalizationManager.Get($"Role{role}")))];
-        _selectedRole = RoleFilters[0];
+        RebuildLocalizedOptions();
         ExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(LocalizationManager.Get("AllFiles"), LocalizationManager.Get("ExtensionGroupAll")));
         ExtensionChoicesView = CollectionViewSource.GetDefaultView(ExtensionChoices);
         ExtensionChoicesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ArchiveExtensionChoice.Group)));
@@ -118,11 +112,11 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public ObservableCollection<ArchiveExtensionChoice> ExtensionChoices { get; } = [];
     public ICollectionView ExtensionChoicesView { get; }
 
-    public IReadOnlyList<LocalizedOption<ArchiveViewMode>> ViewModes { get; }
-    public IReadOnlyList<LocalizedOption<ArchiveSortField>> SortFields { get; }
-    public IReadOnlyList<ArchiveRoleFilter> RoleFilters { get; }
-    public IReadOnlyList<LocalizedOption<ExportCollisionPolicy>> CollisionPolicies { get; }
-    public IReadOnlyList<LocalizedOption<ExportManifestFormat>> ManifestFormats { get; }
+    public IReadOnlyList<LocalizedOption<ArchiveViewMode>> ViewModes => _viewModes;
+    public IReadOnlyList<LocalizedOption<ArchiveSortField>> SortFields => _sortFields;
+    public IReadOnlyList<ArchiveRoleFilter> RoleFilters => _roleFilters;
+    public IReadOnlyList<LocalizedOption<ExportCollisionPolicy>> CollisionPolicies => _collisionPolicies;
+    public IReadOnlyList<LocalizedOption<ExportManifestFormat>> ManifestFormats => _manifestFormats;
 
     public AsyncCommand BrowseCommand { get; }
     public AsyncCommand DetectGameCommand { get; }
@@ -133,9 +127,58 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public AsyncCommand NextPageCommand { get; }
     public RelayCommand CancelCommand { get; }
     public AsyncCommand ExportSelectedCommand { get; }
+    public AsyncCommand ExportMeshCommand { get; }
     public AsyncCommand ExportFilteredCommand { get; }
 
     public event EventHandler? SessionChanged;
+
+    public void RefreshLocalization()
+    {
+        RebuildLocalizedOptions(SelectedRole.Role);
+        RefreshNavigationLabels();
+        RefreshExtensionLabels();
+        OnPropertyChanged(nameof(CacheHealthLabel));
+        OnPropertyChanged(nameof(PageSummary));
+        OnPropertyChanged(nameof(TotalMatchesLabel));
+
+        CacheHealthDetail = CacheHealthState switch
+        {
+            ArchiveCacheHealthState.Checking => LocalizationManager.Get("CacheChecking"),
+            ArchiveCacheHealthState.Current => LocalizationManager.Get("CacheCurrent"),
+            ArchiveCacheHealthState.SessionOnly => LocalizationManager.Get("CacheSessionOnly"),
+            ArchiveCacheHealthState.Missing => LocalizationManager.Get("CacheMissing"),
+            ArchiveCacheHealthState.Stale => LocalizationManager.Get("CacheStale"),
+            ArchiveCacheHealthState.Invalid => LocalizationManager.Get("CacheInvalid"),
+            _ => LocalizationManager.Get("CacheNotChecked"),
+        };
+        if (!string.IsNullOrWhiteSpace(EnvironmentStatus))
+        {
+            EnvironmentStatus = string.IsNullOrWhiteSpace(ArchiveRoot)
+                ? LocalizationManager.Get("GameNotFound")
+                : LocalizationManager.Format("GameFolderReady", ArchiveRoot);
+        }
+        if (IsExtensionCatalogBusy)
+        {
+            CatalogueStatus = LocalizationManager.Get("ExtensionCatalogLoading");
+        }
+        else if (IsNameIndexBusy)
+        {
+            CatalogueStatus = LocalizationManager.Get("NameIndexLoading");
+        }
+        if (SelectedEntry is null)
+        {
+            PreviewTitle = LocalizationManager.Get("Preview");
+            PreviewText = LocalizationManager.Get("PreviewEmpty");
+        }
+        if (IsPreviewBusy)
+        {
+            PreviewProgressText = LocalizationManager.Get("PreviewProgressPreparing");
+        }
+        if (IsBusy)
+        {
+            OperationProgressText = LocalizationManager.Get("ProgressWorking");
+        }
+    }
 
     public string ArchiveRoot
     {
@@ -183,6 +226,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         ArchiveCacheHealthState.Checking => "CacheChecking",
         ArchiveCacheHealthState.Current => "CacheCurrent",
+        ArchiveCacheHealthState.SessionOnly => "CacheSessionOnly",
         ArchiveCacheHealthState.Missing => "CacheMissing",
         ArchiveCacheHealthState.Stale => "CacheStale",
         ArchiveCacheHealthState.Invalid => "CacheInvalid",
@@ -339,6 +383,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             if (SetProperty(ref _selectedEntry, value))
             {
                 ExportSelectedCommand.RaiseCanExecuteChanged();
+                ExportMeshCommand.RaiseCanExecuteChanged();
+                OnPropertyChanged(nameof(CanExportSelectedMesh));
                 if (!_suppressPreviewSelection)
                 {
                     _ = LoadPreviewLatestAsync(value);
@@ -506,6 +552,9 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         set => SetProperty(ref _manifestFormat, value);
     }
 
+    public bool CanExportSelectedMesh => SelectedEntry is not null
+        && SelectedEntry.Extension.ToLowerInvariant() is ".pac" or ".pam" or ".pamlod";
+
     public void RequestShutdown()
     {
         CancelEnvironment();
@@ -643,7 +692,21 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         CacheHealthDetail = result.Reason;
     }
 
-    private async Task OpenArchiveAsync(bool forceRefresh, CancellationToken commandToken)
+    private async Task ChooseAndOpenArchiveAsync(bool forceRefresh, CancellationToken commandToken)
+    {
+        commandToken.ThrowIfCancellationRequested();
+        var cacheMode = _chooseCacheMode(ArchiveRoot.Trim(), forceRefresh);
+        if (cacheMode is null)
+        {
+            return;
+        }
+        await OpenArchiveAsync(forceRefresh, cacheMode.Value, commandToken).ConfigureAwait(true);
+    }
+
+    private async Task OpenArchiveAsync(
+        bool forceRefresh,
+        ArchiveCacheMode cacheMode,
+        CancellationToken commandToken)
     {
         using var operation = BeginForegroundOperation(commandToken);
         var generation = Interlocked.Increment(ref _foregroundGeneration);
@@ -657,7 +720,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             var result = await _worker.SendAsync<OpenArchiveRequest, OpenArchiveResult>(
                 WorkerProtocol.OpenArchive,
                 generation,
-                new OpenArchiveRequest(ArchiveRoot, forceRefresh),
+                new OpenArchiveRequest(ArchiveRoot, forceRefresh, cacheMode),
                 operation.Token,
                 progress).ConfigureAwait(true);
             if (generation != Volatile.Read(ref _foregroundGeneration))
@@ -667,8 +730,12 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
             SessionId = result.SessionId;
             _cacheHealthRoot = result.PackageRoot;
-            CacheHealthState = ArchiveCacheHealthState.Current;
-            CacheHealthDetail = LocalizationManager.Get(result.UsedCachedIndex ? "CacheReused" : "CacheRebuilt");
+            CacheHealthState = result.CacheMode == ArchiveCacheMode.SessionOnly
+                ? ArchiveCacheHealthState.SessionOnly
+                : ArchiveCacheHealthState.Current;
+            CacheHealthDetail = LocalizationManager.Get(result.CacheMode == ArchiveCacheMode.SessionOnly
+                ? "CacheSessionOnlyLoaded"
+                : (result.UsedCachedIndex ? "CacheReused" : "CacheRebuilt"));
             _setShellStatus(LocalizationManager.Format("OpenedEntries", result.EntryCount));
             SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
             await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
@@ -876,9 +943,95 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             ExtensionChoices.Add(new ArchiveExtensionChoice(
                 facet.Extension,
                 facet.Count,
-                LocalizationManager.Get($"ExtensionGroup{facet.Category}")));
+                LocalizationManager.Get($"ExtensionGroup{facet.Category}"),
+                facet.Category));
         }
         ExtensionChoicesView.Refresh();
+    }
+
+    private void RebuildLocalizedOptions(ArchiveEntryRole? selectedRole = null)
+    {
+        _viewModes =
+        [
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Folders, LocalizationManager.Get("FoldersView")),
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Categories, LocalizationManager.Get("CategoriesView")),
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.CategoriesAndFolders, LocalizationManager.Get("CategoriesFoldersView")),
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Flat, LocalizationManager.Get("FlatView")),
+        ];
+        _sortFields = Enum.GetValues<ArchiveSortField>()
+            .Select(field => new LocalizedOption<ArchiveSortField>(field, LocalizationManager.Get($"Sort{field}")))
+            .ToArray();
+        _collisionPolicies = Enum.GetValues<ExportCollisionPolicy>()
+            .Select(policy => new LocalizedOption<ExportCollisionPolicy>(policy, LocalizationManager.Get($"Collision{policy}")))
+            .ToArray();
+        _manifestFormats = Enum.GetValues<ExportManifestFormat>()
+            .Select(format => new LocalizedOption<ExportManifestFormat>(format, LocalizationManager.Get($"Manifest{format}")))
+            .ToArray();
+        _roleFilters =
+        [
+            new ArchiveRoleFilter(null, LocalizationManager.Get("All")),
+            .. Enum.GetValues<ArchiveEntryRole>()
+                .Select(role => new ArchiveRoleFilter(role, LocalizationManager.Get($"Role{role}"))),
+        ];
+        _selectedRole = RoleFilters.First(option => option.Role == selectedRole);
+
+        OnPropertyChanged(nameof(ViewModes));
+        OnPropertyChanged(nameof(SortFields));
+        OnPropertyChanged(nameof(CollisionPolicies));
+        OnPropertyChanged(nameof(ManifestFormats));
+        OnPropertyChanged(nameof(RoleFilters));
+        // Replacing a ComboBox ItemsSource can temporarily clear its selection.
+        // Reassert the stable enum values after the localized options are visible
+        // so a live language switch cannot leave a blank, invalid selection.
+        OnPropertyChanged(nameof(ViewMode));
+        OnPropertyChanged(nameof(SortField));
+        OnPropertyChanged(nameof(CollisionPolicy));
+        OnPropertyChanged(nameof(ManifestFormat));
+        OnPropertyChanged(nameof(SelectedRole));
+    }
+
+    private void RefreshNavigationLabels()
+    {
+        if (Folders.Count > 0)
+        {
+            var selectedPath = SelectedFolder?.Path;
+            var paths = Folders.Select(static folder => folder.Path).ToArray();
+            Folders.Clear();
+            foreach (var path in paths)
+            {
+                Folders.Add(new ArchiveFolderFilter(path, path ?? LocalizationManager.Get("All")));
+            }
+            SelectedFolder = Folders.FirstOrDefault(folder => string.Equals(folder.Path, selectedPath, StringComparison.OrdinalIgnoreCase))
+                ?? Folders[0];
+        }
+
+        if (Categories.Count > 0)
+        {
+            var selectedName = SelectedCategory?.Name;
+            var categories = Categories.Select(static category => (category.Name, category.Count)).ToArray();
+            Categories.Clear();
+            foreach (var category in categories)
+            {
+                var label = Enum.TryParse<ArchiveEntryRole>(category.Name, out var role)
+                    ? LocalizationManager.Get($"Role{role}")
+                    : category.Name;
+                Categories.Add(new ArchiveCategoryCount(category.Name, label, category.Count));
+            }
+            SelectedCategory = selectedName is null
+                ? null
+                : Categories.FirstOrDefault(category => string.Equals(category.Name, selectedName, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+
+    private void RefreshExtensionLabels()
+    {
+        var extensions = ExtensionChoices
+            .Where(static choice => choice.Category.HasValue)
+            .Select(static choice => (choice.Extension, choice.Count, Category: choice.Category!.Value))
+            .ToArray();
+        ApplyExtensionFacets(extensions
+            .Select(static choice => new ArchiveExtensionFacet(choice.Extension, choice.Count, choice.Category))
+            .ToArray());
     }
 
     private void ApplyNameIndexProgress(string sessionId, long generation, ProgressUpdate update)
@@ -1142,6 +1295,57 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         await RunExportAsync([SelectedEntry.EntryId], destination, ExportKind.RawEntries, cancellationToken).ConfigureAwait(true);
     }
 
+    private async Task ExportMeshAsync(CancellationToken cancellationToken)
+    {
+        if (!CanExportSelectedMesh || SelectedEntry is null || string.IsNullOrWhiteSpace(SessionId))
+        {
+            return;
+        }
+
+        var baseName = Path.GetFileNameWithoutExtension(SelectedEntry.Name);
+        var dialog = new SaveFileDialog
+        {
+            Title = LocalizationManager.Get("ExportMesh"),
+            FileName = $"{baseName}.glb",
+            DefaultExt = ".glb",
+            AddExtension = true,
+            OverwritePrompt = CollisionPolicy == ExportCollisionPolicy.Overwrite,
+            Filter = LocalizationManager.Get("MeshExportFilter"),
+            FilterIndex = 1,
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var selection = dialog.FilterIndex switch
+        {
+            1 => (Kind: ExportKind.Glb, Extension: ".glb"),
+            2 => (Kind: ExportKind.Obj, Extension: ".obj"),
+            3 => (Kind: ExportKind.Fbx, Extension: ".fbx"),
+            _ => ((ExportKind Kind, string Extension)?)null,
+        };
+        if (selection is null)
+        {
+            _setShellStatus(LocalizationManager.Get("MeshExportUnsupportedExtension"));
+            return;
+        }
+        var outputPath = Path.ChangeExtension(dialog.FileName, selection.Value.Extension);
+        var destination = Path.GetDirectoryName(outputPath);
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            return;
+        }
+
+        await RunExportAsync(
+            [SelectedEntry.EntryId],
+            destination,
+            selection.Value.Kind,
+            cancellationToken,
+            singleOutputPath: outputPath,
+            manifestFormat: ExportManifestFormat.None).ConfigureAwait(true);
+    }
+
     private async Task ExportFilteredAsync(CancellationToken cancellationToken)
     {
         var destination = PickExportFolder();
@@ -1157,7 +1361,9 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         IReadOnlyList<long> entryIds,
         string destination,
         ExportKind kind,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        string? singleOutputPath = null,
+        ExportManifestFormat? manifestFormat = null)
     {
         if (string.IsNullOrWhiteSpace(SessionId))
         {
@@ -1180,7 +1386,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                     entryIds,
                     null,
                     CollisionPolicy: CollisionPolicy,
-                    ManifestFormat: ManifestFormat),
+                    ManifestFormat: manifestFormat ?? ManifestFormat,
+                    SingleOutputPath: singleOutputPath),
                 operation.Token,
                 progress).ConfigureAwait(true);
             if (generation == Volatile.Read(ref _foregroundGeneration))
@@ -1278,6 +1485,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             "index_build" => LocalizationManager.Get("ProgressBuildingIndex"),
             "validate" => LocalizationManager.Get("ProgressValidating"),
             "export" => LocalizationManager.Get("ProgressExporting"),
+            "mesh_export_prepare" => LocalizationManager.Get("ProgressPreparingMesh"),
+            "mesh_export_write" => LocalizationManager.Get("ProgressWritingMesh"),
             "complete" => LocalizationManager.Get("ProgressFinishing"),
             _ => LocalizationManager.Get("ProgressWorking"),
         };
@@ -1323,6 +1532,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         NextPageCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
         ExportSelectedCommand.RaiseCanExecuteChanged();
+        ExportMeshCommand.RaiseCanExecuteChanged();
         ExportFilteredCommand.RaiseCanExecuteChanged();
     }
 }
@@ -1346,11 +1556,12 @@ public sealed record ArchiveExtensionChoice(
     string Extension,
     long Count,
     string Group,
+    ArchiveExtensionCategory? Category = null,
     string? DisplayLabel = null)
 {
     public string Label => DisplayLabel ?? Extension;
 
-    public static ArchiveExtensionChoice AllFiles(string label, string group) => new(string.Empty, 0, group, label);
+    public static ArchiveExtensionChoice AllFiles(string label, string group) => new(string.Empty, 0, group, null, label);
 
     public override string ToString() => Extension;
 }

@@ -23,6 +23,7 @@ public sealed class TextSearchViewModel : ObservableObject
     private TextSearchMatchDto? _selectedMatch;
     private string _previewText = LocalizationManager.Get("PreviewEmpty");
     private bool _isBusy;
+    private IReadOnlyList<LocalizedOption<TextSearchSourceKind>> _sourceOptions = [];
 
     public TextSearchViewModel(WorkerProcessHost worker, Func<string?> archiveSession, Action<string> setShellStatus)
     {
@@ -33,15 +34,11 @@ public sealed class TextSearchViewModel : ObservableObject
         SearchCommand = new AsyncCommand(SearchAsync, CanSearch);
         CancelCommand = new RelayCommand(RequestShutdown, () => IsBusy);
         ExportResultsCommand = new AsyncCommand(ExportResultsAsync, () => Matches.Count > 0 && !IsBusy);
-        SourceOptions =
-        [
-            new LocalizedOption<TextSearchSourceKind>(TextSearchSourceKind.Archive, LocalizationManager.Get("Archive")),
-            new LocalizedOption<TextSearchSourceKind>(TextSearchSourceKind.LooseFolder, LocalizationManager.Get("LooseFolder")),
-        ];
+        RefreshSourceOptions();
     }
 
     public ObservableCollection<TextSearchMatchDto> Matches { get; } = [];
-    public IReadOnlyList<LocalizedOption<TextSearchSourceKind>> SourceOptions { get; }
+    public IReadOnlyList<LocalizedOption<TextSearchSourceKind>> SourceOptions => _sourceOptions;
     public AsyncCommand BrowseCommand { get; }
     public AsyncCommand SearchCommand { get; }
     public RelayCommand CancelCommand { get; }
@@ -154,12 +151,31 @@ public sealed class TextSearchViewModel : ObservableObject
 
     public void NotifyArchiveSessionChanged() => SearchCommand.RaiseCanExecuteChanged();
 
+    public void RefreshLocalization()
+    {
+        RefreshSourceOptions();
+        if (SelectedMatch is null)
+        {
+            PreviewText = LocalizationManager.Get("PreviewEmpty");
+        }
+    }
+
     private bool CanSearch() =>
         !IsBusy &&
         !string.IsNullOrWhiteSpace(Query) &&
         (SourceKind == TextSearchSourceKind.Archive
             ? !string.IsNullOrWhiteSpace(_archiveSession())
             : Directory.Exists(LooseFolder));
+
+    private void RefreshSourceOptions()
+    {
+        _sourceOptions =
+        [
+            new LocalizedOption<TextSearchSourceKind>(TextSearchSourceKind.Archive, LocalizationManager.Get("Archive")),
+            new LocalizedOption<TextSearchSourceKind>(TextSearchSourceKind.LooseFolder, LocalizationManager.Get("LooseFolder")),
+        ];
+        OnPropertyChanged(nameof(SourceOptions));
+    }
 
     private Task BrowseAsync()
     {

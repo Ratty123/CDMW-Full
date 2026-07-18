@@ -1,8 +1,11 @@
+using System.Buffers.Binary;
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.Contracts;
 using Cdmw.ArchiveLite.Core;
 
@@ -16,6 +19,7 @@ internal static class ArchiveLiteTestRunner
         {
             ("protocol serializes snake-case messages", TestProtocolAsync),
             ("English, German, and Spanish resources have identical keys", TestLocalizationResourcesAsync),
+            ("compiled localization persists across later UI work", TestCompiledLocalizationAsync),
             ("read-only WPF text bindings are explicitly one-way", TestReadOnlyWpfBindingsAsync),
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
             ("modern shell exposes cache health, game detection, and Enter search", TestModernShellAsync),
@@ -24,7 +28,8 @@ internal static class ArchiveLiteTestRunner
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
             ("game discovery recognizes archive roots and Steam libraries", TestGameInstallDiscoveryAsync),
             ("archive cache health detects missing, current, and stale indexes", TestArchiveCacheHealthAsync),
-            ("native model preview packages adapt safely for the .NET renderer", TestNativeModelPreviewPackageAsync),
+            ("archive loading supports reusable and session-only indexes", TestArchiveCacheModesAsync),
+            ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
             ("native archive ABI scans and decodes synthetic PAMT/PAZ", TestNativeArchiveAsync),
@@ -61,6 +66,16 @@ internal static class ArchiveLiteTestRunner
         var json = System.Text.Json.JsonSerializer.Serialize(message, WorkerProtocol.JsonOptions);
         Require(json.Contains("\"protocol_version\":1", StringComparison.Ordinal), "protocol_version is not snake case");
         Require(WorkerProtocol.ReadPayload<PingRequest>(message)?.ClientVersion == "1.0", "protocol payload did not round-trip");
+        var openMessage = WorkerProtocol.Request(
+            Guid.Parse("22222222-2222-2222-2222-222222222222"),
+            8,
+            WorkerProtocol.OpenArchive,
+            new OpenArchiveRequest("C:\\game", CacheMode: ArchiveCacheMode.SessionOnly));
+        var openJson = JsonSerializer.Serialize(openMessage, WorkerProtocol.JsonOptions);
+        Require(openJson.Contains("\"cache_mode\":\"session_only\"", StringComparison.Ordinal), "cache_mode is not a snake-case protocol enum");
+        Require(
+            WorkerProtocol.ReadPayload<OpenArchiveRequest>(openMessage)?.CacheMode == ArchiveCacheMode.SessionOnly,
+            "archive cache mode did not round-trip");
         return Task.CompletedTask;
     }
 
@@ -85,6 +100,78 @@ internal static class ArchiveLiteTestRunner
         {
             Require(resource.Keys.Order(StringComparer.Ordinal).SequenceEqual(expected), "localized resource keys do not match");
             Require(resource.Values.All(static value => !string.IsNullOrWhiteSpace(value)), "localized resource contains an empty value");
+        }
+        return Task.CompletedTask;
+    }
+
+    private static Task TestCompiledLocalizationAsync()
+    {
+        var originalCulture = CultureInfo.CurrentCulture;
+        var originalUiCulture = CultureInfo.CurrentUICulture;
+        var originalDefaultCulture = CultureInfo.DefaultThreadCurrentCulture;
+        var originalDefaultUiCulture = CultureInfo.DefaultThreadCurrentUICulture;
+        var refreshCount = 0;
+        System.ComponentModel.PropertyChangedEventHandler handler = (_, args) =>
+        {
+            if (string.Equals(args.PropertyName, "Item[]", StringComparison.Ordinal))
+            {
+                refreshCount++;
+            }
+        };
+        LocalizedStringSource.Instance.PropertyChanged += handler;
+        try
+        {
+            var expectations = new[]
+            {
+                (Language: "en", Title: "Archive loading"),
+                (Language: "de", Title: "Archiv laden"),
+                (Language: "es", Title: "Carga del archivo"),
+            };
+            foreach (var expectation in expectations)
+            {
+                LocalizationManager.ApplyCulture(expectation.Language);
+                Require(
+                    string.Equals(CultureInfo.CurrentUICulture.TwoLetterISOLanguageName, expectation.Language, StringComparison.Ordinal),
+                    $"current UI culture did not switch to {expectation.Language}");
+                Require(
+                    string.Equals(CultureInfo.DefaultThreadCurrentUICulture?.TwoLetterISOLanguageName, expectation.Language, StringComparison.Ordinal),
+                    $"default UI culture did not persist {expectation.Language} for later UI callbacks");
+                Require(
+                    string.Equals(LocalizationManager.Get("CacheChoiceTitle"), expectation.Title, StringComparison.Ordinal),
+                    $"compiled {expectation.Language} cache-dialog resources fell back to another language");
+                Require(
+                    string.Equals(LocalizedStringSource.Instance["CacheChoiceTitle"], expectation.Title, StringComparison.Ordinal),
+                    $"live localized binding source did not expose {expectation.Language}");
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo("en");
+                CultureInfo.CurrentUICulture = CultureInfo.GetCultureInfo("en");
+                Require(
+                    string.Equals(LocalizationManager.Get("CacheChoiceTitle"), expectation.Title, StringComparison.Ordinal),
+                    $"compiled {expectation.Language} resources drifted with a later async culture context");
+            }
+            Require(refreshCount >= expectations.Length, "live localized bindings were not refreshed for each culture change");
+
+            var locExtensionSource = File.ReadAllText(Path.Combine(
+                FindRepositoryRoot(),
+                "apps",
+                "Cdmw.ArchiveLite",
+                "src",
+                "Cdmw.ArchiveLite.App",
+                "Infrastructure",
+                "LocExtension.cs"));
+            Require(
+                locExtensionSource.Contains("LocalizedStringSource.Instance", StringComparison.Ordinal)
+                && locExtensionSource.Contains("BindingMode.OneWay", StringComparison.Ordinal),
+                "XAML localization still resolves to a one-time static string");
+        }
+        finally
+        {
+            LocalizedStringSource.Instance.PropertyChanged -= handler;
+            CultureInfo.DefaultThreadCurrentCulture = originalDefaultCulture;
+            CultureInfo.DefaultThreadCurrentUICulture = originalDefaultUiCulture;
+            CultureInfo.CurrentCulture = originalCulture;
+            CultureInfo.CurrentUICulture = originalUiCulture;
+            Thread.CurrentThread.CurrentCulture = originalCulture;
+            Thread.CurrentThread.CurrentUICulture = originalUiCulture;
         }
         return Task.CompletedTask;
     }
@@ -183,6 +270,9 @@ internal static class ArchiveLiteTestRunner
             window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains("DetectGameCommand", StringComparison.Ordinal) == true),
             "MainWindow has no game-folder detection action");
         Require(
+            window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains("ExportMeshCommand", StringComparison.Ordinal) == true),
+            "MainWindow has no selected PAC/PAM mesh export action");
+        Require(
             window.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("CacheHealthLabel", StringComparison.Ordinal) == true),
             "MainWindow does not expose archive cache health");
 
@@ -203,6 +293,46 @@ internal static class ArchiveLiteTestRunner
             .ToHashSet(StringComparer.Ordinal);
         Require(styleKeys.Contains("WindowCaptionButtonStyle"), "custom chrome has no theme-aware caption button style");
         Require(styleKeys.Contains("TopBarComboBoxStyle"), "custom chrome has no compact top-bar selector style");
+        var controlsSource = File.ReadAllText(Path.Combine(appRoot, "Themes", "Controls.xaml"));
+        Require(
+            controlsSource.Contains("Margin=\"4,2,0,10\"", StringComparison.Ordinal)
+            && controlsSource.Contains("<Setter Property=\"Margin\" Value=\"1,1,7,1\"", StringComparison.Ordinal)
+            && controlsSource.Contains("<Setter Property=\"MinHeight\" Value=\"36\"", StringComparison.Ordinal),
+            "top tabs do not reserve enough space for their complete rounded borders");
+
+        var cacheDialog = System.Xml.Linq.XDocument.Load(
+            Path.Combine(appRoot, "Dialogs", "ArchiveCacheChoiceDialog.xaml"));
+        Require(
+            string.Equals((string?)cacheDialog.Root?.Attribute("WindowStyle"), "None", StringComparison.Ordinal),
+            "the cache choice still uses a bare native dialog shell");
+        Require(
+            cacheDialog.Descendants().Count(element => element.Name.LocalName == "Button"
+                && ((string?)element.Attribute("Click") is "OnPersistentClick" or "OnSessionOnlyClick")) == 2,
+            "the cache dialog does not expose both persistent and session-only choices");
+        Require(
+            cacheDialog.Descendants().Where(element => element.Name.LocalName == "TextBlock")
+                .Any(element => string.Equals((string?)element.Attribute("TextWrapping"), "Wrap", StringComparison.Ordinal)),
+            "cache choice explanations cannot wrap safely");
+        Require(
+            string.Equals((string?)cacheDialog.Root?.Attribute("AllowsTransparency"), "True", StringComparison.OrdinalIgnoreCase)
+            && string.Equals((string?)cacheDialog.Root?.Attribute("Background"), "Transparent", StringComparison.OrdinalIgnoreCase),
+            "cache dialog does not use a transparent rounded host window");
+        Require(
+            !cacheDialog.Descendants().Any(element => element.Name.LocalName == "WindowChrome"),
+            "cache dialog still combines WindowChrome with rounded content and can expose white corner arcs");
+        var cacheDialogFrame = cacheDialog.Descendants().Single(element =>
+            element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "CacheDialogFrame"));
+        Require(
+            string.Equals((string?)cacheDialogFrame.Attribute("Margin"), "12", StringComparison.Ordinal)
+            && string.Equals((string?)cacheDialogFrame.Attribute("CornerRadius"), "14", StringComparison.Ordinal),
+            "cache dialog shadow and rounded frame are not inset safely from the window edge");
+
+        var archiveViewModelSource = File.ReadAllText(
+            Path.Combine(appRoot, "ViewModels", "ArchiveBrowserViewModel.cs"));
+        Require(
+            archiveViewModelSource.Contains("ChooseAndOpenArchiveAsync(false", StringComparison.Ordinal)
+            && archiveViewModelSource.Contains("ChooseAndOpenArchiveAsync(true", StringComparison.Ordinal),
+            "Load and Refresh do not share the cache-choice flow");
         return Task.CompletedTask;
     }
 
@@ -264,6 +394,27 @@ internal static class ArchiveLiteTestRunner
                 .Any(element => ((string?)element.Attribute("ItemsSource"))?.Contains("ExtensionChoicesView", StringComparison.Ordinal) == true
                     && element.Descendants().Any(descendant => descendant.Name.LocalName == "GroupStyle")),
             "extension filter is not a categorized picker");
+        var controlsSource = File.ReadAllText(Path.Combine(appRoot, "Themes", "Controls.xaml"));
+        Require(
+            controlsSource.Contains("<ItemsPresenter KeyboardNavigation.DirectionalNavigation=\"Contained\"", StringComparison.Ordinal)
+            && !controlsSource.Contains("<StackPanel IsItemsHost=\"True\"", StringComparison.Ordinal),
+            "the shared ComboBox template cannot expand grouped extension children");
+        Require(
+            window.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("ItemCount", StringComparison.Ordinal) == true)
+            && window.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("{Binding Label}", StringComparison.Ordinal) == true),
+            "extension categories do not expose both their extensions and counts");
+
+        var archiveViewModelSource = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "ArchiveBrowserViewModel.cs"));
+        Require(
+            archiveViewModelSource.Contains("ExtensionChoicesView.Refresh();", StringComparison.Ordinal)
+            && !archiveViewModelSource.Contains("ExtensionChoicesView.DeferRefresh", StringComparison.Ordinal),
+            "extension facets can mutate the collection while its WPF view refresh is deferred");
+        Require(
+            archiveViewModelSource.Contains("OnPropertyChanged(nameof(ViewMode));", StringComparison.Ordinal)
+            && archiveViewModelSource.Contains("OnPropertyChanged(nameof(SortField));", StringComparison.Ordinal)
+            && archiveViewModelSource.Contains("OnPropertyChanged(nameof(CollisionPolicy));", StringComparison.Ordinal)
+            && archiveViewModelSource.Contains("OnPropertyChanged(nameof(ManifestFormat));", StringComparison.Ordinal),
+            "live localization does not restore value-selected ComboBox selections after replacing their options");
 
         var windowSource = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml.cs"));
         Require(
@@ -280,6 +431,24 @@ internal static class ArchiveLiteTestRunner
             "Cdmw.ArchiveLite.Core",
             "NativeModelPreviewService.cs"));
         Require(previewSource.Contains("[\"use_textures_by_default\"] = false", StringComparison.Ordinal), "native PAC preview still requests textures");
+        var rendererProgram = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "tools",
+            "dotnet_mesh_editor_experiment",
+            "Program.cs"));
+        Require(
+            rendererProgram.Contains("_presentationGridVisible = scene.GridVisible", StringComparison.Ordinal)
+            && rendererProgram.Contains("_presentationGizmoVisible = scene.GizmoVisible", StringComparison.Ordinal),
+            "the renderer presentation contexts can restore the grid or gizmo over a hidden scene setting");
+        var materialShader = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "tools",
+            "dotnet_mesh_editor_experiment",
+            "D3D11MaterialShaders.hlsl"));
+        Require(
+            materialShader.Contains("per-part tone shift", StringComparison.Ordinal)
+            && materialShader.Contains("keyLight * 0.48f", StringComparison.Ordinal),
+            "textureless preview shading does not preserve enough part and contour separation");
         return Task.CompletedTask;
     }
 
@@ -374,6 +543,58 @@ internal static class ArchiveLiteTestRunner
         Require(stale.ChangedSourceCount > 0, "stale cache did not report changed source files");
     }
 
+    private static async Task TestArchiveCacheModesAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var sourceHashes = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [fixture.Pamt] = await Sha256Async(fixture.Pamt).ConfigureAwait(false),
+            [fixture.Paz] = await Sha256Async(fixture.Paz).ConfigureAwait(false),
+            [fixture.Pathc] = await Sha256Async(fixture.Pathc).ConfigureAwait(false),
+        };
+        var native = new NativeArchiveCore();
+        string persistentPath;
+        string temporaryPath;
+        using (var sessions = new ArchiveSessionManager(native))
+        {
+            var built = await sessions.OpenAsync(
+                new OpenArchiveRequest(
+                    fixture.Root,
+                    ForceRefresh: true,
+                    CacheMode: ArchiveCacheMode.Persistent),
+                CancellationToken.None).ConfigureAwait(false);
+            persistentPath = sessions.GetRequired(built.SessionId).Index.Path;
+            Require(built.CacheMode == ArchiveCacheMode.Persistent, "persistent cache mode was not returned");
+            Require(!built.UsedCachedIndex, "a forced persistent build incorrectly reported a cache hit");
+            Require(File.Exists(persistentPath), "persistent archive index was not retained");
+
+            var reused = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.Persistent),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(reused.UsedCachedIndex, "a verified persistent index was not reused");
+
+            var sessionOnly = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.SessionOnly),
+                CancellationToken.None).ConfigureAwait(false);
+            temporaryPath = sessions.GetRequired(sessionOnly.SessionId).Index.Path;
+            Require(sessionOnly.CacheMode == ArchiveCacheMode.SessionOnly, "session-only cache mode was not returned");
+            Require(!sessionOnly.UsedCachedIndex, "session-only loading reused a persistent index");
+            Require(File.Exists(temporaryPath), "session-only index was not available for the live session");
+            Require(
+                !Path.GetFullPath(temporaryPath).Equals(Path.GetFullPath(persistentPath), StringComparison.OrdinalIgnoreCase),
+                "session-only loading wrote into the persistent index path");
+        }
+
+        Require(File.Exists(persistentPath), "closing a session removed its persistent index");
+        Require(!File.Exists(temporaryPath), "closing the worker session retained a one-time index");
+        foreach (var (sourcePath, expectedHash) in sourceHashes)
+        {
+            Require(
+                string.Equals(await Sha256Async(sourcePath).ConfigureAwait(false), expectedHash, StringComparison.Ordinal),
+                $"archive cache loading changed source bytes: {sourcePath}");
+        }
+    }
+
     private static async Task TestNativeModelPreviewPackageAsync()
     {
         var root = Path.Combine(Path.GetTempPath(), $"cdmw-archive-lite-model-preview-test-{Guid.NewGuid():N}");
@@ -448,6 +669,92 @@ internal static class ArchiveLiteTestRunner
                 Require(submesh.GetProperty("resolved_channels").GetRawText() == "{}", "mesh-only preview retained resolved textures");
                 Require(string.IsNullOrEmpty(submesh.GetProperty("texture").GetString()), "mesh-only preview retained a base texture");
             }
+
+            var exportRoot = Path.Combine(root, "exports");
+            Directory.CreateDirectory(exportRoot);
+            var exporter = new NativeModelExportService(new NativeModelPreviewService());
+            var progressUpdates = new List<ProgressUpdate>();
+            Task CaptureProgress(ProgressUpdate update)
+            {
+                progressUpdates.Add(update);
+                return Task.CompletedTask;
+            }
+            var glbPath = Path.Combine(exportRoot, "triangle.glb");
+            await exporter.ExportPackageAsync(
+                root,
+                "models/triangle.pac",
+                ExportKind.Glb,
+                glbPath,
+                overwrite: false,
+                CaptureProgress,
+                "models/triangle.pac",
+                CancellationToken.None).ConfigureAwait(false);
+            var glb = await File.ReadAllBytesAsync(glbPath).ConfigureAwait(false);
+            Require(glb.AsSpan(0, 4).SequenceEqual("glTF"u8), "GLB export has no glTF container signature");
+            Require(BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(4, 4)) == 2, "GLB export version is not 2");
+            Require(BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(8, 4)) == glb.Length, "GLB declared length is wrong");
+            var jsonLength = checked((int)BinaryPrimitives.ReadUInt32LittleEndian(glb.AsSpan(12, 4)));
+            using (var glbDocument = JsonDocument.Parse(glb.AsMemory(20, jsonLength)))
+            {
+                Require(glbDocument.RootElement.GetProperty("meshes")[0].GetProperty("primitives").GetArrayLength() == 1, "GLB export lost its mesh primitive");
+                Require(glbDocument.RootElement.GetProperty("materials").GetArrayLength() == 1, "GLB export lost its material identity");
+                var views = glbDocument.RootElement.GetProperty("bufferViews");
+                var binaryOffset = checked(20 + jsonLength + 8);
+                var firstPositionOffset = binaryOffset + views[0].GetProperty("byteOffset").GetInt32();
+                var firstUvOffset = binaryOffset + views[2].GetProperty("byteOffset").GetInt32();
+                Require(
+                    BinaryPrimitives.ReadSingleLittleEndian(glb.AsSpan(firstPositionOffset, 4)) == -0.5f,
+                    "GLB export changed the first vertex position");
+                Require(
+                    BinaryPrimitives.ReadSingleLittleEndian(glb.AsSpan(firstUvOffset + 4, 4)) == 1.0f,
+                    "GLB export did not apply the workbench UV convention");
+            }
+
+            var objPath = Path.Combine(exportRoot, "triangle.obj");
+            await exporter.ExportPackageAsync(
+                root,
+                "models/triangle.pac",
+                ExportKind.Obj,
+                objPath,
+                overwrite: false,
+                CaptureProgress,
+                "models/triangle.pac",
+                CancellationToken.None).ConfigureAwait(false);
+            var obj = await File.ReadAllTextAsync(objPath).ConfigureAwait(false);
+            Require(obj.Contains("# Crimson Desert Mesh", StringComparison.Ordinal), "OBJ export did not use the workbench writer");
+            Require(obj.Contains("f 1/1/1 2/2/2 3/3/3", StringComparison.Ordinal), "OBJ export has no triangle face");
+
+            var fbxPath = Path.Combine(exportRoot, "triangle.fbx");
+            await exporter.ExportPackageAsync(
+                root,
+                "models/triangle.pac",
+                ExportKind.Fbx,
+                fbxPath,
+                overwrite: false,
+                CaptureProgress,
+                "models/triangle.pac",
+                CancellationToken.None).ConfigureAwait(false);
+            var fbx = await File.ReadAllBytesAsync(fbxPath).ConfigureAwait(false);
+            Require(Encoding.ASCII.GetString(fbx, 0, 20) == "Kaydara FBX Binary  ", "FBX export is not a binary FBX file");
+            Require(progressUpdates.Any(update => update.Phase == "mesh_export_prepare" && update.Total > 0), "mesh export did not report determinate preparation progress");
+            Require(progressUpdates.Any(update => update.Phase == "mesh_export_write" && update.Completed == update.Total), "mesh export did not report completion progress");
+
+            var preservedPath = Path.Combine(exportRoot, "preserved.glb");
+            await File.WriteAllTextAsync(preservedPath, "preserve-me").ConfigureAwait(false);
+            using (var cancelled = new CancellationTokenSource())
+            {
+                cancelled.Cancel();
+                await RequireThrowsAsync<OperationCanceledException>(() => exporter.ExportPackageAsync(
+                    root,
+                    "models/triangle.pac",
+                    ExportKind.Glb,
+                    preservedPath,
+                    overwrite: true,
+                    null,
+                    null,
+                    cancelled.Token)).ConfigureAwait(false);
+            }
+            Require(await File.ReadAllTextAsync(preservedPath).ConfigureAwait(false) == "preserve-me", "cancelled mesh export replaced an existing destination");
 
             var unsafeRoot = Path.Combine(root, "unsafe");
             Directory.CreateDirectory(unsafeRoot);
@@ -733,7 +1040,11 @@ internal static class ArchiveLiteTestRunner
             1,
             CancellationToken.None).ConfigureAwait(false);
         var exportRoot = fixture.OutputRoot;
-        var service = new ArchiveExportService(sessions, queries, native);
+        var service = new ArchiveExportService(
+            sessions,
+            queries,
+            native,
+            new NativeModelExportService(new NativeModelPreviewService()));
         await RequireThrowsAsync<InvalidDataException>(() => service.ExportAsync(
             new ExportPlanRequest(
                 opened.SessionId,
@@ -746,12 +1057,39 @@ internal static class ArchiveLiteTestRunner
         await RequireThrowsAsync<NotSupportedException>(() => service.ExportAsync(
             new ExportPlanRequest(
                 opened.SessionId,
-                ExportKind.Obj,
+                ExportKind.Wav,
                 exportRoot,
                 [page.Entries.Single().EntryId],
                 null),
             null,
             CancellationToken.None)).ConfigureAwait(false);
+        await RequireThrowsAsync<InvalidDataException>(() => service.ExportAsync(
+            new ExportPlanRequest(
+                opened.SessionId,
+                ExportKind.Obj,
+                exportRoot,
+                [page.Entries.Single().EntryId],
+                null,
+                ManifestFormat: ExportManifestFormat.None,
+                SingleOutputPath: Path.Combine(fixture.Root, "unsafe.obj")),
+            null,
+            CancellationToken.None)).ConfigureAwait(false);
+        var unsupportedMesh = await service.ExportAsync(
+            new ExportPlanRequest(
+                opened.SessionId,
+                ExportKind.Obj,
+                Path.Combine(exportRoot, "unsupported-mesh"),
+                [page.Entries.Single().EntryId],
+                null,
+                ManifestFormat: ExportManifestFormat.None),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(
+            unsupportedMesh.Failed == 1 && unsupportedMesh.Exported == 0,
+            "non-model OBJ export did not fail closed");
+        Require(
+            !File.Exists(Path.Combine(exportRoot, "unsupported-mesh", "text", "hello.obj")),
+            "non-model OBJ export silently wrote a differently formatted file");
         var result = await service.ExportAsync(
             new ExportPlanRequest(
                 opened.SessionId,

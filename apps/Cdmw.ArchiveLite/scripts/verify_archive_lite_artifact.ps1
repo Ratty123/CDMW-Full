@@ -18,6 +18,7 @@ $requiredFiles = @(
     "ICSharpCode.AvalonEdit.dll",
     "preview\cdmw-preview-core.exe",
     "indexer\cdmw-archive-accelerator.exe",
+    "mesh\cdmw-mesh-core.exe",
     "renderer\cdmw-mesh-dotnet-editor.exe",
     "README.md",
     "THIRD-PARTY-NOTICES.md",
@@ -76,6 +77,7 @@ Assert-X64Pe (Join-Path $artifactRoot "CdmwArchiveLite.Worker.exe")
 Assert-X64Pe (Join-Path $artifactRoot "cdmw-archive-core.dll")
 Assert-X64Pe (Join-Path $artifactRoot "preview\cdmw-preview-core.exe")
 Assert-X64Pe (Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe")
+Assert-X64Pe (Join-Path $artifactRoot "mesh\cdmw-mesh-core.exe")
 Assert-X64Pe (Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe")
 
 function Quote-ProcessArgument([string]$Value) {
@@ -108,6 +110,7 @@ $worker = Join-Path $artifactRoot "CdmwArchiveLite.Worker.exe"
 $application = Join-Path $artifactRoot "CdmwArchiveLite.exe"
 $previewCore = Join-Path $artifactRoot "preview\cdmw-preview-core.exe"
 $itemIndexer = Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe"
+$meshCore = Join-Path $artifactRoot "mesh\cdmw-mesh-core.exe"
 $renderer = Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe"
 $testDataRoot = Join-Path ([IO.Path]::GetTempPath()) "cdmw-archive-lite-artifact-$([Guid]::NewGuid().ToString('N'))"
 $previousTestMode = $env:CDMW_ARCHIVE_LITE_TEST_MODE
@@ -115,6 +118,7 @@ $previousDataRoot = $env:CDMW_ARCHIVE_LITE_DATA_ROOT
 try {
     $env:CDMW_ARCHIVE_LITE_TEST_MODE = "1"
     $env:CDMW_ARCHIVE_LITE_DATA_ROOT = $testDataRoot
+    New-Item -ItemType Directory -Path $testDataRoot -Force | Out-Null
 
     $previewExitCode = Invoke-HiddenProcess -Path $previewCore -Arguments @("self-test")
     if ($previewExitCode -ne 0) {
@@ -124,6 +128,44 @@ try {
     $indexerExitCode = Invoke-HiddenProcess -Path $itemIndexer -Arguments @("--version")
     if ($indexerExitCode -ne 0) {
         throw "Packaged native archive-accelerator version check failed with exit code $indexerExitCode."
+    }
+
+    $meshJob = Join-Path $testDataRoot "mesh-export-job.json"
+    $meshReport = Join-Path $testDataRoot "mesh-export-report.json"
+    $meshOutput = Join-Path $testDataRoot "mesh-export.fbx"
+    $meshJobPayload = [ordered]@{
+        version = 1
+        backend = "cdmw_mesh_core_0.1"
+        operation = "fbx_export"
+        output_path = $meshOutput
+        base_name = "artifact_guard"
+        scale = 1.0
+        submeshes = @([ordered]@{
+            index = 0
+            name = "triangle"
+            material = "default"
+            vertices = @(@(-0.5, 0.0, 0.0), @(0.5, 0.0, 0.0), @(0.0, 1.0, 0.0))
+            faces = @(@(0, 1, 2))
+            normals = @(@(0.0, 0.0, 1.0), @(0.0, 0.0, 1.0), @(0.0, 0.0, 1.0))
+            uvs = @(@(0.0, 0.0), @(1.0, 0.0), @(0.5, 1.0))
+        })
+        bones = @()
+    } | ConvertTo-Json -Depth 10
+    [IO.File]::WriteAllText($meshJob, $meshJobPayload, [Text.UTF8Encoding]::new($false))
+    $meshExitCode = Invoke-HiddenProcess -Path $meshCore -Arguments @(
+        "fbx-export-json",
+        (Quote-ProcessArgument $meshJob),
+        (Quote-ProcessArgument $meshReport)
+    )
+    if ($meshExitCode -ne 0 -or -not (Test-Path -LiteralPath $meshOutput -PathType Leaf)) {
+        throw "Packaged native mesh-core FBX export smoke failed with exit code $meshExitCode."
+    }
+    $meshReportPayload = Get-Content -LiteralPath $meshReport -Raw | ConvertFrom-Json
+    $meshHeader = [Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($meshOutput), 0, 20)
+    if ($meshReportPayload.status -ne "ok" -or
+        $meshReportPayload.operation -ne "fbx_export" -or
+        $meshHeader -ne "Kaydara FBX Binary  ") {
+        throw "Packaged native mesh-core did not produce a valid FBX 7400 export."
     }
 
     $modelPackage = Join-Path $testDataRoot "native-package"
@@ -249,4 +291,4 @@ finally {
     }
 }
 
-Write-Host "Artifact guard passed: x64, self-contained, native preview/name index, hidden Vortice GPU, worker-connected, and Python-free."
+Write-Host "Artifact guard passed: x64, self-contained, native preview/name index/mesh export, hidden Vortice GPU, worker-connected, and Python-free."

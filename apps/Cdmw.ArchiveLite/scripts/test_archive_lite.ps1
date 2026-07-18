@@ -14,6 +14,8 @@ $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
 $previewBuild = Join-Path $previewRoot "build"
 $acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
 $acceleratorBuild = Join-Path $acceleratorRoot "build"
+$meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
+$meshCoreBuild = Join-Path $meshCoreRoot "build"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $solution = Join-Path $liteRoot "Cdmw.ArchiveLite.slnx"
 $tests = Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj"
@@ -55,6 +57,13 @@ try {
     & $acceleratorExecutable --version
     Assert-LastExitCode "Native archive-accelerator version check"
 
+    & cmake -S $meshCoreRoot -B $meshCoreBuild
+    Assert-LastExitCode "Native mesh-core configure"
+
+    & cmake --build $meshCoreBuild --config $Configuration --parallel
+    Assert-LastExitCode "Native mesh-core build"
+    $meshCoreExecutable = Join-Path $meshCoreBuild "$Configuration\cdmw-mesh-core.exe"
+
     & dotnet build $solution -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
 
@@ -63,15 +72,18 @@ try {
     $rendererExecutable = Join-Path (Split-Path -Parent $rendererProject) "bin\$Configuration\net8.0-windows\cdmw-mesh-dotnet-editor.exe"
     $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH
     $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
+    $previousMeshCorePath = $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
+        $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $meshCoreExecutable
         & dotnet run --project $tests -c $Configuration --no-build
         Assert-LastExitCode "Archive Lite focused tests"
     }
     finally {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $previousRendererPath
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
+        $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $previousMeshCorePath
     }
 }
 finally {

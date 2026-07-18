@@ -6,7 +6,8 @@ namespace Cdmw.ArchiveLite.Core;
 public sealed class ArchiveExportService(
     ArchiveSessionManager sessions,
     ArchiveQueryService queries,
-    NativeArchiveCore native)
+    NativeArchiveCore native,
+    NativeModelExportService modelExports)
 {
     private const int MaximumReturnedItems = 500;
     private const int MaximumReturnedItemBytes = 512 * 1024;
@@ -17,7 +18,13 @@ public sealed class ArchiveExportService(
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        if (request.Kind is not (ExportKind.RawEntries or ExportKind.FolderTree or ExportKind.FilteredEntries or ExportKind.ManifestOnly))
+        if (request.Kind is not (ExportKind.RawEntries
+            or ExportKind.FolderTree
+            or ExportKind.FilteredEntries
+            or ExportKind.ManifestOnly
+            or ExportKind.Obj
+            or ExportKind.Fbx
+            or ExportKind.Glb))
         {
             throw new NotSupportedException($"Archive Lite does not support the {request.Kind} export format.");
         }
@@ -26,6 +33,31 @@ public sealed class ArchiveExportService(
         var outputPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var archiveEntries = ResolveArchiveEntries(request, cancellationToken);
         var loosePaths = request.LoosePaths?.Distinct(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
+        var isMeshExport = NativeModelExportService.SupportsFormat(request.Kind);
+        string? singleOutputPath = null;
+        if (!string.IsNullOrWhiteSpace(request.SingleOutputPath))
+        {
+            if (!isMeshExport || archiveEntries.Count != 1 || loosePaths.Length != 0)
+            {
+                throw new InvalidDataException("An explicit output file is only valid for one selected mesh export.");
+            }
+            singleOutputPath = Path.GetFullPath(request.SingleOutputPath);
+            if (!ExportPathPolicy.IsWithinOrEqual(destination, singleOutputPath)
+                || singleOutputPath.Equals(destination, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("The explicit mesh output must be inside the selected export directory.");
+            }
+            if (!Path.GetExtension(singleOutputPath).Equals(
+                NativeModelExportService.FileExtension(request.Kind),
+                StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException("The explicit mesh output extension does not match the selected format.");
+            }
+        }
+        else if (isMeshExport && loosePaths.Length != 0)
+        {
+            throw new InvalidDataException("Mesh interchange export is only supported for archive entries.");
+        }
         ArchiveSession? archiveSession = null;
         if (!string.IsNullOrWhiteSpace(request.SessionId))
         {
@@ -97,10 +129,26 @@ public sealed class ArchiveExportService(
                 await PublishProgressAsync(progress, new ProgressUpdate(completed, requested, "export", entry.Path)).ConfigureAwait(false);
             }
             var relative = ExportPathPolicy.NormalizeVirtualPath(entry.Path);
-            var target = ExportPathPolicy.ResolveContainedPath(destination, relative);
+            var outputRelative = isMeshExport
+                ? ExportPathPolicy.NormalizeVirtualPath(Path.ChangeExtension(relative, NativeModelExportService.FileExtension(request.Kind)))
+                : relative;
+            var target = singleOutputPath ?? ExportPathPolicy.ResolveContainedPath(destination, outputRelative);
+            if (singleOutputPath is not null)
+            {
+                outputRelative = ExportPathPolicy.NormalizeVirtualPath(
+                    Path.GetRelativePath(destination, singleOutputPath).Replace('\\', '/'));
+            }
             EnsureArchiveSourceIsNotTarget(archiveSession!, target);
             ExportPathPolicy.PrepareContainedOutputPath(destination, target);
-            var outcome = await ExportArchiveEntryAsync(entry, target, relative, request, outputPaths, cancellationToken).ConfigureAwait(false);
+            var outcome = await ExportArchiveEntryAsync(
+                archiveSession!,
+                entry,
+                target,
+                outputRelative,
+                request,
+                outputPaths,
+                progress,
+                cancellationToken).ConfigureAwait(false);
             RecordOutcome(outcome);
             completed++;
             if (outcome.Cancelled)
@@ -110,7 +158,7 @@ public sealed class ArchiveExportService(
             }
             if (outcome.Exported)
             {
-                manifestWriter?.AddArchive(ToManifestEntry(entry, relative));
+                manifestWriter?.AddArchive(ToManifestEntry(entry, outputRelative));
             }
         }
 
@@ -175,30 +223,61 @@ public sealed class ArchiveExportService(
     }
 
     private async Task<ExportOutcome> ExportArchiveEntryAsync(
+        ArchiveSession archiveSession,
         ArchiveEntryDto entry,
         string target,
         string relative,
         ExportPlanRequest request,
         HashSet<string> outputPaths,
+        Func<ProgressUpdate, Task>? progress,
         CancellationToken cancellationToken)
     {
+        var isMeshExport = NativeModelExportService.SupportsFormat(request.Kind);
+        if (isMeshExport && !NativeModelPreviewService.Supports(entry.Extension))
+        {
+            return new ExportOutcome(
+                new ExportItemResult(entry.Path, null, "failed", $"Mesh interchange export does not support {entry.Extension} files."),
+                false,
+                false);
+        }
         var collision = CheckCollision(entry.Path, target, request.CollisionPolicy, outputPaths);
         if (collision is not null) return collision;
         try
         {
             if (request.Kind != ExportKind.ManifestOnly)
             {
-                var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                await AtomicFile.WriteAsync(
-                    target,
-                    async (stream, token) => await stream.WriteAsync(decoded.Bytes, token).ConfigureAwait(false),
-                    cancellationToken,
-                    overwrite: request.CollisionPolicy == ExportCollisionPolicy.Overwrite).ConfigureAwait(false);
+                if (isMeshExport)
+                {
+                    await modelExports.ExportAsync(
+                        archiveSession,
+                        entry,
+                        request.Kind,
+                        target,
+                        request.CollisionPolicy == ExportCollisionPolicy.Overwrite,
+                        progress,
+                        cancellationToken).ConfigureAwait(false);
+                }
+                else
+                {
+                    var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    await AtomicFile.WriteAsync(
+                        target,
+                        async (stream, token) => await stream.WriteAsync(decoded.Bytes, token).ConfigureAwait(false),
+                        cancellationToken,
+                        overwrite: request.CollisionPolicy == ExportCollisionPolicy.Overwrite).ConfigureAwait(false);
+                }
             }
             return new ExportOutcome(new ExportItemResult(entry.Path, relative, "exported", null), true, false);
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NativeArchiveException or InvalidDataException)
+        catch (Exception exception) when (exception is IOException
+            or UnauthorizedAccessException
+            or NativeArchiveException
+            or InvalidDataException
+            or NotSupportedException
+            or TimeoutException
+            or InvalidOperationException
+            or JsonException)
         {
             return new ExportOutcome(new ExportItemResult(entry.Path, null, "failed", exception.Message), false, false);
         }

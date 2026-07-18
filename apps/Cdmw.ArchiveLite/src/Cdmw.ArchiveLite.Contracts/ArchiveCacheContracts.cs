@@ -15,6 +15,7 @@ public enum ArchiveCacheHealthState
     Unknown,
     Checking,
     Current,
+    SessionOnly,
     Missing,
     Stale,
     Invalid,

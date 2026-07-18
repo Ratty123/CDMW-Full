@@ -6,8 +6,9 @@ $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $liteRoot "..\.."))
 $nativeRoot = Join-Path $repositoryRoot "native\cdmw_archive_core"
 $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
 $acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
+$meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
 $rendererRoot = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment"
-$roots = @($liteRoot, $nativeRoot, $previewRoot, $acceleratorRoot, $rendererRoot)
+$roots = @($liteRoot, $nativeRoot, $previewRoot, $acceleratorRoot, $meshCoreRoot, $rendererRoot)
 $bannedExtensions = @(".py", ".pyc", ".pyo", ".pyd", ".pyw", ".whl", ".egg", ".ipynb")
 
 $bannedFiles = foreach ($root in $roots) {

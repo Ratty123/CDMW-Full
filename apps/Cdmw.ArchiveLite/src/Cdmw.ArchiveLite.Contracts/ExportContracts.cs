@@ -24,6 +24,7 @@ public enum ExportKind
     Wav,
     Obj,
     Fbx,
+    Glb,
     HkxJson,
     HkxXml,
     StructuredJson,
@@ -38,7 +39,8 @@ public sealed record ExportPlanRequest(
     IReadOnlyList<string>? LoosePaths,
     string? LooseSourceRoot = null,
     ExportCollisionPolicy CollisionPolicy = ExportCollisionPolicy.Skip,
-    ExportManifestFormat ManifestFormat = ExportManifestFormat.Json);
+    ExportManifestFormat ManifestFormat = ExportManifestFormat.Json,
+    string? SingleOutputPath = null);
 
 public sealed record ExportItemResult(string SourcePath, string? OutputPath, string Status, string? Message);
 

@@ -26,6 +26,10 @@
   <data name="ItemFinder" xml:space="preserve"><value>Buscador de objetos</value></data>
   <data name="MaterialFinder" xml:space="preserve"><value>Buscador de materiales</value></data>
   <data name="AssetFamily" xml:space="preserve"><value>Familia de recursos</value></data>
+  <data name="ExportMesh" xml:space="preserve"><value>Exportar malla...</value></data>
+  <data name="ExportMeshHint" xml:space="preserve"><value>Exporta la malla PAC/PAM seleccionada para Blender u otra herramienta 3D.</value></data>
+  <data name="MeshExportFilter" xml:space="preserve"><value>glTF Binary (*.glb)|*.glb|Wavefront OBJ (*.obj)|*.obj|Autodesk FBX (*.fbx)|*.fbx</value></data>
+  <data name="MeshExportUnsupportedExtension" xml:space="preserve"><value>Elige un archivo de salida .glb, .obj o .fbx.</value></data>
   <data name="ExportSelected" xml:space="preserve"><value>Exportar selección</value></data>
   <data name="ExportFiltered" xml:space="preserve"><value>Exportar filtrados</value></data>
   <data name="Path" xml:space="preserve"><value>Ruta</value></data>
@@ -71,7 +75,7 @@
   <data name="ThemeMidnight" xml:space="preserve"><value>Medianoche</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Claro</value></data>
   <data name="ThemeApplied" xml:space="preserve"><value>Tema aplicado.</value></data>
-  <data name="LanguageRestart" xml:space="preserve"><value>El idioma cambiará después de reiniciar Archive Lite.</value></data>
+  <data name="LanguageApplied" xml:space="preserve"><value>Idioma aplicado.</value></data>
   <data name="CollisionPolicy" xml:space="preserve"><value>Si ya existe un archivo</value></data>
   <data name="ManifestFormat" xml:space="preserve"><value>Formato del manifiesto</value></data>
   <data name="RoleOther" xml:space="preserve"><value>Otros</value></data>
@@ -116,6 +120,8 @@
   <data name="ProgressValidating" xml:space="preserve"><value>Comprobando referencias del paquete...</value></data>
   <data name="ProgressLoadingEntries" xml:space="preserve"><value>Cargando entradas...</value></data>
   <data name="ProgressExporting" xml:space="preserve"><value>Exportando...</value></data>
+  <data name="ProgressPreparingMesh" xml:space="preserve"><value>Preparando datos de la malla...</value></data>
+  <data name="ProgressWritingMesh" xml:space="preserve"><value>Escribiendo archivo de malla...</value></data>
   <data name="ProgressFinishing" xml:space="preserve"><value>Finalizando...</value></data>
   <data name="ProgressWorking" xml:space="preserve"><value>Procesando...</value></data>
   <data name="PreviewProgressPreparing" xml:space="preserve"><value>Preparando la vista previa...</value></data>
@@ -166,11 +172,25 @@
   <data name="CacheNotChecked" xml:space="preserve"><value>CACHE SIN COMPROBAR</value></data>
   <data name="CacheChecking" xml:space="preserve"><value>COMPROBANDO CACHE</value></data>
   <data name="CacheCurrent" xml:space="preserve"><value>CACHE ACTUAL</value></data>
+  <data name="CacheSessionOnly" xml:space="preserve"><value>SESION DE UNA VEZ</value></data>
   <data name="CacheMissing" xml:space="preserve"><value>FALTA CACHE</value></data>
   <data name="CacheStale" xml:space="preserve"><value>CACHE OBSOLETA</value></data>
   <data name="CacheInvalid" xml:space="preserve"><value>CARPETA NO VALIDA</value></data>
   <data name="CacheReused" xml:space="preserve"><value>Se reutilizo el indice de archivo verificado.</value></data>
   <data name="CacheRebuilt" xml:space="preserve"><value>Se reconstruyo el indice y los metadatos de cache estan actualizados.</value></data>
+  <data name="CacheSessionOnlyLoaded" xml:space="preserve"><value>El archivo se indexo de nuevo para esta sesion. No se creo ni cambio ningun indice de archivo persistente.</value></data>
+  <data name="CacheChoiceTitle" xml:space="preserve"><value>Carga del archivo</value></data>
+  <data name="CacheChoiceHeading" xml:space="preserve"><value>Elige como cargar el archivo</value></data>
+  <data name="CacheChoiceIntro" xml:space="preserve"><value>Archive Lite necesita un indice de los archivos del juego. Elige si se puede reutilizar o si solo debe durar durante esta sesion.</value></data>
+  <data name="CacheChoiceSourceLabel" xml:space="preserve"><value>Carpeta</value></data>
+  <data name="CacheChoiceRecommended" xml:space="preserve"><value>RECOMENDADO</value></data>
+  <data name="CacheChoicePersistentTitle" xml:space="preserve"><value>Usar cache persistente</value></data>
+  <data name="CacheChoicePersistentBody" xml:space="preserve"><value>Reutiliza un indice verificado cuando sea posible. Si falta o esta obsoleto, Archive Lite lo crea y lo guarda localmente para acelerar las cargas futuras. Usa algo de espacio local.</value></data>
+  <data name="CacheChoicePersistentRefreshTitle" xml:space="preserve"><value>Reconstruir cache persistente</value></data>
+  <data name="CacheChoicePersistentRefreshBody" xml:space="preserve"><value>Vuelve a examinar el archivo y sustituye de forma segura el indice guardado. Las cargas futuras pueden reutilizar la cache actualizada.</value></data>
+  <data name="CacheChoiceSessionTitle" xml:space="preserve"><value>Cargar solo esta vez</value></data>
+  <data name="CacheChoiceSessionBody" xml:space="preserve"><value>Crea un indice temporal de la lista del archivo para esta sesion. No se anade a la cache de indices reutilizable y se elimina al cerrar Archive Lite, por lo que Cargar o Actualizar volvera a examinar la proxima vez.</value></data>
+  <data name="CacheChoiceTimeNotice" xml:space="preserve"><value>El primer examen puede tardar varios minutos en instalaciones grandes. Los archivos de origen permanecen en modo de solo lectura.</value></data>
   <data name="EnterToSearch" xml:space="preserve"><value>Pulsa Enter para buscar</value></data>
   <data name="Minimize" xml:space="preserve"><value>Minimizar</value></data>
   <data name="Maximize" xml:space="preserve"><value>Maximizar o restaurar</value></data>
