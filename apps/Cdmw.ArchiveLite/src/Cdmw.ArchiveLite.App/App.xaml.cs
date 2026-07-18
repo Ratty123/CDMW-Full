@@ -22,6 +22,7 @@ public partial class App : Application
 
         var settings = await SettingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(true);
         LocalizationManager.ApplyCulture(settings.Language);
+        ThemeManager.Apply(settings.Theme);
 
         try
         {
@@ -50,6 +51,7 @@ public partial class App : Application
         try
         {
             LocalizationManager.ApplyCulture("en");
+            ThemeManager.Apply("graphite");
             _worker = await WorkerProcessHost.StartAsync(CancellationToken.None).ConfigureAwait(true);
             var result = await _worker.SendAsync<PingRequest, PingResult>(
                 WorkerProtocol.Ping,
@@ -62,9 +64,20 @@ public partial class App : Application
             }
             var viewModel = new MainWindowViewModel(_worker, new LiteSettings());
             var window = new MainWindow(viewModel);
-            window.ApplyTemplate();
-            window.Measure(new Size(1500, 900));
-            window.Arrange(new Rect(0, 0, 1500, 900));
+            foreach (var theme in ThemeManager.AvailableThemes)
+            {
+                ThemeManager.Apply(theme.Id);
+                foreach (var size in new[] { new Size(1440, 880), new Size(1200, 720) })
+                {
+                    window.ApplyTemplate();
+                    window.Measure(size);
+                    window.Arrange(new Rect(new Point(), size));
+                    if (!double.IsFinite(window.DesiredSize.Width) || !double.IsFinite(window.DesiredSize.Height))
+                    {
+                        throw new InvalidDataException($"The {theme.Id} theme produced an invalid window layout.");
+                    }
+                }
+            }
             await _worker.ShutdownAsync().ConfigureAwait(true);
             Shutdown(0);
         }

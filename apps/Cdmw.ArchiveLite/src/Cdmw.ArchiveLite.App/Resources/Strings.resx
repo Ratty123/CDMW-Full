@@ -21,6 +21,8 @@
   <data name="PreviewableOnly" xml:space="preserve"><value>Previewable only</value></data>
   <data name="ViewMode" xml:space="preserve"><value>View</value></data>
   <data name="ReadOnlyTools" xml:space="preserve"><value>Read-only tools</value></data>
+  <data name="ReadOnlyCaption" xml:space="preserve"><value>Archive sources are opened read-only and are never modified.</value></data>
+  <data name="ReadOnlyBadge" xml:space="preserve"><value>READ-ONLY</value></data>
   <data name="ItemFinder" xml:space="preserve"><value>Item Finder</value></data>
   <data name="MaterialFinder" xml:space="preserve"><value>Material Finder</value></data>
   <data name="AssetFamily" xml:space="preserve"><value>Asset Family</value></data>
@@ -64,6 +66,11 @@
   <data name="NextPage" xml:space="preserve"><value>Next</value></data>
   <data name="Metadata" xml:space="preserve"><value>Metadata</value></data>
   <data name="Language" xml:space="preserve"><value>Language</value></data>
+  <data name="Theme" xml:space="preserve"><value>Theme</value></data>
+  <data name="ThemeGraphite" xml:space="preserve"><value>Graphite</value></data>
+  <data name="ThemeMidnight" xml:space="preserve"><value>Midnight</value></data>
+  <data name="ThemeLight" xml:space="preserve"><value>Light</value></data>
+  <data name="ThemeApplied" xml:space="preserve"><value>Theme applied.</value></data>
   <data name="LanguageRestart" xml:space="preserve"><value>The language will change after Archive Lite restarts.</value></data>
   <data name="CollisionPolicy" xml:space="preserve"><value>When a file exists</value></data>
   <data name="ManifestFormat" xml:space="preserve"><value>Manifest format</value></data>

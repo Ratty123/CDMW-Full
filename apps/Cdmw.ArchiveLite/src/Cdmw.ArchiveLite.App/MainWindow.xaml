@@ -7,176 +7,58 @@
         xmlns:infra="clr-namespace:Cdmw.ArchiveLite.App.Infrastructure"
         mc:Ignorable="d"
         Title="{infra:Loc Key=ProductName}"
-        Width="1500"
-        Height="900"
-        MinWidth="1080"
-        MinHeight="680"
+        Width="1440"
+        Height="880"
+        MinWidth="1200"
+        MinHeight="720"
         WindowStartupLocation="CenterScreen"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True">
     <Window.Resources>
         <infra:ArchiveRoleLabelConverter x:Key="ArchiveRoleLabelConverter" />
     </Window.Resources>
-    <Grid>
+
+    <Grid Background="{DynamicResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" />
-            <RowDefinition Height="28" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TabControl Grid.Row="0" Margin="10">
+        <TabControl Grid.Row="0" Margin="16,12,16,10">
             <TabItem Header="{infra:Loc Key=ArchiveBrowserTab}">
-                <Grid Margin="8">
+                <Grid Margin="16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                     </Grid.RowDefinitions>
-                    <Grid Grid.Row="0" Margin="0,0,0,8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Margin="0,0,10,0" Text="{infra:Loc Key=ArchiveRoot}" />
-                        <TextBox Grid.Column="1"
-                                 Text="{Binding ArchiveBrowser.ArchiveRoot, UpdateSourceTrigger=PropertyChanged}"
-                                 AutomationProperties.Name="{infra:Loc Key=ArchiveRoot}" />
-                        <Button Grid.Column="2" Content="{infra:Loc Key=Browse}" Command="{Binding ArchiveBrowser.BrowseCommand}" />
-                        <Button Grid.Column="3" Content="{infra:Loc Key=OpenArchive}" Command="{Binding ArchiveBrowser.OpenCommand}" />
-                        <Button Grid.Column="4" Content="{infra:Loc Key=Refresh}" Command="{Binding ArchiveBrowser.RefreshCommand}" />
-                        <Button Grid.Column="5" Content="{infra:Loc Key=Cancel}" Command="{Binding ArchiveBrowser.CancelCommand}" />
-                    </Grid>
 
-                    <Border Grid.Row="1"
-                            Margin="0,0,0,8"
-                            Padding="10,7"
-                            Background="{StaticResource PanelRaisedBrush}"
-                            BorderBrush="{StaticResource BorderBrush}"
-                            BorderThickness="1"
-                            Visibility="{Binding ArchiveBrowser.IsOperationProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                    <Border Grid.Row="0" Style="{StaticResource CardBorderStyle}" Margin="0,0,0,12">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock Text="{Binding ArchiveBrowser.OperationProgressText}" />
-                            <ProgressBar Grid.Row="1"
-                                         Margin="0,6,0,0"
-                                         Height="5"
-                                         Maximum="100"
-                                         Value="{Binding ArchiveBrowser.OperationProgressPercent}"
-                                         IsIndeterminate="{Binding ArchiveBrowser.IsOperationProgressIndeterminate}" />
-                        </Grid>
-                    </Border>
-
-                    <Grid Grid.Row="2">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="245" MinWidth="210" />
-                            <ColumnDefinition Width="5" />
-                            <ColumnDefinition Width="3*" MinWidth="380" />
-                            <ColumnDefinition Width="5" />
-                            <ColumnDefinition Width="2*" MinWidth="300" />
-                        </Grid.ColumnDefinitions>
-
-                        <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
-                            <StackPanel>
-                                <GroupBox Header="{infra:Loc Key=Filters}">
-                                    <StackPanel>
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=PathFilter}" />
-                                        <TextBox Margin="0,0,0,8" Text="{Binding ArchiveBrowser.PathFilter, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=ExtensionFilter}" />
-                                        <TextBox Margin="0,0,0,8" Text="{Binding ArchiveBrowser.ExtensionFilter, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=PackageFilter}" />
-                                        <TextBox Margin="0,0,0,8" Text="{Binding ArchiveBrowser.PackageFilter, UpdateSourceTrigger=PropertyChanged}" />
-                                        <CheckBox Margin="0,4,0,8"
-                                                  Content="{infra:Loc Key=PreviewableOnly}"
-                                                  IsChecked="{Binding ArchiveBrowser.PreviewableOnly}" />
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=ViewMode}" />
-                                        <ComboBox Margin="0,0,0,8"
-                                                  ItemsSource="{Binding ArchiveBrowser.ViewModes}"
-                                                  DisplayMemberPath="Label"
-                                                  SelectedValuePath="Value"
-                                                  SelectedValue="{Binding ArchiveBrowser.ViewMode}" />
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=FolderFilter}" />
-                                        <ComboBox Margin="0,0,0,8"
-                                                  ItemsSource="{Binding ArchiveBrowser.Folders}"
-                                                  SelectedItem="{Binding ArchiveBrowser.SelectedFolder}" />
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=RoleFilter}" />
-                                        <ComboBox Margin="0,0,0,8"
-                                                  ItemsSource="{Binding ArchiveBrowser.RoleFilters}"
-                                                  SelectedItem="{Binding ArchiveBrowser.SelectedRole}" />
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=SortBy}" />
-                                        <ComboBox Margin="0,0,0,4"
-                                                  ItemsSource="{Binding ArchiveBrowser.SortFields}"
-                                                  DisplayMemberPath="Label"
-                                                  SelectedValuePath="Value"
-                                                  SelectedValue="{Binding ArchiveBrowser.SortField}" />
-                                        <CheckBox Margin="0,4,0,8"
-                                                  Content="{infra:Loc Key=Descending}"
-                                                  IsChecked="{Binding ArchiveBrowser.SortDescending}" />
-                                        <Button Content="{infra:Loc Key=Search}" Command="{Binding ArchiveBrowser.ApplyFilterCommand}" />
-                                    </StackPanel>
-                                </GroupBox>
-                                <GroupBox Header="{infra:Loc Key=Folders}"
-                                          Visibility="{Binding ArchiveBrowser.ShowFolderNavigator, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <ListBox ItemsSource="{Binding ArchiveBrowser.Folders}"
-                                             SelectedItem="{Binding ArchiveBrowser.SelectedFolder}"
-                                             MaxHeight="170" />
-                                </GroupBox>
-                                <GroupBox Header="{infra:Loc Key=Categories}"
-                                          Visibility="{Binding ArchiveBrowser.ShowCategoryNavigator, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                    <ListBox ItemsSource="{Binding ArchiveBrowser.Categories}"
-                                             SelectedItem="{Binding ArchiveBrowser.SelectedCategory}"
-                                             MaxHeight="170" />
-                                </GroupBox>
-                                <GroupBox Header="{infra:Loc Key=ReadOnlyTools}">
-                                    <StackPanel>
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=CollisionPolicy}" />
-                                        <ComboBox Margin="0,0,0,8"
-                                                  ItemsSource="{Binding ArchiveBrowser.CollisionPolicies}"
-                                                  DisplayMemberPath="Label"
-                                                  SelectedValuePath="Value"
-                                                  SelectedValue="{Binding ArchiveBrowser.CollisionPolicy}" />
-                                        <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=ManifestFormat}" />
-                                        <ComboBox Margin="0,0,0,8"
-                                                  ItemsSource="{Binding ArchiveBrowser.ManifestFormats}"
-                                                  DisplayMemberPath="Label"
-                                                  SelectedValuePath="Value"
-                                                  SelectedValue="{Binding ArchiveBrowser.ManifestFormat}" />
-                                        <Button Content="{infra:Loc Key=ExportSelected}" Command="{Binding ArchiveBrowser.ExportSelectedCommand}" />
-                                        <Button Content="{infra:Loc Key=ExportFiltered}" Command="{Binding ArchiveBrowser.ExportFilteredCommand}" />
-                                    </StackPanel>
-                                </GroupBox>
-                            </StackPanel>
-                        </ScrollViewer>
-
-                        <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
-                        <Grid Grid.Column="2" Margin="8,0">
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="*" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <DataGrid Grid.Row="0"
-                                      ItemsSource="{Binding ArchiveBrowser.Entries}"
-                                      SelectedItem="{Binding ArchiveBrowser.SelectedEntry}"
-                                      AutoGenerateColumns="False"
-                                      IsReadOnly="True"
-                                      SelectionMode="Single"
-                                      CanUserSortColumns="False"
-                                      AlternationCount="2"
-                                      ScrollViewer.CanContentScroll="True">
-                                <DataGrid.Columns>
-                                    <DataGridTextColumn Header="{infra:Loc Key=Name}" Binding="{Binding Name}" Width="180" />
-                                    <DataGridTextColumn Header="{infra:Loc Key=Path}" Binding="{Binding Path}" Width="*" />
-                                    <DataGridTextColumn Header="{infra:Loc Key=Type}" Binding="{Binding Role, Converter={StaticResource ArchiveRoleLabelConverter}}" Width="105" />
-                                    <DataGridTextColumn Header="{infra:Loc Key=Size}" Binding="{Binding OriginalSize, StringFormat={}{0:N0}}" Width="95" />
-                                    <DataGridTextColumn Header="{infra:Loc Key=Package}" Binding="{Binding Package}" Width="170" />
-                                </DataGrid.Columns>
-                            </DataGrid>
-                            <Grid Grid.Row="1" Margin="2,6,2,0">
+                            <Grid Grid.Row="0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0"
+                                           MinWidth="94"
+                                           Margin="0,0,12,0"
+                                           FontWeight="SemiBold"
+                                           Text="{infra:Loc Key=ArchiveRoot}" />
+                                <TextBox Grid.Column="1"
+                                         Text="{Binding ArchiveBrowser.ArchiveRoot, UpdateSourceTrigger=PropertyChanged}"
+                                         AutomationProperties.Name="{infra:Loc Key=ArchiveRoot}" />
+                                <Button Grid.Column="2"
+                                        Margin="10,0,0,0"
+                                        Content="{infra:Loc Key=Browse}"
+                                        Command="{Binding ArchiveBrowser.BrowseCommand}" />
+                            </Grid>
+                            <Grid Grid.Row="1" Margin="0,12,0,0">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
@@ -184,50 +66,236 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Grid.Column="0"
-                                           Foreground="{StaticResource MutedTextBrush}"
-                                           Text="{Binding ArchiveBrowser.TotalMatchesLabel}" />
+                                           Style="{StaticResource CaptionTextStyle}"
+                                           Text="{infra:Loc Key=ReadOnlyCaption}" />
                                 <Button Grid.Column="1"
-                                        Padding="9,3"
-                                        Content="{infra:Loc Key=PreviousPage}"
-                                        Command="{Binding ArchiveBrowser.PreviousPageCommand}" />
-                                <TextBlock Grid.Column="2"
-                                           MinWidth="120"
-                                           Margin="8,0"
-                                           HorizontalAlignment="Center"
-                                           Text="{Binding ArchiveBrowser.PageSummary}" />
+                                        Margin="0,0,8,0"
+                                        Style="{StaticResource PrimaryButtonStyle}"
+                                        Content="{infra:Loc Key=OpenArchive}"
+                                        Command="{Binding ArchiveBrowser.OpenCommand}" />
+                                <Button Grid.Column="2"
+                                        Margin="0,0,8,0"
+                                        Content="{infra:Loc Key=Refresh}"
+                                        Command="{Binding ArchiveBrowser.RefreshCommand}" />
                                 <Button Grid.Column="3"
-                                        Padding="9,3"
-                                        Content="{infra:Loc Key=NextPage}"
-                                        Command="{Binding ArchiveBrowser.NextPageCommand}" />
+                                        Content="{infra:Loc Key=Cancel}"
+                                        Command="{Binding ArchiveBrowser.CancelCommand}" />
                             </Grid>
                         </Grid>
+                    </Border>
 
-                        <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
-                        <Grid Grid.Column="4" Margin="8,0,0,0">
+                    <Border Grid.Row="1"
+                            Margin="0,0,0,12"
+                            Padding="12,9"
+                            Background="{DynamicResource SurfaceRaisedBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="6"
+                            Visibility="{Binding ArchiveBrowser.IsOperationProgressVisible, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto" />
-                                <RowDefinition Height="*" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock Grid.Row="0"
-                                       Margin="0,0,0,8"
-                                       FontSize="16"
-                                       FontWeight="SemiBold"
-                                       Text="{Binding ArchiveBrowser.PreviewTitle}" />
-                            <Grid Grid.Row="1">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding ArchiveBrowser.OperationProgressText}" />
+                            <ProgressBar Grid.Row="1"
+                                         Margin="0,8,0,0"
+                                         Maximum="100"
+                                         Value="{Binding ArchiveBrowser.OperationProgressPercent, Mode=OneWay}"
+                                         IsIndeterminate="{Binding ArchiveBrowser.IsOperationProgressIndeterminate, Mode=OneWay}" />
+                        </Grid>
+                    </Border>
+
+                    <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="278" MinWidth="250" />
+                            <ColumnDefinition Width="7" />
+                            <ColumnDefinition Width="1.2*" MinWidth="410" />
+                            <ColumnDefinition Width="7" />
+                            <ColumnDefinition Width="*" MinWidth="350" />
+                        </Grid.ColumnDefinitions>
+
+                        <ScrollViewer Grid.Column="0"
+                                      Margin="0,0,10,0"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel>
+                                <GroupBox Header="{infra:Loc Key=Filters}">
+                                    <StackPanel>
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=PathFilter}" />
+                                        <TextBox Margin="0,0,0,10" Text="{Binding ArchiveBrowser.PathFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ExtensionFilter}" />
+                                        <TextBox Margin="0,0,0,10" Text="{Binding ArchiveBrowser.ExtensionFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=PackageFilter}" />
+                                        <TextBox Margin="0,0,0,10" Text="{Binding ArchiveBrowser.PackageFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                        <CheckBox Margin="0,1,0,10"
+                                                  Content="{infra:Loc Key=PreviewableOnly}"
+                                                  IsChecked="{Binding ArchiveBrowser.PreviewableOnly}" />
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ViewMode}" />
+                                        <ComboBox Margin="0,0,0,10"
+                                                  ItemsSource="{Binding ArchiveBrowser.ViewModes}"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedValuePath="Value"
+                                                  SelectedValue="{Binding ArchiveBrowser.ViewMode}" />
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=FolderFilter}" />
+                                        <ComboBox Margin="0,0,0,10"
+                                                  ItemsSource="{Binding ArchiveBrowser.Folders}"
+                                                  SelectedItem="{Binding ArchiveBrowser.SelectedFolder}" />
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=RoleFilter}" />
+                                        <ComboBox Margin="0,0,0,10"
+                                                  ItemsSource="{Binding ArchiveBrowser.RoleFilters}"
+                                                  SelectedItem="{Binding ArchiveBrowser.SelectedRole}" />
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=SortBy}" />
+                                        <ComboBox Margin="0,0,0,7"
+                                                  ItemsSource="{Binding ArchiveBrowser.SortFields}"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedValuePath="Value"
+                                                  SelectedValue="{Binding ArchiveBrowser.SortField}" />
+                                        <CheckBox Margin="0,1,0,10"
+                                                  Content="{infra:Loc Key=Descending}"
+                                                  IsChecked="{Binding ArchiveBrowser.SortDescending}" />
+                                        <Button Style="{StaticResource PrimaryButtonStyle}"
+                                                Content="{infra:Loc Key=Search}"
+                                                Command="{Binding ArchiveBrowser.ApplyFilterCommand}" />
+                                    </StackPanel>
+                                </GroupBox>
+
+                                <GroupBox Header="{infra:Loc Key=Folders}"
+                                          Visibility="{Binding ArchiveBrowser.ShowFolderNavigator, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <ListBox MaxHeight="180"
+                                             ItemsSource="{Binding ArchiveBrowser.Folders}"
+                                             SelectedItem="{Binding ArchiveBrowser.SelectedFolder}" />
+                                </GroupBox>
+
+                                <GroupBox Header="{infra:Loc Key=Categories}"
+                                          Visibility="{Binding ArchiveBrowser.ShowCategoryNavigator, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <ListBox MaxHeight="180"
+                                             ItemsSource="{Binding ArchiveBrowser.Categories}"
+                                             SelectedItem="{Binding ArchiveBrowser.SelectedCategory}" />
+                                </GroupBox>
+
+                                <GroupBox Header="{infra:Loc Key=ReadOnlyTools}">
+                                    <StackPanel>
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=CollisionPolicy}" />
+                                        <ComboBox Margin="0,0,0,10"
+                                                  ItemsSource="{Binding ArchiveBrowser.CollisionPolicies}"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedValuePath="Value"
+                                                  SelectedValue="{Binding ArchiveBrowser.CollisionPolicy}" />
+                                        <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ManifestFormat}" />
+                                        <ComboBox Margin="0,0,0,10"
+                                                  ItemsSource="{Binding ArchiveBrowser.ManifestFormats}"
+                                                  DisplayMemberPath="Label"
+                                                  SelectedValuePath="Value"
+                                                  SelectedValue="{Binding ArchiveBrowser.ManifestFormat}" />
+                                        <Button Margin="0,0,0,8"
+                                                Content="{infra:Loc Key=ExportSelected}"
+                                                Command="{Binding ArchiveBrowser.ExportSelectedCommand}" />
+                                        <Button Content="{infra:Loc Key=ExportFiltered}"
+                                                Command="{Binding ArchiveBrowser.ExportFilteredCommand}" />
+                                    </StackPanel>
+                                </GroupBox>
+                            </StackPanel>
+                        </ScrollViewer>
+
+                        <GridSplitter Grid.Column="1" Width="7" HorizontalAlignment="Stretch" />
+
+                        <Border Grid.Column="2" Margin="10,0" Style="{StaticResource CardBorderStyle}" Padding="0">
+                            <Grid>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <DataGrid Grid.Row="0"
+                                          BorderThickness="0"
+                                          ItemsSource="{Binding ArchiveBrowser.Entries}"
+                                          SelectedItem="{Binding ArchiveBrowser.SelectedEntry}"
+                                          AutoGenerateColumns="False"
+                                          IsReadOnly="True"
+                                          SelectionMode="Single"
+                                          CanUserSortColumns="False"
+                                          AlternationCount="2"
+                                          ScrollViewer.CanContentScroll="True">
+                                    <DataGrid.Columns>
+                                        <DataGridTextColumn Header="{infra:Loc Key=Name}" Binding="{Binding Name}" Width="1.05*" MinWidth="110" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Path}" Binding="{Binding Path}" Width="1.55*" MinWidth="145" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Type}" Binding="{Binding Role, Converter={StaticResource ArchiveRoleLabelConverter}}" Width="78" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Size}" Binding="{Binding OriginalSize, StringFormat={}{0:N0}}" Width="80" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Package}" Binding="{Binding Package}" Width="110" />
+                                    </DataGrid.Columns>
+                                </DataGrid>
+                                <Border Grid.Row="1"
+                                        Padding="12,8"
+                                        Background="{DynamicResource SurfaceRaisedBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="0,1,0,0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   Text="{Binding ArchiveBrowser.TotalMatchesLabel}" />
+                                        <Button Grid.Column="1"
+                                                Margin="0,0,8,0"
+                                                Style="{StaticResource CompactButtonStyle}"
+                                                Content="{infra:Loc Key=PreviousPage}"
+                                                Command="{Binding ArchiveBrowser.PreviousPageCommand}" />
+                                        <TextBlock Grid.Column="2"
+                                                   MinWidth="112"
+                                                   Margin="2,0,10,0"
+                                                   HorizontalAlignment="Center"
+                                                   TextAlignment="Center"
+                                                   Text="{Binding ArchiveBrowser.PageSummary}" />
+                                        <Button Grid.Column="3"
+                                                Style="{StaticResource CompactButtonStyle}"
+                                                Content="{infra:Loc Key=NextPage}"
+                                                Command="{Binding ArchiveBrowser.NextPageCommand}" />
+                                    </Grid>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <GridSplitter Grid.Column="3" Width="7" HorizontalAlignment="Stretch" />
+
+                        <Border Grid.Column="4" Margin="10,0,0,0" Style="{StaticResource CardBorderStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <Border Grid.Row="0"
-                                        Background="{StaticResource PanelBackgroundBrush}"
-                                        BorderBrush="{StaticResource BorderBrush}"
-                                        BorderThickness="1">
+                                <Grid Grid.Row="0" Margin="0,0,0,11">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0"
+                                               Style="{StaticResource SectionTitleStyle}"
+                                               Text="{Binding ArchiveBrowser.PreviewTitle}" />
+                                    <Border Grid.Column="1" Style="{StaticResource BadgeBorderStyle}" Margin="10,0,0,0">
+                                        <TextBlock FontSize="10"
+                                                   FontWeight="Bold"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   Text="{infra:Loc Key=ReadOnlyBadge}" />
+                                    </Border>
+                                </Grid>
+
+                                <Border Grid.Row="1"
+                                        Background="{DynamicResource InputBackgroundBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="5"
+                                        ClipToBounds="True">
                                     <Grid>
                                         <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                                       VerticalScrollBarVisibility="Auto"
                                                       Visibility="{Binding ArchiveBrowser.IsImagePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                            <Image Margin="8"
+                                            <Image Margin="12"
                                                    Source="{Binding ArchiveBrowser.PreviewImage}"
                                                    Stretch="Uniform"
                                                    RenderOptions.BitmapScalingMode="HighQuality" />
@@ -241,46 +309,56 @@
                                         <avalonEdit:TextEditor IsReadOnly="True"
                                                                ShowLineNumbers="True"
                                                                WordWrap="True"
-                                                               FontFamily="Cascadia Mono, Consolas"
-                                                               FontSize="12"
-                                                               Background="{StaticResource PanelBackgroundBrush}"
-                                                               Foreground="{StaticResource TextBrush}"
-                                                               Padding="8"
+                                                               FontFamily="Consolas"
+                                                               FontSize="12.5"
+                                                               Background="{DynamicResource InputBackgroundBrush}"
+                                                               Foreground="{DynamicResource TextBrush}"
+                                                               Padding="12"
+                                                               HorizontalScrollBarVisibility="Auto"
+                                                               VerticalScrollBarVisibility="Auto"
                                                                Visibility="{Binding ArchiveBrowser.IsTextPreview, Converter={StaticResource BooleanToVisibilityConverter}}"
                                                                infra:AvalonEditBinding.Text="{Binding ArchiveBrowser.PreviewText}" />
                                     </Grid>
                                 </Border>
-                                <Expander Grid.Row="1"
-                                          Margin="0,6,0,0"
+
+                                <Expander Grid.Row="2"
+                                          Margin="0,7,0,0"
                                           Header="{infra:Loc Key=Metadata}"
                                           IsExpanded="False">
-                                    <TextBox MaxHeight="150"
+                                    <TextBox MaxHeight="155"
                                              IsReadOnly="True"
                                              TextWrapping="Wrap"
+                                             AcceptsReturn="True"
                                              VerticalScrollBarVisibility="Auto"
                                              Text="{Binding ArchiveBrowser.PreviewMetadata, Mode=OneWay}" />
                                 </Expander>
-                                <TextBlock Grid.Row="2"
-                                           Margin="2,6,2,0"
-                                           Foreground="#FFFFC56D"
+
+                                <TextBlock Grid.Row="3"
+                                           Margin="4,7,4,0"
+                                           Foreground="{DynamicResource WarningBrush}"
                                            TextWrapping="Wrap"
+                                           TextTrimming="None"
                                            Text="{Binding ArchiveBrowser.PreviewWarnings}" />
                             </Grid>
-                        </Grid>
+                        </Border>
                     </Grid>
                 </Grid>
             </TabItem>
 
             <TabItem Header="{infra:Loc Key=TextSearchTab}">
-                <Grid Margin="8">
+                <Grid Margin="16">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="285" />
-                        <ColumnDefinition Width="5" />
-                        <ColumnDefinition Width="3*" />
-                        <ColumnDefinition Width="5" />
-                        <ColumnDefinition Width="2*" />
+                        <ColumnDefinition Width="300" MinWidth="270" />
+                        <ColumnDefinition Width="7" />
+                        <ColumnDefinition Width="1.25*" MinWidth="410" />
+                        <ColumnDefinition Width="7" />
+                        <ColumnDefinition Width="*" MinWidth="350" />
                     </Grid.ColumnDefinitions>
-                    <ScrollViewer Grid.Column="0" Padding="0,0,8,0">
+
+                    <ScrollViewer Grid.Column="0"
+                                  Margin="0,0,10,0"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <GroupBox Header="{infra:Loc Key=SearchSource}">
                                 <StackPanel>
@@ -288,84 +366,144 @@
                                               DisplayMemberPath="Label"
                                               SelectedValuePath="Value"
                                               SelectedValue="{Binding TextSearch.SourceKind}" />
-                                    <TextBlock Margin="2,8,2,2"
-                                               Foreground="{StaticResource MutedTextBrush}"
-                                               TextWrapping="Wrap"
+                                    <TextBlock Margin="2,9,2,2"
+                                               Style="{StaticResource CaptionTextStyle}"
                                                Text="{infra:Loc Key=OpenArchiveFirst}"
                                                Visibility="{Binding TextSearch.IsArchiveSource, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                     <StackPanel Visibility="{Binding TextSearch.IsLooseFolderSource, Converter={StaticResource BooleanToVisibilityConverter}}">
-                                        <TextBox Margin="0,8,0,0" Text="{Binding TextSearch.LooseFolder, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBox Margin="0,10,0,8" Text="{Binding TextSearch.LooseFolder, UpdateSourceTrigger=PropertyChanged}" />
                                         <Button Content="{infra:Loc Key=Browse}" Command="{Binding TextSearch.BrowseCommand}" />
                                     </StackPanel>
                                 </StackPanel>
                             </GroupBox>
+
                             <GroupBox Header="{infra:Loc Key=Query}">
                                 <StackPanel>
                                     <TextBox Text="{Binding TextSearch.Query, UpdateSourceTrigger=PropertyChanged}" />
-                                    <CheckBox Margin="0,8,0,0" Content="{infra:Loc Key=RegularExpression}" IsChecked="{Binding TextSearch.UseRegularExpression}" />
-                                    <CheckBox Margin="0,6,0,8" Content="{infra:Loc Key=CaseSensitive}" IsChecked="{Binding TextSearch.CaseSensitive}" />
-                                    <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=PathFilter}" />
-                                    <TextBox Margin="0,0,0,8" Text="{Binding TextSearch.PathFilter, UpdateSourceTrigger=PropertyChanged}" />
-                                    <TextBlock Margin="0,0,0,4" Text="{infra:Loc Key=Extensions}" />
-                                    <TextBox AcceptsReturn="True" MinHeight="66" Text="{Binding TextSearch.Extensions, UpdateSourceTrigger=PropertyChanged}" />
-                                    <WrapPanel Margin="0,8,0,0">
-                                        <Button Content="{infra:Loc Key=Search}" Command="{Binding TextSearch.SearchCommand}" />
-                                        <Button Content="{infra:Loc Key=Cancel}" Command="{Binding TextSearch.CancelCommand}" />
-                                    </WrapPanel>
-                                    <Button Content="{infra:Loc Key=ExportResults}" Command="{Binding TextSearch.ExportResultsCommand}" />
+                                    <CheckBox Margin="0,10,0,4"
+                                              Content="{infra:Loc Key=RegularExpression}"
+                                              IsChecked="{Binding TextSearch.UseRegularExpression}" />
+                                    <CheckBox Margin="0,0,0,10"
+                                              Content="{infra:Loc Key=CaseSensitive}"
+                                              IsChecked="{Binding TextSearch.CaseSensitive}" />
+                                    <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=PathFilter}" />
+                                    <TextBox Margin="0,0,0,10" Text="{Binding TextSearch.PathFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                    <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=Extensions}" />
+                                    <TextBox AcceptsReturn="True"
+                                             MinHeight="72"
+                                             VerticalContentAlignment="Top"
+                                             Text="{Binding TextSearch.Extensions, UpdateSourceTrigger=PropertyChanged}" />
+                                    <Grid Margin="0,10,0,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+                                        <Button Grid.Column="0"
+                                                Margin="0,0,5,0"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Content="{infra:Loc Key=Search}"
+                                                Command="{Binding TextSearch.SearchCommand}" />
+                                        <Button Grid.Column="1"
+                                                Margin="5,0,0,0"
+                                                Content="{infra:Loc Key=Cancel}"
+                                                Command="{Binding TextSearch.CancelCommand}" />
+                                    </Grid>
+                                    <Button Content="{infra:Loc Key=ExportResults}"
+                                            Command="{Binding TextSearch.ExportResultsCommand}" />
                                 </StackPanel>
                             </GroupBox>
                         </StackPanel>
                     </ScrollViewer>
-                    <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
-                    <DataGrid Grid.Column="2"
-                              Margin="8,0"
-                              ItemsSource="{Binding TextSearch.Matches}"
-                              SelectedItem="{Binding TextSearch.SelectedMatch}"
-                              AutoGenerateColumns="False"
-                              IsReadOnly="True"
-                              SelectionMode="Single"
-                              AlternationCount="2">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn Header="{infra:Loc Key=Path}" Binding="{Binding Path}" Width="*" />
-                            <DataGridTextColumn Header="{infra:Loc Key=Line}" Binding="{Binding Line}" Width="70" />
-                            <DataGridTextColumn Header="{infra:Loc Key=Context}" Binding="{Binding Context}" Width="2*" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <GridSplitter Grid.Column="3" Width="5" HorizontalAlignment="Stretch" Background="{StaticResource BorderBrush}" />
-                    <Grid Grid.Column="4" Margin="8,0,0,0">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="*" />
-                        </Grid.RowDefinitions>
-                        <TextBlock Grid.Row="0" Margin="0,0,0,8" FontSize="16" FontWeight="SemiBold" Text="{infra:Loc Key=Preview}" />
-                        <avalonEdit:TextEditor Grid.Row="1"
-                                               IsReadOnly="True"
-                                               ShowLineNumbers="False"
-                                               WordWrap="True"
-                                               FontFamily="Cascadia Mono, Consolas"
-                                               FontSize="12"
-                                               Background="{StaticResource PanelBackgroundBrush}"
-                                               Foreground="{StaticResource TextBrush}"
-                                               Padding="8"
-                                               infra:AvalonEditBinding.Text="{Binding TextSearch.PreviewText}" />
-                    </Grid>
+
+                    <GridSplitter Grid.Column="1" Width="7" HorizontalAlignment="Stretch" />
+
+                    <Border Grid.Column="2" Margin="10,0" Style="{StaticResource CardBorderStyle}" Padding="0">
+                        <DataGrid ItemsSource="{Binding TextSearch.Matches}"
+                                  SelectedItem="{Binding TextSearch.SelectedMatch}"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  SelectionMode="Single"
+                                  AlternationCount="2"
+                                  BorderThickness="0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="{infra:Loc Key=Path}" Binding="{Binding Path}" Width="1.5*" MinWidth="210" />
+                                <DataGridTextColumn Header="{infra:Loc Key=Line}" Binding="{Binding Line}" Width="74" />
+                                <DataGridTextColumn Header="{infra:Loc Key=Context}" Binding="{Binding Context}" Width="2*" MinWidth="220" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
+
+                    <GridSplitter Grid.Column="3" Width="7" HorizontalAlignment="Stretch" />
+
+                    <Border Grid.Column="4" Margin="10,0,0,0" Style="{StaticResource CardBorderStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="*" />
+                            </Grid.RowDefinitions>
+                            <TextBlock Grid.Row="0"
+                                       Margin="0,0,0,11"
+                                       Style="{StaticResource SectionTitleStyle}"
+                                       Text="{infra:Loc Key=Preview}" />
+                            <Border Grid.Row="1"
+                                    Background="{DynamicResource InputBackgroundBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="5"
+                                    ClipToBounds="True">
+                                <avalonEdit:TextEditor IsReadOnly="True"
+                                                       ShowLineNumbers="False"
+                                                       WordWrap="True"
+                                                       FontFamily="Consolas"
+                                                       FontSize="12.5"
+                                                       Background="{DynamicResource InputBackgroundBrush}"
+                                                       Foreground="{DynamicResource TextBrush}"
+                                                       Padding="12"
+                                                       HorizontalScrollBarVisibility="Auto"
+                                                       VerticalScrollBarVisibility="Auto"
+                                                       infra:AvalonEditBinding.Text="{Binding TextSearch.PreviewText}" />
+                            </Border>
+                        </Grid>
+                    </Border>
                 </Grid>
             </TabItem>
         </TabControl>
 
-        <Border Grid.Row="1" Background="{StaticResource PanelRaisedBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
-            <Grid Margin="12,0">
+        <Border Grid.Row="1"
+                MinHeight="48"
+                Padding="16,7"
+                Background="{DynamicResource SurfaceRaisedBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="0,1,0,0">
+            <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Grid.Column="0" Foreground="{StaticResource MutedTextBrush}" Text="{Binding Status}" />
-                <TextBlock Grid.Column="1" Margin="12,0,6,0" Foreground="{StaticResource MutedTextBrush}" Text="{infra:Loc Key=Language}" />
+                <TextBlock Grid.Column="0"
+                           Margin="0,0,16,0"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           Text="{Binding Status}" />
+                <TextBlock Grid.Column="1"
+                           Margin="0,0,7,0"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           Text="{infra:Loc Key=Theme}" />
                 <ComboBox Grid.Column="2"
-                          MinWidth="92"
-                          Padding="4,1"
+                          Width="132"
+                          MinHeight="32"
+                          Margin="0,0,18,0"
+                          ItemsSource="{Binding Themes}"
+                          SelectedItem="{Binding SelectedTheme}" />
+                <TextBlock Grid.Column="3"
+                           Margin="0,0,7,0"
+                           Foreground="{DynamicResource TextMutedBrush}"
+                           Text="{infra:Loc Key=Language}" />
+                <ComboBox Grid.Column="4"
+                          Width="112"
+                          MinHeight="32"
                           ItemsSource="{Binding Languages}"
                           SelectedItem="{Binding SelectedLanguage}" />
             </Grid>

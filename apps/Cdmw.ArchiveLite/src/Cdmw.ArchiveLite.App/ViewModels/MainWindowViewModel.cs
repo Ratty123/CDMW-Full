@@ -11,6 +11,7 @@ public sealed class MainWindowViewModel : ObservableObject
     private string _status = LocalizationManager.Get("ConnectingWorker");
     private bool _isShuttingDown;
     private LanguageOption _selectedLanguage;
+    private ThemeOption _selectedTheme;
 
     public MainWindowViewModel(WorkerProcessHost worker, LiteSettings settings)
     {
@@ -23,6 +24,10 @@ public sealed class MainWindowViewModel : ObservableObject
             new LanguageOption("es", "Español"),
         ];
         _selectedLanguage = Languages.FirstOrDefault(option => option.Code.Equals(settings.Language, StringComparison.OrdinalIgnoreCase)) ?? Languages[0];
+        Themes = ThemeManager.AvailableThemes
+            .Select(definition => new ThemeOption(definition.Id, LocalizationManager.Get(definition.ResourceKey)))
+            .ToArray();
+        _selectedTheme = Themes.FirstOrDefault(option => option.Id.Equals(settings.Theme, StringComparison.OrdinalIgnoreCase)) ?? Themes[0];
         ArchiveBrowser = new ArchiveBrowserViewModel(worker, settings.ArchiveRoot, UpdateStatus);
         TextSearch = new TextSearchViewModel(worker, () => ArchiveBrowser.SessionId, UpdateStatus);
         ArchiveBrowser.SessionChanged += (_, _) => TextSearch.NotifyArchiveSessionChanged();
@@ -34,6 +39,8 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<LanguageOption> Languages { get; }
 
+    public IReadOnlyList<ThemeOption> Themes { get; }
+
     public LanguageOption SelectedLanguage
     {
         get => _selectedLanguage;
@@ -43,6 +50,20 @@ public sealed class MainWindowViewModel : ObservableObject
             {
                 _settings = _settings with { Language = value.Code };
                 Status = LocalizationManager.Get("LanguageRestart");
+            }
+        }
+    }
+
+    public ThemeOption SelectedTheme
+    {
+        get => _selectedTheme;
+        set
+        {
+            if (value is not null && SetProperty(ref _selectedTheme, value))
+            {
+                ThemeManager.Apply(value.Id);
+                _settings = _settings with { Theme = value.Id };
+                Status = LocalizationManager.Get("ThemeApplied");
             }
         }
     }
@@ -102,6 +123,11 @@ public sealed class MainWindowViewModel : ObservableObject
 }
 
 public sealed record LanguageOption(string Code, string Label)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record ThemeOption(string Id, string Label)
 {
     public override string ToString() => Label;
 }

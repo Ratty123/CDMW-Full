@@ -17,6 +17,7 @@ internal static class ArchiveLiteTestRunner
             ("protocol serializes snake-case messages", TestProtocolAsync),
             ("English, German, and Spanish resources have identical keys", TestLocalizationResourcesAsync),
             ("read-only WPF text bindings are explicitly one-way", TestReadOnlyWpfBindingsAsync),
+            ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
@@ -103,6 +104,57 @@ internal static class ArchiveLiteTestRunner
         Require(
             readOnlyTextBindings.All(static binding => binding!.Contains("Mode=OneWay", StringComparison.Ordinal)),
             "a read-only TextBox uses WPF's default TwoWay Text binding");
+        return Task.CompletedTask;
+    }
+
+    private static Task TestWpfThemesAsync()
+    {
+        var appRoot = Path.Combine(
+            FindRepositoryRoot(),
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App");
+        var themeRoot = Path.Combine(appRoot, "Themes");
+        var themePaths = Directory.GetFiles(themeRoot, "Theme.*.xaml", SearchOption.TopDirectoryOnly);
+        Require(themePaths.Length == 3, "Archive Lite must ship exactly three selectable color themes");
+
+        var requiredKeys = new[]
+        {
+            "WindowBackgroundBrush",
+            "SurfaceBrush",
+            "InputBackgroundBrush",
+            "TextBrush",
+            "TextMutedBrush",
+            "AccentBrush",
+            "AccentTextBrush",
+            "BorderBrush",
+            "SelectionBrush",
+        };
+        foreach (var themePath in themePaths)
+        {
+            var document = System.Xml.Linq.XDocument.Load(themePath);
+            var keys = document.Root!
+                .Elements()
+                .Select(element => element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "Key")?.Value)
+                .Where(static key => key is not null)
+                .ToHashSet(StringComparer.Ordinal);
+            Require(
+                requiredKeys.All(requiredKey => keys.Contains(requiredKey)),
+                $"{Path.GetFileName(themePath)} is missing a shared theme resource");
+        }
+
+        var window = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "MainWindow.xaml"));
+        var progressBindings = window
+            .Descendants()
+            .Where(element => element.Name.LocalName == "ProgressBar")
+            .SelectMany(element => new[] { (string?)element.Attribute("Value"), (string?)element.Attribute("IsIndeterminate") })
+            .Where(static value => value?.StartsWith("{Binding", StringComparison.Ordinal) == true)
+            .ToArray();
+        Require(progressBindings.Length >= 2, "MainWindow has no bound progress indicator to validate");
+        Require(
+            progressBindings.All(static binding => binding!.Contains("Mode=OneWay", StringComparison.Ordinal)),
+            "a read-only progress property uses WPF's default TwoWay binding");
         return Task.CompletedTask;
     }
 

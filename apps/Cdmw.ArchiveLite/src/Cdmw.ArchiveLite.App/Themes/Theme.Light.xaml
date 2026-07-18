@@ -1,0 +1,27 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#EEF2F6" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#F5F7FA" />
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#E5ECF4" />
+    <SolidColorBrush x:Key="SurfacePressedBrush" Color="#D9E2EC" />
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#FBFCFE" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#C8D2DE" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="#8EA0B3" />
+    <SolidColorBrush x:Key="TextBrush" Color="#182331" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#5E6C7D" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="#9AA6B3" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#2C73B9" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#3E86CC" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#1E5D99" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="SelectionBrush" Color="#CFE4F8" />
+    <SolidColorBrush x:Key="SelectionInactiveBrush" Color="#E2E8EF" />
+    <SolidColorBrush x:Key="OverlayBrush" Color="#DBF7F9FC" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#A45A00" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#167A52" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#A7B5C4" />
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#7F92A7" />
+    <SolidColorBrush x:Key="ShadowBrush" Color="#30000000" />
+    <Color x:Key="NativePreviewBackgroundColor">#FBFCFE</Color>
+</ResourceDictionary>
