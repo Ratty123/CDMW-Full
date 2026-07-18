@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
@@ -12,6 +13,19 @@ public partial class MainWindow : Window
     private readonly MainWindowViewModel _viewModel;
     private bool _shutdownStarted;
     private bool _shutdownComplete;
+    private bool _applyingArchiveColumnLayout;
+
+    private static readonly HashSet<string> DefaultArchiveColumns = new(StringComparer.Ordinal)
+    {
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Name),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.KnownName),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.NameEvidence),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Extension),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Role),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.OriginalSize),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Package),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Path),
+    };
 
     public MainWindow(MainWindowViewModel viewModel)
     {
@@ -20,8 +34,10 @@ public partial class MainWindow : Window
         DataContext = viewModel;
         Closing += OnClosing;
         Closed += OnClosed;
+        Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
         ThemeManager.ThemeChanged += OnThemeChanged;
+        _viewModel.ArchiveBrowser.PropertyChanged += OnArchiveBrowserPropertyChanged;
     }
 
     private void OnSourceInitialized(object? sender, EventArgs eventArgs) => ApplyTitleBarTheme();
@@ -56,6 +72,125 @@ public partial class MainWindow : Window
     private void OnClosed(object? sender, EventArgs eventArgs)
     {
         ThemeManager.ThemeChanged -= OnThemeChanged;
+        _viewModel.ArchiveBrowser.PropertyChanged -= OnArchiveBrowserPropertyChanged;
+    }
+
+    private void OnLoaded(object sender, RoutedEventArgs eventArgs)
+    {
+        ArchiveColumnChooser.ItemsSource = ArchiveGrid.Columns;
+        ApplyArchiveColumnLayout();
+        UpdateArchiveSortIndicators();
+    }
+
+    private void OnArchiveBrowserPropertyChanged(object? sender, PropertyChangedEventArgs eventArgs)
+    {
+        if (eventArgs.PropertyName is nameof(ArchiveBrowserViewModel.SortField)
+            or nameof(ArchiveBrowserViewModel.SortDescending))
+        {
+            UpdateArchiveSortIndicators();
+        }
+    }
+
+    private void ApplyArchiveColumnLayout()
+    {
+        var configured = _viewModel.ArchiveVisibleColumns;
+        var visible = configured is { Count: > 0 }
+            ? configured.ToHashSet(StringComparer.Ordinal)
+            : DefaultArchiveColumns;
+        _applyingArchiveColumnLayout = true;
+        try
+        {
+            foreach (var column in ArchiveGrid.Columns)
+            {
+                column.Visibility = visible.Contains(column.SortMemberPath)
+                    ? Visibility.Visible
+                    : Visibility.Collapsed;
+            }
+            if (!ArchiveGrid.Columns.Any(static column => column.Visibility == Visibility.Visible)
+                && ArchiveGrid.Columns.Count > 0)
+            {
+                ArchiveGrid.Columns[0].Visibility = Visibility.Visible;
+            }
+        }
+        finally
+        {
+            _applyingArchiveColumnLayout = false;
+        }
+        SaveArchiveColumnLayout();
+    }
+
+    private void OnArchiveColumnsButtonClick(object sender, RoutedEventArgs eventArgs)
+    {
+        ArchiveColumnsPopup.IsOpen = !ArchiveColumnsPopup.IsOpen;
+    }
+
+    private void OnArchiveColumnVisibilityChanged(object sender, RoutedEventArgs eventArgs)
+    {
+        if (_applyingArchiveColumnLayout || sender is not CheckBox { DataContext: DataGridColumn changedColumn })
+        {
+            return;
+        }
+        if (!ArchiveGrid.Columns.Any(static column => column.Visibility == Visibility.Visible))
+        {
+            _applyingArchiveColumnLayout = true;
+            changedColumn.Visibility = Visibility.Visible;
+            _applyingArchiveColumnLayout = false;
+        }
+        SaveArchiveColumnLayout();
+    }
+
+    private void OnShowAllArchiveColumnsClick(object sender, RoutedEventArgs eventArgs)
+    {
+        _applyingArchiveColumnLayout = true;
+        try
+        {
+            foreach (var column in ArchiveGrid.Columns)
+            {
+                column.Visibility = Visibility.Visible;
+            }
+        }
+        finally
+        {
+            _applyingArchiveColumnLayout = false;
+        }
+        SaveArchiveColumnLayout();
+    }
+
+    private void SaveArchiveColumnLayout()
+    {
+        _viewModel.SetArchiveVisibleColumns(ArchiveGrid.Columns
+            .Where(static column => column.Visibility == Visibility.Visible)
+            .Select(static column => column.SortMemberPath));
+    }
+
+    private void OnArchiveGridSorting(object sender, DataGridSortingEventArgs eventArgs)
+    {
+        eventArgs.Handled = true;
+        if (Enum.TryParse<Cdmw.ArchiveLite.Contracts.ArchiveSortField>(
+            eventArgs.Column.SortMemberPath,
+            ignoreCase: false,
+            out var field))
+        {
+            _viewModel.ArchiveBrowser.ApplyColumnSort(field);
+            UpdateArchiveSortIndicators();
+        }
+    }
+
+    private void UpdateArchiveSortIndicators()
+    {
+        if (!IsLoaded)
+        {
+            return;
+        }
+        var field = _viewModel.ArchiveBrowser.SortField.ToString();
+        foreach (var column in ArchiveGrid.Columns)
+        {
+            column.SortDirection = column.SortMemberPath.Equals(field, StringComparison.Ordinal)
+                ? (_viewModel.ArchiveBrowser.SortDescending
+                    ? ListSortDirection.Descending
+                    : ListSortDirection.Ascending)
+                : null;
+        }
     }
 
     private async void OnClosing(object? sender, CancelEventArgs eventArgs)

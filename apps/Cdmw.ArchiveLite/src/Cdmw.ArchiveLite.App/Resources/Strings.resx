@@ -30,9 +30,17 @@
   <data name="ExportFiltered" xml:space="preserve"><value>Export filtered</value></data>
   <data name="Path" xml:space="preserve"><value>Path</value></data>
   <data name="Name" xml:space="preserve"><value>Name</value></data>
+  <data name="KnownName" xml:space="preserve"><value>Known name</value></data>
+  <data name="NameEvidence" xml:space="preserve"><value>Name evidence</value></data>
+  <data name="Extension" xml:space="preserve"><value>Extension</value></data>
   <data name="Type" xml:space="preserve"><value>Type</value></data>
   <data name="Size" xml:space="preserve"><value>Size</value></data>
+  <data name="StoredSize" xml:space="preserve"><value>Stored</value></data>
+  <data name="Compression" xml:space="preserve"><value>Compression</value></data>
   <data name="Package" xml:space="preserve"><value>Package</value></data>
+  <data name="Columns" xml:space="preserve"><value>Columns</value></data>
+  <data name="ChooseColumns" xml:space="preserve"><value>Choose visible columns</value></data>
+  <data name="ShowAllColumns" xml:space="preserve"><value>Show all columns</value></data>
   <data name="Preview" xml:space="preserve"><value>Preview</value></data>
   <data name="PreviewEmpty" xml:space="preserve"><value>Select a file to preview it.</value></data>
   <data name="SearchSource" xml:space="preserve"><value>Search source</value></data>
@@ -89,10 +97,13 @@
   <data name="RoleText" xml:space="preserve"><value>Text</value></data>
   <data name="SortPath" xml:space="preserve"><value>Path</value></data>
   <data name="SortName" xml:space="preserve"><value>Name</value></data>
+  <data name="SortKnownName" xml:space="preserve"><value>Known name</value></data>
+  <data name="SortNameEvidence" xml:space="preserve"><value>Name evidence</value></data>
   <data name="SortExtension" xml:space="preserve"><value>Extension</value></data>
   <data name="SortPackage" xml:space="preserve"><value>Package</value></data>
   <data name="SortOriginalSize" xml:space="preserve"><value>Original size</value></data>
   <data name="SortStoredSize" xml:space="preserve"><value>Stored size</value></data>
+  <data name="SortCompression" xml:space="preserve"><value>Compression</value></data>
   <data name="SortRole" xml:space="preserve"><value>Role</value></data>
   <data name="CollisionSkip" xml:space="preserve"><value>Skip</value></data>
   <data name="CollisionOverwrite" xml:space="preserve"><value>Overwrite</value></data>
@@ -119,12 +130,31 @@
   <data name="ProgressFinishing" xml:space="preserve"><value>Finishing...</value></data>
   <data name="ProgressWorking" xml:space="preserve"><value>Working...</value></data>
   <data name="PreviewProgressPreparing" xml:space="preserve"><value>Preparing preview...</value></data>
-  <data name="PreviewProgressNative" xml:space="preserve"><value>Preparing native PAC geometry and materials...</value></data>
+  <data name="PreviewProgressNative" xml:space="preserve"><value>Preparing native PAC geometry...</value></data>
   <data name="PreviewProgressAdapting" xml:space="preserve"><value>Preparing the read-only .NET scene...</value></data>
   <data name="RendererStarting" xml:space="preserve"><value>Starting the .NET/Vortice previewer...</value></data>
-  <data name="RendererLoading" xml:space="preserve"><value>Loading textures and drawing the first frame...</value></data>
+  <data name="RendererLoading" xml:space="preserve"><value>Loading mesh and drawing the first frame...</value></data>
   <data name="RendererReady" xml:space="preserve"><value>.NET/Vortice preview ready.</value></data>
   <data name="RendererFailed" xml:space="preserve"><value>.NET preview unavailable: {0}</value></data>
   <data name="RendererUnknownError" xml:space="preserve"><value>The .NET previewer reported an unknown error.</value></data>
+  <data name="AllFiles" xml:space="preserve"><value>All files</value></data>
+  <data name="ExtensionGroupAll" xml:space="preserve"><value>All</value></data>
+  <data name="ExtensionGroupModelMeshPhysics" xml:space="preserve"><value>Model / Mesh / Physics</value></data>
+  <data name="ExtensionGroupTextureImage" xml:space="preserve"><value>Texture / Image</value></data>
+  <data name="ExtensionGroupMaterialMetadata" xml:space="preserve"><value>Material / Metadata</value></data>
+  <data name="ExtensionGroupAnimationScene" xml:space="preserve"><value>Animation / Scene</value></data>
+  <data name="ExtensionGroupAudioVideo" xml:space="preserve"><value>Audio / Video</value></data>
+  <data name="ExtensionGroupUserInterfaceText" xml:space="preserve"><value>UI / Text</value></data>
+  <data name="ExtensionGroupOther" xml:space="preserve"><value>Other</value></data>
+  <data name="ExtensionCatalogLoading" xml:space="preserve"><value>Loading categorized extensions...</value></data>
+  <data name="ExtensionCatalogProgress" xml:space="preserve"><value>Indexing extensions: {0:N0} / {1:N0}</value></data>
+  <data name="NameIndexLoading" xml:space="preserve"><value>Loading known in-game names...</value></data>
+  <data name="NameIndexScanProgress" xml:space="preserve"><value>Indexing name sources: {0:N0} / {1:N0}</value></data>
+  <data name="NameIndexExtracting" xml:space="preserve"><value>Reading name source: {0}</value></data>
+  <data name="NameIndexResolving" xml:space="preserve"><value>Resolving known names and related hints...</value></data>
+  <data name="NameIndexPublishing" xml:space="preserve"><value>Saving the name index...</value></data>
+  <data name="NameIndexReady" xml:space="preserve"><value>Names ready: {0:N0} exact, {1:N0} related hints</value></data>
+  <data name="NameIndexUnavailable" xml:space="preserve"><value>Known in-game names are unavailable for this archive.</value></data>
+  <data name="NameIndexFailed" xml:space="preserve"><value>Name index unavailable: {0}</value></data>
   <data name="All" xml:space="preserve"><value>All</value></data>
 </root>

@@ -12,6 +12,8 @@ $nativeRoot = Join-Path $repositoryRoot "native\cdmw_archive_core"
 $nativeBuild = Join-Path $nativeRoot "build"
 $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
 $previewBuild = Join-Path $previewRoot "build"
+$acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
+$acceleratorBuild = Join-Path $acceleratorRoot "build"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $solution = Join-Path $liteRoot "Cdmw.ArchiveLite.slnx"
 $tests = Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj"
@@ -44,6 +46,15 @@ try {
     & (Join-Path $previewBuild "$Configuration\cdmw-preview-core.exe") self-test
     Assert-LastExitCode "Native preview-core self-test"
 
+    & cmake -S $acceleratorRoot -B $acceleratorBuild
+    Assert-LastExitCode "Native archive-accelerator configure"
+
+    & cmake --build $acceleratorBuild --config $Configuration --parallel
+    Assert-LastExitCode "Native archive-accelerator build"
+    $acceleratorExecutable = Join-Path $acceleratorBuild "$Configuration\cdmw-archive-accelerator.exe"
+    & $acceleratorExecutable --version
+    Assert-LastExitCode "Native archive-accelerator version check"
+
     & dotnet build $solution -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
 
@@ -51,13 +62,16 @@ try {
     Assert-LastExitCode ".NET/Vortice preview renderer build"
     $rendererExecutable = Join-Path (Split-Path -Parent $rendererProject) "bin\$Configuration\net8.0-windows\cdmw-mesh-dotnet-editor.exe"
     $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH
+    $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
+        $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
         & dotnet run --project $tests -c $Configuration --no-build
         Assert-LastExitCode "Archive Lite focused tests"
     }
     finally {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $previousRendererPath
+        $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
     }
 }
 finally {

@@ -13,13 +13,16 @@ public sealed record ArchiveEntryDto(
     string Extension,
     string Package,
     ArchiveEntryRole Role,
-    bool IsPreviewable)
+    bool IsPreviewable,
+    string KnownName = "",
+    string NameEvidence = "")
 {
     public bool IsCompressed => StoredSize != OriginalSize;
     public int CompressionType => Flags & 0x0F;
     public bool IsEncrypted => (Flags >> 4) != 0;
     public int EncryptionType => (Flags >> 4) & 0x0F;
     public string Name => System.IO.Path.GetFileName(Path.Replace('/', System.IO.Path.DirectorySeparatorChar));
+    public string CompressionLabel => IsCompressed ? $"Type {CompressionType}" : "None";
 }
 
 public enum ArchiveEntryRole
@@ -51,10 +54,13 @@ public enum ArchiveSortField
 {
     Path,
     Name,
+    KnownName,
+    NameEvidence,
     Extension,
     Package,
     OriginalSize,
     StoredSize,
+    Compression,
     Role,
 }
 

@@ -17,6 +17,7 @@ $requiredFiles = @(
     "cdmw-archive-core.dll",
     "ICSharpCode.AvalonEdit.dll",
     "preview\cdmw-preview-core.exe",
+    "indexer\cdmw-archive-accelerator.exe",
     "renderer\cdmw-mesh-dotnet-editor.exe",
     "README.md",
     "THIRD-PARTY-NOTICES.md",
@@ -74,6 +75,7 @@ Assert-X64Pe (Join-Path $artifactRoot "CdmwArchiveLite.exe")
 Assert-X64Pe (Join-Path $artifactRoot "CdmwArchiveLite.Worker.exe")
 Assert-X64Pe (Join-Path $artifactRoot "cdmw-archive-core.dll")
 Assert-X64Pe (Join-Path $artifactRoot "preview\cdmw-preview-core.exe")
+Assert-X64Pe (Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe")
 Assert-X64Pe (Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe")
 
 function Quote-ProcessArgument([string]$Value) {
@@ -105,6 +107,7 @@ function Invoke-HiddenProcess(
 $worker = Join-Path $artifactRoot "CdmwArchiveLite.Worker.exe"
 $application = Join-Path $artifactRoot "CdmwArchiveLite.exe"
 $previewCore = Join-Path $artifactRoot "preview\cdmw-preview-core.exe"
+$itemIndexer = Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe"
 $renderer = Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe"
 $testDataRoot = Join-Path ([IO.Path]::GetTempPath()) "cdmw-archive-lite-artifact-$([Guid]::NewGuid().ToString('N'))"
 $previousTestMode = $env:CDMW_ARCHIVE_LITE_TEST_MODE
@@ -116,6 +119,11 @@ try {
     $previewExitCode = Invoke-HiddenProcess -Path $previewCore -Arguments @("self-test")
     if ($previewExitCode -ne 0) {
         throw "Packaged native preview-core self-test failed with exit code $previewExitCode."
+    }
+
+    $indexerExitCode = Invoke-HiddenProcess -Path $itemIndexer -Arguments @("--version")
+    if ($indexerExitCode -ne 0) {
+        throw "Packaged native archive-accelerator version check failed with exit code $indexerExitCode."
     }
 
     $modelPackage = Join-Path $testDataRoot "native-package"
@@ -164,6 +172,7 @@ try {
         reference_submesh_count = 0
         interaction_mode = "placement"
         comparison_mode = "replacement_only"
+        grid = [ordered]@{ visible = $false; origin = @(0.0, -1.0, 0.0); spacing = 0.25 }
         gizmo = [ordered]@{ visible = $false; tool = "move" }
     } | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $modelPackage "dotnet_scene.json") -Encoding utf8
     [ordered]@{ read_only = $true } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $modelPackage "mesh.cdmeta.json") -Encoding utf8
@@ -181,6 +190,7 @@ try {
         "--output", (Quote-ProcessArgument $rendererOutput),
         "--edit-operations", (Quote-ProcessArgument (Join-Path $rendererRuntime "edit_operations.json")),
         "--evaluation", (Quote-ProcessArgument (Join-Path $rendererRuntime "evaluation.md")),
+        "--simple-preview",
         "--headless-smoke"
     )
     $rendererExitCode = Invoke-HiddenProcess -Path $renderer -Arguments $rendererArguments
@@ -239,4 +249,4 @@ finally {
     }
 }
 
-Write-Host "Artifact guard passed: x64, self-contained, native preview, hidden Vortice GPU, worker-connected, and Python-free."
+Write-Host "Artifact guard passed: x64, self-contained, native preview/name index, hidden Vortice GPU, worker-connected, and Python-free."

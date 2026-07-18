@@ -119,12 +119,42 @@
   <data name="ProgressFinishing" xml:space="preserve"><value>Vorgang wird abgeschlossen...</value></data>
   <data name="ProgressWorking" xml:space="preserve"><value>Vorgang läuft...</value></data>
   <data name="PreviewProgressPreparing" xml:space="preserve"><value>Vorschau wird vorbereitet...</value></data>
-  <data name="PreviewProgressNative" xml:space="preserve"><value>Native PAC-Geometrie und Materialien werden vorbereitet...</value></data>
+  <data name="PreviewProgressNative" xml:space="preserve"><value>Native PAC-Geometrie wird vorbereitet...</value></data>
   <data name="PreviewProgressAdapting" xml:space="preserve"><value>Schreibgeschützte .NET-Szene wird vorbereitet...</value></data>
   <data name="RendererStarting" xml:space="preserve"><value>.NET/Vortice-Vorschau wird gestartet...</value></data>
-  <data name="RendererLoading" xml:space="preserve"><value>Texturen werden geladen und das erste Bild wird gezeichnet...</value></data>
+  <data name="RendererLoading" xml:space="preserve"><value>Mesh wird geladen und das erste Bild wird gezeichnet...</value></data>
   <data name="RendererReady" xml:space="preserve"><value>.NET/Vortice-Vorschau ist bereit.</value></data>
   <data name="RendererFailed" xml:space="preserve"><value>.NET-Vorschau nicht verfügbar: {0}</value></data>
   <data name="RendererUnknownError" xml:space="preserve"><value>Die .NET-Vorschau hat einen unbekannten Fehler gemeldet.</value></data>
+  <data name="KnownName" xml:space="preserve"><value>Bekannter Name</value></data>
+  <data name="NameEvidence" xml:space="preserve"><value>Namensnachweis</value></data>
+  <data name="Extension" xml:space="preserve"><value>Dateiendung</value></data>
+  <data name="StoredSize" xml:space="preserve"><value>Gespeichert</value></data>
+  <data name="Compression" xml:space="preserve"><value>Komprimierung</value></data>
+  <data name="Columns" xml:space="preserve"><value>Spalten</value></data>
+  <data name="ChooseColumns" xml:space="preserve"><value>Sichtbare Spalten auswählen</value></data>
+  <data name="ShowAllColumns" xml:space="preserve"><value>Alle Spalten anzeigen</value></data>
+  <data name="SortKnownName" xml:space="preserve"><value>Bekannter Name</value></data>
+  <data name="SortNameEvidence" xml:space="preserve"><value>Namensnachweis</value></data>
+  <data name="SortCompression" xml:space="preserve"><value>Komprimierung</value></data>
+  <data name="AllFiles" xml:space="preserve"><value>Alle Dateien</value></data>
+  <data name="ExtensionGroupAll" xml:space="preserve"><value>Alle</value></data>
+  <data name="ExtensionGroupModelMeshPhysics" xml:space="preserve"><value>Modell / Mesh / Physik</value></data>
+  <data name="ExtensionGroupTextureImage" xml:space="preserve"><value>Textur / Bild</value></data>
+  <data name="ExtensionGroupMaterialMetadata" xml:space="preserve"><value>Material / Metadaten</value></data>
+  <data name="ExtensionGroupAnimationScene" xml:space="preserve"><value>Animation / Szene</value></data>
+  <data name="ExtensionGroupAudioVideo" xml:space="preserve"><value>Audio / Video</value></data>
+  <data name="ExtensionGroupUserInterfaceText" xml:space="preserve"><value>UI / Text</value></data>
+  <data name="ExtensionGroupOther" xml:space="preserve"><value>Andere</value></data>
+  <data name="ExtensionCatalogLoading" xml:space="preserve"><value>Kategorisierte Dateiendungen werden geladen...</value></data>
+  <data name="ExtensionCatalogProgress" xml:space="preserve"><value>Dateiendungen werden indiziert: {0:N0} / {1:N0}</value></data>
+  <data name="NameIndexLoading" xml:space="preserve"><value>Bekannte Spielnamen werden geladen...</value></data>
+  <data name="NameIndexScanProgress" xml:space="preserve"><value>Namensquellen werden indiziert: {0:N0} / {1:N0}</value></data>
+  <data name="NameIndexExtracting" xml:space="preserve"><value>Namensquelle wird gelesen: {0}</value></data>
+  <data name="NameIndexResolving" xml:space="preserve"><value>Bekannte Namen und verwandte Hinweise werden aufgelöst...</value></data>
+  <data name="NameIndexPublishing" xml:space="preserve"><value>Namensindex wird gespeichert...</value></data>
+  <data name="NameIndexReady" xml:space="preserve"><value>Namen bereit: {0:N0} exakt, {1:N0} verwandte Hinweise</value></data>
+  <data name="NameIndexUnavailable" xml:space="preserve"><value>Bekannte Spielnamen sind für dieses Archiv nicht verfügbar.</value></data>
+  <data name="NameIndexFailed" xml:space="preserve"><value>Namensindex nicht verfügbar: {0}</value></data>
   <data name="All" xml:space="preserve"><value>Alle</value></data>
 </root>

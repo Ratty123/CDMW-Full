@@ -7,11 +7,13 @@ public static class ArchiveLiteDataPaths
     public static string Cache { get; } = Path.Combine(Root, "cache");
     public static string IndexCache { get; } = Path.Combine(Cache, "index");
     public static string PreviewCache { get; } = Path.Combine(Cache, "preview");
+    public static string NameIndexCache { get; } = Path.Combine(Cache, "names");
 
     public static void EnsureCreated()
     {
         Directory.CreateDirectory(IndexCache);
         Directory.CreateDirectory(PreviewCache);
+        Directory.CreateDirectory(NameIndexCache);
     }
 
     private static string ResolveRoot()

@@ -70,6 +70,41 @@ public static class ArchiveEntryClassifier
     public static bool IsPreviewable(string extension, ArchiveEntryRole role) =>
         role != ArchiveEntryRole.Other || extension is ".meshinfo" or ".pab" or ".pathc";
 
+    public static ArchiveExtensionCategory ClassifyExtensionCategory(string extension)
+    {
+        var normalized = extension.Trim().ToLowerInvariant();
+        if (normalized is ".pac" or ".pam" or ".pamlod" or ".meshinfo" or ".hkx" or ".hkt"
+            or ".pab" or ".pae" or ".pat" or ".obj" or ".fbx" or ".gltf" or ".glb")
+        {
+            return ArchiveExtensionCategory.ModelMeshPhysics;
+        }
+        if (normalized is ".dds" or ".png" or ".tga" or ".jpg" or ".jpeg" or ".texture")
+        {
+            return ArchiveExtensionCategory.TextureImage;
+        }
+        if (normalized is ".pac_xml" or ".app_xml" or ".prefab" or ".pappt" or ".pamhc"
+            or ".prefabdata_xml" or ".paa_metabin" or ".motionblending" or ".seqmt" or ".pabgb"
+            or ".pabgh" or ".pami" or ".xml" or ".json" or ".material" or ".levelinfo"
+            or ".binarygimmick")
+        {
+            return ArchiveExtensionCategory.MaterialMetadata;
+        }
+        if (normalized is ".paseqc" or ".paseqcpath" or ".pastage" or ".palevel" or ".paem"
+            or ".paa" or ".ani" or ".pai")
+        {
+            return ArchiveExtensionCategory.AnimationScene;
+        }
+        if (normalized is ".wem" or ".bnk" or ".mp4" or ".wav" or ".ogg" or ".mp3")
+        {
+            return ArchiveExtensionCategory.AudioVideo;
+        }
+        if (normalized is ".html" or ".thtml" or ".css" or ".txt" or ".paloc" or ".ui" or ".uianiminit")
+        {
+            return ArchiveExtensionCategory.UserInterfaceText;
+        }
+        return ArchiveExtensionCategory.Other;
+    }
+
     public static string PackageLabel(string pamtPath)
     {
         var file = System.IO.Path.GetFileName(pamtPath);

@@ -1204,7 +1204,12 @@ void append_map_json(std::ostringstream& out, const std::map<std::string, std::s
     out << "]";
 }
 
-int run_item_index_job(const fs::path& entries_path, const fs::path& work_dir, const fs::path& report_path) {
+int run_item_index_job(
+    const fs::path& entries_path,
+    const fs::path& work_dir,
+    const fs::path& report_path,
+    bool include_items = true
+) {
     try {
         std::vector<Entry> entries = read_entries_tsv(entries_path);
         std::map<std::string, std::map<std::string, std::string>> loc_tables;
@@ -1288,7 +1293,7 @@ int run_item_index_job(const fs::path& entries_path, const fs::path& work_dir, c
         std::ostringstream out;
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
             << ",\"items\":[";
-        for (size_t i = 0; i < linked_items.size(); ++i) {
+        for (size_t i = 0; include_items && i < linked_items.size(); ++i) {
             const auto& item = linked_items[i];
             if (i) out << ",";
             out << "{\"item_id\":" << item.item_id
@@ -1391,10 +1396,13 @@ int main(int argc, char** argv) {
         if (argc >= 5 && std::string(argv[1]) == "item-index-job") {
             return run_item_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
         }
+        if (argc >= 5 && std::string(argv[1]) == "item-name-map-job") {
+            return run_item_index_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]), false);
+        }
         if (argc >= 5 && std::string(argv[1]) == "entry-read-job") {
             return run_entry_read_job(fs::path(argv[2]), fs::path(argv[3]), fs::path(argv[4]));
         }
-        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json>\n";
+        std::cerr << "usage: cdmw-archive-accelerator --version | scan-job <job.json> <report.json> [progress.json] | browser-state-job <job.json> <report.json> [progress.json] | derived-index-job <entries.tsv> <report.json> [progress.json] | item-index-job <entries.tsv> <work-dir> <report.json> | item-name-map-job <entries.tsv> <work-dir> <report.json> | entry-read-job <job.json> <output.bin> <report.json>\n";
         return 1;
     } catch (const std::exception& exc) {
         std::cerr << exc.what() << "\n";

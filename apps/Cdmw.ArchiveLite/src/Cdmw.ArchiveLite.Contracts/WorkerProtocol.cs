@@ -13,6 +13,8 @@ public static class WorkerProtocol
     public const string Cancel = "cancel";
     public const string OpenArchive = "open_archive";
     public const string QueryArchive = "query_archive";
+    public const string ArchiveFacets = "archive_facets";
+    public const string BuildNameIndex = "build_name_index";
     public const string Preview = "preview";
     public const string TextSearch = "text_search";
     public const string Export = "export";

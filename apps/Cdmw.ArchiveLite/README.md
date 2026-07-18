@@ -6,9 +6,11 @@ CDMW Archive Lite is a separate, read-only Windows desktop application for brows
 
 - Windows 11 x64 WPF shell on .NET 10, localized in English, German, and Spanish, with persistent Graphite, Midnight, and Light themes.
 - Stable memory-mapped archive index with archive fingerprints and isolated caches.
-- Flat, folder, category, and category-plus-folder navigation with server-side filters, sorting, and 256-row paging.
+- Flat, folder, category, and category-plus-folder navigation with server-side filters and 256-row paging. The file grid supports click-to-sort on every column, column resizing/reordering, and a persistent visible-column chooser.
+- A categorized extension picker with per-extension counts, using the same model/mesh/physics, texture/image, material/metadata, animation/scene, audio/video, UI/text, and other groups as the full workbench.
+- Optional known in-game names from the archive's ItemInfo/localization tables. Exact localized names and related-name hints are shown separately so a guessed family match is never presented as exact evidence.
 - Preview for text, metadata, binary hex, WIC-supported images (including supported DDS variants), and media formats supported by Windows Media Foundation.
-- Read-only PAC, PAM, and PAMLOD scene preparation through `cdmw-preview-core.exe`, displayed by the embedded production `d3d11_vortice_shader` .NET renderer. Package preparation is cancellable, cached by immutable archive identity, and reported in the UI.
+- Read-only PAC, PAM, and PAMLOD geometry preparation through `cdmw-preview-core.exe`, displayed by the embedded production `d3d11_vortice_shader` .NET renderer in a simplified untextured mode. The Lite surface has one mesh viewport and omits Original/Imported selectors, the edit gizmo, and the grid. Package preparation is cancellable, cached by immutable archive identity, and reported in the UI.
 - Native raw, LZ4, ChaCha20, partial PAR, and PATHC-backed partial DDS extraction.
 - Literal or regular-expression text search across archives or loose folders, with bounded parallelism, per-pattern timeouts, result caps, line/column/context, and cancellation.
 - Selected-file, filtered-tree, and search-result export. Virtual folder structures are preserved, every file is written through a sibling staging file, collisions default to skip, and JSON manifests record archive provenance.
@@ -36,7 +38,7 @@ The second command launches a visible desktop window and is intentionally not pa
 .\apps\Cdmw.ArchiveLite\scripts\build_archive_lite.ps1
 ```
 
-The package is written beneath `apps/Cdmw.ArchiveLite/artifacts/`. Packaging builds both native read-only services, publishes the app, worker, and renderer self-contained for `win-x64`, scans every packaged PE for Python runtime references, verifies x64 architecture, loads a synthetic native preview package in the packaged renderer, proves the hidden production Vortice backend, constructs and lays out the real WPF window without showing it, exercises the packaged application-to-worker connection, and checks that no worker remains.
+The package is written beneath `apps/Cdmw.ArchiveLite/artifacts/`. Packaging builds the native archive, preview, and item-name-index helpers; publishes the app, worker, and renderer self-contained for `win-x64`; scans every packaged PE for Python runtime references; verifies x64 architecture; loads a synthetic native preview package in the packaged renderer; proves the hidden production Vortice backend; constructs and lays out the real WPF window without showing it; exercises the packaged application-to-worker connection; and checks that no worker remains.
 
 ## Data isolation
 
@@ -46,6 +48,7 @@ Archive Lite writes only to its chosen export destination and to:
 %LocalAppData%\Ratrider\CDMWArchiveLite\
   settings.json
   cache\index\
+  cache\names\
   cache\preview\models\
   cache\preview\native\
   cache\preview\runtime\
@@ -64,6 +67,8 @@ CdmwArchiveLite.exe (WPF dispatcher)
           v
 CdmwArchiveLite.Worker.exe (.NET 10, cancellable operations)
           +-- text search / preview cache / atomic export
+          +-- categorized extension scan
+          +-- cdmw-archive-accelerator.exe (C++17, item-name maps)
           +-- cdmw-preview-core.exe (C++20, PAC/PAM/PAMLOD package preparation)
           |
           +-- memory-mapped archive_index_v1

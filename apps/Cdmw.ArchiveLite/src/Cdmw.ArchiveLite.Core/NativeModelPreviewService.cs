@@ -168,18 +168,18 @@ public sealed class NativeModelPreviewService
             {
                 ["visible_texture_mode"] = "mesh_base_first",
                 ["d3d11_view_mode"] = "lit",
-                ["use_textures_by_default"] = true,
+                ["use_textures_by_default"] = false,
                 ["high_quality_by_default"] = true,
             },
             ["capabilities"] = new Dictionary<string, object?>
             {
                 ["direct_dds"] = true,
                 ["d3d11_package"] = true,
-                ["material_index"] = true,
-                ["material_graph"] = true,
+                ["material_index"] = false,
+                ["material_graph"] = false,
                 ["material_graph_version"] = 3,
                 ["python_fallback_allowed"] = false,
-                ["native_material_runtime"] = true,
+                ["native_material_runtime"] = false,
             },
         };
         await AtomicFile.WriteAsync(
@@ -480,7 +480,8 @@ public static class NativePreviewPackageAdapter
             }
 
             var material = ReadString(batch, "material_name", $"material_{index:000}");
-            var channels = ResolveChannels(root, batch, out var components);
+            var channels = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            var components = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             slots.Add(new Dictionary<string, object?>
             {
                 ["index"] = index,
@@ -528,7 +529,7 @@ public static class NativePreviewPackageAdapter
                 ["parameters"] = new Dictionary<string, object?>
                 {
                     ["base_color"] = color,
-                    ["base_tint_strength"] = channels.ContainsKey("base") ? 0.0f : 1.0f,
+                    ["base_tint_strength"] = 1.0f,
                     ["roughness"] = ReadFloat(batch, "roughness", 0.62f),
                     ["metalness"] = ReadFloat(batch, "metalness", 0.0f),
                     ["specular"] = ReadFloat(batch, "specular", 0.25f),
@@ -565,7 +566,7 @@ public static class NativePreviewPackageAdapter
                 ["reference_submesh_count"] = 0,
                 ["interaction_mode"] = "placement",
                 ["comparison_mode"] = "replacement_only",
-                ["grid"] = new Dictionary<string, object?> { ["visible"] = true, ["origin"] = new[] { 0.0f, -1.0f, 0.0f }, ["spacing"] = 0.25f },
+                ["grid"] = new Dictionary<string, object?> { ["visible"] = false, ["origin"] = new[] { 0.0f, -1.0f, 0.0f }, ["spacing"] = 0.25f },
                 ["gizmo"] = new Dictionary<string, object?> { ["visible"] = false, ["tool"] = "move" },
             },
             cancellationToken).ConfigureAwait(false);

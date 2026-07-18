@@ -18,9 +18,11 @@ internal static class ArchiveLiteTestRunner
             ("English, German, and Spanish resources have identical keys", TestLocalizationResourcesAsync),
             ("read-only WPF text bindings are explicitly one-way", TestReadOnlyWpfBindingsAsync),
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
+            ("archive grid exposes configurable sortable columns and categorized extensions", TestArchiveGridFeaturesAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
             ("native model preview packages adapt safely for the .NET renderer", TestNativeModelPreviewPackageAsync),
+            ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
             ("native archive ABI scans and decodes synthetic PAMT/PAZ", TestNativeArchiveAsync),
             ("archive query, preview, and text search are read-only", TestArchiveServicesAsync),
@@ -159,6 +161,69 @@ internal static class ArchiveLiteTestRunner
         return Task.CompletedTask;
     }
 
+    private static Task TestArchiveGridFeaturesAsync()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var appRoot = Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App");
+        var window = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "MainWindow.xaml"));
+        var archiveGrid = window
+            .Descendants()
+            .Single(element => element.Name.LocalName == "DataGrid"
+                && element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ArchiveGrid"));
+        Require(
+            string.Equals((string?)archiveGrid.Attribute("CanUserSortColumns"), "True", StringComparison.OrdinalIgnoreCase),
+            "archive grid column sorting is disabled");
+        Require(
+            string.Equals((string?)archiveGrid.Attribute("CanUserReorderColumns"), "True", StringComparison.OrdinalIgnoreCase),
+            "archive grid column reordering is disabled");
+        var sortMembers = archiveGrid
+            .Descendants()
+            .Select(element => (string?)element.Attribute("SortMemberPath"))
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet(StringComparer.Ordinal);
+        var expectedSortMembers = new[]
+        {
+            nameof(ArchiveSortField.Name),
+            nameof(ArchiveSortField.KnownName),
+            nameof(ArchiveSortField.NameEvidence),
+            nameof(ArchiveSortField.Extension),
+            nameof(ArchiveSortField.Role),
+            nameof(ArchiveSortField.OriginalSize),
+            nameof(ArchiveSortField.StoredSize),
+            nameof(ArchiveSortField.Compression),
+            nameof(ArchiveSortField.Package),
+            nameof(ArchiveSortField.Path),
+        };
+        Require(expectedSortMembers.All(sortMembers.Contains), "archive grid is missing a sortable requested column");
+        Require(
+            window.Descendants().Any(element => element.Attributes().Any(
+                attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ArchiveColumnChooser")),
+            "archive grid has no column chooser");
+        Require(
+            window.Descendants()
+                .Where(element => element.Name.LocalName == "ComboBox")
+                .Any(element => ((string?)element.Attribute("ItemsSource"))?.Contains("ExtensionChoicesView", StringComparison.Ordinal) == true
+                    && element.Descendants().Any(descendant => descendant.Name.LocalName == "GroupStyle")),
+            "extension filter is not a categorized picker");
+
+        var hostSource = File.ReadAllText(Path.Combine(appRoot, "Controls", "DotNetModelPreviewHost.cs"));
+        Require(hostSource.Contains("--simple-preview", StringComparison.Ordinal), "Archive Lite does not request the simple renderer surface");
+        var previewSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.Core",
+            "NativeModelPreviewService.cs"));
+        Require(previewSource.Contains("[\"use_textures_by_default\"] = false", StringComparison.Ordinal), "native PAC preview still requests textures");
+        return Task.CompletedTask;
+    }
+
     private static Task TestExportPathPolicyAsync()
     {
         Require(ExportPathPolicy.NormalizeVirtualPath("folder/file.txt") == "folder/file.txt", "safe path changed");
@@ -257,12 +322,16 @@ internal static class ArchiveLiteTestRunner
             Require(File.Exists(Path.Combine(root, "mesh.cdmeta.json")), "renderer metadata sidecar was not created");
             using (var scene = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "dotnet_scene.json")).ConfigureAwait(false)))
             {
+                Require(!scene.RootElement.GetProperty("grid").GetProperty("visible").GetBoolean(), "read-only preview scene exposed the grid");
                 Require(!scene.RootElement.GetProperty("gizmo").GetProperty("visible").GetBoolean(), "read-only preview scene exposed the edit gizmo");
                 Require(scene.RootElement.GetProperty("interaction_mode").GetString() == "placement", "preview scene mode is wrong");
             }
             using (var materials = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "net_materials.json")).ConfigureAwait(false)))
             {
                 Require(materials.RootElement.GetProperty("submeshes").GetArrayLength() == 1, "renderer material sidecar count is wrong");
+                var submesh = materials.RootElement.GetProperty("submeshes")[0];
+                Require(submesh.GetProperty("resolved_channels").GetRawText() == "{}", "mesh-only preview retained resolved textures");
+                Require(string.IsNullOrEmpty(submesh.GetProperty("texture").GetString()), "mesh-only preview retained a base texture");
             }
 
             var unsafeRoot = Path.Combine(root, "unsafe");
@@ -295,6 +364,42 @@ internal static class ArchiveLiteTestRunner
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
+
+    private static Task TestArchiveItemNamesAsync()
+    {
+        var names = ArchiveItemNameIndex.FromMappings(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["cd_phm_01_sword_0016"] = "Gilded Longsword",
+            },
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["cd_phm_02_sword_0042"] = "Ashen Greatsword",
+            });
+        var exact = names.Enrich(CreateArchiveEntry("equipment/cd_phm_01_sword_0016.pac"));
+        Require(exact.KnownName == "Gilded Longsword", "exact localized name was not attached");
+        Require(exact.NameEvidence == "Exact localization", "exact localized name evidence is wrong");
+
+        var related = names.Enrich(CreateArchiveEntry("equipment/cd_phm_02_sword_0042_l.pac"));
+        Require(string.IsNullOrEmpty(related.KnownName), "related family hint was presented as an exact name");
+        Require(related.NameEvidence == "Name hint: Ashen Greatsword", "related family hint was not attached");
+        return Task.CompletedTask;
+    }
+
+    private static ArchiveEntryDto CreateArchiveEntry(string path) => new(
+        EntryId: 0,
+        Path: path,
+        SourcePamt: "synthetic.pamt",
+        PazFile: "synthetic.paz",
+        PazIndex: 0,
+        Offset: 0,
+        StoredSize: 1,
+        OriginalSize: 1,
+        Flags: 0,
+        Extension: Path.GetExtension(path),
+        Package: "synthetic",
+        Role: ArchiveEntryRole.Model,
+        IsPreviewable: true);
 
     private static async Task RunConfiguredRendererSmokeAsync(string rendererPath, string packageRoot, string manifestPath)
     {
@@ -421,6 +526,26 @@ internal static class ArchiveLiteTestRunner
             CancellationToken.None).ConfigureAwait(false);
         Require(page.TotalMatches == 2, "archive extension query count is wrong");
         Require(page.Generation == 9, "query generation was not retained");
+        var facetProgress = new List<ProgressUpdate>();
+        var facets = await new ArchiveFacetsService(sessions).LoadAsync(
+            new ArchiveFacetsRequest(opened.SessionId),
+            update =>
+            {
+                facetProgress.Add(update);
+                return Task.CompletedTask;
+            },
+            CancellationToken.None).ConfigureAwait(false);
+        Require(facets.Extensions.Count == 4, "extension catalogue count is wrong");
+        Require(
+            facets.Extensions.Single(item => item.Extension == ".dds").Category == ArchiveExtensionCategory.TextureImage,
+            "DDS extension category is wrong");
+        Require(
+            facets.Extensions.Single(item => item.Extension == ".material").Category == ArchiveExtensionCategory.MaterialMetadata,
+            "material extension category is wrong");
+        Require(
+            facets.Extensions.Single(item => item.Extension == ".txt").Category == ArchiveExtensionCategory.UserInterfaceText,
+            "text extension category is wrong");
+        Require(facetProgress.Any(update => update.Phase == "extension_scan"), "extension catalogue did not report progress");
         var sortedPage = await queries.QueryAsync(
             new ArchiveQuerySpec(
                 opened.SessionId,

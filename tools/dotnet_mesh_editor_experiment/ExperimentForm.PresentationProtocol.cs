@@ -12,20 +12,29 @@ internal sealed partial class ExperimentForm
 
     private Control BuildPresentationViewportRegion()
     {
+        var simplePreview = _options.SimplePreview;
         var region = new TableLayoutPanel
         {
             Name = "ResidentRoleViewRegion",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = simplePreview ? 2 : 3,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemeWindowBackground,
         };
         region.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        region.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-        region.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        region.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        if (simplePreview)
+        {
+            region.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            region.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        }
+        else
+        {
+            region.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
+            region.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            region.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+        }
         var selector = new TableLayoutPanel
         {
             Name = "ResidentRoleViewSelector",
@@ -40,9 +49,12 @@ internal sealed partial class ExperimentForm
         selector.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 8));
         selector.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 1));
         selector.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _presentationViewSelector = selector;
-        AddPresentationViewButton(selector, "Original (focus)", "reference", 0);
-        AddPresentationViewButton(selector, "Imported / Modify (focus)", "editable", 2);
+        _presentationViewSelector = simplePreview ? null : selector;
+        if (!simplePreview)
+        {
+            AddPresentationViewButton(selector, "Original (focus)", "reference", 0);
+            AddPresentationViewButton(selector, "Imported / Modify (focus)", "editable", 2);
+        }
         var divider = new Panel
         {
             Name = "ResidentRoleViewHeaderDivider",
@@ -73,12 +85,15 @@ internal sealed partial class ExperimentForm
                 (float)point.X / Math.Max(1, selector.ClientSize.Width),
                 notifyHost: true);
         };
-        selector.Controls.Add(divider, 1, 0);
-        selector.Resize += (_, _) => UpdatePresentationHeaderSplit();
-        _viewport.PaneSplitRatioChanged += _ => UpdatePresentationHeaderSplit();
-        _viewport.ActivePresentationPaneChanged += _ => UpdatePresentationViewButtons();
-        region.Controls.Add(selector, 0, 0);
-        region.Controls.Add(_viewport, 0, 1);
+        if (!simplePreview)
+        {
+            selector.Controls.Add(divider, 1, 0);
+            selector.Resize += (_, _) => UpdatePresentationHeaderSplit();
+            _viewport.PaneSplitRatioChanged += _ => UpdatePresentationHeaderSplit();
+            _viewport.ActivePresentationPaneChanged += _ => UpdatePresentationViewButtons();
+            region.Controls.Add(selector, 0, 0);
+        }
+        region.Controls.Add(_viewport, 0, simplePreview ? 0 : 1);
         _controlsHintLabel.Name = "ResidentViewportControlsHint";
         _controlsHintLabel.Dock = DockStyle.Fill;
         _controlsHintLabel.Margin = new Padding(0);
@@ -87,9 +102,12 @@ internal sealed partial class ExperimentForm
         _controlsHintLabel.ForeColor = ThemeMutedText;
         _controlsHintLabel.TextAlign = ContentAlignment.MiddleLeft;
         _controlsHintLabel.AutoEllipsis = true;
-        region.Controls.Add(_controlsHintLabel, 0, 2);
+        region.Controls.Add(_controlsHintLabel, 0, simplePreview ? 1 : 2);
         UpdateViewportControlsHint();
-        UpdatePresentationHeaderSplit();
+        if (!simplePreview)
+        {
+            UpdatePresentationHeaderSplit();
+        }
         UpdatePresentationViewButtons();
         return region;
     }

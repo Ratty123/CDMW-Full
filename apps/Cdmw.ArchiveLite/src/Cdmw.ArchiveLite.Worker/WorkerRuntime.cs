@@ -8,6 +8,8 @@ internal sealed class WorkerRuntime : IDisposable
     private readonly NativeArchiveCore _native = new();
     private readonly ArchiveSessionManager _sessions;
     private readonly ArchiveQueryService _queries;
+    private readonly ArchiveFacetsService _facets;
+    private readonly ArchiveItemNameIndexService _nameIndex;
     private readonly ArchivePreviewService _previews;
     private readonly TextSearchService _textSearch;
     private readonly ArchiveExportService _exports;
@@ -18,6 +20,8 @@ internal sealed class WorkerRuntime : IDisposable
         _native.EnsureCompatible();
         _sessions = new ArchiveSessionManager(_native);
         _queries = new ArchiveQueryService(_sessions);
+        _facets = new ArchiveFacetsService(_sessions);
+        _nameIndex = new ArchiveItemNameIndexService(_sessions, _native);
         _previews = new ArchivePreviewService(_sessions, _native);
         _textSearch = new TextSearchService(_sessions, _native);
         _exports = new ArchiveExportService(_sessions, _queries, _native);
@@ -40,6 +44,18 @@ internal sealed class WorkerRuntime : IDisposable
                 {
                     var payload = RequirePayload<ArchiveQuerySpec>(request);
                     var result = await _queries.QueryAsync(payload, request.Generation, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
+            case WorkerProtocol.ArchiveFacets:
+                {
+                    var payload = RequirePayload<ArchiveFacetsRequest>(request);
+                    var result = await _facets.LoadAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
+            case WorkerProtocol.BuildNameIndex:
+                {
+                    var payload = RequirePayload<BuildNameIndexRequest>(request);
+                    var result = await _nameIndex.BuildAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
                 }
             case WorkerProtocol.Preview:

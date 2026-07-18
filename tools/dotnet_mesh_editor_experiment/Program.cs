@@ -94,6 +94,11 @@ internal sealed partial class ExperimentForm : Form
         _sourceParseCount = Math.Max(0, sourceParseCount);
         _materials = NetMaterialSet.Load(options.MaterialsPath);
         _scene = NetSceneState.Load(options.ScenePath, document.Submeshes.Count);
+        if (options.SimplePreview)
+        {
+            _scene.SetComparisonMode("replacement_only");
+            _scene.SetPresentationOverlayVisibility(gridVisible: false, gizmoVisible: false);
+        }
         _textureSet = NetTextureSet.Load(_materials);
         _ = _textureSet.LoadAsync(_materials);
         Text = "CDMW .NET Mesh Editor Experiment";
@@ -116,6 +121,10 @@ internal sealed partial class ExperimentForm : Form
         StartProtocolReader();
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
+        if (options.SimplePreview)
+        {
+            _ = _viewport.TrySetSynchronizedDisplayMode("untextured_faces", out _);
+        }
         _viewport.SetOverlaySettings(_overlaySettings);
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
         _viewport.EditorEventRequested += HandleViewportEditorEvent;

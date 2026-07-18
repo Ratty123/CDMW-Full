@@ -17,6 +17,7 @@
         SnapsToDevicePixels="True">
     <Window.Resources>
         <infra:ArchiveRoleLabelConverter x:Key="ArchiveRoleLabelConverter" />
+        <infra:VisibilityBooleanConverter x:Key="VisibilityBooleanConverter" />
     </Window.Resources>
 
     <Grid Background="{DynamicResource WindowBackgroundBrush}">
@@ -126,7 +127,44 @@
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=PathFilter}" />
                                         <TextBox Margin="0,0,0,10" Text="{Binding ArchiveBrowser.PathFilter, UpdateSourceTrigger=PropertyChanged}" />
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ExtensionFilter}" />
-                                        <TextBox Margin="0,0,0,10" Text="{Binding ArchiveBrowser.ExtensionFilter, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ComboBox Margin="0,0,0,10"
+                                                  IsEditable="True"
+                                                  IsTextSearchEnabled="True"
+                                                  StaysOpenOnEdit="True"
+                                                  MaxDropDownHeight="430"
+                                                  TextSearch.TextPath="Extension"
+                                                  ItemsSource="{Binding ArchiveBrowser.ExtensionChoicesView}"
+                                                  Text="{Binding ArchiveBrowser.ExtensionFilter, UpdateSourceTrigger=PropertyChanged}">
+                                            <ComboBox.GroupStyle>
+                                                <GroupStyle>
+                                                    <GroupStyle.HeaderTemplate>
+                                                        <DataTemplate>
+                                                            <Border Padding="8,6"
+                                                                    Background="{DynamicResource SurfaceRaisedBrush}">
+                                                                <TextBlock FontWeight="SemiBold"
+                                                                           Foreground="{DynamicResource AccentBrush}"
+                                                                           Text="{Binding Name}" />
+                                                            </Border>
+                                                        </DataTemplate>
+                                                    </GroupStyle.HeaderTemplate>
+                                                </GroupStyle>
+                                            </ComboBox.GroupStyle>
+                                            <ComboBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <Grid MinWidth="190" Margin="2,1">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock Text="{Binding Label}" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Margin="14,0,0,0"
+                                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                                   Text="{Binding Count, StringFormat={}{0:N0}}" />
+                                                    </Grid>
+                                                </DataTemplate>
+                                            </ComboBox.ItemTemplate>
+                                        </ComboBox>
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=PackageFilter}" />
                                         <TextBox Margin="0,0,0,10" Text="{Binding ArchiveBrowser.PackageFilter, UpdateSourceTrigger=PropertyChanged}" />
                                         <CheckBox Margin="0,1,0,10"
@@ -204,28 +242,100 @@
                         <Border Grid.Column="2" Margin="10,0" Style="{StaticResource CardBorderStyle}" Padding="0">
                             <Grid>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
-                                <DataGrid Grid.Row="0"
+                                <Border Grid.Row="0"
+                                        Padding="10,7"
+                                        Background="{DynamicResource SurfaceRaisedBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="0,0,0,1">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextMutedBrush}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   ToolTip="{Binding ArchiveBrowser.CatalogueStatus}"
+                                                   Text="{Binding ArchiveBrowser.CatalogueStatus}" />
+                                        <Button x:Name="ArchiveColumnsButton"
+                                                Grid.Column="1"
+                                                Margin="10,0,0,0"
+                                                Style="{StaticResource CompactButtonStyle}"
+                                                Content="{infra:Loc Key=Columns}"
+                                                Click="OnArchiveColumnsButtonClick" />
+                                        <Popup x:Name="ArchiveColumnsPopup"
+                                               Grid.Column="1"
+                                               Placement="Bottom"
+                                               PlacementTarget="{Binding ElementName=ArchiveColumnsButton}"
+                                               StaysOpen="False"
+                                               AllowsTransparency="True"
+                                               PopupAnimation="Fade">
+                                            <Border Width="245"
+                                                    Margin="0,4,0,0"
+                                                    Padding="12"
+                                                    Background="{DynamicResource SurfaceRaisedBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="6">
+                                                <StackPanel>
+                                                    <TextBlock Margin="2,0,2,8"
+                                                               Style="{StaticResource SectionTitleStyle}"
+                                                               Text="{infra:Loc Key=ChooseColumns}" />
+                                                    <ScrollViewer MaxHeight="330"
+                                                                  VerticalScrollBarVisibility="Auto">
+                                                        <ItemsControl x:Name="ArchiveColumnChooser">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <CheckBox Margin="2,3"
+                                                                              Content="{Binding Header}"
+                                                                              IsChecked="{Binding Visibility, Converter={StaticResource VisibilityBooleanConverter}, Mode=TwoWay}"
+                                                                              Checked="OnArchiveColumnVisibilityChanged"
+                                                                              Unchecked="OnArchiveColumnVisibilityChanged" />
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </ScrollViewer>
+                                                    <Button Margin="0,9,0,0"
+                                                            Style="{StaticResource CompactButtonStyle}"
+                                                            Content="{infra:Loc Key=ShowAllColumns}"
+                                                            Click="OnShowAllArchiveColumnsClick" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Popup>
+                                    </Grid>
+                                </Border>
+                                <DataGrid x:Name="ArchiveGrid"
+                                          Grid.Row="1"
                                           BorderThickness="0"
                                           ItemsSource="{Binding ArchiveBrowser.Entries}"
                                           SelectedItem="{Binding ArchiveBrowser.SelectedEntry}"
                                           AutoGenerateColumns="False"
                                           IsReadOnly="True"
                                           SelectionMode="Single"
-                                          CanUserSortColumns="False"
+                                          CanUserSortColumns="True"
+                                          CanUserReorderColumns="True"
+                                          CanUserResizeColumns="True"
+                                          Sorting="OnArchiveGridSorting"
                                           AlternationCount="2"
                                           ScrollViewer.CanContentScroll="True">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="{infra:Loc Key=Name}" Binding="{Binding Name}" Width="1.05*" MinWidth="110" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Path}" Binding="{Binding Path}" Width="1.55*" MinWidth="145" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Type}" Binding="{Binding Role, Converter={StaticResource ArchiveRoleLabelConverter}}" Width="78" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Size}" Binding="{Binding OriginalSize, StringFormat={}{0:N0}}" Width="80" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Package}" Binding="{Binding Package}" Width="110" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Name}" SortMemberPath="Name" Binding="{Binding Name}" Width="1.05*" MinWidth="125" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=KnownName}" SortMemberPath="KnownName" Binding="{Binding KnownName}" Width="1.05*" MinWidth="130" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=NameEvidence}" SortMemberPath="NameEvidence" Binding="{Binding NameEvidence}" Width="1.15*" MinWidth="145" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Extension}" SortMemberPath="Extension" Binding="{Binding Extension}" Width="86" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Type}" SortMemberPath="Role" Binding="{Binding Role, Converter={StaticResource ArchiveRoleLabelConverter}}" Width="95" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Size}" SortMemberPath="OriginalSize" Binding="{Binding OriginalSize, StringFormat={}{0:N0}}" Width="92" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=StoredSize}" SortMemberPath="StoredSize" Binding="{Binding StoredSize, StringFormat={}{0:N0}}" Width="92" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Compression}" SortMemberPath="Compression" Binding="{Binding CompressionLabel}" Width="100" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Package}" SortMemberPath="Package" Binding="{Binding Package}" Width="125" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Path}" SortMemberPath="Path" Binding="{Binding Path}" Width="1.6*" MinWidth="190" />
                                     </DataGrid.Columns>
                                 </DataGrid>
-                                <Border Grid.Row="1"
+                                <Border Grid.Row="2"
                                         Padding="12,8"
                                         Background="{DynamicResource SurfaceRaisedBrush}"
                                         BorderBrush="{DynamicResource BorderBrush}"

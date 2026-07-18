@@ -217,6 +217,7 @@ internal sealed record LaunchOptions(
     string EvaluationPath,
     bool HeadlessSmoke,
     bool Embedded,
+    bool SimplePreview,
     bool DeveloperRendererFallback,
     long ParentHwnd)
 {
@@ -248,6 +249,7 @@ internal sealed record LaunchOptions(
                 : Path.Combine(Required("input-package"), "dotnet_evaluation.md"),
             values.ContainsKey("headless-smoke"),
             values.ContainsKey("embedded"),
+            values.ContainsKey("simple-preview"),
             values.ContainsKey("developer-renderer-fallback")
                 || IsTruthy(Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_DEVELOPER_RENDERER_FALLBACK")),
             values.TryGetValue("parent-hwnd", out var parentHwnd) && long.TryParse(parentHwnd, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hwnd)

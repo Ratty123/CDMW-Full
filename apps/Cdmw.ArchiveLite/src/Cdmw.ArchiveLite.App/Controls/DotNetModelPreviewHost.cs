@@ -397,6 +397,7 @@ public sealed class DotNetModelPreviewHost : HwndHost
                 "--edit-operations", Path.Combine(runtimeRoot, "edit_operations.json"),
                 "--evaluation", Path.Combine(runtimeRoot, "evaluation.md"),
                 "--embedded",
+                "--simple-preview",
                 "--parent-hwnd", parentHandle.ToInt64().ToString(System.Globalization.CultureInfo.InvariantCulture),
             })
             {

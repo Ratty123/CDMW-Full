@@ -28,7 +28,12 @@ public sealed class MainWindowViewModel : ObservableObject
             .Select(definition => new ThemeOption(definition.Id, LocalizationManager.Get(definition.ResourceKey)))
             .ToArray();
         _selectedTheme = Themes.FirstOrDefault(option => option.Id.Equals(settings.Theme, StringComparison.OrdinalIgnoreCase)) ?? Themes[0];
-        ArchiveBrowser = new ArchiveBrowserViewModel(worker, settings.ArchiveRoot, UpdateStatus);
+        ArchiveBrowser = new ArchiveBrowserViewModel(
+            worker,
+            settings.ArchiveRoot,
+            UpdateStatus,
+            settings.ArchiveSortField,
+            settings.ArchiveSortDescending);
         TextSearch = new TextSearchViewModel(worker, () => ArchiveBrowser.SessionId, UpdateStatus);
         ArchiveBrowser.SessionChanged += (_, _) => TextSearch.NotifyArchiveSessionChanged();
     }
@@ -40,6 +45,19 @@ public sealed class MainWindowViewModel : ObservableObject
     public IReadOnlyList<LanguageOption> Languages { get; }
 
     public IReadOnlyList<ThemeOption> Themes { get; }
+
+    public IReadOnlyList<string>? ArchiveVisibleColumns => _settings.ArchiveVisibleColumns;
+
+    public void SetArchiveVisibleColumns(IEnumerable<string> columns)
+    {
+        _settings = _settings with
+        {
+            ArchiveVisibleColumns = columns
+                .Where(static column => !string.IsNullOrWhiteSpace(column))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray(),
+        };
+    }
 
     public LanguageOption SelectedLanguage
     {
@@ -101,7 +119,12 @@ public sealed class MainWindowViewModel : ObservableObject
         Status = LocalizationManager.Get("Closing");
         ArchiveBrowser.RequestShutdown();
         TextSearch.RequestShutdown();
-        _settings = _settings with { ArchiveRoot = ArchiveBrowser.ArchiveRoot };
+        _settings = _settings with
+        {
+            ArchiveRoot = ArchiveBrowser.ArchiveRoot,
+            ArchiveSortField = ArchiveBrowser.SortField,
+            ArchiveSortDescending = ArchiveBrowser.SortDescending,
+        };
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));

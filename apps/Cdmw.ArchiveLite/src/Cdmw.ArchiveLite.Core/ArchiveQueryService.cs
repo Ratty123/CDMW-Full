@@ -52,6 +52,8 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         var candidates = candidateComparer is null
             ? null
             : new SortedSet<ArchiveEntryDto>(candidateComparer);
+        var needsNameDataDuringScan = query.SortField is ArchiveSortField.KnownName or ArchiveSortField.NameEvidence
+            || !string.IsNullOrWhiteSpace(query.PathText);
         var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var categories = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         long total = 0;
@@ -61,6 +63,10 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             if ((position & 0xFF) == 0) cancellationToken.ThrowIfCancellationRequested();
             var entryId = descendingPath ? session.Index.EntryCount - position - 1 : position;
             var entry = session.Index.ReadEntry(entryId);
+            if (needsNameDataDuringScan)
+            {
+                entry = session.EnrichEntry(entry);
+            }
             if (!Matches(entry, query)) continue;
             total++;
             var folder = Path.GetDirectoryName(entry.Path.Replace('/', Path.DirectorySeparatorChar))?.Replace('\\', '/');
@@ -88,6 +94,10 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         if (candidates is not null)
         {
             page.AddRange(candidates.Skip(query.PageStart).Take(query.PageSize));
+        }
+        for (var index = 0; index < page.Count; index++)
+        {
+            page[index] = session.EnrichEntry(page[index]);
         }
         session.StoreQuery(query, generation, total);
         return new ArchivePageResult(
@@ -119,7 +129,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
 
             var ascendingId = (long)query.PageStart + offset;
             var entryId = query.SortDescending ? total - ascendingId - 1 : ascendingId;
-            page.Add(session.Index.ReadEntry(entryId));
+            page.Add(session.EnrichEntry(session.Index.ReadEntry(entryId)));
         }
 
         session.StoreQuery(query, generation, total);
@@ -161,11 +171,16 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         var text = filter.Trim();
         if (!text.ContainsAny(['*', '?', '[']))
         {
-            return entry.Path.Contains(text, StringComparison.OrdinalIgnoreCase) || entry.Name.Contains(text, StringComparison.OrdinalIgnoreCase);
+            return entry.Path.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || entry.Name.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || entry.KnownName.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || entry.NameEvidence.Contains(text, StringComparison.OrdinalIgnoreCase);
         }
         var pattern = "^" + Regex.Escape(text).Replace("\\*", ".*").Replace("\\?", ".") + "$";
-        return Regex.IsMatch(entry.Path, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)) ||
-            Regex.IsMatch(entry.Name, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
+        return Regex.IsMatch(entry.Path, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250))
+            || Regex.IsMatch(entry.Name, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250))
+            || Regex.IsMatch(entry.KnownName, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250))
+            || Regex.IsMatch(entry.NameEvidence, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
     }
 
     private static bool MatchesExtension(string extension, string candidate)
@@ -183,10 +198,15 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             var result = field switch
             {
                 ArchiveSortField.Name => StringComparer.OrdinalIgnoreCase.Compare(left.Name, right.Name),
+                ArchiveSortField.KnownName => StringComparer.OrdinalIgnoreCase.Compare(left.KnownName, right.KnownName),
+                ArchiveSortField.NameEvidence => StringComparer.OrdinalIgnoreCase.Compare(left.NameEvidence, right.NameEvidence),
                 ArchiveSortField.Extension => StringComparer.OrdinalIgnoreCase.Compare(left.Extension, right.Extension),
                 ArchiveSortField.Package => StringComparer.OrdinalIgnoreCase.Compare(left.Package, right.Package),
                 ArchiveSortField.OriginalSize => left.OriginalSize.CompareTo(right.OriginalSize),
                 ArchiveSortField.StoredSize => left.StoredSize.CompareTo(right.StoredSize),
+                ArchiveSortField.Compression => left.CompressionType != right.CompressionType
+                    ? left.CompressionType.CompareTo(right.CompressionType)
+                    : left.StoredSize.CompareTo(right.StoredSize),
                 ArchiveSortField.Role => left.Role.CompareTo(right.Role),
                 _ => StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path),
             };
