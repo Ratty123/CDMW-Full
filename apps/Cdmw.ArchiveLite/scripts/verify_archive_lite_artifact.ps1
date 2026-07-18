@@ -61,7 +61,11 @@ foreach ($binary in Get-ChildItem -LiteralPath $artifactRoot -Recurse -File | Wh
     }
 }
 
-function Assert-X64Pe([string]$Path) {
+function Assert-PeMachine(
+    [string]$Path,
+    [uint16]$ExpectedMachine,
+    [string]$Architecture
+) {
     $bytes = [IO.File]::ReadAllBytes($Path)
     if ($bytes.Length -lt 64 -or $bytes[0] -ne 0x4D -or $bytes[1] -ne 0x5A) {
         throw "Not a valid PE file: $Path"
@@ -71,9 +75,17 @@ function Assert-X64Pe([string]$Path) {
         throw "Invalid PE header offset: $Path"
     }
     $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-    if ($machine -ne 0x8664) {
-        throw "Artifact is not x64 (machine 0x$($machine.ToString('X4'))): $Path"
+    if ($machine -ne $ExpectedMachine) {
+        throw "Artifact is not $Architecture (machine 0x$($machine.ToString('X4'))): $Path"
     }
+}
+
+function Assert-X64Pe([string]$Path) {
+    Assert-PeMachine -Path $Path -ExpectedMachine 0x8664 -Architecture "x64"
+}
+
+function Assert-X86Pe([string]$Path) {
+    Assert-PeMachine -Path $Path -ExpectedMachine 0x014C -Architecture "x86"
 }
 
 Assert-X64Pe (Join-Path $artifactRoot "CdmwArchiveLite.exe")
@@ -85,7 +97,7 @@ Assert-X64Pe (Join-Path $artifactRoot "mesh\cdmw-mesh-core.exe")
 Assert-X64Pe (Join-Path $artifactRoot "texture\cd-texture-dx.exe")
 Assert-X64Pe (Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe")
 foreach ($mediaBinary in Get-ChildItem -LiteralPath (Join-Path $artifactRoot "media") -File | Where-Object { $_.Extension -in @(".exe", ".dll") }) {
-    Assert-X64Pe $mediaBinary.FullName
+    Assert-X86Pe $mediaBinary.FullName
 }
 
 function Quote-ProcessArgument([string]$Value) {
@@ -120,6 +132,7 @@ $previewCore = Join-Path $artifactRoot "preview\cdmw-preview-core.exe"
 $itemIndexer = Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe"
 $meshCore = Join-Path $artifactRoot "mesh\cdmw-mesh-core.exe"
 $textureDecoder = Join-Path $artifactRoot "texture\cd-texture-dx.exe"
+$mediaDecoder = Join-Path $artifactRoot "media\vgmstream-cli.exe"
 $renderer = Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe"
 $testDataRoot = Join-Path ([IO.Path]::GetTempPath()) "cdmw-archive-lite-artifact-$([Guid]::NewGuid().ToString('N'))"
 $previousTestMode = $env:CDMW_ARCHIVE_LITE_TEST_MODE
@@ -159,6 +172,10 @@ try {
         if ($mediaHash -ne ([string]$fileProperty.Value).ToLowerInvariant()) {
             throw "Packaged vgmstream file hash mismatch: $($fileProperty.Name)"
         }
+    }
+    $mediaProbeExitCode = Invoke-HiddenProcess -Path $mediaDecoder -Arguments @("-V")
+    if ($mediaProbeExitCode -ne 1) {
+        throw "Packaged vgmstream runtime probe returned unexpected exit code $mediaProbeExitCode."
     }
 
     $meshJob = Join-Path $testDataRoot "mesh-export-job.json"
@@ -322,4 +339,4 @@ finally {
     }
 }
 
-Write-Host "Artifact guard passed: x64, self-contained, native DDS/media/model preview and mesh export, hidden Vortice GPU, worker-connected, and Python-free."
+Write-Host "Artifact guard passed: x64 app/native helpers, pinned isolated x86 media runtime, native DDS/model preview and mesh export, hidden Vortice GPU, worker-connected, and Python-free."
