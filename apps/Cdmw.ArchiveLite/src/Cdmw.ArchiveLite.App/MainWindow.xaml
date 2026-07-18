@@ -155,6 +155,7 @@
         <TabControl x:Name="WorkspaceTabs"
                     Grid.Row="1"
                     Margin="16,8,16,10"
+                    SelectedIndex="0"
                     Style="{StaticResource WorkspaceContentTabControlStyle}"
                     SelectionChanged="OnWorkspaceTabSelectionChanged">
             <TabItem Header="{infra:Loc Key=ArchiveBrowserTab}">
@@ -288,13 +289,13 @@
                         </Grid>
                     </Border>
 
-                    <Grid Grid.Row="2">
+                    <Grid x:Name="ArchiveWorkspaceGrid" Grid.Row="2">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="278" MinWidth="250" />
+                            <ColumnDefinition x:Name="ArchiveFilterColumn" Width="278" MinWidth="250" />
                             <ColumnDefinition Width="7" />
-                            <ColumnDefinition Width="1.5*" MinWidth="410" />
+                            <ColumnDefinition x:Name="ArchiveResultsColumn" Width="1.5*" MinWidth="410" />
                             <ColumnDefinition Width="7" />
-                            <ColumnDefinition Width="0.85*" MinWidth="350" />
+                            <ColumnDefinition x:Name="ArchivePreviewColumn" Width="0.85*" MinWidth="350" />
                         </Grid.ColumnDefinitions>
 
                         <ScrollViewer Grid.Column="0"
@@ -852,13 +853,13 @@
             </TabItem>
 
             <TabItem Header="{infra:Loc Key=TextSearchTab}">
-                <Grid Margin="0">
+                <Grid x:Name="TextSearchWorkspaceGrid" Margin="0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="300" MinWidth="270" />
+                        <ColumnDefinition x:Name="TextSearchFilterColumn" Width="300" MinWidth="270" />
                         <ColumnDefinition Width="7" />
-                        <ColumnDefinition Width="1.25*" MinWidth="410" />
+                        <ColumnDefinition x:Name="TextSearchResultsColumn" Width="1.25*" MinWidth="410" />
                         <ColumnDefinition Width="7" />
-                        <ColumnDefinition Width="*" MinWidth="350" />
+                        <ColumnDefinition x:Name="TextSearchPreviewColumn" Width="*" MinWidth="350" />
                     </Grid.ColumnDefinitions>
 
                     <ScrollViewer Grid.Column="0"
@@ -933,7 +934,8 @@
                     <GridSplitter Grid.Column="1" Width="7" HorizontalAlignment="Stretch" />
 
                     <Border Grid.Column="2" Margin="10,0" Style="{StaticResource CardBorderStyle}" Padding="0">
-                        <DataGrid ItemsSource="{Binding TextSearch.Matches}"
+                        <DataGrid x:Name="TextSearchResultsGrid"
+                                  ItemsSource="{Binding TextSearch.Matches}"
                                   SelectedItem="{Binding TextSearch.SelectedMatch}"
                                   AutoGenerateColumns="False"
                                   IsReadOnly="True"
@@ -941,9 +943,9 @@
                                   AlternationCount="2"
                                   BorderThickness="0">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="{infra:Loc Key=Path}" Binding="{Binding Path}" Width="1.5*" MinWidth="210" />
-                                <DataGridTextColumn Header="{infra:Loc Key=Line}" Binding="{Binding Line}" Width="74" />
-                                <DataGridTextColumn Header="{infra:Loc Key=Context}" Binding="{Binding Context}" Width="2*" MinWidth="220" />
+                                <DataGridTextColumn Header="{infra:Loc Key=Path}" SortMemberPath="Path" Binding="{Binding Path}" Width="1.5*" MinWidth="210" />
+                                <DataGridTextColumn Header="{infra:Loc Key=Line}" SortMemberPath="Line" Binding="{Binding Line}" Width="74" />
+                                <DataGridTextColumn Header="{infra:Loc Key=Context}" SortMemberPath="Context" Binding="{Binding Context}" Width="2*" MinWidth="220" />
                             </DataGrid.Columns>
                         </DataGrid>
                     </Border>

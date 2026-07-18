@@ -36,8 +36,13 @@ public sealed class MainWindowViewModel : ObservableObject
             UpdateStatus,
             cacheChoicePrompt.Choose,
             settings.ArchiveSortField,
-            settings.ArchiveSortDescending);
-        TextSearch = new TextSearchViewModel(worker, () => ArchiveBrowser.SessionId, UpdateStatus);
+            settings.ArchiveSortDescending,
+            settings.ArchiveBrowser);
+        TextSearch = new TextSearchViewModel(
+            worker,
+            () => ArchiveBrowser.SessionId,
+            UpdateStatus,
+            settings.TextSearch);
         ArchiveBrowser.SessionChanged += (_, _) => TextSearch.NotifyArchiveSessionChanged();
     }
 
@@ -51,6 +56,14 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public IReadOnlyList<string>? ArchiveVisibleColumns => _settings.ArchiveVisibleColumns;
 
+    public WindowPlacementSettings? WindowPlacement => _settings.WindowPlacement;
+
+    public WorkspaceLayoutSettings? WorkspaceLayout => _settings.WorkspaceLayout;
+
+    public IReadOnlyList<GridColumnSettings>? ArchiveColumnLayout => _settings.ArchiveColumnLayout;
+
+    public IReadOnlyList<GridColumnSettings>? TextSearchColumnLayout => _settings.TextSearchColumnLayout;
+
     public void SetArchiveVisibleColumns(IEnumerable<string> columns)
     {
         _settings = _settings with
@@ -59,6 +72,21 @@ public sealed class MainWindowViewModel : ObservableObject
                 .Where(static column => !string.IsNullOrWhiteSpace(column))
                 .Distinct(StringComparer.Ordinal)
                 .ToArray(),
+        };
+    }
+
+    public void SetUiLayout(
+        WindowPlacementSettings windowPlacement,
+        WorkspaceLayoutSettings workspaceLayout,
+        IEnumerable<GridColumnSettings> archiveColumns,
+        IEnumerable<GridColumnSettings> textSearchColumns)
+    {
+        _settings = _settings with
+        {
+            WindowPlacement = windowPlacement,
+            WorkspaceLayout = workspaceLayout,
+            ArchiveColumnLayout = archiveColumns.ToArray(),
+            TextSearchColumnLayout = textSearchColumns.ToArray(),
         };
     }
 
@@ -140,6 +168,24 @@ public sealed class MainWindowViewModel : ObservableObject
             ArchiveRoot = ArchiveBrowser.ArchiveRoot,
             ArchiveSortField = ArchiveBrowser.SortField,
             ArchiveSortDescending = ArchiveBrowser.SortDescending,
+            ArchiveBrowser = new ArchiveBrowserSettings(
+                ArchiveBrowser.PathFilter,
+                ArchiveBrowser.ExtensionFilter,
+                ArchiveBrowser.PackageFilter,
+                ArchiveBrowser.PreviewableOnly,
+                ArchiveBrowser.ViewMode,
+                ArchiveBrowser.SelectedFolder?.Path,
+                ArchiveBrowser.SelectedRole.Role,
+                ArchiveBrowser.CollisionPolicy,
+                ArchiveBrowser.ManifestFormat),
+            TextSearch = new TextSearchSettings(
+                TextSearch.SourceKind,
+                TextSearch.LooseFolder,
+                TextSearch.Query,
+                TextSearch.PathFilter,
+                TextSearch.Extensions,
+                TextSearch.UseRegularExpression,
+                TextSearch.CaseSensitive),
         };
         try
         {

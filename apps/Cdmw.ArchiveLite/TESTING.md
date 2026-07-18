@@ -15,7 +15,7 @@ This gate configures and builds `cdmw_archive_core`, `cdmw_preview_core`, `cdmw_
 - safe virtual-path normalization and traversal/root rejection;
 - archive scan/query/preview/text-search behavior and source-file SHA-256 immutability;
 - game-folder recognition and Steam-library parsing, plus missing/current/stale archive-cache health transitions;
-- portable settings/cache/log/crash routing beside the distributable with isolated test overrides, startup auto-load of a current persistent cache without prompting, full-fingerprint rejection without an automatic rebuild after same-size/same-timestamp source changes, and a manual Refresh recommendation for stale caches;
+- portable settings/cache/log/crash routing beside the distributable with isolated test overrides; round-trip persistence for archive/text-search filters, export options, window placement, split panes, and grid columns; deterministic Archive Browser startup; startup auto-load of a current persistent cache without prompting; full-fingerprint rejection without an automatic rebuild after same-size/same-timestamp source changes; and a manual Refresh recommendation for stale caches;
 - persistent index build/reuse and forced-rebuild routing, one-time index isolation and shutdown cleanup, source-byte immutability, and the shared themed cache-choice flow for manual Open and Refresh;
 - native mesh-only model-package adaptation, hidden grid/gizmo state, empty texture channels, exact geometry-length checks, path-containment rejection, and a headless synthetic package load through the real .NET renderer;
 - synthetic mesh-only GLB 2.0, OBJ, and binary FBX exports, source-geometry immutability, determinate conversion progress, and cancellation that preserves an existing destination;

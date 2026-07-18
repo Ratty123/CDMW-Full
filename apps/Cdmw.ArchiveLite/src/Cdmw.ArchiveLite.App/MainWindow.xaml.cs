@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private bool _shutdownStarted;
     private bool _shutdownComplete;
     private bool _applyingArchiveColumnLayout;
+    private WindowState _lastNonMinimizedWindowState = WindowState.Normal;
 
     private static readonly HashSet<string> DefaultArchiveColumns = new(StringComparer.Ordinal)
     {
@@ -43,12 +44,15 @@ public partial class MainWindow : Window
         _viewModel = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
         DataContext = viewModel;
+        WorkspaceTabs.SelectedIndex = 0;
         Closing += OnClosing;
         Closed += OnClosed;
         Loaded += OnLoaded;
         SourceInitialized += OnSourceInitialized;
+        StateChanged += OnWindowStateChanged;
         ThemeManager.ThemeChanged += OnThemeChanged;
         _viewModel.ArchiveBrowser.PropertyChanged += OnArchiveBrowserPropertyChanged;
+        ApplyWindowPlacement();
     }
 
     private void OnSourceInitialized(object? sender, EventArgs eventArgs) => ApplyTitleBarTheme();
@@ -138,14 +142,19 @@ public partial class MainWindow : Window
 
     private void OnClosed(object? sender, EventArgs eventArgs)
     {
+        StateChanged -= OnWindowStateChanged;
         ThemeManager.ThemeChanged -= OnThemeChanged;
         _viewModel.ArchiveBrowser.PropertyChanged -= OnArchiveBrowserPropertyChanged;
     }
 
     private void OnLoaded(object sender, RoutedEventArgs eventArgs)
     {
+        WorkspaceTabs.SelectedIndex = 0;
         ArchiveColumnChooser.ItemsSource = ArchiveGrid.Columns;
         ApplyArchiveColumnLayout();
+        ApplyGridColumnLayout(ArchiveGrid, _viewModel.ArchiveColumnLayout);
+        ApplyGridColumnLayout(TextSearchResultsGrid, _viewModel.TextSearchColumnLayout);
+        ApplyWorkspaceLayout();
         UpdateArchiveSortIndicators();
         UpdateWorkspaceNavigationState();
     }
@@ -285,6 +294,7 @@ public partial class MainWindow : Window
         }
 
         _shutdownStarted = true;
+        CaptureUiState();
         IsEnabled = false;
         try
         {
@@ -297,6 +307,190 @@ public partial class MainWindow : Window
             Close();
         }
     }
+
+    private void OnWindowStateChanged(object? sender, EventArgs eventArgs)
+    {
+        if (WindowState != WindowState.Minimized)
+        {
+            _lastNonMinimizedWindowState = WindowState;
+        }
+    }
+
+    private void ApplyWindowPlacement()
+    {
+        var placement = _viewModel.WindowPlacement;
+        if (placement is null)
+        {
+            return;
+        }
+
+        var virtualLeft = SystemParameters.VirtualScreenLeft;
+        var virtualTop = SystemParameters.VirtualScreenTop;
+        var virtualWidth = Math.Max(MinWidth, SystemParameters.VirtualScreenWidth);
+        var virtualHeight = Math.Max(MinHeight, SystemParameters.VirtualScreenHeight);
+        var width = NormalizeDimension(placement.Width, Width, MinWidth, virtualWidth);
+        var height = NormalizeDimension(placement.Height, Height, MinHeight, virtualHeight);
+        Width = width;
+        Height = height;
+
+        if (placement.Left is { } left
+            && placement.Top is { } top
+            && double.IsFinite(left)
+            && double.IsFinite(top))
+        {
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = Math.Clamp(left, virtualLeft, virtualLeft + Math.Max(0, virtualWidth - width));
+            Top = Math.Clamp(top, virtualTop, virtualTop + Math.Max(0, virtualHeight - height));
+        }
+
+        _lastNonMinimizedWindowState = placement.IsMaximized
+            ? WindowState.Maximized
+            : WindowState.Normal;
+        WindowState = _lastNonMinimizedWindowState;
+    }
+
+    private void ApplyWorkspaceLayout()
+    {
+        var layout = _viewModel.WorkspaceLayout;
+        if (layout is null)
+        {
+            return;
+        }
+
+        ArchiveFilterColumn.Width = PixelGridLength(layout.ArchiveFilterWidth, 250, 720, 278);
+        ArchiveResultsColumn.Width = new GridLength(1, GridUnitType.Star);
+        ArchivePreviewColumn.Width = PixelGridLength(layout.ArchivePreviewWidth, 350, 1000, 420);
+        TextSearchFilterColumn.Width = PixelGridLength(layout.TextSearchFilterWidth, 270, 720, 300);
+        TextSearchResultsColumn.Width = new GridLength(1, GridUnitType.Star);
+        TextSearchPreviewColumn.Width = PixelGridLength(layout.TextSearchPreviewWidth, 350, 1000, 420);
+    }
+
+    private static void ApplyGridColumnLayout(
+        DataGrid grid,
+        IReadOnlyList<GridColumnSettings>? configured)
+    {
+        if (configured is not { Count: > 0 } || grid.Columns.Count == 0)
+        {
+            return;
+        }
+
+        var columnsByKey = grid.Columns
+            .Where(static column => !string.IsNullOrWhiteSpace(column.SortMemberPath))
+            .ToDictionary(static column => column.SortMemberPath, StringComparer.Ordinal);
+        var layoutByKey = configured
+            .Where(setting => !string.IsNullOrWhiteSpace(setting.Key) && columnsByKey.ContainsKey(setting.Key))
+            .GroupBy(static setting => setting.Key, StringComparer.Ordinal)
+            .Select(static group => group.First())
+            .ToDictionary(static setting => setting.Key, StringComparer.Ordinal);
+        var orderedColumns = configured
+            .Where(setting => layoutByKey.TryGetValue(setting.Key, out var canonical) && ReferenceEquals(setting, canonical))
+            .OrderBy(static setting => setting.DisplayIndex)
+            .Select(setting => columnsByKey[setting.Key])
+            .Concat(grid.Columns.Where(column => !layoutByKey.ContainsKey(column.SortMemberPath)))
+            .Distinct()
+            .ToArray();
+
+        for (var index = 0; index < orderedColumns.Length; index++)
+        {
+            orderedColumns[index].DisplayIndex = index;
+        }
+        foreach (var (key, setting) in layoutByKey)
+        {
+            var column = columnsByKey[key];
+            if (double.IsFinite(setting.Width) && setting.Width > 0)
+            {
+                var minimum = Math.Max(48, Math.Max(grid.MinColumnWidth, column.MinWidth));
+                column.Width = new DataGridLength(Math.Clamp(setting.Width, minimum, 1600), DataGridLengthUnitType.Pixel);
+            }
+        }
+    }
+
+    private void CaptureUiState()
+    {
+        SaveArchiveColumnLayout();
+        var priorWorkspace = _viewModel.WorkspaceLayout ?? new WorkspaceLayoutSettings();
+        _viewModel.SetUiLayout(
+            CaptureWindowPlacement(),
+            new WorkspaceLayoutSettings(
+                MeasuredWidthOrFallback(ArchiveFilterColumn, priorWorkspace.ArchiveFilterWidth),
+                MeasuredWidthOrFallback(ArchivePreviewColumn, priorWorkspace.ArchivePreviewWidth),
+                MeasuredWidthOrFallback(TextSearchFilterColumn, priorWorkspace.TextSearchFilterWidth),
+                MeasuredWidthOrFallback(TextSearchPreviewColumn, priorWorkspace.TextSearchPreviewWidth)),
+            CaptureGridColumnLayout(ArchiveGrid, _viewModel.ArchiveColumnLayout),
+            CaptureGridColumnLayout(TextSearchResultsGrid, _viewModel.TextSearchColumnLayout));
+    }
+
+    private WindowPlacementSettings CaptureWindowPlacement()
+    {
+        var isMaximized = WindowState == WindowState.Maximized
+            || (WindowState == WindowState.Minimized && _lastNonMinimizedWindowState == WindowState.Maximized);
+        var bounds = WindowState == WindowState.Normal
+            ? new Rect(Left, Top, ActualWidth, ActualHeight)
+            : RestoreBounds;
+        if (!IsUsableBounds(bounds))
+        {
+            bounds = new Rect(Left, Top, Width, Height);
+        }
+        return new WindowPlacementSettings(bounds.Left, bounds.Top, bounds.Width, bounds.Height, isMaximized);
+    }
+
+    private static IReadOnlyList<GridColumnSettings> CaptureGridColumnLayout(
+        DataGrid grid,
+        IReadOnlyList<GridColumnSettings>? priorLayout)
+    {
+        var priorWidths = priorLayout?
+            .Where(static setting => !string.IsNullOrWhiteSpace(setting.Key))
+            .GroupBy(static setting => setting.Key, StringComparer.Ordinal)
+            .ToDictionary(static group => group.Key, static group => group.First().Width, StringComparer.Ordinal)
+            ?? new Dictionary<string, double>(StringComparer.Ordinal);
+        return grid.Columns
+            .Where(static column => !string.IsNullOrWhiteSpace(column.SortMemberPath))
+            .Select(column => new GridColumnSettings(
+                column.SortMemberPath,
+                column.DisplayIndex,
+                MeasuredColumnWidthOrFallback(column, priorWidths.GetValueOrDefault(column.SortMemberPath))))
+            .ToArray();
+    }
+
+    private static double MeasuredColumnWidthOrFallback(DataGridColumn column, double fallback)
+    {
+        if (double.IsFinite(column.ActualWidth) && column.ActualWidth > 0)
+        {
+            return column.ActualWidth;
+        }
+        if (double.IsFinite(fallback) && fallback > 0)
+        {
+            return fallback;
+        }
+        return column.Width.UnitType == DataGridLengthUnitType.Pixel
+            && double.IsFinite(column.Width.DisplayValue)
+            && column.Width.DisplayValue > 0
+                ? column.Width.DisplayValue
+                : 0;
+    }
+
+    private static double MeasuredWidthOrFallback(ColumnDefinition column, double fallback) =>
+        double.IsFinite(column.ActualWidth) && column.ActualWidth >= column.MinWidth
+            ? column.ActualWidth
+            : fallback;
+
+    private static GridLength PixelGridLength(double value, double minimum, double maximum, double fallback) =>
+        new(NormalizeDimension(value, fallback, minimum, maximum), GridUnitType.Pixel);
+
+    private static double NormalizeDimension(double value, double fallback, double minimum, double maximum)
+    {
+        var normalized = double.IsFinite(value) ? value : fallback;
+        return Math.Clamp(normalized, minimum, Math.Max(minimum, maximum));
+    }
+
+    private static bool IsUsableBounds(Rect bounds) =>
+        !bounds.IsEmpty
+        && double.IsFinite(bounds.Left)
+        && double.IsFinite(bounds.Top)
+        && double.IsFinite(bounds.Width)
+        && double.IsFinite(bounds.Height)
+        && bounds.Width > 0
+        && bounds.Height > 0;
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(

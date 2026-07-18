@@ -25,11 +25,25 @@ public sealed class TextSearchViewModel : ObservableObject
     private bool _isBusy;
     private IReadOnlyList<LocalizedOption<TextSearchSourceKind>> _sourceOptions = [];
 
-    public TextSearchViewModel(WorkerProcessHost worker, Func<string?> archiveSession, Action<string> setShellStatus)
+    public TextSearchViewModel(
+        WorkerProcessHost worker,
+        Func<string?> archiveSession,
+        Action<string> setShellStatus,
+        TextSearchSettings? initialSettings = null)
     {
+        var searchSettings = initialSettings ?? new TextSearchSettings();
         _worker = worker;
         _archiveSession = archiveSession;
         _setShellStatus = setShellStatus;
+        _sourceKind = Enum.IsDefined(searchSettings.SourceKind)
+            ? searchSettings.SourceKind
+            : TextSearchSourceKind.Archive;
+        _looseFolder = searchSettings.LooseFolder ?? string.Empty;
+        _query = searchSettings.Query ?? string.Empty;
+        _pathFilter = searchSettings.PathFilter ?? string.Empty;
+        _extensions = searchSettings.Extensions ?? string.Empty;
+        _useRegularExpression = searchSettings.UseRegularExpression;
+        _caseSensitive = searchSettings.CaseSensitive;
         BrowseCommand = new AsyncCommand(_ => BrowseAsync(), () => SourceKind == TextSearchSourceKind.LooseFolder);
         SearchCommand = new AsyncCommand(SearchAsync, CanSearch);
         CancelCommand = new RelayCommand(RequestShutdown, () => IsBusy);

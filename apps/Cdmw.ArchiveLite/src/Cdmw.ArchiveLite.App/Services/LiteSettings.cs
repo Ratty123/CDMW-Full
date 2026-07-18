@@ -9,4 +9,48 @@ public sealed record LiteSettings(
     string Theme = "graphite",
     ArchiveSortField ArchiveSortField = ArchiveSortField.Path,
     bool ArchiveSortDescending = false,
-    string[]? ArchiveVisibleColumns = null);
+    string[]? ArchiveVisibleColumns = null,
+    ArchiveBrowserSettings? ArchiveBrowser = null,
+    TextSearchSettings? TextSearch = null,
+    WindowPlacementSettings? WindowPlacement = null,
+    WorkspaceLayoutSettings? WorkspaceLayout = null,
+    GridColumnSettings[]? ArchiveColumnLayout = null,
+    GridColumnSettings[]? TextSearchColumnLayout = null);
+
+public sealed record ArchiveBrowserSettings(
+    string PathFilter = "",
+    string ExtensionFilter = "",
+    string PackageFilter = "",
+    bool PreviewableOnly = false,
+    ArchiveViewMode ViewMode = ArchiveViewMode.Flat,
+    string? FolderPath = null,
+    ArchiveEntryRole? Role = null,
+    ExportCollisionPolicy CollisionPolicy = ExportCollisionPolicy.Skip,
+    ExportManifestFormat ManifestFormat = ExportManifestFormat.Json);
+
+public sealed record TextSearchSettings(
+    TextSearchSourceKind SourceKind = TextSearchSourceKind.Archive,
+    string LooseFolder = "",
+    string Query = "",
+    string PathFilter = "",
+    string Extensions = ".xml;.txt;.json;.cfg;.ini;.lua;.material;.shader;.yaml;.yml",
+    bool UseRegularExpression = false,
+    bool CaseSensitive = false);
+
+public sealed record WindowPlacementSettings(
+    double? Left = null,
+    double? Top = null,
+    double Width = 1440,
+    double Height = 880,
+    bool IsMaximized = false);
+
+public sealed record WorkspaceLayoutSettings(
+    double ArchiveFilterWidth = 278,
+    double ArchivePreviewWidth = 420,
+    double TextSearchFilterWidth = 300,
+    double TextSearchPreviewWidth = 420);
+
+public sealed record GridColumnSettings(
+    string Key,
+    int DisplayIndex,
+    double Width);

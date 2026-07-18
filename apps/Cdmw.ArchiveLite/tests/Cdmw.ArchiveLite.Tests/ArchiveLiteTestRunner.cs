@@ -26,6 +26,7 @@ internal static class ArchiveLiteTestRunner
             ("compiled localization persists across later UI work", TestCompiledLocalizationAsync),
             ("read-only WPF text bindings are explicitly one-way", TestReadOnlyWpfBindingsAsync),
             ("fatal diagnostics are written to portable log and crash folders", TestFatalDiagnosticsAsync),
+            ("portable settings retain filters, window placement, panes, and columns", TestPortableUiSettingsAsync),
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
             ("modern shell exposes cache health, game detection, and Enter search", TestModernShellAsync),
             ("archive grid exposes configurable sortable columns and categorized extensions", TestArchiveGridFeaturesAsync),
@@ -269,6 +270,112 @@ internal static class ArchiveLiteTestRunner
         return Task.CompletedTask;
     }
 
+    private static async Task TestPortableUiSettingsAsync()
+    {
+        var expected = new LiteSettings(
+            Language: "de",
+            ArchiveRoot: "C:\\game",
+            Theme: "midnight",
+            ArchiveSortField: ArchiveSortField.KnownName,
+            ArchiveSortDescending: true,
+            ArchiveVisibleColumns: ["Name", "Path"],
+            ArchiveBrowser: new ArchiveBrowserSettings(
+                "character/model",
+                ".pac;.pam",
+                "base",
+                true,
+                ArchiveViewMode.CategoriesAndFolders,
+                "character/model/player",
+                ArchiveEntryRole.Model,
+                ExportCollisionPolicy.Overwrite,
+                ExportManifestFormat.Csv),
+            TextSearch: new TextSearchSettings(
+                TextSearchSourceKind.LooseFolder,
+                "C:\\loose",
+                "material_name",
+                "character",
+                ".xml;.material",
+                true,
+                true),
+            WindowPlacement: new WindowPlacementSettings(120, 80, 1320, 790, true),
+            WorkspaceLayout: new WorkspaceLayoutSettings(336, 488, 318, 452),
+            ArchiveColumnLayout:
+            [
+                new GridColumnSettings("Name", 1, 240),
+                new GridColumnSettings("Path", 0, 510),
+            ],
+            TextSearchColumnLayout:
+            [
+                new GridColumnSettings("Path", 0, 420),
+                new GridColumnSettings("Context", 2, 560),
+            ]);
+        var settingsStore = typeof(MainWindowViewModel).Assembly.GetType("Cdmw.ArchiveLite.App.Services.SettingsStore")
+            ?? throw new InvalidOperationException("SettingsStore type was not found");
+        var saveMethod = settingsStore.GetMethod("SaveAsync", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("SettingsStore.SaveAsync was not found");
+        var loadMethod = settingsStore.GetMethod("LoadAsync", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            ?? throw new InvalidOperationException("SettingsStore.LoadAsync was not found");
+        var saveTask = saveMethod.Invoke(null, [expected, CancellationToken.None]) as Task
+            ?? throw new InvalidOperationException("SettingsStore.SaveAsync did not return a task");
+        await saveTask.ConfigureAwait(false);
+        var loadTask = loadMethod.Invoke(null, [CancellationToken.None]) as Task
+            ?? throw new InvalidOperationException("SettingsStore.LoadAsync did not return a task");
+        await loadTask.ConfigureAwait(false);
+        var actual = loadTask.GetType().GetProperty("Result")?.GetValue(loadTask) as LiteSettings
+            ?? throw new InvalidOperationException("SettingsStore.LoadAsync did not return LiteSettings");
+
+        Require(actual.ArchiveBrowser == expected.ArchiveBrowser, "archive filters did not round-trip through portable settings");
+        Require(actual.TextSearch == expected.TextSearch, "text-search filters did not round-trip through portable settings");
+        Require(actual.WindowPlacement == expected.WindowPlacement, "window placement did not round-trip through portable settings");
+        Require(actual.WorkspaceLayout == expected.WorkspaceLayout, "split-pane widths did not round-trip through portable settings");
+        Require(
+            actual.ArchiveColumnLayout?.SequenceEqual(expected.ArchiveColumnLayout!) == true,
+            "archive column widths/order did not round-trip through portable settings");
+        Require(
+            actual.TextSearchColumnLayout?.SequenceEqual(expected.TextSearchColumnLayout!) == true,
+            "text-search column widths/order did not round-trip through portable settings");
+
+        var portableRoot = Path.GetFullPath(Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_DATA_ROOT")!);
+        var settingsPath = Path.Combine(portableRoot, "settings.json");
+        var json = await File.ReadAllTextAsync(settingsPath).ConfigureAwait(false);
+        Require(
+            json.Contains("\"archive_browser\"", StringComparison.Ordinal)
+            && json.Contains("\"window_placement\"", StringComparison.Ordinal)
+            && json.Contains("\"workspace_layout\"", StringComparison.Ordinal),
+            "portable settings do not use the expected stable snake-case sections");
+
+        await RunOnWpfDispatcherAsync(() =>
+        {
+            var browser = new ArchiveBrowserViewModel(
+                null!,
+                expected.ArchiveRoot,
+                _ => { },
+                (_, _) => ArchiveCacheMode.Persistent,
+                expected.ArchiveSortField,
+                expected.ArchiveSortDescending,
+                actual.ArchiveBrowser);
+            var search = new TextSearchViewModel(null!, () => null, _ => { }, actual.TextSearch);
+            Require(browser.PathFilter == "character/model", "archive path filter was not restored into the view model");
+            Require(browser.ExtensionFilter == ".pac;.pam", "archive extension filter was not restored into the view model");
+            Require(browser.PackageFilter == "base", "archive package filter was not restored into the view model");
+            Require(browser.PreviewableOnly, "previewable-only filter was not restored into the view model");
+            Require(browser.ViewMode == ArchiveViewMode.CategoriesAndFolders, "archive view filter was not restored into the view model");
+            Require(browser.SelectedFolder?.Path == "character/model/player", "folder filter was not ready before the first archive query");
+            Require(browser.SelectedRole.Role == ArchiveEntryRole.Model, "role filter was not restored into the view model");
+            Require(browser.CollisionPolicy == ExportCollisionPolicy.Overwrite, "export collision policy was not restored");
+            Require(browser.ManifestFormat == ExportManifestFormat.Csv, "export manifest format was not restored");
+            Require(search.SourceKind == TextSearchSourceKind.LooseFolder, "text-search source was not restored");
+            Require(search.LooseFolder == "C:\\loose", "text-search loose folder was not restored");
+            Require(search.Query == "material_name", "text-search query was not restored");
+            Require(search.PathFilter == "character", "text-search path filter was not restored");
+            Require(search.Extensions == ".xml;.material", "text-search extensions were not restored");
+            Require(search.UseRegularExpression && search.CaseSensitive, "text-search boolean filters were not restored");
+            browser.RequestShutdown();
+            search.RequestShutdown();
+            return Task.CompletedTask;
+        }).ConfigureAwait(false);
+    }
+
     private static Task TestWpfThemesAsync()
     {
         var appRoot = Path.Combine(
@@ -377,6 +484,33 @@ internal static class ArchiveLiteTestRunner
                 .SelectMany(element => element.Elements().Where(child => child.Name.LocalName == "Grid"))
                 .All(element => string.Equals((string?)element.Attribute("Margin"), "0", StringComparison.Ordinal)),
             "workspace content still stacks a separate tab row or duplicate page margins");
+        Require(
+            string.Equals((string?)topTabs.Attribute("SelectedIndex"), "0", StringComparison.Ordinal),
+            "Archive Browser is not the explicit default startup workspace");
+        var namedLayoutElements = window.Descendants()
+            .SelectMany(element => element.Attributes()
+                .Where(attribute => attribute.Name.LocalName == "Name")
+                .Select(static attribute => attribute.Value))
+            .ToHashSet(StringComparer.Ordinal);
+        Require(
+            new[]
+            {
+                "ArchiveFilterColumn",
+                "ArchivePreviewColumn",
+                "TextSearchFilterColumn",
+                "TextSearchPreviewColumn",
+                "TextSearchResultsGrid",
+            }.All(namedLayoutElements.Contains),
+            "user-resizable panes or result columns are not addressable for persistence");
+        var windowSource = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml.cs"));
+        Require(
+            windowSource.Split("WorkspaceTabs.SelectedIndex = 0;", StringSplitOptions.None).Length >= 3,
+            "startup does not defensively restore Archive Browser after XAML initialization and load");
+        Require(
+            windowSource.Contains("CaptureUiState();", StringComparison.Ordinal)
+            && windowSource.Contains("CaptureWindowPlacement()", StringComparison.Ordinal)
+            && windowSource.Contains("CaptureGridColumnLayout", StringComparison.Ordinal),
+            "window, pane, or column resizing is not captured during orderly shutdown");
         var controlsSource = File.ReadAllText(Path.Combine(appRoot, "Themes", "Controls.xaml"));
         Require(
             !controlsSource.Contains("<TabPanel", StringComparison.Ordinal)

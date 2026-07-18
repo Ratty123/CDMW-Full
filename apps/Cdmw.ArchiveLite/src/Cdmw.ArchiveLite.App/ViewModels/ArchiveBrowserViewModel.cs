@@ -78,14 +78,30 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         Action<string> setShellStatus,
         Func<string, bool, ArchiveCacheMode?> chooseCacheMode,
         ArchiveSortField initialSortField = ArchiveSortField.Path,
-        bool initialSortDescending = false)
+        bool initialSortDescending = false,
+        ArchiveBrowserSettings? initialSettings = null)
     {
+        var browserSettings = initialSettings ?? new ArchiveBrowserSettings();
         _worker = worker;
         _setShellStatus = setShellStatus;
         _chooseCacheMode = chooseCacheMode ?? throw new ArgumentNullException(nameof(chooseCacheMode));
         _archiveRoot = archiveRoot ?? string.Empty;
-        _sortField = initialSortField;
+        _pathFilter = browserSettings.PathFilter ?? string.Empty;
+        _extensionFilter = browserSettings.ExtensionFilter ?? string.Empty;
+        _packageFilter = browserSettings.PackageFilter ?? string.Empty;
+        _previewableOnly = browserSettings.PreviewableOnly;
+        _viewMode = Enum.IsDefined(browserSettings.ViewMode) ? browserSettings.ViewMode : ArchiveViewMode.Flat;
+        _sortField = Enum.IsDefined(initialSortField) ? initialSortField : ArchiveSortField.Path;
         _sortDescending = initialSortDescending;
+        _selectedFolder = string.IsNullOrWhiteSpace(browserSettings.FolderPath)
+            ? null
+            : new ArchiveFolderFilter(browserSettings.FolderPath, browserSettings.FolderPath);
+        _collisionPolicy = Enum.IsDefined(browserSettings.CollisionPolicy)
+            ? browserSettings.CollisionPolicy
+            : ExportCollisionPolicy.Skip;
+        _manifestFormat = Enum.IsDefined(browserSettings.ManifestFormat)
+            ? browserSettings.ManifestFormat
+            : ExportManifestFormat.Json;
         AssociatedAssets = new AssociatedAssetsViewModel(
             worker,
             ShowAssociatedAssetInBrowserAsync,
@@ -110,7 +126,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             ExportFolderAsync,
             () => !string.IsNullOrWhiteSpace(SessionId) && !string.IsNullOrWhiteSpace(SelectedFolder?.Path) && !IsBusy);
         ExportFilteredCommand = new AsyncCommand(ExportFilteredAsync, () => TotalMatches > 0 && !IsBusy);
-        RebuildLocalizedOptions();
+        var initialRole = browserSettings.Role is { } role && Enum.IsDefined(role)
+            ? role
+            : (ArchiveEntryRole?)null;
+        RebuildLocalizedOptions(initialRole);
         ExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(LocalizationManager.Get("AllFiles"), LocalizationManager.Get("ExtensionGroupAll")));
         ExtensionChoicesView = CollectionViewSource.GetDefaultView(ExtensionChoices);
         ExtensionChoicesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ArchiveExtensionChoice.Group)));
