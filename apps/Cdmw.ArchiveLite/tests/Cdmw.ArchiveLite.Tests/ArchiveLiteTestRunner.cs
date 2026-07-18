@@ -18,9 +18,12 @@ internal static class ArchiveLiteTestRunner
             ("English, German, and Spanish resources have identical keys", TestLocalizationResourcesAsync),
             ("read-only WPF text bindings are explicitly one-way", TestReadOnlyWpfBindingsAsync),
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
+            ("modern shell exposes cache health, game detection, and Enter search", TestModernShellAsync),
             ("archive grid exposes configurable sortable columns and categorized extensions", TestArchiveGridFeaturesAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
+            ("game discovery recognizes archive roots and Steam libraries", TestGameInstallDiscoveryAsync),
+            ("archive cache health detects missing, current, and stale indexes", TestArchiveCacheHealthAsync),
             ("native model preview packages adapt safely for the .NET renderer", TestNativeModelPreviewPackageAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
@@ -161,6 +164,48 @@ internal static class ArchiveLiteTestRunner
         return Task.CompletedTask;
     }
 
+    private static Task TestModernShellAsync()
+    {
+        var appRoot = Path.Combine(
+            FindRepositoryRoot(),
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App");
+        var window = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "MainWindow.xaml"));
+        Require(
+            string.Equals((string?)window.Root?.Attribute("WindowStyle"), "None", StringComparison.Ordinal),
+            "MainWindow is still using the bare native window shell");
+        Require(
+            window.Descendants().Any(element => element.Name.LocalName == "WindowChrome"),
+            "MainWindow has no resizable custom window chrome");
+        Require(
+            window.Descendants().Any(element => ((string?)element.Attribute("Command"))?.Contains("DetectGameCommand", StringComparison.Ordinal) == true),
+            "MainWindow has no game-folder detection action");
+        Require(
+            window.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("CacheHealthLabel", StringComparison.Ordinal) == true),
+            "MainWindow does not expose archive cache health");
+
+        var searchQuery = window.Descendants()
+            .Single(element => element.Name.LocalName == "TextBox"
+                && ((string?)element.Attribute("Text"))?.Contains("TextSearch.Query", StringComparison.Ordinal) == true);
+        Require(
+            searchQuery.Descendants().Any(element => element.Name.LocalName == "KeyBinding"
+                && string.Equals((string?)element.Attribute("Key"), "Enter", StringComparison.Ordinal)
+                && ((string?)element.Attribute("Command"))?.Contains("TextSearch.SearchCommand", StringComparison.Ordinal) == true),
+            "the main text query does not start searching when Enter is pressed");
+
+        var controls = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "Themes", "Controls.xaml"));
+        var styleKeys = controls.Root!
+            .Elements()
+            .Select(element => element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "Key")?.Value)
+            .Where(static key => key is not null)
+            .ToHashSet(StringComparer.Ordinal);
+        Require(styleKeys.Contains("WindowCaptionButtonStyle"), "custom chrome has no theme-aware caption button style");
+        Require(styleKeys.Contains("TopBarComboBoxStyle"), "custom chrome has no compact top-bar selector style");
+        return Task.CompletedTask;
+    }
+
     private static Task TestArchiveGridFeaturesAsync()
     {
         var repositoryRoot = FindRepositoryRoot();
@@ -181,6 +226,15 @@ internal static class ArchiveLiteTestRunner
         Require(
             string.Equals((string?)archiveGrid.Attribute("CanUserReorderColumns"), "True", StringComparison.OrdinalIgnoreCase),
             "archive grid column reordering is disabled");
+        Require(
+            double.TryParse((string?)archiveGrid.Attribute("MinColumnWidth"), out var minimumColumnWidth)
+            && minimumColumnWidth >= 70,
+            "archive grid allows columns to collapse into unreadable slivers");
+        Require(
+            archiveGrid.Attributes().Any(attribute =>
+                attribute.Name.LocalName.EndsWith("HorizontalScrollBarVisibility", StringComparison.Ordinal)
+                && string.Equals(attribute.Value, "Auto", StringComparison.Ordinal)),
+            "archive grid has no horizontal overflow path for user-selected columns");
         var sortMembers = archiveGrid
             .Descendants()
             .Select(element => (string?)element.Attribute("SortMemberPath"))
@@ -210,6 +264,11 @@ internal static class ArchiveLiteTestRunner
                 .Any(element => ((string?)element.Attribute("ItemsSource"))?.Contains("ExtensionChoicesView", StringComparison.Ordinal) == true
                     && element.Descendants().Any(descendant => descendant.Name.LocalName == "GroupStyle")),
             "extension filter is not a categorized picker");
+
+        var windowSource = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml.cs"));
+        Require(
+            windowSource.Contains("LegacyDefaultArchiveColumns", StringComparison.Ordinal),
+            "legacy default column layouts are not migrated to the readable modern default");
 
         var hostSource = File.ReadAllText(Path.Combine(appRoot, "Controls", "DotNetModelPreviewHost.cs"));
         Require(hostSource.Contains("--simple-preview", StringComparison.Ordinal), "Archive Lite does not request the simple renderer surface");
@@ -257,6 +316,62 @@ internal static class ArchiveLiteTestRunner
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static async Task TestGameInstallDiscoveryAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        Require(
+            GameInstallDiscoveryService.LooksLikeArchivePackageRoot(Path.GetDirectoryName(fixture.Pamt)!),
+            "synthetic archive root was not recognized as a game package root");
+        Require(
+            !GameInstallDiscoveryService.LooksLikeArchivePackageRoot(fixture.OutputRoot),
+            "an ordinary output folder was misidentified as a game package root");
+
+        const string vdf = """
+            "libraryfolders"
+            {
+                "0" { "path" "C:\\Program Files (x86)\\Steam" }
+                "1" { "path" "D:\\Games\\Steam" }
+            }
+            """;
+        var paths = GameInstallDiscoveryService.ParseSteamLibraryPaths(vdf);
+        Require(paths.Contains(@"C:\Program Files (x86)\Steam", StringComparer.OrdinalIgnoreCase), "primary Steam library was not parsed");
+        Require(paths.Contains(@"D:\Games\Steam", StringComparer.OrdinalIgnoreCase), "secondary Steam library was not parsed");
+    }
+
+    private static async Task TestArchiveCacheHealthAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var health = new ArchiveCacheHealthService();
+        var missing = await health.InspectAsync(
+            new ArchiveCacheHealthRequest(fixture.Root),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(missing.State == ArchiveCacheHealthState.Missing, "a never-opened archive cache was not reported missing");
+
+        var native = new NativeArchiveCore();
+        using (var sessions = new ArchiveSessionManager(native))
+        {
+            _ = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root, true),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
+        var current = await health.InspectAsync(
+            new ArchiveCacheHealthRequest(fixture.Root),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(current.State == ArchiveCacheHealthState.Current, "a verified archive cache was not reported current");
+
+        var timestamp = File.GetLastWriteTimeUtc(fixture.Pamt);
+        File.SetLastWriteTimeUtc(fixture.Pamt, timestamp.AddSeconds(2));
+        var stale = await health.InspectAsync(
+            new ArchiveCacheHealthRequest(fixture.Root),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(stale.State == ArchiveCacheHealthState.Stale, "changed archive source metadata did not mark the cache stale");
+        Require(stale.ChangedSourceCount > 0, "stale cache did not report changed source files");
     }
 
     private static async Task TestNativeModelPreviewPackageAsync()
@@ -779,7 +894,18 @@ internal static class ArchiveLiteTestRunner
                 ?? throw new InvalidDataException("worker query response is missing");
             Require(page.TotalMatches == 1 && page.Entries.Single().Path == "text/hello.txt", "worker query result is wrong");
 
-            await ExchangeAsync(writer, reader, WorkerProtocol.Shutdown, 4, new { }, timeout.Token).ConfigureAwait(false);
+            var healthMessage = await ExchangeAsync(
+                writer,
+                reader,
+                WorkerProtocol.InspectArchiveCache,
+                4,
+                new ArchiveCacheHealthRequest(fixture.Root),
+                timeout.Token).ConfigureAwait(false);
+            var health = WorkerProtocol.ReadPayload<ArchiveCacheHealthResult>(healthMessage)
+                ?? throw new InvalidDataException("worker cache-health response is missing");
+            Require(health.State == ArchiveCacheHealthState.Current, "worker did not report the freshly opened archive cache as current");
+
+            await ExchangeAsync(writer, reader, WorkerProtocol.Shutdown, 5, new { }, timeout.Token).ConfigureAwait(false);
             await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
             Require(process.ExitCode == 0, "worker did not exit cleanly");
         }

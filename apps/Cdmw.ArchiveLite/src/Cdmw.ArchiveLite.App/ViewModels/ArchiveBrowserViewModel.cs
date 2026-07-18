@@ -18,9 +18,11 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private CancellationTokenSource? _foregroundOperation;
     private CancellationTokenSource? _previewOperation;
     private CancellationTokenSource? _catalogueOperation;
+    private CancellationTokenSource? _environmentOperation;
     private long _foregroundGeneration;
     private long _previewGeneration;
     private long _catalogueGeneration;
+    private long _environmentGeneration;
     private string _archiveRoot;
     private string? _sessionId;
     private string _pathFilter = string.Empty;
@@ -57,6 +59,11 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private string _catalogueStatus = string.Empty;
     private bool _suppressPreviewSelection;
     private ArchiveQuerySpec? _lastAppliedQuery;
+    private bool _isEnvironmentBusy;
+    private ArchiveCacheHealthState _cacheHealthState = ArchiveCacheHealthState.Unknown;
+    private string _cacheHealthDetail = LocalizationManager.Get("CacheNotChecked");
+    private string _cacheHealthRoot = string.Empty;
+    private string _environmentStatus = string.Empty;
 
     public ArchiveBrowserViewModel(
         WorkerProcessHost worker,
@@ -70,7 +77,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         _archiveRoot = archiveRoot ?? string.Empty;
         _sortField = initialSortField;
         _sortDescending = initialSortDescending;
-        BrowseCommand = new AsyncCommand(_ => BrowseAsync());
+        BrowseCommand = new AsyncCommand(BrowseAsync, () => !IsBusy && !IsEnvironmentBusy);
+        DetectGameCommand = new AsyncCommand(
+            token => DetectAndInspectEnvironmentAsync(preferDetectedRoot: true, token),
+            () => !IsBusy && !IsEnvironmentBusy);
         OpenCommand = new AsyncCommand(token => OpenArchiveAsync(false, token), CanOpenArchive);
         RefreshCommand = new AsyncCommand(token => OpenArchiveAsync(true, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
         ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
@@ -115,6 +125,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public IReadOnlyList<LocalizedOption<ExportManifestFormat>> ManifestFormats { get; }
 
     public AsyncCommand BrowseCommand { get; }
+    public AsyncCommand DetectGameCommand { get; }
     public AsyncCommand OpenCommand { get; }
     public AsyncCommand RefreshCommand { get; }
     public AsyncCommand ApplyFilterCommand { get; }
@@ -133,9 +144,61 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         {
             if (SetProperty(ref _archiveRoot, value))
             {
-                OpenCommand.RaiseCanExecuteChanged();
+                if (!PathsEqual(_cacheHealthRoot, value))
+                {
+                    _cacheHealthRoot = string.Empty;
+                    CacheHealthState = ArchiveCacheHealthState.Unknown;
+                    CacheHealthDetail = LocalizationManager.Get("CacheNotChecked");
+                }
+                RaiseCommandStates();
             }
         }
+    }
+
+    public bool IsEnvironmentBusy
+    {
+        get => _isEnvironmentBusy;
+        private set
+        {
+            if (SetProperty(ref _isEnvironmentBusy, value))
+            {
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    public ArchiveCacheHealthState CacheHealthState
+    {
+        get => _cacheHealthState;
+        private set
+        {
+            if (SetProperty(ref _cacheHealthState, value))
+            {
+                OnPropertyChanged(nameof(CacheHealthLabel));
+            }
+        }
+    }
+
+    public string CacheHealthLabel => LocalizationManager.Get(CacheHealthState switch
+    {
+        ArchiveCacheHealthState.Checking => "CacheChecking",
+        ArchiveCacheHealthState.Current => "CacheCurrent",
+        ArchiveCacheHealthState.Missing => "CacheMissing",
+        ArchiveCacheHealthState.Stale => "CacheStale",
+        ArchiveCacheHealthState.Invalid => "CacheInvalid",
+        _ => "CacheNotChecked",
+    });
+
+    public string CacheHealthDetail
+    {
+        get => _cacheHealthDetail;
+        private set => SetProperty(ref _cacheHealthDetail, value);
+    }
+
+    public string EnvironmentStatus
+    {
+        get => _environmentStatus;
+        private set => SetProperty(ref _environmentStatus, value);
     }
 
     public string? SessionId
@@ -445,6 +508,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
     public void RequestShutdown()
     {
+        CancelEnvironment();
         CancelForeground();
         Interlocked.Increment(ref _previewGeneration);
         _previewOperation?.Cancel();
@@ -452,7 +516,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         Interlocked.Exchange(ref _catalogueOperation, null)?.Cancel();
     }
 
-    private Task BrowseAsync()
+    public Task InitializeEnvironmentAsync(CancellationToken cancellationToken) =>
+        DetectAndInspectEnvironmentAsync(preferDetectedRoot: false, cancellationToken);
+
+    private async Task BrowseAsync(CancellationToken cancellationToken)
     {
         var dialog = new OpenFolderDialog
         {
@@ -462,12 +529,119 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         if (dialog.ShowDialog() == true)
         {
             ArchiveRoot = dialog.FolderName;
+            await InspectSelectedRootAsync(cancellationToken).ConfigureAwait(true);
         }
-
-        return Task.CompletedTask;
     }
 
-    private bool CanOpenArchive() => !string.IsNullOrWhiteSpace(ArchiveRoot) && !IsBusy;
+    private bool CanOpenArchive() =>
+        !string.IsNullOrWhiteSpace(ArchiveRoot) && !IsBusy && !IsEnvironmentBusy;
+
+    private async Task DetectAndInspectEnvironmentAsync(
+        bool preferDetectedRoot,
+        CancellationToken cancellationToken)
+    {
+        using var operation = BeginEnvironmentOperation(cancellationToken);
+        var generation = Interlocked.Increment(ref _environmentGeneration);
+        try
+        {
+            EnvironmentStatus = LocalizationManager.Get("DetectingGame");
+            var discovery = await _worker.SendAsync<GameInstallDiscoveryRequest, GameInstallDiscoveryResult>(
+                WorkerProtocol.DiscoverGameRoots,
+                generation,
+                new GameInstallDiscoveryRequest(),
+                operation.Token).ConfigureAwait(true);
+            if (!EnvironmentIsCurrent(generation))
+            {
+                return;
+            }
+
+            var configuredRoot = ArchiveRoot.Trim();
+            var configuredExists = Path.Exists(configuredRoot);
+            var selectedRoot = preferDetectedRoot && discovery.PreferredRoot is not null
+                ? discovery.PreferredRoot
+                : configuredExists
+                    ? configuredRoot
+                    : discovery.PreferredRoot ?? (configuredRoot.Length > 0 ? configuredRoot : null);
+
+            if (string.IsNullOrWhiteSpace(selectedRoot))
+            {
+                EnvironmentStatus = LocalizationManager.Get("GameNotFound");
+                CacheHealthState = ArchiveCacheHealthState.Unknown;
+                CacheHealthDetail = LocalizationManager.Get("CacheNotChecked");
+                return;
+            }
+
+            ArchiveRoot = selectedRoot;
+            EnvironmentStatus = LocalizationManager.Format(
+                PathsEqual(selectedRoot, discovery.PreferredRoot) ? "GameDetected" : "GameFolderReady",
+                selectedRoot);
+            await InspectCacheCoreAsync(selectedRoot, generation, operation.Token).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (EnvironmentIsCurrent(generation))
+            {
+                EnvironmentStatus = exception.Message;
+                CacheHealthState = ArchiveCacheHealthState.Invalid;
+                CacheHealthDetail = exception.Message;
+            }
+        }
+        finally
+        {
+            EndEnvironmentOperation(operation);
+        }
+    }
+
+    private async Task InspectSelectedRootAsync(CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(ArchiveRoot))
+        {
+            return;
+        }
+
+        using var operation = BeginEnvironmentOperation(cancellationToken);
+        var generation = Interlocked.Increment(ref _environmentGeneration);
+        try
+        {
+            EnvironmentStatus = LocalizationManager.Format("GameFolderReady", ArchiveRoot);
+            await InspectCacheCoreAsync(ArchiveRoot, generation, operation.Token).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            if (EnvironmentIsCurrent(generation))
+            {
+                CacheHealthState = ArchiveCacheHealthState.Invalid;
+                CacheHealthDetail = exception.Message;
+                EnvironmentStatus = exception.Message;
+            }
+        }
+        finally
+        {
+            EndEnvironmentOperation(operation);
+        }
+    }
+
+    private async Task InspectCacheCoreAsync(
+        string archiveRoot,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        CacheHealthState = ArchiveCacheHealthState.Checking;
+        CacheHealthDetail = LocalizationManager.Get("CacheChecking");
+        var result = await _worker.SendAsync<ArchiveCacheHealthRequest, ArchiveCacheHealthResult>(
+            WorkerProtocol.InspectArchiveCache,
+            generation,
+            new ArchiveCacheHealthRequest(archiveRoot),
+            cancellationToken).ConfigureAwait(true);
+        if (!EnvironmentIsCurrent(generation) || !PathsEqual(ArchiveRoot, result.PackageRoot))
+        {
+            return;
+        }
+
+        _cacheHealthRoot = result.PackageRoot;
+        CacheHealthState = result.State;
+        CacheHealthDetail = result.Reason;
+    }
 
     private async Task OpenArchiveAsync(bool forceRefresh, CancellationToken commandToken)
     {
@@ -492,6 +666,9 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             }
 
             SessionId = result.SessionId;
+            _cacheHealthRoot = result.PackageRoot;
+            CacheHealthState = ArchiveCacheHealthState.Current;
+            CacheHealthDetail = LocalizationManager.Get(result.UsedCachedIndex ? "CacheReused" : "CacheRebuilt");
             _setShellStatus(LocalizationManager.Format("OpenedEntries", result.EntryCount));
             SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
             await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
@@ -1040,6 +1217,52 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         return operation;
     }
 
+    private CancellationTokenSource BeginEnvironmentOperation(CancellationToken commandToken)
+    {
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(commandToken);
+        var prior = Interlocked.Exchange(ref _environmentOperation, operation);
+        prior?.Cancel();
+        IsEnvironmentBusy = true;
+        return operation;
+    }
+
+    private bool EnvironmentIsCurrent(long generation) =>
+        generation == Volatile.Read(ref _environmentGeneration);
+
+    private void EndEnvironmentOperation(CancellationTokenSource operation)
+    {
+        if (ReferenceEquals(Interlocked.CompareExchange(ref _environmentOperation, null, operation), operation))
+        {
+            IsEnvironmentBusy = false;
+        }
+    }
+
+    private void CancelEnvironment()
+    {
+        Interlocked.Increment(ref _environmentGeneration);
+        Interlocked.Exchange(ref _environmentOperation, null)?.Cancel();
+        IsEnvironmentBusy = false;
+    }
+
+    private static bool PathsEqual(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+        {
+            return string.IsNullOrWhiteSpace(left) && string.IsNullOrWhiteSpace(right);
+        }
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                Path.GetFullPath(right.Trim()).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
+        {
+            return string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
     private void ApplyForegroundProgress(long generation, ProgressUpdate update)
     {
         if (generation != Volatile.Read(ref _foregroundGeneration) || !IsBusy)
@@ -1091,6 +1314,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
     private void RaiseCommandStates()
     {
+        BrowseCommand.RaiseCanExecuteChanged();
+        DetectGameCommand.RaiseCanExecuteChanged();
         OpenCommand.RaiseCanExecuteChanged();
         RefreshCommand.RaiseCanExecuteChanged();
         ApplyFilterCommand.RaiseCanExecuteChanged();

@@ -156,5 +156,25 @@
   <data name="NameIndexReady" xml:space="preserve"><value>Namen bereit: {0:N0} exakt, {1:N0} verwandte Hinweise</value></data>
   <data name="NameIndexUnavailable" xml:space="preserve"><value>Bekannte Spielnamen sind für dieses Archiv nicht verfügbar.</value></data>
   <data name="NameIndexFailed" xml:space="preserve"><value>Namensindex nicht verfügbar: {0}</value></data>
+  <data name="ProductSubtitle" xml:space="preserve"><value>Durchsuchen, Vorschau, Suche und Export</value></data>
+  <data name="ReadOnlyPill" xml:space="preserve"><value>SCHREIBGESCHUETZT</value></data>
+  <data name="DetectGame" xml:space="preserve"><value>Spiel erkennen</value></data>
+  <data name="DetectingGame" xml:space="preserve"><value>Crimson-Desert-Installation wird gesucht...</value></data>
+  <data name="GameDetected" xml:space="preserve"><value>Spielordner erkannt: {0}</value></data>
+  <data name="GameNotFound" xml:space="preserve"><value>Crimson Desert wurde nicht automatisch gefunden. Waehlen Sie den Spielordner.</value></data>
+  <data name="GameFolderReady" xml:space="preserve"><value>Ausgewaehlter Spielordner: {0}</value></data>
+  <data name="CacheNotChecked" xml:space="preserve"><value>CACHE NICHT GEPRUEFT</value></data>
+  <data name="CacheChecking" xml:space="preserve"><value>CACHE WIRD GEPRUEFT</value></data>
+  <data name="CacheCurrent" xml:space="preserve"><value>CACHE AKTUELL</value></data>
+  <data name="CacheMissing" xml:space="preserve"><value>CACHE FEHLT</value></data>
+  <data name="CacheStale" xml:space="preserve"><value>CACHE VERALTET</value></data>
+  <data name="CacheInvalid" xml:space="preserve"><value>UNGUELTIGER ORDNER</value></data>
+  <data name="CacheReused" xml:space="preserve"><value>Der gepruefte Archivindex wurde wiederverwendet.</value></data>
+  <data name="CacheRebuilt" xml:space="preserve"><value>Der Archivindex wurde neu erstellt; der Cache ist aktuell.</value></data>
+  <data name="EnterToSearch" xml:space="preserve"><value>Enter startet die Suche</value></data>
+  <data name="Minimize" xml:space="preserve"><value>Minimieren</value></data>
+  <data name="Maximize" xml:space="preserve"><value>Maximieren oder wiederherstellen</value></data>
+  <data name="Close" xml:space="preserve"><value>Schliessen</value></data>
+  <data name="ReadOnlyFooter" xml:space="preserve"><value>Schreibgeschuetzter Archiv-Arbeitsbereich</value></data>
   <data name="All" xml:space="preserve"><value>Alle</value></data>
 </root>

@@ -4,15 +4,16 @@ CDMW Archive Lite is a separate, read-only Windows desktop application for brows
 
 ## Included
 
-- Windows 11 x64 WPF shell on .NET 10, localized in English, German, and Spanish, with persistent Graphite, Midnight, and Light themes.
-- Stable memory-mapped archive index with archive fingerprints and isolated caches.
+- Modern resizable Windows 11 x64 WPF shell on .NET 10, localized in English, German, and Spanish, with persistent Graphite, Midnight, and Light themes.
+- Automatic Crimson Desert folder discovery from environment overrides, Steam libraries/registry data, and common Steam, Epic, Xbox, and standalone install locations. A manual Detect game action and folder picker remain available.
+- Stable memory-mapped archive index with archive fingerprints and isolated caches. The selected root is checked at startup and labeled as current, missing, stale, or invalid before it is opened; an authoritative open then verifies or rebuilds the cache.
 - Flat, folder, category, and category-plus-folder navigation with server-side filters and 256-row paging. The file grid supports click-to-sort on every column, column resizing/reordering, and a persistent visible-column chooser.
 - A categorized extension picker with per-extension counts, using the same model/mesh/physics, texture/image, material/metadata, animation/scene, audio/video, UI/text, and other groups as the full workbench.
 - Optional known in-game names from the archive's ItemInfo/localization tables. Exact localized names and related-name hints are shown separately so a guessed family match is never presented as exact evidence.
 - Preview for text, metadata, binary hex, WIC-supported images (including supported DDS variants), and media formats supported by Windows Media Foundation.
 - Read-only PAC, PAM, and PAMLOD geometry preparation through `cdmw-preview-core.exe`, displayed by the embedded production `d3d11_vortice_shader` .NET renderer in a simplified untextured mode. The Lite surface has one mesh viewport and omits Original/Imported selectors, the edit gizmo, and the grid. Package preparation is cancellable, cached by immutable archive identity, and reported in the UI.
 - Native raw, LZ4, ChaCha20, partial PAR, and PATHC-backed partial DDS extraction.
-- Literal or regular-expression text search across archives or loose folders, with bounded parallelism, per-pattern timeouts, result caps, line/column/context, and cancellation.
+- Literal or regular-expression text search across archives or loose folders, with bounded parallelism, per-pattern timeouts, result caps, line/column/context, cancellation, and Enter-to-search from the query field.
 - Selected-file, filtered-tree, and search-result export. Virtual folder structures are preserved, every file is written through a sibling staging file, collisions default to skip, and JSON manifests record archive provenance.
 - A versioned 1 MiB JSONL protocol over a private named pipe. Slow scan, query, preview, search, and export work runs in the owned worker process, never on the WPF dispatcher.
 - Portable self-contained ZIP packaging with Python payload/import guards, x64 checks, application/worker/native self-tests, a synthetic native-package load, and a hidden Vortice GPU smoke.
@@ -48,6 +49,7 @@ Archive Lite writes only to its chosen export destination and to:
 %LocalAppData%\Ratrider\CDMWArchiveLite\
   settings.json
   cache\index\
+  cache\index\roots\
   cache\names\
   cache\preview\models\
   cache\preview\native\
@@ -67,6 +69,7 @@ CdmwArchiveLite.exe (WPF dispatcher)
           v
 CdmwArchiveLite.Worker.exe (.NET 10, cancellable operations)
           +-- text search / preview cache / atomic export
+          +-- game-install discovery / cache-health inspection
           +-- categorized extension scan
           +-- cdmw-archive-accelerator.exe (C++17, item-name maps)
           +-- cdmw-preview-core.exe (C++20, PAC/PAM/PAMLOD package preparation)

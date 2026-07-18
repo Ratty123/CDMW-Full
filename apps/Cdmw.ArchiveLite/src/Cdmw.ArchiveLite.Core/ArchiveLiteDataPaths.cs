@@ -6,12 +6,14 @@ public static class ArchiveLiteDataPaths
 
     public static string Cache { get; } = Path.Combine(Root, "cache");
     public static string IndexCache { get; } = Path.Combine(Cache, "index");
+    public static string IndexRootManifests { get; } = Path.Combine(IndexCache, "roots");
     public static string PreviewCache { get; } = Path.Combine(Cache, "preview");
     public static string NameIndexCache { get; } = Path.Combine(Cache, "names");
 
     public static void EnsureCreated()
     {
         Directory.CreateDirectory(IndexCache);
+        Directory.CreateDirectory(IndexRootManifests);
         Directory.CreateDirectory(PreviewCache);
         Directory.CreateDirectory(NameIndexCache);
     }

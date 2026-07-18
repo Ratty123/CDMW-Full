@@ -7,6 +7,7 @@ namespace Cdmw.ArchiveLite.App.ViewModels;
 public sealed class MainWindowViewModel : ObservableObject
 {
     private readonly WorkerProcessHost _worker;
+    private readonly CancellationTokenSource _startupOperation = new();
     private LiteSettings _settings;
     private string _status = LocalizationManager.Get("ConnectingWorker");
     private bool _isShuttingDown;
@@ -100,12 +101,20 @@ public sealed class MainWindowViewModel : ObservableObject
 
     public async Task InitializeAsync()
     {
-        var result = await _worker.SendAsync<PingRequest, PingResult>(
-            WorkerProtocol.Ping,
-            1,
-            new PingRequest(typeof(MainWindowViewModel).Assembly.GetName().Version?.ToString() ?? "0.0.0"),
-            CancellationToken.None).ConfigureAwait(true);
-        Status = LocalizationManager.Format("WorkerConnected", result.ProtocolVersion);
+        try
+        {
+            var result = await _worker.SendAsync<PingRequest, PingResult>(
+                WorkerProtocol.Ping,
+                1,
+                new PingRequest(typeof(MainWindowViewModel).Assembly.GetName().Version?.ToString() ?? "0.0.0"),
+                _startupOperation.Token).ConfigureAwait(true);
+            Status = LocalizationManager.Format("WorkerConnected", result.ProtocolVersion);
+            await ArchiveBrowser.InitializeEnvironmentAsync(_startupOperation.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException) when (IsShuttingDown)
+        {
+            // Closing during startup is an expected cooperative cancellation path.
+        }
     }
 
     public async Task ShutdownAsync()
@@ -117,6 +126,7 @@ public sealed class MainWindowViewModel : ObservableObject
 
         IsShuttingDown = true;
         Status = LocalizationManager.Get("Closing");
+        _startupOperation.Cancel();
         ArchiveBrowser.RequestShutdown();
         TextSearch.RequestShutdown();
         _settings = _settings with

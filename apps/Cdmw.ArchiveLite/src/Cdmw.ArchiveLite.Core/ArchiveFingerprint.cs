@@ -19,7 +19,7 @@ public static class ArchiveFingerprint
             throw new DirectoryNotFoundException($"Archive root does not exist: {root}");
         }
 
-        var files = DiscoverArchiveFiles(root);
+        var files = DiscoverSourceFiles(root);
         if (!files.Any(static path => path.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidDataException("No PAMT files were found under the selected archive root.");
@@ -87,7 +87,7 @@ public static class ArchiveFingerprint
         Func<ProgressUpdate, Task>? progress,
         ProgressUpdate update) => progress is null ? Task.CompletedTask : progress(update);
 
-    private static IReadOnlyList<string> DiscoverArchiveFiles(string root)
+    public static IReadOnlyList<string> DiscoverSourceFiles(string root)
     {
         if (File.Exists(root))
         {

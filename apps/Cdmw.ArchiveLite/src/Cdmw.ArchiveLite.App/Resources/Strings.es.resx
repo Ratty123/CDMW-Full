@@ -156,5 +156,25 @@
   <data name="NameIndexReady" xml:space="preserve"><value>Nombres listos: {0:N0} exactos, {1:N0} pistas relacionadas</value></data>
   <data name="NameIndexUnavailable" xml:space="preserve"><value>Los nombres conocidos no están disponibles para este archivo.</value></data>
   <data name="NameIndexFailed" xml:space="preserve"><value>Índice de nombres no disponible: {0}</value></data>
+  <data name="ProductSubtitle" xml:space="preserve"><value>Explorar, previsualizar, buscar y exportar</value></data>
+  <data name="ReadOnlyPill" xml:space="preserve"><value>ESPACIO DE SOLO LECTURA</value></data>
+  <data name="DetectGame" xml:space="preserve"><value>Detectar juego</value></data>
+  <data name="DetectingGame" xml:space="preserve"><value>Buscando la instalacion de Crimson Desert...</value></data>
+  <data name="GameDetected" xml:space="preserve"><value>Carpeta del juego detectada: {0}</value></data>
+  <data name="GameNotFound" xml:space="preserve"><value>No se encontro Crimson Desert automaticamente. Elige la carpeta del juego.</value></data>
+  <data name="GameFolderReady" xml:space="preserve"><value>Carpeta del juego seleccionada: {0}</value></data>
+  <data name="CacheNotChecked" xml:space="preserve"><value>CACHE SIN COMPROBAR</value></data>
+  <data name="CacheChecking" xml:space="preserve"><value>COMPROBANDO CACHE</value></data>
+  <data name="CacheCurrent" xml:space="preserve"><value>CACHE ACTUAL</value></data>
+  <data name="CacheMissing" xml:space="preserve"><value>FALTA CACHE</value></data>
+  <data name="CacheStale" xml:space="preserve"><value>CACHE OBSOLETA</value></data>
+  <data name="CacheInvalid" xml:space="preserve"><value>CARPETA NO VALIDA</value></data>
+  <data name="CacheReused" xml:space="preserve"><value>Se reutilizo el indice de archivo verificado.</value></data>
+  <data name="CacheRebuilt" xml:space="preserve"><value>Se reconstruyo el indice y los metadatos de cache estan actualizados.</value></data>
+  <data name="EnterToSearch" xml:space="preserve"><value>Pulsa Enter para buscar</value></data>
+  <data name="Minimize" xml:space="preserve"><value>Minimizar</value></data>
+  <data name="Maximize" xml:space="preserve"><value>Maximizar o restaurar</value></data>
+  <data name="Close" xml:space="preserve"><value>Cerrar</value></data>
+  <data name="ReadOnlyFooter" xml:space="preserve"><value>Espacio de archivo de solo lectura</value></data>
   <data name="All" xml:space="preserve"><value>Todo</value></data>
 </root>

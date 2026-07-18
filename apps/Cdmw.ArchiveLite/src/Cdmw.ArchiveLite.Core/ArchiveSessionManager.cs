@@ -60,6 +60,18 @@ public sealed class ArchiveSessionManager : IDisposable
         try
         {
             warnings = await ValidatePazReferencesAsync(index, progress, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                await ArchiveCacheHealthService.PublishCurrentAsync(
+                    root,
+                    fingerprint,
+                    index.EntryCount,
+                    cancellationToken).ConfigureAwait(false);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                warnings.Add($"Archive cache freshness metadata could not be updated: {exception.Message}");
+            }
             await PublishProgressAsync(progress, new ProgressUpdate(1, 1, "complete", root)).ConfigureAwait(false);
         }
         catch

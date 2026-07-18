@@ -12,6 +12,8 @@ public static class WorkerProtocol
     public const string Shutdown = "shutdown";
     public const string Cancel = "cancel";
     public const string OpenArchive = "open_archive";
+    public const string DiscoverGameRoots = "discover_game_roots";
+    public const string InspectArchiveCache = "inspect_archive_cache";
     public const string QueryArchive = "query_archive";
     public const string ArchiveFacets = "archive_facets";
     public const string BuildNameIndex = "build_name_index";

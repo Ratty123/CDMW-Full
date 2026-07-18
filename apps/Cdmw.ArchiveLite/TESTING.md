@@ -14,11 +14,12 @@ This gate configures and builds `cdmw_archive_core`, `cdmw_preview_core`, and `c
 - raw, LZ4, filename-derived ChaCha20, and PATHC-backed partial DDS decode;
 - safe virtual-path normalization and traversal/root rejection;
 - archive scan/query/preview/text-search behavior and source-file SHA-256 immutability;
+- game-folder recognition and Steam-library parsing, plus missing/current/stale archive-cache health transitions;
 - native mesh-only model-package adaptation, hidden grid/gizmo state, empty texture channels, exact geometry-length checks, path-containment rejection, and a headless synthetic package load through the real .NET renderer;
 - exact known-name versus related-hint classification, categorized extension facets, configurable file-grid columns, and server-side sorting for every displayed field;
 - contained atomic export, skip-on-collision, preserved virtual paths, and manifests;
-- JSON snake-case protocol serialization; and
-- a real named-pipe worker process that opens and queries a synthetic PAMT/PAZ archive, shuts down cleanly, and leaves source bytes unchanged.
+- JSON snake-case protocol serialization, custom window chrome, cache/game controls, and Enter-to-search wiring; and
+- a real named-pipe worker process that opens and queries a synthetic PAMT/PAZ archive, reports its cache current, shuts down cleanly, and leaves source bytes unchanged.
 
 ## Release/package gate
 

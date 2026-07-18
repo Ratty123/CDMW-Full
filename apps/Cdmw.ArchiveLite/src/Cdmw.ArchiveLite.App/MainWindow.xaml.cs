@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Interop;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
@@ -16,6 +17,15 @@ public partial class MainWindow : Window
     private bool _applyingArchiveColumnLayout;
 
     private static readonly HashSet<string> DefaultArchiveColumns = new(StringComparer.Ordinal)
+    {
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Name),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.KnownName),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.NameEvidence),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Extension),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Path),
+    };
+
+    private static readonly HashSet<string> LegacyDefaultArchiveColumns = new(StringComparer.Ordinal)
     {
         nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Name),
         nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.KnownName),
@@ -67,7 +77,38 @@ public partial class MainWindow : Window
         {
             _ = DwmSetWindowAttribute(handle, 19, ref dark, sizeof(int));
         }
+
+        const int roundedCornerPreference = 2;
+        var corners = roundedCornerPreference;
+        _ = DwmSetWindowAttribute(handle, 33, ref corners, sizeof(int));
     }
+
+    private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
+    {
+        if (eventArgs.ClickCount == 2)
+        {
+            ToggleMaximizedState();
+            return;
+        }
+
+        if (eventArgs.ButtonState == MouseButtonState.Pressed)
+        {
+            DragMove();
+        }
+    }
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs eventArgs) =>
+        WindowState = WindowState.Minimized;
+
+    private void OnMaximizeRestoreClick(object sender, RoutedEventArgs eventArgs) =>
+        ToggleMaximizedState();
+
+    private void OnCloseClick(object sender, RoutedEventArgs eventArgs) => Close();
+
+    private void ToggleMaximizedState() =>
+        WindowState = WindowState == WindowState.Maximized
+            ? WindowState.Normal
+            : WindowState.Maximized;
 
     private void OnClosed(object? sender, EventArgs eventArgs)
     {
@@ -94,9 +135,12 @@ public partial class MainWindow : Window
     private void ApplyArchiveColumnLayout()
     {
         var configured = _viewModel.ArchiveVisibleColumns;
-        var visible = configured is { Count: > 0 }
+        var configuredSet = configured is { Count: > 0 }
             ? configured.ToHashSet(StringComparer.Ordinal)
-            : DefaultArchiveColumns;
+            : null;
+        var visible = configuredSet is null || configuredSet.SetEquals(LegacyDefaultArchiveColumns)
+            ? DefaultArchiveColumns
+            : configuredSet;
         _applyingArchiveColumnLayout = true;
         try
         {
