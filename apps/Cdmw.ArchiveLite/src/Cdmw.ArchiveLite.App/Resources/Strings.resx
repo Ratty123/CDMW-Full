@@ -207,6 +207,7 @@
   <data name="CacheSessionOnly" xml:space="preserve"><value>ONE-TIME SESSION</value></data>
   <data name="CacheMissing" xml:space="preserve"><value>CACHE MISSING</value></data>
   <data name="CacheStale" xml:space="preserve"><value>CACHE STALE</value></data>
+  <data name="CacheRefreshRecommended" xml:space="preserve"><value>The game archive files have changed. Use Refresh to rebuild the cache.</value></data>
   <data name="CacheInvalid" xml:space="preserve"><value>INVALID FOLDER</value></data>
   <data name="CacheReused" xml:space="preserve"><value>The verified archive index was reused.</value></data>
   <data name="CacheRebuilt" xml:space="preserve"><value>The archive index was rebuilt and its cache metadata is current.</value></data>

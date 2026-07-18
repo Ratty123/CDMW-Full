@@ -6,7 +6,9 @@ using System.IO.Compression;
 using System.IO.Pipes;
 using System.Text;
 using System.Text.Json;
+using System.Windows.Threading;
 using Cdmw.ArchiveLite.App.Services;
+using Cdmw.ArchiveLite.App.ViewModels;
 using Cdmw.ArchiveLite.Contracts;
 using Cdmw.ArchiveLite.Core;
 using Cdmw.ArchiveLite.Standalone;
@@ -33,6 +35,7 @@ internal static class ArchiveLiteTestRunner
             ("game discovery recognizes archive roots and Steam libraries", TestGameInstallDiscoveryAsync),
             ("archive cache health detects missing, current, and stale indexes", TestArchiveCacheHealthAsync),
             ("archive loading supports reusable and session-only indexes", TestArchiveCacheModesAsync),
+            ("startup auto-loads current cache and recommends manual refresh after hash changes", TestStartupCacheAutoLoadAsync),
             ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
@@ -80,6 +83,13 @@ internal static class ArchiveLiteTestRunner
         Require(
             WorkerProtocol.ReadPayload<OpenArchiveRequest>(openMessage)?.CacheMode == ArchiveCacheMode.SessionOnly,
             "archive cache mode did not round-trip");
+        var cachedOnlyMessage = WorkerProtocol.Request(
+            Guid.Parse("23232323-2323-2323-2323-232323232323"),
+            8,
+            WorkerProtocol.OpenArchive,
+            new OpenArchiveRequest("C:\\game", CacheMode: ArchiveCacheMode.Persistent, AllowCacheBuild: false));
+        var cachedOnlyJson = JsonSerializer.Serialize(cachedOnlyMessage, WorkerProtocol.JsonOptions);
+        Require(cachedOnlyJson.Contains("\"allow_cache_build\":false", StringComparison.Ordinal), "cached-only startup intent is not serialized");
         var associationMessage = WorkerProtocol.Request(
             Guid.Parse("33333333-3333-3333-3333-333333333333"),
             9,
@@ -309,11 +319,19 @@ internal static class ArchiveLiteTestRunner
             .ToHashSet(StringComparer.Ordinal);
         Require(styleKeys.Contains("WindowCaptionButtonStyle"), "custom chrome has no theme-aware caption button style");
         Require(styleKeys.Contains("TopBarComboBoxStyle"), "custom chrome has no compact top-bar selector style");
+        var topTabs = window.Descendants().Single(element => element.Name.LocalName == "TabControl");
+        Require(
+            string.Equals((string?)topTabs.Attribute("Margin"), "16,6,16,8", StringComparison.Ordinal)
+            && topTabs.Elements().Where(element => element.Name.LocalName == "TabItem")
+                .SelectMany(element => element.Elements().Where(child => child.Name.LocalName == "Grid"))
+                .All(element => string.Equals((string?)element.Attribute("Margin"), "16,4,16,16", StringComparison.Ordinal)),
+            "top tabs still stack excessive page padding above the workspace");
         var controlsSource = File.ReadAllText(Path.Combine(appRoot, "Themes", "Controls.xaml"));
         Require(
-            controlsSource.Contains("Margin=\"4,2,0,10\"", StringComparison.Ordinal)
+            controlsSource.Contains("Margin=\"4,2,0,4\"", StringComparison.Ordinal)
             && controlsSource.Contains("<Setter Property=\"Margin\" Value=\"1,1,7,1\"", StringComparison.Ordinal)
-            && controlsSource.Contains("<Setter Property=\"MinHeight\" Value=\"36\"", StringComparison.Ordinal),
+            && controlsSource.Contains("<Setter Property=\"MinHeight\" Value=\"36\"", StringComparison.Ordinal)
+            && controlsSource.Contains("<Grid Margin=\"0,0,1,0\"", StringComparison.Ordinal),
             "top tabs do not reserve enough space for their complete rounded borders");
 
         var cacheDialog = System.Xml.Linq.XDocument.Load(
@@ -792,6 +810,27 @@ internal static class ArchiveLiteTestRunner
                 CancellationToken.None).ConfigureAwait(false);
             Require(reused.UsedCachedIndex, "a verified persistent index was not reused");
 
+            var originalPamt = await File.ReadAllBytesAsync(fixture.Pamt).ConfigureAwait(false);
+            var originalTimestamp = File.GetLastWriteTimeUtc(fixture.Pamt);
+            var changedPamt = originalPamt.ToArray();
+            changedPamt[^1] ^= 0x01;
+            await File.WriteAllBytesAsync(fixture.Pamt, changedPamt).ConfigureAwait(false);
+            File.SetLastWriteTimeUtc(fixture.Pamt, originalTimestamp);
+            try
+            {
+                await RequireThrowsAsync<ArchiveCacheRefreshRequiredException>(() => sessions.OpenAsync(
+                    new OpenArchiveRequest(
+                        fixture.Root,
+                        CacheMode: ArchiveCacheMode.Persistent,
+                        AllowCacheBuild: false),
+                    CancellationToken.None)).ConfigureAwait(false);
+            }
+            finally
+            {
+                await File.WriteAllBytesAsync(fixture.Pamt, originalPamt).ConfigureAwait(false);
+                File.SetLastWriteTimeUtc(fixture.Pamt, originalTimestamp);
+            }
+
             var sessionOnly = await sessions.OpenAsync(
                 new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.SessionOnly),
                 CancellationToken.None).ConfigureAwait(false);
@@ -812,6 +851,110 @@ internal static class ArchiveLiteTestRunner
                 string.Equals(await Sha256Async(sourcePath).ConfigureAwait(false), expectedHash, StringComparison.Ordinal),
                 $"archive cache loading changed source bytes: {sourcePath}");
         }
+    }
+
+    private static async Task TestStartupCacheAutoLoadAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var native = new NativeArchiveCore();
+        using (var sessions = new ArchiveSessionManager(native))
+        {
+            _ = await sessions.OpenAsync(
+                new OpenArchiveRequest(
+                    fixture.Root,
+                    ForceRefresh: true,
+                    CacheMode: ArchiveCacheMode.Persistent),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+
+        var expectedPortableRoot = Path.GetFullPath(Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_DATA_ROOT")!);
+        var expectedCache = Path.Combine(expectedPortableRoot, "cache");
+        Require(
+            Path.GetFullPath(ArchiveLiteDataPaths.Root).Equals(expectedPortableRoot, StringComparison.OrdinalIgnoreCase),
+            "worker data root did not honor the isolated portable root");
+        Require(
+            Path.GetFullPath(ArchiveLiteDataPaths.Cache).Equals(expectedCache, StringComparison.OrdinalIgnoreCase),
+            "worker cache path did not honor the isolated portable cache root");
+        var appDataPaths = typeof(MainWindowViewModel).Assembly.GetType("Cdmw.ArchiveLite.App.Services.AppDataPaths")
+            ?? throw new InvalidOperationException("AppDataPaths type was not found");
+        var appPortableRoot = appDataPaths.GetProperty("Root")?.GetValue(null) as string;
+        Require(
+            Path.GetFullPath(appPortableRoot!).Equals(expectedPortableRoot, StringComparison.OrdinalIgnoreCase),
+            "application settings/log root did not honor the isolated portable root");
+        foreach (var (propertyName, expectedPath) in new[]
+        {
+            ("Settings", Path.Combine(expectedPortableRoot, "settings.json")),
+            ("Cache", expectedCache),
+            ("Logs", Path.Combine(expectedPortableRoot, "logs")),
+            ("Crash", Path.Combine(expectedPortableRoot, "crash")),
+        })
+        {
+            var actualPath = appDataPaths.GetProperty(propertyName)?.GetValue(null) as string;
+            Require(
+                Path.GetFullPath(actualPath!).Equals(expectedPath, StringComparison.OrdinalIgnoreCase),
+                $"application {propertyName.ToLowerInvariant()} path was not routed beside the executable");
+        }
+
+        await RunOnWpfDispatcherAsync(async () =>
+        {
+            var previousWorkerPath = Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_WORKER_PATH");
+            Environment.SetEnvironmentVariable("CDMW_ARCHIVE_LITE_WORKER_PATH", FindWorkerOutputPath());
+            WorkerProcessHost? worker = null;
+            ArchiveBrowserViewModel? currentViewModel = null;
+            ArchiveBrowserViewModel? changedViewModel = null;
+            byte[]? originalPamt = null;
+            DateTime originalTimestamp = default;
+            try
+            {
+                worker = await WorkerProcessHost.StartAsync(CancellationToken.None);
+                var promptCount = 0;
+                ArchiveCacheMode? CacheChoice(string _, bool __)
+                {
+                    promptCount++;
+                    return ArchiveCacheMode.Persistent;
+                }
+
+                LocalizationManager.ApplyCulture("en");
+                currentViewModel = new ArchiveBrowserViewModel(worker, fixture.Root, _ => { }, CacheChoice);
+                await currentViewModel.InitializeEnvironmentAsync(CancellationToken.None);
+                Require(!string.IsNullOrWhiteSpace(currentViewModel.SessionId), "current persistent cache was not auto-loaded at startup");
+                Require(currentViewModel.CacheHealthState == ArchiveCacheHealthState.Current, "auto-loaded cache was not reported current");
+                Require(promptCount == 0, "startup auto-load displayed the manual cache-choice prompt");
+
+                originalPamt = await File.ReadAllBytesAsync(fixture.Pamt);
+                originalTimestamp = File.GetLastWriteTimeUtc(fixture.Pamt);
+                var changedPamt = originalPamt.ToArray();
+                changedPamt[^1] ^= 0x01;
+                await File.WriteAllBytesAsync(fixture.Pamt, changedPamt);
+                File.SetLastWriteTimeUtc(fixture.Pamt, originalTimestamp);
+
+                changedViewModel = new ArchiveBrowserViewModel(worker, fixture.Root, _ => { }, CacheChoice);
+                await changedViewModel.InitializeEnvironmentAsync(CancellationToken.None);
+                Require(string.IsNullOrWhiteSpace(changedViewModel.SessionId), "hash-changed game files were silently reindexed at startup");
+                Require(changedViewModel.CacheHealthState == ArchiveCacheHealthState.Stale, "hash change did not mark the startup cache stale");
+                Require(changedViewModel.RefreshCommand.CanExecute(null), "manual Refresh was not enabled for a stale startup cache");
+                Require(!changedViewModel.OpenCommand.CanExecute(null), "Open remained enabled for a stale startup cache");
+                Require(
+                    changedViewModel.CacheHealthDetail.Contains(LocalizationManager.Get("CacheRefreshRecommended"), StringComparison.Ordinal),
+                    "stale startup cache did not recommend manual Refresh");
+                Require(promptCount == 0, "stale startup inspection displayed a cache-choice prompt without user action");
+            }
+            finally
+            {
+                currentViewModel?.RequestShutdown();
+                changedViewModel?.RequestShutdown();
+                if (worker is not null)
+                {
+                    await worker.ShutdownAsync();
+                }
+                Environment.SetEnvironmentVariable("CDMW_ARCHIVE_LITE_WORKER_PATH", previousWorkerPath);
+                if (originalPamt is not null)
+                {
+                    await File.WriteAllBytesAsync(fixture.Pamt, originalPamt);
+                    File.SetLastWriteTimeUtc(fixture.Pamt, originalTimestamp);
+                }
+            }
+        }).ConfigureAwait(false);
     }
 
     private static async Task TestNativeModelPreviewPackageAsync()
@@ -1384,21 +1527,7 @@ internal static class ArchiveLiteTestRunner
         await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
         var beforePamt = await Sha256Async(fixture.Pamt).ConfigureAwait(false);
         var beforePaz = await Sha256Async(fixture.Paz).ConfigureAwait(false);
-        var configuration = AppContext.BaseDirectory.Contains($"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase)
-            ? "Release"
-            : "Debug";
-        var repositoryRoot = FindRepositoryRoot();
-        var workerPath = Path.Combine(
-            repositoryRoot,
-            "apps",
-            "Cdmw.ArchiveLite",
-            "src",
-            "Cdmw.ArchiveLite.Worker",
-            "bin",
-            configuration,
-            "net10.0-windows",
-            "win-x64",
-            "CdmwArchiveLite.Worker.exe");
+        var workerPath = FindWorkerOutputPath();
         Require(File.Exists(workerPath), $"worker output was not found: {workerPath}");
 
         var pipeName = $"cdmw-archive-lite-test-{Environment.ProcessId}-{Guid.NewGuid():N}";
@@ -1555,6 +1684,60 @@ internal static class ArchiveLiteTestRunner
             }
         }
         throw new DirectoryNotFoundException("repository root could not be located");
+    }
+
+    private static string FindWorkerOutputPath()
+    {
+        var configuration = AppContext.BaseDirectory.Contains(
+            $"{Path.DirectorySeparatorChar}Release{Path.DirectorySeparatorChar}",
+            StringComparison.OrdinalIgnoreCase)
+            ? "Release"
+            : "Debug";
+        return Path.Combine(
+            FindRepositoryRoot(),
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.Worker",
+            "bin",
+            configuration,
+            "net10.0-windows",
+            "win-x64",
+            "CdmwArchiveLite.Worker.exe");
+    }
+
+    private static Task RunOnWpfDispatcherAsync(Func<Task> action)
+    {
+        var completion = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var thread = new Thread(() =>
+        {
+            var dispatcher = Dispatcher.CurrentDispatcher;
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(dispatcher));
+            dispatcher.BeginInvoke(new Action(async () =>
+            {
+                try
+                {
+                    await action();
+                    completion.TrySetResult(true);
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+                finally
+                {
+                    dispatcher.BeginInvokeShutdown(DispatcherPriority.Background);
+                }
+            }));
+            Dispatcher.Run();
+        })
+        {
+            IsBackground = true,
+            Name = "ArchiveLiteStartupCacheTest",
+        };
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        return completion.Task;
     }
 
     private static async Task<string> Sha256Async(string path)

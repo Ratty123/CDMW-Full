@@ -19,7 +19,7 @@ if ($resolvedOutputRoot.Equals($driveRoot, [StringComparison]::OrdinalIgnoreCase
     throw "Refusing to use a broad output root: $resolvedOutputRoot"
 }
 
-$version = "0.5.0"
+$version = "0.5.1"
 $nativeRoot = Join-Path $repositoryRoot "native\cdmw_archive_core"
 $nativeBuild = Join-Path $nativeRoot "build"
 $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"

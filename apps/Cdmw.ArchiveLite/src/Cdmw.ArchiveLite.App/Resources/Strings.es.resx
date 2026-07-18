@@ -207,6 +207,7 @@
   <data name="CacheSessionOnly" xml:space="preserve"><value>SESION DE UNA VEZ</value></data>
   <data name="CacheMissing" xml:space="preserve"><value>FALTA CACHE</value></data>
   <data name="CacheStale" xml:space="preserve"><value>CACHE OBSOLETA</value></data>
+  <data name="CacheRefreshRecommended" xml:space="preserve"><value>Los archivos del juego han cambiado. Usa Actualizar para reconstruir la cache.</value></data>
   <data name="CacheInvalid" xml:space="preserve"><value>CARPETA NO VALIDA</value></data>
   <data name="CacheReused" xml:space="preserve"><value>Se reutilizo el indice de archivo verificado.</value></data>
   <data name="CacheRebuilt" xml:space="preserve"><value>Se reconstruyo el indice y los metadatos de cache estan actualizados.</value></data>

@@ -15,7 +15,8 @@ This gate configures and builds `cdmw_archive_core`, `cdmw_preview_core`, `cdmw_
 - safe virtual-path normalization and traversal/root rejection;
 - archive scan/query/preview/text-search behavior and source-file SHA-256 immutability;
 - game-folder recognition and Steam-library parsing, plus missing/current/stale archive-cache health transitions;
-- persistent index build/reuse and forced-rebuild routing, one-time index isolation and shutdown cleanup, source-byte immutability, and the shared themed cache-choice flow for Open and Refresh;
+- portable settings/cache/log/crash routing beside the distributable with isolated test overrides, startup auto-load of a current persistent cache without prompting, full-fingerprint rejection without an automatic rebuild after same-size/same-timestamp source changes, and a manual Refresh recommendation for stale caches;
+- persistent index build/reuse and forced-rebuild routing, one-time index isolation and shutdown cleanup, source-byte immutability, and the shared themed cache-choice flow for manual Open and Refresh;
 - native mesh-only model-package adaptation, hidden grid/gizmo state, empty texture channels, exact geometry-length checks, path-containment rejection, and a headless synthetic package load through the real .NET renderer;
 - synthetic mesh-only GLB 2.0, OBJ, and binary FBX exports, source-geometry immutability, determinate conversion progress, and cancellation that preserves an existing destination;
 - exact known-name versus related-hint classification, categorized extension facets whose grouped picker exposes the individual extensions, configurable file-grid columns, and server-side sorting for every displayed field;
@@ -40,7 +41,7 @@ In addition to rerunning the focused checks in Release, this gate publishes the 
 
 The portable artifact guard rejects Python source/bytecode/extensions/runtimes, Python-named runtime folders, and PE files that reference a Python DLL. It also checks every native/application entry point is x64; runs the native preview-core and worker self-tests; verifies the packaged mesh core writes binary FBX 7400; loads and exports a synthetic native package through the packaged renderer without changing its source bytes; runs a hidden synthetic GPU smoke that requires `d3d11_vortice_shader` and measurable textureless contour separation on a faceted form from four angles; constructs and lays out the real WPF `MainWindow` without showing it; exercises the application-to-worker protocol; and rejects an orphaned packaged worker.
 
-The standalone guard requires one x64 Native AOT executable with no runtime companion files. It launches that EXE against an isolated system-temporary data root, verifies the first-run extraction and required helpers, launches it again to prove content-addressed cache reuse without marker mutation, exercises the extracted application's worker-connected self-test both times, rejects an orphaned worker, and removes the isolated runtime afterward.
+The standalone guard requires one x64 Native AOT executable with no runtime companion files. It launches that EXE against an isolated system-temporary data and portable-cache root, verifies first-run extraction and cache routing, launches it again to prove content-addressed runtime reuse without marker mutation, exercises the extracted application's worker-connected self-test both times, rejects an orphaned worker, and removes the isolated runtime afterward.
 
 ## Proof boundaries
 

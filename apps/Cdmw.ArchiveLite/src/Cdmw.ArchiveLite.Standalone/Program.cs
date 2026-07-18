@@ -9,6 +9,8 @@ internal static class Program
 {
     private const string PayloadResourceName = "Cdmw.ArchiveLite.Standalone.Payload.zip";
     private const string SelfTestArgument = "--standalone-self-test";
+    private const string CacheRootEnvironmentVariable = "CDMW_ARCHIVE_LITE_CACHE_ROOT";
+    private const string PortableRootEnvironmentVariable = "CDMW_ARCHIVE_LITE_PORTABLE_ROOT";
     private const uint ErrorIcon = 0x00000010;
 
     [STAThread]
@@ -16,6 +18,8 @@ internal static class Program
     {
         var selfTest = args.Contains(SelfTestArgument, StringComparer.OrdinalIgnoreCase);
         var runtimeRoot = StandaloneRuntime.ResolveRuntimeRoot();
+        var portableRoot = ResolvePortableRoot();
+        var cacheRoot = Path.Combine(portableRoot, "cache");
         try
         {
             await using var payload = Assembly.GetExecutingAssembly().GetManifestResourceStream(PayloadResourceName)
@@ -27,11 +31,15 @@ internal static class Program
             var applicationArguments = selfTest
                 ? new[] { "--self-test" }
                 : args.Where(argument => !argument.Equals(SelfTestArgument, StringComparison.OrdinalIgnoreCase)).ToArray();
-            return await RunApplicationAsync(applicationDirectory, applicationArguments).ConfigureAwait(false);
+            return await RunApplicationAsync(
+                applicationDirectory,
+                applicationArguments,
+                portableRoot,
+                cacheRoot).ConfigureAwait(false);
         }
         catch (Exception exception)
         {
-            WriteDiagnostic(runtimeRoot, exception);
+            WriteDiagnostic(portableRoot, exception);
             if (!selfTest)
             {
                 _ = MessageBox(
@@ -45,7 +53,11 @@ internal static class Program
         }
     }
 
-    private static async Task<int> RunApplicationAsync(string applicationDirectory, IReadOnlyList<string> arguments)
+    private static async Task<int> RunApplicationAsync(
+        string applicationDirectory,
+        IReadOnlyList<string> arguments,
+        string portableRoot,
+        string cacheRoot)
     {
         var applicationPath = Path.Combine(applicationDirectory, "CdmwArchiveLite.exe");
         var startInfo = new ProcessStartInfo
@@ -59,6 +71,8 @@ internal static class Program
         {
             startInfo.ArgumentList.Add(argument);
         }
+        startInfo.Environment[PortableRootEnvironmentVariable] = portableRoot;
+        startInfo.Environment[CacheRootEnvironmentVariable] = cacheRoot;
 
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Windows did not start the extracted Archive Lite application.");
@@ -66,11 +80,26 @@ internal static class Program
         return process.ExitCode;
     }
 
-    private static void WriteDiagnostic(string runtimeRoot, Exception exception)
+    private static string ResolvePortableRoot()
+    {
+        var testMode = Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_TEST_MODE");
+        var dataRoot = Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_DATA_ROOT");
+        if (testMode == "1" && !string.IsNullOrWhiteSpace(dataRoot))
+        {
+            var resolvedDataRoot = Path.GetFullPath(dataRoot);
+            if (!resolvedDataRoot.Equals(Path.GetPathRoot(resolvedDataRoot), StringComparison.OrdinalIgnoreCase))
+            {
+                return resolvedDataRoot;
+            }
+        }
+        return Path.GetFullPath(AppContext.BaseDirectory);
+    }
+
+    private static void WriteDiagnostic(string portableRoot, Exception exception)
     {
         try
         {
-            var logDirectory = Path.Combine(Directory.GetParent(runtimeRoot)?.FullName ?? runtimeRoot, "logs");
+            var logDirectory = Path.Combine(portableRoot, "logs");
             Directory.CreateDirectory(logDirectory);
             var message = $"{DateTimeOffset.UtcNow:O} standalone startup failure{Environment.NewLine}{exception}{Environment.NewLine}";
             File.AppendAllText(Path.Combine(logDirectory, "standalone-launcher.log"), message, new UTF8Encoding(false));

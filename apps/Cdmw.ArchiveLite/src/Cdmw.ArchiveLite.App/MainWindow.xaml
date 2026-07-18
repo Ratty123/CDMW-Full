@@ -131,9 +131,9 @@
                     BorderThickness="0,0,0,1" />
         </Grid>
 
-        <TabControl Grid.Row="1" Margin="16,12,16,10">
+        <TabControl Grid.Row="1" Margin="16,6,16,8">
             <TabItem Header="{infra:Loc Key=ArchiveBrowserTab}">
-                <Grid Margin="16">
+                <Grid Margin="16,4,16,16">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -811,7 +811,7 @@
             </TabItem>
 
             <TabItem Header="{infra:Loc Key=TextSearchTab}">
-                <Grid Margin="16">
+                <Grid Margin="16,4,16,16">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="300" MinWidth="270" />
                         <ColumnDefinition Width="7" />

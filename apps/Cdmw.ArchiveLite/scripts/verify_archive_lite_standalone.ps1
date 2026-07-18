@@ -82,6 +82,11 @@ try {
         }
         throw "Standalone first-run self-test failed with exit code $firstExitCode. $diagnostic"
     }
+    foreach ($portableDirectory in @("cache", "logs", "crash")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $testDataRoot $portableDirectory) -PathType Container)) {
+            throw "Standalone launch did not route $portableDirectory into the isolated portable root."
+        }
+    }
 
     $payloadRoot = Join-Path $testDataRoot "standalone\payloads"
     $payloadDirectories = @(Get-ChildItem -LiteralPath $payloadRoot -Directory)

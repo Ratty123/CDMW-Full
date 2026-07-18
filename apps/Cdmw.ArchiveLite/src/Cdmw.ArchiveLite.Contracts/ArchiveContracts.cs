@@ -73,7 +73,8 @@ public enum ArchiveCacheMode
 public sealed record OpenArchiveRequest(
     string PackageRoot,
     bool ForceRefresh = false,
-    ArchiveCacheMode CacheMode = ArchiveCacheMode.Persistent);
+    ArchiveCacheMode CacheMode = ArchiveCacheMode.Persistent,
+    bool AllowCacheBuild = true);
 
 public sealed record OpenArchiveResult(
     string SessionId,

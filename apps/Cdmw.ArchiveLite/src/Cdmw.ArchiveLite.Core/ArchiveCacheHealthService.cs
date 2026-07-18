@@ -120,7 +120,7 @@ public sealed class ArchiveCacheHealthService
             return new ArchiveCacheHealthResult(
                 root,
                 ArchiveCacheHealthState.Stale,
-                $"Archive cache metadata is unreadable and will be rebuilt: {exception.Message}",
+                $"Archive cache metadata is unreadable: {exception.Message}",
                 sourceFiles.Count);
         }
 
@@ -129,7 +129,7 @@ public sealed class ArchiveCacheHealthService
             return new ArchiveCacheHealthResult(
                 root,
                 ArchiveCacheHealthState.Stale,
-                "Archive cache metadata is from an older or different cache format and will be rebuilt.",
+                "Archive cache metadata is from an older or different cache format.",
                 sourceFiles.Count,
                 CachedFingerprint: manifest?.Fingerprint);
         }
@@ -197,7 +197,7 @@ public sealed class ArchiveCacheHealthService
             return new ArchiveCacheHealthResult(
                 root,
                 ArchiveCacheHealthState.Stale,
-                $"Archive cache index is invalid and will be rebuilt: {exception.Message}",
+                $"Archive cache index is invalid: {exception.Message}",
                 sourceFiles.Count,
                 CachedFingerprint: manifest.Fingerprint);
         }

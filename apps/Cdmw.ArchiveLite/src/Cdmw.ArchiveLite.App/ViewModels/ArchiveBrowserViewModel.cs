@@ -97,7 +97,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         OpenCommand = new AsyncCommand(token => ChooseAndOpenArchiveAsync(false, token), CanOpenArchive);
         RefreshCommand = new AsyncCommand(
             token => ChooseAndOpenArchiveAsync(true, token),
-            () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy && !IsEnvironmentBusy);
+            CanRefreshArchive);
         ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
         PreviousPageCommand = new AsyncCommand(token => QueryAsync(Math.Max(0, PageStart - PageSize), token), () => PageStart > 0 && !IsBusy);
         NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
@@ -154,7 +154,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             ArchiveCacheHealthState.Current => LocalizationManager.Get("CacheCurrent"),
             ArchiveCacheHealthState.SessionOnly => LocalizationManager.Get("CacheSessionOnly"),
             ArchiveCacheHealthState.Missing => LocalizationManager.Get("CacheMissing"),
-            ArchiveCacheHealthState.Stale => LocalizationManager.Get("CacheStale"),
+            ArchiveCacheHealthState.Stale => LocalizationManager.Get("CacheRefreshRecommended"),
             ArchiveCacheHealthState.Invalid => LocalizationManager.Get("CacheInvalid"),
             _ => LocalizationManager.Get("CacheNotChecked"),
         };
@@ -225,6 +225,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             if (SetProperty(ref _cacheHealthState, value))
             {
                 OnPropertyChanged(nameof(CacheHealthLabel));
+                RaiseCommandStates();
             }
         }
     }
@@ -569,14 +570,27 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         CancelEnvironment();
         CancelForeground();
         Interlocked.Increment(ref _previewGeneration);
-        _previewOperation?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _previewOperation, null));
         Interlocked.Increment(ref _catalogueGeneration);
-        Interlocked.Exchange(ref _catalogueOperation, null)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _catalogueOperation, null));
         AssociatedAssets.RequestShutdown();
     }
 
-    public Task InitializeEnvironmentAsync(CancellationToken cancellationToken) =>
-        DetectAndInspectEnvironmentAsync(preferDetectedRoot: false, cancellationToken);
+    public async Task InitializeEnvironmentAsync(CancellationToken cancellationToken)
+    {
+        await DetectAndInspectEnvironmentAsync(preferDetectedRoot: false, cancellationToken).ConfigureAwait(true);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (CacheHealthState == ArchiveCacheHealthState.Current &&
+            string.IsNullOrWhiteSpace(SessionId) &&
+            !string.IsNullOrWhiteSpace(ArchiveRoot))
+        {
+            await OpenArchiveAsync(
+                forceRefresh: false,
+                ArchiveCacheMode.Persistent,
+                cancellationToken,
+                allowCacheBuild: false).ConfigureAwait(true);
+        }
+    }
 
     private async Task BrowseAsync(CancellationToken cancellationToken)
     {
@@ -593,6 +607,12 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     }
 
     private bool CanOpenArchive() =>
+        !string.IsNullOrWhiteSpace(ArchiveRoot) &&
+        CacheHealthState != ArchiveCacheHealthState.Stale &&
+        !IsBusy &&
+        !IsEnvironmentBusy;
+
+    private bool CanRefreshArchive() =>
         !string.IsNullOrWhiteSpace(ArchiveRoot) && !IsBusy && !IsEnvironmentBusy;
 
     private async Task DetectAndInspectEnvironmentAsync(
@@ -699,7 +719,9 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
         _cacheHealthRoot = result.PackageRoot;
         CacheHealthState = result.State;
-        CacheHealthDetail = result.Reason;
+        CacheHealthDetail = result.State == ArchiveCacheHealthState.Stale
+            ? $"{result.Reason} {LocalizationManager.Get("CacheRefreshRecommended")}"
+            : result.Reason;
     }
 
     private async Task ChooseAndOpenArchiveAsync(bool forceRefresh, CancellationToken commandToken)
@@ -716,7 +738,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private async Task OpenArchiveAsync(
         bool forceRefresh,
         ArchiveCacheMode cacheMode,
-        CancellationToken commandToken)
+        CancellationToken commandToken,
+        bool allowCacheBuild = true)
     {
         using var operation = BeginForegroundOperation(commandToken);
         var generation = Interlocked.Increment(ref _foregroundGeneration);
@@ -730,7 +753,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             var result = await _worker.SendAsync<OpenArchiveRequest, OpenArchiveResult>(
                 WorkerProtocol.OpenArchive,
                 generation,
-                new OpenArchiveRequest(ArchiveRoot, forceRefresh, cacheMode),
+                new OpenArchiveRequest(ArchiveRoot, forceRefresh, cacheMode, allowCacheBuild),
                 operation.Token,
                 progress).ConfigureAwait(true);
             if (generation != Volatile.Read(ref _foregroundGeneration))
@@ -750,6 +773,13 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
             await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
             StartCatalogueLoad(result.SessionId);
+        }
+        catch (WorkerRequestException exception) when (exception.Error.Code == "cache_refresh_required")
+        {
+            _cacheHealthRoot = ArchiveRoot;
+            CacheHealthState = ArchiveCacheHealthState.Stale;
+            CacheHealthDetail = LocalizationManager.Get("CacheRefreshRecommended");
+            _setShellStatus(CacheHealthDetail);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -911,7 +941,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         var generation = Interlocked.Increment(ref _catalogueGeneration);
         var operation = new CancellationTokenSource();
-        Interlocked.Exchange(ref _catalogueOperation, operation)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _catalogueOperation, operation));
         _ = LoadCatalogueLatestAsync(sessionId, generation, operation);
     }
 
@@ -1183,7 +1213,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private void CancelCatalogue()
     {
         Interlocked.Increment(ref _catalogueGeneration);
-        Interlocked.Exchange(ref _catalogueOperation, null)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _catalogueOperation, null));
         IsExtensionCatalogBusy = false;
         IsNameIndexBusy = false;
         CatalogueStatus = string.Empty;
@@ -1199,7 +1229,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         var generation = Interlocked.Increment(ref _previewGeneration);
         using var operation = new CancellationTokenSource();
         var prior = Interlocked.Exchange(ref _previewOperation, operation);
-        prior?.Cancel();
+        CancelOperation(prior);
         if (entry is null || string.IsNullOrWhiteSpace(sessionId))
         {
             ClearPreview();
@@ -1335,7 +1365,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         Interlocked.Increment(ref _previewGeneration);
         var operation = Interlocked.Exchange(ref _previewOperation, null);
-        operation?.Cancel();
+        CancelOperation(operation);
         ClearPreview();
     }
 
@@ -1479,7 +1509,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         var operation = CancellationTokenSource.CreateLinkedTokenSource(commandToken);
         var prior = Interlocked.Exchange(ref _foregroundOperation, operation);
-        prior?.Cancel();
+        CancelOperation(prior);
         IsBusy = true;
         return operation;
     }
@@ -1488,7 +1518,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         var operation = CancellationTokenSource.CreateLinkedTokenSource(commandToken);
         var prior = Interlocked.Exchange(ref _environmentOperation, operation);
-        prior?.Cancel();
+        CancelOperation(prior);
         IsEnvironmentBusy = true;
         return operation;
     }
@@ -1507,7 +1537,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private void CancelEnvironment()
     {
         Interlocked.Increment(ref _environmentGeneration);
-        Interlocked.Exchange(ref _environmentOperation, null)?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _environmentOperation, null));
         IsEnvironmentBusy = false;
     }
 
@@ -1577,8 +1607,24 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private void CancelForeground()
     {
         Interlocked.Increment(ref _foregroundGeneration);
-        _foregroundOperation?.Cancel();
+        CancelOperation(Interlocked.Exchange(ref _foregroundOperation, null));
         IsBusy = false;
+    }
+
+    private static void CancelOperation(CancellationTokenSource? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+        try
+        {
+            operation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Completion may dispose a latest-wins operation immediately after ownership is exchanged.
+        }
     }
 
     private void RaiseCommandStates()

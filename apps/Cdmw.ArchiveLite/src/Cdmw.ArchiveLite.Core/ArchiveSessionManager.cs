@@ -73,6 +73,11 @@ public sealed class ArchiveSessionManager : IDisposable
 
             if (index is null)
             {
+                if (persistent && !request.ForceRefresh && !request.AllowCacheBuild)
+                {
+                    throw new ArchiveCacheRefreshRequiredException(
+                        "The saved archive cache no longer matches the current game files. Refresh is required before opening it.");
+                }
                 cancellationToken.ThrowIfCancellationRequested();
                 await PublishProgressAsync(progress, new ProgressUpdate(0, 0, "index_build", root)).ConfigureAwait(false);
                 var buildPath = persistent
@@ -234,3 +239,5 @@ public sealed class ArchiveSessionManager : IDisposable
         _openGate.Dispose();
     }
 }
+
+public sealed class ArchiveCacheRefreshRequiredException(string message) : InvalidOperationException(message);

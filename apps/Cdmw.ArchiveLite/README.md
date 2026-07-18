@@ -6,7 +6,7 @@ CDMW Archive Lite is a separate, read-only Windows desktop application for brows
 
 - Modern resizable Windows 11 x64 WPF shell on .NET 10, localized in English, German, and Spanish, with immediate in-place language switching and persistent Graphite, Midnight, and Light themes.
 - Automatic Crimson Desert folder discovery from environment overrides, Steam libraries/registry data, and common Steam, Epic, Xbox, and standalone install locations. A manual Detect game action and folder picker remain available.
-- Stable memory-mapped archive index with archive fingerprints and isolated caches. The selected root is checked at startup and labeled as current, missing, stale, or invalid before it is opened. Every Open or Refresh asks whether to use a reusable persistent index or build a one-time session index. Persistent indexes are reused only for the same verified source fingerprint and are rebuilt through an atomic replacement; one-time indexes always rescan, never publish persistent freshness metadata, and are removed when the worker session closes.
+- Stable memory-mapped archive index with archive fingerprints and isolated caches. At startup, the selected or detected game root is checked and a current persistent cache is opened automatically without a prompt or rebuild. A stale cache stays closed, clearly recommends **Refresh**, and cannot be opened until the user manually refreshes it. Persistent indexes are reused only for the same verified source fingerprint and manual rebuilds use atomic replacement; one-time indexes always rescan, never publish persistent freshness metadata, and are removed when the worker session closes.
 - Flat, folder, category, and category-plus-folder navigation with server-side filters and 256-row paging. The file grid supports click-to-sort on every column, column resizing/reordering, and a persistent visible-column chooser.
 - A categorized extension picker that expands every group into its individual extensions and per-extension counts, using the same model/mesh/physics, texture/image, material/metadata, animation/scene, audio/video, UI/text, and other groups as the full workbench.
 - Optional known in-game names from the archive's ItemInfo/localization tables. Exact localized names and related-name hints are shown separately so a guessed family match is never presented as exact evidence.
@@ -41,16 +41,16 @@ The second command launches a visible desktop window and is intentionally not pa
 .\apps\Cdmw.ArchiveLite\scripts\build_archive_lite.ps1
 ```
 
-The build writes both `CDMW-Archive-Lite-0.5.0-Standalone-win-x64.exe` and the conventional portable ZIP beneath `apps/Cdmw.ArchiveLite/artifacts/`. The standalone file is the simplest distribution: copy that one EXE and run it. On first launch it verifies and atomically extracts its worker, native codecs, exporters, and renderer into a content-addressed local runtime; later launches reuse that verified runtime. Separate worker and renderer processes remain intact after extraction because they provide crash isolation and responsive archive/preview work.
+The build writes both `CDMW-Archive-Lite-0.5.1-Standalone-win-x64.exe` and the conventional portable ZIP beneath `apps/Cdmw.ArchiveLite/artifacts/`. The standalone file is the simplest distribution: copy that one EXE and run it. On first launch it verifies and atomically extracts its worker, native codecs, exporters, and renderer into a content-addressed local runtime; later launches reuse that verified runtime. Separate worker and renderer processes remain intact after extraction because they provide crash isolation and responsive archive/preview work.
 
 Packaging builds the native archive, preview, item-name-index, and mesh-interchange helpers; publishes the app, worker, and renderer self-contained for `win-x64`; scans every packaged PE for Python runtime references; verifies x64 architecture; smokes binary FBX output; loads a synthetic native preview package in the packaged renderer; proves the hidden production Vortice backend; constructs and lays out the real WPF window without showing it; exercises the packaged application-to-worker connection; and checks that no worker remains. It then publishes the single-file Native AOT launcher, runs it once through first-run extraction and again through cached reuse, and requires both hidden application/worker self-tests to exit cleanly.
 
 ## Data isolation
 
-Archive Lite writes only to its chosen export destination and to:
+Archive Lite stores its reusable archive, name, and preview caches beside the distributed executable:
 
 ```text
-%LocalAppData%\Ratrider\CDMWArchiveLite\
+<folder containing the standalone EXE or portable CdmwArchiveLite.exe>\
   settings.json
   cache\index\
   cache\index\roots\
@@ -58,23 +58,29 @@ Archive Lite writes only to its chosen export destination and to:
   cache\preview\models\
   cache\preview\native\
   cache\preview\runtime\
-  standalone\payloads\<payload-sha256>\
   logs\
   crash\
 ```
 
-The `standalone` folder contains only the extracted runtime bundled inside the EXE; it does not contain game data or exported assets. A damaged or incomplete runtime is never reused: it is quarantined under the same app-owned folder and replaced from the embedded, manifest-verified payload. Different standalone versions use different content hashes, so an application that is already running is not disrupted by launching a newer build.
+Only the standalone launcher's internally extracted worker/renderer runtime remains under:
+
+```text
+%LocalAppData%\Ratrider\CDMWArchiveLite\
+  standalone\payloads\<payload-sha256>\
+```
+
+The executable's folder therefore needs to be writable for settings, logs, crash diagnostics, and persistent caches. The `standalone` Local AppData folder contains only the extracted runtime bundled inside the EXE; it does not contain settings, cache data, logs, game data, or exported assets. A damaged or incomplete runtime is never reused: it is quarantined under the same app-owned folder and replaced from the embedded, manifest-verified payload. Different standalone versions use different content hashes, so an application that is already running is not disrupted by launching a newer build.
 
 It does not read or write the full workbench's settings, caches, restore points, mod workspace, or Python environment. PAMT, PAZ, and PATHC sources are opened read-only. Before export, the worker recomputes the source fingerprint and refuses stale sessions.
 
 Choosing **Load this time only** creates one uniquely named `cdmw-archive-lite-session-*.ali` file under the current user's system temporary directory. It remains available only while the worker owns that archive session and is deleted during normal worker shutdown. It is never used as a later cache hit. A process or operating-system crash can leave a temporary file for normal OS temporary-file cleanup, but cannot publish it as a persistent Archive Lite cache.
 
-This choice controls the main archive-list index. Bounded known-name and preview caches keep their existing behavior so repeated names and previews do not needlessly decode the same immutable content again. Associated-asset families are retained only in worker memory for the open session and do not create another persistent cache.
+The cache choice is shown only for a manual Open or Refresh. Startup reuses a current persistent index automatically and never creates or rebuilds one. Bounded known-name and preview caches keep their existing behavior so repeated names and previews do not needlessly decode the same immutable content again. Associated-asset families are retained only in worker memory for the open session and do not create another persistent cache.
 
 ## Architecture
 
 ```text
-CDMW-Archive-Lite-0.5.0-Standalone-win-x64.exe (single-file Native AOT launcher)
+CDMW-Archive-Lite-0.5.1-Standalone-win-x64.exe (single-file Native AOT launcher)
           |
           | verified, atomic first-run extraction; content-addressed reuse
           v

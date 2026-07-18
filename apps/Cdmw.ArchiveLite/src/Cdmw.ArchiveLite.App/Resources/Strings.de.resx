@@ -207,6 +207,7 @@
   <data name="CacheSessionOnly" xml:space="preserve"><value>EINMALIGE SITZUNG</value></data>
   <data name="CacheMissing" xml:space="preserve"><value>CACHE FEHLT</value></data>
   <data name="CacheStale" xml:space="preserve"><value>CACHE VERALTET</value></data>
+  <data name="CacheRefreshRecommended" xml:space="preserve"><value>Die Spielarchivdateien wurden geaendert. Verwenden Sie Aktualisieren, um den Cache neu zu erstellen.</value></data>
   <data name="CacheInvalid" xml:space="preserve"><value>UNGUELTIGER ORDNER</value></data>
   <data name="CacheReused" xml:space="preserve"><value>Der gepruefte Archivindex wurde wiederverwendet.</value></data>
   <data name="CacheRebuilt" xml:space="preserve"><value>Der Archivindex wurde neu erstellt; der Cache ist aktuell.</value></data>

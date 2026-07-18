@@ -3,6 +3,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using Cdmw.ArchiveLite.Contracts;
+using Cdmw.ArchiveLite.Core;
 
 namespace Cdmw.ArchiveLite.Worker;
 
@@ -168,6 +169,13 @@ internal sealed class WorkerServer(Stream stream)
             await WriteAsync(
                 writer,
                 WorkerProtocol.Response(request, WorkerMessageStatus.Cancelled, new { cancelled = true }),
+                CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (ArchiveCacheRefreshRequiredException exception)
+        {
+            await WriteAsync(
+                writer,
+                WorkerProtocol.Failure(request, "cache_refresh_required", exception.Message),
                 CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception exception)
