@@ -75,6 +75,7 @@ public partial class MainWindow : Window
         IsEnabled = false;
         try
         {
+            await ModelPreviewHost.ShutdownAsync().ConfigureAwait(true);
             await _viewModel.ShutdownAsync().ConfigureAwait(true);
         }
         finally

@@ -145,6 +145,48 @@ public sealed class ArchiveIndex : IDisposable
             ArchiveEntryClassifier.IsPreviewable(extension, role));
     }
 
+    public IReadOnlyList<ArchiveEntryDto> FindEntriesByPath(string virtualPath, int maximumResults = 32)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ArgumentException.ThrowIfNullOrWhiteSpace(virtualPath);
+        if (maximumResults < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumResults));
+        }
+        var normalized = virtualPath.Replace('\\', '/').Trim('/');
+        long low = 0;
+        long high = EntryCount;
+        while (low < high)
+        {
+            var middle = low + (high - low) / 2;
+            var comparison = StringComparer.OrdinalIgnoreCase.Compare(ReadEntry(middle).Path, normalized);
+            if (comparison < 0)
+            {
+                low = middle + 1;
+            }
+            else
+            {
+                high = middle;
+            }
+        }
+
+        var results = new List<ArchiveEntryDto>(Math.Min(maximumResults, 4));
+        for (var entryId = low; entryId < EntryCount && results.Count < maximumResults; entryId++)
+        {
+            var entry = ReadEntry(entryId);
+            var comparison = StringComparer.OrdinalIgnoreCase.Compare(entry.Path, normalized);
+            if (comparison > 0)
+            {
+                break;
+            }
+            if (comparison == 0)
+            {
+                results.Add(entry);
+            }
+        }
+        return results;
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)

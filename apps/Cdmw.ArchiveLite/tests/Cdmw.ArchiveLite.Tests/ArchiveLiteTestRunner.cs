@@ -20,6 +20,7 @@ internal static class ArchiveLiteTestRunner
             ("WPF themes expose the shared palette and safe progress bindings", TestWpfThemesAsync),
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
+            ("native model preview packages adapt safely for the .NET renderer", TestNativeModelPreviewPackageAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
             ("native archive ABI scans and decodes synthetic PAMT/PAZ", TestNativeArchiveAsync),
             ("archive query, preview, and text search are read-only", TestArchiveServicesAsync),
@@ -193,6 +194,162 @@ internal static class ArchiveLiteTestRunner
         }
     }
 
+    private static async Task TestNativeModelPreviewPackageAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-archive-lite-model-preview-test-{Guid.NewGuid():N}");
+        try
+        {
+            var geometryRoot = Path.Combine(root, "geometry");
+            Directory.CreateDirectory(geometryRoot);
+            var geometryPath = Path.Combine(geometryRoot, "batch_000.bin");
+            using (var writer = new BinaryWriter(File.Create(geometryPath), Encoding.UTF8, leaveOpen: false))
+            {
+                foreach (var position in new[]
+                {
+                    new[] { -0.5f, 0.0f, 0.0f },
+                    new[] { 0.5f, 0.0f, 0.0f },
+                    new[] { 0.0f, 1.0f, 0.0f },
+                })
+                {
+                    var vertex = new float[23];
+                    vertex[0] = position[0];
+                    vertex[1] = position[1];
+                    vertex[2] = position[2];
+                    vertex[5] = 1.0f;
+                    vertex[9] = position[0] + 0.5f;
+                    vertex[10] = position[1];
+                    foreach (var value in vertex) writer.Write(value);
+                }
+            }
+            var manifestPath = Path.Combine(root, "manifest.json");
+            await File.WriteAllTextAsync(
+                manifestPath,
+                JsonSerializer.Serialize(new
+                {
+                    schema_version = 8,
+                    backend = "d3d11",
+                    batches = new[]
+                    {
+                        new
+                        {
+                            index = 0,
+                            material_name = "synthetic_metal",
+                            vertex_file = "geometry/batch_000.bin",
+                            vertex_count = 3,
+                            base_color = new[] { 0.3f, 0.45f, 0.6f },
+                            roughness = 0.4f,
+                            metalness = 0.8f,
+                            specular = 0.5f,
+                            material_category = "metal",
+                            material_category_confidence = 0.9f,
+                            material_response_promoted = true,
+                            dds_textures = new Dictionary<string, object>(),
+                        },
+                    },
+                }),
+                Encoding.UTF8).ConfigureAwait(false);
+
+            var geometryHash = await Sha256Async(geometryPath).ConfigureAwait(false);
+            var result = await NativePreviewPackageAdapter.PrepareAsync(root, "synthetic:test", CancellationToken.None).ConfigureAwait(false);
+            Require(result.BatchCount == 1 && result.VertexCount == 3, "native preview package counts are wrong");
+            Require(File.Exists(Path.Combine(root, "net_materials.json")), "renderer materials sidecar was not created");
+            Require(File.Exists(Path.Combine(root, "dotnet_scene.json")), "renderer scene sidecar was not created");
+            Require(File.Exists(Path.Combine(root, "mesh.cdmeta.json")), "renderer metadata sidecar was not created");
+            using (var scene = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "dotnet_scene.json")).ConfigureAwait(false)))
+            {
+                Require(!scene.RootElement.GetProperty("gizmo").GetProperty("visible").GetBoolean(), "read-only preview scene exposed the edit gizmo");
+                Require(scene.RootElement.GetProperty("interaction_mode").GetString() == "placement", "preview scene mode is wrong");
+            }
+            using (var materials = JsonDocument.Parse(await File.ReadAllTextAsync(Path.Combine(root, "net_materials.json")).ConfigureAwait(false)))
+            {
+                Require(materials.RootElement.GetProperty("submeshes").GetArrayLength() == 1, "renderer material sidecar count is wrong");
+            }
+
+            var unsafeRoot = Path.Combine(root, "unsafe");
+            Directory.CreateDirectory(unsafeRoot);
+            await File.WriteAllTextAsync(
+                Path.Combine(unsafeRoot, "manifest.json"),
+                JsonSerializer.Serialize(new
+                {
+                    schema_version = 8,
+                    batches = new[]
+                    {
+                        new { index = 0, vertex_file = "../geometry/batch_000.bin", vertex_count = 3 },
+                    },
+                }),
+                Encoding.UTF8).ConfigureAwait(false);
+            await RequireThrowsAsync<InvalidDataException>(() => NativePreviewPackageAdapter.PrepareAsync(
+                unsafeRoot,
+                "synthetic:unsafe",
+                CancellationToken.None)).ConfigureAwait(false);
+
+            var rendererPath = Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH");
+            if (!string.IsNullOrWhiteSpace(rendererPath))
+            {
+                await RunConfiguredRendererSmokeAsync(rendererPath, root, manifestPath).ConfigureAwait(false);
+            }
+            Require(await Sha256Async(geometryPath).ConfigureAwait(false) == geometryHash, "preview preparation or rendering changed native geometry");
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private static async Task RunConfiguredRendererSmokeAsync(string rendererPath, string packageRoot, string manifestPath)
+    {
+        var resolvedRenderer = Path.GetFullPath(rendererPath);
+        Require(File.Exists(resolvedRenderer), $"configured .NET preview renderer was not found: {resolvedRenderer}");
+        var runtimeRoot = Path.Combine(packageRoot, "headless-smoke");
+        Directory.CreateDirectory(runtimeRoot);
+        var statusPath = Path.Combine(runtimeRoot, "status.json");
+        var outputRoot = Path.Combine(runtimeRoot, "output");
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = resolvedRenderer,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = Path.GetDirectoryName(resolvedRenderer)!,
+        };
+        foreach (var argument in new[]
+        {
+            "--input-package", packageRoot,
+            "--mesh", manifestPath,
+            "--metadata", Path.Combine(packageRoot, "mesh.cdmeta.json"),
+            "--status", statusPath,
+            "--output", outputRoot,
+            "--edit-operations", Path.Combine(runtimeRoot, "edit_operations.json"),
+            "--evaluation", Path.Combine(runtimeRoot, "evaluation.md"),
+            "--headless-smoke",
+        })
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("configured .NET preview renderer could not be started");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync().ConfigureAwait(false);
+            throw new TimeoutException("configured .NET preview renderer did not finish its synthetic package smoke test");
+        }
+        var stdoutText = await stdout.ConfigureAwait(false);
+        var stderrText = await stderr.ConfigureAwait(false);
+        Require(process.ExitCode == 0, $"configured .NET preview renderer failed: {stderrText}{stdoutText}");
+        Require(File.Exists(Path.Combine(outputRoot, "mesh.obj")), "configured .NET preview renderer did not load and export the native manifest");
+        using var status = JsonDocument.Parse(await File.ReadAllTextAsync(statusPath).ConfigureAwait(false));
+        Require(status.RootElement.GetProperty("event").GetString() == "saved", "configured .NET preview renderer did not report a successful smoke result");
+    }
+
     private static Task TestTextDecodingAsync()
     {
         var utf16 = Encoding.Unicode.GetPreamble().Concat(Encoding.Unicode.GetBytes("Crimson UTF-16")).ToArray();
@@ -216,6 +373,8 @@ internal static class ArchiveLiteTestRunner
         Require(count == 4, "native index count is wrong");
         using var index = ArchiveIndex.Open(indexPath);
         Require(index.EntryCount == 4, "managed index count is wrong");
+        var pathMatches = index.FindEntriesByPath("TEXT\\HELLO.TXT");
+        Require(pathMatches.Count == 1 && pathMatches[0].Path == "text/hello.txt", "indexed companion-path lookup is wrong");
         var entries = Enumerable.Range(0, 4).Select(id => index.ReadEntry(id)).ToArray();
         var text = entries.Single(entry => entry.Path == "text/hello.txt");
         var decoded = native.Decode(text);

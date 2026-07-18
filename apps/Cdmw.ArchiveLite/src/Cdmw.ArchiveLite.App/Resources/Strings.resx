@@ -118,5 +118,13 @@
   <data name="ProgressExporting" xml:space="preserve"><value>Exporting...</value></data>
   <data name="ProgressFinishing" xml:space="preserve"><value>Finishing...</value></data>
   <data name="ProgressWorking" xml:space="preserve"><value>Working...</value></data>
+  <data name="PreviewProgressPreparing" xml:space="preserve"><value>Preparing preview...</value></data>
+  <data name="PreviewProgressNative" xml:space="preserve"><value>Preparing native PAC geometry and materials...</value></data>
+  <data name="PreviewProgressAdapting" xml:space="preserve"><value>Preparing the read-only .NET scene...</value></data>
+  <data name="RendererStarting" xml:space="preserve"><value>Starting the .NET/Vortice previewer...</value></data>
+  <data name="RendererLoading" xml:space="preserve"><value>Loading textures and drawing the first frame...</value></data>
+  <data name="RendererReady" xml:space="preserve"><value>.NET/Vortice preview ready.</value></data>
+  <data name="RendererFailed" xml:space="preserve"><value>.NET preview unavailable: {0}</value></data>
+  <data name="RendererUnknownError" xml:space="preserve"><value>The .NET previewer reported an unknown error.</value></data>
   <data name="All" xml:space="preserve"><value>All</value></data>
 </root>

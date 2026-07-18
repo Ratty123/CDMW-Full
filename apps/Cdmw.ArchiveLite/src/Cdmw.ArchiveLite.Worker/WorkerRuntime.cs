@@ -45,7 +45,7 @@ internal sealed class WorkerRuntime : IDisposable
             case WorkerProtocol.Preview:
                 {
                     var payload = RequirePayload<PreviewRequest>(request);
-                    var result = await _previews.BuildAsync(payload, cancellationToken).ConfigureAwait(false);
+                    var result = await _previews.BuildAsync(payload, cancellationToken, publishProgress).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
                 }
             case WorkerProtocol.TextSearch:

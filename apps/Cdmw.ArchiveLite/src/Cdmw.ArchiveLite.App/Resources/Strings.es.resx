@@ -118,5 +118,13 @@
   <data name="ProgressExporting" xml:space="preserve"><value>Exportando...</value></data>
   <data name="ProgressFinishing" xml:space="preserve"><value>Finalizando...</value></data>
   <data name="ProgressWorking" xml:space="preserve"><value>Procesando...</value></data>
+  <data name="PreviewProgressPreparing" xml:space="preserve"><value>Preparando la vista previa...</value></data>
+  <data name="PreviewProgressNative" xml:space="preserve"><value>Preparando la geometría PAC y los materiales nativos...</value></data>
+  <data name="PreviewProgressAdapting" xml:space="preserve"><value>Preparando la escena .NET de solo lectura...</value></data>
+  <data name="RendererStarting" xml:space="preserve"><value>Iniciando el visor .NET/Vortice...</value></data>
+  <data name="RendererLoading" xml:space="preserve"><value>Cargando texturas y dibujando el primer fotograma...</value></data>
+  <data name="RendererReady" xml:space="preserve"><value>Vista previa .NET/Vortice lista.</value></data>
+  <data name="RendererFailed" xml:space="preserve"><value>Vista previa .NET no disponible: {0}</value></data>
+  <data name="RendererUnknownError" xml:space="preserve"><value>El visor .NET informó de un error desconocido.</value></data>
   <data name="All" xml:space="preserve"><value>Todo</value></data>
 </root>

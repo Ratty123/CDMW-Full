@@ -118,5 +118,13 @@
   <data name="ProgressExporting" xml:space="preserve"><value>Export läuft...</value></data>
   <data name="ProgressFinishing" xml:space="preserve"><value>Vorgang wird abgeschlossen...</value></data>
   <data name="ProgressWorking" xml:space="preserve"><value>Vorgang läuft...</value></data>
+  <data name="PreviewProgressPreparing" xml:space="preserve"><value>Vorschau wird vorbereitet...</value></data>
+  <data name="PreviewProgressNative" xml:space="preserve"><value>Native PAC-Geometrie und Materialien werden vorbereitet...</value></data>
+  <data name="PreviewProgressAdapting" xml:space="preserve"><value>Schreibgeschützte .NET-Szene wird vorbereitet...</value></data>
+  <data name="RendererStarting" xml:space="preserve"><value>.NET/Vortice-Vorschau wird gestartet...</value></data>
+  <data name="RendererLoading" xml:space="preserve"><value>Texturen werden geladen und das erste Bild wird gezeichnet...</value></data>
+  <data name="RendererReady" xml:space="preserve"><value>.NET/Vortice-Vorschau ist bereit.</value></data>
+  <data name="RendererFailed" xml:space="preserve"><value>.NET-Vorschau nicht verfügbar: {0}</value></data>
+  <data name="RendererUnknownError" xml:space="preserve"><value>Die .NET-Vorschau hat einen unbekannten Fehler gemeldet.</value></data>
   <data name="All" xml:space="preserve"><value>Alle</value></data>
 </root>

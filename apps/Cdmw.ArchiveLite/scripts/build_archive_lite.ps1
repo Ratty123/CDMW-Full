@@ -19,13 +19,17 @@ if ($resolvedOutputRoot.Equals($driveRoot, [StringComparison]::OrdinalIgnoreCase
     throw "Refusing to use a broad output root: $resolvedOutputRoot"
 }
 
-$version = "0.1.0"
+$version = "0.2.0"
 $nativeRoot = Join-Path $repositoryRoot "native\cdmw_archive_core"
 $nativeBuild = Join-Path $nativeRoot "build"
+$previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
+$previewBuild = Join-Path $previewRoot "build"
+$rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $appProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.App\Cdmw.ArchiveLite.App.csproj"
 $workerProject = Join-Path $liteRoot "src\Cdmw.ArchiveLite.Worker\Cdmw.ArchiveLite.Worker.csproj"
 $stage = Join-Path $resolvedOutputRoot "CDMW-Archive-Lite-win-x64"
 $workerStage = Join-Path $resolvedOutputRoot ".worker-publish"
+$rendererStage = Join-Path $resolvedOutputRoot ".renderer-publish"
 $zipStaging = Join-Path $resolvedOutputRoot ".CDMW-Archive-Lite-$version-win-x64.tmp.zip"
 $zipPath = Join-Path $resolvedOutputRoot "CDMW-Archive-Lite-$version-win-x64.zip"
 
@@ -45,16 +49,18 @@ function Assert-LastExitCode([string]$Operation) {
 
 Assert-ContainedOutput $stage
 Assert-ContainedOutput $workerStage
+Assert-ContainedOutput $rendererStage
 Assert-ContainedOutput $zipStaging
 Assert-ContainedOutput $zipPath
 New-Item -ItemType Directory -Path $resolvedOutputRoot -Force | Out-Null
-foreach ($target in @($stage, $workerStage, $zipStaging, $zipPath)) {
+foreach ($target in @($stage, $workerStage, $rendererStage, $zipStaging, $zipPath)) {
     if (Test-Path -LiteralPath $target) {
         Remove-Item -LiteralPath $target -Recurse -Force
     }
 }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 New-Item -ItemType Directory -Path $workerStage -Force | Out-Null
+New-Item -ItemType Directory -Path $rendererStage -Force | Out-Null
 
 Push-Location $repositoryRoot
 try {
@@ -67,10 +73,31 @@ try {
     & ctest --test-dir $nativeBuild -C $Configuration --output-on-failure
     Assert-LastExitCode "Native archive-core tests"
 
+    & cmake -S $previewRoot -B $previewBuild
+    Assert-LastExitCode "Native preview-core configure"
+    & cmake --build $previewBuild --config $Configuration --parallel
+    Assert-LastExitCode "Native preview-core build"
+    $previewCoreExecutable = Join-Path $previewBuild "$Configuration\cdmw-preview-core.exe"
+    & $previewCoreExecutable self-test
+    Assert-LastExitCode "Native preview-core self-test"
+
     & dotnet build (Join-Path $liteRoot "Cdmw.ArchiveLite.slnx") -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
-    & dotnet run --project (Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj") -c $Configuration --no-build
-    Assert-LastExitCode "Archive Lite focused tests"
+
+    & dotnet publish $rendererProject -c $Configuration -r win-x64 --self-contained true --nologo --output $rendererStage `
+        -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishReadyToRun=true `
+        -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None
+    Assert-LastExitCode ".NET/Vortice preview renderer publish"
+    $rendererExecutable = Join-Path $rendererStage "cdmw-mesh-dotnet-editor.exe"
+    $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH
+    try {
+        $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
+        & dotnet run --project (Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj") -c $Configuration --no-build
+        Assert-LastExitCode "Archive Lite focused tests"
+    }
+    finally {
+        $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $previousRendererPath
+    }
 
     & dotnet publish $appProject -c $Configuration -r win-x64 --self-contained true --nologo --output $stage -p:Version=$version -p:DebugType=None
     Assert-LastExitCode "Archive Lite application publish"
@@ -96,6 +123,12 @@ foreach ($workerFile in $workerPayload) {
     Copy-Item -LiteralPath $workerSource -Destination $stage -Force
 }
 Copy-Item -LiteralPath (Join-Path $nativeBuild "$Configuration\cdmw-archive-core.dll") -Destination $stage -Force
+$previewPayload = Join-Path $stage "preview"
+$rendererPayload = Join-Path $stage "renderer"
+New-Item -ItemType Directory -Path $previewPayload -Force | Out-Null
+New-Item -ItemType Directory -Path $rendererPayload -Force | Out-Null
+Copy-Item -LiteralPath (Join-Path $previewBuild "$Configuration\cdmw-preview-core.exe") -Destination $previewPayload -Force
+Copy-Item -Path (Join-Path $rendererStage "*") -Destination $rendererPayload -Recurse -Force
 Copy-Item -LiteralPath (Join-Path $liteRoot "README.md") -Destination $stage -Force
 Copy-Item -LiteralPath (Join-Path $liteRoot "THIRD-PARTY-NOTICES.md") -Destination $stage -Force
 
@@ -114,5 +147,6 @@ Assert-LastExitCode "Archive Lite artifact guard"
 Compress-Archive -LiteralPath $stage -DestinationPath $zipStaging -CompressionLevel Optimal
 Move-Item -LiteralPath $zipStaging -Destination $zipPath
 Remove-Item -LiteralPath $workerStage -Recurse -Force
+Remove-Item -LiteralPath $rendererStage -Recurse -Force
 
 Write-Host "Portable Archive Lite package: $zipPath"

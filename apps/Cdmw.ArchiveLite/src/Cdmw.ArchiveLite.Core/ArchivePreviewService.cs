@@ -4,41 +4,87 @@ using Cdmw.ArchiveLite.Contracts;
 
 namespace Cdmw.ArchiveLite.Core;
 
-public sealed class ArchivePreviewService(ArchiveSessionManager sessions, NativeArchiveCore native)
+public sealed class ArchivePreviewService
 {
     private const long MaximumPreviewBytes = 64L * 1024L * 1024L;
     private const string PreviewArtifactVersion = "preview_v2_pathc";
+    private readonly ArchiveSessionManager _sessions;
+    private readonly NativeArchiveCore _native;
+    private readonly NativeModelPreviewService _modelPreviews;
 
-    public Task<PreviewResult> BuildAsync(PreviewRequest request, CancellationToken cancellationToken)
+    public ArchivePreviewService(
+        ArchiveSessionManager sessions,
+        NativeArchiveCore native,
+        NativeModelPreviewService? modelPreviews = null)
+    {
+        _sessions = sessions;
+        _native = native;
+        _modelPreviews = modelPreviews ?? new NativeModelPreviewService();
+    }
+
+    public Task<PreviewResult> BuildAsync(
+        PreviewRequest request,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? publishProgress = null)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var session = sessions.GetRequired(request.SessionId);
+        var session = _sessions.GetRequired(request.SessionId);
         return Task.Run(
-            async () => await BuildCoreAsync(session, request, cancellationToken).ConfigureAwait(false),
+            async () => await BuildCoreAsync(session, request, publishProgress, cancellationToken).ConfigureAwait(false),
             cancellationToken);
     }
 
     private async Task<PreviewResult> BuildCoreAsync(
         ArchiveSession session,
         PreviewRequest request,
+        Func<ProgressUpdate, Task>? publishProgress,
         CancellationToken cancellationToken)
     {
         var entry = session.Index.ReadEntry(request.EntryId);
         var metadata = BuildMetadata(entry);
+        var warnings = new List<string>();
+        if (NativeModelPreviewService.Supports(entry.Extension))
+        {
+            try
+            {
+                var package = await _modelPreviews.BuildAsync(
+                    session,
+                    entry,
+                    publishProgress,
+                    cancellationToken).ConfigureAwait(false);
+                return new PreviewResult(
+                    session.Id,
+                    entry.EntryId,
+                    PreviewKind.Model,
+                    entry.Name,
+                    metadata,
+                    ArtifactPath: package,
+                    Warnings: warnings);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                warnings.Add($".NET model preview unavailable: {exception.Message}");
+            }
+        }
+
         if (entry.OriginalSize > MaximumPreviewBytes)
         {
             return new PreviewResult(
                 session.Id,
                 entry.EntryId,
-                PreviewKind.Metadata,
+                NativeModelPreviewService.Supports(entry.Extension) ? PreviewKind.Model : PreviewKind.Metadata,
                 entry.Name,
                 metadata,
-                Warnings: [$"Preview was not decoded because the entry exceeds {MaximumPreviewBytes / (1024 * 1024)} MiB."]);
+                Text: metadata,
+                Warnings: [.. warnings, $"Preview was not decoded because the entry exceeds {MaximumPreviewBytes / (1024 * 1024)} MiB."]);
         }
         cancellationToken.ThrowIfCancellationRequested();
-        var decoded = native.Decode(entry);
+        var decoded = _native.Decode(entry);
         cancellationToken.ThrowIfCancellationRequested();
-        var warnings = new List<string>();
         if (!string.IsNullOrWhiteSpace(decoded.Note)) warnings.Add(decoded.Note);
 
         if (entry.Role is ArchiveEntryRole.Text or ArchiveEntryRole.Metadata || LooksTextual(decoded.Bytes))

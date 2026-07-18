@@ -4,6 +4,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:avalonEdit="http://icsharpcode.net/sharpdevelop/avalonedit"
+        xmlns:controls="clr-namespace:Cdmw.ArchiveLite.App.Controls"
         xmlns:infra="clr-namespace:Cdmw.ArchiveLite.App.Infrastructure"
         mc:Ignorable="d"
         Title="{infra:Loc Key=ProductName}"
@@ -265,7 +266,9 @@
                             <Grid>
                                 <Grid.RowDefinitions>
                                     <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
+                                    <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="Auto" />
                                 </Grid.RowDefinitions>
@@ -286,12 +289,39 @@
                                 </Grid>
 
                                 <Border Grid.Row="1"
+                                        Margin="0,0,0,8"
+                                        Padding="10,8"
+                                        Background="{DynamicResource SurfaceRaisedBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="5"
+                                        Visibility="{Binding ArchiveBrowser.IsPreviewBusy, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock TextWrapping="Wrap"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding ArchiveBrowser.PreviewProgressText}" />
+                                        <ProgressBar Grid.Row="1"
+                                                     Height="5"
+                                                     Margin="0,7,0,0"
+                                                     HorizontalAlignment="Stretch"
+                                                     IsIndeterminate="True" />
+                                    </Grid>
+                                </Border>
+
+                                <Border Grid.Row="2"
                                         Background="{DynamicResource InputBackgroundBrush}"
                                         BorderBrush="{DynamicResource BorderBrush}"
                                         BorderThickness="1"
                                         CornerRadius="5"
                                         ClipToBounds="True">
                                     <Grid>
+                                        <controls:DotNetModelPreviewHost x:Name="ModelPreviewHost"
+                                                                         PackagePath="{Binding ArchiveBrowser.ModelPreviewPackagePath, Mode=OneWay}"
+                                                                         Visibility="{Binding ArchiveBrowser.IsModelPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         <ScrollViewer HorizontalScrollBarVisibility="Auto"
                                                       VerticalScrollBarVisibility="Auto"
                                                       Visibility="{Binding ArchiveBrowser.IsImagePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
@@ -321,7 +351,45 @@
                                     </Grid>
                                 </Border>
 
-                                <Expander Grid.Row="2"
+                                <Border Grid.Row="3"
+                                        Margin="0,7,0,0"
+                                        Padding="10,8"
+                                        Background="{DynamicResource SurfaceRaisedBrush}"
+                                        BorderBrush="{DynamicResource BorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="5">
+                                    <Border.Style>
+                                        <Style TargetType="Border">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding ArchiveBrowser.IsModelPreview}" Value="True" />
+                                                        <Condition Binding="{Binding ElementName=ModelPreviewHost, Path=IsReady}" Value="False" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock TextWrapping="Wrap"
+                                                   FontWeight="SemiBold"
+                                                   Text="{Binding ElementName=ModelPreviewHost, Path=StatusText}" />
+                                        <ProgressBar Grid.Row="1"
+                                                     Height="5"
+                                                     Margin="0,7,0,0"
+                                                     HorizontalAlignment="Stretch"
+                                                     IsIndeterminate="True"
+                                                     Visibility="{Binding ElementName=ModelPreviewHost, Path=IsLoading, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                    </Grid>
+                                </Border>
+
+                                <Expander Grid.Row="4"
                                           Margin="0,7,0,0"
                                           Header="{infra:Loc Key=Metadata}"
                                           IsExpanded="False">
@@ -333,7 +401,7 @@
                                              Text="{Binding ArchiveBrowser.PreviewMetadata, Mode=OneWay}" />
                                 </Expander>
 
-                                <TextBlock Grid.Row="3"
+                                <TextBlock Grid.Row="5"
                                            Margin="4,7,4,0"
                                            Foreground="{DynamicResource WarningBrush}"
                                            TextWrapping="Wrap"
@@ -391,7 +459,9 @@
                                     <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=Extensions}" />
                                     <TextBox AcceptsReturn="True"
                                              MinHeight="72"
+                                             TextWrapping="Wrap"
                                              VerticalContentAlignment="Top"
+                                             VerticalScrollBarVisibility="Auto"
                                              Text="{Binding TextSearch.Extensions, UpdateSourceTrigger=PropertyChanged}" />
                                     <Grid Margin="0,10,0,8">
                                         <Grid.ColumnDefinitions>

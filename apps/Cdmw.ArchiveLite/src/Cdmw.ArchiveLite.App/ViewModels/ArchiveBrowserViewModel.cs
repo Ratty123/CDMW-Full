@@ -36,7 +36,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private string _previewWarnings = string.Empty;
     private BitmapSource? _previewImage;
     private Uri? _previewMediaSource;
+    private string? _modelPreviewPackagePath;
     private PreviewKind _previewKind = PreviewKind.Metadata;
+    private bool _isPreviewBusy;
+    private string _previewProgressText = string.Empty;
     private long _totalMatches;
     private int _pageStart;
     private bool _isBusy;
@@ -266,14 +269,41 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             {
                 OnPropertyChanged(nameof(IsImagePreview));
                 OnPropertyChanged(nameof(IsMediaPreview));
+                OnPropertyChanged(nameof(IsModelPreview));
                 OnPropertyChanged(nameof(IsTextPreview));
             }
         }
     }
 
+    public string? ModelPreviewPackagePath
+    {
+        get => _modelPreviewPackagePath;
+        private set
+        {
+            if (SetProperty(ref _modelPreviewPackagePath, value))
+            {
+                OnPropertyChanged(nameof(IsModelPreview));
+                OnPropertyChanged(nameof(IsTextPreview));
+            }
+        }
+    }
+
+    public bool IsPreviewBusy
+    {
+        get => _isPreviewBusy;
+        private set => SetProperty(ref _isPreviewBusy, value);
+    }
+
+    public string PreviewProgressText
+    {
+        get => _previewProgressText;
+        private set => SetProperty(ref _previewProgressText, value);
+    }
+
     public bool IsImagePreview => PreviewKind == PreviewKind.Image && PreviewImage is not null;
     public bool IsMediaPreview => PreviewKind is PreviewKind.Audio or PreviewKind.Video && PreviewMediaSource is not null;
-    public bool IsTextPreview => !IsImagePreview && !IsMediaPreview;
+    public bool IsModelPreview => PreviewKind == PreviewKind.Model && !string.IsNullOrWhiteSpace(ModelPreviewPackagePath);
+    public bool IsTextPreview => !IsImagePreview && !IsMediaPreview && !IsModelPreview;
 
     public long TotalMatches
     {
@@ -519,13 +549,24 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
         try
         {
-            var milliseconds = entry.Role == ArchiveEntryRole.Model ? 450 : 90;
+            var isNativeModel = entry.Extension.Equals(".pac", StringComparison.OrdinalIgnoreCase)
+                || entry.Extension.Equals(".pam", StringComparison.OrdinalIgnoreCase)
+                || entry.Extension.Equals(".pamlod", StringComparison.OrdinalIgnoreCase);
+            var milliseconds = isNativeModel ? 450 : 90;
             await Task.Delay(milliseconds, operation.Token).ConfigureAwait(true);
+            if (generation != Volatile.Read(ref _previewGeneration))
+            {
+                return;
+            }
+            IsPreviewBusy = true;
+            PreviewProgressText = LocalizationManager.Get("PreviewProgressPreparing");
+            var progress = new Progress<ProgressUpdate>(update => ApplyPreviewProgress(generation, update));
             var result = await _worker.SendAsync<PreviewRequest, PreviewResult>(
                 WorkerProtocol.Preview,
                 generation,
                 new PreviewRequest(sessionId, entry.EntryId),
-                operation.Token).ConfigureAwait(true);
+                operation.Token,
+                progress).ConfigureAwait(true);
             if (generation != Volatile.Read(ref _previewGeneration))
             {
                 return;
@@ -548,8 +589,28 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         }
         finally
         {
+            if (generation == Volatile.Read(ref _previewGeneration))
+            {
+                IsPreviewBusy = false;
+                PreviewProgressText = string.Empty;
+            }
             Interlocked.CompareExchange(ref _previewOperation, null, operation);
         }
+    }
+
+    private void ApplyPreviewProgress(long generation, ProgressUpdate update)
+    {
+        if (generation != Volatile.Read(ref _previewGeneration))
+        {
+            return;
+        }
+        IsPreviewBusy = true;
+        PreviewProgressText = update.Phase switch
+        {
+            "model_preview_native" => LocalizationManager.Get("PreviewProgressNative"),
+            "model_preview_adapt" => LocalizationManager.Get("PreviewProgressAdapting"),
+            _ => string.IsNullOrWhiteSpace(update.CurrentItem) ? update.Phase : update.CurrentItem,
+        };
     }
 
     private async Task PresentPreviewAsync(PreviewResult result, long generation, CancellationToken cancellationToken)
@@ -582,9 +643,13 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         PreviewMediaSource = result.Kind is PreviewKind.Audio or PreviewKind.Video && !string.IsNullOrWhiteSpace(result.ArtifactPath)
             ? new Uri(result.ArtifactPath, UriKind.Absolute)
             : null;
+        ModelPreviewPackagePath = result.Kind == PreviewKind.Model && !string.IsNullOrWhiteSpace(result.ArtifactPath)
+            ? result.ArtifactPath
+            : null;
         PreviewKind = result.Kind;
         OnPropertyChanged(nameof(IsImagePreview));
         OnPropertyChanged(nameof(IsMediaPreview));
+        OnPropertyChanged(nameof(IsModelPreview));
         OnPropertyChanged(nameof(IsTextPreview));
     }
 
@@ -596,9 +661,13 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         PreviewWarnings = string.Empty;
         PreviewImage = null;
         PreviewMediaSource = null;
+        ModelPreviewPackagePath = null;
         PreviewKind = PreviewKind.Metadata;
+        IsPreviewBusy = false;
+        PreviewProgressText = string.Empty;
         OnPropertyChanged(nameof(IsImagePreview));
         OnPropertyChanged(nameof(IsMediaPreview));
+        OnPropertyChanged(nameof(IsModelPreview));
         OnPropertyChanged(nameof(IsTextPreview));
     }
 
