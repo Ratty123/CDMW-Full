@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/Cdmw.ArchiveLite.Contracts/Cdmw.ArchiveLite.Contracts.csproj" />
+  <Project Path="src/Cdmw.ArchiveLite.Core/Cdmw.ArchiveLite.Core.csproj" />
+  <Project Path="src/Cdmw.ArchiveLite.Worker/Cdmw.ArchiveLite.Worker.csproj" />
+  <Project Path="src/Cdmw.ArchiveLite.App/Cdmw.ArchiveLite.App.csproj" />
+  <Project Path="tests/Cdmw.ArchiveLite.Tests/Cdmw.ArchiveLite.Tests.csproj" />
+</Solution>

@@ -77,3 +77,6 @@ native/**/build/
 Thumbs.db
 tools/dotnet_mesh_editor_experiment/bin/
 tools/dotnet_mesh_editor_experiment/obj/
+apps/Cdmw.ArchiveLite/**/bin/
+apps/Cdmw.ArchiveLite/**/obj/
+apps/Cdmw.ArchiveLite/artifacts/

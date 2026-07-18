@@ -1,0 +1,75 @@
+<Application x:Class="Cdmw.ArchiveLite.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             ShutdownMode="OnExplicitShutdown">
+    <Application.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+        <Color x:Key="WindowBackgroundColor">#11151B</Color>
+        <Color x:Key="PanelBackgroundColor">#171D25</Color>
+        <Color x:Key="PanelRaisedColor">#202834</Color>
+        <Color x:Key="BorderColor">#344050</Color>
+        <Color x:Key="TextColor">#E8EDF4</Color>
+        <Color x:Key="MutedTextColor">#A8B2C1</Color>
+        <Color x:Key="AccentColor">#D89B46</Color>
+        <SolidColorBrush x:Key="WindowBackgroundBrush" Color="{StaticResource WindowBackgroundColor}" />
+        <SolidColorBrush x:Key="PanelBackgroundBrush" Color="{StaticResource PanelBackgroundColor}" />
+        <SolidColorBrush x:Key="PanelRaisedBrush" Color="{StaticResource PanelRaisedColor}" />
+        <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}" />
+        <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
+        <SolidColorBrush x:Key="MutedTextBrush" Color="{StaticResource MutedTextColor}" />
+        <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}" />
+
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource WindowBackgroundBrush}" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="FontFamily" Value="Segoe UI Variable Text, Segoe UI" />
+            <Setter Property="FontSize" Value="13" />
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+        <Style TargetType="Control">
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+        </Style>
+        <Style TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="CaretBrush" Value="{StaticResource TextBrush}" />
+            <Setter Property="Padding" Value="7,5" />
+        </Style>
+        <Style TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="Padding" Value="6,4" />
+        </Style>
+        <Style TargetType="Button">
+            <Setter Property="Background" Value="{StaticResource PanelRaisedBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="Padding" Value="12,6" />
+            <Setter Property="Margin" Value="3" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+        <Style TargetType="GroupBox">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+        </Style>
+        <Style TargetType="DataGrid">
+            <Setter Property="Background" Value="{StaticResource PanelBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="GridLinesVisibility" Value="Horizontal" />
+            <Setter Property="HorizontalGridLinesBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="RowBackground" Value="{StaticResource PanelBackgroundBrush}" />
+            <Setter Property="AlternatingRowBackground" Value="{StaticResource PanelRaisedBrush}" />
+            <Setter Property="EnableRowVirtualization" Value="True" />
+            <Setter Property="EnableColumnVirtualization" Value="True" />
+            <Setter Property="VirtualizingPanel.IsVirtualizing" Value="True" />
+            <Setter Property="VirtualizingPanel.VirtualizationMode" Value="Recycling" />
+        </Style>
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource WindowBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+        </Style>
+    </Application.Resources>
+</Application>

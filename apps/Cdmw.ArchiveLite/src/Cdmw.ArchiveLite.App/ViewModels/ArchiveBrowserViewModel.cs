@@ -1,0 +1,713 @@
+using System.Collections.ObjectModel;
+using System.Windows.Media.Imaging;
+using Cdmw.ArchiveLite.App.Infrastructure;
+using Cdmw.ArchiveLite.App.Services;
+using Cdmw.ArchiveLite.Contracts;
+using Microsoft.Win32;
+
+namespace Cdmw.ArchiveLite.App.ViewModels;
+
+public sealed class ArchiveBrowserViewModel : ObservableObject
+{
+    private const int PageSize = 256;
+
+    private readonly WorkerProcessHost _worker;
+    private readonly Action<string> _setShellStatus;
+    private CancellationTokenSource? _foregroundOperation;
+    private CancellationTokenSource? _previewOperation;
+    private long _foregroundGeneration;
+    private long _previewGeneration;
+    private string _archiveRoot;
+    private string? _sessionId;
+    private string _pathFilter = string.Empty;
+    private string _extensionFilter = string.Empty;
+    private string _packageFilter = string.Empty;
+    private bool _previewableOnly;
+    private ArchiveViewMode _viewMode = ArchiveViewMode.Flat;
+    private ArchiveSortField _sortField = ArchiveSortField.Path;
+    private bool _sortDescending;
+    private ArchiveFolderFilter? _selectedFolder;
+    private ArchiveRoleFilter _selectedRole;
+    private ArchiveCategoryCount? _selectedCategory;
+    private ArchiveEntryDto? _selectedEntry;
+    private string _previewTitle = LocalizationManager.Get("Preview");
+    private string _previewMetadata = string.Empty;
+    private string _previewText = LocalizationManager.Get("PreviewEmpty");
+    private string _previewWarnings = string.Empty;
+    private BitmapSource? _previewImage;
+    private Uri? _previewMediaSource;
+    private PreviewKind _previewKind = PreviewKind.Metadata;
+    private long _totalMatches;
+    private int _pageStart;
+    private bool _isBusy;
+    private ExportCollisionPolicy _collisionPolicy = ExportCollisionPolicy.Skip;
+    private ExportManifestFormat _manifestFormat = ExportManifestFormat.Json;
+
+    public ArchiveBrowserViewModel(WorkerProcessHost worker, string? archiveRoot, Action<string> setShellStatus)
+    {
+        _worker = worker;
+        _setShellStatus = setShellStatus;
+        _archiveRoot = archiveRoot ?? string.Empty;
+        BrowseCommand = new AsyncCommand(_ => BrowseAsync());
+        OpenCommand = new AsyncCommand(token => OpenArchiveAsync(false, token), CanOpenArchive);
+        RefreshCommand = new AsyncCommand(token => OpenArchiveAsync(true, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
+        ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
+        PreviousPageCommand = new AsyncCommand(token => QueryAsync(Math.Max(0, PageStart - PageSize), token), () => PageStart > 0 && !IsBusy);
+        NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
+        CancelCommand = new RelayCommand(CancelForeground, () => IsBusy);
+        ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, () => SelectedEntry is not null && !IsBusy);
+        ExportFilteredCommand = new AsyncCommand(ExportFilteredAsync, () => TotalMatches > 0 && !IsBusy);
+        ViewModes =
+        [
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Folders, LocalizationManager.Get("FoldersView")),
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Categories, LocalizationManager.Get("CategoriesView")),
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.CategoriesAndFolders, LocalizationManager.Get("CategoriesFoldersView")),
+            new LocalizedOption<ArchiveViewMode>(ArchiveViewMode.Flat, LocalizationManager.Get("FlatView")),
+        ];
+        SortFields = Enum.GetValues<ArchiveSortField>()
+            .Select(field => new LocalizedOption<ArchiveSortField>(field, LocalizationManager.Get($"Sort{field}")))
+            .ToArray();
+        CollisionPolicies = Enum.GetValues<ExportCollisionPolicy>()
+            .Select(policy => new LocalizedOption<ExportCollisionPolicy>(policy, LocalizationManager.Get($"Collision{policy}")))
+            .ToArray();
+        ManifestFormats = Enum.GetValues<ExportManifestFormat>()
+            .Select(format => new LocalizedOption<ExportManifestFormat>(format, LocalizationManager.Get($"Manifest{format}")))
+            .ToArray();
+        RoleFilters = [new ArchiveRoleFilter(null, LocalizationManager.Get("All")), .. Enum.GetValues<ArchiveEntryRole>().Select(role => new ArchiveRoleFilter(role, LocalizationManager.Get($"Role{role}")))];
+        _selectedRole = RoleFilters[0];
+    }
+
+    public ObservableCollection<ArchiveEntryDto> Entries { get; } = [];
+    public ObservableCollection<ArchiveFolderFilter> Folders { get; } = [];
+    public ObservableCollection<ArchiveCategoryCount> Categories { get; } = [];
+
+    public IReadOnlyList<LocalizedOption<ArchiveViewMode>> ViewModes { get; }
+    public IReadOnlyList<LocalizedOption<ArchiveSortField>> SortFields { get; }
+    public IReadOnlyList<ArchiveRoleFilter> RoleFilters { get; }
+    public IReadOnlyList<LocalizedOption<ExportCollisionPolicy>> CollisionPolicies { get; }
+    public IReadOnlyList<LocalizedOption<ExportManifestFormat>> ManifestFormats { get; }
+
+    public AsyncCommand BrowseCommand { get; }
+    public AsyncCommand OpenCommand { get; }
+    public AsyncCommand RefreshCommand { get; }
+    public AsyncCommand ApplyFilterCommand { get; }
+    public AsyncCommand PreviousPageCommand { get; }
+    public AsyncCommand NextPageCommand { get; }
+    public RelayCommand CancelCommand { get; }
+    public AsyncCommand ExportSelectedCommand { get; }
+    public AsyncCommand ExportFilteredCommand { get; }
+
+    public event EventHandler? SessionChanged;
+
+    public string ArchiveRoot
+    {
+        get => _archiveRoot;
+        set
+        {
+            if (SetProperty(ref _archiveRoot, value))
+            {
+                OpenCommand.RaiseCanExecuteChanged();
+            }
+        }
+    }
+
+    public string? SessionId
+    {
+        get => _sessionId;
+        private set
+        {
+            if (SetProperty(ref _sessionId, value))
+            {
+                RaiseCommandStates();
+                SessionChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+    }
+
+    public string PathFilter
+    {
+        get => _pathFilter;
+        set => SetProperty(ref _pathFilter, value);
+    }
+
+    public string ExtensionFilter
+    {
+        get => _extensionFilter;
+        set => SetProperty(ref _extensionFilter, value);
+    }
+
+    public string PackageFilter
+    {
+        get => _packageFilter;
+        set => SetProperty(ref _packageFilter, value);
+    }
+
+    public bool PreviewableOnly
+    {
+        get => _previewableOnly;
+        set => SetProperty(ref _previewableOnly, value);
+    }
+
+    public ArchiveViewMode ViewMode
+    {
+        get => _viewMode;
+        set
+        {
+            if (SetProperty(ref _viewMode, value))
+            {
+                OnPropertyChanged(nameof(ShowFolderNavigator));
+                OnPropertyChanged(nameof(ShowCategoryNavigator));
+            }
+        }
+    }
+
+    public bool ShowFolderNavigator => ViewMode is ArchiveViewMode.Folders or ArchiveViewMode.CategoriesAndFolders;
+    public bool ShowCategoryNavigator => ViewMode is ArchiveViewMode.Categories or ArchiveViewMode.CategoriesAndFolders;
+
+    public ArchiveSortField SortField
+    {
+        get => _sortField;
+        set => SetProperty(ref _sortField, value);
+    }
+
+    public bool SortDescending
+    {
+        get => _sortDescending;
+        set => SetProperty(ref _sortDescending, value);
+    }
+
+    public ArchiveFolderFilter? SelectedFolder
+    {
+        get => _selectedFolder;
+        set => SetProperty(ref _selectedFolder, value);
+    }
+
+    public ArchiveRoleFilter SelectedRole
+    {
+        get => _selectedRole;
+        set
+        {
+            if (value is not null) SetProperty(ref _selectedRole, value);
+        }
+    }
+
+    public ArchiveCategoryCount? SelectedCategory
+    {
+        get => _selectedCategory;
+        set
+        {
+            if (!SetProperty(ref _selectedCategory, value) || value is null || !Enum.TryParse<ArchiveEntryRole>(value.Name, out var role))
+            {
+                return;
+            }
+
+            SelectedRole = RoleFilters.First(option => option.Role == role);
+        }
+    }
+
+    public ArchiveEntryDto? SelectedEntry
+    {
+        get => _selectedEntry;
+        set
+        {
+            if (SetProperty(ref _selectedEntry, value))
+            {
+                ExportSelectedCommand.RaiseCanExecuteChanged();
+                _ = LoadPreviewLatestAsync(value);
+            }
+        }
+    }
+
+    public string PreviewTitle
+    {
+        get => _previewTitle;
+        private set => SetProperty(ref _previewTitle, value);
+    }
+
+    public string PreviewMetadata
+    {
+        get => _previewMetadata;
+        private set => SetProperty(ref _previewMetadata, value);
+    }
+
+    public string PreviewText
+    {
+        get => _previewText;
+        private set => SetProperty(ref _previewText, value);
+    }
+
+    public string PreviewWarnings
+    {
+        get => _previewWarnings;
+        private set => SetProperty(ref _previewWarnings, value);
+    }
+
+    public BitmapSource? PreviewImage
+    {
+        get => _previewImage;
+        private set => SetProperty(ref _previewImage, value);
+    }
+
+    public Uri? PreviewMediaSource
+    {
+        get => _previewMediaSource;
+        private set => SetProperty(ref _previewMediaSource, value);
+    }
+
+    public PreviewKind PreviewKind
+    {
+        get => _previewKind;
+        private set
+        {
+            if (SetProperty(ref _previewKind, value))
+            {
+                OnPropertyChanged(nameof(IsImagePreview));
+                OnPropertyChanged(nameof(IsMediaPreview));
+                OnPropertyChanged(nameof(IsTextPreview));
+            }
+        }
+    }
+
+    public bool IsImagePreview => PreviewKind == PreviewKind.Image && PreviewImage is not null;
+    public bool IsMediaPreview => PreviewKind is PreviewKind.Audio or PreviewKind.Video && PreviewMediaSource is not null;
+    public bool IsTextPreview => !IsImagePreview && !IsMediaPreview;
+
+    public long TotalMatches
+    {
+        get => _totalMatches;
+        private set
+        {
+            if (SetProperty(ref _totalMatches, value))
+            {
+                OnPropertyChanged(nameof(PageSummary));
+                OnPropertyChanged(nameof(TotalMatchesLabel));
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    public int PageStart
+    {
+        get => _pageStart;
+        private set
+        {
+            if (SetProperty(ref _pageStart, value))
+            {
+                OnPropertyChanged(nameof(PageSummary));
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    public string PageSummary => TotalMatches == 0
+        ? "0"
+        : $"{PageStart + 1:N0}-{Math.Min(TotalMatches, PageStart + Entries.Count):N0} / {TotalMatches:N0}";
+
+    public string TotalMatchesLabel => LocalizationManager.Format("EntriesCount", TotalMatches);
+
+    public bool IsBusy
+    {
+        get => _isBusy;
+        private set
+        {
+            if (SetProperty(ref _isBusy, value))
+            {
+                RaiseCommandStates();
+            }
+        }
+    }
+
+    public ExportCollisionPolicy CollisionPolicy
+    {
+        get => _collisionPolicy;
+        set => SetProperty(ref _collisionPolicy, value);
+    }
+
+    public ExportManifestFormat ManifestFormat
+    {
+        get => _manifestFormat;
+        set => SetProperty(ref _manifestFormat, value);
+    }
+
+    public void RequestShutdown()
+    {
+        CancelForeground();
+        Interlocked.Increment(ref _previewGeneration);
+        _previewOperation?.Cancel();
+    }
+
+    private Task BrowseAsync()
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = LocalizationManager.Get("ArchiveRoot"),
+            Multiselect = false,
+        };
+        if (dialog.ShowDialog() == true)
+        {
+            ArchiveRoot = dialog.FolderName;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    private bool CanOpenArchive() => !string.IsNullOrWhiteSpace(ArchiveRoot) && !IsBusy;
+
+    private async Task OpenArchiveAsync(bool forceRefresh, CancellationToken commandToken)
+    {
+        using var operation = BeginForegroundOperation(commandToken);
+        var generation = Interlocked.Increment(ref _foregroundGeneration);
+        CancelPreviewAndClear();
+        try
+        {
+            _setShellStatus(LocalizationManager.Format("OpeningArchive", ArchiveRoot));
+            var result = await _worker.SendAsync<OpenArchiveRequest, OpenArchiveResult>(
+                WorkerProtocol.OpenArchive,
+                generation,
+                new OpenArchiveRequest(ArchiveRoot, forceRefresh),
+                operation.Token).ConfigureAwait(true);
+            if (generation != Volatile.Read(ref _foregroundGeneration))
+            {
+                return;
+            }
+
+            SessionId = result.SessionId;
+            _setShellStatus(LocalizationManager.Format("OpenedEntries", result.EntryCount));
+            await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _setShellStatus(exception.Message);
+        }
+        finally
+        {
+            EndForegroundOperation(operation);
+        }
+    }
+
+    private async Task QueryAsync(int pageStart, CancellationToken commandToken)
+    {
+        if (string.IsNullOrWhiteSpace(SessionId))
+        {
+            return;
+        }
+
+        using var operation = BeginForegroundOperation(commandToken);
+        var generation = Interlocked.Increment(ref _foregroundGeneration);
+        try
+        {
+            await QueryPageCoreAsync(pageStart, generation, operation.Token).ConfigureAwait(true);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _setShellStatus(exception.Message);
+        }
+        finally
+        {
+            EndForegroundOperation(operation);
+        }
+    }
+
+    private async Task QueryPageCoreAsync(int pageStart, long generation, CancellationToken cancellationToken)
+    {
+        var sessionId = SessionId;
+        if (string.IsNullOrWhiteSpace(sessionId))
+        {
+            return;
+        }
+
+        var extensions = ExtensionFilter.Split([';', ',', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var request = new ArchiveQuerySpec(
+            sessionId,
+            PathFilter,
+            extensions,
+            PackageFilter,
+            SelectedFolder?.Path,
+            SelectedRole.Role is { } role ? [role] : null,
+            PreviewableOnly: PreviewableOnly,
+            ViewMode: ViewMode,
+            SortField: SortField,
+            SortDescending: SortDescending,
+            PageStart: pageStart,
+            PageSize: PageSize);
+        var result = await _worker.SendAsync<ArchiveQuerySpec, ArchivePageResult>(
+            WorkerProtocol.QueryArchive,
+            generation,
+            request,
+            cancellationToken).ConfigureAwait(true);
+        if (generation != Volatile.Read(ref _foregroundGeneration))
+        {
+            return;
+        }
+
+        CancelPreviewAndClear();
+        SelectedEntry = null;
+        Entries.Clear();
+        foreach (var entry in result.Entries)
+        {
+            Entries.Add(entry);
+        }
+
+        Folders.Clear();
+        var previousFolder = SelectedFolder?.Path;
+        Folders.Add(new ArchiveFolderFilter(null, LocalizationManager.Get("All")));
+        foreach (var folder in result.Folders)
+        {
+            Folders.Add(new ArchiveFolderFilter(folder, folder));
+        }
+        SelectedFolder = Folders.FirstOrDefault(folder => string.Equals(folder.Path, previousFolder, StringComparison.OrdinalIgnoreCase)) ?? Folders[0];
+
+        Categories.Clear();
+        foreach (var category in result.Categories.OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            var roleLabel = Enum.TryParse<ArchiveEntryRole>(category.Key, out var parsedRole)
+                ? LocalizationManager.Get($"Role{parsedRole}")
+                : category.Key;
+            Categories.Add(new ArchiveCategoryCount(category.Key, roleLabel, category.Value));
+        }
+        SelectedCategory = null;
+
+        PageStart = result.PageStart;
+        TotalMatches = result.TotalMatches;
+        OnPropertyChanged(nameof(PageSummary));
+        RaiseCommandStates();
+        _setShellStatus(LocalizationManager.Format("ShowingEntries", PageSummary));
+    }
+
+    private async Task LoadPreviewLatestAsync(ArchiveEntryDto? entry)
+    {
+        var sessionId = SessionId;
+        var generation = Interlocked.Increment(ref _previewGeneration);
+        using var operation = new CancellationTokenSource();
+        var prior = Interlocked.Exchange(ref _previewOperation, operation);
+        prior?.Cancel();
+        if (entry is null || string.IsNullOrWhiteSpace(sessionId))
+        {
+            ClearPreview();
+            Interlocked.CompareExchange(ref _previewOperation, null, operation);
+            return;
+        }
+
+        try
+        {
+            var milliseconds = entry.Role == ArchiveEntryRole.Model ? 450 : 90;
+            await Task.Delay(milliseconds, operation.Token).ConfigureAwait(true);
+            var result = await _worker.SendAsync<PreviewRequest, PreviewResult>(
+                WorkerProtocol.Preview,
+                generation,
+                new PreviewRequest(sessionId, entry.EntryId),
+                operation.Token).ConfigureAwait(true);
+            if (generation != Volatile.Read(ref _previewGeneration))
+            {
+                return;
+            }
+
+            await PresentPreviewAsync(result, generation, operation.Token).ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer selection owns the preview lane.
+        }
+        catch (Exception exception)
+        {
+            if (generation == Volatile.Read(ref _previewGeneration))
+            {
+                ClearPreview();
+                PreviewTitle = entry.Name;
+                PreviewText = exception.Message;
+            }
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _previewOperation, null, operation);
+        }
+    }
+
+    private async Task PresentPreviewAsync(PreviewResult result, long generation, CancellationToken cancellationToken)
+    {
+        BitmapSource? image = null;
+        var warnings = result.Warnings?.ToList() ?? [];
+        if (result.Kind == PreviewKind.Image && !string.IsNullOrWhiteSpace(result.ArtifactPath))
+        {
+            try
+            {
+                image = await PreviewImageLoader.LoadFrozenAsync(result.ArtifactPath, cancellationToken).ConfigureAwait(true);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or NotSupportedException or InvalidDataException)
+            {
+                warnings.Add($"Image decoder: {exception.Message}");
+            }
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        if (generation != Volatile.Read(ref _previewGeneration))
+        {
+            return;
+        }
+
+        PreviewTitle = result.Title;
+        PreviewMetadata = result.Metadata;
+        PreviewText = string.IsNullOrWhiteSpace(result.Text) ? result.Metadata : result.Text;
+        PreviewWarnings = string.Join(Environment.NewLine, warnings);
+        PreviewImage = image;
+        PreviewMediaSource = result.Kind is PreviewKind.Audio or PreviewKind.Video && !string.IsNullOrWhiteSpace(result.ArtifactPath)
+            ? new Uri(result.ArtifactPath, UriKind.Absolute)
+            : null;
+        PreviewKind = result.Kind;
+        OnPropertyChanged(nameof(IsImagePreview));
+        OnPropertyChanged(nameof(IsMediaPreview));
+        OnPropertyChanged(nameof(IsTextPreview));
+    }
+
+    private void ClearPreview()
+    {
+        PreviewTitle = LocalizationManager.Get("Preview");
+        PreviewMetadata = string.Empty;
+        PreviewText = LocalizationManager.Get("PreviewEmpty");
+        PreviewWarnings = string.Empty;
+        PreviewImage = null;
+        PreviewMediaSource = null;
+        PreviewKind = PreviewKind.Metadata;
+        OnPropertyChanged(nameof(IsImagePreview));
+        OnPropertyChanged(nameof(IsMediaPreview));
+        OnPropertyChanged(nameof(IsTextPreview));
+    }
+
+    private void CancelPreviewAndClear()
+    {
+        Interlocked.Increment(ref _previewGeneration);
+        var operation = Interlocked.Exchange(ref _previewOperation, null);
+        operation?.Cancel();
+        ClearPreview();
+    }
+
+    private async Task ExportSelectedAsync(CancellationToken cancellationToken)
+    {
+        if (SelectedEntry is null || string.IsNullOrWhiteSpace(SessionId))
+        {
+            return;
+        }
+
+        var destination = PickExportFolder();
+        if (destination is null)
+        {
+            return;
+        }
+
+        await RunExportAsync([SelectedEntry.EntryId], destination, ExportKind.RawEntries, cancellationToken).ConfigureAwait(true);
+    }
+
+    private async Task ExportFilteredAsync(CancellationToken cancellationToken)
+    {
+        var destination = PickExportFolder();
+        if (destination is null)
+        {
+            return;
+        }
+
+        await RunExportAsync([], destination, ExportKind.FilteredEntries, cancellationToken).ConfigureAwait(true);
+    }
+
+    private async Task RunExportAsync(
+        IReadOnlyList<long> entryIds,
+        string destination,
+        ExportKind kind,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(SessionId))
+        {
+            return;
+        }
+
+        using var operation = BeginForegroundOperation(cancellationToken);
+        var generation = Interlocked.Increment(ref _foregroundGeneration);
+        try
+        {
+            var result = await _worker.SendAsync<ExportPlanRequest, ExportPlanResult>(
+                WorkerProtocol.Export,
+                generation,
+                new ExportPlanRequest(
+                    SessionId,
+                    kind,
+                    destination,
+                    entryIds,
+                    null,
+                    CollisionPolicy: CollisionPolicy,
+                    ManifestFormat: ManifestFormat),
+                operation.Token).ConfigureAwait(true);
+            if (generation == Volatile.Read(ref _foregroundGeneration))
+            {
+                _setShellStatus(LocalizationManager.Format("ExportSummary", result.Exported, result.Skipped, result.Failed));
+            }
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _setShellStatus(exception.Message);
+        }
+        finally
+        {
+            EndForegroundOperation(operation);
+        }
+    }
+
+    private static string? PickExportFolder()
+    {
+        var dialog = new OpenFolderDialog
+        {
+            Title = LocalizationManager.Get("ExportSelected"),
+            Multiselect = false,
+        };
+        return dialog.ShowDialog() == true ? dialog.FolderName : null;
+    }
+
+    private CancellationTokenSource BeginForegroundOperation(CancellationToken commandToken)
+    {
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(commandToken);
+        var prior = Interlocked.Exchange(ref _foregroundOperation, operation);
+        prior?.Cancel();
+        IsBusy = true;
+        return operation;
+    }
+
+    private void EndForegroundOperation(CancellationTokenSource operation)
+    {
+        if (ReferenceEquals(Interlocked.CompareExchange(ref _foregroundOperation, null, operation), operation))
+        {
+            IsBusy = false;
+        }
+    }
+
+    private void CancelForeground()
+    {
+        Interlocked.Increment(ref _foregroundGeneration);
+        _foregroundOperation?.Cancel();
+        IsBusy = false;
+    }
+
+    private void RaiseCommandStates()
+    {
+        OpenCommand.RaiseCanExecuteChanged();
+        RefreshCommand.RaiseCanExecuteChanged();
+        ApplyFilterCommand.RaiseCanExecuteChanged();
+        PreviousPageCommand.RaiseCanExecuteChanged();
+        NextPageCommand.RaiseCanExecuteChanged();
+        CancelCommand.RaiseCanExecuteChanged();
+        ExportSelectedCommand.RaiseCanExecuteChanged();
+        ExportFilteredCommand.RaiseCanExecuteChanged();
+    }
+}
+
+public sealed record ArchiveRoleFilter(ArchiveEntryRole? Role, string Label)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record ArchiveCategoryCount(string Name, string Label, long Count)
+{
+    public override string ToString() => $"{Label} ({Count:N0})";
+}
+
+public sealed record ArchiveFolderFilter(string? Path, string Label)
+{
+    public override string ToString() => Label;
+}

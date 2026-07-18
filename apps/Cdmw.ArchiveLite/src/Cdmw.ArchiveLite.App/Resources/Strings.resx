@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="ProductName" xml:space="preserve"><value>CDMW Archive Lite</value></data>
+  <data name="ArchiveBrowserTab" xml:space="preserve"><value>Archive Browser</value></data>
+  <data name="TextSearchTab" xml:space="preserve"><value>Text Search</value></data>
+  <data name="ArchiveRoot" xml:space="preserve"><value>Archive root</value></data>
+  <data name="Browse" xml:space="preserve"><value>Browse…</value></data>
+  <data name="OpenArchive" xml:space="preserve"><value>Open archive</value></data>
+  <data name="Refresh" xml:space="preserve"><value>Refresh</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Filters" xml:space="preserve"><value>Filters</value></data>
+  <data name="PathFilter" xml:space="preserve"><value>Path contains</value></data>
+  <data name="ExtensionFilter" xml:space="preserve"><value>Extension</value></data>
+  <data name="PackageFilter" xml:space="preserve"><value>Package</value></data>
+  <data name="RoleFilter" xml:space="preserve"><value>Role</value></data>
+  <data name="MinimumSize" xml:space="preserve"><value>Minimum size</value></data>
+  <data name="PreviewableOnly" xml:space="preserve"><value>Previewable only</value></data>
+  <data name="ViewMode" xml:space="preserve"><value>View</value></data>
+  <data name="ReadOnlyTools" xml:space="preserve"><value>Read-only tools</value></data>
+  <data name="ItemFinder" xml:space="preserve"><value>Item Finder</value></data>
+  <data name="MaterialFinder" xml:space="preserve"><value>Material Finder</value></data>
+  <data name="AssetFamily" xml:space="preserve"><value>Asset Family</value></data>
+  <data name="ExportSelected" xml:space="preserve"><value>Export selected</value></data>
+  <data name="ExportFiltered" xml:space="preserve"><value>Export filtered</value></data>
+  <data name="Path" xml:space="preserve"><value>Path</value></data>
+  <data name="Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Type" xml:space="preserve"><value>Type</value></data>
+  <data name="Size" xml:space="preserve"><value>Size</value></data>
+  <data name="Package" xml:space="preserve"><value>Package</value></data>
+  <data name="Preview" xml:space="preserve"><value>Preview</value></data>
+  <data name="PreviewEmpty" xml:space="preserve"><value>Select a file to preview it.</value></data>
+  <data name="SearchSource" xml:space="preserve"><value>Search source</value></data>
+  <data name="Archive" xml:space="preserve"><value>Archive</value></data>
+  <data name="LooseFolder" xml:space="preserve"><value>Loose folder</value></data>
+  <data name="Query" xml:space="preserve"><value>Query</value></data>
+  <data name="RegularExpression" xml:space="preserve"><value>Regular expression</value></data>
+  <data name="CaseSensitive" xml:space="preserve"><value>Case sensitive</value></data>
+  <data name="Extensions" xml:space="preserve"><value>Extensions</value></data>
+  <data name="Search" xml:space="preserve"><value>Search</value></data>
+  <data name="ExportResults" xml:space="preserve"><value>Export results</value></data>
+  <data name="Matches" xml:space="preserve"><value>Matches</value></data>
+  <data name="Line" xml:space="preserve"><value>Line</value></data>
+  <data name="Context" xml:space="preserve"><value>Context</value></data>
+  <data name="Ready" xml:space="preserve"><value>Ready</value></data>
+  <data name="ConnectingWorker" xml:space="preserve"><value>Connecting to the read-only worker…</value></data>
+  <data name="WorkerConnected" xml:space="preserve"><value>Read-only worker connected (protocol {0}).</value></data>
+  <data name="StartupFailureTitle" xml:space="preserve"><value>CDMW Archive Lite could not start</value></data>
+  <data name="StartupFailureMessage" xml:space="preserve"><value>The read-only application could not start.\n\n{0}</value></data>
+  <data name="Closing" xml:space="preserve"><value>Stopping background work…</value></data>
+  <data name="FoldersView" xml:space="preserve"><value>Folders</value></data>
+  <data name="CategoriesView" xml:space="preserve"><value>Categories</value></data>
+  <data name="CategoriesFoldersView" xml:space="preserve"><value>Categories + folders</value></data>
+  <data name="FlatView" xml:space="preserve"><value>Flat</value></data>
+  <data name="FolderFilter" xml:space="preserve"><value>Folder</value></data>
+  <data name="SortBy" xml:space="preserve"><value>Sort by</value></data>
+  <data name="Descending" xml:space="preserve"><value>Descending</value></data>
+  <data name="Folders" xml:space="preserve"><value>Folders</value></data>
+  <data name="Categories" xml:space="preserve"><value>Categories</value></data>
+  <data name="PreviousPage" xml:space="preserve"><value>Previous</value></data>
+  <data name="NextPage" xml:space="preserve"><value>Next</value></data>
+  <data name="Metadata" xml:space="preserve"><value>Metadata</value></data>
+  <data name="Language" xml:space="preserve"><value>Language</value></data>
+  <data name="LanguageRestart" xml:space="preserve"><value>The language will change after Archive Lite restarts.</value></data>
+  <data name="CollisionPolicy" xml:space="preserve"><value>When a file exists</value></data>
+  <data name="ManifestFormat" xml:space="preserve"><value>Manifest format</value></data>
+  <data name="RoleOther" xml:space="preserve"><value>Other</value></data>
+  <data name="RoleModel" xml:space="preserve"><value>Model</value></data>
+  <data name="RoleAnimation" xml:space="preserve"><value>Animation</value></data>
+  <data name="RolePhysics" xml:space="preserve"><value>Physics</value></data>
+  <data name="RoleMetadata" xml:space="preserve"><value>Metadata</value></data>
+  <data name="RoleVideo" xml:space="preserve"><value>Video</value></data>
+  <data name="RoleAudio" xml:space="preserve"><value>Audio</value></data>
+  <data name="RoleUserInterface" xml:space="preserve"><value>User interface</value></data>
+  <data name="RoleImpostor" xml:space="preserve"><value>Impostor</value></data>
+  <data name="RoleNormal" xml:space="preserve"><value>Normal map</value></data>
+  <data name="RoleMaterial" xml:space="preserve"><value>Material</value></data>
+  <data name="RoleImage" xml:space="preserve"><value>Image</value></data>
+  <data name="RoleText" xml:space="preserve"><value>Text</value></data>
+  <data name="SortPath" xml:space="preserve"><value>Path</value></data>
+  <data name="SortName" xml:space="preserve"><value>Name</value></data>
+  <data name="SortExtension" xml:space="preserve"><value>Extension</value></data>
+  <data name="SortPackage" xml:space="preserve"><value>Package</value></data>
+  <data name="SortOriginalSize" xml:space="preserve"><value>Original size</value></data>
+  <data name="SortStoredSize" xml:space="preserve"><value>Stored size</value></data>
+  <data name="SortRole" xml:space="preserve"><value>Role</value></data>
+  <data name="CollisionSkip" xml:space="preserve"><value>Skip</value></data>
+  <data name="CollisionOverwrite" xml:space="preserve"><value>Overwrite</value></data>
+  <data name="CollisionCancel" xml:space="preserve"><value>Cancel export</value></data>
+  <data name="ManifestNone" xml:space="preserve"><value>None</value></data>
+  <data name="ManifestJson" xml:space="preserve"><value>JSON</value></data>
+  <data name="ManifestCsv" xml:space="preserve"><value>CSV</value></data>
+  <data name="ManifestText" xml:space="preserve"><value>Text</value></data>
+  <data name="EntriesCount" xml:space="preserve"><value>{0:N0} entries</value></data>
+  <data name="OpeningArchive" xml:space="preserve"><value>Opening {0}…</value></data>
+  <data name="OpenedEntries" xml:space="preserve"><value>Opened {0:N0} archive entries.</value></data>
+  <data name="ShowingEntries" xml:space="preserve"><value>Showing {0} archive entries.</value></data>
+  <data name="ExportSummary" xml:space="preserve"><value>Exported {0:N0}; skipped {1:N0}; failed {2:N0}.</value></data>
+  <data name="SearchSummary" xml:space="preserve"><value>Found {0:N0} matches in {1:N0} files.</value></data>
+  <data name="SearchExportSummary" xml:space="preserve"><value>Exported {0:N0} search-result files.</value></data>
+  <data name="OpenArchiveFirst" xml:space="preserve"><value>Uses the archive currently open in Archive Browser.</value></data>
+  <data name="All" xml:space="preserve"><value>All</value></data>
+</root>

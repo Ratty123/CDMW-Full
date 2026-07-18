@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>Cdmw.ArchiveLite.Core</AssemblyName>
+    <RootNamespace>Cdmw.ArchiveLite.Core</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Cdmw.ArchiveLite.Contracts/Cdmw.ArchiveLite.Contracts.csproj" />
+  </ItemGroup>
+</Project>
