@@ -691,16 +691,15 @@
                                                                          Grid.RowSpan="3"
                                                                          PackagePath="{Binding ArchiveBrowser.ModelPreviewPackagePath, Mode=OneWay}"
                                                                          Visibility="{Binding ArchiveBrowser.IsModelPreview, Converter={StaticResource BooleanToVisibilityConverter}}" />
-                                        <ScrollViewer Grid.Row="0"
-                                                      Grid.RowSpan="3"
-                                                      HorizontalScrollBarVisibility="Auto"
-                                                      VerticalScrollBarVisibility="Auto"
-                                                      Visibility="{Binding ArchiveBrowser.IsImagePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
+                                        <Grid Grid.Row="0"
+                                              Grid.RowSpan="3"
+                                              ClipToBounds="True"
+                                              Visibility="{Binding ArchiveBrowser.IsImagePreview, Converter={StaticResource BooleanToVisibilityConverter}}">
                                             <Image Margin="12"
                                                    Source="{Binding ArchiveBrowser.PreviewImage}"
                                                    Stretch="Uniform"
                                                    RenderOptions.BitmapScalingMode="HighQuality" />
-                                        </ScrollViewer>
+                                        </Grid>
                                         <MediaElement x:Name="ArchiveMediaPreview"
                                                       Grid.Row="1"
                                                       Source="{Binding ArchiveBrowser.PreviewMediaSource}"

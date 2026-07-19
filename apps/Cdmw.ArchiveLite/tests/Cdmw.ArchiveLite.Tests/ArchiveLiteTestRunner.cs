@@ -641,6 +641,17 @@ internal static class ArchiveLiteTestRunner
             && !associatedAssetsDrawer.Attributes().Any(attribute => attribute.Name.LocalName == "Panel.ZIndex"),
             "associated assets still overlap the native preview instead of occupying the adjacent layout column");
 
+        var imagePreview = previewLayout.Descendants().Single(element =>
+            element.Name.LocalName == "Image"
+            && ((string?)element.Attribute("Source"))?.Contains(
+                "ArchiveBrowser.PreviewImage",
+                StringComparison.Ordinal) == true);
+        Require(
+            string.Equals((string?)imagePreview.Attribute("Stretch"), "Uniform", StringComparison.Ordinal)
+            && string.Equals((string?)imagePreview.Parent?.Attribute("ClipToBounds"), "True", StringComparison.Ordinal)
+            && !imagePreview.Ancestors().Any(element => element.Name.LocalName == "ScrollViewer"),
+            "image previews are not constrained to an aspect-preserving, scrollbar-free viewport");
+
         var previewEditors = window.Descendants()
             .Where(element => element.Name.LocalName == "TextEditor")
             .ToArray();
