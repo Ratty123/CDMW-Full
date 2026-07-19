@@ -85,6 +85,8 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
                     component_parse = parse_pam_submeshes(component_data);
                 } else if (component.extension == ".pamlod") {
                     component_parse = parse_pamlod_submeshes(component_data);
+                } else if (component.extension == ".pat") {
+                    component_parse = parse_pat_submeshes(component_data);
                 }
                 if (component_parse.meshes.empty()) continue;
                 const int component_index = component_models_added + 1;
@@ -142,8 +144,10 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
         parsed = parse_pam_submeshes(data);
     } else if (job.extension == ".pamlod") {
         parsed = parse_pamlod_submeshes(data);
+    } else if (job.extension == ".pat") {
+        parsed = parse_pat_submeshes(data);
     } else {
-        throw std::runtime_error("native preview-core package generation only supports .pac, .pam, and .pamlod");
+        throw std::runtime_error("native preview-core package generation only supports .pac, .pam, .pamlod, and .pat");
     }
     if (parsed.meshes.empty()) {
         throw std::runtime_error("native model parser found no renderable geometry");
@@ -230,7 +234,7 @@ std::string preview_report_for_job(const fs::path& job_path) {
         bytes_read = static_cast<std::uint64_t>(data.size());
         format_fourcc = fourcc_from_bytes(data);
         raw_read_ok = true;
-        if (job.extension != ".pam" && job.extension != ".pamlod" && job.extension != ".pac") {
+        if (job.extension != ".pam" && job.extension != ".pamlod" && job.extension != ".pac" && job.extension != ".pat") {
             fallback_reason = "selected entry is not a native-preview-core model target";
         } else if (compression_type != 0 && compression_type != 1 && compression_type != 2 && job.comp_size != job.orig_size) {
             fallback_reason = "native decompression/reconstruction is not enabled for this milestone";
@@ -431,6 +435,9 @@ int run_mesh_audit_job(const fs::path& input_path, const fs::path& report_path, 
         } else if (lowered.ends_with(".pamlod")) {
             format = "pamlod";
             parsed = parse_pamlod_submeshes(data);
+        } else if (lowered.ends_with(".pat")) {
+            format = "pat";
+            parsed = parse_pat_submeshes(data);
         } else {
             parsed = parse_pam_submeshes(data);
         }

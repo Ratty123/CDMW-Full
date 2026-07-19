@@ -13,6 +13,7 @@ set(PREVIEW_CORE_OWNER_SOURCES
     src/owners/bounded_archive_dependencies.cpp
     src/owners/geometry_pac.cpp
     src/owners/geometry_static.cpp
+    src/owners/geometry_pat.cpp
     src/owners/material_semantics.cpp
     src/owners/material_graph.cpp
     src/owners/material_resolution.cpp

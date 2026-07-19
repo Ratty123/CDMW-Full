@@ -672,7 +672,8 @@ def _build_wem_media_preview_detail_text(
     playback_note: str = "",
 ) -> Tuple[str, str]:
     resolved_source = source_path.expanduser().resolve()
-    metadata_summary = f"{'Loose' if loose else 'Archive'} Wwise audio | {resolved_source.name}"
+    format_label = "Wwise" if resolved_source.suffix.lower() == ".wem" else resolved_source.suffix.lstrip(".").upper()
+    metadata_summary = f"{'Loose' if loose else 'Archive'} {format_label} audio | {resolved_source.name}"
     detail_lines = [f"{'Loose file' if loose else 'Archive preview source'}: {resolved_source}"]
     if playback_source_path is not None:
         resolved_playback = playback_source_path.expanduser().resolve()
@@ -709,9 +710,12 @@ def _build_wem_media_preview_detail_text(
         )
     if chunk_names:
         detail_lines.append("RIFF chunks: " + ", ".join(chunk_names[:12]))
-    detail_lines.append(
-        "Playback is best-effort through Qt Multimedia. Some Wwise `.wem` variants may still fail if the local backend cannot decode them."
-    )
+    if resolved_source.suffix.lower() == ".wem":
+        detail_lines.append(
+            "Playback is best-effort through Qt Multimedia. Some Wwise `.wem` variants may still fail if the local backend cannot decode them."
+        )
+    else:
+        detail_lines.append("Playback is best-effort through the installed Qt Multimedia backend and system codecs.")
     return metadata_summary, "\n".join(detail_lines)
 
 

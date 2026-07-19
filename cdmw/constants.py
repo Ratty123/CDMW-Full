@@ -101,14 +101,25 @@ ARCHIVE_IMAGE_EXTENSIONS = {
     ".webp",
 }
 ARCHIVE_AUDIO_EXTENSIONS = {
+    ".aac",
+    ".flac",
+    ".m4a",
     ".mp3",
     ".ogg",
     ".wem",
     ".wav",
+    ".wma",
 }
 ARCHIVE_VIDEO_EXTENSIONS = {
+    ".avi",
     ".bk2",
+    ".m4v",
+    ".mov",
     ".mp4",
+    ".mpeg",
+    ".mpg",
+    ".webm",
+    ".wmv",
 }
 ARCHIVE_TEXT_EXTENSIONS = {
     ".bnk",
@@ -134,6 +145,7 @@ ARCHIVE_TEXT_EXTENSIONS = {
     ".pam_xml",
     ".pamlod_xml",
     ".prefabdata_xml",
+    ".prefab_xml",
     ".shader",
     ".thtml",
     ".txt",
@@ -158,6 +170,7 @@ ARCHIVE_MODEL_EXTENSIONS = {
     ".pat",
     ".patx",
     ".hkx",
+    ".hkt",
 }
 ARCHIVE_TEXT_PREVIEW_LIMIT = 240_000
 ARCHIVE_BINARY_HEX_PREVIEW_LIMIT = 256

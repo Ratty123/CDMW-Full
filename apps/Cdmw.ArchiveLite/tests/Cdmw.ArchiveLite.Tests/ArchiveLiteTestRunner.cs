@@ -47,6 +47,7 @@ internal static class ArchiveLiteTestRunner
             ("startup auto-loads current cache and recommends manual refresh after hash changes", TestStartupCacheAutoLoadAsync),
             ("asset metadata keeps HKX read-only and renderer-free", TestAssetMetadataAndHkxPreviewAsync),
             ("shared content manifest and semantic analyzers stay decoder-parity safe", TestSharedContentAnalyzersAsync),
+            ("native preview core parses PAT LOD0 geometry", TestNativePatGeometryAsync),
             ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
             ("native model previews start immediately and warm-cache hits stay delay-free", TestNativeModelPreviewCacheDwellAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
@@ -3144,44 +3145,84 @@ internal static class ArchiveLiteTestRunner
         Require(json.RootElement.GetProperty("schema_version").GetInt32() == 1,
             "semantic JSON schema version was not serialized");
         return Task.CompletedTask;
-
-        static byte[] BuildSyntheticPat()
-        {
-            const int vertexStart = 52;
-            const int vertexEnd = vertexStart + 3 * 32;
-            const int indexStart = vertexEnd + 8;
-            const int indexEnd = indexStart + 6;
-            const int drawStart = indexEnd + 8;
-            const int drawEnd = drawStart + 16;
-            var tail = Encoding.ASCII.GetBytes("oak_mat\0oak_color.dds\0");
-            var bytes = new byte[drawEnd + tail.Length];
-            "PAR "u8.CopyTo(bytes);
-            WriteSingle(bytes, 16, -1f);
-            WriteSingle(bytes, 20, -2f);
-            WriteSingle(bytes, 24, -3f);
-            WriteSingle(bytes, 28, 4f);
-            WriteSingle(bytes, 32, 5f);
-            WriteSingle(bytes, 36, 6f);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(40), 1);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(48), 3);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(vertexEnd), 0);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(vertexEnd + 4), 3);
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart), 0);
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart + 2), 1);
-            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart + 4), 2);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(indexEnd), 0);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(indexEnd + 4), 1);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart), 0);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 4), 0);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 8), 0);
-            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 12), 3);
-            tail.CopyTo(bytes.AsSpan(drawEnd));
-            return bytes;
-        }
-
-        static void WriteSingle(byte[] bytes, int offset, float value) =>
-            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset), BitConverter.SingleToInt32Bits(value));
     }
+
+    private static async Task TestNativePatGeometryAsync()
+    {
+        Require(NativeModelPreviewService.Supports(".pat"), "Archive Lite does not route PAT through native model preview");
+        var executable = Path.Combine(
+            FindRepositoryRoot(),
+            "native",
+            "cdmw_preview_core",
+            "build",
+            "Release",
+            "cdmw-preview-core.exe");
+        Require(File.Exists(executable), "Release native preview core is not built");
+        var testRoot = Path.Combine(ArchiveLiteDataPaths.Root, "native-pat");
+        Directory.CreateDirectory(testRoot);
+        var input = Path.Combine(testRoot, "tree.pat");
+        var report = Path.Combine(testRoot, "report.json");
+        await File.WriteAllBytesAsync(input, BuildSyntheticPat()).ConfigureAwait(false);
+        using var process = Process.Start(new ProcessStartInfo
+        {
+            FileName = executable,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardError = true,
+            RedirectStandardOutput = true,
+            ArgumentList = { "mesh-parse-job", input, report, "tree.pat" },
+        }) ?? throw new InvalidOperationException("Native preview core did not start");
+        var standardError = await process.StandardError.ReadToEndAsync().ConfigureAwait(false);
+        await process.WaitForExitAsync().ConfigureAwait(false);
+        Require(process.ExitCode == 0, $"native PAT parse failed: {standardError}");
+        using var result = JsonDocument.Parse(await File.ReadAllTextAsync(report).ConfigureAwait(false));
+        var root = result.RootElement;
+        Require(root.GetProperty("status").GetString() == "ok", "native PAT report was not successful");
+        Require(root.GetProperty("format").GetString() == "pat", "native PAT report format is wrong");
+        Require(root.GetProperty("parser").GetString() == "native_pat_lod0", "native PAT parser identity is wrong");
+        Require(root.GetProperty("submesh_count").GetInt32() == 1, "native PAT draw was not emitted");
+        Require(root.GetProperty("vertex_count").GetInt32() == 3, "native PAT vertex count is wrong");
+        Require(root.GetProperty("face_count").GetInt32() == 1, "native PAT face count is wrong");
+    }
+
+    private static byte[] BuildSyntheticPat()
+    {
+        const int vertexStart = 52;
+        const int vertexEnd = vertexStart + 3 * 32;
+        const int indexStart = vertexEnd + 8;
+        const int indexEnd = indexStart + 6;
+        const int drawStart = indexEnd + 8;
+        const int drawEnd = drawStart + 16;
+        var tail = Encoding.ASCII.GetBytes("oak_mat\0oak_color.dds\0");
+        var bytes = new byte[drawEnd + tail.Length];
+        "PAR "u8.CopyTo(bytes);
+        WriteSingle(bytes, 16, -1f);
+        WriteSingle(bytes, 20, -2f);
+        WriteSingle(bytes, 24, -3f);
+        WriteSingle(bytes, 28, 4f);
+        WriteSingle(bytes, 32, 5f);
+        WriteSingle(bytes, 36, 6f);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(40), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(48), 3);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(vertexStart + 32), ushort.MaxValue);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(vertexStart + 64 + 2), ushort.MaxValue);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(vertexEnd), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(vertexEnd + 4), 3);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart), 0);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart + 2), 1);
+        BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart + 4), 2);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(indexEnd), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(indexEnd + 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 4), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 8), 0);
+        BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 12), 3);
+        tail.CopyTo(bytes.AsSpan(drawEnd));
+        return bytes;
+    }
+
+    private static void WriteSingle(byte[] bytes, int offset, float value) =>
+        BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset), BitConverter.SingleToInt32Bits(value));
 
     private static async Task<string> Sha256Async(string path)
     {
