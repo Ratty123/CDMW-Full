@@ -142,12 +142,21 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         self._queued_pages: set[int] = set()
         self._inflight_pages: set[int] = set()
         self._page_dispatch_scheduled = False
+        self._requests_suspended = False
         self._root = RemoteArchiveBrowserNode("root", "root", fetched=False)
         self._nodes_by_key: dict[str, RemoteArchiveBrowserNode] = {self._root.key: self._root}
 
     @property
     def query_handle(self) -> ArchiveQueryHandle | None:
         return self._handle
+
+    @property
+    def page_size(self) -> int:
+        return self._page_size
+
+    @property
+    def child_page_size(self) -> int:
+        return self._child_page_size
 
     @property
     def view_mode(self) -> ArchiveViewMode:
@@ -165,7 +174,13 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
     def inflight_page_starts(self) -> tuple[int, ...]:
         return tuple(sorted(self._inflight_pages))
 
-    def publish_query(self, handle: ArchiveQueryHandle, *, view_mode: ArchiveViewMode) -> None:
+    def publish_query(
+        self,
+        handle: ArchiveQueryHandle,
+        *,
+        view_mode: ArchiveViewMode,
+        prime: bool = True,
+    ) -> None:
         self.beginResetModel()
         self._handle = handle
         self._view_mode = view_mode
@@ -174,11 +189,15 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         self._inflight_pages.clear()
         self._root = RemoteArchiveBrowserNode("root", "root", match_count=handle.total_matches, fetched=False)
         self._nodes_by_key = {self._root.key: self._root}
+        self._requests_suspended = False
         self.endResetModel()
-        if view_mode is ArchiveViewMode.FLAT:
+        if prime and view_mode is ArchiveViewMode.FLAT:
             self.request_visible_rows(0, min(handle.total_matches - 1, self._page_size - 1))
-        elif view_mode is ArchiveViewMode.FOLDERS:
+        elif prime and view_mode is ArchiveViewMode.FOLDERS:
             self._queue_children(self._root)
+
+    def suspend_requests(self, suspended: bool) -> None:
+        self._requests_suspended = bool(suspended)
 
     def clear(self) -> None:
         self.beginResetModel()
@@ -186,6 +205,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         self._pages.clear()
         self._queued_pages.clear()
         self._inflight_pages.clear()
+        self._requests_suspended = False
         self._root = RemoteArchiveBrowserNode("root", "root", fetched=True, next_offset=None)
         self._nodes_by_key = {self._root.key: self._root}
         self.endResetModel()
@@ -219,7 +239,12 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
 
     def request_visible_rows(self, first_row: int, last_row: int) -> None:
         handle = self._handle
-        if handle is None or self._view_mode is not ArchiveViewMode.FLAT or handle.total_matches <= 0:
+        if (
+            self._requests_suspended
+            or handle is None
+            or self._view_mode is not ArchiveViewMode.FLAT
+            or handle.total_matches <= 0
+        ):
             return
         first = max(0, min(int(first_row), handle.total_matches - 1))
         last = max(first, min(int(last_row), handle.total_matches - 1))
@@ -456,7 +481,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
 
     def _queue_page(self, page_start: int) -> None:
         handle = self._handle
-        if handle is None or page_start < 0 or page_start >= handle.total_matches:
+        if self._requests_suspended or handle is None or page_start < 0 or page_start >= handle.total_matches:
             return
         start = self._page_start(page_start)
         if start in self._pages:
@@ -472,7 +497,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
     def _dispatch_queued_pages(self) -> None:
         self._page_dispatch_scheduled = False
         handle = self._handle
-        if handle is None:
+        if self._requests_suspended or handle is None:
             self._queued_pages.clear()
             return
         for start in sorted(self._queued_pages):
@@ -484,7 +509,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
 
     def _queue_children(self, node: RemoteArchiveBrowserNode) -> None:
         handle = self._handle
-        if handle is None or node.loading or node.next_offset is None or node.kind == "file":
+        if self._requests_suspended or handle is None or node.loading or node.next_offset is None or node.kind == "file":
             return
         node.loading = True
         parent_path = node.path if node.kind == "folder" else None
@@ -498,7 +523,23 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
             node.next_offset,
             self._child_page_size,
         )
-        QTimer.singleShot(0, lambda current=fetch: self.childrenRequested.emit(current))
+        QTimer.singleShot(0, lambda current=fetch: self._dispatch_children(current))
+
+    def _dispatch_children(self, fetch: RemoteChildrenFetch) -> None:
+        node = self._nodes_by_key.get(fetch.node_key)
+        handle = self._handle
+        if (
+            self._requests_suspended
+            or node is None
+            or handle is None
+            or fetch.session_id != handle.session_id
+            or fetch.query_id != handle.query_id
+            or fetch.generation != handle.generation
+        ):
+            if node is not None:
+                node.loading = False
+            return
+        self.childrenRequested.emit(fetch)
 
     def _entry_at_row(self, row: int) -> ArchiveEntryDto | None:
         if row < 0:
