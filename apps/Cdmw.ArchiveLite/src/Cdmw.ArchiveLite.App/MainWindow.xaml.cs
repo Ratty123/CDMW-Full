@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using Cdmw.ArchiveLite.App.Infrastructure;
+using Cdmw.ArchiveLite.App.Dialogs;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
 using Cdmw.ArchiveLite.Contracts;
@@ -182,6 +183,15 @@ public partial class MainWindow : Window
     private void OnAssociatedAssetsSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
         _viewModel.ArchiveBrowser.AssociatedAssets.SetSelectedAssets(
             AssociatedAssetsList.SelectedItems.OfType<AssociatedAssetRow>());
+
+    private void OnItemFinderClick(object sender, RoutedEventArgs eventArgs)
+    {
+        var dialog = new ItemFinderDialog(_viewModel.ItemFinder)
+        {
+            Owner = this,
+        };
+        _ = dialog.ShowDialog();
+    }
 
     private void OnArchivePreviewFindNextClick(object sender, RoutedEventArgs eventArgs) =>
         FindInEditor(ArchiveTextPreviewEditor, ArchivePreviewFindBox.Text, findPrevious: false);

@@ -207,12 +207,12 @@
   <data name="ExtensionGroupOther" xml:space="preserve"><value>Andere</value></data>
   <data name="ExtensionCatalogLoading" xml:space="preserve"><value>Kategorisierte Dateiendungen werden geladen...</value></data>
   <data name="ExtensionCatalogProgress" xml:space="preserve"><value>Dateiendungen werden indiziert: {0:N0} / {1:N0}</value></data>
-  <data name="NameIndexLoading" xml:space="preserve"><value>Bekannte Spielnamen werden geladen...</value></data>
+  <data name="NameIndexLoading" xml:space="preserve"><value>Bekannte Spielnamen und Item-Finder-Katalog werden geladen...</value></data>
   <data name="NameIndexScanProgress" xml:space="preserve"><value>Namensquellen werden indiziert: {0:N0} / {1:N0}</value></data>
   <data name="NameIndexExtracting" xml:space="preserve"><value>Namensquelle wird gelesen: {0}</value></data>
   <data name="NameIndexResolving" xml:space="preserve"><value>Bekannte Namen und verwandte Hinweise werden aufgelöst...</value></data>
   <data name="NameIndexPublishing" xml:space="preserve"><value>Namensindex wird gespeichert...</value></data>
-  <data name="NameIndexReady" xml:space="preserve"><value>Namen bereit: {0:N0} exakt, {1:N0} verwandte Hinweise</value></data>
+  <data name="NameIndexReady" xml:space="preserve"><value>Katalog bereit: {0:N0} exakte Namen, {1:N0} verwandte Hinweise, {2:N0} Item-Finder-Einträge</value></data>
   <data name="NameIndexUnavailable" xml:space="preserve"><value>Bekannte Spielnamen sind für dieses Archiv nicht verfügbar.</value></data>
   <data name="NameIndexFailed" xml:space="preserve"><value>Namensindex nicht verfügbar: {0}</value></data>
   <data name="ProductSubtitle" xml:space="preserve"><value>Durchsuchen, Vorschau, Suche und Export</value></data>
@@ -275,4 +275,36 @@
   <data name="Play" xml:space="preserve"><value>Abspielen</value></data>
   <data name="Pause" xml:space="preserve"><value>Pause</value></data>
   <data name="Stop" xml:space="preserve"><value>Stopp</value></data>
+  <data name="Clear" xml:space="preserve"><value>Leeren</value></data>
+  <data name="None" xml:space="preserve"><value>Keine</value></data>
+  <data name="ItemFinderTitle" xml:space="preserve"><value>Item Finder</value></data>
+  <data name="ItemFinderSubtitle" xml:space="preserve"><value>Wiederhergestellte Namen, Inventarsymbole, Modellverknüpfungen und Materialnachweise</value></data>
+  <data name="ItemFinderIntro" xml:space="preserve"><value>Durchsucht denselben nativen Item-Katalog wie CDMW Full. Sichtbare Symbole werden zuerst geladen; die übrigen Vorschaubilder werden im Hintergrund vorbereitet und aus dem dauerhaften Cache wiederverwendet.</value></data>
+  <data name="ItemFinderSearchHint" xml:space="preserve"><value>Anzeigename, internen Namen, Item-ID, Kategorie, Modell, Symbolpfad, lokalisierten Namen oder Material-Tag suchen</value></data>
+  <data name="ItemFinderButtonHint" xml:space="preserve"><value>Wiederhergestellte Spielobjekte mit dauerhaft vorgeladenen Inventarsymbolen durchsuchen.</value></data>
+  <data name="ItemFinderOpenArchive" xml:space="preserve"><value>Laden Sie ein Archiv, bevor Sie den Item Finder öffnen.</value></data>
+  <data name="ItemFinderReady" xml:space="preserve"><value>Der Item Finder ist bereit.</value></data>
+  <data name="ItemFinderLoading" xml:space="preserve"><value>Item Finder wird geladen...</value></data>
+  <data name="ItemFinderNoMatches" xml:space="preserve"><value>Keine passenden Items.</value></data>
+  <data name="ItemFinderPageSummary" xml:space="preserve"><value>{0:N0}-{1:N0} von {2:N0} passenden Items werden angezeigt</value></data>
+  <data name="ItemFinderFailed" xml:space="preserve"><value>Item Finder fehlgeschlagen: {0}</value></data>
+  <data name="ItemFinderAllCategories" xml:space="preserve"><value>Alle Kategorien</value></data>
+  <data name="ItemFinderAllMaterials" xml:space="preserve"><value>Alle Material-Tags</value></data>
+  <data name="ItemFinderIconFailed" xml:space="preserve"><value>Einige Inventarsymbole konnten nicht vorbereitet werden: {0}</value></data>
+  <data name="ItemFinderIconWarmup" xml:space="preserve"><value>Inventarsymbole werden vorgeladen: {0:N0}/{1:N0}</value></data>
+  <data name="ItemFinderIconWarmupStarting" xml:space="preserve"><value>Der dauerhafte Cache für Inventarsymbole wird vorbereitet...</value></data>
+  <data name="ItemFinderIconWarmupReady" xml:space="preserve"><value>Dauerhafter Symbol-Cache bereit: {0:N0}/{1:N0}</value></data>
+  <data name="ItemFinderLinkedSummary" xml:space="preserve"><value>{0:N0} Modelllink(s), {1:N0} Symbolpfad(e), {2:N0} Variante(n)</value></data>
+  <data name="ItemFinderEvidence" xml:space="preserve"><value>Nachweis</value></data>
+  <data name="ItemFinderLocalizedNames" xml:space="preserve"><value>Lokalisierte Namen</value></data>
+  <data name="ItemFinderMaterials" xml:space="preserve"><value>Material-Tags</value></data>
+  <data name="ItemFinderModels" xml:space="preserve"><value>Verknüpfte Modelle</value></data>
+  <data name="ItemFinderIcons" xml:space="preserve"><value>Pfade der Inventarsymbole</value></data>
+  <data name="ItemFinderShowExact" xml:space="preserve"><value>Exakte Links anzeigen</value></data>
+  <data name="ItemFinderShowExactHint" xml:space="preserve"><value>Schließt den Item Finder und zeigt nur direkt wiederhergestellte Modell- und Symboldateien im Archiv-Browser.</value></data>
+  <data name="ItemFinderShowRelated" xml:space="preserve"><value>Zugehörigen Satz anzeigen</value></data>
+  <data name="ItemFinderShowRelatedHint" xml:space="preserve"><value>Schließt den Item Finder und zeigt direkte Links sowie indizierte Material-, Textur-, Metadaten-, Skelett- und Animationsbegleiter.</value></data>
+  <data name="ItemFinderScopeLoading" xml:space="preserve"><value>Item-Finder-Links werden aufgelöst...</value></data>
+  <data name="ItemFinderExactScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} exakt verknüpfte Datei(en)</value></data>
+  <data name="ItemFinderRelatedScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} zugehörige Datei(en), davon {2:N0} direkte Link(s)</value></data>
 </root>

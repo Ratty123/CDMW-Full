@@ -10,6 +10,7 @@ public sealed class ArchiveSession : IDisposable
     private long _lastQueryGeneration = long.MinValue;
     private long _lastQueryTotal;
     private ArchiveItemNameIndex? _nameIndex;
+    private ArchiveItemCatalog? _itemCatalog;
     private IReadOnlyList<ArchiveExtensionFacet>? _extensionFacets;
     private readonly string? _ownedIndexPath;
     private readonly string? _ownedBasenameIndexPath;
@@ -68,6 +69,26 @@ public sealed class ArchiveSession : IDisposable
         lock (_catalogueGate)
         {
             _nameIndex = index;
+        }
+    }
+
+    internal bool TryGetItemCatalog(out ArchiveItemCatalog? catalog)
+    {
+        lock (_catalogueGate)
+        {
+            catalog = _itemCatalog;
+            return catalog is not null;
+        }
+    }
+
+    internal void SetCatalogue(ArchiveItemNameIndex nameIndex, ArchiveItemCatalog itemCatalog)
+    {
+        ArgumentNullException.ThrowIfNull(nameIndex);
+        ArgumentNullException.ThrowIfNull(itemCatalog);
+        lock (_catalogueGate)
+        {
+            _nameIndex = nameIndex;
+            _itemCatalog = itemCatalog;
         }
     }
 

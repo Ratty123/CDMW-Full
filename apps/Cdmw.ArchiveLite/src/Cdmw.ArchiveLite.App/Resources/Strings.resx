@@ -207,12 +207,12 @@
   <data name="ExtensionGroupOther" xml:space="preserve"><value>Other</value></data>
   <data name="ExtensionCatalogLoading" xml:space="preserve"><value>Loading categorized extensions...</value></data>
   <data name="ExtensionCatalogProgress" xml:space="preserve"><value>Indexing extensions: {0:N0} / {1:N0}</value></data>
-  <data name="NameIndexLoading" xml:space="preserve"><value>Loading known in-game names...</value></data>
+  <data name="NameIndexLoading" xml:space="preserve"><value>Loading known in-game names and Item Finder catalog...</value></data>
   <data name="NameIndexScanProgress" xml:space="preserve"><value>Indexing name sources: {0:N0} / {1:N0}</value></data>
   <data name="NameIndexExtracting" xml:space="preserve"><value>Reading name source: {0}</value></data>
   <data name="NameIndexResolving" xml:space="preserve"><value>Resolving known names and related hints...</value></data>
   <data name="NameIndexPublishing" xml:space="preserve"><value>Saving the name index...</value></data>
-  <data name="NameIndexReady" xml:space="preserve"><value>Names ready: {0:N0} exact, {1:N0} related hints</value></data>
+  <data name="NameIndexReady" xml:space="preserve"><value>Catalog ready: {0:N0} exact names, {1:N0} related hints, {2:N0} Item Finder rows</value></data>
   <data name="NameIndexUnavailable" xml:space="preserve"><value>Known in-game names are unavailable for this archive.</value></data>
   <data name="NameIndexFailed" xml:space="preserve"><value>Name index unavailable: {0}</value></data>
   <data name="ProductSubtitle" xml:space="preserve"><value>Browse, preview, search and export</value></data>
@@ -275,4 +275,36 @@
   <data name="Play" xml:space="preserve"><value>Play</value></data>
   <data name="Pause" xml:space="preserve"><value>Pause</value></data>
   <data name="Stop" xml:space="preserve"><value>Stop</value></data>
+  <data name="Clear" xml:space="preserve"><value>Clear</value></data>
+  <data name="None" xml:space="preserve"><value>None</value></data>
+  <data name="ItemFinderTitle" xml:space="preserve"><value>Item Finder</value></data>
+  <data name="ItemFinderSubtitle" xml:space="preserve"><value>Recovered names, inventory icons, model links, and material evidence</value></data>
+  <data name="ItemFinderIntro" xml:space="preserve"><value>Browse the same native item catalog used by CDMW Full. Visible icons load first; the remaining inventory thumbnails are prepared in the background and reused from the persistent cache.</value></data>
+  <data name="ItemFinderSearchHint" xml:space="preserve"><value>Search display name, internal name, item ID, category, model, icon path, localized name, or material tag</value></data>
+  <data name="ItemFinderButtonHint" xml:space="preserve"><value>Browse recovered game items with persistent preloaded inventory icons.</value></data>
+  <data name="ItemFinderOpenArchive" xml:space="preserve"><value>Load an archive before opening Item Finder.</value></data>
+  <data name="ItemFinderReady" xml:space="preserve"><value>Item Finder is ready.</value></data>
+  <data name="ItemFinderLoading" xml:space="preserve"><value>Loading Item Finder...</value></data>
+  <data name="ItemFinderNoMatches" xml:space="preserve"><value>No matching items.</value></data>
+  <data name="ItemFinderPageSummary" xml:space="preserve"><value>Showing {0:N0}-{1:N0} of {2:N0} matching items</value></data>
+  <data name="ItemFinderFailed" xml:space="preserve"><value>Item Finder failed: {0}</value></data>
+  <data name="ItemFinderAllCategories" xml:space="preserve"><value>All categories</value></data>
+  <data name="ItemFinderAllMaterials" xml:space="preserve"><value>All material tags</value></data>
+  <data name="ItemFinderIconFailed" xml:space="preserve"><value>Some inventory icons could not be prepared: {0}</value></data>
+  <data name="ItemFinderIconWarmup" xml:space="preserve"><value>Preloading inventory icons: {0:N0}/{1:N0}</value></data>
+  <data name="ItemFinderIconWarmupStarting" xml:space="preserve"><value>Preparing the persistent inventory icon cache...</value></data>
+  <data name="ItemFinderIconWarmupReady" xml:space="preserve"><value>Persistent inventory icon cache ready: {0:N0}/{1:N0}</value></data>
+  <data name="ItemFinderLinkedSummary" xml:space="preserve"><value>{0:N0} model link(s), {1:N0} icon path(s), {2:N0} variant(s)</value></data>
+  <data name="ItemFinderEvidence" xml:space="preserve"><value>Evidence</value></data>
+  <data name="ItemFinderLocalizedNames" xml:space="preserve"><value>Localized names</value></data>
+  <data name="ItemFinderMaterials" xml:space="preserve"><value>Material tags</value></data>
+  <data name="ItemFinderModels" xml:space="preserve"><value>Linked models</value></data>
+  <data name="ItemFinderIcons" xml:space="preserve"><value>Inventory icon paths</value></data>
+  <data name="ItemFinderShowExact" xml:space="preserve"><value>Show Exact Links</value></data>
+  <data name="ItemFinderShowExactHint" xml:space="preserve"><value>Close Item Finder and show only directly recovered model and icon files in Archive Browser.</value></data>
+  <data name="ItemFinderShowRelated" xml:space="preserve"><value>Show Related Set</value></data>
+  <data name="ItemFinderShowRelatedHint" xml:space="preserve"><value>Close Item Finder and show direct links plus indexed material, texture, metadata, skeleton, and animation companions.</value></data>
+  <data name="ItemFinderScopeLoading" xml:space="preserve"><value>Resolving Item Finder links...</value></data>
+  <data name="ItemFinderExactScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} exact linked file(s)</value></data>
+  <data name="ItemFinderRelatedScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} related file(s), including {2:N0} direct link(s)</value></data>
 </root>

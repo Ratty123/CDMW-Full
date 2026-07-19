@@ -5,12 +5,15 @@ namespace Cdmw.ArchiveLite.Core;
 
 public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
 {
+    private const int MaximumScopedEntryIds = 1024;
+
     public Task<ArchivePageResult> QueryAsync(
         ArchiveQuerySpec query,
         long generation,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(query);
+        ValidateScopedEntryIds(query.EntryIds);
         var session = sessions.GetRequired(query.SessionId);
         var normalized = query with
         {
@@ -25,11 +28,26 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         ArchiveQuerySpec query,
         CancellationToken cancellationToken)
     {
+        ValidateScopedEntryIds(query.EntryIds);
+        if (query.EntryIds is not null)
+        {
+            foreach (var entryId in query.EntryIds.Distinct().Order())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (entryId < 0 || entryId >= session.Index.EntryCount)
+                {
+                    continue;
+                }
+                var entry = session.Index.ReadEntry(entryId);
+                if (Matches(entry, query, entryIds: null)) yield return entry;
+            }
+            yield break;
+        }
         for (long entryId = 0; entryId < session.Index.EntryCount; entryId++)
         {
             if ((entryId & 0xFF) == 0) cancellationToken.ThrowIfCancellationRequested();
             var entry = session.Index.ReadEntry(entryId);
-            if (Matches(entry, query)) yield return entry;
+            if (Matches(entry, query, entryIds: null)) yield return entry;
         }
     }
 
@@ -42,6 +60,10 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         if (IsDirectPathPage(query))
         {
             return ReadDirectPathPage(session, query, generation, cancellationToken);
+        }
+        if (query.EntryIds is not null)
+        {
+            return ReadEntryIdScopePage(session, query, generation, cancellationToken);
         }
 
         var page = new List<ArchiveEntryDto>(query.PageSize);
@@ -67,7 +89,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             {
                 entry = session.EnrichEntry(entry);
             }
-            if (!Matches(entry, query)) continue;
+            if (!Matches(entry, query, entryIds: null)) continue;
             total++;
             var folder = Path.GetDirectoryName(entry.Path.Replace('/', Path.DirectorySeparatorChar))?.Replace('\\', '/');
             if (!string.IsNullOrEmpty(folder) && folders.Count < 10_000) folders.Add(folder);
@@ -104,6 +126,47 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             session.Id,
             generation,
             total,
+            query.PageStart,
+            page,
+            folders.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
+            categories);
+    }
+
+    private static ArchivePageResult ReadEntryIdScopePage(
+        ArchiveSession session,
+        ArchiveQuerySpec query,
+        long generation,
+        CancellationToken cancellationToken)
+    {
+        var matches = new List<ArchiveEntryDto>(query.EntryIds!.Count);
+        var folders = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var categories = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        foreach (var entryId in query.EntryIds.Distinct())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entryId < 0 || entryId >= session.Index.EntryCount)
+            {
+                continue;
+            }
+            var entry = session.EnrichEntry(session.Index.ReadEntry(entryId));
+            if (!Matches(entry, query, entryIds: null))
+            {
+                continue;
+            }
+            matches.Add(entry);
+            var folder = Path.GetDirectoryName(entry.Path.Replace('/', Path.DirectorySeparatorChar))?.Replace('\\', '/');
+            if (!string.IsNullOrEmpty(folder) && folders.Count < 10_000) folders.Add(folder);
+            var category = entry.Role.ToString();
+            categories[category] = categories.GetValueOrDefault(category) + 1;
+        }
+
+        matches.Sort(CreateComparer(query.SortField, query.SortDescending));
+        var page = matches.Skip(query.PageStart).Take(query.PageSize).ToArray();
+        session.StoreQuery(query, generation, matches.Count);
+        return new ArchivePageResult(
+            session.Id,
+            generation,
+            matches.Count,
             query.PageStart,
             page,
             folders.Order(StringComparer.OrdinalIgnoreCase).ToArray(),
@@ -152,10 +215,12 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         string.IsNullOrWhiteSpace(query.Folder) &&
         query.Roles is not { Count: > 0 } &&
         query.MinimumSize is null &&
-        !query.PreviewableOnly;
+        !query.PreviewableOnly &&
+        query.EntryIds is null;
 
-    private static bool Matches(ArchiveEntryDto entry, ArchiveQuerySpec query)
+    private static bool Matches(ArchiveEntryDto entry, ArchiveQuerySpec query, IReadOnlySet<long>? entryIds)
     {
+        if (entryIds is not null && !entryIds.Contains(entry.EntryId)) return false;
         if (!MatchesPath(entry, query.PathText)) return false;
         if (query.Extensions is { Count: > 0 } && !query.Extensions.Any(value => MatchesExtension(entry.Extension, value))) return false;
         if (!string.IsNullOrWhiteSpace(query.Package) && !entry.Package.Contains(query.Package, StringComparison.OrdinalIgnoreCase)) return false;
@@ -163,6 +228,14 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         if (query.Roles is { Count: > 0 } && !query.Roles.Contains(entry.Role)) return false;
         if (query.MinimumSize is { } minimum && entry.OriginalSize < minimum) return false;
         return !query.PreviewableOnly || entry.IsPreviewable;
+    }
+
+    private static void ValidateScopedEntryIds(IReadOnlyList<long>? entryIds)
+    {
+        if (entryIds is { Count: > MaximumScopedEntryIds })
+        {
+            throw new InvalidDataException($"An archive query scope may contain at most {MaximumScopedEntryIds} entry IDs.");
+        }
     }
 
     private static bool MatchesPath(ArchiveEntryDto entry, string? filter)

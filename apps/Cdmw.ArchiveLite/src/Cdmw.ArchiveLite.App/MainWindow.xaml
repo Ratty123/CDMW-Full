@@ -407,6 +407,12 @@
 
                                 <GroupBox Header="{infra:Loc Key=ReadOnlyTools}">
                                     <StackPanel>
+                                        <Button Margin="0,0,0,12"
+                                                Style="{StaticResource PrimaryButtonStyle}"
+                                                Content="{infra:Loc Key=ItemFinderTitle}"
+                                                ToolTip="{infra:Loc Key=ItemFinderButtonHint}"
+                                                IsEnabled="{Binding ItemFinder.IsAvailable}"
+                                                Click="OnItemFinderClick" />
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=CollisionPolicy}" />
                                         <ComboBox Margin="0,0,0,10"
                                                   ItemsSource="{Binding ArchiveBrowser.CollisionPolicies}"
@@ -456,11 +462,19 @@
                                             <ColumnDefinition Width="*" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBlock VerticalAlignment="Center"
-                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   ToolTip="{Binding ArchiveBrowser.CatalogueStatus}"
-                                                   Text="{Binding ArchiveBrowser.CatalogueStatus}" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Foreground="{DynamicResource TextMutedBrush}"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding ArchiveBrowser.CatalogueStatus}"
+                                                       Text="{Binding ArchiveBrowser.CatalogueStatus}" />
+                                            <TextBlock Margin="0,2,0,0"
+                                                       Foreground="{DynamicResource AccentBrush}"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       ToolTip="{Binding ArchiveBrowser.ItemScopeStatus}"
+                                                       Text="{Binding ArchiveBrowser.ItemScopeStatus}"
+                                                       Visibility="{Binding ArchiveBrowser.HasItemScope, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                        </StackPanel>
                                         <Button x:Name="ArchiveColumnsButton"
                                                 Grid.Column="1"
                                                 Margin="10,0,0,0"

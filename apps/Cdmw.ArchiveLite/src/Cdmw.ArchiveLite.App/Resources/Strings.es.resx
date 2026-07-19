@@ -207,12 +207,12 @@
   <data name="ExtensionGroupOther" xml:space="preserve"><value>Otros</value></data>
   <data name="ExtensionCatalogLoading" xml:space="preserve"><value>Cargando extensiones por categoría...</value></data>
   <data name="ExtensionCatalogProgress" xml:space="preserve"><value>Indexando extensiones: {0:N0} / {1:N0}</value></data>
-  <data name="NameIndexLoading" xml:space="preserve"><value>Cargando nombres conocidos del juego...</value></data>
+  <data name="NameIndexLoading" xml:space="preserve"><value>Cargando nombres conocidos y el catálogo de Item Finder...</value></data>
   <data name="NameIndexScanProgress" xml:space="preserve"><value>Indexando fuentes de nombres: {0:N0} / {1:N0}</value></data>
   <data name="NameIndexExtracting" xml:space="preserve"><value>Leyendo fuente de nombres: {0}</value></data>
   <data name="NameIndexResolving" xml:space="preserve"><value>Resolviendo nombres conocidos y pistas relacionadas...</value></data>
   <data name="NameIndexPublishing" xml:space="preserve"><value>Guardando el índice de nombres...</value></data>
-  <data name="NameIndexReady" xml:space="preserve"><value>Nombres listos: {0:N0} exactos, {1:N0} pistas relacionadas</value></data>
+  <data name="NameIndexReady" xml:space="preserve"><value>Catálogo listo: {0:N0} nombres exactos, {1:N0} pistas relacionadas, {2:N0} filas de Item Finder</value></data>
   <data name="NameIndexUnavailable" xml:space="preserve"><value>Los nombres conocidos no están disponibles para este archivo.</value></data>
   <data name="NameIndexFailed" xml:space="preserve"><value>Índice de nombres no disponible: {0}</value></data>
   <data name="ProductSubtitle" xml:space="preserve"><value>Explorar, previsualizar, buscar y exportar</value></data>
@@ -275,4 +275,36 @@
   <data name="Play" xml:space="preserve"><value>Reproducir</value></data>
   <data name="Pause" xml:space="preserve"><value>Pausa</value></data>
   <data name="Stop" xml:space="preserve"><value>Detener</value></data>
+  <data name="Clear" xml:space="preserve"><value>Limpiar</value></data>
+  <data name="None" xml:space="preserve"><value>Ninguno</value></data>
+  <data name="ItemFinderTitle" xml:space="preserve"><value>Item Finder</value></data>
+  <data name="ItemFinderSubtitle" xml:space="preserve"><value>Nombres recuperados, iconos de inventario, enlaces de modelos y evidencia de materiales</value></data>
+  <data name="ItemFinderIntro" xml:space="preserve"><value>Explora el mismo catálogo nativo de objetos que CDMW Full. Los iconos visibles se cargan primero; las demás miniaturas se preparan en segundo plano y se reutilizan desde la caché persistente.</value></data>
+  <data name="ItemFinderSearchHint" xml:space="preserve"><value>Buscar por nombre visible, nombre interno, ID, categoría, modelo, ruta de icono, nombre localizado o etiqueta de material</value></data>
+  <data name="ItemFinderButtonHint" xml:space="preserve"><value>Explora objetos recuperados del juego con iconos de inventario precargados de forma persistente.</value></data>
+  <data name="ItemFinderOpenArchive" xml:space="preserve"><value>Carga un archivo antes de abrir Item Finder.</value></data>
+  <data name="ItemFinderReady" xml:space="preserve"><value>Item Finder está listo.</value></data>
+  <data name="ItemFinderLoading" xml:space="preserve"><value>Cargando Item Finder...</value></data>
+  <data name="ItemFinderNoMatches" xml:space="preserve"><value>No hay objetos coincidentes.</value></data>
+  <data name="ItemFinderPageSummary" xml:space="preserve"><value>Mostrando {0:N0}-{1:N0} de {2:N0} objetos coincidentes</value></data>
+  <data name="ItemFinderFailed" xml:space="preserve"><value>Item Finder falló: {0}</value></data>
+  <data name="ItemFinderAllCategories" xml:space="preserve"><value>Todas las categorías</value></data>
+  <data name="ItemFinderAllMaterials" xml:space="preserve"><value>Todas las etiquetas de material</value></data>
+  <data name="ItemFinderIconFailed" xml:space="preserve"><value>No se pudieron preparar algunos iconos de inventario: {0}</value></data>
+  <data name="ItemFinderIconWarmup" xml:space="preserve"><value>Precargando iconos de inventario: {0:N0}/{1:N0}</value></data>
+  <data name="ItemFinderIconWarmupStarting" xml:space="preserve"><value>Preparando la caché persistente de iconos de inventario...</value></data>
+  <data name="ItemFinderIconWarmupReady" xml:space="preserve"><value>Caché persistente de iconos lista: {0:N0}/{1:N0}</value></data>
+  <data name="ItemFinderLinkedSummary" xml:space="preserve"><value>{0:N0} enlace(s) de modelo, {1:N0} ruta(s) de icono, {2:N0} variante(s)</value></data>
+  <data name="ItemFinderEvidence" xml:space="preserve"><value>Evidencia</value></data>
+  <data name="ItemFinderLocalizedNames" xml:space="preserve"><value>Nombres localizados</value></data>
+  <data name="ItemFinderMaterials" xml:space="preserve"><value>Etiquetas de material</value></data>
+  <data name="ItemFinderModels" xml:space="preserve"><value>Modelos vinculados</value></data>
+  <data name="ItemFinderIcons" xml:space="preserve"><value>Rutas de iconos de inventario</value></data>
+  <data name="ItemFinderShowExact" xml:space="preserve"><value>Mostrar enlaces exactos</value></data>
+  <data name="ItemFinderShowExactHint" xml:space="preserve"><value>Cierra Item Finder y muestra solo los archivos de modelo e icono recuperados directamente en el explorador.</value></data>
+  <data name="ItemFinderShowRelated" xml:space="preserve"><value>Mostrar conjunto relacionado</value></data>
+  <data name="ItemFinderShowRelatedHint" xml:space="preserve"><value>Cierra Item Finder y muestra los enlaces directos junto con materiales, texturas, metadatos, esqueletos y animaciones relacionados por el índice.</value></data>
+  <data name="ItemFinderScopeLoading" xml:space="preserve"><value>Resolviendo enlaces de Item Finder...</value></data>
+  <data name="ItemFinderExactScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} archivo(s) enlazado(s) exacto(s)</value></data>
+  <data name="ItemFinderRelatedScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} archivo(s) relacionado(s), incluidos {2:N0} enlace(s) directo(s)</value></data>
 </root>

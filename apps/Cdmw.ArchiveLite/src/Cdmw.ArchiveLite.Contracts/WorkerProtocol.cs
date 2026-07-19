@@ -17,6 +17,10 @@ public static class WorkerProtocol
     public const string QueryArchive = "query_archive";
     public const string ArchiveFacets = "archive_facets";
     public const string BuildNameIndex = "build_name_index";
+    public const string SearchItemCatalog = "search_item_catalog";
+    public const string LoadItemIcons = "load_item_icons";
+    public const string WarmItemIcons = "warm_item_icons";
+    public const string ScopeItemCatalog = "scope_item_catalog";
     public const string FindAssociatedAssets = "find_associated_assets";
     public const string Preview = "preview";
     public const string TextSearch = "text_search";

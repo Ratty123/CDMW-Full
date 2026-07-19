@@ -51,6 +51,7 @@ internal static class ArchiveLiteTestRunner
             ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
             ("native model previews start immediately and warm-cache hits stay delay-free", TestNativeModelPreviewCacheDwellAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
+            ("Item Finder shares the Full catalog contract and keeps icon work bounded", TestItemFinderCatalogAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
             ("native archive ABI scans and decodes synthetic PAMT/PAZ", TestNativeArchiveAsync),
             ("archive query, preview, and text search are read-only", TestArchiveServicesAsync),
@@ -138,6 +139,17 @@ internal static class ArchiveLiteTestRunner
                 FolderPath: "character/model"));
         var folderExportJson = JsonSerializer.Serialize(folderExportMessage, WorkerProtocol.JsonOptions);
         Require(folderExportJson.Contains("\"folder_path\":\"character/model\"", StringComparison.Ordinal), "folder export scope is not serialized");
+        var itemSearchMessage = WorkerProtocol.Request(
+            Guid.Parse("45454545-4545-4545-4545-454545454545"),
+            11,
+            WorkerProtocol.SearchItemCatalog,
+            new ItemCatalogSearchRequest("session", "sword steel", "Weapon", "Sword", "steel", 0, 72));
+        var itemSearchJson = JsonSerializer.Serialize(itemSearchMessage, WorkerProtocol.JsonOptions);
+        Require(
+            itemSearchJson.Contains("\"kind\":\"search_item_catalog\"", StringComparison.Ordinal)
+            && itemSearchJson.Contains("\"material_tag\":\"steel\"", StringComparison.Ordinal)
+            && itemSearchJson.Contains("\"page_size\":72", StringComparison.Ordinal),
+            "Item Finder request is not bounded or snake case");
         return Task.CompletedTask;
     }
 
@@ -316,6 +328,7 @@ internal static class ArchiveLiteTestRunner
                 ".xml;.material",
                 true,
                 true),
+            ItemFinder: new ItemFinderSettings("sword", "Weapon", "Sword", "steel", 1180, 760),
             WindowPlacement: new WindowPlacementSettings(120, 80, 1320, 790, true),
             WorkspaceLayout: new WorkspaceLayoutSettings(336, 488, 318, 452),
             ArchiveColumnLayout:
@@ -345,6 +358,7 @@ internal static class ArchiveLiteTestRunner
 
         Require(actual.ArchiveBrowser == expected.ArchiveBrowser, "archive filters did not round-trip through portable settings");
         Require(actual.TextSearch == expected.TextSearch, "text-search filters did not round-trip through portable settings");
+        Require(actual.ItemFinder == expected.ItemFinder, "Item Finder filters and window size did not round-trip through portable settings");
         Require(actual.WindowPlacement == expected.WindowPlacement, "window placement did not round-trip through portable settings");
         Require(actual.WorkspaceLayout == expected.WorkspaceLayout, "split-pane widths did not round-trip through portable settings");
         Require(actual.FontSize == "large" && actual.LayoutDensity == "compact", "global font size and layout density did not round-trip through portable settings");
@@ -2227,6 +2241,126 @@ internal static class ArchiveLiteTestRunner
         return Task.CompletedTask;
     }
 
+    private static async Task TestItemFinderCatalogAsync()
+    {
+        var catalog = ArchiveItemCatalog.FromRecords(
+        [
+            new ArchiveItemCatalogRecord(
+                101,
+                "OneHandSword_Gilded",
+                "Gilded Longsword",
+                ["Gilded Longsword", "Vergoldetes Langschwert"],
+                [0x11223344],
+                ["cd_phm_01_sword_0016"],
+                ["cd_phm_01_sword_0016.pac"],
+                ["ui/icon/item/cd_phm_01_sword_0016.dds"],
+                ["steel", "gold"]),
+            new ArchiveItemCatalogRecord(
+                202,
+                "Helmet_Ashen",
+                "Ashen Helm",
+                ["Ashen Helm"],
+                [0x55667788],
+                ["cd_phm_hel_0042"],
+                ["cd_phm_hel_0042.pac"],
+                ["ui/icon/item/cd_phm_hel_0042.dds"],
+                ["cloth"]),
+            new ArchiveItemCatalogRecord(
+                102,
+                "OneHandSword_Gilded_+1",
+                "Gilded Longsword (+1)",
+                ["Gilded Longsword (+1)"],
+                [0x11223345],
+                ["cd_phm_01_sword_0016_l"],
+                ["cd_phm_01_sword_0016_l.pac"],
+                ["ui/icon/item/cd_phm_01_sword_0016.dds"],
+                ["steel", "gold"]),
+            new ArchiveItemCatalogRecord(
+                303,
+                "QuestJournal",
+                "Old Journal",
+                ["Old Journal"],
+                [],
+                ["quest_journal_01"],
+                ["quest_journal_01.pac"],
+                [],
+                []),
+        ]);
+
+        Require(catalog.Count == 3, "Item Finder discarded valid native catalog rows");
+        var sword = catalog.Search("gilded steel", "Weapon", "Sword", "steel", 0, 72);
+        Require(sword.TotalMatches == 1 && sword.Items[0].ItemId == 101, "Item Finder did not search across names and material tags");
+        Require(sword.Items[0].VariantCount == 2, "Item Finder did not group enhancement/model variants like Full");
+        Require(sword.Items[0].CategoryEvidence.Contains("Recovered", StringComparison.Ordinal), "Item Finder category evidence is missing");
+        var localized = catalog.Search("vergoldetes", null, null, null, 0, 72);
+        Require(localized.TotalMatches == 1 && localized.Items[0].ItemId == 101, "localized Item Finder search did not match");
+        var byId = catalog.Search("202", null, null, null, 0, 72);
+        Require(byId.TotalMatches == 1 && byId.Items[0].Category == "Armor", "numeric item-id search or category recovery failed");
+        Require(catalog.Search("102", null, null, null, 0, 72).TotalMatches == 1, "grouped secondary item IDs are not searchable");
+        var paged = catalog.Search(string.Empty, null, null, null, 1, 1);
+        Require(paged.TotalMatches == 3 && paged.Items.Count == 1, "Item Finder search is not predictably paged");
+        Require(catalog.CategoryFacets.Any(facet => facet.Category == "Weapon" && facet.Group == "Sword"), "Item Finder category facets omit weapons");
+        Require(catalog.MaterialFacets.Any(facet => facet.Value == "steel" && facet.Count == 1), "Item Finder material facets omit native tags");
+        var cachedRowJson = JsonSerializer.Serialize(catalog.Items.Single(item => item.ItemId == 101), WorkerProtocol.JsonOptions);
+        Require(!cachedRowJson.Contains("search_text", StringComparison.Ordinal), "Item Finder persisted its rebuildable search text");
+        var cachedRow = JsonSerializer.Deserialize<ArchiveItemCatalogRecord>(cachedRowJson, WorkerProtocol.JsonOptions)
+            ?? throw new InvalidDataException("Item Finder cache row did not deserialize");
+        Require(
+            ArchiveItemCatalog.FromRecords([cachedRow]).Search("gilded", null, null, null, 0, 72).TotalMatches == 1,
+            "Item Finder did not rebuild search text after a persistent-cache load");
+
+        var repositoryRoot = FindRepositoryRoot();
+        var acceleratorSource = File.ReadAllText(Path.Combine(repositoryRoot, "native", "cdmw_archive_accelerator", "src", "main.cpp"));
+        var fullCatalogSource = File.ReadAllText(Path.Combine(repositoryRoot, "cdmw", "core", "item_index.py"));
+        var liteCatalogSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.Core",
+            "ArchiveItemNameIndexService.cs"));
+        Require(
+            acceleratorSource.Contains("\\\"catalog_schema\\\":1", StringComparison.Ordinal)
+            && fullCatalogSource.Contains("catalog_schema = report.get(\"catalog_schema\")", StringComparison.Ordinal)
+            && liteCatalogSource.Contains("item-index-job", StringComparison.Ordinal),
+            "Full and Lite do not consume the same versioned native item catalog");
+
+        var appRoot = Path.Combine(repositoryRoot, "apps", "Cdmw.ArchiveLite", "src", "Cdmw.ArchiveLite.App");
+        var mainWindow = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml"));
+        var itemFinderDialog = File.ReadAllText(Path.Combine(appRoot, "Dialogs", "ItemFinderDialog.xaml"));
+        var itemFinderViewModel = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "ItemFinderViewModel.cs"));
+        var archiveBrowserViewModel = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "ArchiveBrowserViewModel.cs"));
+        var iconService = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.Core",
+            "ArchiveItemIconService.cs"));
+        Require(
+            mainWindow.Contains("OnItemFinderClick", StringComparison.Ordinal)
+            && itemFinderDialog.Contains("ItemsSource=\"{Binding Items}\"", StringComparison.Ordinal),
+            "Archive Lite does not expose the Item Finder dialog");
+        Require(
+            itemFinderViewModel.Contains("MaximumMemoryIcons = 96", StringComparison.Ordinal)
+            && itemFinderViewModel.Contains("WarmItemIconsRequest", StringComparison.Ordinal)
+            && itemFinderViewModel.Contains("ShowRelatedSetCommand", StringComparison.Ordinal)
+            && archiveBrowserViewModel.Contains("ItemCatalogReady?.Invoke", StringComparison.Ordinal)
+            && archiveBrowserViewModel.Contains("ShowItemScopeAsync", StringComparison.Ordinal)
+            && iconService.Contains("WaitForVisibleRequestsAsync", StringComparison.Ordinal)
+            && iconService.Contains("WaitForForegroundAsync", StringComparison.Ordinal)
+            && iconService.Contains("BuildThumbnailAsync", StringComparison.Ordinal),
+            "Item Finder icon loading is not memory-bounded, persistent, and visible-first");
+
+        var workPriority = new ArchiveWorkPriority();
+        var lease = workPriority.EnterForeground();
+        var backgroundWait = workPriority.WaitForForegroundAsync(CancellationToken.None);
+        await Task.Delay(70).ConfigureAwait(false);
+        Require(!backgroundWait.IsCompleted, "background icon preload did not yield to foreground archive work");
+        lease.Dispose();
+        await backgroundWait.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+    }
+
     private static ArchiveEntryDto CreateArchiveEntry(string path) => new(
         EntryId: 0,
         Path: path,
@@ -2588,6 +2722,24 @@ internal static class ArchiveLiteTestRunner
             CancellationToken.None).ConfigureAwait(false);
         Require(directPage.TotalMatches == 4 && directPage.Entries.Count == 2, "direct flat-path page is wrong");
         Require(directPage.Folders.Count == 0 && directPage.Categories.Count == 0, "direct flat-path page performed navigation aggregation");
+        var scopedPage = await queries.QueryAsync(
+            new ArchiveQuerySpec(opened.SessionId, EntryIds: [directPage.Entries[1].EntryId]),
+            81,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(
+            scopedPage.TotalMatches == 1 && scopedPage.Entries.Single().EntryId == directPage.Entries[1].EntryId,
+            "Item Finder exact-entry scope leaked unrelated archive rows");
+        var emptyScope = await queries.QueryAsync(
+            new ArchiveQuerySpec(opened.SessionId, EntryIds: []),
+            82,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(emptyScope.TotalMatches == 0, "an empty Item Finder scope incorrectly showed the full archive");
+        await RequireThrowsAsync<InvalidDataException>(() => queries.QueryAsync(
+            new ArchiveQuerySpec(
+                opened.SessionId,
+                EntryIds: Enumerable.Range(0, 1025).Select(static value => (long)value).ToArray()),
+            83,
+            CancellationToken.None)).ConfigureAwait(false);
         var page = await queries.QueryAsync(
             new ArchiveQuerySpec(opened.SessionId, Extensions: [".txt", ".material"]),
             9,
@@ -2654,6 +2806,34 @@ internal static class ArchiveLiteTestRunner
         Require(
             imageBytes.AsSpan(0, 8).SequenceEqual(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }),
             "DDS preview was not decoded to a displayable PNG");
+        var imageEntry = imagePage.Entries.Single();
+        var thumbnailInput = Path.Combine(Path.GetTempPath(), $"cdmw-item-icon-{Guid.NewGuid():N}.dds");
+        try
+        {
+            await File.WriteAllBytesAsync(thumbnailInput, native.Decode(imageEntry).Bytes).ConfigureAwait(false);
+            var texturePreviews = new NativeTexturePreviewService();
+            var thumbnail = await texturePreviews.BuildThumbnailAsync(
+                sessions.GetRequired(opened.SessionId),
+                imageEntry,
+                thumbnailInput,
+                120,
+                CancellationToken.None).ConfigureAwait(false);
+            File.Delete(thumbnailInput);
+            var warmThumbnail = await texturePreviews.BuildThumbnailAsync(
+                sessions.GetRequired(opened.SessionId),
+                imageEntry,
+                thumbnailInput,
+                120,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                Path.GetFullPath(thumbnail).Equals(Path.GetFullPath(warmThumbnail), StringComparison.OrdinalIgnoreCase)
+                && texturePreviews.TryGetCachedThumbnail(sessions.GetRequired(opened.SessionId), imageEntry, 120) == thumbnail,
+                "a warm Item Finder icon reran input work instead of reusing the persistent thumbnail");
+        }
+        finally
+        {
+            File.Delete(thumbnailInput);
+        }
         var search = new TextSearchService(sessions, native);
         var result = await search.SearchAsync(
             new TextSearchRequest(

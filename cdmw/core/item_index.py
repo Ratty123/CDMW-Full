@@ -1627,6 +1627,11 @@ def _try_build_archive_item_search_index_native(
         return None
     if not isinstance(report, Mapping) or report.get("status") != "ok":
         return None
+    catalog_schema = report.get("catalog_schema")
+    if catalog_schema is not None and catalog_schema != 1:
+        if on_log is not None:
+            on_log(f"Item-name search: native catalog schema {catalog_schema!r} is not supported; falling back to Python.")
+        return None
     items: List[ArchiveItemRecord] = []
     for row in report.get("items", []) or []:
         if not isinstance(row, Mapping):

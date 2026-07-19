@@ -20,6 +20,9 @@ Use this file to choose the right doc before opening everything.
 ## Subfolders
 
 - `features/`: long-lived feature/topic docs broader than one code package.
+  - `archive-decoder-parity-and-lite-item-finder.md`: extension capability
+    audit, shared semantic-decoder ownership, Lite Item Finder design/outcome,
+    validation evidence, and deferred real-corpus gates.
   - `archive-safety-model.md`: archive mutation safety rules.
   - `asset-authoring-integrations.md`: optional authoring tool integrations and
     where they plug into services/workers.

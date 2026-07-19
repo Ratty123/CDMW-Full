@@ -62,6 +62,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private bool _isExtensionCatalogBusy;
     private bool _isNameIndexBusy;
     private string _catalogueStatus = string.Empty;
+    private IReadOnlyList<long>? _itemScopeEntryIds;
+    private string _itemScopeStatus = string.Empty;
     private bool _suppressPreviewSelection;
     private ArchiveQuerySpec? _lastAppliedQuery;
     private bool _isEnvironmentBusy;
@@ -120,7 +122,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         RefreshCommand = new AsyncCommand(
             token => ChooseAndOpenArchiveAsync(true, token),
             CanRefreshArchive);
-        ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
+        ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token, clearItemScope: true), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
         PreviousPageCommand = new AsyncCommand(token => QueryAsync(Math.Max(0, PageStart - PageSize), token), () => PageStart > 0 && !IsBusy);
         NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
         CancelCommand = new RelayCommand(CancelForeground, () => IsBusy);
@@ -165,6 +167,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public AsyncCommand ExportFilteredCommand { get; }
 
     public event EventHandler? SessionChanged;
+    public event EventHandler<ItemCatalogReadyEventArgs>? ItemCatalogReady;
 
     public void RefreshLocalization()
     {
@@ -288,6 +291,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         {
             if (SetProperty(ref _sessionId, value))
             {
+                ClearItemScope();
                 AssociatedAssets.SelectSource(value, null);
                 RaiseCommandStates();
                 SessionChanged?.Invoke(this, EventArgs.Empty);
@@ -364,6 +368,20 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         get => _catalogueStatus;
         private set => SetProperty(ref _catalogueStatus, value);
     }
+
+    public string ItemScopeStatus
+    {
+        get => _itemScopeStatus;
+        private set
+        {
+            if (SetProperty(ref _itemScopeStatus, value))
+            {
+                OnPropertyChanged(nameof(HasItemScope));
+            }
+        }
+    }
+
+    public bool HasItemScope => !string.IsNullOrWhiteSpace(ItemScopeStatus);
 
     public void ApplyColumnSort(ArchiveSortField field)
     {
@@ -853,7 +871,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         }
     }
 
-    private async Task QueryAsync(int pageStart, CancellationToken commandToken)
+    private async Task QueryAsync(int pageStart, CancellationToken commandToken, bool clearItemScope = false)
     {
         if (string.IsNullOrWhiteSpace(SessionId))
         {
@@ -864,6 +882,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         var generation = Interlocked.Increment(ref _foregroundGeneration);
         try
         {
+            if (clearItemScope)
+            {
+                ClearItemScope();
+            }
             SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
             await QueryPageCoreAsync(pageStart, generation, operation.Token).ConfigureAwait(true);
         }
@@ -875,6 +897,76 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         {
             EndForegroundOperation(operation);
         }
+    }
+
+    public async Task<bool> ShowItemScopeAsync(
+        int itemId,
+        string displayName,
+        bool includeRelated,
+        CancellationToken commandToken)
+    {
+        var sessionId = SessionId;
+        if (IsBusy || string.IsNullOrWhiteSpace(sessionId))
+        {
+            return false;
+        }
+        var applied = false;
+        using var operation = BeginForegroundOperation(commandToken);
+        var generation = Interlocked.Increment(ref _foregroundGeneration);
+        try
+        {
+            SetOperationProgress(LocalizationManager.Get("ItemFinderScopeLoading"));
+            var progress = new Progress<ProgressUpdate>(update =>
+            {
+                if (generation == Volatile.Read(ref _foregroundGeneration))
+                {
+                    SetOperationProgress(LocalizationManager.Get("ItemFinderScopeLoading"));
+                    OperationProgressDetail = update.Total > 0
+                        ? $"{update.Completed:N0} / {update.Total:N0}"
+                        : update.CurrentItem ?? string.Empty;
+                }
+            });
+            var scope = await _worker.SendAsync<ItemCatalogScopeRequest, ItemCatalogScopeResult>(
+                WorkerProtocol.ScopeItemCatalog,
+                generation,
+                new ItemCatalogScopeRequest(sessionId, itemId, includeRelated),
+                operation.Token,
+                progress).ConfigureAwait(true);
+            if (generation != Volatile.Read(ref _foregroundGeneration)
+                || !string.Equals(SessionId, sessionId, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            _itemScopeEntryIds = scope.EntryIds;
+            PathFilter = string.Empty;
+            ExtensionFilter = string.Empty;
+            PackageFilter = string.Empty;
+            PreviewableOnly = false;
+            ViewMode = ArchiveViewMode.Flat;
+            SortField = ArchiveSortField.Path;
+            SortDescending = false;
+            SelectedFolder = Folders.FirstOrDefault(static folder => folder.Path is null);
+            SelectedRole = RoleFilters.First(static role => role.Role is null);
+            SelectedCategory = null;
+            ItemScopeStatus = LocalizationManager.Format(
+                includeRelated ? "ItemFinderRelatedScopeApplied" : "ItemFinderExactScopeApplied",
+                displayName,
+                scope.EntryIds.Count,
+                scope.DirectCount);
+            await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
+            _setShellStatus(ItemScopeStatus);
+            applied = true;
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            _setShellStatus(exception.Message);
+        }
+        finally
+        {
+            EndForegroundOperation(operation);
+        }
+        return applied;
     }
 
     private async Task QueryPageCoreAsync(int pageStart, long generation, CancellationToken cancellationToken)
@@ -996,7 +1088,14 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             SortField: SortField,
             SortDescending: SortDescending,
             PageStart: pageStart,
-            PageSize: PageSize);
+            PageSize: PageSize,
+            EntryIds: _itemScopeEntryIds);
+    }
+
+    private void ClearItemScope()
+    {
+        _itemScopeEntryIds = null;
+        ItemScopeStatus = string.Empty;
     }
 
     private void StartCatalogueLoad(string sessionId)
@@ -1053,11 +1152,12 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             }
 
             CatalogueStatus = names.Available
-                ? LocalizationManager.Format("NameIndexReady", names.ExactNameCount, names.RelatedNameCount)
+                ? LocalizationManager.Format("NameIndexReady", names.ExactNameCount, names.RelatedNameCount, names.ItemCount)
                 : names.Warning ?? LocalizationManager.Get("NameIndexUnavailable");
             IsNameIndexBusy = false;
             if (names.Available)
             {
+                ItemCatalogReady?.Invoke(this, new ItemCatalogReadyEventArgs(sessionId, names.ItemCount));
                 await RefreshCurrentPageAfterNameIndexAsync(sessionId, generation, operation.Token).ConfigureAwait(true);
             }
         }
@@ -1851,6 +1951,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         !string.IsNullOrWhiteSpace(SessionId)
         && (_selectedEntryIds.Count > 0 || SelectedEntry is not null);
 }
+
+public sealed record ItemCatalogReadyEventArgs(string SessionId, long ItemCount);
 
 public sealed record ArchiveRoleFilter(ArchiveEntryRole? Role, string Label)
 {

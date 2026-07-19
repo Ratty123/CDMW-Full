@@ -9,7 +9,8 @@ public sealed class ArchiveItemNameIndexService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 1;
+    private const int CacheSchemaVersion = 2;
+    private const int NativeCatalogSchemaVersion = 1;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
     private static readonly JsonSerializerOptions CacheJsonOptions = new()
@@ -46,9 +47,12 @@ public sealed class ArchiveItemNameIndexService(
         await session.NameIndexBuildGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (session.TryGetNameIndex(out var active) && active is not null)
+            if (session.TryGetNameIndex(out var active)
+                && active is not null
+                && session.TryGetItemCatalog(out var activeCatalog)
+                && activeCatalog is not null)
             {
-                return Result(session, active, usedCache: true);
+                return Result(session, active, activeCatalog, usedCache: true);
             }
 
             ArchiveLiteDataPaths.EnsureCreated();
@@ -56,8 +60,8 @@ public sealed class ArchiveItemNameIndexService(
             var cached = await TryLoadCacheAsync(cachePath, cancellationToken).ConfigureAwait(false);
             if (cached is not null)
             {
-                session.SetNameIndex(cached);
-                return Result(session, cached, usedCache: true);
+                session.SetCatalogue(cached.NameIndex, cached.ItemCatalog);
+                return Result(session, cached.NameIndex, cached.ItemCatalog, usedCache: true);
             }
 
             var workRoot = Path.Combine(ArchiveLiteDataPaths.NameIndexCache, $".work-{Guid.NewGuid():N}");
@@ -80,24 +84,25 @@ public sealed class ArchiveItemNameIndexService(
                         UsedCache: false,
                         ExactNameCount: 0,
                         RelatedNameCount: 0,
-                        Warning: "ItemInfo was not found in package 0008, so known in-game names are unavailable.");
+                        Warning: "ItemInfo was not found in package 0008, so known in-game names and Item Finder are unavailable.",
+                        ItemCount: 0);
                 }
 
                 await ExtractSourcesAsync(sources, payloadRoot, publishProgress, cancellationToken).ConfigureAwait(false);
-                var reportPath = Path.Combine(workRoot, "item-name-map.json");
+                var reportPath = Path.Combine(workRoot, "item-index.json");
                 if (publishProgress is not null)
                 {
                     await publishProgress(new ProgressUpdate(0, 0, "name_build")).ConfigureAwait(false);
                 }
                 await RunIndexerAsync(entriesPath, payloadRoot, reportPath, cancellationToken).ConfigureAwait(false);
-                var index = await ReadReportAsync(reportPath, cancellationToken).ConfigureAwait(false);
-                await SaveCacheAsync(cachePath, index, cancellationToken).ConfigureAwait(false);
-                session.SetNameIndex(index);
+                var catalogue = await ReadReportAsync(reportPath, cancellationToken).ConfigureAwait(false);
+                await SaveCacheAsync(cachePath, catalogue, cancellationToken).ConfigureAwait(false);
+                session.SetCatalogue(catalogue.NameIndex, catalogue.ItemCatalog);
                 if (publishProgress is not null)
                 {
                     await publishProgress(new ProgressUpdate(1, 1, "name_publish")).ConfigureAwait(false);
                 }
-                return Result(session, index, usedCache: false);
+                return Result(session, catalogue.NameIndex, catalogue.ItemCatalog, usedCache: false);
             }
             finally
             {
@@ -113,12 +118,14 @@ public sealed class ArchiveItemNameIndexService(
     private static BuildNameIndexResult Result(
         ArchiveSession session,
         ArchiveItemNameIndex index,
+        ArchiveItemCatalog catalog,
         bool usedCache) => new(
             session.Id,
             Available: true,
             UsedCache: usedCache,
             ExactNameCount: index.ExactNameCount,
-            RelatedNameCount: index.RelatedNameCount);
+            RelatedNameCount: index.RelatedNameCount,
+            ItemCount: catalog.Count);
 
     private static async Task<NameIndexSources> WriteEntriesAndFindSourcesAsync(
         ArchiveSession session,
@@ -267,7 +274,7 @@ public sealed class ArchiveItemNameIndexService(
             CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(executable) ?? AppContext.BaseDirectory,
         };
-        startInfo.ArgumentList.Add("item-name-map-job");
+        startInfo.ArgumentList.Add("item-index-job");
         startInfo.ArgumentList.Add(entriesPath);
         startInfo.ArgumentList.Add(payloadRoot);
         startInfo.ArgumentList.Add(reportPath);
@@ -285,7 +292,7 @@ public sealed class ArchiveItemNameIndexService(
         {
             StopProcess(process);
             await ObserveCaptureAsync(stdout, stderr).ConfigureAwait(false);
-            throw new TimeoutException($"The native item-name indexer did not finish within {IndexerTimeout.TotalMinutes:N0} minutes.");
+            throw new TimeoutException($"The native item catalog indexer did not finish within {IndexerTimeout.TotalMinutes:N0} minutes.");
         }
         catch (OperationCanceledException)
         {
@@ -303,7 +310,7 @@ public sealed class ArchiveItemNameIndexService(
         }
     }
 
-    private static async Task<ArchiveItemNameIndex> ReadReportAsync(
+    private static async Task<CatalogueBuildState> ReadReportAsync(
         string reportPath,
         CancellationToken cancellationToken)
     {
@@ -320,7 +327,12 @@ public sealed class ArchiveItemNameIndexService(
         if (!string.Equals(status, "ok", StringComparison.OrdinalIgnoreCase))
         {
             var message = root.TryGetProperty("message", out var messageValue) ? messageValue.GetString() : null;
-            throw new InvalidDataException(message ?? "The native item-name indexer returned an invalid report.");
+            throw new InvalidDataException(message ?? "The native item catalog indexer returned an invalid report.");
+        }
+        if (root.TryGetProperty("catalog_schema", out var schemaValue)
+            && (!schemaValue.TryGetInt32(out var schema) || schema != NativeCatalogSchemaVersion))
+        {
+            throw new InvalidDataException($"The native item catalog schema is not supported; expected {NativeCatalogSchemaVersion}.");
         }
         var exact = ReadStringMap(root, "model_base_exact_display_names");
         var related = ReadStringMap(root, "model_base_display_names");
@@ -328,7 +340,77 @@ public sealed class ArchiveItemNameIndexService(
         {
             related[key] = value;
         }
-        return ArchiveItemNameIndex.FromMappings(exact, related);
+        var nameIndex = ArchiveItemNameIndex.FromMappings(exact, related);
+        var itemCatalog = ArchiveItemCatalog.FromRecords(ReadItems(root));
+        return new CatalogueBuildState(nameIndex, itemCatalog);
+    }
+
+    private static IReadOnlyList<ArchiveItemCatalogRecord> ReadItems(JsonElement root)
+    {
+        if (!root.TryGetProperty("items", out var rows) || rows.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+        var result = new List<ArchiveItemCatalogRecord>();
+        foreach (var row in rows.EnumerateArray())
+        {
+            if (row.ValueKind != JsonValueKind.Object
+                || !row.TryGetProperty("item_id", out var itemIdValue)
+                || !itemIdValue.TryGetInt32(out var itemId)
+                || itemId <= 0)
+            {
+                continue;
+            }
+            var internalName = ReadString(row, "internal_name");
+            if (string.IsNullOrWhiteSpace(internalName))
+            {
+                continue;
+            }
+            result.Add(new ArchiveItemCatalogRecord(
+                itemId,
+                internalName,
+                ReadString(row, "display_name"),
+                ReadStrings(row, "localized_names"),
+                ReadUInt32s(row, "prefab_hashes"),
+                ReadStrings(row, "model_stems"),
+                ReadStrings(row, "pac_files"),
+                ReadStrings(row, "icon_paths"),
+                ReadStrings(row, "material_tags")));
+        }
+        return result;
+    }
+
+    private static string ReadString(JsonElement row, string propertyName) =>
+        row.TryGetProperty(propertyName, out var value) && value.ValueKind == JsonValueKind.String
+            ? value.GetString()?.Trim() ?? string.Empty
+            : string.Empty;
+
+    private static string[] ReadStrings(JsonElement row, string propertyName)
+    {
+        if (!row.TryGetProperty(propertyName, out var values) || values.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+        return values.EnumerateArray()
+            .Where(static value => value.ValueKind == JsonValueKind.String)
+            .Select(static value => value.GetString()?.Trim() ?? string.Empty)
+            .Where(static value => value.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static uint[] ReadUInt32s(JsonElement row, string propertyName)
+    {
+        if (!row.TryGetProperty(propertyName, out var values) || values.ValueKind != JsonValueKind.Array)
+        {
+            return [];
+        }
+        var result = new List<uint>();
+        foreach (var value in values.EnumerateArray())
+        {
+            if (value.TryGetUInt32(out var number)) result.Add(number);
+        }
+        return result.Distinct().ToArray();
     }
 
     private static Dictionary<string, string> ReadStringMap(JsonElement root, string propertyName)
@@ -354,7 +436,7 @@ public sealed class ArchiveItemNameIndexService(
         return result;
     }
 
-    private static async Task<ArchiveItemNameIndex?> TryLoadCacheAsync(
+    private static async Task<CatalogueBuildState?> TryLoadCacheAsync(
         string cachePath,
         CancellationToken cancellationToken)
     {
@@ -365,9 +447,16 @@ public sealed class ArchiveItemNameIndexService(
                 stream,
                 CacheJsonOptions,
                 cancellationToken).ConfigureAwait(false);
-            return payload is { SchemaVersion: CacheSchemaVersion }
-                ? ArchiveItemNameIndex.FromMappings(payload.ExactNames, payload.RelatedNames)
-                : null;
+            if (payload is not { SchemaVersion: CacheSchemaVersion }
+                || payload.ExactNames is null
+                || payload.RelatedNames is null
+                || payload.Items is null)
+            {
+                return null;
+            }
+            return new CatalogueBuildState(
+                ArchiveItemNameIndex.FromMappings(payload.ExactNames, payload.RelatedNames),
+                ArchiveItemCatalog.FromRecords(payload.Items));
         }
         catch (FileNotFoundException)
         {
@@ -385,15 +474,16 @@ public sealed class ArchiveItemNameIndexService(
 
     private static Task SaveCacheAsync(
         string cachePath,
-        ArchiveItemNameIndex index,
+        CatalogueBuildState catalogue,
         CancellationToken cancellationToken) => AtomicFile.WriteAsync(
             cachePath,
             async (stream, token) => await JsonSerializer.SerializeAsync(
                 stream,
                 new NameIndexCachePayload(
                     CacheSchemaVersion,
-                    index.ExactNames.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase),
-                    index.RelatedNames.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase)),
+                    catalogue.NameIndex.ExactNames.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+                    catalogue.NameIndex.RelatedNames.ToDictionary(static pair => pair.Key, static pair => pair.Value, StringComparer.OrdinalIgnoreCase),
+                    catalogue.ItemCatalog.Items.ToArray()),
                 CacheJsonOptions,
                 token).ConfigureAwait(false),
             cancellationToken);
@@ -517,5 +607,10 @@ public sealed class ArchiveItemNameIndexService(
     private sealed record NameIndexCachePayload(
         int SchemaVersion,
         Dictionary<string, string> ExactNames,
-        Dictionary<string, string> RelatedNames);
+        Dictionary<string, string> RelatedNames,
+        IReadOnlyList<ArchiveItemCatalogRecord> Items);
+
+    private sealed record CatalogueBuildState(
+        ArchiveItemNameIndex NameIndex,
+        ArchiveItemCatalog ItemCatalog);
 }

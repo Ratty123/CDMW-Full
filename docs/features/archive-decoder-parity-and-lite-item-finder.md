@@ -1,10 +1,56 @@
-# Archive Decoder Parity And Archive Lite Item Finder - Active Plan
+# Archive Decoder Parity And Archive Lite Item Finder
 
 Updated: 2026-07-19
 
-Status: ACTIVE - SOURCE AUDIT COMPLETE; IMPLEMENTATION NOT STARTED
+Status: IMPLEMENTED - SYNTHETIC FULL/LITE GATES PASS; REAL-CORPUS, VISIBLE, AND RELEASE GATES DEFERRED
 
 Repository: `D:\Byggverkstaden\app_restructuring`
+
+## Implementation outcome
+
+The source audit below records the pre-implementation gaps. The implemented
+state resolves them through one Python-free capability/document owner rather
+than a second independent Lite decoder stack:
+
+- `schemas/archive_content_capabilities.v1.json` declares the role, group,
+  analyzer, maturity, readable/structured/reference/visual/playback flags, and
+  export capabilities for all 107 audited extensions. Full and Lite registry
+  tests enforce the same manifest.
+- `Cdmw.Archive.Content` owns bounded normalized documents for text/XML,
+  generic binary, MeshInfo, effect metadata (`.pae`/`.paem`), BNK, PATHC, PAB,
+  HKX/HKT, and the audited structured sidecar families. Full and Lite adapters
+  publish those documents without changing the archive source bytes.
+- PAT now uses the native preview core for the supported LOD0 geometry path:
+  bounds, quantized vertices/normals/UVs, 16-bit indices, draw ranges, and
+  material candidates. Unknown layouts remain explicit instead of being
+  mislabeled as decoded geometry.
+- The native item indexer emits one schema-versioned raw catalog used by the
+  existing full-CDMW path and Lite. Lite atomically caches the catalog beside
+  its name maps and provides paged search, category/material facets, variant
+  grouping, localized and secondary IDs, exact/related Archive Browser scopes,
+  and persistent dialog state.
+- Lite prepares persistent 120-pixel item thumbnails in the background. Visible
+  rows have priority; foreground archive work pauses warmup; batches and decode
+  concurrency are bounded; negative results have short TTLs; and the WPF image
+  LRU is capped at 96. A warm disk hit performs no archive decode or DirectXTex
+  launch.
+
+Synthetic validation completed on 2026-07-19:
+
+- Archive Lite official Debug gate: PASS, 31 managed scenarios plus native
+  archive/preview/accelerator/mesh/DirectXTex builds and self-tests. One first
+  attempt hit the existing resident-renderer switch timeout; the scenario
+  passed immediately afterward and the complete official gate then passed.
+- Full archive backend Release gate: PASS, 10 scenarios plus native self-test.
+- Full catalog/cache tests: 96 passed.
+- Full decoder/contracts/structured-preview tests: 41 passed plus 2 subtests.
+- Native archive accelerator Release build and protocol version check: PASS.
+
+The deferred gates remain intentionally outside this implementation: licensed
+real-PAMT/PAC semantic coverage, real-corpus Item Finder completeness and
+latency, visible renderer/game/Blender fidelity, and the Archive Lite Release
+package/standalone verification. They require explicit corpus, visual, or
+release authorization and must not be inferred from the synthetic results.
 
 ## Goal
 
@@ -99,7 +145,7 @@ flowchart LR
     K --> M["App-local persistent icon cache"]
 ```
 
-## Decoder audit
+## Baseline decoder audit (pre-implementation)
 
 Legend:
 
@@ -397,7 +443,7 @@ Warm-path acceptance requires:
 - an authorized real-corpus performance gate sets final machine-specific p50
   and p95 budgets before release rather than inventing unverified timings here.
 
-## Phased implementation
+## Implemented phases
 
 ### Phase 0 - Freeze the contract and parity harness
 
@@ -497,7 +543,7 @@ Exit gate: no audited extension has an undeclared or product-specific semantic
 path, Item Finder functional parity is green, Lite remains Python-free, and
 both products preserve archive bytes.
 
-## Proposed ownership map
+## Implemented ownership map
 
 | Area | Primary paths |
 | --- | --- |
@@ -510,7 +556,7 @@ both products preserve archive bytes.
 | Full Item Finder parity oracle | `cdmw/ui/archive_browser/asset_catalog_dialog.py`, `icon_pipeline.py`, `cdmw/workers/archive_workers.py`, `cdmw/core/archive_scan_cache.py` |
 | Lite Item Finder UI | new focused files under `apps/Cdmw.ArchiveLite/src/Cdmw.ArchiveLite.App/Dialogs/`, `ViewModels/`, and `Services/`; thin launch wiring only in the main shell |
 
-## Validation plan
+## Validation record and remaining gates
 
 All synthetic tests use the project virtual environment where Python applies
 and system-temporary output. The validation order follows the owning-area

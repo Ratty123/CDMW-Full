@@ -12,10 +12,14 @@ internal sealed class WorkerRuntime : IDisposable
     private readonly GameInstallDiscoveryService _gameDiscovery;
     private readonly ArchiveFacetsService _facets;
     private readonly ArchiveItemNameIndexService _nameIndex;
+    private readonly ArchiveItemCatalogService _itemCatalog;
+    private readonly ArchiveItemIconService _itemIcons;
+    private readonly ArchiveItemCatalogScopeService _itemScopes;
     private readonly ArchiveAssociationService _associations;
     private readonly ArchivePreviewService _previews;
     private readonly TextSearchService _textSearch;
     private readonly ArchiveExportService _exports;
+    private readonly ArchiveWorkPriority _workPriority = new();
 
     public WorkerRuntime()
     {
@@ -27,9 +31,13 @@ internal sealed class WorkerRuntime : IDisposable
         _gameDiscovery = new GameInstallDiscoveryService();
         _facets = new ArchiveFacetsService(_sessions);
         _nameIndex = new ArchiveItemNameIndexService(_sessions, _native);
+        _itemCatalog = new ArchiveItemCatalogService(_sessions, _nameIndex);
         _associations = new ArchiveAssociationService(_sessions, _native);
+        _itemScopes = new ArchiveItemCatalogScopeService(_sessions, _nameIndex, _associations);
         var modelPreviews = new NativeModelPreviewService();
-        _previews = new ArchivePreviewService(_sessions, _native, modelPreviews);
+        var texturePreviews = new NativeTexturePreviewService();
+        _itemIcons = new ArchiveItemIconService(_sessions, _nameIndex, _native, texturePreviews, _workPriority);
+        _previews = new ArchivePreviewService(_sessions, _native, modelPreviews, texturePreviews);
         _textSearch = new TextSearchService(_sessions, _native);
         _exports = new ArchiveExportService(
             _sessions,
@@ -43,6 +51,9 @@ internal sealed class WorkerRuntime : IDisposable
         Func<ProgressUpdate, Task> publishProgress,
         CancellationToken cancellationToken)
     {
+        using var foregroundLease = request.Kind == WorkerProtocol.WarmItemIcons
+            ? null
+            : _workPriority.EnterForeground();
         switch (request.Kind)
         {
             case WorkerProtocol.OpenArchive:
@@ -79,6 +90,30 @@ internal sealed class WorkerRuntime : IDisposable
                 {
                     var payload = RequirePayload<BuildNameIndexRequest>(request);
                     var result = await _nameIndex.BuildAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
+            case WorkerProtocol.SearchItemCatalog:
+                {
+                    var payload = RequirePayload<ItemCatalogSearchRequest>(request);
+                    var result = await _itemCatalog.SearchAsync(payload, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
+            case WorkerProtocol.LoadItemIcons:
+                {
+                    var payload = RequirePayload<ItemIconBatchRequest>(request);
+                    var result = await _itemIcons.LoadAsync(payload, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
+            case WorkerProtocol.WarmItemIcons:
+                {
+                    var payload = RequirePayload<WarmItemIconsRequest>(request);
+                    var result = await _itemIcons.WarmAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
+                }
+            case WorkerProtocol.ScopeItemCatalog:
+                {
+                    var payload = RequirePayload<ItemCatalogScopeRequest>(request);
+                    var result = await _itemScopes.ResolveAsync(payload, publishProgress, cancellationToken).ConfigureAwait(false);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result);
                 }
             case WorkerProtocol.FindAssociatedAssets:

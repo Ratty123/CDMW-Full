@@ -99,7 +99,8 @@ public sealed record ArchiveQuerySpec(
     ArchiveSortField SortField = ArchiveSortField.Path,
     bool SortDescending = false,
     int PageStart = 0,
-    int PageSize = 256);
+    int PageSize = 256,
+    IReadOnlyList<long>? EntryIds = null);
 
 public sealed record ArchivePageResult(
     string SessionId,

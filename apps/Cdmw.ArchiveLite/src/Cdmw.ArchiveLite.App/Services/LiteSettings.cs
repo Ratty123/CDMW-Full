@@ -14,6 +14,7 @@ public sealed record LiteSettings(
     string[]? ArchiveVisibleColumns = null,
     ArchiveBrowserSettings? ArchiveBrowser = null,
     TextSearchSettings? TextSearch = null,
+    ItemFinderSettings? ItemFinder = null,
     WindowPlacementSettings? WindowPlacement = null,
     WorkspaceLayoutSettings? WorkspaceLayout = null,
     GridColumnSettings[]? ArchiveColumnLayout = null,
@@ -35,6 +36,14 @@ public sealed record TextSearchSettings(
     string Extensions = ".xml;.txt;.json;.cfg;.ini;.lua;.material;.shader;.yaml;.yml",
     bool UseRegularExpression = false,
     bool CaseSensitive = false);
+
+public sealed record ItemFinderSettings(
+    string Query = "",
+    string? Category = null,
+    string? Group = null,
+    string? MaterialTag = null,
+    double Width = 1240,
+    double Height = 800);
 
 public sealed record WindowPlacementSettings(
     double? Left = null,

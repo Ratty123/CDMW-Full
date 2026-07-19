@@ -9,7 +9,7 @@ namespace Cdmw.ArchiveLite.Core;
 
 public sealed class NativeTexturePreviewService
 {
-    private const string ArtifactVersion = "directxtex_preview_v1";
+    private const string ArtifactVersion = "directxtex_preview_v2";
     private static readonly TimeSpan DecodeTimeout = TimeSpan.FromSeconds(45);
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _decodeGates = new(StringComparer.Ordinal);
@@ -19,6 +19,35 @@ public sealed class NativeTexturePreviewService
         ArchiveEntryDto entry,
         string ddsPath,
         CancellationToken cancellationToken)
+        => await BuildCoreAsync(session, entry, ddsPath, 4096, "textures", cancellationToken).ConfigureAwait(false);
+
+    public async Task<string> BuildThumbnailAsync(
+        ArchiveSession session,
+        ArchiveEntryDto entry,
+        string ddsPath,
+        int maximumDimension,
+        CancellationToken cancellationToken)
+        => await BuildCoreAsync(session, entry, ddsPath, maximumDimension, "item-icons", cancellationToken).ConfigureAwait(false);
+
+    public string? TryGetCachedThumbnail(
+        ArchiveSession session,
+        ArchiveEntryDto entry,
+        int maximumDimension)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(entry);
+        ValidateMaximumDimension(maximumDimension);
+        var destination = ResolveDestination(session, entry, maximumDimension, "item-icons");
+        return IsPng(destination) ? destination : null;
+    }
+
+    private async Task<string> BuildCoreAsync(
+        ArchiveSession session,
+        ArchiveEntryDto entry,
+        string ddsPath,
+        int maximumDimension,
+        string cacheNamespace,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(entry);
@@ -27,21 +56,13 @@ public sealed class NativeTexturePreviewService
         {
             throw new NotSupportedException($"DirectXTex preview does not support {entry.Extension}.");
         }
+        ValidateMaximumDimension(maximumDimension);
 
         ArchiveLiteDataPaths.EnsureCreated();
-        var identity = Encoding.UTF8.GetBytes(string.Join(
-            '|',
-            ArtifactVersion,
-            session.Fingerprint,
-            entry.EntryId,
-            entry.Path,
-            entry.Offset,
-            entry.StoredSize,
-            entry.OriginalSize));
-        var key = Convert.ToHexString(SHA256.HashData(identity)).ToLowerInvariant();
-        var textureRoot = Path.Combine(ArchiveLiteDataPaths.PreviewCache, "textures");
+        var destination = ResolveDestination(session, entry, maximumDimension, cacheNamespace);
+        var key = Path.GetFileNameWithoutExtension(destination);
+        var textureRoot = Path.GetDirectoryName(destination)!;
         Directory.CreateDirectory(textureRoot);
-        var destination = Path.Combine(textureRoot, key + ".png");
         if (IsPng(destination))
         {
             return destination;
@@ -79,7 +100,7 @@ public sealed class NativeTexturePreviewService
                                     output = outputPath,
                                     slot = entry.Role == ArchiveEntryRole.Normal ? "normal" : "base",
                                     normal_space = "auto",
-                                    max_dimension = 4096,
+                                    max_dimension = maximumDimension,
                                     requested_mip = 0,
                                     output_pixel_type = "rgba8",
                                 },
@@ -122,6 +143,34 @@ public sealed class NativeTexturePreviewService
         finally
         {
             gate.Release();
+        }
+    }
+
+    private static string ResolveDestination(
+        ArchiveSession session,
+        ArchiveEntryDto entry,
+        int maximumDimension,
+        string cacheNamespace)
+    {
+        var identity = Encoding.UTF8.GetBytes(string.Join(
+            '|',
+            ArtifactVersion,
+            maximumDimension,
+            session.Fingerprint,
+            entry.EntryId,
+            entry.Path,
+            entry.Offset,
+            entry.StoredSize,
+            entry.OriginalSize));
+        var key = Convert.ToHexString(SHA256.HashData(identity)).ToLowerInvariant();
+        return Path.Combine(ArchiveLiteDataPaths.PreviewCache, cacheNamespace, key + ".png");
+    }
+
+    private static void ValidateMaximumDimension(int maximumDimension)
+    {
+        if (maximumDimension is < 32 or > 4096)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumDimension), "Texture preview size must be between 32 and 4096 pixels.");
         }
     }
 

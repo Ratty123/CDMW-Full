@@ -53,12 +53,25 @@ public sealed class MainWindowViewModel : ObservableObject
             () => ArchiveBrowser.SessionId,
             UpdateStatus,
             settings.TextSearch);
-        ArchiveBrowser.SessionChanged += (_, _) => TextSearch.NotifyArchiveSessionChanged();
+        ItemFinder = new ItemFinderViewModel(
+            worker,
+            () => ArchiveBrowser.SessionId,
+            UpdateStatus,
+            ArchiveBrowser.ShowItemScopeAsync,
+            settings.ItemFinder);
+        ArchiveBrowser.SessionChanged += (_, _) =>
+        {
+            TextSearch.NotifyArchiveSessionChanged();
+            ItemFinder.NotifyArchiveSessionChanged();
+        };
+        ArchiveBrowser.ItemCatalogReady += (_, eventArgs) => ItemFinder.NotifyCatalogReady(eventArgs.SessionId);
     }
 
     public ArchiveBrowserViewModel ArchiveBrowser { get; }
 
     public TextSearchViewModel TextSearch { get; }
+
+    public ItemFinderViewModel ItemFinder { get; }
 
     public IReadOnlyList<LanguageOption> Languages { get; }
 
@@ -115,6 +128,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 LocalizationManager.ApplyCulture(value.Code);
                 ArchiveBrowser.RefreshLocalization();
                 TextSearch.RefreshLocalization();
+                ItemFinder.RefreshLocalization();
                 RefreshAppearanceLabels();
                 Status = LocalizationManager.Get("LanguageApplied");
             }
@@ -205,6 +219,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _startupOperation.Cancel();
         ArchiveBrowser.RequestShutdown();
         TextSearch.RequestShutdown();
+        ItemFinder.RequestShutdown();
         _settings = _settings with
         {
             ArchiveRoot = ArchiveBrowser.ArchiveRoot,
@@ -225,6 +240,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 TextSearch.Extensions,
                 TextSearch.UseRegularExpression,
                 TextSearch.CaseSensitive),
+            ItemFinder = ItemFinder.CaptureSettings(),
         };
         try
         {

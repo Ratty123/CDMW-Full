@@ -1292,7 +1292,7 @@ int run_item_index_job(
 
         std::ostringstream out;
         out << "{\"status\":\"ok\",\"backend\":\"" << kBackend << "\",\"protocol\":" << kProtocol
-            << ",\"items\":[";
+            << ",\"catalog_schema\":1,\"items\":[";
         for (size_t i = 0; include_items && i < linked_items.size(); ++i) {
             const auto& item = linked_items[i];
             if (i) out << ",";
