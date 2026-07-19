@@ -337,6 +337,24 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
                 return self._index_for_node(node)
         return QModelIndex()
 
+    def find_index_for_entry_id(self, entry_id: int) -> QModelIndex:
+        target = int(entry_id)
+        if self._view_mode is ArchiveViewMode.FLAT:
+            for start, rows in self._pages.items():
+                for offset, entry in enumerate(rows):
+                    if entry.entry_id == target:
+                        return self.index(start + offset, 0)
+            return QModelIndex()
+        for node in self._nodes_by_key.values():
+            if node.entry is not None and node.entry.entry_id == target:
+                return self._index_for_node(node)
+        return QModelIndex()
+
+    def index_for_node(self, node: RemoteArchiveBrowserNode) -> QModelIndex:
+        if self._view_mode is ArchiveViewMode.FLAT and node.entry is not None:
+            return self.find_index_for_entry_id(node.entry.entry_id)
+        return self._index_for_node(node)
+
     def index_for_query_row(self, row: int) -> QModelIndex:
         if self._view_mode is not ArchiveViewMode.FLAT or not 0 <= row < self.rowCount():
             return QModelIndex()

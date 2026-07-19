@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import PurePosixPath
 from typing import Callable, List, Mapping, Optional, Sequence, Tuple
 
-from PySide6.QtCore import QAbstractItemModel, QItemSelectionModel, QModelIndex, QObject, Qt, Signal
+from PySide6.QtCore import QAbstractItemModel, QItemSelectionModel, QModelIndex, QObject, QPoint, Qt, QTimer, Signal
 from PySide6.QtWidgets import QAbstractItemView, QTreeView
 
 from cdmw.models import ArchiveEntry
@@ -491,6 +491,8 @@ class ArchiveBrowserTreeView(QTreeView):
         self.empty_title = title
         self.empty_detail = detail
         self._archive_model = ArchiveBrowserModel(self)
+        self._active_archive_model: QAbstractItemModel = self._archive_model
+        self._remote_archive_model: QAbstractItemModel | None = None
         super().setModel(self._archive_model)
         self.setUniformRowHeights(True)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
@@ -508,18 +510,39 @@ class ArchiveBrowserTreeView(QTreeView):
         selection_model.selectionChanged.connect(lambda *_args: self.itemSelectionChanged.emit())
 
     def setModel(self, model) -> None:  # type: ignore[override]
-        if model is not self._archive_model:
-            raise RuntimeError("ArchiveBrowserTreeView owns its virtual archive model.")
+        if model not in {self._archive_model, self._remote_archive_model}:
+            raise RuntimeError("ArchiveBrowserTreeView owns its archive models.")
+        if model is self._active_archive_model:
+            return
+        self._active_archive_model = model
         super().setModel(model)
         self._connect_selection_model()
 
-    def archive_model(self) -> ArchiveBrowserModel:
+    def archive_model(self) -> QAbstractItemModel:
+        return self._active_archive_model
+
+    def legacy_archive_model(self) -> ArchiveBrowserModel:
         return self._archive_model
+
+    def use_remote_model(self, model: QAbstractItemModel) -> None:
+        required = ("node_from_index", "top_level_node", "entry_for_index", "request_visible_rows")
+        if any(not callable(getattr(model, name, None)) for name in required):
+            raise TypeError("Remote archive model does not provide the browser model contract.")
+        self._remote_archive_model = model
+        self.setModel(model)
+        QTimer.singleShot(0, self._prefetch_visible_remote_rows)
+
+    def use_legacy_model(self) -> None:
+        self.setModel(self._archive_model)
+
+    def remote_model_active(self) -> bool:
+        return self._remote_archive_model is not None and self._active_archive_model is self._remote_archive_model
 
     def set_archive_providers(self, **kwargs) -> None:
         self._archive_model.set_providers(**kwargs)
 
     def set_archive_state(self, *args, **kwargs) -> None:
+        self.use_legacy_model()
         self._archive_model.set_archive_state(*args, **kwargs)
 
     def invalidate_archive_rows(self, columns: Sequence[int] = ()) -> None:
@@ -559,16 +582,18 @@ class ArchiveBrowserTreeView(QTreeView):
         return _ArchiveBrowserHeaderItem()
 
     def columnCount(self) -> int:
-        return self._archive_model.columnCount()
+        return self._active_archive_model.columnCount()
 
     def topLevelItemCount(self) -> int:
-        return self._archive_model.rowCount(QModelIndex())
+        return self._active_archive_model.rowCount(QModelIndex())
 
     def topLevelItem(self, row: int) -> Optional[ArchiveBrowserNode]:
-        return self._archive_model.top_level_node(row)
+        provider = getattr(self._active_archive_model, "top_level_node", None)
+        return provider(row) if callable(provider) else None
 
     def currentItem(self) -> Optional[ArchiveBrowserNode]:
-        return self._archive_model.node_from_index(self.currentIndex())
+        provider = getattr(self._active_archive_model, "node_from_index", None)
+        return provider(self.currentIndex()) if callable(provider) else None
 
     def selectedItems(self) -> List[ArchiveBrowserNode]:
         selection_model = self.selectionModel()
@@ -577,7 +602,8 @@ class ArchiveBrowserTreeView(QTreeView):
         nodes: List[ArchiveBrowserNode] = []
         seen: set[Tuple[str, object]] = set()
         for index in selection_model.selectedRows(0):
-            node = self._archive_model.node_from_index(index)
+            provider = getattr(self._active_archive_model, "node_from_index", None)
+            node = provider(index) if callable(provider) else None
             if node is None:
                 continue
             key = (node.kind, node.value)
@@ -588,7 +614,8 @@ class ArchiveBrowserTreeView(QTreeView):
         return nodes
 
     def itemAt(self, position) -> Optional[ArchiveBrowserNode]:  # type: ignore[override]
-        return self._archive_model.node_from_index(self.indexAt(position))
+        provider = getattr(self._active_archive_model, "node_from_index", None)
+        return provider(self.indexAt(position)) if callable(provider) else None
 
     def setCurrentItem(self, item: Optional[ArchiveBrowserNode]) -> None:
         if item is None:
@@ -608,29 +635,37 @@ class ArchiveBrowserTreeView(QTreeView):
             self.scrollTo(index, hint)
 
     def find_item_for_entry(self, entry_index: int) -> Optional[ArchiveBrowserNode]:
-        index = self._archive_model.find_index_for_entry(entry_index)
-        return self._archive_model.node_from_index(index) if index.isValid() else None
+        finder_name = "find_index_for_entry_id" if self.remote_model_active() else "find_index_for_entry"
+        finder = getattr(self._active_archive_model, finder_name, None)
+        provider = getattr(self._active_archive_model, "node_from_index", None)
+        index = finder(entry_index) if callable(finder) else QModelIndex()
+        return provider(index) if index.isValid() and callable(provider) else None
 
     def _index_for_node(self, item: ArchiveBrowserNode) -> QModelIndex:
+        direct = getattr(self._active_archive_model, "index_for_node", None)
+        if callable(direct):
+            return direct(item)
         if item.kind == "file" and isinstance(item.value, int):
-            index = self._archive_model.find_index_for_entry(int(item.value))
+            finder = getattr(self._active_archive_model, "find_index_for_entry", None)
+            index = finder(int(item.value)) if callable(finder) else QModelIndex()
             if index.isValid():
                 return index
         if item.parent is None:
             return QModelIndex()
         parent_index = QModelIndex() if item.parent.kind == "root" else self._index_for_node(item.parent)
-        return self._archive_model.index(item.row(), 0, parent_index)
+        return self._active_archive_model.index(item.row(), 0, parent_index)
 
     def _emit_current_item_changed(self, current: QModelIndex, previous: QModelIndex) -> None:
+        provider = getattr(self._active_archive_model, "node_from_index", None)
         self.currentItemChanged.emit(
-            self._archive_model.node_from_index(current),
-            self._archive_model.node_from_index(previous),
+            provider(current) if callable(provider) else None,
+            provider(previous) if callable(provider) else None,
         )
 
     def _handle_expanded_index(self, index: QModelIndex) -> None:
         self.uiActivity.emit()
-        if self._archive_model.canFetchMore(index):
-            self._archive_model.fetchMore(index)
+        if self._active_archive_model.canFetchMore(index):
+            self._active_archive_model.fetchMore(index)
 
     def wheelEvent(self, event) -> None:  # type: ignore[override]
         self.uiActivity.emit()
@@ -647,8 +682,23 @@ class ArchiveBrowserTreeView(QTreeView):
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         self.uiActivity.emit()
         super().resizeEvent(event)
+        self._prefetch_visible_remote_rows()
 
     def scrollContentsBy(self, dx: int, dy: int) -> None:  # type: ignore[override]
         if dx or dy:
             self.uiActivity.emit()
         super().scrollContentsBy(dx, dy)
+        self._prefetch_visible_remote_rows()
+
+    def _prefetch_visible_remote_rows(self) -> None:
+        if not self.remote_model_active():
+            return
+        requester = getattr(self._active_archive_model, "request_visible_rows", None)
+        if not callable(requester):
+            return
+        first = self.indexAt(QPoint(0, 0))
+        last = self.indexAt(QPoint(0, max(0, self.viewport().height() - 1)))
+        if not first.isValid():
+            return
+        last_row = last.row() if last.isValid() else first.row()
+        requester(first.row(), max(first.row(), last_row))

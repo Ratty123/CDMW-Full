@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -23,6 +24,8 @@ from cdmw.ui.archive_browser.remote_model import (
     RemoteArchiveBrowserModel,
     RemoteChildrenFetch,
 )
+from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
+from cdmw.models import ArchiveEntry
 
 
 _APPLICATION: QApplication | None = None
@@ -217,3 +220,37 @@ def test_durable_identity_can_restore_a_cached_flat_selection() -> None:
     assert restored.isValid()
     assert restored.row() == 2
     assert model.entry_for_index(restored) == rows[2]
+
+
+def test_archive_tree_view_switches_between_owned_remote_and_legacy_models() -> None:
+    _app()
+    view = ArchiveBrowserTreeView()
+    remote = RemoteArchiveBrowserModel(page_size=4, parent=view)
+    rows = tuple(_entry(index) for index in range(4))
+    remote.publish_query(_handle(total=4), view_mode=ArchiveViewMode.FLAT, prime=False)
+    assert remote.accept_page(ArchivePage("session-a", "query-a", 4, 4, 0, rows))
+
+    view.use_remote_model(remote)
+
+    assert view.remote_model_active()
+    assert view.archive_model() is remote
+    assert view.topLevelItemCount() == 4
+    item = view.find_item_for_entry(2)
+    assert item is not None and item.entry == rows[2]
+    view.setCurrentItem(item)
+    assert view.currentItem() is not None and view.currentItem().entry == rows[2]
+
+    legacy_entry = ArchiveEntry(
+        path="legacy/file.pac",
+        pamt_path=Path("legacy/0.pamt"),
+        paz_file=Path("legacy/0.paz"),
+        offset=1,
+        comp_size=2,
+        orig_size=3,
+        flags=0,
+        paz_index=0,
+    )
+    view.set_archive_state([legacy_entry], mode="flat", fetch_batch_size=100)
+    assert not view.remote_model_active()
+    assert view.archive_model() is view.legacy_archive_model()
+    assert view.topLevelItemCount() == 1
