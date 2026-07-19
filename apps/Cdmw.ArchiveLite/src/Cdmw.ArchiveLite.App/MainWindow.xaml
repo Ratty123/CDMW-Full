@@ -1083,7 +1083,8 @@
                                   IsReadOnly="True"
                                   SelectionMode="Single"
                                   AlternationCount="2"
-                                  BorderThickness="0">
+                                  BorderThickness="0"
+                                  infra:RoundedClip.Radius="11">
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="{infra:Loc Key=Path}" SortMemberPath="Path" Binding="{Binding Path}" Width="1.5*" MinWidth="210" />
                                 <DataGridTextColumn Header="{infra:Loc Key=Line}" SortMemberPath="Line" Binding="{Binding Line}" Width="74" />

@@ -525,6 +525,31 @@ internal static class ArchiveLiteTestRunner
             xamlText.Contains("OperationProgressDetail", StringComparison.Ordinal)
             && xamlText.Contains("OperationProgressPercent", StringComparison.Ordinal),
             "archive operations do not expose real progress detail and a determinate progress value");
+        var textSearchResultsGrid = window.Descendants().Single(element => element.Attributes().Any(attribute =>
+            attribute.Name.LocalName == "Name" && attribute.Value == "TextSearchResultsGrid"));
+        Require(
+            textSearchResultsGrid.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "RoundedClip.Radius"
+                && attribute.Name.NamespaceName.Contains("Infrastructure", StringComparison.Ordinal)
+                && attribute.Value == "11"),
+            "the Text Search results grid can paint square content over its card corners");
+        var roundedClipMatchesBounds = false;
+        var roundedClipThread = new Thread(() =>
+        {
+            var clipTarget = new System.Windows.Controls.Border { Width = 240d, Height = 120d };
+            RoundedClip.SetRadius(clipTarget, 11d);
+            clipTarget.Measure(new System.Windows.Size(240d, 120d));
+            clipTarget.Arrange(new System.Windows.Rect(0d, 0d, 240d, 120d));
+            clipTarget.UpdateLayout();
+            roundedClipMatchesBounds = clipTarget.Clip is System.Windows.Media.RectangleGeometry geometry
+                && geometry.Rect == new System.Windows.Rect(0d, 0d, 240d, 120d)
+                && geometry.RadiusX == 11d
+                && geometry.RadiusY == 11d;
+        });
+        roundedClipThread.SetApartmentState(ApartmentState.STA);
+        roundedClipThread.Start();
+        roundedClipThread.Join();
+        Require(roundedClipMatchesBounds, "rounded clipping does not follow the rendered results-grid bounds");
         Require(
             xamlText.Contains("ArchiveBrowser.ExportFamilyCommand", StringComparison.Ordinal),
             "Export Options does not expose family export for the current selection");
