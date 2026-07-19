@@ -17,6 +17,7 @@ catalogue_v2/<root-id>/
   generations/<generation-id>/
     manifest.json
     archive.ali
+    archive.adi
     lookups.bin
     names.bin
 ```
@@ -25,6 +26,13 @@ The base generation is staged and validated before `current.json` is replaced.
 Mapped generations remain protected while a session owns them. Corrupt base
 generations are quarantined; corrupt secondary indexes are rebuilt. The cache
 family is capped at five GiB without pruning current or active generations.
+`archive.adi` is the session-owned compact dependency index: two sorted
+16-byte hash/entry-id arrays provide basename and same-stem lookup, while a
+small persisted facet table serves initial Archive Browser filters. It is
+memory-mapped and collision-checked against `archive.ali`; PAC preview
+association therefore resolves only requested names without reconstructing the
+general `lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
+index for explicit general lookup operations.
 
 Raw export accepts bounded entry IDs, a server-side query token, a query-scoped
 folder, or a worker-side family seed. The worker decodes into a sibling staging

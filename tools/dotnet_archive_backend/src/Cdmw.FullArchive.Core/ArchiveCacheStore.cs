@@ -130,7 +130,12 @@ public sealed class ArchiveCacheStore
             var fingerprint = await ArchiveFingerprint.ComputeAsync(canonicalRoot, cancellationToken, progress).ConfigureAwait(false);
             if (!forceRefresh)
             {
-                var cached = await TryOpenCurrentAsync(rootId, canonicalRoot, fingerprint, cancellationToken).ConfigureAwait(false);
+                var cached = await TryOpenCurrentAsync(
+                    rootId,
+                    canonicalRoot,
+                    fingerprint,
+                    cancellationToken,
+                    progress).ConfigureAwait(false);
                 if (cached is not null)
                 {
                     return cached;
@@ -178,7 +183,13 @@ public sealed class ArchiveCacheStore
                 Directory.Move(stagingPath, generationPath);
                 var pointer = new ArchiveCurrentPointer(rootId, generationId, fingerprint.Value, DateTimeOffset.UtcNow);
                 await AtomicJson.WriteAsync(Path.Combine(RootDirectory(rootId), "current.json"), pointer, cancellationToken).ConfigureAwait(false);
-                var lease = AcquireGeneration(generationPath, manifest, cacheHit: false);
+                var lease = await AcquireGenerationAsync(
+                    generationPath,
+                    manifest,
+                    cacheHit: false,
+                    validatedIndex: null,
+                    cancellationToken,
+                    progress).ConfigureAwait(false);
                 PruneSupersededGenerations(rootId, generationId);
                 PruneCacheFamily();
                 return lease;
@@ -199,7 +210,8 @@ public sealed class ArchiveCacheStore
         string rootId,
         string packageRoot,
         ArchiveFingerprintResult fingerprint,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress)
     {
         var currentPath = Path.Combine(RootDirectory(rootId), "current.json");
         if (!File.Exists(currentPath))
@@ -208,6 +220,9 @@ public sealed class ArchiveCacheStore
         }
 
         ArchiveCurrentPointer? pointer = null;
+        ArchiveIndex? validatedIndex = null;
+        string? generationPath = null;
+        ArchiveGenerationManifest? manifest = null;
         try
         {
             pointer = await ReadJsonAsync<ArchiveCurrentPointer>(currentPath, cancellationToken).ConfigureAwait(false);
@@ -216,37 +231,76 @@ public sealed class ArchiveCacheStore
             {
                 return null;
             }
-            var generationPath = GenerationDirectory(rootId, pointer.GenerationId);
-            using (ValidateGeneration(generationPath, pointer, packageRoot, fingerprint.Value))
-            {
-                // The lease reopens the validated memory map and owns it for the session lifetime.
-            }
-            var manifest = await ReadJsonAsync<ArchiveGenerationManifest>(
+            generationPath = GenerationDirectory(rootId, pointer.GenerationId);
+            validatedIndex = ValidateGeneration(generationPath, pointer, packageRoot, fingerprint.Value);
+            manifest = await ReadJsonAsync<ArchiveGenerationManifest>(
                 Path.Combine(generationPath, "manifest.json"),
                 cancellationToken).ConfigureAwait(false);
-            return AcquireGeneration(generationPath, manifest, cacheHit: true);
         }
         catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
         {
+            validatedIndex?.Dispose();
             if (pointer is not null)
             {
                 QuarantineCorruptGeneration(rootId, pointer.GenerationId, exception.Message);
             }
             return null;
         }
+        catch
+        {
+            validatedIndex?.Dispose();
+            throw;
+        }
+
+        return await AcquireGenerationAsync(
+            generationPath!,
+            manifest!,
+            cacheHit: true,
+            validatedIndex,
+            cancellationToken,
+            progress).ConfigureAwait(false);
     }
 
-    private ArchiveGenerationLease AcquireGeneration(
+    private async Task<ArchiveGenerationLease> AcquireGenerationAsync(
         string generationPath,
         ArchiveGenerationManifest manifest,
-        bool cacheHit)
+        bool cacheHit,
+        ArchiveIndex? validatedIndex,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress)
     {
-        var index = ArchiveIndex.Open(Path.Combine(generationPath, "archive.ali"));
-        lock (_activeGate)
+        ArchiveIndex? index = validatedIndex;
+        ArchiveDependencyIndex? dependencyIndex = null;
+        try
         {
-            _activeGenerations[generationPath] = _activeGenerations.GetValueOrDefault(generationPath) + 1;
+            index ??= ArchiveIndex.Open(Path.Combine(generationPath, "archive.ali"));
+            dependencyIndex = await ArchiveDependencyIndex.OpenOrBuildAsync(
+                index,
+                Path.Combine(generationPath, "archive.adi"),
+                progress,
+                cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!manifest.LookupsReady)
+            {
+                await UpdateSecondaryStateAsync(
+                    generationPath,
+                    lookupsReady: true,
+                    namesReady: null,
+                    cancellationToken).ConfigureAwait(false);
+                manifest = manifest with { LookupsReady = true };
+            }
+            lock (_activeGate)
+            {
+                _activeGenerations[generationPath] = _activeGenerations.GetValueOrDefault(generationPath) + 1;
+            }
+            return new ArchiveGenerationLease(this, generationPath, manifest, index, dependencyIndex, cacheHit);
         }
-        return new ArchiveGenerationLease(this, generationPath, manifest, index, cacheHit);
+        catch
+        {
+            dependencyIndex?.Dispose();
+            index?.Dispose();
+            throw;
+        }
     }
 
     internal void ReleaseGeneration(string generationPath)
@@ -511,18 +565,21 @@ public sealed class ArchiveGenerationLease : IDisposable
         string generationPath,
         ArchiveGenerationManifest manifest,
         ArchiveIndex index,
+        ArchiveDependencyIndex dependencyIndex,
         bool cacheHit)
     {
         _owner = owner;
         GenerationPath = generationPath;
         Manifest = manifest;
         Index = index;
+        DependencyIndex = dependencyIndex;
         CacheHit = cacheHit;
     }
 
     public string GenerationPath { get; }
     public ArchiveGenerationManifest Manifest { get; }
     public ArchiveIndex Index { get; }
+    internal ArchiveDependencyIndex DependencyIndex { get; }
     public bool CacheHit { get; }
 
     public void Dispose()
@@ -533,11 +590,18 @@ public sealed class ArchiveGenerationLease : IDisposable
         }
         try
         {
-            Index.Dispose();
+            DependencyIndex.Dispose();
         }
         finally
         {
-            _owner.ReleaseGeneration(GenerationPath);
+            try
+            {
+                Index.Dispose();
+            }
+            finally
+            {
+                _owner.ReleaseGeneration(GenerationPath);
+            }
         }
     }
 }

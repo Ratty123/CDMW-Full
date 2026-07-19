@@ -25,6 +25,7 @@ public sealed class ArchiveSession : IDisposable
     public string Fingerprint { get; }
     public string GenerationPath => _generation.GenerationPath;
     public ArchiveIndex Index => _generation.Index;
+    internal ArchiveDependencyIndex DependencyIndex => _generation.DependencyIndex;
     public bool CacheHit => _generation.CacheHit;
 
     public ArchiveSessionHandle Handle => new(

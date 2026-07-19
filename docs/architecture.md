@@ -266,8 +266,11 @@ The full Archive Browser catalogue defaults to the independently packaged
 resident `QProcess`, protocol/native-ABI/index handshake, request correlation,
 cancellation, diagnostics tail, restart limit, and nonblocking shutdown. The
 worker owns scan/cache/query/facet/lookup/prepare/text/export work and maps the
-native `archive.ali`; the PySide shell retains only remote pages and explicitly
-bounded compatibility snapshots. `CDMW_ARCHIVE_BACKEND=legacy|v2|shadow` is a
+native `archive.ali` plus a compact derived `archive.adi` dependency index. The
+derived index keeps basename/stem records memory-mapped and serves startup
+facets and bounded PAC association directly; the larger general lookup maps
+remain lazy. The PySide shell retains only remote pages and explicitly bounded
+compatibility snapshots. `CDMW_ARCHIVE_BACKEND=legacy|v2|shadow` is a
 developer-only process override. The transition release retains legacy code and
 caches, but fallback is never automatic: a publication failure may offer a
 process-local legacy choice that cancels v2 requests and shuts down the worker.

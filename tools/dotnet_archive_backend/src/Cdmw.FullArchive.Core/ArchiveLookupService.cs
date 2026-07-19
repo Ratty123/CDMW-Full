@@ -10,16 +10,27 @@ public sealed class ArchiveLookupService(
     NativeArchiveCore native)
 {
     private const int FileVersion = 2;
+    private const int MaximumPreviewCandidates = 4096;
+    private const int MaximumPreviewLookupResults = MaximumPreviewCandidates + 1;
     private static readonly byte[] Magic = "CDMWLKP2"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveLookupIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public async Task WarmAsync(
+    public Task WarmAsync(
         string sessionId,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null)
     {
-        _ = await GetIndexAsync(sessions.GetRequired(sessionId), cancellationToken, progress).ConfigureAwait(false);
+        var session = sessions.GetRequired(sessionId);
+        cancellationToken.ThrowIfCancellationRequested();
+        _ = session.DependencyIndex.RecordCount;
+        return progress is null
+            ? Task.CompletedTask
+            : progress(new ProgressUpdate(
+                session.DependencyIndex.RecordCount,
+                session.DependencyIndex.RecordCount,
+                "dependency_index_ready",
+                "memory_mapped"));
     }
 
     public async Task<ArchiveLookupResult> ResolveAsync(
@@ -30,8 +41,8 @@ public sealed class ArchiveLookupService(
         ArgumentNullException.ThrowIfNull(request);
         var session = sessions.GetRequired(request.SessionId);
         var limit = Math.Clamp(request.Limit, 1, 4096);
-        var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
         var ids = new HashSet<long>();
+        var incomplete = false;
         switch (request.Kind)
         {
             case ArchiveLookupKind.EntryIds:
@@ -46,31 +57,46 @@ public sealed class ArchiveLookupService(
             case ArchiveLookupKind.Identities:
                 foreach (var identity in request.Identities ?? [])
                 {
-                    Add(index.Identities, IdentityKey(identity), ids);
+                    incomplete |= AddIdentityMatches(session.Index, identity, ids, cancellationToken);
                 }
                 break;
             case ArchiveLookupKind.ExactPaths:
                 foreach (var value in request.Values ?? [])
                 {
-                    Add(index.Paths, NormalizePath(value), ids);
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        incomplete |= AddExactPathMatches(session.Index, value, ids, cancellationToken);
+                    }
                 }
                 break;
             case ArchiveLookupKind.Basenames:
                 foreach (var value in request.Values ?? [])
                 {
-                    Add(index.Basenames, Path.GetFileName(value), ids);
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        incomplete |= AddDependencyMatches(
+                            session.DependencyIndex.FindEntryIdsByBasename(
+                                session.Index,
+                                value,
+                                MaximumPreviewLookupResults,
+                                cancellationToken),
+                            ids,
+                            cancellationToken);
+                    }
                 }
                 break;
             case ArchiveLookupKind.Extensions:
+                var extensionIndex = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
                 foreach (var value in request.Values ?? [])
                 {
-                    Add(index.Extensions, NormalizeExtension(value), ids);
+                    Add(extensionIndex.Extensions, NormalizeExtension(value), ids);
                 }
                 break;
             case ArchiveLookupKind.Roles:
+                var roleIndex = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
                 foreach (var role in request.Roles ?? [])
                 {
-                    Add(index.Roles, role.ToString(), ids);
+                    Add(roleIndex.Roles, role.ToString(), ids);
                 }
                 break;
             default:
@@ -98,7 +124,7 @@ public sealed class ArchiveLookupService(
                 session.Id,
                 selected.Select(item => session.ReadEntry(item.EntryId)).ToArray(),
                 matches.Count,
-                matches.Count > limit,
+                incomplete || matches.Count > limit,
                 selected.Select(static item => item.Row).ToArray());
         }
 
@@ -107,7 +133,7 @@ public sealed class ArchiveLookupService(
             session.Id,
             ordered.Take(limit).Select(session.ReadEntry).ToArray(),
             ids.Count,
-            ids.Count > limit,
+            incomplete || ids.Count > limit,
             []);
     }
 
@@ -172,25 +198,32 @@ public sealed class ArchiveLookupService(
     {
         var session = sessions.GetRequired(sessionId);
         var selected = session.ReadEntry(entryId);
-        var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
         var ids = new HashSet<long>();
-        AddCancellable(
-            index.Stems,
-            Path.GetFileNameWithoutExtension(selected.Path),
+        var incomplete = AddDependencyMatches(
+            session.DependencyIndex.FindEntryIdsByStem(
+                session.Index,
+                Path.GetFileNameWithoutExtension(selected.Path),
+                MaximumPreviewLookupResults,
+                cancellationToken),
             ids,
             cancellationToken);
-        AddPreviewCompanionPaths(selected, index, ids, cancellationToken);
+        incomplete |= AddPreviewCompanionPaths(selected, session.Index, ids, cancellationToken);
 
         var allScanIds = ids
             .Append(selected.EntryId)
             .Distinct()
             .Order()
             .ToArray();
-        var incomplete = allScanIds.Length > 512;
+        incomplete |= allScanIds.Length > 512;
         var scanIds = allScanIds.Take(512).ToArray();
         for (var scanIndex = 0; scanIndex < scanIds.Length; scanIndex++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (ids.Count >= MaximumPreviewLookupResults)
+            {
+                incomplete = true;
+                break;
+            }
             var entry = session.ReadEntry(scanIds[scanIndex]);
             var shouldScan = ShouldScanPreviewReferences(entry, selected.EntryId);
             if (!shouldScan)
@@ -218,7 +251,12 @@ public sealed class ArchiveLookupService(
             incomplete |= extracted.Truncated;
             foreach (var token in extracted.Tokens)
             {
-                AddPreviewReference(index, token, ids, cancellationToken);
+                if (ids.Count >= MaximumPreviewLookupResults)
+                {
+                    incomplete = true;
+                    break;
+                }
+                incomplete |= AddPreviewReference(session, token, ids, cancellationToken);
             }
         }
         ids.Remove(selected.EntryId);
@@ -226,19 +264,14 @@ public sealed class ArchiveLookupService(
         return new PreviewAssociationResolution(ids.Order().ToArray(), incomplete);
     }
 
-    public async Task<ArchiveFacetsResult> FacetsAsync(
+    public Task<ArchiveFacetsResult> FacetsAsync(
         string sessionId,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null)
     {
         var session = sessions.GetRequired(sessionId);
-        var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
-        return new ArchiveFacetsResult(
-            session.Id,
-            ToFacets(index.Extensions),
-            ToFacets(index.Packages),
-            ToFacets(index.Roles),
-            ToFacets(index.Categories));
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(session.DependencyIndex.CreateFacets(session.Id));
     }
 
     private Task<ArchiveLookupIndex> GetIndexAsync(
@@ -417,18 +450,13 @@ public sealed class ArchiveLookupService(
         }
     }
 
-    private static IReadOnlyList<ArchiveFacet> ToFacets(Dictionary<string, List<long>> map) =>
-        map.Select(static pair => new ArchiveFacet(pair.Key, pair.Key, pair.Value.Count))
-            .OrderByDescending(static facet => facet.Count)
-            .ThenBy(static facet => facet.Key, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-
-    private static void AddPreviewCompanionPaths(
+    private static bool AddPreviewCompanionPaths(
         ArchiveEntryDto selected,
-        ArchiveLookupIndex index,
+        ArchiveIndex index,
         HashSet<long> ids,
         CancellationToken cancellationToken)
     {
+        var incomplete = false;
         var path = NormalizePath(selected.Path);
         var candidates = new List<string>();
         if (path.EndsWith(".pam", StringComparison.OrdinalIgnoreCase))
@@ -446,8 +474,9 @@ public sealed class ArchiveLookupService(
         }
         foreach (var candidate in candidates)
         {
-            AddCancellable(index.Paths, candidate, ids, cancellationToken);
+            incomplete |= AddExactPathMatches(index, candidate, ids, cancellationToken);
         }
+        return incomplete;
     }
 
     private static bool ShouldScanPreviewReferences(ArchiveEntryDto entry, long selectedEntryId)
@@ -462,27 +491,113 @@ public sealed class ArchiveLookupService(
             ".pappt" or ".pamhc" or ".seqmt";
     }
 
-    private static void AddPreviewReference(
-        ArchiveLookupIndex index,
+    private static bool AddPreviewReference(
+        ArchiveSession session,
         string token,
         HashSet<long> ids,
         CancellationToken cancellationToken)
     {
+        var incomplete = false;
         var normalized = NormalizePath(token);
-        AddCancellable(index.Paths, normalized, ids, cancellationToken);
+        incomplete |= AddExactPathMatches(session.Index, normalized, ids, cancellationToken);
         var separatorPath = normalized.Replace('/', Path.DirectorySeparatorChar);
-        AddCancellable(index.Basenames, Path.GetFileName(separatorPath), ids, cancellationToken);
+        incomplete |= AddDependencyMatches(
+            session.DependencyIndex.FindEntryIdsByBasename(
+                session.Index,
+                Path.GetFileName(separatorPath),
+                MaximumPreviewLookupResults,
+                cancellationToken),
+            ids,
+            cancellationToken);
 
         var slash = normalized.IndexOf('/');
         if (slash <= 0)
         {
-            return;
+            return incomplete;
         }
         var firstSegment = normalized[..slash];
         if (firstSegment.All(char.IsDigit) || firstSegment.StartsWith("dmm", StringComparison.OrdinalIgnoreCase))
         {
-            AddCancellable(index.Paths, normalized[(slash + 1)..], ids, cancellationToken);
+            incomplete |= AddExactPathMatches(
+                session.Index,
+                normalized[(slash + 1)..],
+                ids,
+                cancellationToken);
         }
+        return incomplete;
+    }
+
+    private static bool AddExactPathMatches(
+        ArchiveIndex index,
+        string path,
+        HashSet<long> destination,
+        CancellationToken cancellationToken)
+    {
+        var matches = index.FindEntriesByPath(path, MaximumPreviewLookupResults + 1);
+        var incomplete = matches.Count > MaximumPreviewLookupResults;
+        foreach (var entry in matches.Take(MaximumPreviewLookupResults))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!destination.Contains(entry.EntryId) && destination.Count >= MaximumPreviewLookupResults)
+            {
+                incomplete = true;
+                break;
+            }
+            destination.Add(entry.EntryId);
+        }
+        return incomplete;
+    }
+
+    private static bool AddIdentityMatches(
+        ArchiveIndex index,
+        ArchiveDurableIdentity identity,
+        HashSet<long> destination,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(identity.NormalizedPath))
+        {
+            return false;
+        }
+        var matches = index.FindEntriesByPath(identity.NormalizedPath, MaximumPreviewLookupResults + 1);
+        var incomplete = matches.Count > MaximumPreviewLookupResults;
+        var identityKey = IdentityKey(identity);
+        foreach (var entry in matches.Take(MaximumPreviewLookupResults))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!StringComparer.OrdinalIgnoreCase.Equals(IdentityKey(entry.Identity), identityKey))
+            {
+                continue;
+            }
+            if (!destination.Contains(entry.EntryId) && destination.Count >= MaximumPreviewLookupResults)
+            {
+                return true;
+            }
+            destination.Add(entry.EntryId);
+        }
+        return incomplete;
+    }
+
+    private static bool AddDependencyMatches(
+        ArchiveDependencyLookupResult matches,
+        HashSet<long> destination,
+        CancellationToken cancellationToken)
+    {
+        var incomplete = matches.Truncated;
+        for (var index = 0; index < matches.EntryIds.Count; index++)
+        {
+            if ((index & 0x1FFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var entryId = matches.EntryIds[index];
+            if (!destination.Contains(entryId) && destination.Count >= MaximumPreviewLookupResults)
+            {
+                incomplete = true;
+                break;
+            }
+            destination.Add(entryId);
+        }
+        return incomplete;
     }
 
     private static int AssociationScore(ArchiveEntryDto selected, ArchiveEntryDto candidate)

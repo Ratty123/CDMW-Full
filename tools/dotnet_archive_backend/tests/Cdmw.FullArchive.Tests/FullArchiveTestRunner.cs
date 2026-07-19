@@ -14,6 +14,7 @@ internal static class FullArchiveTestRunner
         var tests = new (string Name, Func<Task> Run)[]
         {
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
+            ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
             ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
             ("query_sort_parity", QuerySortParityAsync),
@@ -78,6 +79,7 @@ internal static class FullArchiveTestRunner
             var firstGeneration = Directory.GetDirectories(Path.Combine(family, "generations"))
                 .Single(path => !Path.GetFileName(path).StartsWith(".", StringComparison.Ordinal));
             Require(File.Exists(Path.Combine(firstGeneration, "archive.ali")), "base index is missing");
+            Require(File.Exists(Path.Combine(firstGeneration, "archive.adi")), "compact dependency index is missing");
             Require(File.Exists(Path.Combine(firstGeneration, "manifest.json")), "generation manifest is missing");
 
             var warmStarted = Stopwatch.StartNew();
@@ -99,6 +101,89 @@ internal static class FullArchiveTestRunner
             var health = await cache.InspectAsync(fixture.Root, CancellationToken.None).ConfigureAwait(false);
             Require(health.State == "current", $"cache health is not current: {health.State} {health.Reason}");
             Require(coldStarted.Elapsed >= TimeSpan.Zero && warmStarted.Elapsed >= TimeSpan.Zero, "timing capture failed");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
+    private static async Task CompactDependencyIndexAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("dependency-index-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            string dependencyIndexPath;
+            using (var sessions = new ArchiveSessionManager(native, cache))
+            {
+                var handle = await sessions.OpenAsync(
+                    new OpenArchiveRequest(fixture.Root),
+                    CancellationToken.None).ConfigureAwait(false);
+                var session = sessions.GetRequired(handle.SessionId);
+                dependencyIndexPath = Path.Combine(session.GenerationPath, "archive.adi");
+                Require(File.Exists(dependencyIndexPath), "compact dependency index was not published on cold open");
+                Require(!File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")), "cold open eagerly published the general lookup maps");
+                var lookup = new ArchiveLookupService(sessions, cache, native);
+                await lookup.WarmAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
+                var facets = await lookup.FacetsAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
+                Require(facets.Extensions.Any(static facet => facet.Key == ".dds" && facet.Count == 1), "mapped dependency facets changed");
+                Require(!File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")), "dependency warmup reconstructed the general lookup maps");
+            }
+
+            var generationPath = Path.GetDirectoryName(dependencyIndexPath)!;
+            var rootCachePath = Directory.GetParent(generationPath)!.Parent!.FullName;
+            var currentPath = Path.Combine(rootCachePath, "current.json");
+            var currentPointer = await File.ReadAllTextAsync(currentPath).ConfigureAwait(false);
+            using (var lockedIndex = new FileStream(dependencyIndexPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            using (var sessions = new ArchiveSessionManager(native, cache))
+            {
+                await ExpectAsync<UnauthorizedAccessException>(() => sessions.OpenAsync(
+                    new OpenArchiveRequest(fixture.Root),
+                    CancellationToken.None)).ConfigureAwait(false);
+                Require(File.Exists(dependencyIndexPath), "secondary index access failure quarantined the base generation");
+                Require(
+                    await File.ReadAllTextAsync(currentPath).ConfigureAwait(false) == currentPointer,
+                    "secondary index access failure replaced the current base generation");
+            }
+
+            await File.WriteAllTextAsync(dependencyIndexPath, "damaged").ConfigureAwait(false);
+            using (var sessions = new ArchiveSessionManager(native, cache))
+            {
+                var reopened = await sessions.OpenAsync(
+                    new OpenArchiveRequest(fixture.Root),
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(reopened.CacheHit, "damaged derived dependency index prevented base generation reuse");
+                Require(new FileInfo(dependencyIndexPath).Length > 80, "damaged dependency index was not rebuilt");
+            }
+
+            File.Delete(dependencyIndexPath);
+            using (var sessions = new ArchiveSessionManager(native, cache))
+            using (var cancelled = new CancellationTokenSource())
+            {
+                await ExpectAsync<OperationCanceledException>(() => sessions.OpenAsync(
+                    new OpenArchiveRequest(fixture.Root),
+                    cancelled.Token,
+                    update =>
+                    {
+                        if (update.Phase == "dependency_index_build")
+                        {
+                            cancelled.Cancel();
+                        }
+                        return Task.CompletedTask;
+                    })).ConfigureAwait(false);
+                Require(!File.Exists(dependencyIndexPath), "cancelled dependency-index build published a partial index");
+            }
+
+            using (var sessions = new ArchiveSessionManager(native, cache))
+            {
+                var recovered = await sessions.OpenAsync(
+                    new OpenArchiveRequest(fixture.Root),
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(recovered.CacheHit && File.Exists(dependencyIndexPath), "dependency index did not recover after cancellation");
+            }
         }
         finally
         {
@@ -220,6 +305,7 @@ internal static class FullArchiveTestRunner
             Require(technicalQuery.TotalMatches == 3, "technical-suffix exclusion changed");
 
             await lookup.WarmAsync(sessionHandle.SessionId, CancellationToken.None).ConfigureAwait(false);
+            var generationPath = sessions.GetRequired(sessionHandle.SessionId).GenerationPath;
             var exact = await lookup.ResolveAsync(
                 new ArchiveLookupRequest(
                     sessionHandle.SessionId,
@@ -240,8 +326,24 @@ internal static class FullArchiveTestRunner
                 "durable selection query position changed");
             var facets = await lookup.FacetsAsync(sessionHandle.SessionId, CancellationToken.None).ConfigureAwait(false);
             Require(facets.Extensions.Any(static facet => facet.Key == ".txt" && facet.Count == 1), "extension facets changed");
-            var generationPath = sessions.GetRequired(sessionHandle.SessionId).GenerationPath;
-            Require(File.Exists(Path.Combine(generationPath, "lookups.bin")), "lookup index was not published");
+            var basename = await lookup.ResolveAsync(
+                new ArchiveLookupRequest(
+                    sessionHandle.SessionId,
+                    ArchiveLookupKind.Basenames,
+                    Values: ["test.dds"]),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(basename.TotalMatches == 1 && basename.Entries[0].EntryId == 3, "compact basename lookup changed");
+            Require(
+                !File.Exists(Path.Combine(generationPath, "lookups.bin")),
+                "targeted path or selection lookup reconstructed the general lookup maps");
+            var byExtension = await lookup.ResolveAsync(
+                new ArchiveLookupRequest(
+                    sessionHandle.SessionId,
+                    ArchiveLookupKind.Extensions,
+                    Values: [".txt"]),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(byExtension.TotalMatches == 1, "general extension lookup changed");
+            Require(File.Exists(Path.Combine(generationPath, "lookups.bin")), "lazy general lookup index was not published");
 
             var unavailableNames = await names.WarmAsync(
                 sessionHandle.SessionId,
@@ -533,6 +635,10 @@ internal static class FullArchiveTestRunner
                 ]),
                 "preview association did not preserve the bounded semantic dependency set");
             Require(!paths.Contains("unrelated/other.dds") && !association.Truncated, "preview association included unrelated rows");
+            Require(
+                File.Exists(Path.Combine(session.GenerationPath, "archive.adi")) &&
+                !File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")),
+                "preview association reconstructed the eager general lookup maps");
 
             var preparation = new ArchiveEntryPreparationService(sessions, native);
             var entryIds = association.Candidates
