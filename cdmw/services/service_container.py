@@ -6,6 +6,7 @@ from importlib import import_module
 from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
+    from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
     from cdmw.services.archive_mutation_service import ArchiveMutationService
     from cdmw.services.archive_service import ArchiveService
     from cdmw.services.asset_authoring_service import AssetAuthoringService
@@ -50,6 +51,7 @@ class ServiceContainer:
     filesystem: FilesystemService | None = None
     item_icons: ItemIconService | None = None
     model_library: ModelLibraryService | None = None
+    archive_catalogue: ArchiveCatalogueService | None = None
     _lazy_defaults: bool = field(default=False, repr=False)
     _lazy_lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 

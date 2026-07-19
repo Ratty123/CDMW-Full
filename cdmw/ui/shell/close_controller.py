@@ -196,6 +196,13 @@ class CloseControllerMixin:
         request_transient_shutdowns(self, on_error=_record_tab_shutdown_error)
 
     def _request_tracked_workers_to_stop(self) -> None:
+        catalogue = getattr(self, "archive_catalogue_service", None)
+        request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
+        if callable(request_catalogue_shutdown):
+            try:
+                request_catalogue_shutdown()
+            except (AttributeError, RuntimeError):
+                pass
         self._request_tab_shutdowns()
         for _name, thread, worker in self._tracked_worker_threads():
             if worker is not None:
@@ -329,6 +336,13 @@ class CloseControllerMixin:
     def _finalize_close(self) -> None:
         self._record_close_event("close_finalize", close_phase="finalize")
         self._request_tab_shutdowns()
+        catalogue = getattr(self, "archive_catalogue_service", None)
+        request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
+        if callable(request_catalogue_shutdown):
+            try:
+                request_catalogue_shutdown()
+            except (AttributeError, RuntimeError):
+                pass
         self._close_worker_wait_timer.stop()
         self._shutting_down = True
         self._release_startup_splash()
@@ -377,6 +391,35 @@ class CloseControllerMixin:
         running_entries = [] if self._close_force_accept else self._running_worker_thread_entries()
         if running_entries:
             self._begin_deferred_close_for_workers(event, running_entries)
+            return
+        archive_backend = getattr(self, "archive_backend_client", None)
+        archive_backend_state = str(getattr(getattr(archive_backend, "state", None), "value", "stopped"))
+        if archive_backend_state not in {"stopped", "failed"}:
+            try:
+                event.ignore()
+            except Exception:
+                pass
+            if not bool(getattr(self, "_archive_backend_close_pending", False)):
+                self._archive_backend_close_pending = True
+
+                def finish_archive_backend_close(state: str) -> None:
+                    if state not in {"stopped", "failed"}:
+                        return
+                    self._archive_backend_close_pending = False
+                    QTimer.singleShot(0, self.close)
+
+                try:
+                    archive_backend.state_changed.connect(finish_archive_backend_close, Qt.UniqueConnection)
+                except (AttributeError, RuntimeError, TypeError):
+                    try:
+                        archive_backend.state_changed.connect(finish_archive_backend_close)
+                    except (AttributeError, RuntimeError, TypeError):
+                        pass
+            try:
+                archive_backend.shutdown()
+            except (AttributeError, RuntimeError):
+                self._archive_backend_close_pending = False
+                QTimer.singleShot(0, self.close)
             return
         self._finalize_close()
         QMainWindow.closeEvent(self, event)  # type: ignore[arg-type]

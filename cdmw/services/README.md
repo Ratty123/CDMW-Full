@@ -11,6 +11,9 @@ mutation flows stay explicit, confirmable, backed up, and recoverable.
 
 Archive UI coordination uses focused read, query, preview, extraction,
 environment, and cached lazy workflow surfaces composed by `ArchiveService`.
+`archive_catalogue_service.py` is the typed v2 catalogue boundary over the
+shell-owned resident process client. It publishes bounded pages/batches and
+converts only explicitly requested DTOs to the legacy `ArchiveEntry` shape.
 UI modules never import archive implementation modules or the
 `cdmw.core.archive` / `cdmw.core.archive_modding` compatibility facades.
 Mutation commands and backup locations remain owned by

@@ -6,6 +6,9 @@ from collections import Counter, OrderedDict, deque
 
 from PySide6.QtCore import Qt, QTimer
 
+from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
+
 
 class ShellWindowRuntimeStateMixin:
     """Initialize runtime state that must exist before tab construction."""
@@ -136,6 +139,16 @@ class ShellWindowRuntimeStateMixin:
         self.archive_isolated_package_pending_result: Optional[ArchivePreviewResult] = None
 
     def _initialize_archive_runtime_state(self) -> None:
+        self.archive_backend_client = ArchiveBackendClient(
+            cache_root=self.archive_cache_root,
+            parent=self,
+        )
+        self.archive_catalogue_service = ArchiveCatalogueService(
+            self.archive_backend_client,
+            parent=self,
+        )
+        self.app_context.services.archive_catalogue = self.archive_catalogue_service
+        self._archive_backend_close_pending = False
         self.archive_preview_thread: Optional[QThread] = None
         self.archive_preview_worker: Optional[ArchivePreviewWorker] = None
         self.archive_preview_request_id = 0

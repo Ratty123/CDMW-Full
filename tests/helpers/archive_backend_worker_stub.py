@@ -89,6 +89,79 @@ def main() -> int:
                     },
                 )
             )
+        elif operation in {"open_archive", "refresh_archive"}:
+            payload = request.get("payload") or {}
+            _send(
+                _message(
+                    request,
+                    "result",
+                    {
+                        "session_id": "session-stub",
+                        "package_root": str(payload.get("package_root", "")),
+                        "fingerprint": "fingerprint-stub",
+                        "entry_count": 1,
+                        "index_version": 2,
+                        "cache_hit": operation == "open_archive",
+                    },
+                )
+                | {"session_id": "session-stub"}
+            )
+        elif operation == "create_query":
+            _send(
+                _message(
+                    request,
+                    "result",
+                    {
+                        "session_id": request.get("session_id"),
+                        "query_id": "query-stub",
+                        "generation": request.get("ui_generation", 0),
+                        "total_matches": 1,
+                    },
+                )
+            )
+        elif operation == "fetch_page":
+            payload = request.get("payload") or {}
+            entry = {
+                "session_id": request.get("session_id"),
+                "entry_id": 0,
+                "identity": {
+                    "normalized_path": "character/model/stub.pac",
+                    "source_pamt": "c:/game/0009/0.pamt",
+                    "paz_index": 0,
+                    "archive_offset": 24,
+                },
+                "path": "character/model/stub.pac",
+                "source_pamt": "C:/game/0009/0.pamt",
+                "paz_file": "C:/game/0009/0.paz",
+                "paz_index": 0,
+                "offset": 24,
+                "stored_size": 8,
+                "original_size": 8,
+                "flags": 0,
+                "extension": ".pac",
+                "package": "0009/0.pamt",
+                "role": "model",
+                "category": "ModelMeshPhysics",
+                "is_previewable": True,
+                "known_name": "Stub Model",
+                "exact_name": "Stub Model",
+                "name_evidence": "Exact localization",
+                "is_active_override": False,
+            }
+            _send(
+                _message(
+                    request,
+                    "result",
+                    {
+                        "session_id": request.get("session_id"),
+                        "query_id": str(payload.get("query_id", "")),
+                        "generation": request.get("ui_generation", 0),
+                        "total_matches": 1,
+                        "page_start": int(payload.get("page_start", 0)),
+                        "rows": [entry],
+                    },
+                )
+            )
         elif operation == "export":
             os._exit(74)
         elif operation == "cancel":

@@ -152,6 +152,7 @@ class ArchiveBackendClient(QObject):
         ui_generation: int,
         session_id: str | None = None,
         expected_fingerprint: str | None = None,
+        request_id: str | None = None,
     ) -> str:
         if self._state is ArchiveBackendClientState.STOPPING:
             raise RuntimeError("Archive backend is shutting down.")
@@ -160,6 +161,7 @@ class ArchiveBackendClient(QObject):
             payload,
             ui_generation=ui_generation,
             session_id=session_id,
+            request_id=request_id,
         )
         pending = _PendingRequest(
             envelope=envelope,

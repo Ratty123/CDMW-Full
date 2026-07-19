@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 
-from PySide6.QtCore import QObject, QThread
+from PySide6.QtCore import QCoreApplication, QObject, QThread
 
 from cdmw.ui.shell.close_controller import CloseControllerMixin
 
@@ -82,3 +82,67 @@ def test_close_discovers_running_qthread_children_after_feature_refs_are_cleared
     thread.release_event.set()
     assert thread.wait(2000)
     assert CloseControllerMixin._running_worker_thread_entries(owner) == []
+
+
+class _SignalProbe:
+    def __init__(self) -> None:
+        self.callbacks: list[object] = []
+
+    def connect(self, callback: object, *_args: object) -> None:
+        self.callbacks.append(callback)
+
+    def emit(self, value: str) -> None:
+        for callback in tuple(self.callbacks):
+            callback(value)  # type: ignore[operator]
+
+
+class _ArchiveBackendProbe:
+    def __init__(self) -> None:
+        self.state = type("State", (), {"value": "ready"})()
+        self.state_changed = _SignalProbe()
+        self.shutdown_calls = 0
+
+    def shutdown(self) -> None:
+        self.shutdown_calls += 1
+
+
+class _CloseEventProbe:
+    def __init__(self) -> None:
+        self.ignored = False
+
+    def ignore(self) -> None:
+        self.ignored = True
+
+
+class _ArchiveBackendCloseOwner:
+    _close_force_accept = False
+    _archive_backend_close_pending = False
+
+    def __init__(self) -> None:
+        self.archive_backend_client = _ArchiveBackendProbe()
+        self.close_calls = 0
+
+    def _running_worker_thread_entries(self) -> list[object]:
+        return []
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
+def test_close_waits_nonblocking_for_resident_archive_backend_shutdown() -> None:
+    app = QCoreApplication.instance() or QCoreApplication([])
+    owner = _ArchiveBackendCloseOwner()
+    event = _CloseEventProbe()
+
+    CloseControllerMixin.closeEvent(owner, event)
+
+    assert event.ignored
+    assert owner.archive_backend_client.shutdown_calls == 1
+    assert owner._archive_backend_close_pending
+    assert owner.close_calls == 0
+
+    owner.archive_backend_client.state_changed.emit("stopped")
+    app.processEvents()
+
+    assert not owner._archive_backend_close_pending
+    assert owner.close_calls == 1
