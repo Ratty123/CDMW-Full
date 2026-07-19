@@ -218,8 +218,8 @@ public sealed class ArchivePreviewService
                     metadata,
                     string.Empty,
                     artifact.PreviewKind.Equals("skeleton", StringComparison.OrdinalIgnoreCase)
-                        ? $"Native visual preview: skeleton ({artifact.BoneCount:N0} bones)"
-                        : $"Native visual preview: collision geometry ({artifact.ShapeCount:N0} shapes)");
+                        ? $"Native visual preview: skeleton joints and bone lines ({artifact.BoneCount:N0} bones)"
+                        : $"Native visual preview: wireframe collision geometry ({artifact.ShapeCount:N0} shapes)");
                 warnings.AddRange(artifact.Warnings);
                 return new PreviewResult(
                     session.Id,

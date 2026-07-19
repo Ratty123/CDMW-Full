@@ -1743,6 +1743,73 @@ internal static class ArchiveLiteTestRunner
             && !report.RootElement.TryGetProperty("nodes", out _),
             "native HKX helper did not recover the synthetic skeleton hierarchy");
 
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var native = new NativeArchiveCore();
+        using var sessions = new ArchiveSessionManager(native);
+        var opened = await sessions.OpenAsync(
+            new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.SessionOnly),
+            CancellationToken.None).ConfigureAwait(false);
+        var session = sessions.GetRequired(opened.SessionId);
+        var hkxEntry = new ArchiveEntryDto(
+            9001,
+            "character/skeleton/test.hkx",
+            fixture.Pamt,
+            fixture.Paz,
+            0,
+            0,
+            hkx.Length,
+            hkx.Length,
+            0,
+            ".hkx",
+            "synthetic",
+            ArchiveEntryRole.Physics,
+            true);
+        var artifact = await new NativeHkxPreviewService().BuildAsync(
+            session,
+            hkxEntry,
+            hkx,
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(
+            artifact.PreviewKind == "skeleton"
+            && artifact.PreferredDisplayMode == "xray"
+            && artifact.BoneCount == 2,
+            "managed HKX preview did not request the joint-and-line structure view");
+        using var packageManifest = JsonDocument.Parse(await File.ReadAllBytesAsync(
+            Path.Combine(artifact.PackagePath, "manifest.json")).ConfigureAwait(false));
+        var batches = packageManifest.RootElement.GetProperty("batches").EnumerateArray().ToArray();
+        Require(
+            batches.Length == 2
+            && batches[0].GetProperty("material_name").GetString() == "Skeleton links"
+            && batches[0].GetProperty("vertex_count").GetInt32() == 3
+            && batches[1].GetProperty("material_name").GetString() == "Skeleton joints"
+            && batches[1].GetProperty("vertex_count").GetInt32() == 6,
+            "managed HKX preview did not encode one parent-child line and two joint points");
+        var links = await File.ReadAllBytesAsync(Path.Combine(
+            artifact.PackagePath,
+            batches[0].GetProperty("vertex_file").GetString()!.Replace('/', Path.DirectorySeparatorChar))).ConfigureAwait(false);
+        const int vertexStride = 23 * sizeof(float);
+        bool SamePosition(byte[] payload, int left, int right) =>
+            Enumerable.Range(0, 3).All(component =>
+                BitConverter.ToSingle(payload, left * vertexStride + component * sizeof(float))
+                == BitConverter.ToSingle(payload, right * vertexStride + component * sizeof(float)));
+        Require(
+            links.Length == 3 * vertexStride
+            && !SamePosition(links, 0, 1)
+            && SamePosition(links, 1, 2),
+            "skeleton link geometry is not a degenerate parent-child line primitive");
+        var joints = await File.ReadAllBytesAsync(Path.Combine(
+            artifact.PackagePath,
+            batches[1].GetProperty("vertex_file").GetString()!.Replace('/', Path.DirectorySeparatorChar))).ConfigureAwait(false);
+        Require(
+            joints.Length == 6 * vertexStride
+            && SamePosition(joints, 0, 1)
+            && SamePosition(joints, 1, 2)
+            && SamePosition(joints, 3, 4)
+            && SamePosition(joints, 4, 5)
+            && !SamePosition(joints, 0, 3),
+            "skeleton joint geometry is not encoded as two distinct point primitives");
+
         var previewSource = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
             "apps",
@@ -1755,6 +1822,19 @@ internal static class ArchiveLiteTestRunner
             && previewSource.Contains("PreviewKind.Model", StringComparison.Ordinal)
             && previewSource.Contains("did not expose a safely decoded skeleton or collision shape", StringComparison.Ordinal),
             "archive preview still routes HKX files to a raw hex-only surface");
+        var hostSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App",
+            "Controls",
+            "DotNetModelPreviewHost.cs"));
+        Require(
+            hostSource.Contains("preferred_display_mode", StringComparison.Ordinal)
+            && hostSource.Contains("viewport_display_update", StringComparison.Ordinal)
+            && hostSource.Contains("viewport_display_applied", StringComparison.Ordinal),
+            "Archive Lite does not apply and acknowledge the HKX wire-and-vertex display mode");
     }
 
     private static byte[] BuildSyntheticSkeletonHkx()

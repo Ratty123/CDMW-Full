@@ -11,7 +11,7 @@ namespace Cdmw.ArchiveLite.Core;
 
 public sealed class NativeHkxPreviewService
 {
-    private const string ArtifactVersion = "hkx_native_preview_v2";
+    private const string ArtifactVersion = "hkx_native_preview_v3";
     private const int MaximumHelperOutputCharacters = 1_048_576;
     private static readonly TimeSpan DecodeTimeout = TimeSpan.FromSeconds(30);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _buildGates = new(StringComparer.Ordinal);
@@ -86,6 +86,7 @@ public sealed class NativeHkxPreviewService
                 var artifact = new HkxPreviewArtifact(
                     destination,
                     document.PreviewKind,
+                    "xray",
                     document.Bones.Count,
                     document.Shapes.Count,
                     document.SdkVersion,
@@ -224,10 +225,10 @@ public sealed class NativeHkxPreviewService
         foreach (var bone in document.Bones)
         {
             var position = positions[bone.Index];
-            AddOctahedron(joints, position, 0.035f);
+            joints.Add(new Triangle(position, position, position));
             if (bone.ParentIndex >= 0 && positions.TryGetValue(bone.ParentIndex, out var parent))
             {
-                AddCylinder(links, parent, position, 0.014f, 7);
+                links.Add(new Triangle(parent, position, position));
             }
         }
         if (links.Count == 0 && joints.Count == 0)
@@ -239,8 +240,8 @@ public sealed class NativeHkxPreviewService
             document.Bones.Count,
             document.Shapes.Count,
             [
-                new GeometryBatch("Skeleton bones", [0.50f, 0.72f, 0.92f], links),
-                new GeometryBatch("Skeleton joints", [0.95f, 0.65f, 0.28f], joints),
+                new GeometryBatch("Skeleton links", [0.92f, 0.95f, 1.00f], links),
+                new GeometryBatch("Skeleton joints", [1.00f, 0.30f, 0.78f], joints),
             ]);
     }
 
@@ -652,6 +653,7 @@ public sealed class NativeHkxPreviewService
 public sealed record HkxPreviewArtifact(
     string PackagePath,
     string PreviewKind,
+    string PreferredDisplayMode,
     int BoneCount,
     int ShapeCount,
     string SdkVersion,
