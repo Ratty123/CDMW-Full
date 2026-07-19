@@ -146,6 +146,11 @@ class PingRequest:
 
 
 @dataclass(frozen=True, slots=True)
+class CancelRequest:
+    target_request_id: str
+
+
+@dataclass(frozen=True, slots=True)
 class PingResult:
     worker_version: str
     protocol_version: int
@@ -402,6 +407,7 @@ __all__ = [
     "ArchiveTextMatch",
     "ArchiveTextSearchBatch",
     "ArchiveTextSearchRequest",
+    "CancelRequest",
     "CacheHealthRequest",
     "CacheHealthResult",
     "CreateQueryRequest",
