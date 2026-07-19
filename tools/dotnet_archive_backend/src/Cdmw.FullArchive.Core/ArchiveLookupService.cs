@@ -6,7 +6,8 @@ namespace Cdmw.FullArchive.Core;
 
 public sealed class ArchiveLookupService(
     ArchiveSessionManager sessions,
-    ArchiveCacheStore cache)
+    ArchiveCacheStore cache,
+    NativeArchiveCore native)
 {
     private const int FileVersion = 2;
     private static readonly byte[] Magic = "CDMWLKP2"u8.ToArray();
@@ -118,11 +119,18 @@ public sealed class ArchiveLookupService(
         ArgumentNullException.ThrowIfNull(request);
         var session = sessions.GetRequired(request.SessionId);
         var selected = session.ReadEntry(request.EntryId);
-        var ids = await ResolveAssociationEntryIdsAsync(
-            request.SessionId,
-            request.EntryId,
-            cancellationToken,
-            progress).ConfigureAwait(false);
+        var previewResolution = request.Purpose == ArchiveAssociationPurpose.Preview
+            ? await ResolvePreviewAssociationEntryIdsAsync(
+                request.SessionId,
+                request.EntryId,
+                cancellationToken,
+                progress).ConfigureAwait(false)
+            : null;
+        var ids = previewResolution?.EntryIds ?? await ResolveAssociationEntryIdsAsync(
+                request.SessionId,
+                request.EntryId,
+                cancellationToken,
+                progress).ConfigureAwait(false);
         var limit = Math.Clamp(request.Limit, 1, 4096);
         var ranked = ids
             .Select(session.ReadEntry)
@@ -135,7 +143,7 @@ public sealed class ArchiveLookupService(
             selected.EntryId,
             ranked.Take(limit).ToArray(),
             ids.Count,
-            ids.Count > limit);
+            previewResolution?.Incomplete == true || ids.Count > limit);
     }
 
     internal async Task<IReadOnlyList<long>> ResolveAssociationEntryIdsAsync(
@@ -154,6 +162,68 @@ public sealed class ArchiveLookupService(
         ids.Remove(selected.EntryId);
         cancellationToken.ThrowIfCancellationRequested();
         return ids.Order().ToArray();
+    }
+
+    private async Task<PreviewAssociationResolution> ResolvePreviewAssociationEntryIdsAsync(
+        string sessionId,
+        long entryId,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress = null)
+    {
+        var session = sessions.GetRequired(sessionId);
+        var selected = session.ReadEntry(entryId);
+        var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
+        var ids = new HashSet<long>();
+        AddCancellable(
+            index.Stems,
+            Path.GetFileNameWithoutExtension(selected.Path),
+            ids,
+            cancellationToken);
+        AddPreviewCompanionPaths(selected, index, ids, cancellationToken);
+
+        var allScanIds = ids
+            .Append(selected.EntryId)
+            .Distinct()
+            .Order()
+            .ToArray();
+        var incomplete = allScanIds.Length > 512;
+        var scanIds = allScanIds.Take(512).ToArray();
+        for (var scanIndex = 0; scanIndex < scanIds.Length; scanIndex++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var entry = session.ReadEntry(scanIds[scanIndex]);
+            var shouldScan = ShouldScanPreviewReferences(entry, selected.EntryId);
+            if (!shouldScan)
+            {
+                continue;
+            }
+            var maximumBytes = entry.EntryId == selected.EntryId
+                ? 512L * 1024 * 1024
+                : 64L * 1024 * 1024;
+            if (entry.OriginalSize is <= 0 || entry.OriginalSize > maximumBytes)
+            {
+                incomplete = true;
+                continue;
+            }
+            if (progress is not null)
+            {
+                await progress(new ProgressUpdate(
+                    scanIndex,
+                    scanIds.Length,
+                    "preview_association_scan",
+                    entry.Path)).ConfigureAwait(false);
+            }
+            var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
+            var extracted = ArchivePreviewReferenceScanner.Extract(decoded.Bytes, cancellationToken);
+            incomplete |= extracted.Truncated;
+            foreach (var token in extracted.Tokens)
+            {
+                AddPreviewReference(index, token, ids, cancellationToken);
+            }
+        }
+        ids.Remove(selected.EntryId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new PreviewAssociationResolution(ids.Order().ToArray(), incomplete);
     }
 
     public async Task<ArchiveFacetsResult> FacetsAsync(
@@ -353,6 +423,68 @@ public sealed class ArchiveLookupService(
             .ThenBy(static facet => facet.Key, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
+    private static void AddPreviewCompanionPaths(
+        ArchiveEntryDto selected,
+        ArchiveLookupIndex index,
+        HashSet<long> ids,
+        CancellationToken cancellationToken)
+    {
+        var path = NormalizePath(selected.Path);
+        var candidates = new List<string>();
+        if (path.EndsWith(".pam", StringComparison.OrdinalIgnoreCase))
+        {
+            var stem = path[..^4];
+            candidates.Add(stem + ".pamlod");
+            if (stem.EndsWith("_breakable", StringComparison.OrdinalIgnoreCase))
+            {
+                candidates.Add(stem[..^10] + ".pamlod");
+            }
+        }
+        else if (path.EndsWith(".pamlod", StringComparison.OrdinalIgnoreCase))
+        {
+            candidates.Add(path[..^7] + ".pam");
+        }
+        foreach (var candidate in candidates)
+        {
+            AddCancellable(index.Paths, candidate, ids, cancellationToken);
+        }
+    }
+
+    private static bool ShouldScanPreviewReferences(ArchiveEntryDto entry, long selectedEntryId)
+    {
+        if (entry.EntryId == selectedEntryId)
+        {
+            return true;
+        }
+        return entry.Extension is
+            ".xml" or ".pac_xml" or ".pam_xml" or ".pamlod_xml" or
+            ".material" or ".meshinfo" or ".prefab" or ".prefabdata_xml" or
+            ".pappt" or ".pamhc" or ".seqmt";
+    }
+
+    private static void AddPreviewReference(
+        ArchiveLookupIndex index,
+        string token,
+        HashSet<long> ids,
+        CancellationToken cancellationToken)
+    {
+        var normalized = NormalizePath(token);
+        AddCancellable(index.Paths, normalized, ids, cancellationToken);
+        var separatorPath = normalized.Replace('/', Path.DirectorySeparatorChar);
+        AddCancellable(index.Basenames, Path.GetFileName(separatorPath), ids, cancellationToken);
+
+        var slash = normalized.IndexOf('/');
+        if (slash <= 0)
+        {
+            return;
+        }
+        var firstSegment = normalized[..slash];
+        if (firstSegment.All(char.IsDigit) || firstSegment.StartsWith("dmm", StringComparison.OrdinalIgnoreCase))
+        {
+            AddCancellable(index.Paths, normalized[(slash + 1)..], ids, cancellationToken);
+        }
+    }
+
     private static int AssociationScore(ArchiveEntryDto selected, ArchiveEntryDto candidate)
     {
         var score = 0;
@@ -460,6 +592,10 @@ public sealed class ArchiveLookupService(
             // A later cache prune can remove a stale secondary index.
         }
     }
+
+    private sealed record PreviewAssociationResolution(
+        IReadOnlyList<long> EntryIds,
+        bool Incomplete);
 
     private sealed class ArchiveLookupIndex
     {

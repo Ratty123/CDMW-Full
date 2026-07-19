@@ -67,6 +67,11 @@ class ArchiveLookupKind(str, Enum):
     ROLES = "roles"
 
 
+class ArchiveAssociationPurpose(str, Enum):
+    FAMILY = "family"
+    PREVIEW = "preview"
+
+
 @dataclass(frozen=True, slots=True)
 class ArchiveDurableIdentity:
     normalized_path: str
@@ -394,6 +399,7 @@ class ArchiveAssociationRequest:
     session_id: str
     entry_id: int
     limit: int = 256
+    purpose: ArchiveAssociationPurpose = ArchiveAssociationPurpose.FAMILY
 
 
 @dataclass(frozen=True, slots=True)
@@ -442,6 +448,7 @@ def archive_query_from_wire(value: object) -> ArchiveQuery:
 __all__ = [
     "ArchiveAssociationRequest",
     "ArchiveAssociationResult",
+    "ArchiveAssociationPurpose",
     "ArchiveChildNode",
     "ArchiveChildrenRequest",
     "ArchiveChildrenResult",

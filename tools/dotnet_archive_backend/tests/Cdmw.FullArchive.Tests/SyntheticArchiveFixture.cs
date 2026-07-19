@@ -63,13 +63,16 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         var fixture = new SyntheticArchiveFixture(root);
         Directory.CreateDirectory(Path.GetDirectoryName(fixture.Pamt)!);
 
+        // Put the first reference across the old arbitrary 4,096-character scan boundary.
+        var minifiedPrefix = string.Concat(Enumerable.Repeat("<a/>", 1011)) + "  ";
         var payloads = new (string Path, byte[] Bytes)[]
         {
             ("character/model/hero.pac", [0x50, 0x41, 0x43, 0x00, 0x01]),
             (
                 "character/modelproperty/hero.pac_xml",
                 Encoding.UTF8.GetBytes(
-                    "<material><texture path=\"character/texture/hero_body_d.dds\" />"
+                    minifiedPrefix
+                    + "<material><texture path=\"character/texture/hero_body_d.dds\" />"
                     + "<texture path=\"character/texture/hero_body_n.dds\" />"
                     + "<physics path=\"character/physics/hero.hkx\" /></material>")),
             ("character/texture/hero_body_d.dds", "DDS synthetic diffuse"u8.ToArray()),

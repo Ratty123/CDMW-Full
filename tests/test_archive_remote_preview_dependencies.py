@@ -12,7 +12,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveEntryDto,
     ArchiveEntryRole,
 )
-from cdmw.domain.archives.catalogue_operations import PrepareEntryResult
+from cdmw.domain.archives.catalogue_operations import PrepareEntriesResult, PrepareEntryResult
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_preview_dependencies import (
     ArchivePreviewDependencySet,
@@ -37,7 +37,7 @@ class _CatalogueService(QObject):
         self.requests.append((request, ui_generation))
         return f"association-{len(self.requests)}"
 
-    def prepare_entry(self, request: object, *, ui_generation: int) -> str:
+    def prepare_entries(self, request: object, *, ui_generation: int) -> str:
         self.requests.append((request, ui_generation))
         return f"prepare-{len(self.requests)}"
 
@@ -90,6 +90,7 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
     assert request.session_id == "session-a"
     assert request.entry_id == 7
     assert request.limit == MAX_ARCHIVE_PREVIEW_DEPENDENCIES
+    assert request.purpose.value == "preview"
     assert generation == 41
 
     first = _dto(8, "character/sword.pac_xml")
@@ -109,8 +110,22 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
         "find_association_candidates",
         ArchiveAssociationResult("session-a", 7, (), 2, False),
     )
-    assert service.requests[1][0].entry_id == 7
-    service.result_ready.emit("prepare-2", "prepare_entry", _prepared(selected))
+    assert service.requests[1][0].entry_ids == (7, 8, 9)
+    service.batch_ready.emit(
+        "prepare-2",
+        "prepare_entry",
+        PrepareEntriesResult("session-a", (_prepared(selected), _prepared(first)), 3, 3, 120),
+    )
+    service.batch_ready.emit(
+        "prepare-2",
+        "prepare_entry",
+        PrepareEntriesResult("session-a", (_prepared(second),), 3, 3, 120),
+    )
+    service.result_ready.emit(
+        "prepare-2",
+        "prepare_entry",
+        PrepareEntriesResult("session-a", (), 3, 3, 120),
+    )
 
     assert len(ready) == 1
     request_id, snapshot = ready[0]
@@ -124,6 +139,7 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
     assert snapshot.entries_by_basename["sword_d.dds"][0].offset == 900
     assert snapshot.entries[0].prepared_path == Path("C:/cache/7.pac")
     assert snapshot.entries[0].prepared_sha256 == "sha-7"
+    assert all(entry.prepared_path is not None for entry in snapshot.entries)
     assert not snapshot.truncated
     assert provider.snapshot_for(41, 7) is snapshot
     assert provider.snapshot_for(42, 7) is None
@@ -149,7 +165,22 @@ def test_remote_preview_provider_cancels_and_ignores_obsolete_requests() -> None
         "find_association_candidates",
         ArchiveAssociationResult("session-a", 8, (), 0, False),
     )
-    service.result_ready.emit("prepare-3", "prepare_entry", _prepared(_dto(8, "character/new.pac")))
+    service.batch_ready.emit(
+        "prepare-3",
+        "prepare_entry",
+        PrepareEntriesResult(
+            "session-a",
+            (_prepared(_dto(8, "character/new.pac")),),
+            1,
+            1,
+            40,
+        ),
+    )
+    service.result_ready.emit(
+        "prepare-3",
+        "prepare_entry",
+        PrepareEntriesResult("session-a", (), 1, 1, 40),
+    )
 
     assert ready == [2]
     assert provider.snapshot_for(2, 8) is not None
@@ -250,7 +281,10 @@ def test_v2_preview_flush_uses_only_remote_dependency_maps() -> None:
         (_dto(8, "character/sword.pac_xml"),),
         total_candidates=1,
         truncated=False,
-        prepared=_prepared(_dto(7, "character/sword.pac")),
+        prepared={
+            7: _prepared(_dto(7, "character/sword.pac")),
+            8: _prepared(_dto(8, "character/sword.pac_xml")),
+        },
     )
     harness = _PreviewHarness(snapshot)
 

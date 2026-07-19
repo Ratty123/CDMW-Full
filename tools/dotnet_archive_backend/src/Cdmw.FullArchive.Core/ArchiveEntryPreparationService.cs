@@ -8,6 +8,8 @@ public sealed class ArchiveEntryPreparationService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
+    public const int MaximumBatchEntries = 4096;
+
     public async Task<PrepareEntryResult> PrepareAsync(
         PrepareEntryRequest request,
         CancellationToken cancellationToken,
@@ -70,6 +72,44 @@ public sealed class ArchiveEntryPreparationService(
         {
             TryDelete(staging);
         }
+    }
+
+    public async Task<PrepareEntriesResult> PrepareManyAsync(
+        PrepareEntriesRequest request,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress = null)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.EntryIds.Count is < 1 or > MaximumBatchEntries)
+        {
+            throw new InvalidDataException(
+                $"Prepare entry batches require between 1 and {MaximumBatchEntries:N0} entry ids.");
+        }
+        if (request.EntryIds.Any(static entryId => entryId < 0) ||
+            request.EntryIds.Distinct().Count() != request.EntryIds.Count)
+        {
+            throw new InvalidDataException("Prepare entry batches require unique non-negative entry ids.");
+        }
+
+        var items = new List<PrepareEntryResult>(request.EntryIds.Count);
+        long totalBytes = 0;
+        foreach (var entryId in request.EntryIds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var item = await PrepareAsync(
+                new PrepareEntryRequest(request.SessionId, entryId),
+                cancellationToken,
+                progress).ConfigureAwait(false);
+            items.Add(item);
+            totalBytes = checked(totalBytes + item.Size);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        return new PrepareEntriesResult(
+            request.SessionId,
+            items,
+            request.EntryIds.Count,
+            items.Count,
+            totalBytes);
     }
 
     private static PrepareEntryResult Result(

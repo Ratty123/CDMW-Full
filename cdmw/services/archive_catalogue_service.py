@@ -37,6 +37,8 @@ from cdmw.domain.archives.catalogue_operations import (
     OpenArchiveRequest,
     PrepareEntryRequest,
     PrepareEntryResult,
+    PrepareEntriesRequest,
+    PrepareEntriesResult,
     ProgressUpdate,
 )
 from cdmw.domain.archives.catalogue_wire import ArchiveContractError
@@ -226,6 +228,17 @@ class ArchiveCatalogueService(QObject):
             ArchiveBackendOperation.PREPARE_ENTRY,
             request,
             PrepareEntryResult.from_wire,
+            ui_generation=ui_generation,
+            session=session,
+        )
+
+    def prepare_entries(self, request: PrepareEntriesRequest, *, ui_generation: int) -> str:
+        session = self._require_session(request.session_id)
+        return self._submit(
+            ArchiveBackendOperation.PREPARE_ENTRY,
+            request,
+            PrepareEntriesResult.from_wire,
+            batch_parser=PrepareEntriesResult.from_wire,
             ui_generation=ui_generation,
             session=session,
         )

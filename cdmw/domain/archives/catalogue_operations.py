@@ -26,6 +26,7 @@ ARCHIVE_BACKEND_INDEX_VERSION = 3
 ARCHIVE_BACKEND_MAXIMUM_MESSAGE_BYTES = 1024 * 1024
 ARCHIVE_BACKEND_DEFAULT_PAGE_SIZE = 256
 ARCHIVE_BACKEND_MAXIMUM_PAGE_SIZE = 512
+ARCHIVE_BACKEND_MAXIMUM_PREPARE_ENTRIES = 4096
 
 
 class ArchiveBackendOperation(str, Enum):
@@ -252,6 +253,49 @@ class PrepareEntryResult:
 
 
 @dataclass(frozen=True, slots=True)
+class PrepareEntriesRequest:
+    session_id: str
+    entry_ids: tuple[int, ...]
+
+    def __post_init__(self) -> None:
+        if not self.entry_ids:
+            raise ValueError("entry_ids must contain at least one entry id.")
+        if len(self.entry_ids) > ARCHIVE_BACKEND_MAXIMUM_PREPARE_ENTRIES:
+            raise ValueError(
+                "entry_ids must not contain more than "
+                f"{ARCHIVE_BACKEND_MAXIMUM_PREPARE_ENTRIES:,} values."
+            )
+        if any(
+            isinstance(entry_id, bool) or not isinstance(entry_id, int) or entry_id < 0
+            for entry_id in self.entry_ids
+        ):
+            raise ValueError("entry_ids must contain only non-negative integers.")
+        if len(set(self.entry_ids)) != len(self.entry_ids):
+            raise ValueError("entry_ids must not contain duplicates.")
+
+
+@dataclass(frozen=True, slots=True)
+class PrepareEntriesResult:
+    session_id: str
+    items: tuple[PrepareEntryResult, ...]
+    requested: int
+    prepared: int
+    total_bytes: int
+
+    @classmethod
+    def from_wire(cls, value: object) -> "PrepareEntriesResult":
+        payload = require_mapping(value, "prepare entries result")
+        items = require_sequence(payload.get("items"), "items")
+        return cls(
+            session_id=read_string(payload, "session_id"),
+            items=tuple(PrepareEntryResult.from_wire(item) for item in items),
+            requested=read_int(payload, "requested"),
+            prepared=read_int(payload, "prepared"),
+            total_bytes=read_int(payload, "total_bytes"),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class ArchiveTextSearchRequest:
     session_id: str
     query: str
@@ -401,6 +445,7 @@ __all__ = [
     "ARCHIVE_BACKEND_DEFAULT_PAGE_SIZE",
     "ARCHIVE_BACKEND_MAXIMUM_MESSAGE_BYTES",
     "ARCHIVE_BACKEND_MAXIMUM_PAGE_SIZE",
+    "ARCHIVE_BACKEND_MAXIMUM_PREPARE_ENTRIES",
     "ARCHIVE_BACKEND_PROTOCOL_VERSION",
     "ARCHIVE_BACKEND_INDEX_VERSION",
     "ArchiveBackendEnvelope",
@@ -425,5 +470,7 @@ __all__ = [
     "PingResult",
     "PrepareEntryRequest",
     "PrepareEntryResult",
+    "PrepareEntriesRequest",
+    "PrepareEntriesResult",
     "ProgressUpdate",
 ]

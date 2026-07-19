@@ -194,10 +194,17 @@ public sealed record ArchiveLookupResult(
     bool Truncated,
     IReadOnlyList<long>? QueryRows = null);
 
+public enum ArchiveAssociationPurpose
+{
+    Family,
+    Preview,
+}
+
 public sealed record ArchiveAssociationRequest(
     string SessionId,
     long EntryId,
-    int Limit = 256);
+    int Limit = 256,
+    ArchiveAssociationPurpose Purpose = ArchiveAssociationPurpose.Family);
 
 public sealed record ArchiveAssociationResult(
     string SessionId,

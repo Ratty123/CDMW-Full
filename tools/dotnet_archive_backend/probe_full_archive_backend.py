@@ -245,6 +245,13 @@ def run_probe(worker: Path) -> dict[str, object]:
                 or selected_preview_entry.prepared_path.read_bytes() != b"PAC\x00synthetic"
             ):
                 raise AssertionError("Synthetic selected preview source was not worker-materialized.")
+            prepared_preview_bytes = {
+                entry.path: entry.prepared_path.read_bytes()
+                for entry in preview_snapshot.entries
+                if entry.prepared_path is not None
+            }
+            if prepared_preview_bytes.get("materials/example.material") != b"material synthetic":
+                raise AssertionError("Synthetic preview dependency was not worker-materialized.")
 
             prepared = awaiter.wait(
                 service.prepare_entry(
@@ -316,6 +323,7 @@ def run_probe(worker: Path) -> dict[str, object]:
                 "warm_cache_hit": warm.cache_hit,
                 "page_rows": len(page.rows),
                 "preview_candidates": max(0, len(preview_snapshot.entries) - 1),
+                "preview_prepared": len(prepared_preview_bytes),
                 "structure_root_count": len(structure_root.children),
                 "text_matches": text_matches,
                 "exported": export_result.exported,

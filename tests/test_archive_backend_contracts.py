@@ -8,6 +8,8 @@ import pytest
 from cdmw.domain.archives.catalogue import (
     ArchiveChildrenRequest,
     ArchiveChildrenResult,
+    ArchiveAssociationPurpose,
+    ArchiveAssociationRequest,
     ArchiveDurableIdentity,
     ArchiveEntryDto,
     ArchiveEntryRole,
@@ -28,6 +30,8 @@ from cdmw.domain.archives.catalogue_operations import (
     ArchiveTextMatch,
     CreateQueryRequest,
     FetchPageRequest,
+    PrepareEntriesRequest,
+    PrepareEntriesResult,
 )
 from cdmw.domain.archives.catalogue_wire import ArchiveContractError, to_wire
 
@@ -172,6 +176,58 @@ def test_archive_entry_rejects_malformed_worker_payloads(payload: object, messag
 def test_fetch_page_enforces_worker_page_bound() -> None:
     with pytest.raises(ValueError, match="between 1 and 512"):
         FetchPageRequest("query-a", page_size=513)
+
+
+def test_prepare_entries_contract_is_bounded_and_parses_stream_batches() -> None:
+    request = PrepareEntriesRequest("session-a", (7, 9))
+    assert to_wire(request) == {"session_id": "session-a", "entry_ids": [7, 9]}
+    result = PrepareEntriesResult.from_wire(
+        {
+            "session_id": "session-a",
+            "items": [
+                {
+                    "entry": {
+                        "session_id": "session-a",
+                        "entry_id": 7,
+                        "identity": _entry_payload()["identity"],
+                        "display_path": "character/model/Example.pac",
+                    },
+                    "prepared_path": "C:/cache/example.pac",
+                    "size": 2048,
+                    "sha256": "abc",
+                    "note": "prepared",
+                }
+            ],
+            "requested": 2,
+            "prepared": 2,
+            "total_bytes": 4096,
+        }
+    )
+    assert result.items[0].entry.entry_id == 7
+    assert result.total_bytes == 4096
+
+    with pytest.raises(ValueError, match="at least one"):
+        PrepareEntriesRequest("session-a", ())
+    with pytest.raises(ValueError, match="must not contain duplicates"):
+        PrepareEntriesRequest("session-a", (7, 7))
+    with pytest.raises(ValueError, match="4,096"):
+        PrepareEntriesRequest("session-a", tuple(range(4_097)))
+
+
+def test_preview_association_contract_selects_semantic_dependency_mode() -> None:
+    request = ArchiveAssociationRequest(
+        "session-a",
+        7,
+        limit=4095,
+        purpose=ArchiveAssociationPurpose.PREVIEW,
+    )
+
+    assert to_wire(request) == {
+        "session_id": "session-a",
+        "entry_id": 7,
+        "limit": 4095,
+        "purpose": "preview",
+    }
 
 
 def test_query_aware_lookup_parses_selection_row_positions() -> None:

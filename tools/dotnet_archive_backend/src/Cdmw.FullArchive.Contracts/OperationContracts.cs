@@ -19,12 +19,21 @@ public sealed record FetchPageRequest(string QueryId, int PageStart = 0, int Pag
 
 public sealed record PrepareEntryRequest(string SessionId, long EntryId);
 
+public sealed record PrepareEntriesRequest(string SessionId, IReadOnlyList<long> EntryIds);
+
 public sealed record PrepareEntryResult(
     ArchiveEntryRef Entry,
     string PreparedPath,
     long Size,
     string Sha256,
     string? Note = null);
+
+public sealed record PrepareEntriesResult(
+    string SessionId,
+    IReadOnlyList<PrepareEntryResult> Items,
+    int Requested,
+    int Prepared,
+    long TotalBytes);
 
 public sealed record ArchiveTextSearchRequest(
     string SessionId,

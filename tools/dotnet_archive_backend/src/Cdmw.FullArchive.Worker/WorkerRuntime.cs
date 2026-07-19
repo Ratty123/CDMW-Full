@@ -25,7 +25,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
         _cache = new ArchiveCacheStore(cacheRoot);
         _sessions = new ArchiveSessionManager(_native, _cache);
         _queries = new ArchiveQueryService(_sessions);
-        _lookups = new ArchiveLookupService(_sessions, _cache);
+        _lookups = new ArchiveLookupService(_sessions, _cache, _native);
         _names = new ArchiveNameIndexService(_sessions, _cache, _native);
         _preparation = new ArchiveEntryPreparationService(_sessions, _native);
         _textSearch = new ArchiveTextSearchService(_sessions, _native);
@@ -152,6 +152,25 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                 }
             case WorkerProtocol.PrepareEntry:
                 {
+                    if (request.Payload is { } rawPayload &&
+                        rawPayload.TryGetProperty("entry_ids", out _))
+                    {
+                        var batchPayload = RequirePayload<PrepareEntriesRequest>(request);
+                        RequireSession(request, batchPayload.SessionId);
+                        var batchResult = await _preparation.PrepareManyAsync(
+                            batchPayload,
+                            cancellationToken,
+                            publishProgress).ConfigureAwait(false);
+                        foreach (var items in batchResult.Items.Chunk(StreamBatchSize))
+                        {
+                            await publishBatch(batchResult with { Items = items }).ConfigureAwait(false);
+                        }
+                        return WorkerProtocol.Response(
+                            request,
+                            WorkerMessageStatus.Result,
+                            batchResult with { Items = [] },
+                            batchPayload.SessionId);
+                    }
                     var payload = RequirePayload<PrepareEntryRequest>(request);
                     RequireSession(request, payload.SessionId);
                     var result = await _preparation.PrepareAsync(

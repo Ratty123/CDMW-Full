@@ -15,6 +15,7 @@ internal static class FullArchiveTestRunner
         {
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
+            ("preview_association_and_prepare_batch", PreviewAssociationAndPrepareBatchAsync),
             ("query_sort_parity", QuerySortParityAsync),
             ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
@@ -119,7 +120,7 @@ internal static class FullArchiveTestRunner
                 new OpenArchiveRequest(fixture.Root),
                 CancellationToken.None).ConfigureAwait(false);
             var queries = new ArchiveQueryService(sessions);
-            var lookup = new ArchiveLookupService(sessions, cache);
+            var lookup = new ArchiveLookupService(sessions, cache, native);
             var names = new ArchiveNameIndexService(sessions, cache, native);
             var query = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId),
@@ -268,6 +269,16 @@ internal static class FullArchiveTestRunner
                 new PrepareEntryRequest(sessionHandle.SessionId, 2),
                 CancellationToken.None).ConfigureAwait(false);
             Require(await File.ReadAllTextAsync(prepared.PreparedPath).ConfigureAwait(false) == "Hello Crimson\nline 2", "prepared bytes changed");
+            var preparedBatch = await preparation.PrepareManyAsync(
+                new PrepareEntriesRequest(sessionHandle.SessionId, [1, 2]),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                preparedBatch.Requested == 2 && preparedBatch.Prepared == 2 &&
+                preparedBatch.Items.Select(static item => item.Entry.EntryId).SequenceEqual([1L, 2L]),
+                "bounded prepare batch changed");
+            Require(
+                preparedBatch.TotalBytes == preparedBatch.Items.Sum(static item => item.Size),
+                "bounded prepare batch byte total changed");
 
             var exports = new ArchiveExportService(sessions, queries, lookup, native);
             var exported = await exports.ExportAsync(
@@ -433,6 +444,65 @@ internal static class FullArchiveTestRunner
         }
     }
 
+    private static async Task PreviewAssociationAndPrepareBatchAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAssociatedAssetsAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("preview-association-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root),
+                CancellationToken.None).ConfigureAwait(false);
+            var session = sessions.GetRequired(handle.SessionId);
+            var selected = Enumerable.Range(0, checked((int)handle.EntryCount))
+                .Select(index => session.ReadEntry(index))
+                .Single(static entry => entry.Path == "character/model/hero.pac");
+            var lookup = new ArchiveLookupService(sessions, cache, native);
+            var association = await lookup.FindAssociationCandidatesAsync(
+                new ArchiveAssociationRequest(
+                    handle.SessionId,
+                    selected.EntryId,
+                    128,
+                    ArchiveAssociationPurpose.Preview),
+                CancellationToken.None).ConfigureAwait(false);
+            var paths = association.Candidates.Select(static entry => entry.Path).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            Require(
+                paths.SetEquals(
+                [
+                    "character/modelproperty/hero.pac_xml",
+                    "character/texture/hero_body_d.dds",
+                    "character/texture/hero_body_n.dds",
+                    "character/physics/hero.hkx",
+                    "character/model/hero.meshinfo",
+                    "character/model/hero.prefab",
+                ]),
+                "preview association did not preserve the bounded semantic dependency set");
+            Require(!paths.Contains("unrelated/other.dds") && !association.Truncated, "preview association included unrelated rows");
+
+            var preparation = new ArchiveEntryPreparationService(sessions, native);
+            var entryIds = association.Candidates
+                .Select(static entry => entry.EntryId)
+                .Prepend(selected.EntryId)
+                .ToArray();
+            var prepared = await preparation.PrepareManyAsync(
+                new PrepareEntriesRequest(handle.SessionId, entryIds),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                prepared.Prepared == 7 && prepared.Items.Count == 7 && prepared.TotalBytes > 0,
+                "preview dependency preparation batch changed");
+            Require(
+                prepared.Items.All(static item => File.Exists(item.PreparedPath)),
+                "preview dependency preparation did not publish every bounded source");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
     private static async Task DuplicateOverrideStateAsync()
     {
         await using var fixture = await SyntheticArchiveFixture.CreateDuplicateOverridesAsync().ConfigureAwait(false);
@@ -464,7 +534,7 @@ internal static class FullArchiveTestRunner
             var activeRows = queries.FetchPage(session.SessionId, new FetchPageRequest(active.QueryId)).Rows;
             Require(activeRows is [{ OverrideState: "Active mod" }], "active-override filter changed");
 
-            var lookup = new ArchiveLookupService(sessions, cache);
+            var lookup = new ArchiveLookupService(sessions, cache, native);
             var exports = new ArchiveExportService(sessions, queries, lookup, native);
             var overwriteRoot = Path.Combine(fixture.OutputRoot, "duplicate-overwrite");
             var overwritten = await exports.ExportAsync(
