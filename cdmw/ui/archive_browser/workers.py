@@ -10,6 +10,7 @@ from typing import Optional
 from PySide6.QtCore import QThread, QTimer
 
 from cdmw.models import ArchiveEntry, ArchivePreviewResult
+from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 from cdmw.workers.archive_preview_workers import ArchivePreviewWorker, _ArchivePreviewWorkerPayload
@@ -100,6 +101,9 @@ class ArchivePreviewWorkerMixin:
         if not force and self._mesh_replacement_builder_active():
             self._defer_archive_preview_refresh_for_builder(entry)
             return
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
         request_id = self.archive_preview_request_id + 1
         self.archive_preview_request_id = request_id
         self.append_archive_log(
@@ -154,6 +158,21 @@ class ArchivePreviewWorkerMixin:
         if self.scheduled_archive_preview_request is None:
             return
         request_id, entry, include_loose_preview_assets, force = self.scheduled_archive_preview_request
+        remote_dependencies: ArchivePreviewDependencySet | None = None
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2 and entry is not None:
+            remote_dependencies = remote_bridge.preview_dependencies_for(request_id, entry)
+            if remote_dependencies is None:
+                if not remote_bridge.preview_dependencies_pending_for(request_id):
+                    started = remote_bridge.request_preview_dependencies(request_id, entry)
+                    if started:
+                        detail = "Resolving bounded archive preview dependencies..."
+                        self._set_archive_preview_base_detail_text(
+                            detail,
+                            include_current_model_debug=False,
+                        )
+                        self.set_status_message(detail)
+                return
         if (
             entry is not None
             and str(getattr(entry, "extension", "") or "").strip().lower()
@@ -182,7 +201,22 @@ class ArchivePreviewWorkerMixin:
         )
         self.archive_preview_cache_keys[request_id] = cache_key
 
-        companion_entry = self._find_archive_preview_companion_entry(entry)
+        texture_entries_by_normalized_path = (
+            remote_dependencies.entries_by_normalized_path
+            if remote_dependencies is not None
+            else self.archive_entries_by_normalized_path
+        )
+        texture_entries_by_basename = (
+            remote_dependencies.entries_by_basename
+            if remote_dependencies is not None
+            else self.archive_entries_by_basename
+        )
+        companion_entry = self._find_archive_preview_companion_entry(
+            entry,
+            entries_by_normalized_path=(
+                texture_entries_by_normalized_path if remote_dependencies is not None else None
+            ),
+        )
         fast_cache_key = self._archive_preview_cache_key(
             entry,
             loose_search_roots,
@@ -261,7 +295,64 @@ class ArchivePreviewWorkerMixin:
                 and not include_loose_preview_assets
                 and fast_cache_key not in preview_cache_snapshot
             ),
+            texture_entries_by_normalized_path=texture_entries_by_normalized_path,
+            texture_entries_by_basename=texture_entries_by_basename,
+            sidecar_entries_by_texture_path=(
+                {} if remote_dependencies is not None else self.archive_sidecar_entries_by_texture_path
+            ),
+            sidecar_entries_by_texture_basename=(
+                {} if remote_dependencies is not None else self.archive_sidecar_entries_by_texture_basename
+            ),
         )
+
+    def _handle_archive_remote_preview_dependencies_ready(
+        self,
+        request_id: int,
+        payload: object,
+    ) -> None:
+        if self._shutting_down or int(request_id) != int(self.archive_preview_request_id):
+            return
+        if not isinstance(payload, ArchivePreviewDependencySet):
+            self._handle_archive_remote_preview_dependencies_failed(
+                request_id,
+                "The archive worker returned an invalid preview dependency set.",
+            )
+            return
+        if payload.truncated:
+            self._handle_archive_remote_preview_dependencies_failed(
+                request_id,
+                "Archive preview dependency lookup exceeded the 4,096-entry safety bound.",
+            )
+            return
+        scheduled = self.scheduled_archive_preview_request
+        if scheduled is None or int(scheduled[0]) != int(request_id):
+            return
+        self._record_runtime_event(
+            "archive_preview_dependencies_ready",
+            request_id=request_id,
+            entry_id=payload.entry_id,
+            candidate_count=max(0, len(payload.entries) - 1),
+            total_candidates=payload.total_candidates,
+        )
+        self._flush_scheduled_archive_preview_request()
+
+    def _handle_archive_remote_preview_dependencies_failed(
+        self,
+        request_id: int,
+        message: str,
+    ) -> None:
+        if self._shutting_down or int(request_id) != int(self.archive_preview_request_id):
+            return
+        self._record_runtime_event(
+            "archive_preview_dependencies_failed",
+            request_id=request_id,
+            message=str(message),
+        )
+        self.scheduled_archive_preview_request = None
+        self.pending_archive_preview_request = None
+        self._stop_archive_preview_loading_indicator(success=False)
+        self._clear_archive_preview(f"Preview dependencies could not be resolved: {message}")
+        self.set_status_message(f"Archive preview failed: {message}", error=True)
 
     def _start_archive_preview_worker(
         self,
@@ -275,9 +366,16 @@ class ArchivePreviewWorkerMixin:
         fast_cache_key: str = "",
         preview_cache_snapshot: Optional[Mapping[str, ArchivePreviewResult]] = None,
         emit_quick_preview: bool = False,
+        texture_entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        texture_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        sidecar_entries_by_texture_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        sidecar_entries_by_texture_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
     ) -> None:
         if companion_entry is None:
-            companion_entry = self._find_archive_preview_companion_entry(entry)
+            companion_entry = self._find_archive_preview_companion_entry(
+                entry,
+                entries_by_normalized_path=texture_entries_by_normalized_path,
+            )
         preview_settings = self._current_model_preview_render_settings()
         native_cache_mode = self._native_preview_package_cache_mode()
         native_cache_max_bytes, native_cache_target_bytes = self._native_preview_package_cache_budget()
@@ -309,10 +407,18 @@ class ArchivePreviewWorkerMixin:
             request_id,
             entry,
             companion_entry,
-            self.archive_entries_by_normalized_path,
-            self.archive_entries_by_basename,
-            self.archive_sidecar_entries_by_texture_path,
-            self.archive_sidecar_entries_by_texture_basename,
+            self.archive_entries_by_normalized_path
+            if texture_entries_by_normalized_path is None
+            else texture_entries_by_normalized_path,
+            self.archive_entries_by_basename
+            if texture_entries_by_basename is None
+            else texture_entries_by_basename,
+            self.archive_sidecar_entries_by_texture_path
+            if sidecar_entries_by_texture_path is None
+            else sidecar_entries_by_texture_path,
+            self.archive_sidecar_entries_by_texture_basename
+            if sidecar_entries_by_texture_basename is None
+            else sidecar_entries_by_texture_basename,
             loose_search_roots,
             visible_texture_mode=preview_settings.visible_texture_mode,
             support_texture_slots=self._archive_preview_support_texture_slots(preview_settings),
@@ -541,42 +647,13 @@ class ArchivePreviewWorkerMixin:
             return
         request_id, entry, include_loose_preview_assets = self.pending_archive_preview_request
         self.pending_archive_preview_request = None
-        loose_search_roots = self._collect_archive_preview_loose_roots()
-        cache_key = self._archive_preview_cache_key(
-            entry,
-            loose_search_roots,
-            include_loose_preview_assets=include_loose_preview_assets,
-            sidecar_generation=self.archive_sidecar_generation,
-            quality_tier="full",
-        )
-        fast_cache_key = self._archive_preview_cache_key(
-            entry,
-            loose_search_roots,
-            include_loose_preview_assets=include_loose_preview_assets,
-            sidecar_generation=self.archive_sidecar_generation,
-            quality_tier="fast",
-        )
-        self.archive_preview_cache_keys[request_id] = cache_key
-        performance_settings = self._current_archive_performance_settings()
-        preview_cache_snapshot = {
-            key: self.archive_preview_cache[key]
-            for key in (cache_key, fast_cache_key)
-            if key and key in self.archive_preview_cache
-        }
-        self._start_archive_preview_worker(
+        self.scheduled_archive_preview_request = (
             request_id,
             entry,
-            loose_search_roots,
-            include_loose_preview_assets=include_loose_preview_assets,
-            full_cache_key=cache_key,
-            fast_cache_key=fast_cache_key,
-            preview_cache_snapshot=preview_cache_snapshot,
-            emit_quick_preview=(
-                performance_settings.quick_then_full_preview
-                and not include_loose_preview_assets
-                and fast_cache_key not in preview_cache_snapshot
-            ),
+            include_loose_preview_assets,
+            False,
         )
+        self._flush_scheduled_archive_preview_request()
 
 
 __all__ = ["ArchivePreviewWorkerMixin", "ArchiveWorkerLifecycleMixin"]

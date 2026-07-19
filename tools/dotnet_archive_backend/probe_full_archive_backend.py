@@ -38,6 +38,10 @@ from cdmw.domain.archives.catalogue_operations import (
     PrepareEntryResult,
 )
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
+from cdmw.ui.archive_browser.remote_preview_dependencies import (
+    ArchivePreviewDependencySet,
+    ArchiveRemotePreviewDependencyProvider,
+)
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient, ArchiveBackendClientState
 
 
@@ -194,10 +198,52 @@ def run_probe(worker: Path) -> dict[str, object]:
                 raise AssertionError("Synthetic filtered page did not contain one text entry.")
             text_entry = page.rows[0]
 
+            model_query = awaiter.wait(
+                service.create_query(
+                    ArchiveQuery(session_id=warm.session_id, extensions=(".pac",)),
+                    ui_generation=6,
+                )
+            )
+            if not isinstance(model_query, ArchiveQueryHandle):
+                raise AssertionError("Synthetic model query result type changed.")
+            model_page = awaiter.wait(
+                service.fetch_page(
+                    FetchPageRequest(model_query.query_id, page_size=16),
+                    ui_generation=7,
+                )
+            )
+            if not isinstance(model_page, ArchivePage) or len(model_page.rows) != 1:
+                raise AssertionError("Synthetic model page did not contain one entry.")
+            preview_dependencies = ArchiveRemotePreviewDependencyProvider(service)
+            preview_ready: list[ArchivePreviewDependencySet] = []
+            preview_failures: list[str] = []
+            preview_dependencies.ready.connect(
+                lambda _request_id, payload: preview_ready.append(payload)
+                if isinstance(payload, ArchivePreviewDependencySet)
+                else None
+            )
+            preview_dependencies.failed.connect(
+                lambda _request_id, message: preview_failures.append(str(message))
+            )
+            if not preview_dependencies.request(model_page.rows[0], ui_request_id=8):
+                raise AssertionError("Synthetic preview dependency request was not dispatched.")
+            if not _Awaiter._wait_until(
+                lambda: bool(preview_ready or preview_failures),
+                timeout_ms=15_000,
+            ):
+                raise TimeoutError("Synthetic preview dependency request timed out.")
+            if preview_failures:
+                raise AssertionError(f"Synthetic preview dependency lookup failed: {preview_failures[0]}")
+            preview_snapshot = preview_ready[0]
+            if preview_snapshot.truncated or {
+                entry.path for entry in preview_snapshot.entries
+            } != {"model/example.pac", "materials/example.material"}:
+                raise AssertionError("Synthetic bounded preview candidates changed.")
+
             prepared = awaiter.wait(
                 service.prepare_entry(
                     PrepareEntryRequest(warm.session_id, text_entry.entry_id),
-                    ui_generation=6,
+                    ui_generation=9,
                 )
             )
             if not isinstance(prepared, PrepareEntryResult):
@@ -208,7 +254,7 @@ def run_probe(worker: Path) -> dict[str, object]:
 
             text_request_id = service.text_search(
                 ArchiveTextSearchRequest(warm.session_id, "Crimson", batch_size=1),
-                ui_generation=7,
+                ui_generation=10,
             )
             text_terminal = awaiter.wait(text_request_id)
             text_batches = [
@@ -233,7 +279,7 @@ def run_probe(worker: Path) -> dict[str, object]:
                     include_package_root=True,
                     extensions=("txt",),
                 ),
-                ui_generation=8,
+                ui_generation=11,
             )
             export_result = awaiter.wait(export_request_id)
             export_items = tuple(
@@ -263,6 +309,7 @@ def run_probe(worker: Path) -> dict[str, object]:
                 "cold_cache_hit": cold.cache_hit,
                 "warm_cache_hit": warm.cache_hit,
                 "page_rows": len(page.rows),
+                "preview_candidates": max(0, len(preview_snapshot.entries) - 1),
                 "structure_root_count": len(structure_root.children),
                 "text_matches": text_matches,
                 "exported": export_result.exported,

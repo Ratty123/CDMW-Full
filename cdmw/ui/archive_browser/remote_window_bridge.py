@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 from typing import Iterable
 
-from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QTimer
+from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QTimer, Signal
 
 from cdmw.domain.archives.catalogue import (
     ArchiveChildrenResult,
@@ -23,6 +23,10 @@ from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_controller import ArchiveRemoteCatalogueController
 from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel
+from cdmw.ui.archive_browser.remote_preview_dependencies import (
+    ArchivePreviewDependencySet,
+    ArchiveRemotePreviewDependencyProvider,
+)
 from cdmw.ui.archive_browser.remote_query import archive_query_from_browser_state
 
 
@@ -65,6 +69,9 @@ class ArchiveRemoteExportSelection:
 class ArchiveRemoteWindowBridge(QObject):
     """Adapt remote catalogue lifecycle signals to the existing window shell."""
 
+    previewDependenciesReady = Signal(int, object)
+    previewDependenciesFailed = Signal(int, str)
+
     def __init__(self, window: object, *, display_v2: bool, shadow: bool) -> None:
         super().__init__(window)  # type: ignore[arg-type]
         self._window = window
@@ -84,6 +91,14 @@ class ArchiveRemoteWindowBridge(QObject):
             self._model,
             parent=self,
         )
+        self._preview_dependencies = (
+            ArchiveRemotePreviewDependencyProvider(window.archive_catalogue_service, parent=self)
+            if self._display_v2
+            else None
+        )
+        if self._preview_dependencies is not None:
+            self._preview_dependencies.ready.connect(self.previewDependenciesReady.emit)
+            self._preview_dependencies.failed.connect(self.previewDependenciesFailed.emit)
         self._controller.statusChanged.connect(self._handle_status)
         self._controller.progressChanged.connect(self._handle_progress)
         self._controller.queryPublished.connect(self._handle_query_published)
@@ -131,6 +146,7 @@ class ArchiveRemoteWindowBridge(QObject):
         force_refresh: bool,
         activate_tab: bool,
     ) -> None:
+        self.cancel_preview_dependencies(clear_snapshot=True)
         self._last_open_root = str(Path(package_root))
         self._activate_tab_on_publish = bool(activate_tab)
         if self._display_v2:
@@ -207,6 +223,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self.start_shadow(package_root)
 
     def apply_current_query(self) -> None:
+        self.cancel_preview_dependencies(clear_snapshot=True)
         session = self._controller.current_session
         if session is None:
             package_root = str(self._window.archive_package_root_edit.text() or "").strip()
@@ -230,6 +247,36 @@ class ArchiveRemoteWindowBridge(QObject):
 
     def current_compatibility_entry(self) -> ArchiveEntry | None:
         return self._controller.compatibility_entry_for_index(self._window.archive_tree.currentIndex())
+
+    def request_preview_dependencies(self, ui_request_id: int, entry: ArchiveEntry) -> bool:
+        provider = self._preview_dependencies
+        dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
+        if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
+            self.previewDependenciesFailed.emit(
+                int(ui_request_id),
+                "The selected archive row changed before preview dependencies could be resolved.",
+            )
+            return False
+        return provider.request(dto, ui_request_id=int(ui_request_id))
+
+    def preview_dependencies_for(
+        self,
+        ui_request_id: int,
+        entry: ArchiveEntry,
+    ) -> ArchivePreviewDependencySet | None:
+        provider = self._preview_dependencies
+        dto = self._model.entry_for_index(self._window.archive_tree.currentIndex())
+        if provider is None or dto is None or _legacy_identity_key(entry) != _dto_identity_key(dto):
+            return None
+        return provider.snapshot_for(int(ui_request_id), dto.entry_id)
+
+    def preview_dependencies_pending_for(self, ui_request_id: int) -> bool:
+        provider = self._preview_dependencies
+        return provider is not None and provider.pending_ui_request_id == int(ui_request_id)
+
+    def cancel_preview_dependencies(self, *, clear_snapshot: bool = False) -> None:
+        if self._preview_dependencies is not None:
+            self._preview_dependencies.cancel(clear_snapshot=clear_snapshot)
 
     def compatibility_entry_for_index(self, index: QModelIndex) -> ArchiveEntry | None:
         return self._controller.compatibility_entry_for_index(index)

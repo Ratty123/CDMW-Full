@@ -70,6 +70,13 @@ class ArchiveFilesPanelMixin:
                 display_v2=selection.displays_v2,
                 shadow=selection.runs_shadow,
             )
+            if selection.displays_v2:
+                self.archive_remote_bridge.previewDependenciesReady.connect(
+                    self._handle_archive_remote_preview_dependencies_ready
+                )
+                self.archive_remote_bridge.previewDependenciesFailed.connect(
+                    self._handle_archive_remote_preview_dependencies_failed
+                )
         self.archive_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.archive_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.archive_tree.setAlternatingRowColors(False)

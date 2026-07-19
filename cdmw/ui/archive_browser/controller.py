@@ -5,7 +5,7 @@ from __future__ import annotations
 import os
 import time
 from pathlib import Path, PurePosixPath
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QTreeWidgetItem
@@ -72,12 +72,18 @@ class ArchiveBrowserRowPayloadMixin:
             index.setdefault(extension, []).append(archive_entry)
         return index
 
-    def _find_archive_preview_companion_entry(self, entry: Optional[ArchiveEntry]) -> Optional[ArchiveEntry]:
+    def _find_archive_preview_companion_entry(
+        self,
+        entry: Optional[ArchiveEntry],
+        *,
+        entries_by_normalized_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+    ) -> Optional[ArchiveEntry]:
         if entry is None or entry.extension not in {".pam", ".pamlod"}:
             return None
-        indexed_companion = getattr(self, "archive_mesh_companion_by_identity", {}).get(entry.identity)
-        if isinstance(indexed_companion, ArchiveEntry):
-            return indexed_companion
+        if entries_by_normalized_path is None:
+            indexed_companion = getattr(self, "archive_mesh_companion_by_identity", {}).get(entry.identity)
+            if isinstance(indexed_companion, ArchiveEntry):
+                return indexed_companion
         normalized_path = self._normalize_archive_entry_path(entry.path)
         companion_paths: List[str] = []
         if entry.extension == ".pam" and normalized_path.endswith(".pam"):
@@ -88,8 +94,13 @@ class ArchiveBrowserRowPayloadMixin:
         elif entry.extension == ".pamlod" and normalized_path.endswith(".pamlod"):
             companion_paths.append(f"{normalized_path[:-7]}.pam")
 
+        path_index = (
+            self.archive_entries_by_normalized_path
+            if entries_by_normalized_path is None
+            else entries_by_normalized_path
+        )
         for companion_path in companion_paths:
-            candidates = self.archive_entries_by_normalized_path.get(companion_path, [])
+            candidates = path_index.get(companion_path, [])
             if not candidates:
                 continue
             for candidate in candidates:

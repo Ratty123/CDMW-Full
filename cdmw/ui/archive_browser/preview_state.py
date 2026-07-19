@@ -19,6 +19,9 @@ class ArchivePreviewStateMixin:
 
     def _clear_archive_preview(self, message: str) -> None:
         self.archive_preview_request_id += 1
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
         if hasattr(self, "_shutdown_archive_isolated_renderer_host") and not getattr(self, "_shutting_down", False):
             self._shutdown_archive_isolated_renderer_host()
         self.archive_preview_cache_keys.clear()
@@ -60,6 +63,9 @@ class ArchivePreviewStateMixin:
 
     def _show_archive_folder_preview(self, item: Optional[QTreeWidgetItem]) -> None:
         self.archive_preview_request_id += 1
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
         self.archive_preview_cache_keys.clear()
         self.archive_preview_request_started_at.clear()
         self.archive_preview_request_phase_timings.clear()
