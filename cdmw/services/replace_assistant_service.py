@@ -16,6 +16,7 @@ _EXPORTS = {
         "match_replace_assistant_item_to_archive_entry",
         "match_replace_assistant_item_to_local_original",
         "match_replace_assistant_original",
+        "replace_assistant_archive_lookup_values",
     )
 }
 __all__ = tuple(_EXPORTS)

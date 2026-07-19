@@ -12,7 +12,14 @@ from cdmw.domain.packages.export_policy import (
     mod_package_export_options_for_profiles,
     mod_package_profile_uses_manager_metadata,
 )
-from cdmw.models import ModPackageInfo, ReplaceAssistantBuildOptions, ReplaceAssistantBuildSummary, ReplaceAssistantReviewItem
+from cdmw.models import (
+    ArchiveEntry,
+    ModPackageInfo,
+    ReplaceAssistantBuildOptions,
+    ReplaceAssistantBuildSummary,
+    ReplaceAssistantItem,
+    ReplaceAssistantReviewItem,
+)
 from cdmw.ui.replace_assistant.review_dialog import ReplaceAssistantReviewDialog
 from cdmw.ui.replace_assistant.workers import ReplaceAssistantBuildWorker
 
@@ -82,10 +89,25 @@ class ReplaceAssistantBuildMixin:
         self.progress_bar.setFormat("Working...")
         self.status_label.setText("Building replace package...")
         self.append_log("Starting Texture Replacer build.")
-        worker = ReplaceAssistantBuildWorker(
-            self.items,
+        if self._start_catalogue_build(options):
+            return
+        self._launch_build_worker(
             options,
+            self.items,
             archive_entries=self.archive_entries or self.get_archive_entries(),
+        )
+
+    def _launch_build_worker(
+        self,
+        options: ReplaceAssistantBuildOptions,
+        items: Sequence[ReplaceAssistantItem],
+        *,
+        archive_entries: Sequence[ArchiveEntry],
+    ) -> None:
+        worker = ReplaceAssistantBuildWorker(
+            items,
+            options,
+            archive_entries=archive_entries,
             original_dds_root=Path(self.get_original_root().strip()).expanduser() if self.get_original_root().strip() else None,
         )
         thread = QThread(self)
@@ -107,6 +129,8 @@ class ReplaceAssistantBuildMixin:
         thread.start()
 
     def stop_build(self) -> None:
+        if self.remote_build_request_id is not None and self.archive_catalogue_service is not None:
+            self.archive_catalogue_service.cancel(self.remote_build_request_id)
         if self.build_worker is not None:
             self.build_worker.stop()
 

@@ -129,7 +129,7 @@ class ReplaceAssistantControlMixin:
         self.auto_match_button.setEnabled(not busy and has_items)
         self.choose_local_original_button.setEnabled(not busy and selected_count == 1)
         self.choose_archive_original_button.setEnabled(
-            not busy and selected_count == 1 and bool(self.archive_entries or self.get_archive_entries())
+            not busy and selected_count == 1 and self._archive_original_source_ready()
         )
         self.remove_selected_button.setEnabled(not busy and selected_count > 0)
         self.clear_all_button.setEnabled(not busy and has_items)

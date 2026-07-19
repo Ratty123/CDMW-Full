@@ -143,9 +143,11 @@ class ShellToolTabsMixin:
         return tab
 
     def _publish_archive_catalogue_session_to_consumers(self, session: object) -> None:
-        text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
-        if text_search_tab is not None:
-            setter = getattr(text_search_tab, "set_archive_catalogue_session", None)
+        for tab_name in ("text_search_tab", "replace_assistant_tab"):
+            tab = created_tool_widget(getattr(self, tab_name, None))
+            if tab is None:
+                continue
+            setter = getattr(tab, "set_archive_catalogue_session", None)
             if callable(setter):
                 setter(session)
 
@@ -189,15 +191,20 @@ class ShellToolTabsMixin:
             get_archive_entries=lambda: self.archive_entries,
             get_original_root=lambda: self.original_dds_edit.text(),
             get_current_config=self.collect_config,
+            archive_catalogue_service=getattr(self, "archive_catalogue_service", None),
         )
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
         tab.open_in_texture_editor_requested.connect(self._open_source_in_texture_editor)
-        tab.set_archive_entries(
-            getattr(self, "archive_entries", []),
-            self.archive_package_root_edit.text().strip(),
-        )
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:
+            tab.set_archive_catalogue_session(remote_bridge.current_session)
+        else:
+            tab.set_archive_entries(
+                getattr(self, "archive_entries", []),
+                self.archive_package_root_edit.text().strip(),
+            )
         return tab
 
     def _create_recolor_variants_tab(self) -> QWidget:

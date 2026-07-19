@@ -524,6 +524,9 @@ class MatchedOriginalTexture:
     original_dds_path: Optional[Path] = None
     archive_entry: Optional["ArchiveEntry"] = None
     match_reason: str = ""
+    archive_session_id: str = ""
+    archive_entry_id: Optional[int] = None
+    archive_fingerprint: str = ""
 
 
 @dataclass(slots=True)

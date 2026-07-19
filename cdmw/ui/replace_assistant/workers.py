@@ -218,6 +218,7 @@ class ReplaceAssistantAutoMatchWorker(QObject):
                     archive_entries,
                     original_dds_root=self.original_dds_root,
                     on_progress=self.progress.emit,
+                    stop_event=self.stop_event,
                 )
             if self.stop_event.is_set():
                 return

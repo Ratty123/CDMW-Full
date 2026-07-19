@@ -107,7 +107,9 @@ from cdmw.ui.replace_assistant.build import ReplaceAssistantBuildMixin
 from cdmw.ui.replace_assistant.controls import ReplaceAssistantControlMixin
 from cdmw.ui.replace_assistant.preview import ReplaceAssistantPreviewMixin
 from cdmw.ui.replace_assistant.queue import ReplaceAssistantQueueMixin
+from cdmw.ui.replace_assistant.remote_catalogue import ReplaceAssistantArchiveCatalogueMixin
 from cdmw.ui.replace_assistant.settings import ReplaceAssistantSettingsMixin
+from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.replace_assistant.workers import (
     ReplaceAssistantAutoMatchWorker,
     ReplaceAssistantBuildWorker,
@@ -149,6 +151,7 @@ class ReplaceAssistantTab(
     ReplaceAssistantBuildMixin,
     ReplaceAssistantPreviewMixin,
     ReplaceAssistantQueueMixin,
+    ReplaceAssistantArchiveCatalogueMixin,
     ReplaceAssistantControlMixin,
     ReplaceAssistantSettingsMixin,
     QWidget,
@@ -164,6 +167,7 @@ class ReplaceAssistantTab(
         get_archive_entries: Callable[[], Sequence[ArchiveEntry]],
         get_original_root: Callable[[], str],
         get_current_config: Callable[[], object],
+        archive_catalogue_service: ArchiveCatalogueService | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -204,6 +208,7 @@ class ReplaceAssistantTab(
         self.build_worker: Optional[ReplaceAssistantBuildWorker] = None
         self.pending_review_items: Optional[tuple[ReplaceAssistantReviewItem, ...]] = None
         self._ui_constraint_warning_cache: Dict[str, str] = {}
+        self._initialize_archive_catalogue(archive_catalogue_service)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(10, 10, 10, 10)
@@ -785,7 +790,7 @@ class ReplaceAssistantTab(
 
     def _ensure_archive_index_current(self) -> ReplaceAssistantArchiveIndex:
         current_original_root = self._current_original_root_path()
-        active_entries = self.archive_entries or list(self.get_archive_entries())
+        active_entries = [] if self._catalogue_archive_ready() else (self.archive_entries or list(self.get_archive_entries()))
         self.archive_entries = list(active_entries)
         entries_missing_from_index = bool(active_entries) and not self.archive_index.entries_by_relative_path
         root_changed = self.archive_index_original_root != current_original_root
@@ -799,6 +804,9 @@ class ReplaceAssistantTab(
         return self.archive_index
 
     def set_archive_entries(self, entries: Sequence[ArchiveEntry], package_root_text: str = "") -> None:
+        if self._catalogue_archive_ready():
+            self.archive_entries = []
+            return
         self.archive_entries = entries if isinstance(entries, list) else list(entries)
         del package_root_text
         self.archive_index = build_replace_assistant_archive_index([])
@@ -815,6 +823,7 @@ class ReplaceAssistantTab(
             or self.import_thread is not None
             or self.match_thread is not None
             or self.build_thread is not None
+            or self._catalogue_request_busy()
         )
 
     def iter_shutdown_workers(self) -> tuple[tuple[str, Optional[QThread], Optional[object]], ...]:
@@ -840,6 +849,7 @@ class ReplaceAssistantTab(
             self.ui_constraint_worker.stop()
         if self.build_worker is not None:
             self.build_worker.stop()
+        self._cancel_all_catalogue_requests(clear=True)
         for _name, thread, _worker in self.iter_shutdown_workers():
             _shutdown_thread(thread)
 

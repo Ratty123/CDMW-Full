@@ -29,7 +29,7 @@ from cdmw.services.replace_assistant_service import (
     match_replace_assistant_original,
 )
 from cdmw.models import MatchedOriginalTexture, ReplaceAssistantItem, TextureEditorSourceBinding
-from cdmw.ui.replace_assistant.workers import ReplaceAssistantImportWorker
+from cdmw.ui.replace_assistant.workers import ReplaceAssistantAutoMatchWorker, ReplaceAssistantImportWorker
 
 
 class ReplaceAssistantQueueMixin:
@@ -63,7 +63,7 @@ class ReplaceAssistantQueueMixin:
             except Exception:
                 self._pending_import_select_path = str(select_path).strip().lower()
         current_original_root = self._current_original_root_path()
-        active_entries = self.archive_entries or self.get_archive_entries()
+        active_entries = [] if self._catalogue_archive_ready() else (self.archive_entries or self.get_archive_entries())
         entries_missing_from_index = bool(active_entries) and not self.archive_index.entries_by_relative_path
         root_changed = self.archive_index_original_root != current_original_root
         archive_index: Optional[ReplaceAssistantArchiveIndex]
@@ -179,7 +179,8 @@ class ReplaceAssistantQueueMixin:
     def _cleanup_match_refs(self) -> None:
         self.match_thread = None
         self.match_worker = None
-        self.preview_refresh_suspended = False
+        if self.remote_match_request_id is None:
+            self.preview_refresh_suspended = False
         self._update_controls()
 
     def _cleanup_ui_constraint_refs(self) -> None:
@@ -453,46 +454,38 @@ class ReplaceAssistantQueueMixin:
         self.status_label.setText("Auto-matching edited files...")
         self.append_log("Auto-matching edited files against archive/original DDS paths...")
         try:
-            self._ensure_archive_index_current()
-            ambiguous_indices: List[int] = []
-            for index, item in enumerate(self.items):
-                matched = match_replace_assistant_original(item.source_path, self.archive_index)
-                if matched.archive_entry is not None or matched.original_dds_path is not None:
-                    item.matched_original = matched
-                    item.detected_package_root = matched.package_root
-                    item.detected_relative_path = matched.archive_relative_path
-                    item.status = "matched"
-                    item.status_detail = matched.match_reason
-                    item.warning = matched.match_reason if matched.match_reason.startswith("ambiguous") else ""
-                else:
-                    item.matched_original = None
-                    item.status = "unresolved"
-                    item.status_detail = matched.match_reason or "unmatched"
-                    item.warning = matched.match_reason if matched.match_reason.startswith("ambiguous") else ""
-                    if matched.match_reason.startswith("ambiguous"):
-                        ambiguous_indices.append(index)
-            self._refresh_queue_tree()
-            self.progress_bar.setRange(0, 1)
-            self.progress_bar.setValue(1)
-            self.progress_bar.setFormat("Ready")
-            matched_count = sum(1 for item in self.items if item.status == "matched")
-            unresolved_count = sum(1 for item in self.items if item.status == "unresolved")
-            self.status_label.setText(
-                f"Auto-match complete. Matched {matched_count:,} item(s), unresolved {unresolved_count:,}."
+            current_original_root = self._current_original_root_path()
+            use_catalogue = self._catalogue_archive_ready()
+            active_entries = [] if use_catalogue else (self.archive_entries or self.get_archive_entries())
+            root_changed = self.archive_index_original_root != current_original_root
+            entries_missing = bool(active_entries) and not self.archive_index.entries_by_relative_path
+            active_index = None if root_changed or entries_missing else self.archive_index
+            worker = ReplaceAssistantAutoMatchWorker(
+                self.items,
+                archive_entries=active_entries,
+                original_dds_root=current_original_root,
+                archive_index=active_index,
             )
-            self.append_log(
-                f"Auto-match complete. Matched {matched_count:,} item(s), unresolved {unresolved_count:,}."
+            thread = QThread(self)
+            worker.moveToThread(thread)
+            thread.started.connect(worker.run)
+            worker.stage_message.connect(self._handle_import_stage)
+            worker.progress.connect(self._handle_import_progress)
+            worker.completed.connect(
+                lambda payload, refresh=refresh_preview: self._handle_auto_match_complete(payload, refresh)
             )
-            if ambiguous_indices:
-                self._prompt_resolve_ambiguous_items(ambiguous_indices)
-            self.preview_refresh_suspended = False
-            if refresh_preview and self.queue_tree.currentItem() is not None:
-                self._handle_selection_changed(self.queue_tree.currentItem(), None)
+            worker.error.connect(self._handle_import_error)
+            worker.finished.connect(thread.quit)
+            worker.finished.connect(worker.deleteLater)
+            thread.finished.connect(thread.deleteLater)
+            thread.finished.connect(self._cleanup_match_refs)
+            self.match_worker = worker
+            self.match_thread = thread
+            self._update_controls()
+            thread.start()
         except Exception as exc:
             self.preview_refresh_suspended = False
             self._handle_import_error(str(exc))
-        finally:
-            self._update_controls()
 
     def _prompt_resolve_ambiguous_items(self, indices: Sequence[int]) -> None:
         ambiguous_indices = [index for index in indices if 0 <= index < len(self.items)]
@@ -527,10 +520,14 @@ class ReplaceAssistantQueueMixin:
             if not (0 <= index < len(self.items)):
                 continue
             item = self.items[index]
-            entry = self._pick_archive_original(item)
-            if entry is None:
-                break
-            match_replace_assistant_item_to_archive_entry(item, entry)
+            if self._catalogue_archive_ready():
+                if not self._choose_catalogue_archive_original(item):
+                    break
+            else:
+                entry = self._pick_archive_original(item)
+                if entry is None:
+                    break
+                match_replace_assistant_item_to_archive_entry(item, entry)
             changed = True
         if not changed:
             return
@@ -566,6 +563,12 @@ class ReplaceAssistantQueueMixin:
         if isinstance(updated_items, list):
             self.items = [item for item in updated_items if isinstance(item, ReplaceAssistantItem)]
         self._refresh_queue_tree_rows_only()
+        if self._start_catalogue_auto_match(refresh_preview=refresh_preview):
+            return
+        self._finalize_auto_match(refresh_preview=refresh_preview, prompt_ambiguous=True)
+
+    def _finalize_auto_match(self, *, refresh_preview: bool, prompt_ambiguous: bool) -> None:
+        self._refresh_queue_tree_rows_only()
         self.progress_bar.setRange(0, 1)
         self.progress_bar.setValue(1)
         self.progress_bar.setFormat("Ready")
@@ -577,6 +580,14 @@ class ReplaceAssistantQueueMixin:
         self.append_log(
             f"Auto-match complete. Matched {matched_count:,} item(s), unresolved {unresolved_count:,}."
         )
+        ambiguous_indices = [
+            index
+            for index, item in enumerate(self.items)
+            if item.status == "unresolved" and item.status_detail.startswith("ambiguous")
+        ]
+        if prompt_ambiguous and ambiguous_indices:
+            self._prompt_resolve_ambiguous_items(ambiguous_indices)
+        self.preview_refresh_suspended = False
         if refresh_preview:
             current_item = self._current_item()
             if current_item is not None:
@@ -618,10 +629,14 @@ class ReplaceAssistantQueueMixin:
         if len(indices) != 1:
             return
         item = self.items[indices[0]]
-        entry = self._pick_archive_original(item)
-        if entry is None:
-            return
-        match_replace_assistant_item_to_archive_entry(item, entry)
+        if self._catalogue_archive_ready():
+            if not self._choose_catalogue_archive_original(item):
+                return
+        else:
+            entry = self._pick_archive_original(item)
+            if entry is None:
+                return
+            match_replace_assistant_item_to_archive_entry(item, entry)
         self._refresh_queue_tree()
         self._handle_selection_changed(self.queue_tree.currentItem(), None)
 

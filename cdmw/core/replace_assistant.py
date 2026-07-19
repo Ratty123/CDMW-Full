@@ -75,6 +75,7 @@ def build_replace_assistant_archive_index(
     *,
     original_dds_root: Optional[Path] = None,
     on_progress: Optional[Callable[[int, int, str], None]] = None,
+    stop_event: Optional[threading.Event] = None,
 ) -> ReplaceAssistantArchiveIndex:
     relative_index: Dict[str, ArchiveEntry] = {}
     package_relative_index: Dict[str, ArchiveEntry] = {}
@@ -88,6 +89,7 @@ def build_replace_assistant_archive_index(
     if on_progress is not None and total_entries:
         on_progress(0, total_entries, f"Indexing archive entries 0 / {total_entries}...")
     for index, entry in enumerate(entries, start=1):
+        raise_if_cancelled(stop_event, "Texture Replacer matching cancelled by user.")
         rel_key = PurePosixPath(entry.path.replace("\\", "/")).as_posix().lower()
         relative_index[rel_key] = entry
         package_root = entry.pamt_path.parent.name.strip() or "package"
@@ -110,12 +112,17 @@ def build_replace_assistant_archive_index(
             if on_progress is not None:
                 on_progress(total_entries, total_entries, "Scanning Original DDS root for local matches...")
             for dds_path in resolved_original_root.rglob("*.dds"):
+                raise_if_cancelled(stop_event, "Texture Replacer matching cancelled by user.")
                 if not dds_path.is_file():
                     continue
                 resolved_dds = dds_path.resolve()
                 relative = resolved_dds.relative_to(resolved_original_root)
                 relative_text = PurePosixPath(relative.as_posix()).as_posix().lower()
                 local_by_package_relative_path[relative_text] = resolved_dds
+                if relative.parts and _PACKAGE_ROOT_RE.fullmatch(relative.parts[0]):
+                    package_root = relative.parts[0]
+                    if package_root not in package_roots:
+                        package_roots.append(package_root)
                 relative_without_package = _strip_package_prefix(relative_text)
                 local_by_relative_path[relative_without_package].append(resolved_dds)
                 local_by_basename[resolved_dds.name.lower()].append(resolved_dds)
@@ -202,6 +209,13 @@ def _candidate_relative_keys(
             if rel:
                 candidates.append(f"{part}/{rel}")
     for index, part in enumerate(lowered_parts):
+        if not _PACKAGE_ROOT_RE.fullmatch(part):
+            continue
+        rel = PurePosixPath(*parts[index + 1 :]).as_posix().lower()
+        if rel:
+            candidates.append(rel)
+            candidates.append(f"{part}/{rel}")
+    for index, part in enumerate(lowered_parts):
         if part not in _KNOWN_CONTENT_ROOTS:
             continue
         rel = PurePosixPath(*parts[index:]).as_posix().lower()
@@ -229,6 +243,36 @@ def _candidate_relative_keys(
             except Exception:
                 pass
     return [candidate for candidate in dict.fromkeys(normalized_candidates) if candidate]
+
+
+def replace_assistant_archive_lookup_values(
+    source_path: Path,
+    archive_index: ReplaceAssistantArchiveIndex,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Return worker lookup values without materializing archive entries."""
+
+    resolved_source = source_path.expanduser().resolve()
+    candidates = _candidate_relative_keys(
+        resolved_source,
+        archive_index.package_roots,
+        archive_index.original_dds_root,
+    )
+    exact_paths: List[str] = []
+    for candidate in candidates:
+        normalized = PurePosixPath(candidate.replace("\\", "/")).as_posix().strip("/").lower()
+        if "/" not in normalized:
+            continue
+        exact_paths.append(normalized)
+        stripped = _strip_package_prefix(normalized)
+        if stripped and stripped != normalized:
+            exact_paths.append(stripped)
+    basenames = [resolved_source.name.lower()]
+    if resolved_source.suffix.lower() != ".dds":
+        basenames.append(resolved_source.with_suffix(".dds").name.lower())
+    return (
+        tuple(dict.fromkeys(value for value in exact_paths if value)),
+        tuple(dict.fromkeys(value for value in basenames if value)),
+    )
 
 
 def match_replace_assistant_original(
@@ -463,6 +507,11 @@ def match_replace_assistant_item_to_local_original(
 def match_replace_assistant_item_to_archive_entry(
     item: ReplaceAssistantItem,
     entry: ArchiveEntry,
+    *,
+    match_reason: str = "manual archive original",
+    archive_session_id: str = "",
+    archive_entry_id: Optional[int] = None,
+    archive_fingerprint: str = "",
 ) -> None:
     package_root = entry.pamt_path.parent.name.strip() or "package"
     archive_relative_path = PurePosixPath(entry.path.replace("\\", "/")).as_posix()
@@ -474,11 +523,14 @@ def match_replace_assistant_item_to_archive_entry(
         loose_relative_path=Path(package_root) / Path(PurePosixPath(archive_relative_path)),
         original_dds_path=None,
         archive_entry=entry,
-        match_reason="manual archive original",
+        match_reason=match_reason,
+        archive_session_id=archive_session_id,
+        archive_entry_id=archive_entry_id,
+        archive_fingerprint=archive_fingerprint,
     )
     item.warning = ""
     item.status = "matched"
-    item.status_detail = "manual archive original"
+    item.status_detail = match_reason
 
 
 def build_replace_assistant_preview_assets(
