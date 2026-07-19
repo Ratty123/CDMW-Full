@@ -38,6 +38,7 @@ public sealed class MainWindowViewModel : ObservableObject
         _layoutDensities = BuildLayoutDensityOptions();
         _selectedLayoutDensity = LayoutDensities.FirstOrDefault(option => option.Id.Equals(settings.LayoutDensity, StringComparison.OrdinalIgnoreCase)) ?? LayoutDensities[1];
         var cacheChoicePrompt = new ArchiveCacheChoicePrompt(() => Application.Current?.MainWindow);
+        var exportSelectionPrompt = new ExportSelectionPrompt(() => Application.Current?.MainWindow);
         ArchiveBrowser = new ArchiveBrowserViewModel(
             worker,
             settings.ArchiveRoot,
@@ -45,7 +46,8 @@ public sealed class MainWindowViewModel : ObservableObject
             cacheChoicePrompt.Choose,
             settings.ArchiveSortField,
             settings.ArchiveSortDescending,
-            settings.ArchiveBrowser);
+            settings.ArchiveBrowser,
+            exportSelectionPrompt.Choose);
         TextSearch = new TextSearchViewModel(
             worker,
             () => ArchiveBrowser.SessionId,

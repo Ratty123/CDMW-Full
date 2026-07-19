@@ -85,7 +85,13 @@ public sealed class ArchiveSessionManager : IDisposable
                         ArchiveLiteDataPaths.IndexCache,
                         $".{fingerprint.Value}.{Guid.NewGuid():N}.tmp")
                     : indexPath;
-                await Task.Run(() => _native.BuildIndex(root, buildPath), cancellationToken).ConfigureAwait(false);
+                await Task.Run(
+                    () => _native.BuildIndex(
+                        root,
+                        buildPath,
+                        update => PublishProgressAsync(progress, update).GetAwaiter().GetResult(),
+                        cancellationToken),
+                    CancellationToken.None).ConfigureAwait(false);
                 cancellationToken.ThrowIfCancellationRequested();
 
                 if (persistent)

@@ -12,6 +12,22 @@ void require(bool condition, const std::string& message) {
     if (!condition) throw std::runtime_error(message);
 }
 
+struct ProgressCapture {
+    std::vector<std::string> phases;
+    std::string cancel_phase;
+};
+
+int capture_progress(
+    std::uint64_t,
+    std::uint64_t,
+    const char* phase,
+    const char*,
+    void* user_data) {
+    auto* capture = static_cast<ProgressCapture*>(user_data);
+    capture->phases.emplace_back(phase == nullptr ? "" : phase);
+    return phase != nullptr && capture->cancel_phase == phase ? 1 : 0;
+}
+
 void append_u16(std::vector<std::uint8_t>& out, std::uint16_t value) {
     out.push_back(static_cast<std::uint8_t>(value & 0xFFu));
     out.push_back(static_cast<std::uint8_t>((value >> 8) & 0xFFu));
@@ -71,6 +87,38 @@ void test_index_and_raw_decode(const fs::path& root) {
     require(index_bytes.size() >= 64 + cdmw::archive::kIndexRecordSize, "index is truncated");
     require(std::memcmp(index_bytes.data(), "CDMWALI1", 8) == 0, "index magic is wrong");
     require(cdmw::archive::read_u32(index_bytes, 8) == 1, "index version is wrong");
+
+    ProgressCapture progress;
+    const auto progress_index = root / "index-progress.bin";
+    count = 0;
+    require(cdmw_archive_build_index_with_progress_utf8(
+        root.u8string().c_str(),
+        progress_index.u8string().c_str(),
+        &count,
+        capture_progress,
+        &progress,
+        error.data(),
+        error.size()) == CDMW_ARCHIVE_OK,
+        std::string("progress index build failed: ") + error.data());
+    require(count == 1, "progress index did not contain one entry");
+    for (const auto& phase : {"discover", "index_parse", "index_sort", "index_write", "index_publish"}) {
+        require(std::find(progress.phases.begin(), progress.phases.end(), phase) != progress.phases.end(),
+            std::string("progress index build did not report ") + phase);
+    }
+
+    ProgressCapture cancelled;
+    cancelled.cancel_phase = "index_parse";
+    const auto cancelled_index = root / "index-cancelled.bin";
+    require(cdmw_archive_build_index_with_progress_utf8(
+        root.u8string().c_str(),
+        cancelled_index.u8string().c_str(),
+        &count,
+        capture_progress,
+        &cancelled,
+        error.data(),
+        error.size()) == CDMW_ARCHIVE_CANCELLED,
+        "progress callback did not cancel the index build");
+    require(!fs::exists(cancelled_index), "cancelled index build published output");
 
     size_t required = 0;
     std::array<char, 64> note{};

@@ -501,7 +501,7 @@ internal static class ArchiveLiteTestRunner
         Require(navigationButtons.Length == 2, "Archive Browser and Text Search were not both moved into the title row");
         var topTabs = window.Descendants().Single(element => element.Name.LocalName == "TabControl");
         Require(
-            string.Equals((string?)topTabs.Attribute("Margin"), "16,8,16,10", StringComparison.Ordinal)
+            string.Equals((string?)topTabs.Attribute("Margin"), "12,6,12,8", StringComparison.Ordinal)
             && ((string?)topTabs.Attribute("Style"))?.Contains("WorkspaceContentTabControlStyle", StringComparison.Ordinal) == true
             && topTabs.Elements().Where(element => element.Name.LocalName == "TabItem")
                 .SelectMany(element => element.Elements().Where(child => child.Name.LocalName == "Grid"))
@@ -511,6 +511,23 @@ internal static class ArchiveLiteTestRunner
             string.Equals((string?)topTabs.Attribute("SelectedIndex"), "0", StringComparison.Ordinal),
             "Archive Browser is not the explicit default startup workspace");
         var xamlText = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml"));
+        Require(
+            !xamlText.Contains("ProductSubtitle", StringComparison.Ordinal)
+            && !xamlText.Contains("ReadOnlyWorkspace", StringComparison.Ordinal)
+            && !xamlText.Contains("ArchiveBrowser.ReadOnlyCaption", StringComparison.Ordinal)
+            && !xamlText.Contains(">CD<", StringComparison.Ordinal),
+            "the compact title/archive header still contains the removed icon, subtitle, workspace pill, or read-only caption");
+        Require(
+            xamlText.Contains("x:Name=\"ArchiveExtensionFilterComboBox\"", StringComparison.Ordinal)
+            && xamlText.Contains("SelectionChanged=\"OnArchiveExtensionSelectionChanged\"", StringComparison.Ordinal),
+            "the Archive Browser extension catalogue is not wired to apply selected extensions");
+        Require(
+            xamlText.Contains("OperationProgressDetail", StringComparison.Ordinal)
+            && xamlText.Contains("OperationProgressPercent", StringComparison.Ordinal),
+            "archive operations do not expose real progress detail and a determinate progress value");
+        Require(
+            xamlText.Contains("ArchiveBrowser.ExportFamilyCommand", StringComparison.Ordinal),
+            "Export Options does not expose family export for the current selection");
         Require(
             !xamlText.Contains("ArchiveBrowser.PackageFilter", StringComparison.Ordinal)
             && !xamlText.Contains("ArchiveBrowser.PreviewableOnly", StringComparison.Ordinal)
@@ -550,6 +567,16 @@ internal static class ArchiveLiteTestRunner
             && windowSource.Contains("CaptureWindowPlacement()", StringComparison.Ordinal)
             && windowSource.Contains("CaptureGridColumnLayout", StringComparison.Ordinal),
             "window, pane, or column resizing is not captured during orderly shutdown");
+        Require(
+            windowSource.Contains("OnArchiveExtensionSelectionChanged", StringComparison.Ordinal)
+            && windowSource.Contains("ArchiveBrowser.ExtensionFilter = choice.Extension", StringComparison.Ordinal),
+            "extension catalogue selection does not update the Archive Browser filter");
+        var exportDialog = System.Xml.Linq.XDocument.Load(
+            Path.Combine(appRoot, "Dialogs", "ExportSelectionDialog.xaml"));
+        Require(
+            exportDialog.Descendants().Count(element => element.Name.LocalName == "RadioButton") >= 3
+            && exportDialog.Descendants().Any(element => element.Name.LocalName == "ComboBox"),
+            "Export selected does not offer file-only, folder-structure, family, and model-format choices");
         var controlsSource = File.ReadAllText(Path.Combine(appRoot, "Themes", "Controls.xaml"));
         Require(
             !controlsSource.Contains("<TabPanel", StringComparison.Ordinal)
@@ -1622,9 +1649,11 @@ internal static class ArchiveLiteTestRunner
         Require(process.ExitCode == 0, $"native HKX helper failed: {stderrText}");
         using var report = JsonDocument.Parse(stdoutText);
         Require(
-            report.RootElement.GetProperty("preview_kind").GetString() == "skeleton"
+            report.RootElement.GetProperty("format").GetString() == "cd_hkx_preview_v2"
+            && report.RootElement.GetProperty("preview_kind").GetString() == "skeleton"
             && report.RootElement.GetProperty("bone_count").GetInt32() == 2
-            && report.RootElement.GetProperty("bones")[1].GetProperty("parent_index").GetInt32() == 0,
+            && report.RootElement.GetProperty("bones")[1].GetProperty("parent_index").GetInt32() == 0
+            && !report.RootElement.TryGetProperty("nodes", out _),
             "native HKX helper did not recover the synthetic skeleton hierarchy");
 
         var previewSource = File.ReadAllText(Path.Combine(
@@ -1637,7 +1666,7 @@ internal static class ArchiveLiteTestRunner
         Require(
             previewSource.Contains("NativeHkxPreviewService.Supports", StringComparison.Ordinal)
             && previewSource.Contains("PreviewKind.Model", StringComparison.Ordinal)
-            && previewSource.Contains("This HKX did not expose a renderable skeleton or object structure", StringComparison.Ordinal),
+            && previewSource.Contains("did not expose a safely decoded skeleton or collision shape", StringComparison.Ordinal),
             "archive preview still routes HKX files to a raw hex-only surface");
     }
 
@@ -1835,8 +1864,15 @@ internal static class ArchiveLiteTestRunner
         Require(singlePamtFingerprint.SourceFiles.Contains(fixture.Paz, StringComparer.OrdinalIgnoreCase), "single-PAMT fingerprint omitted its PAZ source");
         Require(singlePamtFingerprint.SourceFiles.Contains(fixture.Pathc, StringComparer.OrdinalIgnoreCase), "single-PAMT fingerprint omitted PATHC metadata");
         var indexPath = Path.Combine(fixture.Root, "native-index.ali");
-        var count = native.BuildIndex(fixture.Root, indexPath);
+        var nativeProgress = new List<ProgressUpdate>();
+        var count = native.BuildIndex(fixture.Root, indexPath, nativeProgress.Add, CancellationToken.None);
         Require(count == 4, "native index count is wrong");
+        Require(
+            nativeProgress.Any(update => update.Phase == "index_parse" && update.Total == 1 && update.Completed == 1)
+            && nativeProgress.Any(update => update.Phase == "index_sort" && update.Total == 4 && update.Completed == 4)
+            && nativeProgress.Any(update => update.Phase == "index_write" && update.Total == 4 && update.Completed == 4)
+            && nativeProgress.Any(update => update.Phase == "index_publish" && update.Total == 1 && update.Completed == 1),
+            "native index build did not report real parse, sort, write, and publish totals");
         using var index = ArchiveIndex.Open(indexPath);
         Require(index.EntryCount == 4, "managed index count is wrong");
         var pathMatches = index.FindEntriesByPath("TEXT\\HELLO.TXT");
@@ -2052,6 +2088,23 @@ internal static class ArchiveLiteTestRunner
         Require(File.Exists(output), "archive export did not preserve the package and virtual path");
         Require(await File.ReadAllTextAsync(output).ConfigureAwait(false) == "Hello Crimson\nline 2", "archive export bytes are wrong");
         Require(result.ManifestPath is not null && File.Exists(result.ManifestPath), "JSON manifest was not written");
+
+        var flatRoot = Path.Combine(fixture.OutputRoot, "files-only");
+        var flatResult = await service.ExportAsync(
+            new ExportPlanRequest(
+                opened.SessionId,
+                ExportKind.RawEntries,
+                flatRoot,
+                [page.Entries.Single().EntryId],
+                null,
+                PathLayout: ExportPathLayout.FilesOnly),
+            null,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(flatResult.Exported == 1 && flatResult.Failed == 0, "file-only archive export failed");
+        Require(
+            File.Exists(Path.Combine(flatRoot, "hello.txt"))
+            && !File.Exists(Path.Combine(flatRoot, "base", "text", "hello.txt")),
+            "file-only archive export did not flatten the package and virtual path");
 
         var singleRoot = Path.Combine(fixture.OutputRoot, "single-selected");
         var singlePath = Path.Combine(singleRoot, "hello-original.txt");

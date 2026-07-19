@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
+#include <functional>
 #include <fstream>
 #include <limits>
 #include <map>
@@ -49,8 +50,22 @@ public:
     using std::runtime_error::runtime_error;
 };
 
-std::vector<Entry> scan_package_root(const fs::path& package_root);
-void write_index_atomic(const fs::path& index_path, const std::vector<Entry>& entries);
+class CancelledError : public std::runtime_error {
+public:
+    using std::runtime_error::runtime_error;
+};
+
+using ProgressSink = std::function<void(
+    std::uint64_t,
+    std::uint64_t,
+    const std::string&,
+    const std::string&)>;
+
+std::vector<Entry> scan_package_root(const fs::path& package_root, const ProgressSink& progress = {});
+void write_index_atomic(
+    const fs::path& index_path,
+    const std::vector<Entry>& entries,
+    const ProgressSink& progress = {});
 DecodeResult decode_entry(
     const std::string& virtual_path,
     const fs::path& pamt_path,

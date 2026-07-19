@@ -11,7 +11,7 @@ namespace Cdmw.ArchiveLite.Core;
 
 public sealed class NativeHkxPreviewService
 {
-    private const string ArtifactVersion = "hkx_native_preview_v1";
+    private const string ArtifactVersion = "hkx_native_preview_v2";
     private const int MaximumHelperOutputCharacters = 1_048_576;
     private static readonly TimeSpan DecodeTimeout = TimeSpan.FromSeconds(30);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _buildGates = new(StringComparer.Ordinal);
@@ -64,7 +64,7 @@ public sealed class NativeHkxPreviewService
             if (!string.Equals(document.Status, "ok", StringComparison.OrdinalIgnoreCase))
             {
                 throw new InvalidDataException(document.Warnings.FirstOrDefault()
-                    ?? "The native HKX parser did not recover previewable structure.");
+                    ?? "The native HKX parser did not recover previewable skeleton or collision geometry.");
             }
 
             var staging = Path.Combine(previewRoot, $".{key}.{Guid.NewGuid():N}.staging");
@@ -73,7 +73,7 @@ public sealed class NativeHkxPreviewService
             {
                 var summary = document.PreviewKind.Equals("skeleton", StringComparison.OrdinalIgnoreCase)
                     ? BuildSkeletonGeometry(document)
-                    : BuildStructureGeometry(document);
+                    : BuildCollisionGeometry(document);
                 await WriteNativePackageAsync(staging, summary, cancellationToken).ConfigureAwait(false);
                 if (publishProgress is not null)
                 {
@@ -87,7 +87,7 @@ public sealed class NativeHkxPreviewService
                     destination,
                     document.PreviewKind,
                     document.Bones.Count,
-                    document.Nodes.Count,
+                    document.Shapes.Count,
                     document.SdkVersion,
                     document.Warnings);
                 await WriteArtifactAsync(staging, artifact with { PackagePath = destination }, cancellationToken).ConfigureAwait(false);
@@ -165,15 +165,22 @@ public sealed class NativeHkxPreviewService
 
     private static void ValidateDocument(HkxPreviewDocument document)
     {
-        if (!string.Equals(document.Format, "cd_hkx_preview_v1", StringComparison.Ordinal))
+        if (!string.Equals(document.Format, "cd_hkx_preview_v2", StringComparison.Ordinal))
         {
             throw new InvalidDataException($"cd-hkx returned unsupported preview format '{document.Format}'.");
         }
-        if (document.Bones is null || document.Nodes is null || document.Edges is null || document.Warnings is null)
+        if (document.Bones is null || document.Shapes is null || document.Warnings is null)
         {
             throw new InvalidDataException("cd-hkx returned an incomplete preview report.");
         }
-        if (document.Bones.Count > 4096 || document.Nodes.Count > 128 || document.Edges.Count > 256)
+        if (document.BoneCount != document.Bones.Count || document.ShapeCount != document.Shapes.Count)
+        {
+            throw new InvalidDataException("cd-hkx returned inconsistent preview geometry counts.");
+        }
+        if (document.Bones.Count > 4096
+            || document.Shapes.Count > 96
+            || document.Shapes.Sum(static shape => shape.Vertices?.Count ?? 0) > 4096
+            || document.Shapes.Sum(static shape => shape.Triangles?.Count ?? 0) > 8192)
         {
             throw new InvalidDataException("cd-hkx preview report exceeds its bounded geometry limits.");
         }
@@ -185,7 +192,26 @@ public sealed class NativeHkxPreviewService
         {
             throw new InvalidDataException("cd-hkx returned duplicate skeleton indices.");
         }
+        foreach (var shape in document.Shapes)
+        {
+            if (string.IsNullOrWhiteSpace(shape.ShapeType)
+                || shape.Endpoints is null || shape.Vertices is null || shape.Triangles is null
+                || !IsVector(shape.Center, optional: true)
+                || !IsVector(shape.HalfExtents, optional: true)
+                || shape.Endpoints.Any(static vector => !IsVector(vector, optional: false))
+                || shape.Vertices.Any(static vector => !IsVector(vector, optional: false))
+                || shape.Triangles.Any(triangle => triangle is null || triangle.Length != 3 || triangle.Any(index => index < 0 || index >= shape.Vertices.Count))
+                || shape.Radius is { } radius && (!float.IsFinite(radius) || radius <= 0))
+            {
+                throw new InvalidDataException("cd-hkx returned invalid collision preview geometry.");
+            }
+        }
     }
+
+    private static bool IsVector(float[]? vector, bool optional) =>
+        vector is null
+            ? optional
+            : vector.Length == 3 && vector.All(float.IsFinite);
 
     private static GeometrySummary BuildSkeletonGeometry(HkxPreviewDocument document)
     {
@@ -211,49 +237,88 @@ public sealed class NativeHkxPreviewService
         return new GeometrySummary(
             "skeleton",
             document.Bones.Count,
-            document.Nodes.Count,
+            document.Shapes.Count,
             [
                 new GeometryBatch("Skeleton bones", [0.50f, 0.72f, 0.92f], links),
                 new GeometryBatch("Skeleton joints", [0.95f, 0.65f, 0.28f], joints),
             ]);
     }
 
-    private static GeometrySummary BuildStructureGeometry(HkxPreviewDocument document)
+    private static GeometrySummary BuildCollisionGeometry(HkxPreviewDocument document)
     {
-        if (document.Nodes.Count == 0)
+        if (document.Shapes.Count == 0)
         {
-            throw new InvalidDataException("HKX object graph contains no previewable nodes.");
+            throw new InvalidDataException("HKX contains no decoded collision shapes.");
         }
-        var positions = new Dictionary<int, Vector3>();
-        for (var index = 0; index < document.Nodes.Count; index++)
+        var boxes = new List<Triangle>();
+        var spheres = new List<Triangle>();
+        var capsules = new List<Triangle>();
+        var hulls = new List<Triangle>();
+        foreach (var shape in document.Shapes)
         {
-            var angle = index * 2.3999632f;
-            var radius = 0.25f + 0.065f * MathF.Sqrt(index + 1);
-            var y = ((index % 9) - 4) * 0.12f;
-            positions[document.Nodes[index].RecordIndex] = new Vector3(MathF.Cos(angle) * radius, y, MathF.Sin(angle) * radius);
-        }
-        var links = new List<Triangle>();
-        foreach (var edge in document.Edges)
-        {
-            if (positions.TryGetValue(edge.SourceRecordIndex, out var source)
-                && positions.TryGetValue(edge.TargetRecordIndex, out var target))
+            switch (shape.ShapeType.ToLowerInvariant())
             {
-                AddCylinder(links, source, target, 0.008f, 6);
+                case "box" when shape.Center is not null && shape.HalfExtents is not null:
+                    AddBox(boxes, ToVector(shape.Center), ToVector(shape.HalfExtents));
+                    break;
+                case "sphere" when shape.Center is not null && shape.Radius is { } sphereRadius:
+                    AddSphere(spheres, ToVector(shape.Center), sphereRadius, 16, 10);
+                    break;
+                case "capsule" when shape.Endpoints.Count >= 2 && shape.Radius is { } capsuleRadius:
+                    var start = ToVector(shape.Endpoints[0]);
+                    var end = ToVector(shape.Endpoints[1]);
+                    AddCylinder(capsules, start, end, capsuleRadius, 14);
+                    AddSphere(capsules, start, capsuleRadius, 14, 8);
+                    AddSphere(capsules, end, capsuleRadius, 14, 8);
+                    break;
+                case "convex":
+                    foreach (var triangle in shape.Triangles)
+                    {
+                        hulls.Add(new Triangle(
+                            ToVector(shape.Vertices[triangle[0]]),
+                            ToVector(shape.Vertices[triangle[1]]),
+                            ToVector(shape.Vertices[triangle[2]])));
+                    }
+                    break;
             }
         }
-        var nodes = new List<Triangle>();
-        foreach (var position in positions.Values)
+        var batches = NormalizeGeometryBatches([
+            new GeometryBatch("Collision boxes", [0.56f, 0.68f, 0.82f], boxes),
+            new GeometryBatch("Collision spheres", [0.48f, 0.72f, 0.86f], spheres),
+            new GeometryBatch("Collision capsules", [0.64f, 0.76f, 0.88f], capsules),
+            new GeometryBatch("Collision hulls", [0.58f, 0.70f, 0.84f], hulls),
+        ]);
+        if (batches.All(static batch => batch.Triangles.Count == 0))
         {
-            AddOctahedron(nodes, position, 0.035f);
+            throw new InvalidDataException("Decoded HKX collision shapes did not produce renderable geometry.");
         }
-        return new GeometrySummary(
-            "structure",
-            document.Bones.Count,
-            document.Nodes.Count,
-            [
-                new GeometryBatch("HKX relationships", [0.36f, 0.65f, 0.78f], links),
-                new GeometryBatch("HKX objects", [0.91f, 0.58f, 0.25f], nodes),
-            ]);
+        return new GeometrySummary("collision", document.Bones.Count, document.Shapes.Count, batches);
+    }
+
+    private static IReadOnlyList<GeometryBatch> NormalizeGeometryBatches(IReadOnlyList<GeometryBatch> batches)
+    {
+        var points = batches
+            .SelectMany(static batch => batch.Triangles)
+            .SelectMany(static triangle => new[] { triangle.A, triangle.B, triangle.C })
+            .ToArray();
+        if (points.Length == 0)
+        {
+            return batches;
+        }
+        var min = points.Aggregate(Vector3.Min);
+        var max = points.Aggregate(Vector3.Max);
+        var center = (min + max) * 0.5f;
+        var extent = Math.Max(Math.Max(max.X - min.X, max.Y - min.Y), max.Z - min.Z);
+        var scale = extent > 1e-6f ? 1.8f / extent : 1.0f;
+        Vector3 Transform(Vector3 point) => (point - center) * scale;
+        return batches
+            .Select(batch => batch with
+            {
+                Triangles = batch.Triangles
+                    .Select(triangle => new Triangle(Transform(triangle.A), Transform(triangle.B), Transform(triangle.C)))
+                    .ToArray(),
+            })
+            .ToArray();
     }
 
     private static IReadOnlyList<Vector3> Normalize(IEnumerable<Vector3> source)
@@ -269,6 +334,69 @@ public sealed class NativeHkxPreviewService
         var extent = Math.Max(Math.Max(max.X - min.X, max.Y - min.Y), max.Z - min.Z);
         var scale = extent > 1e-6f ? 1.8f / extent : 1.0f;
         return points.Select(point => (point - center) * scale).ToArray();
+    }
+
+    private static void AddBox(List<Triangle> output, Vector3 center, Vector3 halfExtents)
+    {
+        var min = center - halfExtents;
+        var max = center + halfExtents;
+        var vertices = new[]
+        {
+            new Vector3(min.X, min.Y, min.Z), new Vector3(max.X, min.Y, min.Z),
+            new Vector3(max.X, max.Y, min.Z), new Vector3(min.X, max.Y, min.Z),
+            new Vector3(min.X, min.Y, max.Z), new Vector3(max.X, min.Y, max.Z),
+            new Vector3(max.X, max.Y, max.Z), new Vector3(min.X, max.Y, max.Z),
+        };
+        foreach (var (a, b, c, d) in new[]
+        {
+            (0, 2, 1, 3), (4, 5, 6, 7), (0, 1, 5, 4),
+            (3, 7, 6, 2), (0, 4, 7, 3), (1, 2, 6, 5),
+        })
+        {
+            output.Add(new(vertices[a], vertices[b], vertices[c]));
+            output.Add(new(vertices[a], vertices[d], vertices[b]));
+        }
+    }
+
+    private static void AddSphere(List<Triangle> output, Vector3 center, float radius, int segments, int rings)
+    {
+        segments = Math.Max(6, segments);
+        rings = Math.Max(3, rings);
+        var ringPoints = new Vector3[rings - 1][];
+        for (var ring = 1; ring < rings; ring++)
+        {
+            var latitude = MathF.PI * 0.5f - MathF.PI * ring / rings;
+            var y = MathF.Sin(latitude);
+            var radial = MathF.Cos(latitude);
+            ringPoints[ring - 1] = Enumerable.Range(0, segments)
+                .Select(segment =>
+                {
+                    var longitude = MathF.Tau * segment / segments;
+                    return center + new Vector3(
+                        radial * MathF.Cos(longitude),
+                        y,
+                        radial * MathF.Sin(longitude)) * radius;
+                })
+                .ToArray();
+        }
+        var top = center + Vector3.UnitY * radius;
+        var bottom = center - Vector3.UnitY * radius;
+        for (var segment = 0; segment < segments; segment++)
+        {
+            var next = (segment + 1) % segments;
+            output.Add(new(top, ringPoints[0][segment], ringPoints[0][next]));
+            for (var ring = 0; ring < ringPoints.Length - 1; ring++)
+            {
+                var a = ringPoints[ring][segment];
+                var b = ringPoints[ring][next];
+                var c = ringPoints[ring + 1][next];
+                var d = ringPoints[ring + 1][segment];
+                output.Add(new(a, d, c));
+                output.Add(new(a, c, b));
+            }
+            var last = ringPoints[^1];
+            output.Add(new(bottom, last[next], last[segment]));
+        }
     }
 
     private static void AddCylinder(List<Triangle> output, Vector3 start, Vector3 end, float radius, int sides)
@@ -357,7 +485,7 @@ public sealed class NativeHkxPreviewService
                 backend = "d3d11",
                 source_kind = summary.Kind,
                 bone_count = summary.BoneCount,
-                node_count = summary.NodeCount,
+                shape_count = summary.ShapeCount,
                 batches = manifests,
             },
             cancellationToken).ConfigureAwait(false);
@@ -516,7 +644,7 @@ public sealed class NativeHkxPreviewService
 
     private static Vector3 ToVector(float[] values) => new(values[0], values[1], values[2]);
 
-    private sealed record GeometrySummary(string Kind, int BoneCount, int NodeCount, IReadOnlyList<GeometryBatch> Batches);
+    private sealed record GeometrySummary(string Kind, int BoneCount, int ShapeCount, IReadOnlyList<GeometryBatch> Batches);
     private sealed record GeometryBatch(string Name, float[] Color, IReadOnlyList<Triangle> Triangles);
     private sealed record Triangle(Vector3 A, Vector3 B, Vector3 C);
 }
@@ -525,7 +653,7 @@ public sealed record HkxPreviewArtifact(
     string PackagePath,
     string PreviewKind,
     int BoneCount,
-    int NodeCount,
+    int ShapeCount,
     string SdkVersion,
     IReadOnlyList<string> Warnings);
 
@@ -536,8 +664,8 @@ public sealed record HkxPreviewDocument(
     [property: JsonPropertyName("sdk_version")] string SdkVersion,
     [property: JsonPropertyName("bone_count")] int BoneCount,
     [property: JsonPropertyName("bones")] IReadOnlyList<HkxPreviewBone> Bones,
-    [property: JsonPropertyName("nodes")] IReadOnlyList<HkxPreviewNode> Nodes,
-    [property: JsonPropertyName("edges")] IReadOnlyList<HkxPreviewEdge> Edges,
+    [property: JsonPropertyName("shape_count")] int ShapeCount,
+    [property: JsonPropertyName("shapes")] IReadOnlyList<HkxPreviewShape> Shapes,
     [property: JsonPropertyName("warnings")] IReadOnlyList<string> Warnings);
 
 public sealed record HkxPreviewBone(
@@ -545,11 +673,12 @@ public sealed record HkxPreviewBone(
     [property: JsonPropertyName("parent_index")] int ParentIndex,
     [property: JsonPropertyName("position")] float[] Position);
 
-public sealed record HkxPreviewNode(
+public sealed record HkxPreviewShape(
     [property: JsonPropertyName("record_index")] int RecordIndex,
-    [property: JsonPropertyName("type_name")] string TypeName,
-    [property: JsonPropertyName("count")] int Count);
-
-public sealed record HkxPreviewEdge(
-    [property: JsonPropertyName("source_record_index")] int SourceRecordIndex,
-    [property: JsonPropertyName("target_record_index")] int TargetRecordIndex);
+    [property: JsonPropertyName("shape_type")] string ShapeType,
+    [property: JsonPropertyName("center")] float[]? Center,
+    [property: JsonPropertyName("half_extents")] float[]? HalfExtents,
+    [property: JsonPropertyName("radius")] float? Radius,
+    [property: JsonPropertyName("endpoints")] IReadOnlyList<float[]> Endpoints,
+    [property: JsonPropertyName("vertices")] IReadOnlyList<float[]> Vertices,
+    [property: JsonPropertyName("triangles")] IReadOnlyList<int[]> Triangles);

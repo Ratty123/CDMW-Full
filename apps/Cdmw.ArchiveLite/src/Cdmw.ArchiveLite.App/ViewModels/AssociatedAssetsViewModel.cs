@@ -48,7 +48,7 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         CloseDrawerCommand = new RelayCommand(() => IsExpanded = false);
         ShowInBrowserCommand = new AsyncCommand(ShowSelectedInBrowserAsync, CanShowInBrowser);
         ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, CanExportSelected);
-        ExportFamilyCommand = new AsyncCommand(ExportFamilyAsync, CanExportFamily);
+        ExportFamilyCommand = new AsyncCommand(ExportCurrentFamilyAsync, CanExportFamily);
         AssetsView = CollectionViewSource.GetDefaultView(Assets);
         AssetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(AssociatedAssetRow.Category)));
     }
@@ -163,6 +163,28 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         ExportFamilyCommand.RaiseCanExecuteChanged();
     }
 
+    public async Task ExportCurrentFamilyAsync(CancellationToken cancellationToken)
+    {
+        if (_source is null || string.IsNullOrWhiteSpace(_sessionId) || !_canInteract())
+        {
+            return;
+        }
+        if (!_hasLoaded)
+        {
+            await FindAsync(cancellationToken).ConfigureAwait(true);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
+        if (_source is null || !_hasLoaded)
+        {
+            return;
+        }
+        var entryIds = new[] { _source.EntryId }
+            .Concat(_assetDtos.Select(static asset => asset.Entry.EntryId))
+            .Distinct()
+            .ToArray();
+        await _exportEntries(entryIds, cancellationToken).ConfigureAwait(true);
+    }
+
     public void RequestShutdown()
     {
         Interlocked.Increment(ref _generation);
@@ -194,7 +216,6 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
 
     private bool CanExportFamily() =>
         _source is not null
-        && _hasLoaded
         && !IsBusy
         && !string.IsNullOrWhiteSpace(_sessionId)
         && _canInteract();
@@ -300,19 +321,6 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         {
             return;
         }
-        await _exportEntries(entryIds, cancellationToken).ConfigureAwait(true);
-    }
-
-    private async Task ExportFamilyAsync(CancellationToken cancellationToken)
-    {
-        if (_source is null || !_hasLoaded)
-        {
-            return;
-        }
-        var entryIds = new[] { _source.EntryId }
-            .Concat(_assetDtos.Select(static asset => asset.Entry.EntryId))
-            .Distinct()
-            .ToArray();
         await _exportEntries(entryIds, cancellationToken).ConfigureAwait(true);
     }
 

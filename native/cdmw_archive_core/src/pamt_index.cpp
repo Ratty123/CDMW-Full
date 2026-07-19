@@ -158,13 +158,14 @@ void publish_file(const fs::path& staging, const fs::path& destination) {
 
 }  // namespace
 
-std::vector<Entry> scan_package_root(const fs::path& package_root) {
+std::vector<Entry> scan_package_root(const fs::path& package_root, const ProgressSink& progress) {
     std::error_code error;
     if (!fs::exists(package_root, error) || error) throw std::runtime_error("archive root does not exist");
     std::vector<fs::path> pamt_files;
     if (fs::is_regular_file(package_root, error)) {
         if (lower_copy(package_root.extension().string()) != ".pamt") throw std::runtime_error("archive file is not a PAMT");
         pamt_files.push_back(package_root);
+        if (progress) progress(1, 0, "discover", package_root.filename().u8string());
     } else {
         fs::recursive_directory_iterator iterator(package_root, fs::directory_options::skip_permission_denied, error);
         const fs::recursive_directory_iterator end;
@@ -180,16 +181,23 @@ std::vector<Entry> scan_package_root(const fs::path& package_root) {
             }
             if (item.is_regular_file(error) && lower_copy(item.path().extension().string()) == ".pamt") {
                 pamt_files.push_back(item.path());
+                if (progress && (pamt_files.size() == 1 || (pamt_files.size() & 0x3F) == 0)) {
+                    progress(pamt_files.size(), 0, "discover", item.path().filename().u8string());
+                }
             }
         }
     }
     if (pamt_files.empty()) throw std::runtime_error("no PAMT files were found under the archive root");
     std::sort(pamt_files.begin(), pamt_files.end());
     std::vector<Entry> entries;
-    for (const auto& pamt : pamt_files) {
+    for (size_t pamt_index = 0; pamt_index < pamt_files.size(); ++pamt_index) {
+        const auto& pamt = pamt_files[pamt_index];
+        if (progress) progress(pamt_index, pamt_files.size(), "index_parse", pamt.filename().u8string());
         auto parsed = parse_pamt(pamt);
         entries.insert(entries.end(), std::make_move_iterator(parsed.begin()), std::make_move_iterator(parsed.end()));
     }
+    if (progress) progress(pamt_files.size(), pamt_files.size(), "index_parse", "complete");
+    if (progress) progress(0, entries.size(), "index_sort", "");
     std::stable_sort(entries.begin(), entries.end(), [](const Entry& left, const Entry& right) {
         const auto left_path = lower_copy(left.path);
         const auto right_path = lower_copy(right.path);
@@ -197,16 +205,24 @@ std::vector<Entry> scan_package_root(const fs::path& package_root) {
         if (left.pamt_path != right.pamt_path) return left.pamt_path < right.pamt_path;
         return left.archive_offset < right.archive_offset;
     });
+    if (progress) progress(entries.size(), entries.size(), "index_sort", "complete");
     return entries;
 }
 
-void write_index_atomic(const fs::path& index_path, const std::vector<Entry>& entries) {
+void write_index_atomic(
+    const fs::path& index_path,
+    const std::vector<Entry>& entries,
+    const ProgressSink& progress) {
     if (index_path.empty()) throw std::invalid_argument("index path must not be empty");
     if (!index_path.parent_path().empty()) fs::create_directories(index_path.parent_path());
     std::vector<std::uint8_t> records;
     std::vector<std::uint8_t> strings;
     records.reserve(entries.size() * kIndexRecordSize);
-    for (const auto& entry : entries) {
+    for (size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
+        const auto& entry = entries[entry_index];
+        if (progress && (entry_index == 0 || (entry_index & 0xFFF) == 0)) {
+            progress(entry_index, entries.size(), "index_write", entry.path);
+        }
         std::uint64_t path_offset = 0, pamt_offset = 0, paz_offset = 0;
         std::uint32_t path_length = 0, pamt_length = 0, paz_length = 0;
         append_string(strings, entry.path, path_offset, path_length);
@@ -226,6 +242,7 @@ void write_index_atomic(const fs::path& index_path, const std::vector<Entry>& en
         append_u32(records, 0);
         append_u64(records, 0);
     }
+    if (progress) progress(entries.size(), entries.size(), "index_write", "complete");
 
     std::vector<std::uint8_t> header;
     const std::array<char, 8> magic = {'C', 'D', 'M', 'W', 'A', 'L', 'I', '1'};
@@ -260,7 +277,9 @@ void write_index_atomic(const fs::path& index_path, const std::vector<Entry>& en
         output.flush();
         if (!output) throw std::runtime_error("could not flush archive index staging file");
         output.close();
+        if (progress) progress(0, 1, "index_publish", index_path.filename().u8string());
         publish_file(staging, index_path);
+        if (progress) progress(1, 1, "index_publish", "complete");
     } catch (...) {
         std::error_code remove_error;
         fs::remove(staging, remove_error);

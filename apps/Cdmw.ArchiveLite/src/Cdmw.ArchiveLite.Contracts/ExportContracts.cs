@@ -31,6 +31,12 @@ public enum ExportKind
     DependencySet,
 }
 
+public enum ExportPathLayout
+{
+    PreserveStructure,
+    FilesOnly,
+}
+
 public sealed record ExportPlanRequest(
     string? SessionId,
     ExportKind Kind,
@@ -41,7 +47,8 @@ public sealed record ExportPlanRequest(
     ExportCollisionPolicy CollisionPolicy = ExportCollisionPolicy.Skip,
     ExportManifestFormat ManifestFormat = ExportManifestFormat.Json,
     string? SingleOutputPath = null,
-    string? FolderPath = null);
+    string? FolderPath = null,
+    ExportPathLayout PathLayout = ExportPathLayout.PreserveStructure);
 
 public sealed record ExportItemResult(string SourcePath, string? OutputPath, string Status, string? Message);
 

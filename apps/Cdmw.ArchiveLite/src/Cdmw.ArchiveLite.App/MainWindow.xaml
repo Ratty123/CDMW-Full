@@ -34,7 +34,7 @@
 
     <Grid Background="{DynamicResource WindowBackgroundBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="58" />
+            <RowDefinition Height="50" />
             <RowDefinition Height="*" />
             <RowDefinition Height="40" />
         </Grid.RowDefinitions>
@@ -46,7 +46,6 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
-                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -56,54 +55,15 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Grid Grid.Column="0"
-                  Width="180"
-                  Margin="12,0,8,0"
-                  ClipToBounds="True"
-                  MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="38" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-                <Border Width="32"
-                        Height="32"
-                        CornerRadius="9"
-                        Background="{DynamicResource AccentBrush}">
-                    <TextBlock HorizontalAlignment="Center"
-                               VerticalAlignment="Center"
-                               FontSize="15"
-                               FontWeight="Bold"
-                               Foreground="{DynamicResource AccentTextBrush}"
-                               Text="CD" />
-                </Border>
-                <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock FontSize="{DynamicResource TitleFontSize}"
-                               FontWeight="SemiBold"
-                               TextTrimming="CharacterEllipsis"
-                               Text="{infra:Loc Key=ProductName}" />
-                    <TextBlock Margin="0,1,0,0"
-                               Style="{StaticResource CaptionTextStyle}"
-                               TextTrimming="CharacterEllipsis"
-                               Text="{infra:Loc Key=ProductSubtitle}" />
-                </StackPanel>
-            </Grid>
-            <Border Grid.Column="1"
-                    Width="38"
-                    Height="24"
-                    Margin="0,0,10,0"
-                    VerticalAlignment="Center"
-                    Background="{DynamicResource SelectionInactiveBrush}"
-                    CornerRadius="10"
-                    ToolTip="{infra:Loc Key=ReadOnlyPill}">
-                <TextBlock FontSize="{DynamicResource BadgeFontSize}"
-                           HorizontalAlignment="Center"
-                           VerticalAlignment="Center"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource AccentBrush}"
-                           Text="RO" />
-            </Border>
-            <StackPanel Grid.Column="2"
-                        Margin="0,0,12,0"
+            <TextBlock Grid.Column="0"
+                       Margin="16,0,18,0"
+                       VerticalAlignment="Center"
+                       FontSize="{DynamicResource TitleFontSize}"
+                       FontWeight="SemiBold"
+                       Text="{infra:Loc Key=ProductName}"
+                       MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown" />
+            <StackPanel Grid.Column="1"
+                        Margin="0,0,10,0"
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
@@ -124,10 +84,10 @@
                               Content="{infra:Loc Key=TextSearchTab}"
                               Click="OnWorkspaceNavigationClick" />
             </StackPanel>
-            <Border Grid.Column="3"
+            <Border Grid.Column="2"
                     Background="Transparent"
                     MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown" />
-            <ComboBox Grid.Column="4"
+            <ComboBox Grid.Column="3"
                       Width="126"
                       Margin="0,11,8,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
@@ -135,7 +95,7 @@
                       ItemsSource="{Binding Themes}"
                       SelectedItem="{Binding SelectedTheme}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <ComboBox Grid.Column="5"
+            <ComboBox Grid.Column="4"
                       Width="126"
                       Margin="0,11,8,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
@@ -143,7 +103,7 @@
                       ItemsSource="{Binding FontSizes}"
                       SelectedItem="{Binding SelectedFontSize}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <ComboBox Grid.Column="6"
+            <ComboBox Grid.Column="5"
                       Width="140"
                       Margin="0,11,8,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
@@ -151,7 +111,7 @@
                       ItemsSource="{Binding LayoutDensities}"
                       SelectedItem="{Binding SelectedLayoutDensity}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <ComboBox Grid.Column="7"
+            <ComboBox Grid.Column="6"
                       Width="110"
                       Margin="0,11,10,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
@@ -159,28 +119,28 @@
                       ItemsSource="{Binding Languages}"
                       SelectedItem="{Binding SelectedLanguage}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <Button Grid.Column="8"
+            <Button Grid.Column="7"
                     Style="{StaticResource WindowCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Minimize}"
                     Click="OnMinimizeClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <Border Width="11" Height="1" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
             </Button>
-            <Button Grid.Column="9"
+            <Button Grid.Column="8"
                     Style="{StaticResource WindowCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Maximize}"
                     Click="OnMaximizeRestoreClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <Border Width="10" Height="10" BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" BorderThickness="1" />
             </Button>
-            <Button Grid.Column="10"
+            <Button Grid.Column="9"
                     Style="{StaticResource CloseCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Close}"
                     Content="&#x00D7;"
                     FontSize="19"
                     Click="OnCloseClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <Border Grid.ColumnSpan="11"
+            <Border Grid.ColumnSpan="10"
                     VerticalAlignment="Bottom"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,0,1" />
@@ -188,7 +148,7 @@
 
         <TabControl x:Name="WorkspaceTabs"
                     Grid.Row="1"
-                    Margin="16,8,16,10"
+                    Margin="12,6,12,8"
                     SelectedIndex="0"
                     Style="{StaticResource WorkspaceContentTabControlStyle}"
                     SelectionChanged="OnWorkspaceTabSelectionChanged">
@@ -243,9 +203,7 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <StackPanel Grid.Column="0" Margin="0,0,12,0">
-                                    <TextBlock Style="{StaticResource CaptionTextStyle}"
-                                               Text="{infra:Loc Key=ReadOnlyCaption}" />
-                                    <TextBlock Margin="0,3,0,0"
+                                    <TextBlock
                                                Foreground="{DynamicResource TextMutedBrush}"
                                                FontSize="{DynamicResource CaptionFontSize}"
                                                TextTrimming="CharacterEllipsis"
@@ -314,7 +272,19 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
-                            <TextBlock FontWeight="SemiBold" Text="{Binding ArchiveBrowser.OperationProgressText}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock FontWeight="SemiBold"
+                                           TextTrimming="CharacterEllipsis"
+                                           Text="{Binding ArchiveBrowser.OperationProgressText}" />
+                                <TextBlock Grid.Column="1"
+                                           Margin="14,0,0,0"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           Text="{Binding ArchiveBrowser.OperationProgressDetail}" />
+                            </Grid>
                             <ProgressBar Grid.Row="1"
                                          Margin="0,8,0,0"
                                          Maximum="100"
@@ -346,13 +316,15 @@
                                             </TextBox.InputBindings>
                                         </TextBox>
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ExtensionFilter}" />
-                                        <ComboBox Margin="0,0,0,10"
+                                        <ComboBox x:Name="ArchiveExtensionFilterComboBox"
+                                                  Margin="0,0,0,10"
                                                   IsEditable="True"
                                                   IsTextSearchEnabled="True"
                                                   StaysOpenOnEdit="True"
                                                   MaxDropDownHeight="430"
                                                   TextSearch.TextPath="Extension"
                                                   ItemsSource="{Binding ArchiveBrowser.ExtensionChoicesView}"
+                                                  SelectionChanged="OnArchiveExtensionSelectionChanged"
                                                   Text="{Binding ArchiveBrowser.ExtensionFilter, UpdateSourceTrigger=PropertyChanged}">
                                             <ComboBox.GroupStyle>
                                                 <GroupStyle>
@@ -452,6 +424,9 @@
                                                 Content="{infra:Loc Key=ExportSelected}"
                                                 ToolTip="{infra:Loc Key=ExportSelectedHint}"
                                                 Command="{Binding ArchiveBrowser.ExportSelectedCommand}" />
+                                        <Button Margin="0,0,0,8"
+                                                Content="{infra:Loc Key=ExportAssociatedFamily}"
+                                                Command="{Binding ArchiveBrowser.ExportFamilyCommand}" />
                                         <Button Margin="0,0,0,8"
                                                 Content="{infra:Loc Key=ExportFolder}"
                                                 Command="{Binding ArchiveBrowser.ExportFolderCommand}" />

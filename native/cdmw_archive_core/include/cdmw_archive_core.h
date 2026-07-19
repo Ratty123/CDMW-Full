@@ -26,7 +26,15 @@ enum {
     CDMW_ARCHIVE_FORMAT_ERROR = 3,
     CDMW_ARCHIVE_UNSUPPORTED = 4,
     CDMW_ARCHIVE_BUFFER_TOO_SMALL = 5,
+    CDMW_ARCHIVE_CANCELLED = 6,
 };
+
+typedef int (*cdmw_archive_progress_callback)(
+    uint64_t completed,
+    uint64_t total,
+    const char* phase,
+    const char* current_item,
+    void* user_data);
 
 CDMW_ARCHIVE_API uint32_t cdmw_archive_core_abi_version(void);
 
@@ -39,6 +47,20 @@ CDMW_ARCHIVE_API int cdmw_archive_build_index_utf8(
     const char* package_root,
     const char* index_path,
     uint64_t* entry_count,
+    char* error_message,
+    size_t error_message_capacity);
+
+/*
+ * Progress-aware index build. The callback receives bounded totals whenever
+ * the current phase has one. Returning non-zero requests cooperative
+ * cancellation; callbacks are invoked on the calling thread.
+ */
+CDMW_ARCHIVE_API int cdmw_archive_build_index_with_progress_utf8(
+    const char* package_root,
+    const char* index_path,
+    uint64_t* entry_count,
+    cdmw_archive_progress_callback progress_callback,
+    void* progress_user_data,
     char* error_message,
     size_t error_message_capacity);
 

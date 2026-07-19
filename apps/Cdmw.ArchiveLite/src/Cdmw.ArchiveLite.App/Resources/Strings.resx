@@ -20,7 +20,7 @@
   <data name="MinimumSize" xml:space="preserve"><value>Minimum size</value></data>
   <data name="PreviewableOnly" xml:space="preserve"><value>Previewable only</value></data>
   <data name="ViewMode" xml:space="preserve"><value>View</value></data>
-  <data name="ReadOnlyTools" xml:space="preserve"><value>Read-only tools</value></data>
+  <data name="ReadOnlyTools" xml:space="preserve"><value>Export Options</value></data>
   <data name="ReadOnlyCaption" xml:space="preserve"><value>Archive sources are opened read-only and are never modified.</value></data>
   <data name="ReadOnlyBadge" xml:space="preserve"><value>READ-ONLY</value></data>
   <data name="ItemFinder" xml:space="preserve"><value>Item Finder</value></data>
@@ -177,6 +177,10 @@
   <data name="ProgressFingerprinting" xml:space="preserve"><value>Checking archive identity...</value></data>
   <data name="ProgressOpeningIndex" xml:space="preserve"><value>Opening cached index...</value></data>
   <data name="ProgressBuildingIndex" xml:space="preserve"><value>Building archive index...</value></data>
+  <data name="ProgressParsingPackages" xml:space="preserve"><value>Reading archive catalogues...</value></data>
+  <data name="ProgressSortingIndex" xml:space="preserve"><value>Sorting archive entries...</value></data>
+  <data name="ProgressWritingIndex" xml:space="preserve"><value>Writing archive index...</value></data>
+  <data name="ProgressPublishingIndex" xml:space="preserve"><value>Publishing archive index...</value></data>
   <data name="ProgressValidating" xml:space="preserve"><value>Checking package references...</value></data>
   <data name="ProgressLoadingEntries" xml:space="preserve"><value>Loading entries...</value></data>
   <data name="ProgressExporting" xml:space="preserve"><value>Exporting...</value></data>
@@ -251,6 +255,22 @@
   <data name="FindPrevious" xml:space="preserve"><value>Find previous (Shift+Enter)</value></data>
   <data name="FindNext" xml:space="preserve"><value>Find next (Enter)</value></data>
   <data name="ExportSelectedHint" xml:space="preserve"><value>Export selected files. A single PAC model can be saved as GLB, OBJ, FBX, or its original archive format.</value></data>
+  <data name="ExportFamilyHint" xml:space="preserve"><value>Find and export the selected file together with its associated assets.</value></data>
+  <data name="ExportChoiceTitle" xml:space="preserve"><value>Export selected</value></data>
+  <data name="ExportChoiceHeading" xml:space="preserve"><value>Choose what to export</value></data>
+  <data name="ExportChoiceIntro" xml:space="preserve"><value>Select the output layout for {0:N0} selected file(s).</value></data>
+  <data name="ExportChoiceFilesOnlyTitle" xml:space="preserve"><value>File only</value></data>
+  <data name="ExportChoiceFilesOnlyBody" xml:space="preserve"><value>Writes the selected file directly into the destination without recreating its archive folders.</value></data>
+  <data name="ExportChoiceStructureTitle" xml:space="preserve"><value>Complete folder structure</value></data>
+  <data name="ExportChoiceStructureBody" xml:space="preserve"><value>Preserves the package and virtual archive path exactly as shown in Archive Browser.</value></data>
+  <data name="ExportChoiceFamilyTitle" xml:space="preserve"><value>Associated asset family</value></data>
+  <data name="ExportChoiceFamilyBody" xml:space="preserve"><value>Finds and exports the focused file plus its related materials, textures, descriptors, and other resolved assets.</value></data>
+  <data name="ExportChoiceFormat" xml:space="preserve"><value>File format</value></data>
+  <data name="ExportChoiceOriginal" xml:space="preserve"><value>Original archive format</value></data>
+  <data name="ExportChoiceGlb" xml:space="preserve"><value>glTF Binary (.glb)</value></data>
+  <data name="ExportChoiceObj" xml:space="preserve"><value>Wavefront OBJ (.obj)</value></data>
+  <data name="ExportChoiceFbx" xml:space="preserve"><value>Autodesk FBX (.fbx)</value></data>
+  <data name="ExportChoiceAction" xml:space="preserve"><value>Continue</value></data>
   <data name="SelectedModelExportFilter" xml:space="preserve"><value>glTF Binary (*.glb)|*.glb|Wavefront OBJ (*.obj)|*.obj|Autodesk FBX (*.fbx)|*.fbx|Original archive file (*{0})|*{0}</value></data>
   <data name="Play" xml:space="preserve"><value>Play</value></data>
   <data name="Pause" xml:space="preserve"><value>Pause</value></data>

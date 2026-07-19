@@ -36,6 +36,10 @@ public sealed class ArchiveExportService(
         {
             throw new InvalidDataException("An archive folder path is only valid for a folder-tree export.");
         }
+        if (!Enum.IsDefined(request.PathLayout))
+        {
+            throw new InvalidDataException("The selected export path layout is not supported.");
+        }
         var destination = Path.GetFullPath(request.Destination);
         var items = new List<ExportItemResult>();
         var outputPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -138,7 +142,7 @@ public sealed class ArchiveExportService(
             {
                 await PublishProgressAsync(progress, new ProgressUpdate(completed, requested, "export", entry.Path)).ConfigureAwait(false);
             }
-            var relative = BuildArchiveOutputRelativePath(entry);
+            var relative = BuildArchiveOutputRelativePath(entry, request.PathLayout);
             var outputRelative = isMeshExport
                 ? ExportPathPolicy.NormalizeVirtualPath(Path.ChangeExtension(relative, NativeModelExportService.FileExtension(request.Kind)))
                 : relative;
@@ -248,8 +252,12 @@ public sealed class ArchiveExportService(
         return new ArchiveEntrySet(ids.LongLength, ids.Select(session.Index.ReadEntry));
     }
 
-    private static string BuildArchiveOutputRelativePath(ArchiveEntryDto entry)
+    private static string BuildArchiveOutputRelativePath(ArchiveEntryDto entry, ExportPathLayout pathLayout)
     {
+        if (pathLayout == ExportPathLayout.FilesOnly)
+        {
+            return ExportPathPolicy.NormalizeVirtualPath(entry.Name);
+        }
         var packageRoot = Path.GetFileName(Path.GetDirectoryName(entry.SourcePamt))?.Trim();
         if (string.IsNullOrWhiteSpace(packageRoot))
         {

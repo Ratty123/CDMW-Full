@@ -16,10 +16,61 @@ void clear_text(char* destination, size_t capacity) {
 
 int classify_exception(const std::exception& exception, char* error, size_t error_capacity) {
     copy_text(exception.what(), error, error_capacity);
+    if (dynamic_cast<const cdmw::archive::CancelledError*>(&exception) != nullptr) return CDMW_ARCHIVE_CANCELLED;
     if (dynamic_cast<const std::invalid_argument*>(&exception) != nullptr) return CDMW_ARCHIVE_INVALID_ARGUMENT;
     if (dynamic_cast<const cdmw::archive::UnsupportedError*>(&exception) != nullptr) return CDMW_ARCHIVE_UNSUPPORTED;
     if (dynamic_cast<const std::filesystem::filesystem_error*>(&exception) != nullptr) return CDMW_ARCHIVE_IO_ERROR;
     return CDMW_ARCHIVE_FORMAT_ERROR;
+}
+
+int build_index(
+    const char* package_root,
+    const char* index_path,
+    std::uint64_t* entry_count,
+    cdmw_archive_progress_callback progress_callback,
+    void* progress_user_data,
+    char* error_message,
+    size_t error_message_capacity) {
+    clear_text(error_message, error_message_capacity);
+    if (package_root == nullptr || *package_root == '\0' || index_path == nullptr || *index_path == '\0') {
+        copy_text("package_root and index_path must not be empty", error_message, error_message_capacity);
+        return CDMW_ARCHIVE_INVALID_ARGUMENT;
+    }
+    if (entry_count == nullptr) {
+        copy_text("entry_count must not be null", error_message, error_message_capacity);
+        return CDMW_ARCHIVE_INVALID_ARGUMENT;
+    }
+    *entry_count = 0;
+    try {
+        cdmw::archive::ProgressSink progress;
+        if (progress_callback != nullptr) {
+            progress = [progress_callback, progress_user_data](
+                           std::uint64_t completed,
+                           std::uint64_t total,
+                           const std::string& phase,
+                           const std::string& current_item) {
+                if (progress_callback(
+                        completed,
+                        total,
+                        phase.c_str(),
+                        current_item.c_str(),
+                        progress_user_data) != 0) {
+                    throw cdmw::archive::CancelledError("archive index build was cancelled");
+                }
+            };
+        }
+        const auto entries = cdmw::archive::scan_package_root(
+            cdmw::archive::utf8_path(package_root), progress);
+        cdmw::archive::write_index_atomic(
+            cdmw::archive::utf8_path(index_path), entries, progress);
+        *entry_count = entries.size();
+        return CDMW_ARCHIVE_OK;
+    } catch (const std::exception& exception) {
+        return classify_exception(exception, error_message, error_message_capacity);
+    } catch (...) {
+        copy_text("unknown native archive failure", error_message, error_message_capacity);
+        return CDMW_ARCHIVE_FORMAT_ERROR;
+    }
 }
 
 }  // namespace
@@ -36,23 +87,32 @@ int cdmw_archive_build_index_utf8(
     std::uint64_t* entry_count,
     char* error_message,
     size_t error_message_capacity) {
-    clear_text(error_message, error_message_capacity);
-    if (entry_count == nullptr) {
-        copy_text("entry_count must not be null", error_message, error_message_capacity);
-        return CDMW_ARCHIVE_INVALID_ARGUMENT;
-    }
-    *entry_count = 0;
-    try {
-        const auto entries = cdmw::archive::scan_package_root(cdmw::archive::utf8_path(package_root));
-        cdmw::archive::write_index_atomic(cdmw::archive::utf8_path(index_path), entries);
-        *entry_count = entries.size();
-        return CDMW_ARCHIVE_OK;
-    } catch (const std::exception& exception) {
-        return classify_exception(exception, error_message, error_message_capacity);
-    } catch (...) {
-        copy_text("unknown native archive failure", error_message, error_message_capacity);
-        return CDMW_ARCHIVE_FORMAT_ERROR;
-    }
+    return build_index(
+        package_root,
+        index_path,
+        entry_count,
+        nullptr,
+        nullptr,
+        error_message,
+        error_message_capacity);
+}
+
+int cdmw_archive_build_index_with_progress_utf8(
+    const char* package_root,
+    const char* index_path,
+    std::uint64_t* entry_count,
+    cdmw_archive_progress_callback progress_callback,
+    void* progress_user_data,
+    char* error_message,
+    size_t error_message_capacity) {
+    return build_index(
+        package_root,
+        index_path,
+        entry_count,
+        progress_callback,
+        progress_user_data,
+        error_message,
+        error_message_capacity);
 }
 
 int cdmw_archive_decode_entry_utf8(

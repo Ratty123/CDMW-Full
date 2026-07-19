@@ -508,3 +508,41 @@ fn builds_native_skeleton_preview_from_reference_pose() {
     assert!(json.contains("\"preview_kind\":\"skeleton\""));
     assert!(json.contains("\"bone_count\":2"));
 }
+
+#[test]
+fn builds_native_sphere_collision_preview_without_proxy_nodes() {
+    let preview = build_hkx_preview(&sphere_hkx());
+    assert_eq!(preview.status, "ok");
+    assert_eq!(preview.preview_kind, "collision");
+    assert_eq!(preview.shape_count, 1);
+    assert_eq!(preview.shapes[0].shape_type, "sphere");
+    assert_eq!(preview.shapes[0].center, Some([0.0, 0.0, 0.0]));
+    assert_eq!(preview.shapes[0].radius, Some(0.25));
+    let json = hkx_preview_to_json(&preview);
+    assert!(json.contains("\"format\":\"cd_hkx_preview_v2\""));
+    assert!(json.contains("\"shape_type\":\"sphere\""));
+    assert!(!json.contains("\"nodes\""));
+}
+
+#[test]
+fn builds_native_box_collision_preview_from_recovered_extents() {
+    let preview = build_hkx_preview(&box_hkx());
+    assert_eq!(preview.status, "ok");
+    assert_eq!(preview.preview_kind, "collision");
+    assert_eq!(preview.shape_count, 1);
+    assert_eq!(preview.shapes[0].shape_type, "box");
+    assert_eq!(preview.shapes[0].center, Some([-4.5, 1.0, 6.25]));
+    assert_eq!(preview.shapes[0].half_extents, Some([0.075, 0.048, 0.009]));
+}
+
+#[test]
+fn arbitrary_object_graph_is_not_rendered_as_proxy_bones() {
+    let preview = build_hkx_preview(&sample_hkx());
+    assert_eq!(preview.status, "unsupported");
+    assert_eq!(preview.preview_kind, "unsupported");
+    assert!(preview.bones.is_empty());
+    assert!(preview.shapes.is_empty());
+    let json = hkx_preview_to_json(&preview);
+    assert!(!json.contains("\"nodes\""));
+    assert!(!json.contains("\"edges\""));
+}

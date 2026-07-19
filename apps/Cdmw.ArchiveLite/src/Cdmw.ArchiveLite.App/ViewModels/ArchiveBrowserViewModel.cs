@@ -16,6 +16,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private readonly WorkerProcessHost _worker;
     private readonly Action<string> _setShellStatus;
     private readonly Func<string, bool, ArchiveCacheMode?> _chooseCacheMode;
+    private readonly Func<int, bool, bool, ExportSelection?> _chooseExportSelection;
     private CancellationTokenSource? _foregroundOperation;
     private CancellationTokenSource? _previewOperation;
     private CancellationTokenSource? _catalogueOperation;
@@ -53,6 +54,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private int _pageStart;
     private bool _isBusy;
     private string _operationProgressText = string.Empty;
+    private string _operationProgressDetail = string.Empty;
     private double _operationProgressPercent;
     private bool _isOperationProgressIndeterminate = true;
     private ExportCollisionPolicy _collisionPolicy = ExportCollisionPolicy.Skip;
@@ -80,12 +82,15 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         Func<string, bool, ArchiveCacheMode?> chooseCacheMode,
         ArchiveSortField initialSortField = ArchiveSortField.Path,
         bool initialSortDescending = false,
-        ArchiveBrowserSettings? initialSettings = null)
+        ArchiveBrowserSettings? initialSettings = null,
+        Func<int, bool, bool, ExportSelection?>? chooseExportSelection = null)
     {
         var browserSettings = initialSettings ?? new ArchiveBrowserSettings();
         _worker = worker;
         _setShellStatus = setShellStatus;
         _chooseCacheMode = chooseCacheMode ?? throw new ArgumentNullException(nameof(chooseCacheMode));
+        _chooseExportSelection = chooseExportSelection
+            ?? (static (_, _, _) => new ExportSelection(ExportSelectionMode.PreserveStructure, ExportKind.RawEntries));
         _archiveRoot = archiveRoot ?? string.Empty;
         _pathFilter = browserSettings.PathFilter ?? string.Empty;
         _extensionFilter = browserSettings.ExtensionFilter ?? string.Empty;
@@ -120,6 +125,9 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
         CancelCommand = new RelayCommand(CancelForeground, () => IsBusy);
         ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, () => CanExportSelectedEntries() && !IsBusy);
+        ExportFamilyCommand = new AsyncCommand(
+            token => AssociatedAssets.ExportCurrentFamilyAsync(token),
+            () => SelectedEntry is not null && !IsBusy && !IsEnvironmentBusy);
         ExportFolderCommand = new AsyncCommand(
             ExportFolderAsync,
             () => !string.IsNullOrWhiteSpace(SessionId) && !string.IsNullOrWhiteSpace(SelectedFolder?.Path) && !IsBusy);
@@ -152,6 +160,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public AsyncCommand NextPageCommand { get; }
     public RelayCommand CancelCommand { get; }
     public AsyncCommand ExportSelectedCommand { get; }
+    public AsyncCommand ExportFamilyCommand { get; }
     public AsyncCommand ExportFolderCommand { get; }
     public AsyncCommand ExportFilteredCommand { get; }
 
@@ -381,6 +390,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             .Distinct()
             .ToArray();
         ExportSelectedCommand.RaiseCanExecuteChanged();
+        ExportFamilyCommand.RaiseCanExecuteChanged();
     }
 
     public ArchiveFolderFilter? SelectedFolder
@@ -431,6 +441,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                 }
                 AssociatedAssets.SelectSource(SessionId, value);
                 ExportSelectedCommand.RaiseCanExecuteChanged();
+                ExportFamilyCommand.RaiseCanExecuteChanged();
                 if (!_suppressPreviewSelection)
                 {
                     _ = LoadPreviewLatestAsync(value);
@@ -578,6 +589,12 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         get => _operationProgressText;
         private set => SetProperty(ref _operationProgressText, value);
+    }
+
+    public string OperationProgressDetail
+    {
+        get => _operationProgressDetail;
+        private set => SetProperty(ref _operationProgressDetail, value);
     }
 
     public double OperationProgressPercent
@@ -1448,12 +1465,33 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             return;
         }
 
-        if (entryIds.Count == 1
+        var focusedEntry = entryIds.Count == 1
             && SelectedEntry is { } selected
             && selected.EntryId == entryIds[0]
-            && selected.Extension.ToLowerInvariant() is ".pac" or ".pam" or ".pamlod")
+                ? selected
+                : null;
+        var supportsModelExport = focusedEntry?.Extension.ToLowerInvariant() is ".pac" or ".pam" or ".pamlod";
+        var selection = _chooseExportSelection(entryIds.Count, supportsModelExport, focusedEntry is not null);
+        if (selection is null)
         {
-            await ExportSelectedModelAsync(selected, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+
+        if (selection.Mode == ExportSelectionMode.Family)
+        {
+            await AssociatedAssets.ExportCurrentFamilyAsync(cancellationToken).ConfigureAwait(true);
+            return;
+        }
+        if (selection.Mode == ExportSelectionMode.FilesOnly
+            && selection.Kind != ExportKind.RawEntries
+            && focusedEntry is not null)
+        {
+            await ExportSelectedModelAsync(focusedEntry, selection.Kind, cancellationToken).ConfigureAwait(true);
+            return;
+        }
+        if (selection.Mode == ExportSelectionMode.FilesOnly && focusedEntry is not null)
+        {
+            await ExportSelectedRawFileAsync(focusedEntry, cancellationToken).ConfigureAwait(true);
             return;
         }
 
@@ -1463,10 +1501,50 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             return;
         }
 
-        await RunExportAsync(entryIds, destination, ExportKind.RawEntries, cancellationToken).ConfigureAwait(true);
+        await RunExportAsync(
+            entryIds,
+            destination,
+            ExportKind.RawEntries,
+            cancellationToken,
+            pathLayout: selection.Mode == ExportSelectionMode.FilesOnly
+                ? ExportPathLayout.FilesOnly
+                : ExportPathLayout.PreserveStructure).ConfigureAwait(true);
     }
 
-    private async Task ExportSelectedModelAsync(ArchiveEntryDto selectedEntry, CancellationToken cancellationToken)
+    private async Task ExportSelectedRawFileAsync(ArchiveEntryDto selectedEntry, CancellationToken cancellationToken)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = LocalizationManager.Get("ExportSelected"),
+            FileName = selectedEntry.Name,
+            DefaultExt = selectedEntry.Extension,
+            AddExtension = true,
+            OverwritePrompt = true,
+            Filter = $"Original archive file (*{selectedEntry.Extension})|*{selectedEntry.Extension}",
+        };
+        if (dialog.ShowDialog() != true)
+        {
+            return;
+        }
+        var destination = Path.GetDirectoryName(dialog.FileName);
+        if (string.IsNullOrWhiteSpace(destination))
+        {
+            return;
+        }
+        await RunExportAsync(
+            [selectedEntry.EntryId],
+            destination,
+            ExportKind.RawEntries,
+            cancellationToken,
+            singleOutputPath: dialog.FileName,
+            manifestFormat: ExportManifestFormat.None,
+            pathLayout: ExportPathLayout.FilesOnly).ConfigureAwait(true);
+    }
+
+    private async Task ExportSelectedModelAsync(
+        ArchiveEntryDto selectedEntry,
+        ExportKind exportKind,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(SessionId))
         {
@@ -1474,35 +1552,27 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         }
 
         var baseName = Path.GetFileNameWithoutExtension(selectedEntry.Name);
+        var (extension, filter) = exportKind switch
+        {
+            ExportKind.Glb => (".glb", "glTF Binary (*.glb)|*.glb"),
+            ExportKind.Obj => (".obj", "Wavefront OBJ (*.obj)|*.obj"),
+            ExportKind.Fbx => (".fbx", "Autodesk FBX (*.fbx)|*.fbx"),
+            _ => throw new InvalidDataException("The selected model export format is not supported."),
+        };
         var dialog = new SaveFileDialog
         {
             Title = LocalizationManager.Get("ExportSelected"),
-            FileName = $"{baseName}.glb",
-            DefaultExt = ".glb",
+            FileName = $"{baseName}{extension}",
+            DefaultExt = extension,
             AddExtension = true,
             OverwritePrompt = true,
-            Filter = LocalizationManager.Format("SelectedModelExportFilter", selectedEntry.Extension),
-            FilterIndex = 1,
+            Filter = filter,
         };
         if (dialog.ShowDialog() != true)
         {
             return;
         }
-
-        var selection = dialog.FilterIndex switch
-        {
-            1 => (Kind: ExportKind.Glb, Extension: ".glb"),
-            2 => (Kind: ExportKind.Obj, Extension: ".obj"),
-            3 => (Kind: ExportKind.Fbx, Extension: ".fbx"),
-            4 => (Kind: ExportKind.RawEntries, Extension: selectedEntry.Extension),
-            _ => ((ExportKind Kind, string Extension)?)null,
-        };
-        if (selection is null)
-        {
-            _setShellStatus(LocalizationManager.Get("MeshExportUnsupportedExtension"));
-            return;
-        }
-        var outputPath = Path.ChangeExtension(dialog.FileName, selection.Value.Extension);
+        var outputPath = Path.ChangeExtension(dialog.FileName, extension);
         var destination = Path.GetDirectoryName(outputPath);
         if (string.IsNullOrWhiteSpace(destination))
         {
@@ -1512,10 +1582,11 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         await RunExportAsync(
             [selectedEntry.EntryId],
             destination,
-            selection.Value.Kind,
+            exportKind,
             cancellationToken,
             singleOutputPath: outputPath,
-            manifestFormat: ExportManifestFormat.None).ConfigureAwait(true);
+            manifestFormat: ExportManifestFormat.None,
+            pathLayout: ExportPathLayout.FilesOnly).ConfigureAwait(true);
     }
 
     private async Task ExportFilteredAsync(CancellationToken cancellationToken)
@@ -1572,7 +1643,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         CancellationToken cancellationToken,
         string? singleOutputPath = null,
         ExportManifestFormat? manifestFormat = null,
-        string? folderPath = null)
+        string? folderPath = null,
+        ExportPathLayout pathLayout = ExportPathLayout.PreserveStructure)
     {
         if (string.IsNullOrWhiteSpace(SessionId))
         {
@@ -1597,7 +1669,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                     CollisionPolicy: CollisionPolicy,
                     ManifestFormat: manifestFormat ?? ManifestFormat,
                     SingleOutputPath: singleOutputPath,
-                    FolderPath: folderPath),
+                    FolderPath: folderPath,
+                    PathLayout: pathLayout),
                 operation.Token,
                 progress).ConfigureAwait(true);
             if (generation == Volatile.Read(ref _foregroundGeneration))
@@ -1693,6 +1766,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             "fingerprint" => LocalizationManager.Get("ProgressFingerprinting"),
             "index_cache" => LocalizationManager.Get("ProgressOpeningIndex"),
             "index_build" => LocalizationManager.Get("ProgressBuildingIndex"),
+            "index_parse" => LocalizationManager.Get("ProgressParsingPackages"),
+            "index_sort" => LocalizationManager.Get("ProgressSortingIndex"),
+            "index_write" => LocalizationManager.Get("ProgressWritingIndex"),
+            "index_publish" => LocalizationManager.Get("ProgressPublishingIndex"),
             "validate" => LocalizationManager.Get("ProgressValidating"),
             "export" => LocalizationManager.Get("ProgressExporting"),
             "mesh_export_prepare" => LocalizationManager.Get("ProgressPreparingMesh"),
@@ -1702,16 +1779,20 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         };
         OperationProgressText = string.IsNullOrWhiteSpace(update.CurrentItem) || update.CurrentItem == "complete"
             ? phase
-            : $"{phase}  ·  {update.CurrentItem}";
+            : $"{phase}  -  {update.CurrentItem}";
         IsOperationProgressIndeterminate = update.Total <= 0;
         OperationProgressPercent = update.Total <= 0
             ? 0
             : Math.Clamp(update.Completed * 100.0 / update.Total, 0, 100);
+        OperationProgressDetail = update.Total <= 0
+            ? string.Empty
+            : $"{Math.Min(update.Completed, update.Total):N0} / {update.Total:N0}  ({OperationProgressPercent:N0}%)";
     }
 
     private void SetOperationProgress(string text)
     {
         OperationProgressText = text;
+        OperationProgressDetail = string.Empty;
         OperationProgressPercent = 0;
         IsOperationProgressIndeterminate = true;
     }
@@ -1758,6 +1839,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         NextPageCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
         ExportSelectedCommand.RaiseCanExecuteChanged();
+        ExportFamilyCommand.RaiseCanExecuteChanged();
         ExportFolderCommand.RaiseCanExecuteChanged();
         ExportFilteredCommand.RaiseCanExecuteChanged();
         AssociatedAssets.RaiseCommandStates();

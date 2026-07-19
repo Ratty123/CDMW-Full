@@ -7,17 +7,16 @@ pub struct HkxPreviewBone {
     pub position: [f32; 3],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HkxPreviewNode {
+#[derive(Debug, Clone, PartialEq)]
+pub struct HkxPreviewShape {
     pub record_index: usize,
-    pub type_name: String,
-    pub count: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct HkxPreviewEdge {
-    pub source_record_index: usize,
-    pub target_record_index: usize,
+    pub shape_type: String,
+    pub center: Option<[f32; 3]>,
+    pub half_extents: Option<[f32; 3]>,
+    pub radius: Option<f32>,
+    pub endpoints: Vec<[f32; 3]>,
+    pub vertices: Vec<[f32; 3]>,
+    pub triangles: Vec<[u32; 3]>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -27,8 +26,8 @@ pub struct HkxPreview {
     pub sdk_version: String,
     pub bone_count: usize,
     pub bones: Vec<HkxPreviewBone>,
-    pub nodes: Vec<HkxPreviewNode>,
-    pub edges: Vec<HkxPreviewEdge>,
+    pub shape_count: usize,
+    pub shapes: Vec<HkxPreviewShape>,
     pub warnings: Vec<String>,
 }
 
@@ -42,17 +41,29 @@ pub fn build_hkx_preview(data: &[u8]) -> HkxPreview {
     let summary = parse_summary(data);
     let mut warnings = summary.warnings.clone();
     let bones = extract_skeleton_bones(data, &summary, &mut warnings);
-    let (nodes, edges) = if bones.is_empty() {
-        extract_structure_graph(&summary)
+    let shapes = if bones.is_empty() {
+        extract_collision_shapes(data, &summary, &mut warnings)
     } else {
-        (Vec::new(), Vec::new())
+        Vec::new()
     };
     let preview_kind = if !bones.is_empty() {
         "skeleton"
-    } else if !nodes.is_empty() {
-        "structure"
+    } else if !shapes.is_empty() {
+        "collision"
     } else {
-        warnings.push("No renderable skeleton or native object graph was recovered.".to_string());
+        if summary
+            .item_records
+            .iter()
+            .any(|record| record.type_name == "hknpMeshShape")
+        {
+            warnings.push(
+                "Packed hknpMeshShape geometry was recognized but is not decoded safely enough to render. No proxy object graph is shown."
+                    .to_string(),
+            );
+        } else {
+            warnings
+                .push("No renderable skeleton or collision geometry was recovered.".to_string());
+        }
         "unsupported"
     };
     HkxPreview {
@@ -66,8 +77,8 @@ pub fn build_hkx_preview(data: &[u8]) -> HkxPreview {
         sdk_version: summary.sdk_version,
         bone_count: bones.len(),
         bones,
-        nodes,
-        edges,
+        shape_count: shapes.len(),
+        shapes,
         warnings,
     }
 }
@@ -78,13 +89,22 @@ fn extract_skeleton_bones(
     warnings: &mut Vec<String>,
 ) -> Vec<HkxPreviewBone> {
     let owner_arrays = &summary.native_model_graph.owner_arrays;
-    let pose_owner = owner_arrays
+    let skeleton_record = summary
+        .item_records
         .iter()
-        .find(|owner| owner.owner_type_name == "hkSkeleton" && owner.field_name == "referencePose");
-    let parent_owner = owner_arrays
-        .iter()
-        .find(|owner| owner.owner_type_name == "hkSkeleton" && owner.field_name == "parentIndices");
-    let pose_record = pose_owner
+        .find(|record| matches!(record.type_name.as_str(), "hkSkeleton" | "hkaSkeleton"));
+    if skeleton_record.is_none() {
+        return Vec::new();
+    }
+    let pose_owner = owner_arrays.iter().find(|owner| {
+        matches!(owner.owner_type_name.as_str(), "hkSkeleton" | "hkaSkeleton")
+            && owner.field_name == "referencePose"
+    });
+    let parent_owner = owner_arrays.iter().find(|owner| {
+        matches!(owner.owner_type_name.as_str(), "hkSkeleton" | "hkaSkeleton")
+            && owner.field_name == "parentIndices"
+    });
+    let Some(pose_record) = pose_owner
         .and_then(|owner| item_record_by_index(&summary.item_records, owner.target_record_index))
         .filter(|record| record.type_name == "hkQsTransform")
         .or_else(|| {
@@ -92,8 +112,8 @@ fn extract_skeleton_bones(
                 .item_records
                 .iter()
                 .find(|record| record.type_name == "hkQsTransform")
-        });
-    let Some(pose_record) = pose_record else {
+        })
+    else {
         return Vec::new();
     };
     let requested_count = pose_owner
@@ -135,9 +155,8 @@ fn extract_skeleton_bones(
             }
         }
     } else {
-        warnings.push(
-            "Skeleton parent indices were not recovered; bones are shown as roots.".to_string(),
-        );
+        warnings.push("Skeleton parent indices were not recovered.".to_string());
+        return Vec::new();
     }
 
     let mut local = Vec::with_capacity(requested_count);
@@ -224,52 +243,339 @@ fn build_world_bones(local: &[LocalTransform], parents: &[i32]) -> Vec<HkxPrevie
         .collect()
 }
 
-fn extract_structure_graph(summary: &HkxSummary) -> (Vec<HkxPreviewNode>, Vec<HkxPreviewEdge>) {
-    let mut nodes = summary
-        .native_model_graph
-        .nodes
+const MAXIMUM_PREVIEW_SHAPES: usize = 96;
+const MAXIMUM_PREVIEW_VERTICES: usize = 4096;
+const MAXIMUM_PREVIEW_TRIANGLES: usize = 8192;
+
+fn extract_collision_shapes(
+    data: &[u8],
+    summary: &HkxSummary,
+    warnings: &mut Vec<String>,
+) -> Vec<HkxPreviewShape> {
+    let spans = item_record_spans(data, &summary.tag_items, &summary.item_records);
+    let records = &summary.item_records;
+    let mut shapes = Vec::new();
+    let mut vertex_total = 0usize;
+    let mut triangle_total = 0usize;
+
+    for (position, record) in records.iter().enumerate() {
+        if shapes.len() >= MAXIMUM_PREVIEW_SHAPES {
+            break;
+        }
+        match record.type_name.as_str() {
+            "hknpBoxShape" => {
+                let Some(payload) = record_payload_from_spans(data, &spans, record.index) else {
+                    continue;
+                };
+                if payload.len() < 0xC0 {
+                    continue;
+                }
+                let center = [
+                    read_f32(payload, 0xB0),
+                    read_f32(payload, 0xB4),
+                    read_f32(payload, 0xB8),
+                ];
+                let half_extents = [
+                    read_f32(payload, 0x8C).abs(),
+                    read_f32(payload, 0x9C).abs(),
+                    read_f32(payload, 0xAC).abs(),
+                ];
+                if finite_vector(center)
+                    && finite_vector(half_extents)
+                    && half_extents.iter().any(|value| *value > 1e-6)
+                    && half_extents.iter().all(|value| *value < 1_000_000.0)
+                {
+                    append_shape(
+                        &mut shapes,
+                        &mut vertex_total,
+                        &mut triangle_total,
+                        HkxPreviewShape {
+                            record_index: record.index,
+                            shape_type: "box".to_string(),
+                            center: Some(center),
+                            half_extents: Some(half_extents),
+                            radius: None,
+                            endpoints: Vec::new(),
+                            vertices: Vec::new(),
+                            triangles: Vec::new(),
+                        },
+                        warnings,
+                    );
+                }
+            }
+            "hknpSphereShape" => {
+                let Some(payload) = record_payload_from_spans(data, &spans, record.index) else {
+                    continue;
+                };
+                let Some(radius) = positive_radius(payload, 0x68) else {
+                    continue;
+                };
+                let center = associated_float3(data, &spans, records, position, 1)
+                    .and_then(|points| points.first().copied())
+                    .unwrap_or([0.0; 3]);
+                append_shape(
+                    &mut shapes,
+                    &mut vertex_total,
+                    &mut triangle_total,
+                    HkxPreviewShape {
+                        record_index: record.index,
+                        shape_type: "sphere".to_string(),
+                        center: Some(center),
+                        half_extents: None,
+                        radius: Some(radius),
+                        endpoints: Vec::new(),
+                        vertices: Vec::new(),
+                        triangles: Vec::new(),
+                    },
+                    warnings,
+                );
+            }
+            "hknpCapsuleShape" => {
+                let Some(payload) = record_payload_from_spans(data, &spans, record.index) else {
+                    continue;
+                };
+                let Some(radius) = positive_radius(payload, 0x68) else {
+                    continue;
+                };
+                let Some(endpoints) = associated_float3(data, &spans, records, position, 2) else {
+                    continue;
+                };
+                if endpoints.len() < 2 {
+                    continue;
+                }
+                append_shape(
+                    &mut shapes,
+                    &mut vertex_total,
+                    &mut triangle_total,
+                    HkxPreviewShape {
+                        record_index: record.index,
+                        shape_type: "capsule".to_string(),
+                        center: None,
+                        half_extents: None,
+                        radius: Some(radius),
+                        endpoints: endpoints.into_iter().take(2).collect(),
+                        vertices: Vec::new(),
+                        triangles: Vec::new(),
+                    },
+                    warnings,
+                );
+            }
+            _ => {}
+        }
+    }
+
+    let convex_records = records
         .iter()
-        .filter_map(|node| {
-            let record_index = node.record_index?;
-            Some(HkxPreviewNode {
-                record_index,
-                type_name: node.type_name.clone().unwrap_or_else(|| node.label.clone()),
-                count: node.count.unwrap_or(0),
-            })
-        })
-        .take(128)
+        .filter(|record| record.type_name == "hknpConvexShape")
         .collect::<Vec<_>>();
-    nodes.sort_by_key(|node| record_order(summary, node.record_index));
-    let allowed = nodes
+    let property_positions = records
         .iter()
-        .map(|node| node.record_index)
-        .collect::<Vec<_>>();
-    let mut edges = summary
-        .native_model_graph
-        .edges
-        .iter()
-        .filter_map(|edge| Some((edge.source_record_index?, edge.target_record_index?)))
-        .filter(|(source, target)| {
-            allowed.contains(source) && allowed.contains(target) && source != target
+        .enumerate()
+        .filter_map(|(index, record)| {
+            (record.type_name == "hknpShapeProperties::Entry").then_some(index)
         })
-        .map(|(source, target)| HkxPreviewEdge {
-            source_record_index: source,
-            target_record_index: target,
-        })
-        .take(256)
         .collect::<Vec<_>>();
-    edges.sort_by_key(|edge| (edge.source_record_index, edge.target_record_index));
-    edges.dedup_by_key(|edge| (edge.source_record_index, edge.target_record_index));
-    (nodes, edges)
+    if !property_positions.is_empty() {
+        for (group_index, start) in property_positions.iter().copied().enumerate() {
+            let end = property_positions
+                .get(group_index + 1)
+                .copied()
+                .unwrap_or(records.len());
+            let record_index = convex_records
+                .get(group_index)
+                .map(|record| record.index)
+                .unwrap_or(records[start].index);
+            if let Some(shape) = convex_shape(data, &spans, &records[start..end], record_index) {
+                append_shape(
+                    &mut shapes,
+                    &mut vertex_total,
+                    &mut triangle_total,
+                    shape,
+                    warnings,
+                );
+            }
+        }
+    } else if let Some(record) = convex_records.first() {
+        if let Some(shape) = convex_shape(data, &spans, records, record.index) {
+            append_shape(
+                &mut shapes,
+                &mut vertex_total,
+                &mut triangle_total,
+                shape,
+                warnings,
+            );
+        }
+    }
+    shapes
 }
 
-fn record_order(summary: &HkxSummary, record_index: usize) -> usize {
-    summary
-        .native_model_graph
-        .graph_order
+fn append_shape(
+    shapes: &mut Vec<HkxPreviewShape>,
+    vertex_total: &mut usize,
+    triangle_total: &mut usize,
+    shape: HkxPreviewShape,
+    warnings: &mut Vec<String>,
+) {
+    if shapes.len() >= MAXIMUM_PREVIEW_SHAPES
+        || *vertex_total + shape.vertices.len() > MAXIMUM_PREVIEW_VERTICES
+        || *triangle_total + shape.triangles.len() > MAXIMUM_PREVIEW_TRIANGLES
+    {
+        if !warnings
+            .iter()
+            .any(|warning| warning.contains("preview geometry limit"))
+        {
+            warnings.push(
+                "HKX collision preview geometry limit reached; remaining shapes were omitted."
+                    .to_string(),
+            );
+        }
+        return;
+    }
+    *vertex_total += shape.vertices.len();
+    *triangle_total += shape.triangles.len();
+    shapes.push(shape);
+}
+
+fn convex_shape(
+    data: &[u8],
+    spans: &[(usize, usize, usize)],
+    records: &[ItemRecord],
+    record_index: usize,
+) -> Option<HkxPreviewShape> {
+    let vertex_record = records.iter().find(|record| {
+        record.type_name == "hkFloat3" && record.count >= 3 && record.count <= 4096
+    })?;
+    let face_record = records
         .iter()
-        .position(|candidate| *candidate == record_index)
-        .unwrap_or(usize::MAX)
+        .find(|record| record.type_name == "hknpConvexHull::Face" && record.count > 0)?;
+    let index_record = records
+        .iter()
+        .find(|record| record.type_name == "hkUint8" && record.count > 0)?;
+    let vertices = read_float3_record(data, spans, vertex_record)?;
+    let face_payload = record_payload_from_spans(data, spans, face_record.index)?;
+    let index_payload = record_payload_from_spans(data, spans, index_record.index)?;
+    let mut triangles = Vec::new();
+    for face_index in 0..(face_record.count as usize).min(4096) {
+        let offset = face_index * 4;
+        if offset + 4 > face_payload.len() {
+            break;
+        }
+        let index_start =
+            u16::from_le_bytes([face_payload[offset], face_payload[offset + 1]]) as usize;
+        let vertex_count = face_payload[offset + 2] as usize;
+        if !(3..=64).contains(&vertex_count) || index_start + vertex_count > index_payload.len() {
+            continue;
+        }
+        let first = index_payload[index_start] as u32;
+        for corner in 1..vertex_count - 1 {
+            let triangle = [
+                first,
+                index_payload[index_start + corner] as u32,
+                index_payload[index_start + corner + 1] as u32,
+            ];
+            if triangle
+                .iter()
+                .all(|index| (*index as usize) < vertices.len())
+            {
+                triangles.push(triangle);
+                if triangles.len() >= MAXIMUM_PREVIEW_TRIANGLES {
+                    break;
+                }
+            }
+        }
+    }
+    if triangles.is_empty() {
+        return None;
+    }
+    Some(HkxPreviewShape {
+        record_index,
+        shape_type: "convex".to_string(),
+        center: None,
+        half_extents: None,
+        radius: None,
+        endpoints: Vec::new(),
+        vertices,
+        triangles,
+    })
+}
+
+fn associated_float3(
+    data: &[u8],
+    spans: &[(usize, usize, usize)],
+    records: &[ItemRecord],
+    shape_position: usize,
+    count: u32,
+) -> Option<Vec<[f32; 3]>> {
+    let end = records
+        .iter()
+        .enumerate()
+        .skip(shape_position + 1)
+        .find_map(|(index, record)| is_shape_record(&record.type_name).then_some(index))
+        .unwrap_or(records.len());
+    let record = records[shape_position + 1..end]
+        .iter()
+        .find(|record| record.type_name == "hkFloat3" && record.count == count)?;
+    read_float3_record(data, spans, record)
+}
+
+fn is_shape_record(type_name: &str) -> bool {
+    matches!(
+        type_name,
+        "hknpBoxShape"
+            | "hknpConvexShape"
+            | "hknpSphereShape"
+            | "hknpCapsuleShape"
+            | "hknpMeshShape"
+    )
+}
+
+fn read_float3_record(
+    data: &[u8],
+    spans: &[(usize, usize, usize)],
+    record: &ItemRecord,
+) -> Option<Vec<[f32; 3]>> {
+    let payload = record_payload_from_spans(data, spans, record.index)?;
+    let count = (record.count as usize).min(MAXIMUM_PREVIEW_VERTICES);
+    if count == 0 || payload.len() < count * 12 {
+        return None;
+    }
+    let points = (0..count)
+        .map(|index| {
+            let offset = index * 12;
+            [
+                read_f32(payload, offset),
+                read_f32(payload, offset + 4),
+                read_f32(payload, offset + 8),
+            ]
+        })
+        .collect::<Vec<_>>();
+    points
+        .iter()
+        .all(|point| finite_vector(*point))
+        .then_some(points)
+}
+
+fn record_payload_from_spans<'a>(
+    data: &'a [u8],
+    spans: &[(usize, usize, usize)],
+    record_index: usize,
+) -> Option<&'a [u8]> {
+    let (_, start, end) = spans
+        .iter()
+        .copied()
+        .find(|(index, _, _)| *index == record_index)?;
+    data.get(start..end)
+}
+
+fn positive_radius(payload: &[u8], offset: usize) -> Option<f32> {
+    let value = read_f32(payload, offset);
+    (value.is_finite() && value > 0.0 && value < 1_000_000.0).then_some(value)
+}
+
+fn finite_vector(value: [f32; 3]) -> bool {
+    value
+        .iter()
+        .all(|component| component.is_finite() && component.abs() < 1_000_000_000.0)
 }
 
 fn record_payload<'a>(
@@ -343,7 +649,7 @@ pub fn hkx_preview_to_json(preview: &HkxPreview) -> String {
     let mut out = String::new();
     let _ = write!(
         out,
-        "{{\"format\":\"cd_hkx_preview_v1\",\"status\":\"{}\",\"preview_kind\":\"{}\",\"sdk_version\":\"{}\",\"bone_count\":{},\"bones\":[",
+        "{{\"format\":\"cd_hkx_preview_v2\",\"status\":\"{}\",\"preview_kind\":\"{}\",\"sdk_version\":\"{}\",\"bone_count\":{},\"bones\":[",
         json_escape(&preview.status),
         json_escape(&preview.preview_kind),
         json_escape(&preview.sdk_version),
@@ -359,29 +665,50 @@ pub fn hkx_preview_to_json(preview: &HkxPreview) -> String {
             bone.index, bone.parent_index, bone.position[0], bone.position[1], bone.position[2]
         );
     }
-    out.push_str("],\"nodes\":[");
-    for (index, node) in preview.nodes.iter().enumerate() {
+    let _ = write!(
+        out,
+        "],\"shape_count\":{},\"shapes\":[",
+        preview.shape_count
+    );
+    for (index, shape) in preview.shapes.iter().enumerate() {
         if index > 0 {
             out.push(',');
         }
         let _ = write!(
             out,
-            "{{\"record_index\":{},\"type_name\":\"{}\",\"count\":{}}}",
-            node.record_index,
-            json_escape(&node.type_name),
-            node.count
+            "{{\"record_index\":{},\"shape_type\":\"{}\",\"center\":",
+            shape.record_index,
+            json_escape(&shape.shape_type),
         );
-    }
-    out.push_str("],\"edges\":[");
-    for (index, edge) in preview.edges.iter().enumerate() {
-        if index > 0 {
-            out.push(',');
+        if let Some(center) = shape.center {
+            write_json_vector3(&mut out, center);
+        } else {
+            out.push_str("null");
         }
-        let _ = write!(
-            out,
-            "{{\"source_record_index\":{},\"target_record_index\":{}}}",
-            edge.source_record_index, edge.target_record_index
-        );
+        out.push_str(",\"half_extents\":");
+        if let Some(half_extents) = shape.half_extents {
+            write_json_vector3(&mut out, half_extents);
+        } else {
+            out.push_str("null");
+        }
+        out.push_str(",\"radius\":");
+        if let Some(radius) = shape.radius {
+            let _ = write!(out, "{radius}");
+        } else {
+            out.push_str("null");
+        }
+        out.push_str(",\"endpoints\":");
+        write_json_vector3_array(&mut out, &shape.endpoints);
+        out.push_str(",\"vertices\":");
+        write_json_vector3_array(&mut out, &shape.vertices);
+        out.push_str(",\"triangles\":[");
+        for (triangle_index, triangle) in shape.triangles.iter().enumerate() {
+            if triangle_index > 0 {
+                out.push(',');
+            }
+            let _ = write!(out, "[{},{},{}]", triangle[0], triangle[1], triangle[2]);
+        }
+        out.push_str("]}");
     }
     out.push_str("],\"warnings\":[");
     for (index, warning) in preview.warnings.iter().enumerate() {
@@ -392,4 +719,19 @@ pub fn hkx_preview_to_json(preview: &HkxPreview) -> String {
     }
     out.push_str("]}");
     out
+}
+
+fn write_json_vector3(out: &mut String, value: [f32; 3]) {
+    let _ = write!(out, "[{},{},{}]", value[0], value[1], value[2]);
+}
+
+fn write_json_vector3_array(out: &mut String, values: &[[f32; 3]]) {
+    out.push('[');
+    for (index, value) in values.iter().copied().enumerate() {
+        if index > 0 {
+            out.push(',');
+        }
+        write_json_vector3(out, value);
+    }
+    out.push(']');
 }

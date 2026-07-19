@@ -15,6 +15,7 @@ This crate is the first Rust layer for the HKX converter. It currently covers th
 - Read-only `INDX`/`TPAD` fixup observations with nested `ITEM` descriptor decoding, nested `PTCH` marker/payload classification, null/data/type/string match counts, and reference category totals
 - Native physics tuning groups for known fixed-size hknp body, constraint, shared-motion, and motor float slots
 - Native model graph output with ITEM nodes, PTCH-backed object/null references, inferred offset references, owner-array rows, root/container hints, and stable graph ordering
+- Bounded `preview-json` output for explicitly recognized `hkSkeleton`/`hkaSkeleton` reference poses and supported hknp box, sphere, capsule, and convex-hull collision geometry; arbitrary object graphs are never converted into proxy bones
 - JSON output for Python/PySide integration
 
 ## Ownership
@@ -37,7 +38,14 @@ Run:
 
 ```powershell
 target\release\cd-hkx.exe summary-json C:\path\to\file.hkx
+target\release\cd-hkx.exe preview-json C:\path\to\file.hkx
 ```
+
+`preview-json` emits the versioned `cd_hkx_preview_v2` schema. It returns
+`skeleton`, `collision`, or `unsupported`; packed mesh shapes and unknown layouts
+fail closed with a warning instead of producing a misleading cloud of graph
+nodes. The preview schema is read-only and bounded to 4,096 vertices, 8,192
+triangles, and 96 collision shapes.
 
 Native no-edit rebuild:
 

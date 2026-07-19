@@ -1,3 +1,4 @@
+using System.Runtime.ExceptionServices;
 using System.Runtime.InteropServices;
 using System.Text;
 using Cdmw.ArchiveLite.Contracts;
@@ -13,13 +14,55 @@ public sealed class NativeArchiveCore
 
     public int AbiVersion => checked((int)NativeMethods.GetAbiVersion());
 
-    public long BuildIndex(string packageRoot, string indexPath)
+    public long BuildIndex(
+        string packageRoot,
+        string indexPath,
+        Action<ProgressUpdate>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(packageRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(indexPath);
         EnsureCompatible();
         var error = new StringBuilder(DiagnosticCapacity);
-        var status = NativeMethods.BuildIndex(packageRoot, indexPath, out var entryCount, error, error.Capacity);
+        Exception? callbackException = null;
+        NativeMethods.BuildIndexProgressCallback callback = (completed, total, phasePointer, itemPointer, _) =>
+        {
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return 1;
+            }
+            try
+            {
+                progress?.Invoke(new ProgressUpdate(
+                    checked((long)Math.Min(completed, (ulong)long.MaxValue)),
+                    checked((long)Math.Min(total, (ulong)long.MaxValue)),
+                    Marshal.PtrToStringUTF8(phasePointer) ?? string.Empty,
+                    Marshal.PtrToStringUTF8(itemPointer)));
+                return 0;
+            }
+            catch (Exception exception)
+            {
+                callbackException = exception;
+                return 1;
+            }
+        };
+        var status = NativeMethods.BuildIndexWithProgress(
+            packageRoot,
+            indexPath,
+            out var entryCount,
+            callback,
+            IntPtr.Zero,
+            error,
+            error.Capacity);
+        GC.KeepAlive(callback);
+        if (callbackException is not null)
+        {
+            ExceptionDispatchInfo.Capture(callbackException).Throw();
+        }
+        if (status == NativeStatus.Cancelled || cancellationToken.IsCancellationRequested)
+        {
+            throw new OperationCanceledException("Archive index build was cancelled.", cancellationToken);
+        }
         ThrowIfFailed(status, error.ToString());
         return checked((long)entryCount);
     }
@@ -117,6 +160,24 @@ public sealed class NativeArchiveCore
             StringBuilder errorMessage,
             int errorMessageCapacity);
 
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        internal delegate int BuildIndexProgressCallback(
+            ulong completed,
+            ulong total,
+            IntPtr phase,
+            IntPtr currentItem,
+            IntPtr userData);
+
+        [DllImport(LibraryName, EntryPoint = "cdmw_archive_build_index_with_progress_utf8", CallingConvention = CallingConvention.Cdecl)]
+        internal static extern NativeStatus BuildIndexWithProgress(
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string packageRoot,
+            [MarshalAs(UnmanagedType.LPUTF8Str)] string indexPath,
+            out ulong entryCount,
+            BuildIndexProgressCallback progressCallback,
+            IntPtr progressUserData,
+            StringBuilder errorMessage,
+            int errorMessageCapacity);
+
         [DllImport(LibraryName, EntryPoint = "cdmw_archive_decode_entry_utf8", CallingConvention = CallingConvention.Cdecl)]
         internal static extern NativeStatus DecodeEntry(
             [MarshalAs(UnmanagedType.LPUTF8Str)] string virtualPath,
@@ -162,6 +223,7 @@ public enum NativeStatus
     FormatError = 3,
     Unsupported = 4,
     BufferTooSmall = 5,
+    Cancelled = 6,
 }
 
 public sealed class NativeArchiveException(NativeStatus status, string message) : Exception(message)

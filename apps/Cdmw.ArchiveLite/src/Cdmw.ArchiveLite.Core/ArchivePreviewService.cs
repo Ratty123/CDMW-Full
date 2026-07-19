@@ -219,7 +219,7 @@ public sealed class ArchivePreviewService
                     string.Empty,
                     artifact.PreviewKind.Equals("skeleton", StringComparison.OrdinalIgnoreCase)
                         ? $"Native visual preview: skeleton ({artifact.BoneCount:N0} bones)"
-                        : $"Native visual preview: HKX object structure ({artifact.NodeCount:N0} objects)");
+                        : $"Native visual preview: collision geometry ({artifact.ShapeCount:N0} shapes)");
                 warnings.AddRange(artifact.Warnings);
                 return new PreviewResult(
                     session.Id,
@@ -243,7 +243,7 @@ public sealed class ArchivePreviewService
                     PreviewKind.Hkx,
                     entry.Name,
                     metadata,
-                    Text: "This HKX did not expose a renderable skeleton or object structure. Its format details remain available in Metadata.",
+                    Text: "This HKX did not expose a safely decoded skeleton or collision shape. Its format details remain available in Metadata.",
                     Warnings: warnings);
             }
         }

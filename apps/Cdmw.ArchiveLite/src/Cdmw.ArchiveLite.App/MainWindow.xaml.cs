@@ -171,6 +171,14 @@ public partial class MainWindow : Window
     private void OnArchiveGridSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
         _viewModel.ArchiveBrowser.SetSelectedEntries(ArchiveGrid.SelectedItems.OfType<ArchiveEntryDto>());
 
+    private void OnArchiveExtensionSelectionChanged(object sender, SelectionChangedEventArgs eventArgs)
+    {
+        if (ArchiveExtensionFilterComboBox.SelectedItem is ArchiveExtensionChoice choice)
+        {
+            _viewModel.ArchiveBrowser.ExtensionFilter = choice.Extension;
+        }
+    }
+
     private void OnAssociatedAssetsSelectionChanged(object sender, SelectionChangedEventArgs eventArgs) =>
         _viewModel.ArchiveBrowser.AssociatedAssets.SetSelectedAssets(
             AssociatedAssetsList.SelectedItems.OfType<AssociatedAssetRow>());
