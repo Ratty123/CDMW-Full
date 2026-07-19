@@ -88,6 +88,11 @@ from cdmw.models import (
 )
 from cdmw.ui.archive_browser.attachment_prepared_payloads import AttachmentPreparedPayloads
 from cdmw.ui.archive_browser.attachment_profile_import import start_attachment_profile_import
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    ArchiveWorkflowDependencyContext,
+    archive_workflow_dependency_context,
+)
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
 from cdmw.ui.widgets import CollapsibleSection
 from cdmw.workers.attachment_io_workers import (
@@ -95,6 +100,17 @@ from cdmw.workers.attachment_io_workers import (
     AttachmentPayloadReadRequest,
     run_attachment_payload_read,
 )
+
+
+def _attachment_dialog_dependencies(
+    owner: object,
+    target_entry: ArchiveEntry,
+) -> Optional[ArchiveWorkflowDependencyContext]:
+    try:
+        return archive_workflow_dependency_context(owner, target_entry)
+    except ArchiveWorkflowDependenciesUnavailable as exc:
+        owner.set_status_message(f"Attachment comparison is unavailable: {exc}", error=True)
+        return None
 
 
 class ArchiveAttachmentPlacementDiffDialogMixin:
@@ -134,6 +150,9 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             return
         assert isinstance(preparation, PlacementWorkspacePreparation)
         assert isinstance(preparation.target_graph, AssetFamilyGraph)
+        target_entry, donor_entry = preparation.target_entry, preparation.donor_entry
+        if (attachment_dependencies := _attachment_dialog_dependencies(self, target_entry)) is None:
+            return
         target_graph = preparation.target_graph
         donor_graph = (
             preparation.donor_graph
@@ -176,7 +195,6 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         main_splitter.setChildrenCollapsible(False)
         main_splitter.setHandleWidth(10)
         layout.addWidget(main_splitter, 1)
-
         left_column = QWidget()
         left_column.setMinimumWidth(420)
         left_column_layout = QVBoxLayout(left_column)
@@ -192,7 +210,6 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         left_scroll.setWidget(left_scroll_content)
         left_column_layout.addWidget(left_scroll, 1)
         main_splitter.addWidget(left_column)
-
         right_column = QWidget()
         right_column.setMinimumWidth(420)
         right_column_layout = QVBoxLayout(right_column)
@@ -208,7 +225,6 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
         right_scroll.setWidget(right_scroll_content)
         right_column_layout.addWidget(right_scroll, 1)
         main_splitter.addWidget(right_column)
-
         section_splitter = QSplitter(Qt.Vertical)
         section_splitter.setChildrenCollapsible(False)
         section_splitter.setHandleWidth(8)
@@ -471,10 +487,10 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                 candidates.append(candidate)
 
             for basename in normalized_names:
-                for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+                for candidate in tuple(attachment_dependencies.entries_by_basename.get(basename, ()) or ()):
                     add_candidate(candidate)
             if not candidates:
-                for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
+                for candidate in attachment_dependencies.entries:
                     if not isinstance(candidate, ArchiveEntry):
                         continue
                     candidate_name = PurePosixPath(candidate.path.replace("\\", "/")).name.casefold()
@@ -488,7 +504,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             return candidates[0] if candidates else None
 
         def _placement_entry_by_virtual_path(virtual_path: str, *fallback_basenames: str) -> Optional[ArchiveEntry]:
-            candidate = self._find_archive_entry_by_virtual_path(virtual_path)
+            candidate = attachment_dependencies.entry_for_path(virtual_path)
             if isinstance(candidate, ArchiveEntry):
                 return candidate
             return _placement_xml_entry_by_basename(*fallback_basenames)
@@ -499,7 +515,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
                 return None
             candidates = [
                 candidate
-                for candidate in tuple(getattr(self, "archive_entries", ()) or ())
+                for candidate in attachment_dependencies.entries
                 if isinstance(candidate, ArchiveEntry)
                 and not archive_entry_is_mod_package(candidate)
                 and str(candidate.path or "").replace("\\", "/").strip().strip("/").casefold() == normalized_path
@@ -510,7 +526,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
 
         def _original_archive_entries_by_virtual_path() -> Dict[str, ArchiveEntry]:
             result: Dict[str, ArchiveEntry] = {}
-            for candidate in tuple(getattr(self, "archive_entries", ()) or ()):
+            for candidate in attachment_dependencies.entries:
                 if not isinstance(candidate, ArchiveEntry) or archive_entry_is_mod_package(candidate):
                     continue
                 normalized_path = str(candidate.path or "").replace("\\", "/").strip().strip("/").casefold()
@@ -1177,7 +1193,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
             target_path = str(getattr(target_entry, "path", "") or "").replace("\\", "/").strip()
             if "/model/" in target_path and str(getattr(target_entry, "extension", "") or "").casefold() in {".pac", ".pam", ".pamlod"}:
                 direct_path = target_path.replace("/model/", "/modelproperty/", 1) + "_xml"
-                direct_entry = self._find_archive_entry_by_virtual_path(direct_path)
+                direct_entry = attachment_dependencies.entry_for_path(direct_path)
                 if isinstance(direct_entry, ArchiveEntry) and str(direct_entry.extension or "").casefold() == ".pac_xml":
                     return direct_entry
             target_model = self._attachment_visual_model_entry(target_entry, target_graph)
@@ -1195,7 +1211,7 @@ class ArchiveAttachmentPlacementDiffDialogMixin:
 
         def _target_prefab_entry_for_patch() -> Optional[ArchiveEntry]:
             prefab_path = _evidence_value(target_evidence, "prefab_path")
-            candidate = self._find_archive_entry_by_virtual_path(prefab_path)
+            candidate = attachment_dependencies.entry_for_path(prefab_path)
             if isinstance(candidate, ArchiveEntry):
                 return candidate
             for action, support_entry, _note in self._attachment_package_target_support_entries(target_entry, target_graph):

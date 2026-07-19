@@ -52,6 +52,11 @@ from cdmw.services.preview_rendering_service import find_native_d3d11_host
 from cdmw.ui.archive_browser.attachment_task_controller import (
     attachment_task_controller_for_guard,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    ArchiveWorkflowDependencyContext,
+    archive_workflow_dependency_context,
+)
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
@@ -62,6 +67,32 @@ from cdmw.workers.attachment_io_workers import (
     run_attachment_context_resolution,
 )
 from cdmw.workers.preview_workers import VisualPlacementPreviewWorker
+
+
+def _attachment_safe_placement_dependencies(
+    owner: object,
+    target_entry: ArchiveEntry,
+    donor_entry: Optional[ArchiveEntry],
+) -> Optional[tuple[ArchiveEntry, Optional[ArchiveEntry], ArchiveWorkflowDependencyContext, object, object]]:
+    try:
+        dependencies = archive_workflow_dependency_context(owner, target_entry)
+    except ArchiveWorkflowDependenciesUnavailable as exc:
+        owner.set_status_message(f"Safe placement editor is unavailable: {exc}", error=True)
+        return None
+    if dependencies.remote and isinstance(donor_entry, ArchiveEntry):
+        donor_entry = next(
+            (candidate for candidate in dependencies.entries if candidate.identity == donor_entry.identity),
+            None,
+        )
+        if donor_entry is None:
+            owner.set_status_message(
+                "Safe placement editor is unavailable: the placement source is outside the prepared candidate set.",
+                error=True,
+            )
+            return None
+    sidecars_by_path = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_path
+    sidecars_by_basename = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_basename
+    return dependencies.selected_entry, donor_entry, dependencies, sidecars_by_path, sidecars_by_basename
 
 
 class ArchiveAttachmentSafePlacementDialogMixin:
@@ -76,6 +107,9 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         package_plan_rows: Sequence[dict] = (),
         _context_result: AttachmentContextResult | None = None,
     ) -> None:
+        if (placement_dependencies := _attachment_safe_placement_dependencies(self, target_entry, donor_entry)) is None:
+            return
+        target_entry, donor_entry, archive_dependencies, sidecars_by_path, sidecars_by_basename = placement_dependencies
         # D3D11-only placement editor: crash dumps showed Qt fail-fast inside Qt renderer widgets.
         target_model_entry = self._attachment_visual_model_entry(target_entry, target_graph)
         donor_graph = donor_graph if isinstance(donor_graph, AssetFamilyGraph) else None
@@ -111,14 +145,12 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             donor_model_entry=donor_model_entry,
             donor_socket_entry=donor_socket_entry,
         )
-
         def _run_context_request(request: AttachmentContextRequest, *, stop_event: object) -> object:
             return run_attachment_context_resolution(
                 request,
                 resolver=self._attachment_visual_resolve_context,
                 stop_event=stop_event,
             )
-
         if not isinstance(_context_result, AttachmentContextResult):
             controller = attachment_task_controller_for_guard(
                 self,
@@ -126,7 +158,6 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 attribute="_attachment_safe_context_controller",
             )
             plan_snapshot = tuple(dict(row) for row in package_plan_rows)
-
             def _context_ready(result: object) -> None:
                 if not isinstance(result, AttachmentContextResult):
                     QMessageBox.warning(self, "Safe Placement Editor", "Context resolver returned an unexpected result.")
@@ -704,10 +735,10 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             d3d11_state["request_id"] = int(d3d11_state.get("request_id", 0) or 0) + 1
             request_id = int(d3d11_state["request_id"])
             preview_settings_snapshot = self._current_model_preview_render_settings()
-            texture_entries_by_normalized_path_snapshot = self.archive_entries_by_normalized_path
-            texture_entries_by_basename_snapshot = self.archive_entries_by_basename
-            sidecar_entries_by_texture_path_snapshot = self.archive_sidecar_entries_by_texture_path
-            sidecar_entries_by_texture_basename_snapshot = self.archive_sidecar_entries_by_texture_basename
+            texture_entries_by_normalized_path_snapshot = archive_dependencies.entries_by_normalized_path
+            texture_entries_by_basename_snapshot = archive_dependencies.entries_by_basename
+            sidecar_entries_by_texture_path_snapshot = sidecars_by_path
+            sidecar_entries_by_texture_basename_snapshot = sidecars_by_basename
 
             def _task() -> dict:
                 target_preview = build_archive_preview_result(

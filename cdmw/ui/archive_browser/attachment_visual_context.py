@@ -23,6 +23,10 @@ from cdmw.models import (
     AttachmentSocketDocument,
     AttachmentSocketInfo,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 from cdmw.ui.archive_browser.attachment_visual_core import ArchiveAttachmentVisualCoreMixin
 
 
@@ -175,15 +179,23 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
                         return path
         return None
 
-    def _attachment_visual_find_archive_entry_by_path_or_basename(self, virtual_path: str) -> Optional[ArchiveEntry]:
+    def _attachment_visual_find_archive_entry_by_path_or_basename(
+        self,
+        context_entry: ArchiveEntry,
+        virtual_path: str,
+    ) -> Optional[ArchiveEntry]:
         normalized = str(virtual_path or "").replace("\\", "/").strip().lower()
         if not normalized:
             return None
-        direct = self._find_archive_entry_by_virtual_path(normalized)
+        try:
+            dependencies = archive_workflow_dependency_context(self, context_entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
+        direct = dependencies.entry_for_path(normalized)
         if isinstance(direct, ArchiveEntry):
             return direct
         basename = PurePosixPath(normalized).name.lower()
-        for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+        for candidate in tuple(dependencies.entries_by_basename.get(basename, ()) or ()):
             if isinstance(candidate, ArchiveEntry):
                 return candidate
         return None
@@ -193,13 +205,14 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         virtual_path: str,
         *,
         preferred_entry: Optional[ArchiveEntry] = None,
+        context_entry: Optional[ArchiveEntry] = None,
         extra_roots: Sequence[object] = (),
         stop_event: threading.Event | None = None,
     ) -> Optional[AttachmentSocketDocument]:
         raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
         entry = preferred_entry if isinstance(preferred_entry, ArchiveEntry) else None
-        if entry is None:
-            entry = self._attachment_visual_find_archive_entry_by_path_or_basename(virtual_path)
+        if entry is None and isinstance(context_entry, ArchiveEntry):
+            entry = self._attachment_visual_find_archive_entry_by_path_or_basename(context_entry, virtual_path)
         if isinstance(entry, ArchiveEntry):
             try:
                 data, _decompressed, _note = read_archive_entry_data(entry)
@@ -335,6 +348,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         evidence: Optional[AttachmentPlacementEvidence],
         model_entry: Optional[ArchiveEntry],
         *,
+        context_entry: Optional[ArchiveEntry] = None,
         extra_roots: Sequence[object] = (),
         stop_event: threading.Event | None = None,
     ) -> Dict[str, object]:
@@ -344,7 +358,12 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
             raise_if_cancelled(stop_event, "Attachment skeleton resolution cancelled.")
             payload: Optional[bytes] = None
             source_path = candidate_path
-            entry = self._attachment_visual_find_archive_entry_by_path_or_basename(candidate_path)
+            lookup_entry = context_entry if isinstance(context_entry, ArchiveEntry) else model_entry
+            entry = (
+                self._attachment_visual_find_archive_entry_by_path_or_basename(lookup_entry, candidate_path)
+                if isinstance(lookup_entry, ArchiveEntry)
+                else None
+            )
             if isinstance(entry, ArchiveEntry):
                 try:
                     payload, _decompressed, _note = read_archive_entry_data(entry)
@@ -382,6 +401,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         model_entry: Optional[ArchiveEntry],
         skeleton_context: Optional[Mapping[str, object]],
         *,
+        context_entry: Optional[ArchiveEntry] = None,
         extra_roots: Sequence[object] = (),
         stop_event: threading.Event | None = None,
     ) -> Optional[AttachmentSocketDocument]:
@@ -422,6 +442,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
             raise_if_cancelled(stop_event, "Attachment socket resolution cancelled.")
             document = self._attachment_visual_socket_document_from_path(
                 candidate,
+                context_entry=context_entry if isinstance(context_entry, ArchiveEntry) else model_entry,
                 extra_roots=extra_roots,
                 stop_event=stop_event,
             )
@@ -439,10 +460,12 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
         extra_roots: Sequence[object] = (),
         stop_event: threading.Event | None = None,
     ) -> Dict[str, object]:
+        context_entry = model_entry if isinstance(model_entry, ArchiveEntry) else socket_entry
         context = self._attachment_visual_skeleton_context(
             graph,
             evidence,
             model_entry,
+            context_entry=context_entry,
             extra_roots=extra_roots,
             stop_event=stop_event,
         )
@@ -451,6 +474,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
             evidence,
             model_entry,
             context,
+            context_entry=context_entry,
             extra_roots=extra_roots,
             stop_event=stop_event,
         )
@@ -459,6 +483,7 @@ class ArchiveAttachmentVisualContextMixin(ArchiveAttachmentVisualCoreMixin):
             weapon_document = self._attachment_visual_socket_document_from_path(
                 evidence.socket_file_path,
                 preferred_entry=socket_entry,
+                context_entry=context_entry,
                 extra_roots=extra_roots,
                 stop_event=stop_event,
             )

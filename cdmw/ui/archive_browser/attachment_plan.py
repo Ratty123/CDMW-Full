@@ -30,6 +30,39 @@ from cdmw.workers.attachment_loose_workers import (
     AttachmentLoosePreflightRequest,
     prepare_attachment_loose_targets,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
+
+
+def _attachment_placement_dependency_snapshot(
+    owner: object,
+    target_entry: object,
+    donor_entry: object,
+):
+    if not isinstance(target_entry, ArchiveEntry):
+        raise ArchiveWorkflowDependenciesUnavailable("Select a model, prefab, HKX, or socket XML file first.")
+    dependencies = archive_workflow_dependency_context(owner, target_entry)
+    prepared_target = dependencies.selected_entry
+    prepared_donor = None
+    if isinstance(donor_entry, ArchiveEntry):
+        prepared_donor = donor_entry
+        if dependencies.remote:
+            prepared_donor = next(
+                (candidate for candidate in dependencies.entries if candidate.identity == donor_entry.identity),
+                None,
+            )
+        if prepared_donor is None:
+            raise ArchiveWorkflowDependenciesUnavailable(
+                "The selected placement source is outside the prepared attachment candidate set."
+            )
+    return (
+        prepared_target,
+        prepared_donor,
+        dependencies.entries_by_normalized_path,
+        dependencies.entries_by_basename,
+    )
 
 
 class ArchiveAttachmentPlanMixin:
@@ -47,8 +80,8 @@ class ArchiveAttachmentPlanMixin:
             None,
             status_message=f"Preparing target-owned placement builder for {source_entry.basename}...",
             on_prepared=lambda preparation: self._open_archive_attachment_placement_diff_dialog(
-                source_entry,
-                None,
+                preparation.target_entry,
+                preparation.donor_entry,
                 preparation=preparation,
             ),
         )
@@ -88,11 +121,11 @@ class ArchiveAttachmentPlanMixin:
         on_prepared: Callable[[PlacementWorkspacePreparation], None],
         on_error: Optional[Callable[[str], None]] = None,
     ) -> bool:
-        if not isinstance(target_entry, ArchiveEntry):
-            self.set_status_message("Select a model, prefab, HKX, or socket XML file first.", error=True)
+        try:
+            dependency_snapshot = _attachment_placement_dependency_snapshot(self, target_entry, donor_entry)
+        except ArchiveWorkflowDependenciesUnavailable as exc:
+            self.set_status_message(f"Attachment placement is unavailable: {exc}", error=True)
             return False
-        if donor_entry is not None and not isinstance(donor_entry, ArchiveEntry):
-            donor_entry = None
         request_id = int(getattr(self, "_attachment_placement_prepare_request_id", 0) or 0) + 1
         self._attachment_placement_prepare_request_id = request_id
         active_attachment_worker = getattr(self, "_attachment_placement_prepare_worker", None)
@@ -112,8 +145,7 @@ class ArchiveAttachmentPlanMixin:
             if callable(stop):
                 stop()
 
-        path_index_snapshot = self.archive_entries_by_normalized_path
-        basename_index_snapshot = self.archive_entries_by_basename
+        target_entry, donor_entry, path_index_snapshot, basename_index_snapshot = dependency_snapshot
         item_catalog_snapshot = tuple(getattr(self, "archive_item_asset_catalog", ()) or ())
         output_root_widget = getattr(self, "output_root_edit", None)
         output_root_text = output_root_widget.text().strip() if output_root_widget is not None else ""

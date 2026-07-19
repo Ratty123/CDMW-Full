@@ -42,9 +42,26 @@ from cdmw.ui.archive_browser.attachment_socket_xml_format import (
     attachment_socket_xml_text,
     attachment_transform_values_close,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    ArchiveWorkflowDependencyContext,
+    archive_workflow_dependency_context,
+)
 from cdmw.workers.attachment_io_workers import AttachmentPayloadReadRequest, AttachmentPayloadReadResult, run_attachment_payload_read
 from cdmw.ui.shell.theme_controller import build_monospace_font
 from cdmw.ui.widgets import PreviewSyntaxHighlighter
+
+
+def _attachment_socket_editor_dependencies(
+    owner: object,
+    socket_entry: ArchiveEntry,
+) -> Optional[ArchiveWorkflowDependencyContext]:
+    try:
+        return archive_workflow_dependency_context(owner, socket_entry)
+    except ArchiveWorkflowDependenciesUnavailable as exc:
+        owner.set_status_message(f"Socket XML editor is unavailable: {exc}", error=True)
+        return None
+
 
 class ArchiveAttachmentSocketEditorMixin:
     """Socket XML dialog, compare picker, and loose export helpers."""
@@ -63,6 +80,9 @@ class ArchiveAttachmentSocketEditorMixin:
         owner: Optional[QWidget] = None,
         _payload_result: AttachmentPayloadReadResult | None = None,
     ) -> None:
+        if (socket_dependencies := _attachment_socket_editor_dependencies(self, socket_entry)) is None:
+            return
+        socket_entry = socket_dependencies.selected_entry
         guard = owner or self
         if not isinstance(_payload_result, AttachmentPayloadReadResult):
             controller = attachment_task_controller_for_guard(
@@ -94,7 +114,6 @@ class ArchiveAttachmentSocketEditorMixin:
         except Exception as exc:
             QMessageBox.warning(owner or self, "Socket XML Editor", f"Could not parse socket XML:\n{exc}")
             return
-
         socket_elements: List[ET.Element] = []
         for element in root.iter():
             local_name = str(element.tag).rsplit("}", 1)[-1]
@@ -109,7 +128,6 @@ class ArchiveAttachmentSocketEditorMixin:
                 "No editable Socket rows were found in this XML descriptor.",
             )
             return
-
         dialog = QDialog(owner or self)
         dialog.setWindowTitle(f"Edit Socket Values - {socket_entry.basename}")
         dialog.resize(1180, 700)
@@ -117,7 +135,6 @@ class ArchiveAttachmentSocketEditorMixin:
         layout = QVBoxLayout(dialog)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
-
         intro = QLabel(
             "Edit socket descriptor transforms and write them as a mod-ready loose package. "
             "This edits XML only; binary prefab, HKX, and PAA writes remain disabled."
@@ -510,7 +527,7 @@ class ArchiveAttachmentSocketEditorMixin:
             if isinstance(cached, tuple):
                 return cached
             cached_candidates = archive_socket_xml_candidates(
-                self.archive_entries_by_basename,
+                socket_dependencies.entries_by_basename,
                 socket_entry,
                 same_entry=self._same_archive_entry,
             )

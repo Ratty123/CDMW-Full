@@ -10,6 +10,10 @@ from cdmw.services.archive_preview_service import ensure_archive_preview_source
 from cdmw.domain.archives.mesh_contracts import MeshImportSupplementalFileSpec
 from cdmw.domain.library.item_icons import ItemIconOverrideSpec
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AttachmentPlacementEvidence
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 class ArchiveAttachmentIconMixin:
@@ -20,6 +24,16 @@ class ArchiveAttachmentIconMixin:
         entry: ArchiveEntry,
         graph: AssetFamilyGraph,
     ) -> List[ArchiveEntry]:
+        try:
+            dependencies = archive_workflow_dependency_context(self, entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return []
+        entry = dependencies.selected_entry
+        prepared_by_identity = (
+            {candidate.identity: candidate for candidate in dependencies.entries}
+            if dependencies.remote
+            else None
+        )
         icon_entries: List[ArchiveEntry] = []
         seen: set[Tuple[str, str, int]] = set()
         stems: set[str] = set()
@@ -27,6 +41,10 @@ class ArchiveAttachmentIconMixin:
         def add_icon(candidate: Optional[ArchiveEntry]) -> None:
             if not isinstance(candidate, ArchiveEntry):
                 return
+            if prepared_by_identity is not None:
+                candidate = prepared_by_identity.get(candidate.identity)
+                if not isinstance(candidate, ArchiveEntry):
+                    return
             candidate_path = candidate.path.replace("\\", "/").strip()
             candidate_lower = candidate_path.casefold()
             candidate_name = PurePosixPath(candidate_lower).name
@@ -59,6 +77,28 @@ class ArchiveAttachmentIconMixin:
                 if candidate_stem:
                     stems.add(candidate_stem)
 
+        def path_candidates(value: str, fallback_extensions: Tuple[str, ...]) -> List[ArchiveEntry]:
+            normalized = str(value or "").replace("\\", "/").strip()
+            if not normalized:
+                return []
+            candidate_paths = [normalized]
+            if not PurePosixPath(normalized).suffix:
+                candidate_paths.extend(f"{normalized}{extension}" for extension in fallback_extensions)
+            candidates: List[ArchiveEntry] = []
+            seen_candidates: set[Tuple[str, str, int]] = set()
+            for candidate_path in candidate_paths:
+                normalized_path = candidate_path.casefold()
+                basename = PurePosixPath(normalized_path).name
+                for candidate in (
+                    *dependencies.entries_by_normalized_path.get(normalized_path, ()),
+                    *dependencies.entries_by_basename.get(basename, ()),
+                ):
+                    key = self._attachment_package_entry_key(candidate)
+                    if key not in seen_candidates:
+                        seen_candidates.add(key)
+                        candidates.append(candidate)
+            return candidates
+
         graph_entries = self._attachment_package_graph_entries(entry, graph)
         for candidate in graph_entries:
             add_icon(candidate)
@@ -84,7 +124,7 @@ class ArchiveAttachmentIconMixin:
             if entry_path not in row_model_paths and not (stems & row_model_stems):
                 continue
             for icon_path in self._archive_asset_catalog_row_values(row, "icon_paths"):
-                for icon_entry in self._resolve_archive_asset_catalog_path_candidates(icon_path, fallback_extensions=(".dds", ".png")):
+                for icon_entry in path_candidates(icon_path, (".dds", ".png")):
                     add_icon(icon_entry)
 
         for stem in sorted(stems):
@@ -98,7 +138,7 @@ class ArchiveAttachmentIconMixin:
                     f"icon_prefab_{stem_variant}.dds",
                     f"icon_{stem_variant}.dds",
                 ):
-                    for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+                    for candidate in tuple(dependencies.entries_by_basename.get(basename, ()) or ()):
                         add_icon(candidate)
 
         return icon_entries

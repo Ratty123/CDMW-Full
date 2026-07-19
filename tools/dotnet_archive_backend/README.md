@@ -57,9 +57,11 @@ dependency snapshots. Archive preview, mesh-import preflight/preview, mesh
 replacement builds, mesh export, material/PAC-XML preview-export, structured
 binary sidecar decode, HKX document/placement workflows, and Associated Assets
 enrichment reuse those bounded maps and materialized files instead of the
-legacy process-wide catalogue indexes. A workflow fails closed until its
-selected entry has a complete prepared snapshot; legacy mode keeps the existing
-catalogue behavior.
+legacy process-wide catalogue indexes. Attachment authoring also keeps donor
+search, item icons, socket/skeleton evidence, placement comparison, and native
+placement-preview inputs inside the selected target's prepared candidate set.
+A workflow fails closed until its selected entry has a complete prepared
+snapshot; legacy mode keeps the existing catalogue behavior.
 
 Regenerate a three-cycle synthetic timing report outside the repository with:
 

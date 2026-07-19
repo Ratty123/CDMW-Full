@@ -16,6 +16,10 @@ from cdmw.domain.archives.format import is_material_sidecar_extension as _is_mat
 from cdmw.services.archive_read_service import read_archive_entry_data
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember, AttachmentPlacementEvidence
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 class ArchiveAttachmentPackageMixin:
@@ -56,12 +60,26 @@ class ArchiveAttachmentPackageMixin:
         entry: ArchiveEntry,
         graph: AssetFamilyGraph,
     ) -> List[ArchiveEntry]:
+        try:
+            dependencies = archive_workflow_dependency_context(self, entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return []
+        entry = dependencies.selected_entry
+        prepared_by_identity = (
+            {candidate.identity: candidate for candidate in dependencies.entries}
+            if dependencies.remote
+            else None
+        )
         entries: List[ArchiveEntry] = []
         seen: set[Tuple[str, str, int]] = set()
 
         def add(candidate: Optional[ArchiveEntry]) -> None:
             if not isinstance(candidate, ArchiveEntry):
                 return
+            if prepared_by_identity is not None:
+                candidate = prepared_by_identity.get(candidate.identity)
+                if not isinstance(candidate, ArchiveEntry):
+                    return
             key = self._attachment_package_entry_key(candidate)
             if key in seen:
                 return
@@ -82,9 +100,9 @@ class ArchiveAttachmentPackageMixin:
                 evidence.skeleton_path,
             ):
                 if candidate_path:
-                    add(self._find_archive_entry_by_virtual_path(candidate_path))
+                    add(dependencies.entry_for_path(candidate_path))
         try:
-            related_entries = _find_archive_model_related_entries(entry, self.archive_entries_by_basename)
+            related_entries = _find_archive_model_related_entries(entry, dependencies.entries_by_basename)
         except Exception:
             related_entries = ()
         for candidate in tuple(related_entries or ()):
@@ -255,6 +273,11 @@ class ArchiveAttachmentPackageMixin:
         donor_graph: AssetFamilyGraph,
         donor_prefab: ArchiveEntry,
     ) -> List[ArchiveEntry]:
+        try:
+            dependencies = archive_workflow_dependency_context(self, donor_prefab)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return []
+        donor_prefab = dependencies.selected_entry
         socket_entries: List[ArchiveEntry] = []
         seen_paths: set[str] = set()
         donor_prefab_path = donor_prefab.path.replace("\\", "/").casefold()
@@ -274,7 +297,7 @@ class ArchiveAttachmentPackageMixin:
             if normalized in seen_paths:
                 continue
             seen_paths.add(normalized)
-            socket_entry = self._find_archive_entry_by_virtual_path(socket_path)
+            socket_entry = dependencies.entry_for_path(socket_path)
             if isinstance(socket_entry, ArchiveEntry) and str(socket_entry.extension or "").lower() == ".xml":
                 socket_entries.append(socket_entry)
         return socket_entries
@@ -480,13 +503,17 @@ class ArchiveAttachmentPackageMixin:
         target_entry: ArchiveEntry,
         target_graph: AssetFamilyGraph,
     ) -> List[Tuple[str, ArchiveEntry, str]]:
+        try:
+            dependencies = archive_workflow_dependency_context(self, target_entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return []
+        target_entry = dependencies.selected_entry
         support_rows: List[Tuple[str, ArchiveEntry, str]] = []
         seen: set[Tuple[str, str, int, str]] = set()
         target_stems: set[str] = set()
         model_extensions = {".pac", ".pam", ".pamlod"}
         material_extensions = {".pac_xml", ".pam_xml", ".pamlod_xml", ".pami"}
         motion_extensions = {".paa", ".paa_metabin", ".motionblending"}
-
         def add_stem_from_path(raw_path: object) -> None:
             normalized = str(raw_path or "").replace("\\", "/").strip().casefold()
             if not normalized:
@@ -542,7 +569,6 @@ class ArchiveAttachmentPackageMixin:
                     "Keeps character or target socket context used by the placement chain.",
                 )
             return None
-
         def add_candidate(candidate: Optional[ArchiveEntry]) -> None:
             if not isinstance(candidate, ArchiveEntry):
                 return
@@ -560,12 +586,10 @@ class ArchiveAttachmentPackageMixin:
                 return
             seen.add(key)
             support_rows.append((action, candidate, note))
-
         graph_entries = self._attachment_package_graph_entries(target_entry, target_graph)
         for candidate in graph_entries:
             add_stem_from_path(getattr(candidate, "path", ""))
             add_candidate(candidate)
-
         for evidence in tuple(getattr(target_graph, "attachment_evidence", ()) or ()):
             if not isinstance(evidence, AttachmentPlacementEvidence):
                 continue
@@ -576,14 +600,13 @@ class ArchiveAttachmentPackageMixin:
                 evidence.skeleton_path,
             ):
                 add_stem_from_path(candidate_path)
-                add_candidate(self._find_archive_entry_by_virtual_path(str(candidate_path or "")))
-
+                add_candidate(dependencies.entry_for_path(str(candidate_path or "")))
         for related_source in graph_entries[:24]:
             try:
                 references = build_archive_relationship_references(
                     related_source,
-                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    archive_entries_by_basename=self.archive_entries_by_basename,
+                    archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                    archive_entries_by_basename=dependencies.entries_by_basename,
                 )
             except Exception:
                 references = ()
@@ -606,17 +629,17 @@ class ArchiveAttachmentPackageMixin:
                 f"icon_prefab_{stem}.dds",
                 f"icon_{stem}.dds",
             ):
-                for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+                for candidate in tuple(dependencies.entries_by_basename.get(basename, ()) or ()):
                     add_candidate(candidate)
 
         for basename in ("phm_01.pab.sockets.xml", "identityskeleton.pab.sockets.xml"):
-            for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+            for candidate in tuple(dependencies.entries_by_basename.get(basename, ()) or ()):
                 add_candidate(candidate)
 
         target_class_tokens = self._attachment_package_weapon_class_tokens(target_entry, target_graph)
         if "2H" in target_class_tokens:
             motion_count = 0
-            for basename, entries in self.archive_entries_by_basename.items():
+            for basename, entries in dependencies.entries_by_basename.items():
                 if motion_count >= 32:
                     break
                 normalized_basename = str(basename or "").casefold()

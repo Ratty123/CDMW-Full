@@ -15,6 +15,10 @@ from cdmw.models import (
     AttachmentSocketDocument,
     AttachmentSocketInfo,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 class ArchiveAttachmentVisualCoreMixin:
@@ -23,6 +27,16 @@ class ArchiveAttachmentVisualCoreMixin:
         source_entry: ArchiveEntry,
         graph: AssetFamilyGraph,
     ) -> Optional[ArchiveEntry]:
+        try:
+            dependencies = archive_workflow_dependency_context(self, source_entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
+        source_entry = dependencies.selected_entry
+        prepared_by_identity = (
+            {candidate.identity: candidate for candidate in dependencies.entries}
+            if dependencies.remote
+            else None
+        )
         model_extensions = {".pac", ".pam", ".pamlod"}
         if str(source_entry.extension or "").lower() in model_extensions:
             return source_entry
@@ -68,6 +82,10 @@ class ArchiveAttachmentVisualCoreMixin:
         def add_candidate(candidate: Optional[ArchiveEntry], base_score: int) -> None:
             if not isinstance(candidate, ArchiveEntry):
                 return
+            if prepared_by_identity is not None:
+                candidate = prepared_by_identity.get(candidate.identity)
+                if not isinstance(candidate, ArchiveEntry):
+                    return
             if str(candidate.extension or "").lower() not in model_extensions:
                 return
             key = (
@@ -85,7 +103,7 @@ class ArchiveAttachmentVisualCoreMixin:
 
         for evidence in tuple(getattr(graph, "attachment_evidence", ()) or ()):
             if isinstance(evidence, AttachmentPlacementEvidence) and evidence.model_path:
-                model_entry = self._find_archive_entry_by_virtual_path(evidence.model_path)
+                model_entry = dependencies.entry_for_path(evidence.model_path)
                 add_candidate(model_entry, 115)
         for member in tuple(getattr(graph, "member_rows", ()) or ()):
             if not isinstance(member, AssetFamilyMember):
@@ -110,6 +128,11 @@ class ArchiveAttachmentVisualCoreMixin:
         target_entry: ArchiveEntry,
         donor_entry: Optional[ArchiveEntry] = None,
     ) -> Optional[ArchiveEntry]:
+        try:
+            dependencies = archive_workflow_dependency_context(self, target_entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
+        target_entry = dependencies.selected_entry
         evidence_text = " ".join(
             str(value or "").replace("\\", "/").casefold()
             for value in (
@@ -133,13 +156,13 @@ class ArchiveAttachmentVisualCoreMixin:
             )
         )
         for basename in preferred:
-            for entry in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+            for entry in tuple(dependencies.entries_by_basename.get(basename, ()) or ()):
                 if isinstance(entry, ArchiveEntry) and str(entry.extension or "").lower() == ".pac":
                     return entry
 
         prefix = f"cd_{family}_00_nude"
         candidates: List[Tuple[int, str, ArchiveEntry]] = []
-        for entry in tuple(getattr(self, "archive_entries", ()) or ()):
+        for entry in dependencies.entries:
             if not isinstance(entry, ArchiveEntry) or str(entry.extension or "").lower() != ".pac":
                 continue
             basename = str(entry.basename or PurePosixPath(entry.path.replace("\\", "/")).name).casefold()

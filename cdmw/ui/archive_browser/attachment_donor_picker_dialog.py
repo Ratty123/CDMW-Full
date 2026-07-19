@@ -32,6 +32,12 @@ from cdmw.ui.archive_browser.attachment_donor_picker_helpers import (
     attachment_donor_type,
     make_attachment_donor_candidate_item,
 )
+from cdmw.ui.archive_browser.attachment_donor_dependencies import (
+    attachment_donor_catalog_scope_entries as _attachment_donor_catalog_scope_entries,
+    attachment_donor_dependencies as _attachment_donor_dependencies,
+    attachment_donor_preview_inputs as _attachment_donor_preview_inputs,
+    prepared_attachment_donor_candidate as _prepared_attachment_donor_candidate,
+)
 from cdmw.ui.archive_browser.loose_donor_scan import LooseDonorScanController, LooseDonorScanResult
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
 from cdmw.ui.themes import get_theme
@@ -46,8 +52,9 @@ class ArchiveAttachmentDonorPickerDialogMixin:
         parent: QWidget,
         target_entry: ArchiveEntry,
     ) -> Optional[ArchiveEntry]:
-        if not isinstance(target_entry, ArchiveEntry):
+        if (donor_dependencies := _attachment_donor_dependencies(self, target_entry)) is None:
             return None
+        target_entry, dependencies, prepared_by_identity, sidecars_by_path, sidecars_by_basename = donor_dependencies
         picker = QDialog(parent)
         picker.setWindowTitle(f"Choose Placement Source - {target_entry.basename}")
         picker.setWindowFlags(
@@ -161,7 +168,6 @@ class ArchiveAttachmentDonorPickerDialogMixin:
         button_row.addWidget(cancel_button)
         button_row.addWidget(compare_button)
         layout.addLayout(button_row)
-
         allowed_extensions = {
             ".pac",
             ".pam",
@@ -192,7 +198,6 @@ class ArchiveAttachmentDonorPickerDialogMixin:
         search_step_timer.setInterval(0)
         search_generation = {"value": 0}
         search_state: Dict[str, object] = {}
-
         def _write_ui_breadcrumb(payload: Mapping[str, object]) -> None:
             write_ui_breadcrumb(
                 self.crash_reports_dir,
@@ -374,11 +379,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 worker = ArchivePreviewWorker(
                     request_id,
                     preview_entry,
-                    self._find_archive_preview_companion_entry(preview_entry),
-                    self.archive_entries_by_normalized_path,
-                    self.archive_entries_by_basename,
-                    self.archive_sidecar_entries_by_texture_path,
-                    self.archive_sidecar_entries_by_texture_basename,
+                    *_attachment_donor_preview_inputs(self, preview_entry, dependencies, sidecars_by_path, sidecars_by_basename),
                     self._collect_archive_preview_loose_roots(),
                     visible_texture_mode=preview_settings.visible_texture_mode,
                     support_texture_slots=(),
@@ -445,6 +446,9 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             source: str,
             note: str = "",
         ) -> None:
+            candidate = _prepared_attachment_donor_candidate(prepared_by_identity, candidate)
+            if not isinstance(candidate, ArchiveEntry):
+                return
             if not _candidate_allowed(candidate):
                 return
             key = attachment_donor_entry_key(candidate)
@@ -569,7 +573,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     basename = str(variants[index])
                     search_state["basename_variant_index"] = index + 1
                     search_state["work_done"] = int(search_state.get("work_done", 0) or 0) + 1
-                    for entry in self.archive_entries_by_basename.get(basename, ()):
+                    for entry in dependencies.entries_by_basename.get(basename, ()):
                         _add_candidate(collected, entry, source="Basename index", note="exact filename match")
                         if len(collected) >= max_results:
                             break
@@ -587,9 +591,10 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     catalog_text = self._archive_asset_catalog_text(row)
                     if terms and not all(term in catalog_text for term in terms):
                         continue
-                    scoped_entries, _primary_count, _related_count = self._resolve_archive_asset_catalog_scope_entries(
+                    scoped_entries, _primary_count, _related_count = _attachment_donor_catalog_scope_entries(
+                        self,
                         row,
-                        include_related=True,
+                        dependencies,
                     )
                     display_name = str(row.get("display_name") or row.get("internal_name") or "").strip()
                     note = f"Item Finder match: {display_name}" if display_name else "Item Finder match"
@@ -651,7 +656,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             tree.clear()
             compare_button.setEnabled(False)
             update_source_preview(None)
-            filtered_entries = self.archive_filtered_entries or ()
+            filtered_entries = dependencies.entries if dependencies.remote else (self.archive_filtered_entries or ())
             basename_scan_enabled = len(query.strip()) >= 3 and bool(terms)
             catalog_rows = self.archive_item_asset_catalog or ()
             basename_variants = attachment_donor_basename_query_variants(query)
@@ -660,7 +665,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                 + len(basename_variants)
                 + (len(catalog_rows) if terms else 0)
                 + (min(len(filtered_entries), 10000) if terms else 0)
-                + (len(self.archive_entries_by_basename) if basename_scan_enabled else 0)
+                + (len(dependencies.entries_by_basename) if basename_scan_enabled else 0)
             )
             search_state.clear()
             search_state.update(
@@ -679,7 +684,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
                     "filtered_limit": min(len(filtered_entries), 10000) if terms else 0,
                     "filtered_index": 0,
                     "scan_basename_contains": basename_scan_enabled,
-                    "basename_iterator": iter(self.archive_entries_by_basename.items()) if basename_scan_enabled else None,
+                    "basename_iterator": iter(dependencies.entries_by_basename.items()) if basename_scan_enabled else None,
                     "scanned_keys": 0,
                     "work_done": 0,
                     "work_total": max(1, work_total),
@@ -861,9 +866,10 @@ class ArchiveAttachmentDonorPickerDialogMixin:
 
             def _item_finder_donor_candidates(row: Mapping[str, object]) -> Tuple[Tuple[int, ArchiveEntry, str, str], ...]:
                 display_name = _item_finder_row_display_name(row)
-                scoped_entries, _primary_count, _related_count = self._resolve_archive_asset_catalog_scope_entries(
+                scoped_entries, _primary_count, _related_count = _attachment_donor_catalog_scope_entries(
+                    self,
                     row,
-                    include_related=True,
+                    dependencies,
                 )
                 collected: Dict[AttachmentDonorKey, Tuple[int, ArchiveEntry, str, str]] = {}
                 for entry in scoped_entries:
@@ -1275,7 +1281,7 @@ class ArchiveAttachmentDonorPickerDialogMixin:
             basename = path.name.strip().casefold()
             candidates: List[ArchiveEntry] = []
             seen: set[AttachmentDonorKey] = set()
-            for entry in self.archive_entries_by_basename.get(basename, ()):
+            for entry in dependencies.entries_by_basename.get(basename, ()):
                 if not _candidate_allowed(entry):
                     continue
                 key = attachment_donor_entry_key(entry)
