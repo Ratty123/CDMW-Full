@@ -34,7 +34,13 @@ cmake --build native/cdmw_full_archive_core/build --config Release --parallel
 ctest --test-dir native/cdmw_full_archive_core/build -C Release --output-on-failure
 dotnet build tools/dotnet_archive_backend/Cdmw.FullArchive.slnx -c Release --nologo --verbosity:minimal
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj -c Release --no-build
+.venv\Scripts\python.exe tools/dotnet_archive_backend/probe_full_archive_backend.py --worker tools/dotnet_archive_backend/src/Cdmw.FullArchive.Worker/bin/Release/net10.0-windows/win-x64/cdmw-full-archive-worker.exe
 ```
+
+The Python probe is synthetic and headless. It exercises the frozen catalogue
+contracts and resident `QProcess` client through cold/warm open, worker paging,
+bounded prepare, text search, query-token export, .NET, and the renamed native
+DLL without opening the application or reading licensed game data.
 
 Regenerate a three-cycle synthetic timing report outside the repository with:
 

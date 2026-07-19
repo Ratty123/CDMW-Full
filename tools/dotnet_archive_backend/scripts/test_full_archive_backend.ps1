@@ -12,6 +12,9 @@ $nativeRoot = Join-Path $repositoryRoot "native\cdmw_full_archive_core"
 $nativeBuild = Join-Path $nativeRoot "build"
 $solution = Join-Path $backendRoot "Cdmw.FullArchive.slnx"
 $tests = Join-Path $backendRoot "tests\Cdmw.FullArchive.Tests\Cdmw.FullArchive.Tests.csproj"
+$worker = Join-Path $backendRoot "src\Cdmw.FullArchive.Worker\bin\$Configuration\net10.0-windows\win-x64\cdmw-full-archive-worker.exe"
+$python = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
+$pythonProbe = Join-Path $backendRoot "probe_full_archive_backend.py"
 
 function Assert-LastExitCode([string]$Operation) {
     if ($LASTEXITCODE -ne 0) {
@@ -31,6 +34,11 @@ try {
     Assert-LastExitCode "Full archive worker build"
     & dotnet run --project $tests -c $Configuration --no-build
     Assert-LastExitCode "Full archive focused tests"
+    if (-not (Test-Path -LiteralPath $python)) {
+        throw "Project virtualenv Python is missing: $python"
+    }
+    & $python $pythonProbe --worker $worker
+    Assert-LastExitCode "Full archive Python QProcess integration probe"
 }
 finally {
     Pop-Location
