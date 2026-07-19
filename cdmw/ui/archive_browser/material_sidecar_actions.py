@@ -36,6 +36,10 @@ from cdmw.services.material_sidecar_service import (
 )
 from cdmw.services.texture_workflow_service import normalize_texture_reference_for_sidecar_lookup
 from cdmw.models import ArchiveEntry, ModelPreviewData, ModelPreviewMesh
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 from cdmw.ui.widgets import make_tree_columns_persistent
 
 
@@ -47,7 +51,10 @@ class ArchiveMaterialSidecarActionsMixin:
     def _current_or_related_material_sidecar_entry(self) -> Optional[ArchiveEntry]:
         current_entry = self._current_archive_entry()
         if isinstance(current_entry, ArchiveEntry) and is_material_sidecar_entry(current_entry):
-            return current_entry
+            try:
+                return archive_workflow_dependency_context(self, current_entry).selected_entry
+            except ArchiveWorkflowDependenciesUnavailable:
+                return None
         for reference in self.current_archive_model_texture_references:
             resolved_entry = getattr(reference, "resolved_entry", None)
             if isinstance(resolved_entry, ArchiveEntry) and is_material_sidecar_entry(resolved_entry):
@@ -59,6 +66,11 @@ class ArchiveMaterialSidecarActionsMixin:
     def _related_material_sidecar_entry_for_archive_entry(self, entry: Optional[ArchiveEntry]) -> Optional[ArchiveEntry]:
         if not isinstance(entry, ArchiveEntry):
             return None
+        try:
+            dependencies = archive_workflow_dependency_context(self, entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
+        entry = dependencies.selected_entry
         if is_material_sidecar_entry(entry):
             return entry
         source_path = entry.path.replace("\\", "/").strip()
@@ -66,11 +78,11 @@ class ArchiveMaterialSidecarActionsMixin:
         candidate_basenames = material_sidecar_candidate_basenames_for_model(source_path)
         for basename in candidate_basenames:
             candidate_path = (source_virtual_path.parent / basename).as_posix()
-            candidate = self._find_archive_entry_by_virtual_path(candidate_path)
+            candidate = dependencies.entry_for_path(candidate_path)
             if is_material_sidecar_entry(candidate):
                 return candidate
         for basename in candidate_basenames:
-            for candidate in self.archive_entries_by_basename.get(basename.lower(), ()):
+            for candidate in dependencies.entries_by_basename.get(basename.lower(), ()):
                 if is_material_sidecar_entry(candidate):
                     return candidate
         return None
@@ -287,14 +299,19 @@ class ArchiveMaterialSidecarActionsMixin:
         entry: ArchiveEntry,
         sidecar_text: str,
     ) -> Optional[ArchiveEntry]:
+        try:
+            dependencies = archive_workflow_dependency_context(self, entry)
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
+        entry = dependencies.selected_entry
         current_entry = self._current_archive_entry()
         candidates = detect_material_sidecar_preview_model_candidates(
             entry,
             sidecar_text=sidecar_text,
             current_entry=current_entry,
             references=tuple(self.current_archive_model_texture_references),
-            archive_entries_by_basename=self.archive_entries_by_basename,
-            archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+            archive_entries_by_basename=dependencies.entries_by_basename,
+            archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
         )
         return candidates[0].entry if candidates else None
 
@@ -302,8 +319,23 @@ class ArchiveMaterialSidecarActionsMixin:
         self,
         sidecar_text: str,
         *,
+        entry: Optional[ArchiveEntry] = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Tuple[str, ...]:
+        current_entry = entry
+        current_entry_getter = getattr(self, "_current_archive_entry", None)
+        if not isinstance(current_entry, ArchiveEntry) and callable(current_entry_getter):
+            current_entry = current_entry_getter()
+        if isinstance(current_entry, ArchiveEntry):
+            try:
+                dependencies = archive_workflow_dependency_context(self, current_entry)
+            except ArchiveWorkflowDependenciesUnavailable:
+                return ("Archive dependencies are unavailable for texture resolution.",)
+            entries_by_normalized_path = dependencies.entries_by_normalized_path
+            entries_by_basename = dependencies.entries_by_basename
+        else:
+            entries_by_normalized_path = getattr(self, "archive_entries_by_normalized_path", {}) or {}
+            entries_by_basename = getattr(self, "archive_entries_by_basename", {}) or {}
         warnings: List[str] = []
         rows = discover_material_sidecar_values(sidecar_text)
         for row in rows:
@@ -315,9 +347,9 @@ class ArchiveMaterialSidecarActionsMixin:
                 continue
             normalized = normalize_texture_reference_for_sidecar_lookup(texture_path)
             basename = PurePosixPath(texture_path).name.lower()
-            if normalized and self.archive_entries_by_normalized_path.get(normalized):
+            if normalized and entries_by_normalized_path.get(normalized):
                 continue
-            if basename and self.archive_entries_by_basename.get(basename):
+            if basename and entries_by_basename.get(basename):
                 continue
             warnings.append(f"Unresolved texture path: {texture_path}")
             if len(warnings) >= 4:

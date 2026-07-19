@@ -46,10 +46,13 @@ def archive_workflow_dependency_context(
             raise ArchiveWorkflowDependenciesUnavailable(
                 "The archive dependency set exceeded the 4,096-entry safety bound."
             )
-        selected_entry = snapshot.selected_entry
-        if selected_entry.identity != entry.identity:
+        selected_entry = next(
+            (candidate for candidate in snapshot.entries if candidate.identity == entry.identity),
+            None,
+        )
+        if selected_entry is None:
             raise ArchiveWorkflowDependenciesUnavailable(
-                "The prepared archive dependency set belongs to a different selected file."
+                "The prepared archive dependency set does not contain the requested file."
             )
         if any(candidate.prepared_path is None for candidate in snapshot.entries):
             raise ArchiveWorkflowDependenciesUnavailable(

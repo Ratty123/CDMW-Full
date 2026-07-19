@@ -7,10 +7,19 @@ from cdmw.services.material_sidecar_document_service import (
     MaterialSidecarEditorDocument,
     load_material_sidecar_editor_document,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 class ArchiveMaterialSidecarDocumentControllerMixin:
     def _open_material_sidecar_editor(self, entry: ArchiveEntry) -> None:
+        try:
+            entry = archive_workflow_dependency_context(self, entry).selected_entry
+        except ArchiveWorkflowDependenciesUnavailable as exc:
+            self.set_status_message(f"Material sidecar editor is unavailable: {exc}", error=True)
+            return
         request_id = int(getattr(self, "_material_sidecar_document_request_id", 0) or 0) + 1
         self._material_sidecar_document_request_id = request_id
         self._run_utility_task(

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json, shutil, threading
+from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
@@ -61,19 +62,35 @@ from cdmw.ui.archive_browser.pac_xml_editor_composition import (
     refresh_pac_xml_editor_views,
 )
 from cdmw.ui.archive_browser.pac_xml_editor_dialog_shell import PacXmlEditorDialog
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
 
+
+def _material_editor_dependencies(owner: object, entry: ArchiveEntry):
+    try:
+        dependencies = archive_workflow_dependency_context(owner, entry)
+    except ArchiveWorkflowDependenciesUnavailable as exc:
+        owner.set_status_message(f"Material sidecar editor is unavailable: {exc}", error=True)
+        return None
+    sidecars_by_path = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_path
+    sidecars_by_basename = {} if dependencies.remote else owner.archive_sidecar_entries_by_texture_basename
+    return dependencies, dependencies.selected_entry, sidecars_by_path, sidecars_by_basename
+
+
 class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentControllerMixin):
     def _show_material_sidecar_editor(self, document: MaterialSidecarEditorDocument) -> None:
-        entry = document.entry
+        if (workflow_dependencies := _material_editor_dependencies(self, document.entry)) is None: return
+        dependencies, entry, sidecars_by_texture_path, sidecars_by_texture_basename = workflow_dependencies
         original_text = document.original_text
         rows = document.rows
         if not rows:
             title, message = material_sidecar_text.material_sidecar_empty_values_dialog_text()
             QMessageBox.information(self, title, message)
             return
-
         is_pac_xml = str(getattr(entry, "extension", "") or "").strip().casefold() == ".pac_xml" or entry.basename.casefold().endswith((".pac_xml", ".pac.xml"))
         dialog = PacXmlEditorDialog(self)
         dialog.setWindowTitle(f"PAC XML Editor - {entry.basename}" if is_pac_xml else material_sidecar_text.material_sidecar_editor_window_title(entry.basename))
@@ -723,13 +740,13 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 current_archive_result=current_archive_result,
                 cached_base_result=cached_base_result,
                 cache_root=self._native_preview_package_cache_root(),
-                texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                texture_entries_by_basename=self.archive_entries_by_basename,
-                sidecar_entries_by_texture_path=self.archive_sidecar_entries_by_texture_path,
-                sidecar_entries_by_texture_basename=self.archive_sidecar_entries_by_texture_basename,
+                texture_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                texture_entries_by_basename=dependencies.entries_by_basename,
+                sidecar_entries_by_texture_path=sidecars_by_texture_path,
+                sidecar_entries_by_texture_basename=sidecars_by_texture_basename,
                 clone_preview_model=self._clone_archive_preview_model,
                 apply_preview_overrides=self._apply_material_sidecar_preview_overrides_to_model,
-                texture_resolution_warnings=self._material_sidecar_texture_resolution_warnings,
+                texture_resolution_warnings=partial(self._material_sidecar_texture_resolution_warnings, entry=entry),
                 label_normalizer=self._normalized_material_preview_label,
                 cached_geometry_log=material_sidecar_text.material_sidecar_cached_geometry_log(preview_model_entry.path),
                 cached_geometry_note=material_sidecar_text.material_sidecar_cached_geometry_note(),
@@ -917,7 +934,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             self._material_sidecar_export_request_id = request_id
             export_request_edits[request_id] = dict(edited_values)
             references = tuple(self.current_archive_model_texture_references)
-            archive_entries_by_basename = self.archive_entries_by_basename
+            archive_entries_by_basename = dependencies.entries_by_basename
             self._run_utility_task_when_idle(
                 status_message=f"Preparing material sidecar export for {entry.basename}...",
                 task=lambda _log, stop_event: prepare_material_sidecar_export(

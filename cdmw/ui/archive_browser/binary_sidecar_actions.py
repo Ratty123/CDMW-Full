@@ -40,6 +40,10 @@ from cdmw.services.structured_sidecar_edit_service import (
     write_structured_sidecar_edit,
 )
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 from cdmw.ui.shell.theme_controller import build_monospace_font
 
 
@@ -102,6 +106,8 @@ class ArchiveBinarySidecarActionsMixin:
         *,
         log: Optional[Callable[[str], None]] = None,
         ) -> str:
+        dependencies = archive_workflow_dependency_context(self, entry)
+        entry = dependencies.selected_entry
         if log is not None:
             log(f"Decoding {entry.path} as an experimental read-only binary sidecar document...")
         source_path, _note = ensure_archive_preview_source(entry)
@@ -110,8 +116,8 @@ class ArchiveBinarySidecarActionsMixin:
             entry.path,
             extension=entry.extension,
             source_entry=entry,
-            archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-            archive_entries_by_basename=self.archive_entries_by_basename,
+            archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+            archive_entries_by_basename=dependencies.entries_by_basename,
         )
 
     def _export_current_archive_binary_sidecar_json(self) -> None:
@@ -254,6 +260,11 @@ class ArchiveBinarySidecarActionsMixin:
         )
 
     def _edit_archive_structured_binary_sidecar(self, entry: ArchiveEntry) -> None:
+        try:
+            entry = archive_workflow_dependency_context(self, entry).selected_entry
+        except ArchiveWorkflowDependenciesUnavailable as exc:
+            self.set_status_message(f"Structured sidecar editor is unavailable: {exc}", error=True)
+            return
         extension = str(entry.extension or "").lower()
         if extension not in {".paseq", ".paseqc", ".pastage", ".pabgh"}:
             self.set_status_message("This archive entry does not have a safe structured editor.", error=True)

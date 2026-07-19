@@ -212,6 +212,25 @@ def test_remote_preview_provider_retains_only_the_bounded_recent_snapshots() -> 
     assert provider.snapshot_for_entry(selected_entries[-1]) is not None
 
 
+def test_remote_preview_provider_resolves_a_bounded_snapshot_member() -> None:
+    provider = ArchiveRemotePreviewDependencyProvider(_CatalogueService())
+    selected = _dto(70, "character/model/hero.pac")
+    dependency = _dto(71, "character/physics/hero.hkx")
+    snapshot = ArchivePreviewDependencySet.from_dtos(
+        selected,
+        (dependency,),
+        total_candidates=1,
+        truncated=False,
+        prepared={
+            selected.entry_id: _prepared(selected),
+            dependency.entry_id: _prepared(dependency),
+        },
+    )
+    provider._remember_snapshot(snapshot)
+
+    assert provider.snapshot_for_entry(snapshot.entries[1]) is snapshot
+
+
 class _PreviewBridge:
     displays_v2 = True
 

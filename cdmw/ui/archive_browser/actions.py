@@ -187,16 +187,24 @@ class ArchiveBrowserActionMixin:
             return True
         return extension == ".xml" and basename.endswith(".sockets.xml")
 
+    def _prepared_archive_workflow_entry(
+        self,
+        entry: Optional[ArchiveEntry],
+    ) -> Optional[ArchiveEntry]:
+        if not isinstance(entry, ArchiveEntry):
+            return None
+        try:
+            return archive_workflow_dependency_context(self, entry).selected_entry
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
+
     def _current_archive_mesh_entry(self) -> Optional[ArchiveEntry]:
         if self.archive_preview_showing_loose:
             return None
         current_entry = self._current_archive_entry()
         if current_entry is None or current_entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             return None
-        try:
-            return archive_workflow_dependency_context(self, current_entry).selected_entry
-        except ArchiveWorkflowDependenciesUnavailable:
-            return None
+        return self._prepared_archive_workflow_entry(current_entry)
 
     def _current_archive_hkx_entry(self) -> Optional[ArchiveEntry]:
         if self.archive_preview_showing_loose:
@@ -204,7 +212,7 @@ class ArchiveBrowserActionMixin:
         current_entry = self._current_archive_entry()
         if current_entry is None or str(current_entry.extension or "").lower() not in {".hkx", ".hkt"}:
             return None
-        return current_entry
+        return self._prepared_archive_workflow_entry(current_entry)
 
     @staticmethod
     def _archive_entry_is_hkx(entry: Optional[ArchiveEntry]) -> bool:
@@ -262,7 +270,7 @@ class ArchiveBrowserActionMixin:
             ".seqmt",
         }:
             return None
-        return current_entry
+        return self._prepared_archive_workflow_entry(current_entry)
 
     def _selected_archive_bulk_placement_targets(self) -> List[ArchiveEntry]:
         targets: List[ArchiveEntry] = []

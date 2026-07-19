@@ -139,9 +139,17 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
     def snapshot_for_entry(self, entry: ArchiveEntry) -> ArchivePreviewDependencySet | None:
         if not isinstance(entry, ArchiveEntry):
             return None
-        snapshot = self._snapshots_by_identity.get(entry.identity)
+        identity = entry.identity
+        snapshot_key = identity
+        snapshot = self._snapshots_by_identity.get(identity)
+        if snapshot is None:
+            for candidate_key, candidate_snapshot in reversed(tuple(self._snapshots_by_identity.items())):
+                if any(candidate.identity == identity for candidate in candidate_snapshot.entries):
+                    snapshot_key = candidate_key
+                    snapshot = candidate_snapshot
+                    break
         if snapshot is not None:
-            self._snapshots_by_identity.move_to_end(entry.identity)
+            self._snapshots_by_identity.move_to_end(snapshot_key)
         return snapshot
 
     def request(self, selected: ArchiveEntryDto, *, ui_request_id: int) -> bool:

@@ -70,6 +70,26 @@ def test_remote_workflow_context_uses_only_bounded_prepared_dependencies() -> No
     assert context.entries_by_basename["hero_d.dds"][0].prepared_path == Path("C:/cache/200.bin")
 
 
+def test_remote_workflow_context_selects_a_prepared_snapshot_member() -> None:
+    snapshot = _snapshot()
+
+    class _Bridge:
+        displays_v2 = True
+
+        @staticmethod
+        def prepared_dependencies_for(_entry: ArchiveEntry) -> ArchivePreviewDependencySet:
+            return snapshot
+
+    texture = _entry("character/texture/hero_d.dds", 200)
+    context = archive_workflow_dependency_context(
+        type("Owner", (), {"archive_remote_bridge": _Bridge()})(),
+        texture,
+    )
+
+    assert context.selected_entry is snapshot.entries[1]
+    assert context.entries_by_basename is snapshot.entries_by_basename
+
+
 def test_remote_workflow_context_fails_closed_without_prepared_dependencies() -> None:
     class _Bridge:
         displays_v2 = True

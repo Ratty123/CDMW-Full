@@ -39,11 +39,35 @@ from cdmw.services.hkx_edit_service import (
 )
 from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
 from cdmw.models import ArchiveEntry, AssetFamilyGraph, AssetFamilyMember
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    ArchiveWorkflowDependencyContext,
+    archive_workflow_dependency_context,
+)
 
 
 class ArchiveHkxDocumentActionsMixin:
     """HKX placement, document export/import, and editor launch actions."""
+    def _archive_hkx_workflow_dependencies(
+        self,
+        entry: ArchiveEntry,
+        *,
+        operation_label: str,
+        ) -> Optional[ArchiveWorkflowDependencyContext]:
+        try:
+            return archive_workflow_dependency_context(self, entry)
+        except ArchiveWorkflowDependenciesUnavailable as exc:
+            self.set_status_message(f"{operation_label} is unavailable: {exc}", error=True)
+            return None
+
     def _archive_hkx_companion_descriptor_entries(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
+        dependencies = self._archive_hkx_workflow_dependencies(
+            entry,
+            operation_label="HKX companion lookup",
+        )
+        if dependencies is None:
+            return ()
+        entry = dependencies.selected_entry
         candidates: List[ArchiveEntry] = []
         seen_paths: set[str] = set()
 
@@ -67,13 +91,13 @@ class ArchiveHkxDocumentActionsMixin:
         except Exception:
             sibling_xml = ""
         if sibling_xml:
-            for candidate in tuple(self.archive_entries_by_normalized_path.get(sibling_xml, ()) or ()):
+            for candidate in tuple(dependencies.entries_by_normalized_path.get(sibling_xml, ()) or ()):
                 add(candidate)
 
         stem = PurePosixPath(entry.path.replace("\\", "/")).stem.lower()
         if stem:
             for basename in (f"{stem}.xml", f"{stem}.physics.xml", f"{stem}.geometry.xml"):
-                for candidate in tuple(self.archive_entries_by_basename.get(basename, ()) or ()):
+                for candidate in tuple(dependencies.entries_by_basename.get(basename, ()) or ()):
                     candidate_path = self._normalize_archive_entry_path(candidate.path)
                     if candidate_path == normalized_entry_path:
                         continue
@@ -212,7 +236,17 @@ class ArchiveHkxDocumentActionsMixin:
         if not isinstance(entry, ArchiveEntry):
             self.set_status_message("Select a model or HKX/HKT archive entry first.", error=True)
             return
+        dependencies = self._archive_hkx_workflow_dependencies(entry, operation_label="HKX editor")
+        if dependencies is None:
+            return
+        entry = dependencies.selected_entry
+        prepared_by_identity = {candidate.identity: candidate for candidate in dependencies.entries}
         candidates = self._archive_hkx_placement_candidates_for_entry(entry)
+        candidates = tuple(
+            prepared_by_identity[candidate.identity]
+            for candidate in candidates
+            if candidate.identity in prepared_by_identity
+        )
         if not candidates:
             self.set_status_message(
                 f"No related HKX/HKT placement file was resolved for {entry.basename}. Open Asset Family to inspect related files.",
@@ -241,6 +275,10 @@ class ArchiveHkxDocumentActionsMixin:
         build_document: Callable[..., str],
         editable_document: bool = True,
         ) -> None:
+        dependencies = self._archive_hkx_workflow_dependencies(entry, operation_label="HKX export")
+        if dependencies is None:
+            return
+        entry = dependencies.selected_entry
         selected, _selected_filter = QFileDialog.getSaveFileName(
             self,
             f"Export HKX Geometry {document_label}",
@@ -352,6 +390,10 @@ class ArchiveHkxDocumentActionsMixin:
         document_label: str,
         apply_document: Callable[[bytes, str], HkxGeometryPatchResult],
         ) -> None:
+        dependencies = self._archive_hkx_workflow_dependencies(entry, operation_label="HKX import")
+        if dependencies is None:
+            return
+        entry = dependencies.selected_entry
         loose_export_settings = self._collect_archive_mod_ready_export_target(
             browse_title="Select HKX Mod-Ready Export Parent Root",
             prompt_for_metadata=True,
@@ -500,6 +542,10 @@ class ArchiveHkxDocumentActionsMixin:
         self._edit_archive_hkx_entry(entry)
 
     def _edit_archive_hkx_entry(self, entry: ArchiveEntry, *, initial_section: str = "") -> None:
+        dependencies = self._archive_hkx_workflow_dependencies(entry, operation_label="HKX editor")
+        if dependencies is None:
+            return
+        entry = dependencies.selected_entry
         descriptor_entries = self._archive_hkx_companion_descriptor_entries(entry)
 
         def _task(log: Callable[[str], None], stop_event: threading.Event) -> str:
