@@ -12,6 +12,7 @@ from tools.headless_stress.task_builders import (
     SOAK_MINUTES_MINIMUM,
     prepare_output_root,
 )
+from tools.headless_stress.runner import run_profile, run_soak
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:

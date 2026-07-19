@@ -198,6 +198,30 @@ class HeadlessFeatureStressTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             stress.parse_args(["--output", "out", "--cache-runs", "0"])
 
+    def test_cli_entry_point_runs_cache_only_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir) / "cache-only"
+
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "tools/headless_feature_stress.py",
+                    "--output",
+                    str(output_root),
+                    "--cache-only",
+                    "--cache-runs",
+                    "1",
+                ],
+                cwd=Path(__file__).resolve().parents[1],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            self.assertTrue((output_root / "result.json").is_file())
+            self.assertTrue((output_root / "children" / "cache-probe" / "cache_probe.json").is_file())
+
     def test_cache_only_builds_only_cache_task(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = stress.prepare_output_root(Path(temp_dir) / "out")
