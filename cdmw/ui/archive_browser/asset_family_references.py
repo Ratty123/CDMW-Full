@@ -24,6 +24,32 @@ from cdmw.services.texture_workflow_service import derive_texture_group_key
 from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.services.texture_workflow_service import normalize_texture_reference_for_sidecar_lookup
 from cdmw.models import ArchiveEntry, ArchiveModelTextureReference, RelationConfidence
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
+
+
+def _asset_family_dependency_maps(owner: object, entry: object):
+    if not isinstance(entry, ArchiveEntry):
+        return None
+    try:
+        dependencies = archive_workflow_dependency_context(owner, entry)
+    except ArchiveWorkflowDependenciesUnavailable:
+        return None
+    sidecars_by_path = (
+        {} if dependencies.remote else (getattr(owner, "archive_sidecar_entries_by_texture_path", {}) or {})
+    )
+    sidecars_by_basename = (
+        {} if dependencies.remote else (getattr(owner, "archive_sidecar_entries_by_texture_basename", {}) or {})
+    )
+    return (
+        dependencies.selected_entry,
+        dependencies.entries_by_normalized_path,
+        dependencies.entries_by_basename,
+        sidecars_by_path,
+        sidecars_by_basename,
+    )
 
 
 class ArchiveAssetFamilyReferenceMixin:
@@ -74,11 +100,11 @@ class ArchiveAssetFamilyReferenceMixin:
         }.get(normalized, normalized.replace("_", " ").title() if normalized else "")
 
     def _archive_known_used_by_references(self, entry: Optional[ArchiveEntry]) -> List[ArchiveModelTextureReference]:
-        if not isinstance(entry, ArchiveEntry):
+        if (dependency_maps := _asset_family_dependency_maps(self, entry)) is None:
             return []
+        entry, _entries_by_path, entries_by_basename, sidecars_by_path, sidecars_by_basename = dependency_maps
         used_by: List[ArchiveModelTextureReference] = []
         seen: set[Tuple[str, str, int]] = set()
-
         def add(candidate: ArchiveEntry, *, reason: str, confidence: str, group: str) -> None:
             key = (candidate.path.lower(), str(candidate.pamt_path).lower(), int(candidate.offset))
             if key in seen or candidate.path == entry.path:
@@ -127,7 +153,7 @@ class ArchiveAssetFamilyReferenceMixin:
 
             def add_model_candidates_for_stem(stem: str, *, reason: str, confidence: str) -> None:
                 for extension in (".pac", ".pam", ".pamlod"):
-                    for candidate in self.archive_entries_by_basename.get(f"{stem}{extension}", ()):
+                    for candidate in entries_by_basename.get(f"{stem}{extension}", ()):
                         add(
                             candidate,
                             reason=reason,
@@ -137,7 +163,7 @@ class ArchiveAssetFamilyReferenceMixin:
 
             def add_material_sidecar_candidates_for_stem(stem: str) -> None:
                 for extension in (".pac_xml", ".pam_xml", ".pamlod_xml", ".pami"):
-                    for candidate in self.archive_entries_by_basename.get(f"{stem}{extension}", ()):
+                    for candidate in entries_by_basename.get(f"{stem}{extension}", ()):
                         add_texture_sidecar(
                             candidate,
                             reason=(
@@ -160,13 +186,13 @@ class ArchiveAssetFamilyReferenceMixin:
                     group="Used By / Material",
                 )
 
-            for candidate in self.archive_sidecar_entries_by_texture_path.get(normalized_path, ()):
+            for candidate in sidecars_by_path.get(normalized_path, ()):
                 add_texture_sidecar(
                     candidate,
                     reason="Material sidecar references this exact texture path.",
                     confidence=RelationConfidence.EXACT_PATH.value,
                 )
-            for candidate in self.archive_sidecar_entries_by_texture_basename.get(basename, ()):
+            for candidate in sidecars_by_basename.get(basename, ()):
                 add_texture_sidecar(
                     candidate,
                     reason="Material sidecar references this texture basename.",
@@ -199,7 +225,7 @@ class ArchiveAssetFamilyReferenceMixin:
         if entry.extension in {".hkx", ".hkt"}:
             stem = PurePosixPath(entry.basename).stem.casefold()
             for extension in (".pac", ".pam", ".pamlod", ".prefab"):
-                for candidate in self.archive_entries_by_basename.get(f"{stem}{extension}", ()):
+                for candidate in entries_by_basename.get(f"{stem}{extension}", ()):
                     add(
                         candidate,
                         reason="Candidate shares the HKX basename in the current archive index.",
@@ -209,7 +235,7 @@ class ArchiveAssetFamilyReferenceMixin:
         if is_material_sidecar_entry(entry):
             stem = PurePosixPath(entry.basename).stem.casefold()
             for extension in (".pac", ".pam", ".pamlod"):
-                for candidate in self.archive_entries_by_basename.get(f"{stem}{extension}", ()):
+                for candidate in entries_by_basename.get(f"{stem}{extension}", ()):
                     add(
                         candidate,
                         reason="Model candidate shares the material sidecar basename in the current archive index.",
@@ -219,7 +245,7 @@ class ArchiveAssetFamilyReferenceMixin:
         if entry.extension in {".pac", ".pam", ".pamlod"}:
             stem = PurePosixPath(entry.basename).stem.casefold()
             for extension in (".prefab", ".prefabdata_xml", ".prefabdata.xml"):
-                for candidate in self.archive_entries_by_basename.get(f"{stem}{extension}", ()):
+                for candidate in entries_by_basename.get(f"{stem}{extension}", ()):
                     add(
                         candidate,
                         reason="Prefab/metadata candidate shares the model basename in the current archive index.",

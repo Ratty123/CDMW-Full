@@ -21,6 +21,16 @@ from cdmw.models import (
     AssetFamilyMember,
     AttachmentPlacementEvidence,
 )
+from cdmw.ui.archive_browser.asset_family_references import _asset_family_dependency_maps
+
+
+def _asset_family_panel_dependencies(owner: object):
+    current_entry = owner._current_archive_entry()
+    dependencies = _asset_family_dependency_maps(owner, current_entry)
+    if dependencies is None:
+        return current_entry, {}, {}
+    prepared_entry, entries_by_path, entries_by_basename, _sidecars_by_path, _sidecars_by_basename = dependencies
+    return prepared_entry, entries_by_path, entries_by_basename
 
 
 class ArchiveAssetFamilyPanelMixin:
@@ -423,7 +433,7 @@ class ArchiveAssetFamilyPanelMixin:
         *,
         enrich: bool = True,
     ) -> None:
-        current_entry = self._current_archive_entry()
+        current_entry, entries_by_normalized_path, entries_by_basename = _asset_family_panel_dependencies(self)
         base_references = list(references)
         self.current_archive_used_by_references = (
             self._archive_known_used_by_references(current_entry)
@@ -437,8 +447,8 @@ class ArchiveAssetFamilyPanelMixin:
             item_icon_references = build_archive_item_icon_references_from_catalog(
                 current_entry,
                 tuple(getattr(self, "archive_item_asset_catalog", ()) or ()),
-                archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                archive_entries_by_basename=self.archive_entries_by_basename,
+                archive_entries_by_normalized_path=entries_by_normalized_path,
+                archive_entries_by_basename=entries_by_basename,
                 related_references=tuple(related_for_icon_match),
             )
             if item_icon_references:

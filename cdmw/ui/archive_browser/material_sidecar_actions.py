@@ -78,7 +78,10 @@ class ArchiveMaterialSidecarActionsMixin:
         candidate_basenames = material_sidecar_candidate_basenames_for_model(source_path)
         for basename in candidate_basenames:
             candidate_path = (source_virtual_path.parent / basename).as_posix()
-            candidate = dependencies.entry_for_path(candidate_path)
+            if dependencies.remote:
+                candidate = dependencies.entry_for_path(candidate_path)
+            else:
+                candidate = self._find_archive_entry_by_virtual_path(candidate_path)
             if is_material_sidecar_entry(candidate):
                 return candidate
         for basename in candidate_basenames:
