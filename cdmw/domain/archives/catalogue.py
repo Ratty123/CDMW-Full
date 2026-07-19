@@ -46,6 +46,7 @@ class ArchiveSortField(str, Enum):
     PATH = "path"
     NAME = "name"
     KNOWN_NAME = "known_name"
+    EXACT_NAME = "exact_name"
     NAME_EVIDENCE = "name_evidence"
     EXTENSION = "extension"
     PACKAGE = "package"
@@ -362,6 +363,8 @@ class ArchiveLookupResult:
         raw_query_rows = require_sequence(payload.get("query_rows", ()), "query_rows")
         if any(isinstance(row, bool) or not isinstance(row, int) for row in raw_query_rows):
             raise ArchiveContractError("query_rows must contain only integers.")
+        if raw_query_rows and len(raw_query_rows) != len(entries):
+            raise ArchiveContractError("query_rows must align with entries.")
         return cls(
             session_id=read_string(payload, "session_id"),
             entries=tuple(ArchiveEntryDto.from_wire(entry) for entry in entries),

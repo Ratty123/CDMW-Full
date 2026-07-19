@@ -170,11 +170,11 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
 
     private static bool Matches(ArchiveEntryDto entry, ArchiveQuery query)
     {
-        if (!MatchesText(entry, query.IncludeText))
+        if (!MatchesAnyTextPattern(entry, query.IncludeText))
         {
             return false;
         }
-        if (!string.IsNullOrWhiteSpace(query.ExcludeText) && MatchesText(entry, query.ExcludeText))
+        if (!string.IsNullOrWhiteSpace(query.ExcludeText) && MatchesAnyTextPattern(entry, query.ExcludeText))
         {
             return false;
         }
@@ -184,7 +184,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             return false;
         }
         if (query.Packages is { Count: > 0 } &&
-            !query.Packages.Any(value => entry.Package.Equals(value, StringComparison.OrdinalIgnoreCase)))
+            !query.Packages.Any(value => MatchesPackage(entry, value)))
         {
             return false;
         }
@@ -201,8 +201,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             return false;
         }
         if (query.TechnicalSuffixes is { Count: > 0 } &&
-            !query.TechnicalSuffixes.Any(suffix =>
-                Path.GetFileNameWithoutExtension(entry.Path).EndsWith(suffix, StringComparison.OrdinalIgnoreCase)))
+            query.TechnicalSuffixes.Any(pattern => MatchesTextPattern(entry, pattern)))
         {
             return false;
         }
@@ -217,12 +216,19 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         return !query.ActiveOverridesOnly || entry.IsActiveOverride;
     }
 
-    private static bool MatchesText(ArchiveEntryDto entry, string? filter)
+    private static bool MatchesAnyTextPattern(ArchiveEntryDto entry, string? filter)
     {
         if (string.IsNullOrWhiteSpace(filter))
         {
             return true;
         }
+        return filter
+            .Split([';', ',', '\r', '\n'], StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Any(pattern => MatchesTextPattern(entry, pattern));
+    }
+
+    private static bool MatchesTextPattern(ArchiveEntryDto entry, string filter)
+    {
         var text = filter.Trim();
         if (!text.ContainsAny(['*', '?', '[']))
         {
@@ -236,6 +242,23 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         return Regex.IsMatch(entry.Path, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)) ||
             Regex.IsMatch(entry.Name, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)) ||
             Regex.IsMatch(entry.KnownName, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
+    }
+
+    private static bool MatchesPackage(ArchiveEntryDto entry, string candidate)
+    {
+        var text = candidate.Trim();
+        if (text.Length == 0)
+        {
+            return true;
+        }
+        if (!text.ContainsAny(['*', '?', '[']))
+        {
+            return entry.Package.Contains(text, StringComparison.OrdinalIgnoreCase) ||
+                entry.SourcePamt.Contains(text, StringComparison.OrdinalIgnoreCase);
+        }
+        var pattern = "^" + Regex.Escape(text).Replace("\\*", ".*").Replace("\\?", ".") + "$";
+        return Regex.IsMatch(entry.Package, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250)) ||
+            Regex.IsMatch(entry.SourcePamt, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(250));
     }
 
     private static bool MatchesExtension(string extension, string candidate)
@@ -281,6 +304,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         {
             ArchiveSortField.Name => new(entry.EntryId, entry.Name, 0),
             ArchiveSortField.KnownName => new(entry.EntryId, entry.KnownName, 0),
+            ArchiveSortField.ExactName => new(entry.EntryId, entry.ExactName, 0),
             ArchiveSortField.NameEvidence => new(entry.EntryId, entry.NameEvidence, 0),
             ArchiveSortField.Extension => new(entry.EntryId, entry.Extension, 0),
             ArchiveSortField.Package => new(entry.EntryId, entry.Package, 0),

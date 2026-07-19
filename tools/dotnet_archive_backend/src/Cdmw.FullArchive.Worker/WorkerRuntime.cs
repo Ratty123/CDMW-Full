@@ -106,18 +106,21 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                     var payload = RequirePayload<ArchiveLookupRequest>(request);
                     RequireSession(request, payload.SessionId);
                     var result = await _lookups.ResolveAsync(payload, cancellationToken, publishProgress).ConfigureAwait(false);
-                    foreach (var entries in result.Entries.Chunk(StreamBatchSize))
+                    for (var start = 0; start < result.Entries.Count; start += StreamBatchSize)
                     {
+                        var entries = result.Entries.Skip(start).Take(StreamBatchSize).ToArray();
+                        var queryRows = result.QueryRows?.Skip(start).Take(entries.Length).ToArray() ?? [];
                         await publishBatch(new ArchiveLookupResult(
                             result.SessionId,
                             entries,
                             result.TotalMatches,
-                            result.Truncated)).ConfigureAwait(false);
+                            result.Truncated,
+                            queryRows)).ConfigureAwait(false);
                     }
                     return WorkerProtocol.Response(
                         request,
                         WorkerMessageStatus.Result,
-                        result with { Entries = [] },
+                        result with { Entries = [], QueryRows = [] },
                         result.SessionId);
                 }
             case WorkerProtocol.FindAssociationCandidates:

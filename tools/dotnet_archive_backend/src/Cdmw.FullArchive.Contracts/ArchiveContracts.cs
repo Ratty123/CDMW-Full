@@ -90,6 +90,7 @@ public enum ArchiveSortField
     Path,
     Name,
     KnownName,
+    ExactName,
     NameEvidence,
     Extension,
     Package,

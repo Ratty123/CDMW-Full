@@ -153,6 +153,22 @@ internal static class FullArchiveTestRunner
             var materialPage = queries.FetchPage(sessionHandle.SessionId, new FetchPageRequest(materialQuery.QueryId));
             Require(materialPage.TotalMatches == 1 && materialPage.Rows[0].Path == "materials/sample.material", "extension filter changed");
 
+            var excludeQuery = await queries.CreateAsync(
+                new ArchiveQuery(sessionHandle.SessionId, ExcludeText: "blob;hello"),
+                generation: 9,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(excludeQuery.TotalMatches == 2, "semicolon exclude patterns changed");
+            var packageQuery = await queries.CreateAsync(
+                new ArchiveQuery(sessionHandle.SessionId, Packages: [page.Rows[0].Package[..4]]),
+                generation: 10,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(packageQuery.TotalMatches == 4, "package substring filter changed");
+            var technicalQuery = await queries.CreateAsync(
+                new ArchiveQuery(sessionHandle.SessionId, TechnicalSuffixes: ["*test.dds"]),
+                generation: 11,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(technicalQuery.TotalMatches == 3, "technical-suffix exclusion changed");
+
             await lookup.WarmAsync(sessionHandle.SessionId, CancellationToken.None).ConfigureAwait(false);
             var exact = await lookup.ResolveAsync(
                 new ArchiveLookupRequest(
@@ -166,7 +182,7 @@ internal static class FullArchiveTestRunner
                     sessionHandle.SessionId,
                     ArchiveLookupKind.Identities,
                     Identities: [page.Rows[1].Identity],
-                    QueryId: query.QueryId),
+                    QueryId: technicalQuery.QueryId),
                 CancellationToken.None).ConfigureAwait(false);
             Require(
                 selectionPosition.Entries.Count == 1 &&
@@ -227,7 +243,7 @@ internal static class FullArchiveTestRunner
             Require(cancelled.Cancelled, "collision cancellation was not reported");
             Require(await File.ReadAllTextAsync(materialPath).ConfigureAwait(false) == "preserve me", "cancelled export changed its destination");
 
-            for (var generation = 10; generation < 15; generation++)
+            for (var generation = 20; generation < 25; generation++)
             {
                 _ = await queries.CreateAsync(
                     new ArchiveQuery(sessionHandle.SessionId, MinimumSize: generation),

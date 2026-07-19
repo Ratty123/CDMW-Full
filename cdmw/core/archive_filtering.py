@@ -38,6 +38,7 @@ from cdmw.core.archive_name_search import (
 from cdmw.core.common import raise_if_cancelled
 from cdmw.core.upscale_profiles import derive_texture_group_key
 from cdmw.domain.archives.filters import (
+    COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS,
     active_archive_entry_for_virtual_path,
     archive_browser_sort_is_active,
     archive_entry_identity_key,
@@ -49,6 +50,9 @@ from cdmw.domain.archives.filters import (
     order_archive_entries_by_active_overrides,
 )
 from cdmw.models import ArchiveEntry
+
+
+_COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS = COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS
 
 
 def _strip_archive_model_family_variant_suffix(stem: str) -> str:
@@ -105,58 +109,6 @@ def read_archive_entry_data(*args, **kwargs):
     return owner(*args, **kwargs)
 
 
-_COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS: Tuple[str, ...] = (
-    "*_n.dds",
-    "*_nm.dds",
-    "*_nrm.dds",
-    "*_normal.dds",
-    "*_normalmap.dds",
-    "*_sp.dds",
-    "*_spec.dds",
-    "*_specular.dds",
-    "*_m.dds",
-    "*_mask.dds",
-    "*_orm.dds",
-    "*_rma.dds",
-    "*_mra.dds",
-    "*_arm.dds",
-    "*_ao.dds",
-    "*_metal.dds",
-    "*_metallic.dds",
-    "*_rough.dds",
-    "*_roughness.dds",
-    "*_gloss.dds",
-    "*_smooth.dds",
-    "*_height.dds",
-    "*_hgt.dds",
-    "*_disp.dds",
-    "*_displacement.dds",
-    "*_dmap.dds",
-    "*_bump.dds",
-    "*_parallax.dds",
-    "*_pom.dds",
-    "*_ssdm.dds",
-    "*_vector.dds",
-    "*_dr.dds",
-    "*_op.dds",
-    "*_wn.dds",
-    "*_flow.dds",
-    "*_velocity.dds",
-    "*_pos.dds",
-    "*_position.dds",
-    "*_pivot.dds",
-    "*_depth.dds",
-    "*_pivotpos.dds",
-    "*_ma.dds",
-    "*_mg.dds",
-    "*_o.dds",
-    "*_emi.dds",
-    "*_emc.dds",
-    "*_subsurface.dds",
-    "*_1bit.dds",
-    "*_mask_amg.dds",
-    "*_d.dds",
-)
 _STRUCTURED_BINARY_IDENTIFIER_RE = re.compile(r"^[_A-Za-z][A-Za-z0-9_:<>-]{2,127}$")
 _STRUCTURED_BINARY_ASSET_TOKEN_RE = re.compile(r"[A-Za-z0-9_./\\-]+")
 _STRUCTURED_BINARY_ASSET_SEGMENT_RE = re.compile(r"^[A-Za-z0-9_.-]{1,128}$")
@@ -1050,7 +1002,7 @@ def filter_archive_entries(
     simple_alias_match_keys = _archive_item_alias_match_keys_for_query(item_search_aliases, search_query)
     exclude_patterns = list(_split_archive_filter_patterns(exclude_filter_text))
     if exclude_common_technical_suffixes:
-        exclude_patterns.extend(_COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS)
+        exclude_patterns.extend(COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS)
     package_filter = package_filter_text.strip().lower()
     min_size_bytes = min_size_kb * 1024 if min_size_kb > 0 else 0
     normalized_structure = normalize_archive_structure_filter_value(structure_filter)

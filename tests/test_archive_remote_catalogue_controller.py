@@ -70,6 +70,7 @@ def _entry(entry_id: int, *, session: str = "session-a", path: str | None = None
 
 class _FakeCatalogueService(QObject):
     result_ready = Signal(str, str, object)
+    batch_ready = Signal(str, str, object)
     request_failed = Signal(str, object)
     request_cancelled = Signal(str)
     progress = Signal(str, object)
@@ -127,6 +128,10 @@ class _FakeCatalogueService(QObject):
 
     def fail(self, request_id: str, error: object) -> None:
         self.request_failed.emit(request_id, error)
+
+    def batch(self, request_id: str, result: object) -> None:
+        kind = next(call[1] for call in self.calls if call[0] == request_id)
+        self.batch_ready.emit(request_id, kind, result)
 
     def latest(self, kind: str) -> tuple[str, object, int]:
         request_id, _kind, payload, generation = next(
@@ -282,7 +287,8 @@ def test_selection_restore_resolves_query_row_then_waits_for_its_page() -> None:
     )
     lookup_id, lookup, _ = service.latest("resolve_entries")
     assert lookup.query_id == "query-selection"
-    service.complete(lookup_id, ArchiveLookupResult("session-a", (selected,), 1, False, (700,)))
+    service.batch(lookup_id, ArchiveLookupResult("session-a", (selected,), 1, False, (700,)))
+    service.complete(lookup_id, ArchiveLookupResult("session-a", (), 1, False, ()))
     assert ready_rows == []
     _drain_events()
     selected_page_id, _kind, selected_page_request, _generation = next(

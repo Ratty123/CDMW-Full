@@ -18,6 +18,60 @@ from cdmw.constants import (
 from cdmw.models import ArchiveEntry, ArchiveEntryIdentity, RunCancelled
 
 
+COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS: tuple[str, ...] = (
+    "*_n.dds",
+    "*_nm.dds",
+    "*_nrm.dds",
+    "*_normal.dds",
+    "*_normalmap.dds",
+    "*_sp.dds",
+    "*_spec.dds",
+    "*_specular.dds",
+    "*_m.dds",
+    "*_mask.dds",
+    "*_orm.dds",
+    "*_rma.dds",
+    "*_mra.dds",
+    "*_arm.dds",
+    "*_ao.dds",
+    "*_metal.dds",
+    "*_metallic.dds",
+    "*_rough.dds",
+    "*_roughness.dds",
+    "*_gloss.dds",
+    "*_smooth.dds",
+    "*_height.dds",
+    "*_hgt.dds",
+    "*_disp.dds",
+    "*_displacement.dds",
+    "*_dmap.dds",
+    "*_bump.dds",
+    "*_parallax.dds",
+    "*_pom.dds",
+    "*_ssdm.dds",
+    "*_vector.dds",
+    "*_dr.dds",
+    "*_op.dds",
+    "*_wn.dds",
+    "*_flow.dds",
+    "*_velocity.dds",
+    "*_pos.dds",
+    "*_position.dds",
+    "*_pivot.dds",
+    "*_depth.dds",
+    "*_pivotpos.dds",
+    "*_ma.dds",
+    "*_mg.dds",
+    "*_o.dds",
+    "*_emi.dds",
+    "*_emc.dds",
+    "*_subsurface.dds",
+    "*_1bit.dds",
+    "*_mask_amg.dds",
+    "*_d.dds",
+)
+
+
 @dataclass(frozen=True, slots=True)
 class ArchiveFilterState:
     query: str = ""
@@ -190,6 +244,7 @@ def order_archive_entries_by_active_overrides(entries: Sequence[ArchiveEntry]) -
 
 __all__ = [
     "ArchiveFilterState",
+    "COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS",
     "active_archive_entry_for_virtual_path",
     "archive_browser_sort_is_active",
     "archive_browser_entry_category",

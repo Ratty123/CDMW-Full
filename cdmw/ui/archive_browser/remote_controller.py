@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from PySide6.QtCore import QModelIndex, QObject, QTimer, Signal
@@ -11,6 +11,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveChildrenRequest,
     ArchiveChildrenResult,
     ArchiveDurableIdentity,
+    ArchiveEntryDto,
     ArchiveFacetsResult,
     ArchiveLookupKind,
     ArchiveLookupRequest,
@@ -48,6 +49,13 @@ class _StagedQuery:
     facets: ArchiveFacetsResult | None = None
 
 
+@dataclass(slots=True)
+class _SelectionRequest:
+    identity: ArchiveDurableIdentity
+    entries: list[ArchiveEntryDto] = field(default_factory=list)
+    query_rows: list[int] = field(default_factory=list)
+
+
 class ArchiveRemoteCatalogueController(QObject):
     """Keep old rows visible while a bounded replacement query is prepared."""
 
@@ -78,6 +86,7 @@ class ArchiveRemoteCatalogueController(QObject):
         self._pending_selection_row: int | None = None
         self._actions_safe = True
         service.result_ready.connect(self._handle_result)
+        service.batch_ready.connect(self._handle_batch)
         service.request_failed.connect(self._handle_failure)
         service.request_cancelled.connect(self._handle_cancelled)
         service.progress.connect(self._handle_progress)
@@ -304,7 +313,11 @@ class ArchiveRemoteCatalogueController(QObject):
         except Exception as exc:
             self.requestFailed.emit("selection_lookup", exc)
             return
-        self._requests[request_id] = _TrackedRequest("selection", self._generation, identity)
+        self._requests[request_id] = _TrackedRequest(
+            "selection",
+            self._generation,
+            _SelectionRequest(identity),
+        )
 
     def _fetch_page(self, fetch: RemotePageFetch) -> None:
         handle = self._model.query_handle
@@ -419,7 +432,18 @@ class ArchiveRemoteCatalogueController(QObject):
             self.facetsReady.emit(result)
             return
         if tracked.kind == "selection" and isinstance(result, ArchiveLookupResult):
-            self._handle_selection_lookup(result)
+            selection = tracked.payload
+            if isinstance(selection, _SelectionRequest):
+                combined = ArchiveLookupResult(
+                    result.session_id,
+                    tuple(selection.entries) + result.entries,
+                    result.total_matches,
+                    result.truncated,
+                    tuple(selection.query_rows) + result.query_rows,
+                )
+                self._handle_selection_lookup(combined)
+            else:
+                self._handle_selection_lookup(result)
             return
         self._handle_failure(request_id, TypeError(f"Unexpected archive result for {tracked.kind}."), tracked=tracked)
 
@@ -486,6 +510,19 @@ class ArchiveRemoteCatalogueController(QObject):
         tracked = self._requests.get(request_id)
         if tracked is not None and tracked.generation == self._generation:
             self.progressChanged.emit(tracked.kind, update)
+
+    def _handle_batch(self, request_id: str, _operation: str, result: object) -> None:
+        tracked = self._requests.get(request_id)
+        if (
+            tracked is None
+            or tracked.generation != self._generation
+            or tracked.kind != "selection"
+            or not isinstance(tracked.payload, _SelectionRequest)
+            or not isinstance(result, ArchiveLookupResult)
+        ):
+            return
+        tracked.payload.entries.extend(result.entries)
+        tracked.payload.query_rows.extend(result.query_rows)
 
     def _fail_publication(self, kind: str, error: object) -> None:
         self._cancel_tracked_requests()
