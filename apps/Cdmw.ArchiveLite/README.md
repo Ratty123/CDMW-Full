@@ -14,7 +14,7 @@ CDMW Archive Lite is a separate, read-only Windows desktop application for brows
 - Full-file text and XML previews in a read-only AvalonEdit surface with theme-aware VS Code-style Dark+/Light+ syntax colors, muted line numbers, horizontal/vertical scrolling, selected search-result positioning, and in-file next/previous search. Switching any theme recolors both editors immediately. Text content is published through a bounded cache artifact rather than truncated to fit the named-pipe response.
 - Image preview through Windows codecs plus the bundled native DirectXTex decoder for DDS. Metadata identifies DDS dimensions, texture/array kind, pixel format and compression, mip levels, color space, alpha mode, payload layout, and relevant DX10 or RGB-mask details. Common Windows Media Foundation audio/video formats play directly; Wwise `.wem` files are decoded to cached WAV with the pinned bundled vgmstream runtime. Proprietary media such as BK2 still requires a compatible Windows codec.
 - Read-only PAC, PAM, and PAMLOD geometry preparation through `cdmw-preview-core.exe`, displayed by the embedded production `d3d11_vortice_shader` .NET renderer as a texture-free neutral clay mesh. Directional studio lighting and subtle per-part tone variation keep contours and adjacent pieces legible without implying game textures or materials. The Lite surface has one mesh viewport and omits Original/Imported selectors, the edit gizmo, and the grid. Package preparation is cancellable, cached by immutable archive identity, and reported in the UI. Warm model-cache hits use the short selection dwell; cold builds retain the longer anti-thrash dwell after the cache probe. Rebuildable package sidecars skip redundant durable flushes while the complete package remains in private staging and still publishes by one final directory move.
-- Read-only HKX/HKT visual preparation through the native Rust `cd-hkx.exe` parser. Recognized skeleton-bearing tagfiles are displayed as joint dots connected by their decoded parent-child bone lines, without synthetic solid bone surfaces. Supported box, sphere, capsule, and convex-hull physics records that do not expose a skeleton are shown honestly as wireframe collision shapes with vertices rather than invented bones. Arbitrary object records are never presented as proxy bones or dots: an unsupported packed/unknown shape receives an honest no-preview explanation. The parser is isolated, cancellable, output-bounded, and never mutates the archive source.
+- Read-only HKX/HKT metadata preview without geometry synthesis or renderer startup. The preview reports archive provenance plus safely recognized Havok container, SDK, and tag-section details, and keeps the original entry available for raw export. Archive Lite does not invent skeletons, collision surfaces, proxy bones, or dots for HKX/HKT files.
 - Native raw, LZ4, ChaCha20, partial PAR, and PATHC-backed partial DDS extraction.
 - Literal or regular-expression text search across archives or loose folders, with bounded parallelism, per-pattern timeouts, result caps, line/column/context, cancellation, and Enter-to-search from the query field. Selecting a result asynchronously opens and highlights the complete source file in the same editor used by Archive Browser.
 - Multi-selected file, selected-folder, filtered-set, associated-family, and search-result export. Raw archive output can either match the full CDMW extractor layout as `<PAMT parent folder>/<archive virtual path>` or place selected files directly in the chosen folder; every file is written through a sibling staging file, collisions default to skip, and JSON manifests record archive provenance.
@@ -24,11 +24,11 @@ CDMW Archive Lite is a separate, read-only Windows desktop application for brows
 
 Archive Lite has no archive-write, replacement, import-mesh, Modify Original, Build Mod, patch, backup, or restore authority. The native archive ABI intentionally exposes only scan and decode operations.
 
-Unsupported specialized conversions (WAV, HKX JSON/XML, structured JSON, and dependency-set export) fail explicitly instead of silently exporting a different format. PAC/PAM/PAMLOD/HKX display and interchange export remain read-only: editing controls, source replacement, mesh import, and archive mutation are absent.
+Unsupported specialized conversions (WAV, HKX JSON/XML, structured JSON, and dependency-set export) fail explicitly instead of silently exporting a different format. PAC/PAM/PAMLOD display, model interchange export, and HKX/HKT metadata remain read-only: editing controls, source replacement, mesh import, and archive mutation are absent.
 
 ## Run from source
 
-Requirements are Windows 11 x64, the .NET 10 SDK, a stable Rust toolchain, CMake 3.24 or newer, Visual Studio 2022 Build Tools with the Desktop C++ workload, and PowerShell.
+Requirements are Windows 11 x64, the .NET 10 SDK, CMake 3.24 or newer, Visual Studio 2022 Build Tools with the Desktop C++ workload, and PowerShell.
 
 ```powershell
 .\apps\Cdmw.ArchiveLite\scripts\test_archive_lite.ps1
@@ -45,7 +45,7 @@ The second command launches a visible desktop window and is intentionally not pa
 
 The build writes both `CDMW-Archive-Lite-0.6.1-Standalone-win-x64.exe` and the conventional portable ZIP beneath `apps/Cdmw.ArchiveLite/artifacts/`. The standalone file is the simplest distribution: copy that one EXE and run it. On first launch it verifies and atomically extracts its worker, native codecs, exporters, and renderer into a content-addressed local runtime; later launches reuse that verified runtime. Separate worker and renderer processes remain intact after extraction because they provide crash isolation and responsive archive/preview work.
 
-Packaging builds the native archive, preview, item-name-index, DDS, HKX, and mesh-interchange helpers; publishes the app, worker, and renderer self-contained for `win-x64`; scans every packaged PE for Python runtime references; verifies the x64 application/native entry points and the separately hosted pinned x86 vgmstream runtime; smokes binary FBX output; decodes a synthetic HKX skeleton; loads a synthetic native preview package in the packaged renderer; proves the hidden production Vortice backend; constructs and lays out the real WPF window without showing it; exercises the packaged application-to-worker connection; and checks that no worker remains. It then publishes the single-file Native AOT launcher, runs it once through first-run extraction and again through cached reuse, and requires both hidden application/worker self-tests to exit cleanly.
+Packaging builds the native archive, preview, item-name-index, DDS, and mesh-interchange helpers; publishes the app, worker, and renderer self-contained for `win-x64`; scans every packaged PE for Python runtime references; verifies the x64 application/native entry points and the separately hosted pinned x86 vgmstream runtime; smokes binary FBX output; verifies the managed HKX/HKT metadata-only route; loads a synthetic native model package in the packaged renderer; proves the hidden production Vortice backend; constructs and lays out the real WPF window without showing it; exercises the packaged application-to-worker connection; and checks that no worker remains. It then publishes the single-file Native AOT launcher, runs it once through first-run extraction and again through cached reuse, and requires both hidden application/worker self-tests to exit cleanly.
 
 ## Data isolation
 
@@ -60,7 +60,6 @@ Archive Lite stores its reusable archive, name, and preview caches beside the di
   cache\preview\models\
   cache\preview\native\
   cache\preview\textures\
-  cache\preview\hkx\
   cache\preview\media\
   cache\preview\text\
   cache\preview\runtime\
@@ -103,7 +102,6 @@ CdmwArchiveLite.Worker.exe (.NET 10, cancellable operations)
           +-- cdmw-preview-core.exe (C++20, PAC/PAM/PAMLOD package preparation)
           +-- cdmw-mesh-core.exe (C++17, production OBJ/FBX interchange writers)
           +-- cd-texture-dx.exe (C++20 + DirectXTex, DDS to PNG preview)
-          +-- cd-hkx.exe (Rust, bounded HKX skeleton/collision-shape parser)
           +-- vgmstream-cli.exe (pinned Wwise audio to WAV preview runtime)
           |
           +-- memory-mapped archive_index_v1

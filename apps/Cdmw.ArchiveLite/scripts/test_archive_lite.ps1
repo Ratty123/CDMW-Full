@@ -18,8 +18,6 @@ $meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
 $meshCoreBuild = Join-Path $meshCoreRoot "build"
 $textureRoot = Join-Path $repositoryRoot "native\cd_texture_dx"
 $textureBuild = Join-Path $textureRoot "build"
-$hkxRoot = Join-Path $repositoryRoot "native\cd_hkx"
-$hkxExecutable = Join-Path $hkxRoot "target\release\cd-hkx.exe"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
 $solution = Join-Path $liteRoot "Cdmw.ArchiveLite.slnx"
 $tests = Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj"
@@ -77,11 +75,6 @@ try {
     & $textureExecutable self-test
     Assert-LastExitCode "Native DirectXTex self-test"
 
-    & cargo test --quiet --manifest-path (Join-Path $hkxRoot "Cargo.toml")
-    Assert-LastExitCode "Native HKX tests"
-    & cargo build --release --quiet --manifest-path (Join-Path $hkxRoot "Cargo.toml")
-    Assert-LastExitCode "Native HKX build"
-
     & dotnet build $solution -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
 
@@ -92,13 +85,11 @@ try {
     $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
     $previousMeshCorePath = $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH
     $previousTextureHelperPath = $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH
-    $previousHkxHelperPath = $env:CDMW_ARCHIVE_LITE_HKX_HELPER_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $meshCoreExecutable
         $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $textureExecutable
-        $env:CDMW_ARCHIVE_LITE_HKX_HELPER_PATH = $hkxExecutable
         & dotnet run --project $tests -c $Configuration --no-build
         Assert-LastExitCode "Archive Lite focused tests"
     }
@@ -107,7 +98,6 @@ try {
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $previousMeshCorePath
         $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $previousTextureHelperPath
-        $env:CDMW_ARCHIVE_LITE_HKX_HELPER_PATH = $previousHkxHelperPath
     }
 }
 finally {

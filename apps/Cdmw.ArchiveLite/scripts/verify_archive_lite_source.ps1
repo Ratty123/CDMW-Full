@@ -8,9 +8,8 @@ $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
 $acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
 $meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
 $textureRoot = Join-Path $repositoryRoot "native\cd_texture_dx"
-$hkxRoot = Join-Path $repositoryRoot "native\cd_hkx"
 $rendererRoot = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment"
-$roots = @($liteRoot, $nativeRoot, $previewRoot, $acceleratorRoot, $meshCoreRoot, $textureRoot, $hkxRoot, $rendererRoot)
+$roots = @($liteRoot, $nativeRoot, $previewRoot, $acceleratorRoot, $meshCoreRoot, $textureRoot, $rendererRoot)
 $bannedExtensions = @(".py", ".pyc", ".pyo", ".pyd", ".pyw", ".whl", ".egg", ".ipynb")
 
 $bannedFiles = foreach ($root in $roots) {

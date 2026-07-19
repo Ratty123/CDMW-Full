@@ -20,7 +20,6 @@ $requiredFiles = @(
     "indexer\cdmw-archive-accelerator.exe",
     "mesh\cdmw-mesh-core.exe",
     "texture\cd-texture-dx.exe",
-    "hkx\cd-hkx.exe",
     "media\vgmstream-cli.exe",
     "media\COPYING",
     "media\.cdmw-dependency.json",
@@ -96,7 +95,6 @@ Assert-X64Pe (Join-Path $artifactRoot "preview\cdmw-preview-core.exe")
 Assert-X64Pe (Join-Path $artifactRoot "indexer\cdmw-archive-accelerator.exe")
 Assert-X64Pe (Join-Path $artifactRoot "mesh\cdmw-mesh-core.exe")
 Assert-X64Pe (Join-Path $artifactRoot "texture\cd-texture-dx.exe")
-Assert-X64Pe (Join-Path $artifactRoot "hkx\cd-hkx.exe")
 Assert-X64Pe (Join-Path $artifactRoot "renderer\cdmw-mesh-dotnet-editor.exe")
 foreach ($mediaBinary in Get-ChildItem -LiteralPath (Join-Path $artifactRoot "media") -File | Where-Object { $_.Extension -in @(".exe", ".dll") }) {
     Assert-X86Pe $mediaBinary.FullName

@@ -334,25 +334,17 @@ public sealed class DotNetModelPreviewHost : HwndHost
         private readonly Task _stderrTask;
         private readonly Task _exitTask;
         private readonly TaskCompletionSource<string> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        private readonly string _initialSessionId;
-        private readonly string _initialDisplayMode;
-        private string _readyBackend = string.Empty;
-        private bool _initialDisplayRequested;
         private int _disposed;
 
         private ModelRendererSession(
             Process process,
             WorkerJob job,
             string runtimeRoot,
-            Action<string> status,
-            string initialSessionId,
-            string initialDisplayMode)
+            Action<string> status)
         {
             _process = process;
             _job = job;
             _runtimeRoot = runtimeRoot;
-            _initialSessionId = initialSessionId;
-            _initialDisplayMode = initialDisplayMode;
             _stdoutTask = ReadProtocolAsync(process.StandardOutput, status, _lifetime.Token);
             _stderrTask = DrainAsync(process.StandardError, _stderr, _lifetime.Token);
             _exitTask = ObserveExitAsync();
@@ -378,8 +370,6 @@ public sealed class DotNetModelPreviewHost : HwndHost
             {
                 throw new InvalidDataException("The read-only .NET preview package is incomplete.");
             }
-            var initialDisplay = ReadInitialDisplay(package);
-
             var renderer = ResolveRendererPath();
             var runtimeRoot = CreateRuntimeRoot();
             var output = Path.Combine(runtimeRoot, "output");
@@ -423,13 +413,7 @@ public sealed class DotNetModelPreviewHost : HwndHost
                 process.StandardInput.AutoFlush = true;
                 job = WorkerJob.Create();
                 job.Add(process);
-                return Task.FromResult(new ModelRendererSession(
-                    process,
-                    job,
-                    runtimeRoot,
-                    status,
-                    initialDisplay.SessionId,
-                    initialDisplay.Mode));
+                return Task.FromResult(new ModelRendererSession(process, job, runtimeRoot, status));
             }
             catch
             {
@@ -522,29 +506,7 @@ public sealed class DotNetModelPreviewHost : HwndHost
                                 var backend = root.TryGetProperty("renderer", out var renderer)
                                     ? JsonString(renderer, "backend")
                                     : string.Empty;
-                                _readyBackend = backend;
-                                if (string.IsNullOrWhiteSpace(_initialDisplayMode))
-                                {
-                                    _ready.TrySetResult(backend);
-                                }
-                                else
-                                {
-                                    await RequestInitialDisplayAsync().ConfigureAwait(false);
-                                }
-                                break;
-                            case "viewport_display_applied":
-                                if (_initialDisplayRequested
-                                    && string.Equals(JsonString(root, "mode"), _initialDisplayMode, StringComparison.OrdinalIgnoreCase))
-                                {
-                                    _ready.TrySetResult(_readyBackend);
-                                }
-                                break;
-                            case "viewport_display_failed":
-                                if (_initialDisplayRequested)
-                                {
-                                    _ready.TrySetException(new InvalidDataException(
-                                        JsonString(root, "message", "The renderer rejected the requested HKX structure view.")));
-                                }
+                                _ready.TrySetResult(backend);
                                 break;
                             case "error":
                                 _ready.TrySetException(new InvalidDataException(
@@ -566,28 +528,6 @@ public sealed class DotNetModelPreviewHost : HwndHost
             {
                 _ready.TrySetException(exception);
             }
-        }
-
-        private async Task RequestInitialDisplayAsync()
-        {
-            if (_initialDisplayRequested)
-            {
-                return;
-            }
-            _initialDisplayRequested = true;
-            var sessionState = JsonSerializer.Serialize(new Dictionary<string, object?>
-            {
-                ["event"] = "session_state",
-                ["session_id"] = _initialSessionId,
-            });
-            var displayUpdate = JsonSerializer.Serialize(new Dictionary<string, object?>
-            {
-                ["event"] = "viewport_display_update",
-                ["session_id"] = _initialSessionId,
-                ["mode"] = _initialDisplayMode,
-            });
-            await _process.StandardInput.WriteLineAsync(sessionState).ConfigureAwait(false);
-            await _process.StandardInput.WriteLineAsync(displayUpdate).ConfigureAwait(false);
         }
 
         private async Task ObserveExitAsync()
@@ -697,28 +637,6 @@ public sealed class DotNetModelPreviewHost : HwndHost
             }
             throw new FileNotFoundException(
                 "cdmw-mesh-dotnet-editor.exe was not found. Rebuild the Archive Lite portable package or set CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH.");
-        }
-
-        private static (string SessionId, string Mode) ReadInitialDisplay(string package)
-        {
-            var reportPath = Path.Combine(package, "archive_lite_hkx_preview.json");
-            if (!File.Exists(reportPath))
-            {
-                return (string.Empty, string.Empty);
-            }
-            using var report = JsonDocument.Parse(File.ReadAllBytes(reportPath));
-            var mode = JsonString(report.RootElement, "preferred_display_mode").Trim().ToLowerInvariant();
-            if (!string.Equals(mode, "xray", StringComparison.Ordinal))
-            {
-                throw new InvalidDataException($"The HKX preview requested unsupported display mode '{mode}'.");
-            }
-            using var scene = JsonDocument.Parse(File.ReadAllBytes(Path.Combine(package, "dotnet_scene.json")));
-            var sessionId = JsonString(scene.RootElement, "session_id").Trim();
-            if (string.IsNullOrWhiteSpace(sessionId))
-            {
-                throw new InvalidDataException("The HKX preview scene has no renderer session identity.");
-            }
-            return (sessionId, mode);
         }
 
         private static string CreateRuntimeRoot()

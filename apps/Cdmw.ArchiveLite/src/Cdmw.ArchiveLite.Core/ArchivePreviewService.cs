@@ -17,12 +17,15 @@ public sealed class ArchivePreviewService
     {
         ".avi", ".bk2", ".m4v", ".mov", ".mp4", ".mpeg", ".mpg", ".webm", ".wmv",
     };
+    private static readonly HashSet<string> MetadataOnlyExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".hkx", ".hkt",
+    };
     private readonly ArchiveSessionManager _sessions;
     private readonly NativeArchiveCore _native;
     private readonly NativeModelPreviewService _modelPreviews;
     private readonly NativeTexturePreviewService _texturePreviews;
     private readonly NativeMediaPreviewService _mediaPreviews;
-    private readonly NativeHkxPreviewService _hkxPreviews;
     private readonly TextDocumentPreviewService _textDocuments;
 
     public ArchivePreviewService(
@@ -31,7 +34,6 @@ public sealed class ArchivePreviewService
         NativeModelPreviewService? modelPreviews = null,
         NativeTexturePreviewService? texturePreviews = null,
         NativeMediaPreviewService? mediaPreviews = null,
-        NativeHkxPreviewService? hkxPreviews = null,
         TextDocumentPreviewService? textDocuments = null)
     {
         _sessions = sessions;
@@ -39,7 +41,6 @@ public sealed class ArchivePreviewService
         _modelPreviews = modelPreviews ?? new NativeModelPreviewService();
         _texturePreviews = texturePreviews ?? new NativeTexturePreviewService();
         _mediaPreviews = mediaPreviews ?? new NativeMediaPreviewService();
-        _hkxPreviews = hkxPreviews ?? new NativeHkxPreviewService();
         _textDocuments = textDocuments ?? new TextDocumentPreviewService();
     }
 
@@ -95,13 +96,14 @@ public sealed class ArchivePreviewService
 
         if (entry.OriginalSize > MaximumPreviewBytes)
         {
+            var metadataOnly = MetadataOnlyExtensions.Contains(entry.Extension);
             return new PreviewResult(
                 session.Id,
                 entry.EntryId,
                 NativeModelPreviewService.Supports(entry.Extension) ? PreviewKind.Model : PreviewKind.Metadata,
                 entry.Name,
                 metadata,
-                Text: metadata,
+                Text: metadataOnly ? BuildMetadataOnlyPreview(metadata) : metadata,
                 Warnings: [.. warnings, $"Preview was not decoded because the entry exceeds {MaximumPreviewBytes / (1024 * 1024)} MiB."]);
         }
         cancellationToken.ThrowIfCancellationRequested();
@@ -109,6 +111,18 @@ public sealed class ArchivePreviewService
         cancellationToken.ThrowIfCancellationRequested();
         metadata = AssetMetadataInspector.Enrich(metadata, entry.Extension, decoded.Bytes);
         if (!string.IsNullOrWhiteSpace(decoded.Note)) warnings.Add(decoded.Note);
+
+        if (MetadataOnlyExtensions.Contains(entry.Extension))
+        {
+            return new PreviewResult(
+                session.Id,
+                entry.EntryId,
+                PreviewKind.Metadata,
+                entry.Name,
+                metadata,
+                Text: BuildMetadataOnlyPreview(metadata),
+                Warnings: warnings);
+        }
 
         if (entry.Role is ArchiveEntryRole.Text or ArchiveEntryRole.Metadata || LooksTextual(decoded.Bytes))
         {
@@ -205,51 +219,6 @@ public sealed class ArchivePreviewService
             return new PreviewResult(session.Id, entry.EntryId, kind, entry.Name, metadata, ArtifactPath: artifact, MediaKind: entry.Role.ToString().ToLowerInvariant(), Warnings: warnings);
         }
 
-        if (NativeHkxPreviewService.Supports(entry.Extension))
-        {
-            try
-            {
-                var artifact = await _hkxPreviews.BuildAsync(
-                    session,
-                    entry,
-                    decoded.Bytes,
-                    publishProgress,
-                    cancellationToken).ConfigureAwait(false);
-                metadata = string.Join(
-                    Environment.NewLine,
-                    metadata,
-                    string.Empty,
-                    artifact.PreviewKind.Equals("skeleton", StringComparison.OrdinalIgnoreCase)
-                        ? $"Native visual preview: skeleton joints and bone lines ({artifact.BoneCount:N0} bones)"
-                        : $"Native visual preview: wireframe collision geometry ({artifact.ShapeCount:N0} shapes)");
-                warnings.AddRange(artifact.Warnings);
-                return new PreviewResult(
-                    session.Id,
-                    entry.EntryId,
-                    PreviewKind.Model,
-                    entry.Name,
-                    metadata,
-                    ArtifactPath: artifact.PackagePath,
-                    Warnings: warnings);
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
-            }
-            catch (Exception exception)
-            {
-                warnings.Add($"Native HKX visual preview unavailable: {exception.Message}");
-                return new PreviewResult(
-                    session.Id,
-                    entry.EntryId,
-                    PreviewKind.Hkx,
-                    entry.Name,
-                    metadata,
-                    Text: "This HKX did not expose a safely decoded skeleton or collision shape. Its format details remain available in Metadata.",
-                    Warnings: warnings);
-            }
-        }
-
         if (entry.Role is ArchiveEntryRole.Model or ArchiveEntryRole.Animation or ArchiveEntryRole.Physics)
         {
             var kind = entry.Role == ArchiveEntryRole.Model ? PreviewKind.Model : PreviewKind.Hkx;
@@ -272,6 +241,14 @@ public sealed class ArchivePreviewService
             BuildHex(decoded.Bytes, request.BinaryByteLimit),
             Warnings: warnings);
     }
+
+    private static string BuildMetadataOnlyPreview(string metadata) => string.Join(
+        Environment.NewLine,
+        "HKX/HKT metadata",
+        string.Empty,
+        metadata,
+        string.Empty,
+        "Visual preview is intentionally disabled. The archive entry remains available for raw export.");
 
     private static string BuildMetadata(ArchiveEntryDto entry) => string.Join(
         Environment.NewLine,
