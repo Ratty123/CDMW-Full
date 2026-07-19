@@ -107,6 +107,13 @@ def main() -> int:
                 | {"session_id": "session-stub"}
             )
         elif operation == "create_query":
+            payload = request.get("payload") or {}
+            query_payload = payload.get("query") or {}
+            if str(query_payload.get("include_text", "")) == "crash_query_once":
+                marker = cache_root / "crashed-query-once.marker"
+                if not marker.exists():
+                    marker.write_text("crashed", encoding="utf-8")
+                    os._exit(75)
             _send(
                 _message(
                     request,
@@ -121,6 +128,11 @@ def main() -> int:
             )
         elif operation == "fetch_page":
             payload = request.get("payload") or {}
+            if int(payload.get("page_start", 0)) == 512:
+                marker = cache_root / "crashed-page-once.marker"
+                if not marker.exists():
+                    marker.write_text("crashed", encoding="utf-8")
+                    os._exit(76)
             entry = {
                 "session_id": request.get("session_id"),
                 "entry_id": 0,

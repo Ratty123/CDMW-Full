@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 from uuid import uuid4
@@ -16,6 +16,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveChildrenResult,
     ArchiveFacetsResult,
     ArchiveLookupRequest,
+    ArchiveLookupKind,
     ArchiveLookupResult,
     ArchivePage,
     ArchiveQuery,
@@ -48,9 +49,17 @@ _ResultParser = Callable[[object], object]
 @dataclass(slots=True)
 class _CatalogueRequest:
     operation: ArchiveBackendOperation
+    payload: object
+    ui_generation: int
     result_parser: _ResultParser
     batch_parser: _ResultParser | None = None
     query: ArchiveQuery | None = None
+    session_id: str | None = None
+    fingerprint: str | None = None
+    recovery_attempts: int = 0
+    internal_kind: str = ""
+    recovery_target_id: str | None = None
+    recovery_old_session_id: str | None = None
 
 
 class ArchiveCatalogueService(QObject):
@@ -72,13 +81,18 @@ class ArchiveCatalogueService(QObject):
         self._sessions: dict[str, ArchiveSessionHandle] = {}
         self._queries: dict[str, tuple[ArchiveQuery, ArchiveQueryHandle, str]] = {}
         self._current_session_id: str | None = None
+        self._minimum_ui_generation = 0
+        self._recovering_requests: set[str] = set()
+        self._recovery_sessions: set[str] = set()
+        self._recovery_open_requests: dict[str, str] = {}
         client.request_progress.connect(self._handle_progress)
         client.request_batch.connect(self._handle_batch)
         client.request_succeeded.connect(self._handle_result)
         client.request_failed.connect(self._handle_failure)
         client.request_cancelled.connect(self._handle_cancelled)
         client.state_changed.connect(self.worker_state_changed.emit)
-        client.worker_crashed.connect(self.worker_crashed.emit)
+        client.worker_crashed.connect(self._handle_worker_crash)
+        client.worker_ready.connect(self._handle_worker_ready)
 
     @property
     def current_session(self) -> ArchiveSessionHandle | None:
@@ -136,6 +150,7 @@ class ArchiveCatalogueService(QObject):
             ArchivePage.from_wire,
             ui_generation=ui_generation,
             session=session,
+            query=query,
         )
 
     def fetch_children(self, request: ArchiveChildrenRequest, *, ui_generation: int) -> str:
@@ -147,6 +162,7 @@ class ArchiveCatalogueService(QObject):
             ArchiveChildrenResult.from_wire,
             ui_generation=ui_generation,
             session=session,
+            query=query,
         )
 
     def facets(self, session_id: str, *, ui_generation: int) -> str:
@@ -221,7 +237,8 @@ class ArchiveCatalogueService(QObject):
         return bool(self._client.cancel(str(request_id)))
 
     def invalidate_before(self, ui_generation: int) -> None:
-        self._client.invalidate_before(int(ui_generation))
+        self._minimum_ui_generation = max(self._minimum_ui_generation, int(ui_generation))
+        self._client.invalidate_before(self._minimum_ui_generation)
 
     def request_shutdown(self) -> None:
         self._client.shutdown()
@@ -257,23 +274,31 @@ class ArchiveCatalogueService(QObject):
         request_id = str(uuid4())
         self._requests[request_id] = _CatalogueRequest(
             operation=operation,
+            payload=payload,
+            ui_generation=ui_generation,
             result_parser=result_parser,
             batch_parser=batch_parser,
             query=query,
+            session_id=session.session_id if session is not None else None,
+            fingerprint=session.fingerprint if session is not None else None,
         )
         try:
-            self._client.submit(
-                operation,
-                payload,
-                request_id=request_id,
-                ui_generation=ui_generation,
-                session_id=session.session_id if session is not None else None,
-                expected_fingerprint=session.fingerprint if session is not None else None,
-            )
+            self._dispatch(request_id)
         except Exception:
             self._requests.pop(request_id, None)
             raise
         return request_id
+
+    def _dispatch(self, request_id: str) -> None:
+        request = self._requests[request_id]
+        self._client.submit(
+            request.operation,
+            request.payload,
+            request_id=request_id,
+            ui_generation=request.ui_generation,
+            session_id=request.session_id,
+            expected_fingerprint=request.fingerprint,
+        )
 
     def _handle_progress(self, request_id: str, payload: object) -> None:
         if request_id not in self._requests:
@@ -302,6 +327,16 @@ class ArchiveCatalogueService(QObject):
             return
         try:
             result = request.result_parser(payload)
+            if request.internal_kind == "recovery_open":
+                if not isinstance(result, ArchiveSessionHandle):
+                    raise TypeError("Recovery open did not return an archive session.")
+                self._complete_recovery_open(request_id, request, result)
+                return
+            if request.internal_kind == "recovery_query":
+                if not isinstance(result, ArchiveQueryHandle):
+                    raise TypeError("Recovery query did not return a query handle.")
+                self._complete_recovery_query(request, result)
+                return
             if isinstance(result, ArchiveSessionHandle):
                 self._sessions[result.session_id] = result
                 self._current_session_id = result.session_id
@@ -309,22 +344,254 @@ class ArchiveCatalogueService(QObject):
                 session = self._require_session(result.session_id)
                 self._queries[result.query_id] = (request.query, result, session.fingerprint)
         except (ArchiveContractError, KeyError, RuntimeError, TypeError, ValueError) as exc:
-            self.request_failed.emit(
-                request_id,
-                ArchiveBackendError("invalid_result", "Archive backend returned an invalid result.", str(exc)),
+            error = ArchiveBackendError(
+                "invalid_result",
+                "Archive backend returned an invalid result.",
+                str(exc),
             )
+            if request.internal_kind == "recovery_open":
+                self._fail_recovery_session(request.recovery_old_session_id, error)
+            elif request.internal_kind == "recovery_query":
+                self._fail_recovery_target(request.recovery_target_id, error)
+            else:
+                self.request_failed.emit(request_id, error)
             return
         if isinstance(result, ArchiveSessionHandle):
             self.session_published.emit(result)
         self.result_ready.emit(request_id, request.operation.value, result)
 
     def _handle_failure(self, request_id: str, error: object) -> None:
-        if self._requests.pop(request_id, None) is not None:
-            self.request_failed.emit(request_id, error)
+        request = self._requests.get(request_id)
+        if request is None:
+            return
+        if request_id in self._recovering_requests and getattr(error, "code", "") == "worker_crashed":
+            return
+        self._requests.pop(request_id, None)
+        if request.internal_kind == "recovery_open":
+            self._fail_recovery_session(request.recovery_old_session_id, error)
+            return
+        if request.internal_kind == "recovery_query":
+            self._fail_recovery_target(request.recovery_target_id, error)
+            return
+        self._recovering_requests.discard(request_id)
+        self.request_failed.emit(request_id, error)
 
     def _handle_cancelled(self, request_id: str) -> None:
         if self._requests.pop(request_id, None) is not None:
+            self._recovering_requests.discard(request_id)
             self.request_cancelled.emit(request_id)
+
+    def _handle_worker_crash(self, detail: str) -> None:
+        for request_id, request in self._requests.items():
+            if request.internal_kind or request.recovery_attempts >= 1 or not self._is_recoverable(request):
+                continue
+            request.recovery_attempts += 1
+            self._recovering_requests.add(request_id)
+            if request.session_id:
+                self._recovery_sessions.add(request.session_id)
+        if self._current_session_id is not None:
+            self._recovery_sessions.add(self._current_session_id)
+        self.worker_crashed.emit(detail)
+
+    def _handle_worker_ready(self) -> None:
+        active_old_sessions = set(self._recovery_open_requests.values())
+        for old_session_id in tuple(self._recovery_sessions - active_old_sessions):
+            old_session = self._sessions.get(old_session_id)
+            if old_session is None:
+                self._fail_recovery_session(
+                    old_session_id,
+                    ArchiveBackendError("recovery_session_missing", "Archive session could not be reopened after worker restart."),
+                )
+                continue
+            request_id = str(uuid4())
+            request = _CatalogueRequest(
+                operation=ArchiveBackendOperation.OPEN_ARCHIVE,
+                payload=OpenArchiveRequest(old_session.package_root),
+                ui_generation=max(
+                    (
+                        self._requests[target].ui_generation
+                        for target in self._recovering_requests
+                        if self._requests.get(target) is not None
+                        and self._requests[target].session_id == old_session_id
+                    ),
+                    default=self._minimum_ui_generation,
+                ),
+                result_parser=ArchiveSessionHandle.from_wire,
+                internal_kind="recovery_open",
+                recovery_old_session_id=old_session_id,
+            )
+            self._requests[request_id] = request
+            self._recovery_open_requests[request_id] = old_session_id
+            try:
+                self._dispatch(request_id)
+            except Exception as exc:
+                self._requests.pop(request_id, None)
+                self._recovery_open_requests.pop(request_id, None)
+                self._fail_recovery_session(
+                    old_session_id,
+                    ArchiveBackendError("recovery_open_failed", "Archive session reopen could not be dispatched.", str(exc)),
+                )
+
+    def _complete_recovery_open(
+        self,
+        request_id: str,
+        request: _CatalogueRequest,
+        session: ArchiveSessionHandle,
+    ) -> None:
+        old_session_id = request.recovery_old_session_id or ""
+        old_session = self._sessions.get(old_session_id)
+        self._recovery_open_requests.pop(request_id, None)
+        self._recovery_sessions.discard(old_session_id)
+        self._sessions[session.session_id] = session
+        if old_session_id != session.session_id:
+            self._sessions.pop(old_session_id, None)
+        for query_id, (query, _handle, _fingerprint) in tuple(self._queries.items()):
+            if query.session_id == old_session_id:
+                self._queries.pop(query_id, None)
+        if self._current_session_id == old_session_id:
+            self._current_session_id = session.session_id
+            self.session_published.emit(session)
+        if old_session is None or old_session.fingerprint != session.fingerprint:
+            self._fail_recovery_session(
+                old_session_id,
+                ArchiveBackendError(
+                    "recovery_fingerprint_changed",
+                    "Archive sources changed while the worker was restarting; stale queries were not retried.",
+                ),
+            )
+            return
+        targets = [
+            target
+            for target in self._recovering_requests
+            if self._requests.get(target) is not None
+            and self._requests[target].session_id == old_session_id
+        ]
+        for target in targets:
+            self._resume_recovery_target(target, session)
+
+    def _resume_recovery_target(self, request_id: str, session: ArchiveSessionHandle) -> None:
+        request = self._requests.get(request_id)
+        if request is None:
+            return
+        try:
+            if request.operation is ArchiveBackendOperation.CREATE_QUERY and request.query is not None:
+                request.query = replace(request.query, session_id=session.session_id)
+                request.payload = CreateQueryRequest(request.query)
+            elif request.operation is ArchiveBackendOperation.FACETS:
+                request.payload = {}
+            elif request.operation is ArchiveBackendOperation.RESOLVE_ENTRIES and isinstance(request.payload, ArchiveLookupRequest):
+                request.payload = replace(request.payload, session_id=session.session_id)
+            elif request.operation in {
+                ArchiveBackendOperation.FETCH_PAGE,
+                ArchiveBackendOperation.FETCH_CHILDREN,
+            } and request.query is not None:
+                self._start_recovery_query(request_id, request, session)
+                return
+            else:
+                raise RuntimeError("Archive query operation cannot be safely reconstructed.")
+            request.session_id = session.session_id
+            request.fingerprint = session.fingerprint
+            self._dispatch(request_id)
+        except Exception as exc:
+            self._fail_recovery_target(
+                request_id,
+                ArchiveBackendError("query_recovery_failed", "Archive query could not be retried after worker restart.", str(exc)),
+            )
+
+    def _start_recovery_query(
+        self,
+        target_request_id: str,
+        target: _CatalogueRequest,
+        session: ArchiveSessionHandle,
+    ) -> None:
+        if target.query is None:
+            raise RuntimeError("Recovered page request has no query definition.")
+        query = replace(target.query, session_id=session.session_id)
+        request_id = str(uuid4())
+        self._requests[request_id] = _CatalogueRequest(
+            operation=ArchiveBackendOperation.CREATE_QUERY,
+            payload=CreateQueryRequest(query),
+            ui_generation=target.ui_generation,
+            result_parser=ArchiveQueryHandle.from_wire,
+            query=query,
+            session_id=session.session_id,
+            fingerprint=session.fingerprint,
+            internal_kind="recovery_query",
+            recovery_target_id=target_request_id,
+        )
+        self._dispatch(request_id)
+
+    def _complete_recovery_query(
+        self,
+        request: _CatalogueRequest,
+        handle: ArchiveQueryHandle,
+    ) -> None:
+        target_id = request.recovery_target_id or ""
+        target = self._requests.get(target_id)
+        if target is None or request.query is None:
+            return
+        session = self._require_session(handle.session_id)
+        self._queries[handle.query_id] = (request.query, handle, session.fingerprint)
+        if isinstance(target.payload, FetchPageRequest):
+            target.payload = replace(target.payload, query_id=handle.query_id)
+        elif isinstance(target.payload, ArchiveChildrenRequest):
+            target.payload = replace(target.payload, query_id=handle.query_id)
+        else:
+            self._fail_recovery_target(
+                target_id,
+                ArchiveBackendError("query_recovery_failed", "Recovered query target has an unsupported payload."),
+            )
+            return
+        target.query = request.query
+        target.session_id = session.session_id
+        target.fingerprint = session.fingerprint
+        try:
+            self._dispatch(target_id)
+        except Exception as exc:
+            self._fail_recovery_target(
+                target_id,
+                ArchiveBackendError("query_recovery_failed", "Recovered query could not be dispatched.", str(exc)),
+            )
+
+    @staticmethod
+    def _is_recoverable(request: _CatalogueRequest) -> bool:
+        if request.operation in {
+            ArchiveBackendOperation.CREATE_QUERY,
+            ArchiveBackendOperation.FETCH_PAGE,
+            ArchiveBackendOperation.FETCH_CHILDREN,
+            ArchiveBackendOperation.FACETS,
+        }:
+            return request.session_id is not None
+        if request.operation is ArchiveBackendOperation.RESOLVE_ENTRIES:
+            return (
+                isinstance(request.payload, ArchiveLookupRequest)
+                and request.payload.kind is not ArchiveLookupKind.ENTRY_IDS
+            )
+        return False
+
+    def _fail_recovery_target(self, request_id: str | None, error: object) -> None:
+        if not request_id:
+            return
+        self._recovering_requests.discard(request_id)
+        if self._requests.pop(request_id, None) is not None:
+            self.request_failed.emit(request_id, error)
+
+    def _fail_recovery_session(self, old_session_id: str | None, error: object) -> None:
+        if not old_session_id:
+            return
+        self._recovery_sessions.discard(old_session_id)
+        for request_id, mapped_session in tuple(self._recovery_open_requests.items()):
+            if mapped_session == old_session_id:
+                self._recovery_open_requests.pop(request_id, None)
+                self._requests.pop(request_id, None)
+        targets = [
+            target
+            for target in self._recovering_requests
+            if self._requests.get(target) is not None
+            and self._requests[target].session_id == old_session_id
+        ]
+        for target in targets:
+            self._fail_recovery_target(target, error)
 
     def _reject_invalid_payload(self, request_id: str, kind: str, error: Exception) -> None:
         self._requests.pop(request_id, None)

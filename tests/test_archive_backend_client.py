@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 import time
 
-from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.archives.catalogue_operations import (
     ArchiveBackendOperation,
@@ -20,12 +24,12 @@ from cdmw.ui.shell.archive_backend_client import (
 
 
 _STUB = Path(__file__).parent / "helpers" / "archive_backend_worker_stub.py"
-_APPLICATION: QCoreApplication | None = None
+_APPLICATION: QApplication | None = None
 
 
-def _app() -> QCoreApplication:
+def _app() -> QApplication:
     global _APPLICATION
-    _APPLICATION = QCoreApplication.instance() or QCoreApplication([])
+    _APPLICATION = QApplication.instance() or QApplication([])
     return _APPLICATION
 
 

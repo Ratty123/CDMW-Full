@@ -14,6 +14,9 @@ environment, and cached lazy workflow surfaces composed by `ArchiveService`.
 `archive_catalogue_service.py` is the typed v2 catalogue boundary over the
 shell-owned resident process client. It publishes bounded pages/batches and
 converts only explicitly requested DTOs to the legacy `ArchiveEntry` shape.
+After one unexpected worker restart it reopens unchanged sessions and
+reconstructs only idempotent query/page/lookup requests; prepare, search, and
+export writes are never replayed automatically.
 UI modules never import archive implementation modules or the
 `cdmw.core.archive` / `cdmw.core.archive_modding` compatibility facades.
 Mutation commands and backup locations remain owned by

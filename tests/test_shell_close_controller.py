@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 import threading
+import os
 
-from PySide6.QtCore import QCoreApplication, QObject, QThread
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtCore import QObject, QThread
+from PySide6.QtWidgets import QApplication
 
 from cdmw.ui.shell.close_controller import CloseControllerMixin
 
@@ -130,7 +134,7 @@ class _ArchiveBackendCloseOwner:
 
 
 def test_close_waits_nonblocking_for_resident_archive_backend_shutdown() -> None:
-    app = QCoreApplication.instance() or QCoreApplication([])
+    app = QApplication.instance() or QApplication([])
     owner = _ArchiveBackendCloseOwner()
     event = _CloseEventProbe()
 

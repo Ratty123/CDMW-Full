@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 import sys
 
-from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
+from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.archives.catalogue import (
     ArchiveEntryDto,
@@ -21,13 +25,13 @@ from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient, ArchiveBackendClientState
 
 
-_APPLICATION: QCoreApplication | None = None
+_APPLICATION: QApplication | None = None
 _STUB = Path(__file__).parent / "helpers" / "archive_backend_worker_stub.py"
 
 
-def _app() -> QCoreApplication:
+def _app() -> QApplication:
     global _APPLICATION
-    _APPLICATION = QCoreApplication.instance() or QCoreApplication([])
+    _APPLICATION = QApplication.instance() or QApplication([])
     return _APPLICATION
 
 
@@ -109,6 +113,63 @@ def test_catalogue_service_publishes_typed_session_query_page_and_legacy_entry(t
     assert compatibility.paz_file == Path(dto.paz_file)
     assert compatibility.identity.normalized_path == dto.identity.normalized_path
     assert not hasattr(service, "archive_entries")
+
+    service.request_shutdown()
+    assert _wait_until(lambda: client.state is ArchiveBackendClientState.STOPPED)
+
+
+def test_catalogue_service_reopens_session_and_reconstructs_query_after_crash(tmp_path: Path) -> None:
+    _app()
+    client = ArchiveBackendClient(
+        cache_root=tmp_path,
+        worker_program=sys.executable,
+        worker_arguments=("-u", str(_STUB)),
+    )
+    service = ArchiveCatalogueService(client)
+    results: list[tuple[str, str, object]] = []
+    failures: list[tuple[str, object]] = []
+    crashes: list[str] = []
+    service.result_ready.connect(
+        lambda request_id, operation, result: results.append((request_id, operation, result))
+    )
+    service.request_failed.connect(lambda request_id, error: failures.append((request_id, error)))
+    service.worker_crashed.connect(crashes.append)
+
+    open_id = service.open_archive(OpenArchiveRequest("synthetic-root"), ui_generation=1)
+    assert _wait_until(lambda: any(row[0] == open_id for row in results))
+    session = next(row[2] for row in results if row[0] == open_id)
+    assert isinstance(session, ArchiveSessionHandle)
+
+    query_request_id = service.create_query(
+        ArchiveQuery(session_id=session.session_id, include_text="crash_query_once"),
+        ui_generation=2,
+    )
+    assert _wait_until(
+        lambda: any(row[0] == query_request_id for row in results or failures),
+        timeout_ms=8_000,
+    )
+    assert not [row for row in failures if row[0] == query_request_id]
+    query = next(row[2] for row in results if row[0] == query_request_id)
+    assert isinstance(query, ArchiveQueryHandle)
+
+    page_request_id = service.fetch_page(
+        FetchPageRequest(query.query_id, page_start=512, page_size=128),
+        ui_generation=3,
+    )
+    assert _wait_until(
+        lambda: any(row[0] == page_request_id for row in results or failures),
+        timeout_ms=8_000,
+    )
+    assert not [row for row in failures if row[0] == page_request_id]
+    page = next(row[2] for row in results if row[0] == page_request_id)
+    assert isinstance(page, ArchivePage)
+    assert page.page_start == 512
+    assert len(crashes) == 2
+
+    operations = (tmp_path / "stub-operations.log").read_text(encoding="utf-8").splitlines()
+    assert operations.count("open_archive") == 3
+    assert operations.count("create_query") == 3
+    assert operations.count("fetch_page") == 2
 
     service.request_shutdown()
     assert _wait_until(lambda: client.state is ArchiveBackendClientState.STOPPED)
