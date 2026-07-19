@@ -31,7 +31,7 @@ internal sealed partial class ExperimentForm : Form
     private static readonly Color ThemeMutedText = Color.FromArgb(151, 169, 186);
     private static readonly Color ThemeStatusBackground = Color.FromArgb(18, 25, 32);
     private readonly LaunchOptions _options;
-    private readonly ObjDocument _document;
+    private ObjDocument _document;
     private readonly MeshViewport _viewport;
     private readonly ListBox _submeshList = new();
     private readonly ListBox _actionHistoryList = new();
@@ -59,9 +59,9 @@ internal sealed partial class ExperimentForm : Form
     private TableLayoutPanel? _editorLayout;
     private Button? _undoButton;
     private Button? _redoButton;
-    private readonly NetMaterialSet _materials;
-    private readonly NetTextureSet _textureSet;
-    private readonly NetSceneState _scene;
+    private NetMaterialSet _materials;
+    private NetTextureSet _textureSet;
+    private NetSceneState _scene;
     private readonly HashSet<int> _editedSubmeshes = new();
     private readonly System.Windows.Forms.Timer _timer = new();
     private bool _saved;
@@ -121,6 +121,7 @@ internal sealed partial class ExperimentForm : Form
         StartProtocolReader();
 
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
+        InitializeResidentPackageProtocol();
         if (options.SimplePreview)
         {
             _overlaySettings = new MeshOverlaySettings(
@@ -378,6 +379,7 @@ internal sealed partial class ExperimentForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        CancelResidentPackageLoad();
         CancelPerformanceCaptureForShutdown();
         FlushPendingPlacementTransform(force: true);
         if (!_saved && !_embeddedHostFailed && _options.Embedded && _editedSubmeshes.Count > 0 && !_externalTopologyDirty)
@@ -737,10 +739,10 @@ internal sealed partial class MeshViewport : Control
         public int Queued;
     }
 
-    private readonly ObjDocument _document;
-    private readonly NetMaterialSet _materials;
-    private readonly NetTextureSet _textureSet;
-    private readonly NetSceneState _scene;
+    private ObjDocument _document;
+    private NetMaterialSet _materials;
+    private NetTextureSet _textureSet;
+    private NetSceneState _scene;
     private readonly LaunchOptions _options;
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private Point _lastMouse;

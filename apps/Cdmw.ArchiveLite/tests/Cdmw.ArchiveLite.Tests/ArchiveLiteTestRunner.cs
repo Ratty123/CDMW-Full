@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO.Compression;
 using System.IO.Pipes;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Threading;
@@ -1724,6 +1725,7 @@ internal static class ArchiveLiteTestRunner
             if (!string.IsNullOrWhiteSpace(rendererPath))
             {
                 await RunConfiguredRendererSmokeAsync(rendererPath, root, manifestPath).ConfigureAwait(false);
+                await RunConfiguredResidentRendererSwitchAsync(rendererPath, root, manifestPath).ConfigureAwait(false);
             }
             Require(await Sha256Async(geometryPath).ConfigureAwait(false) == geometryHash, "preview preparation or rendering changed native geometry");
         }
@@ -1816,6 +1818,14 @@ internal static class ArchiveLiteTestRunner
             "src",
             "Cdmw.ArchiveLite.Core",
             "NativeModelPreviewService.cs"));
+        var rendererHostSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App",
+            "Controls",
+            "DotNetModelPreviewHost.cs"));
         var buildSource = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "apps",
@@ -1834,6 +1844,11 @@ internal static class ArchiveLiteTestRunner
             modelPreviewSource.Contains("[\"archive_index_path\"] = session.Index.Path", StringComparison.Ordinal)
             && modelPreviewSource.Contains("[\"archive_basename_index_path\"] = session.BasenameIndex.Path", StringComparison.Ordinal),
             "native model jobs do not carry the compact cross-package lookup indexes");
+        Require(
+            rendererHostSource.Contains("resident.LoadPackageAsync(packagePath, generation", StringComparison.Ordinal)
+            && rendererHostSource.Contains("The old scene remains live while a fresh-process fallback starts", StringComparison.Ordinal)
+            && rendererHostSource.Contains("prior is { IsAlive: true }", StringComparison.Ordinal),
+            "Archive Lite does not reuse the resident renderer with generation and rollback guards");
         Require(
             buildSource.Contains("-p:PublishSingleFile=false", StringComparison.Ordinal)
             && !buildSource.Contains("-p:IncludeNativeLibrariesForSelfExtract=true", StringComparison.Ordinal),
@@ -2091,6 +2106,226 @@ internal static class ArchiveLiteTestRunner
         using var status = JsonDocument.Parse(await File.ReadAllTextAsync(statusPath).ConfigureAwait(false));
         Require(status.RootElement.GetProperty("event").GetString() == "saved", "configured .NET preview renderer did not report a successful smoke result");
     }
+
+    private static async Task RunConfiguredResidentRendererSwitchAsync(
+        string rendererPath,
+        string packageRoot,
+        string manifestPath)
+    {
+        var parentHandle = CreateWindowExW(
+            0,
+            "STATIC",
+            string.Empty,
+            0x10000000 | 0x02000000 | 0x04000000,
+            -32000,
+            -32000,
+            640,
+            480,
+            IntPtr.Zero,
+            IntPtr.Zero,
+            GetModuleHandleW(null),
+            IntPtr.Zero);
+        Require(parentHandle != IntPtr.Zero, $"hidden renderer parent window could not be created (Win32 {Marshal.GetLastWin32Error()})");
+        var runtimeRoot = Path.Combine(packageRoot, "resident-switch-smoke");
+        Directory.CreateDirectory(runtimeRoot);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = Path.GetFullPath(rendererPath),
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            WorkingDirectory = Path.GetDirectoryName(Path.GetFullPath(rendererPath))!,
+        };
+        foreach (var argument in new[]
+        {
+            "--input-package", packageRoot,
+            "--mesh", manifestPath,
+            "--metadata", Path.Combine(packageRoot, "mesh.cdmeta.json"),
+            "--status", Path.Combine(runtimeRoot, "status.json"),
+            "--output", Path.Combine(runtimeRoot, "output"),
+            "--edit-operations", Path.Combine(runtimeRoot, "edit_operations.json"),
+            "--evaluation", Path.Combine(runtimeRoot, "evaluation.md"),
+            "--embedded",
+            "--simple-preview",
+            "--parent-hwnd", parentHandle.ToInt64().ToString(CultureInfo.InvariantCulture),
+        })
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(startInfo)
+            ?? throw new InvalidOperationException("resident .NET preview renderer could not be started");
+        process.StandardInput.AutoFlush = true;
+        var stderrTask = process.StandardError.ReadToEndAsync();
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(45));
+            using (var protocolReady = await ReadRendererEventAsync(process.StandardOutput, "protocol_ready", timeout.Token).ConfigureAwait(false))
+            {
+                Require(
+                    protocolReady.RootElement.GetProperty("capabilities").EnumerateArray()
+                        .Any(value => value.GetString() == "resident_package_load_v1"),
+                    "renderer did not advertise resident package loading");
+            }
+            using (var metrics = await ReadRendererEventAsync(process.StandardOutput, "metrics", timeout.Token).ConfigureAwait(false))
+            {
+                Require(
+                    metrics.RootElement.GetProperty("renderer").GetProperty("backend").GetString() == "d3d11_vortice_shader",
+                    "resident renderer did not initialize the production backend");
+            }
+
+            for (var generation = 2; generation <= 3; generation++)
+            {
+                await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new
+                {
+                    @event = "package_load_request",
+                    request_id = generation,
+                    generation,
+                    package_path = packageRoot,
+                })).ConfigureAwait(false);
+                await process.StandardInput.FlushAsync().ConfigureAwait(false);
+                using var applied = await ReadRendererEventAsync(
+                    process.StandardOutput,
+                    "package_load_applied",
+                    timeout.Token).ConfigureAwait(false);
+                Require(applied.RootElement.GetProperty("request_id").GetInt64() == generation, "resident renderer acknowledged the wrong request");
+                Require(applied.RootElement.GetProperty("process_id").GetInt32() == process.Id, "resident package load changed renderer process");
+                Require(
+                    applied.RootElement.GetProperty("resident_scene_load_count").GetInt64() == generation,
+                    "resident renderer did not replace the D3D11 scene in place");
+                Require(
+                    applied.RootElement.GetProperty("renderer").GetProperty("backend").GetString() == "d3d11_vortice_shader",
+                    "resident package switch left the production backend");
+            }
+
+            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new
+            {
+                @event = "package_load_request",
+                request_id = 4,
+                generation = 4,
+                package_path = runtimeRoot,
+            })).ConfigureAwait(false);
+            await process.StandardInput.FlushAsync().ConfigureAwait(false);
+            using (var failed = await ReadRendererEventAsync(
+                       process.StandardOutput,
+                       "package_load_failed",
+                       timeout.Token).ConfigureAwait(false))
+            {
+                Require(failed.RootElement.GetProperty("request_id").GetInt64() == 4, "resident renderer rejected the wrong package request");
+                Require(failed.RootElement.GetProperty("process_id").GetInt32() == process.Id, "failed package load changed renderer process");
+            }
+
+            await process.StandardInput.WriteLineAsync(JsonSerializer.Serialize(new
+            {
+                @event = "package_load_request",
+                request_id = 5,
+                generation = 5,
+                package_path = packageRoot,
+            })).ConfigureAwait(false);
+            await process.StandardInput.FlushAsync().ConfigureAwait(false);
+            using (var recovered = await ReadRendererEventAsync(
+                       process.StandardOutput,
+                       "package_load_applied",
+                       timeout.Token).ConfigureAwait(false))
+            {
+                Require(recovered.RootElement.GetProperty("process_id").GetInt32() == process.Id, "resident renderer restarted after a rejected package");
+                Require(
+                    recovered.RootElement.GetProperty("resident_scene_load_count").GetInt64() == 4,
+                    "failed resident package load changed or lost the prior D3D11 scene");
+            }
+
+            process.Kill(entireProcessTree: true);
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            _ = await stderrTask.ConfigureAwait(false);
+        }
+        catch
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync().ConfigureAwait(false);
+            }
+            _ = await stderrTask.ConfigureAwait(false);
+            throw;
+        }
+        finally
+        {
+            _ = DestroyWindow(parentHandle);
+        }
+    }
+
+    private static async Task<JsonDocument> ReadRendererEventAsync(
+        StreamReader reader,
+        string expectedEvent,
+        CancellationToken cancellationToken)
+    {
+        var observed = new List<string>();
+        try
+        {
+            while (true)
+            {
+                var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)
+                    ?? throw new EndOfStreamException($"Renderer exited before '{expectedEvent}'.");
+                try
+                {
+                    var document = JsonDocument.Parse(line);
+                    if (document.RootElement.TryGetProperty("event", out var eventName)
+                        && string.Equals(eventName.GetString(), expectedEvent, StringComparison.Ordinal))
+                    {
+                        return document;
+                    }
+                    if (string.Equals(expectedEvent, "package_load_applied", StringComparison.Ordinal)
+                        && string.Equals(eventName.GetString(), "package_load_failed", StringComparison.Ordinal))
+                    {
+                        var message = document.RootElement.TryGetProperty("message", out var failureMessage)
+                            ? failureMessage.GetString()
+                            : "unknown resident package load failure";
+                        document.Dispose();
+                        throw new InvalidDataException(message);
+                    }
+                    if (eventName.ValueKind == JsonValueKind.String && observed.Count < 16)
+                    {
+                        observed.Add(eventName.GetString() ?? string.Empty);
+                    }
+                    document.Dispose();
+                }
+                catch (JsonException)
+                {
+                    // Non-protocol diagnostics remain available through the process output.
+                }
+            }
+        }
+        catch (OperationCanceledException exception) when (cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException(
+                $"Renderer did not emit '{expectedEvent}' before the resident-switch timeout; observed: {string.Join(", ", observed)}.",
+                exception);
+        }
+    }
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr CreateWindowExW(
+        int extendedStyle,
+        string className,
+        string windowName,
+        int style,
+        int x,
+        int y,
+        int width,
+        int height,
+        IntPtr parent,
+        IntPtr menu,
+        IntPtr instance,
+        IntPtr parameter);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyWindow(IntPtr window);
+
+    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr GetModuleHandleW(string? moduleName);
 
     private static Task TestTextDecodingAsync()
     {

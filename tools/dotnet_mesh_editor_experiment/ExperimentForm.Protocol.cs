@@ -124,6 +124,16 @@ internal sealed partial class ExperimentForm
                             eventName = JsonString(root, "type");
                         }
                         eventName = eventName.Trim().ToLowerInvariant();
+                        if (eventName == "package_load_request")
+                        {
+                            WritePreparedProtocolEventThreadSafe("package_load_received", new Dictionary<string, object?>
+                            {
+                                ["request_id"] = JsonLongValue(root, "request_id"),
+                                ["generation"] = JsonLongValue(root, "generation"),
+                            });
+                            HandleResidentPackageLoadRequest(root);
+                            continue;
+                        }
                         var parsed = Stopwatch.GetTimestamp();
                         if (PreviewPerformanceCapture.IsActive)
                         {
@@ -395,6 +405,9 @@ internal sealed partial class ExperimentForm
             {
                 case "close_request":
                     Close();
+                    break;
+                case "package_load_request":
+                    HandleResidentPackageLoadRequest(root);
                     break;
                 case "deactivate_request":
                     _embeddedViewportActive = false;

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
@@ -179,6 +180,38 @@ public sealed class DotNetModelPreviewHost : HwndHost
 
                 SetValue(IsLoadingPropertyKey, true);
                 SetValue(StatusTextPropertyKey, LocalizationManager.Get("RendererStarting"));
+                var resident = GetCurrentSession();
+                if (resident is { IsAlive: true, SupportsResidentPackageLoad: true })
+                {
+                    try
+                    {
+                        using var loadTimeout = CancellationTokenSource.CreateLinkedTokenSource(operation.Token);
+                        loadTimeout.CancelAfter(TimeSpan.FromSeconds(30));
+                        var load = await resident.LoadPackageAsync(packagePath, generation, loadTimeout.Token).ConfigureAwait(true);
+                        if (!string.Equals(load.Backend, RequiredRendererBackend, StringComparison.Ordinal))
+                        {
+                            throw new InvalidDataException($"The resident preview renderer reported unsupported backend '{load.Backend}'.");
+                        }
+                        operation.Token.ThrowIfCancellationRequested();
+                        if (generation != Volatile.Read(ref _generation))
+                        {
+                            throw new OperationCanceledException(operation.Token);
+                        }
+                        SetValue(IsReadyPropertyKey, true);
+                        SetValue(IsLoadingPropertyKey, false);
+                        SetValue(StatusTextPropertyKey, LocalizationManager.Get("RendererReady"));
+                        return;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch
+                    {
+                        // The old scene remains live while a fresh-process fallback starts.
+                        SetValue(StatusTextPropertyKey, LocalizationManager.Get("RendererStarting"));
+                    }
+                }
                 var session = await ModelRendererSession.StartAsync(
                     packagePath,
                     _hostHandle,
@@ -244,12 +277,8 @@ public sealed class DotNetModelPreviewHost : HwndHost
         {
             if (generation == Volatile.Read(ref _generation) && Volatile.Read(ref _shutdown) == 0)
             {
-                var prior = TakeCurrentSession();
-                if (prior is not null)
-                {
-                    await prior.ShutdownAsync().ConfigureAwait(true);
-                }
-                SetValue(IsReadyPropertyKey, false);
+                var prior = GetCurrentSession();
+                SetValue(IsReadyPropertyKey, prior is { IsAlive: true });
                 SetValue(IsLoadingPropertyKey, false);
                 SetValue(StatusTextPropertyKey, LocalizationManager.Format("RendererFailed", exception.Message));
             }
@@ -281,6 +310,14 @@ public sealed class DotNetModelPreviewHost : HwndHost
             var current = _currentSession;
             _currentSession = null;
             return current;
+        }
+    }
+
+    private ModelRendererSession? GetCurrentSession()
+    {
+        lock (_sessionGate)
+        {
+            return _currentSession;
         }
     }
 
@@ -334,6 +371,10 @@ public sealed class DotNetModelPreviewHost : HwndHost
         private readonly Task _stderrTask;
         private readonly Task _exitTask;
         private readonly TaskCompletionSource<string> _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly ConcurrentDictionary<long, TaskCompletionSource<ResidentPackageLoadResult>> _packageLoads = new();
+        private readonly SemaphoreSlim _writeGate = new(1, 1);
+        private long _packageLoadRequestId;
+        private volatile bool _supportsResidentPackageLoad;
         private int _disposed;
 
         private ModelRendererSession(
@@ -351,6 +392,52 @@ public sealed class DotNetModelPreviewHost : HwndHost
         }
 
         public Task<string> Ready => _ready.Task;
+        public bool IsAlive => Volatile.Read(ref _disposed) == 0 && !_process.HasExited;
+        public bool SupportsResidentPackageLoad => _supportsResidentPackageLoad;
+
+        public async Task<ResidentPackageLoadResult> LoadPackageAsync(
+            string packagePath,
+            long generation,
+            CancellationToken cancellationToken)
+        {
+            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+            if (!_supportsResidentPackageLoad)
+            {
+                throw new NotSupportedException("The active renderer does not support resident package loading.");
+            }
+            var package = ValidatePackage(packagePath);
+            var requestId = Interlocked.Increment(ref _packageLoadRequestId);
+            var completion = new TaskCompletionSource<ResidentPackageLoadResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            if (!_packageLoads.TryAdd(requestId, completion))
+            {
+                throw new InvalidOperationException("Could not register the resident package load request.");
+            }
+            try
+            {
+                var message = JsonSerializer.Serialize(new
+                {
+                    @event = "package_load_request",
+                    request_id = requestId,
+                    generation,
+                    package_path = package,
+                });
+                await _writeGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+                    await _process.StandardInput.WriteLineAsync(message).WaitAsync(cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    _writeGate.Release();
+                }
+                return await completion.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                _packageLoads.TryRemove(requestId, out _);
+            }
+        }
 
         public static Task<ModelRendererSession> StartAsync(
             string packagePath,
@@ -359,17 +446,9 @@ public sealed class DotNetModelPreviewHost : HwndHost
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var package = Path.GetFullPath(packagePath);
+            var package = ValidatePackage(packagePath);
             var manifest = Path.Combine(package, "manifest.json");
             var metadata = Path.Combine(package, "mesh.cdmeta.json");
-            if (!Directory.Exists(package)
-                || !File.Exists(manifest)
-                || !File.Exists(metadata)
-                || !File.Exists(Path.Combine(package, "net_materials.json"))
-                || !File.Exists(Path.Combine(package, "dotnet_scene.json")))
-            {
-                throw new InvalidDataException("The read-only .NET preview package is incomplete.");
-            }
             var renderer = ResolveRendererPath();
             var runtimeRoot = CreateRuntimeRoot();
             var output = Path.Combine(runtimeRoot, "output");
@@ -500,6 +579,7 @@ public sealed class DotNetModelPreviewHost : HwndHost
                         switch (eventName)
                         {
                             case "protocol_ready":
+                                _supportsResidentPackageLoad = HasCapability(root, "resident_package_load_v1");
                                 status(LocalizationManager.Get("RendererLoading"));
                                 break;
                             case "ready":
@@ -511,6 +591,12 @@ public sealed class DotNetModelPreviewHost : HwndHost
                             case "error":
                                 _ready.TrySetException(new InvalidDataException(
                                     JsonString(root, "message", LocalizationManager.Get("RendererUnknownError"))));
+                                break;
+                            case "package_load_applied":
+                                CompletePackageLoad(root, failed: false);
+                                break;
+                            case "package_load_failed":
+                                CompletePackageLoad(root, failed: true);
                                 break;
                         }
                     }
@@ -527,6 +613,7 @@ public sealed class DotNetModelPreviewHost : HwndHost
             catch (Exception exception)
             {
                 _ready.TrySetException(exception);
+                FailPendingPackageLoads(exception);
             }
         }
 
@@ -542,6 +629,8 @@ public sealed class DotNetModelPreviewHost : HwndHost
                         ? $"The .NET previewer exited before its first frame (code {_process.ExitCode})."
                         : detail));
                 }
+                FailPendingPackageLoads(new InvalidOperationException(
+                    $"The .NET previewer exited during resident package loading (code {_process.ExitCode})."));
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
             {
@@ -552,6 +641,7 @@ public sealed class DotNetModelPreviewHost : HwndHost
         private void DisposeImmediatelyCore()
         {
             _lifetime.Cancel();
+            FailPendingPackageLoads(new OperationCanceledException("The resident preview renderer is shutting down."));
             _job.Dispose();
             try
             {
@@ -580,6 +670,7 @@ public sealed class DotNetModelPreviewHost : HwndHost
                 }
             }
             _lifetime.Dispose();
+            _writeGate.Dispose();
             _process.Dispose();
             DeleteRuntimeRoot(_runtimeRoot);
         }
@@ -673,5 +764,64 @@ public sealed class DotNetModelPreviewHost : HwndHost
                 ? value.GetString() ?? fallback
                 : fallback;
         }
+
+        private void CompletePackageLoad(JsonElement root, bool failed)
+        {
+            var requestId = root.TryGetProperty("request_id", out var request)
+                && request.TryGetInt64(out var parsed)
+                ? parsed
+                : 0;
+            if (requestId <= 0 || !_packageLoads.TryGetValue(requestId, out var completion))
+            {
+                return;
+            }
+            if (failed)
+            {
+                completion.TrySetException(new InvalidDataException(
+                    JsonString(root, "message", "Resident package load failed.")));
+                return;
+            }
+            var backend = root.TryGetProperty("renderer", out var renderer)
+                ? JsonString(renderer, "backend")
+                : string.Empty;
+            var sceneLoadCount = root.TryGetProperty("resident_scene_load_count", out var count)
+                && count.TryGetInt64(out var parsedCount)
+                ? parsedCount
+                : 0;
+            completion.TrySetResult(new ResidentPackageLoadResult(backend, sceneLoadCount));
+        }
+
+        private void FailPendingPackageLoads(Exception exception)
+        {
+            foreach (var pending in _packageLoads.Values)
+            {
+                pending.TrySetException(exception);
+            }
+        }
+
+        private static bool HasCapability(JsonElement root, string capability)
+        {
+            return root.TryGetProperty("capabilities", out var capabilities)
+                && capabilities.ValueKind == JsonValueKind.Array
+                && capabilities.EnumerateArray().Any(value =>
+                    value.ValueKind == JsonValueKind.String
+                    && string.Equals(value.GetString(), capability, StringComparison.Ordinal));
+        }
+
+        private static string ValidatePackage(string packagePath)
+        {
+            var package = Path.GetFullPath(packagePath);
+            if (!Directory.Exists(package)
+                || !File.Exists(Path.Combine(package, "manifest.json"))
+                || !File.Exists(Path.Combine(package, "mesh.cdmeta.json"))
+                || !File.Exists(Path.Combine(package, "net_materials.json"))
+                || !File.Exists(Path.Combine(package, "dotnet_scene.json")))
+            {
+                throw new InvalidDataException("The read-only .NET preview package is incomplete.");
+            }
+            return package;
+        }
+
+        public sealed record ResidentPackageLoadResult(string Backend, long ResidentSceneLoadCount);
     }
 }
