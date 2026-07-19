@@ -22,31 +22,44 @@ from cdmw.services.archive_extraction_service import (
     extract_archive_entries,
 )
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.remote_related_export import (
+    ArchiveRemoteRelatedExportMixin,
+    normalized_related_archive_paths,
+)
 
 
-class ArchiveExtractionMixin:
+class ArchiveExtractionMixin(ArchiveRemoteRelatedExportMixin):
     """Archive extraction prompts, worker dispatch, and workflow handoff."""
 
     def extract_related_archive_set_from_paths(self, raw_paths: object, description: str) -> None:
         if not isinstance(raw_paths, list):
             self.set_status_message("No related archive paths were supplied for extraction.", error=True)
             return
+        normalized_paths = normalized_related_archive_paths(raw_paths)
+        if not normalized_paths:
+            self.set_status_message("No related archive paths were supplied for extraction.", error=True)
+            return
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if bridge is not None and bridge.displays_v2:
+            if not self._remote_archive_export_ready() or not bool(
+                getattr(self, "archive_remote_actions_safe", True)
+            ):
+                self.set_status_message(
+                    "Related-set extraction is unavailable until the v2 archive session is ready.",
+                    error=True,
+                )
+                return
+            self._start_remote_related_archive_lookup(normalized_paths, description)
+            return
         lookup = {
             entry.path.replace("\\", "/").lower(): entry
             for entry in self.archive_entries
         }
         entries: List[ArchiveEntry] = []
-        seen_paths: set[str] = set()
-        for raw_path in raw_paths:
-            if not isinstance(raw_path, str):
-                continue
-            normalized = raw_path.strip().replace("\\", "/").lower()
-            if not normalized or normalized in seen_paths:
-                continue
+        for normalized in normalized_paths:
             entry = lookup.get(normalized)
             if entry is None:
                 continue
-            seen_paths.add(normalized)
             entries.append(entry)
         if not entries:
             self.set_status_message("No matching archive entries were found for the related-set extraction.", error=True)
@@ -56,7 +69,6 @@ class ArchiveExtractionMixin:
             allow_original_dds_root=False,
             description=description,
         )
-
 
     def _prompt_archive_extract_options(
         self,
@@ -296,10 +308,17 @@ class ArchiveExtractionMixin:
         service.result_ready.connect(self._handle_remote_archive_export_result)
         service.request_failed.connect(self._handle_remote_archive_export_failure)
         service.request_cancelled.connect(self._handle_remote_archive_export_cancelled)
+        service.progress.connect(self._handle_remote_related_lookup_progress)
+        service.batch_ready.connect(self._handle_remote_related_lookup_batch)
+        service.result_ready.connect(self._handle_remote_related_lookup_result)
+        service.request_failed.connect(self._handle_remote_related_lookup_failure)
+        service.request_cancelled.connect(self._handle_remote_related_lookup_cancelled)
         self._archive_remote_export_wired = True
         self._archive_remote_export_request_id = None
         self._archive_remote_export_generation = 0
         self._archive_remote_export_context: Dict[str, object] = {}
+        self._archive_remote_related_lookup_request_id = None
+        self._archive_remote_related_lookup_context: Dict[str, object] = {}
 
     def _run_remote_archive_export(
         self,
@@ -484,6 +503,9 @@ class ArchiveExtractionMixin:
         request_id = getattr(self, "_archive_remote_export_request_id", None)
         if request_id is not None:
             self.archive_catalogue_service.cancel(request_id)
+        lookup_request_id = getattr(self, "_archive_remote_related_lookup_request_id", None)
+        if lookup_request_id is not None:
+            self.archive_catalogue_service.cancel(lookup_request_id)
 
     def _run_archive_extract(
         self,

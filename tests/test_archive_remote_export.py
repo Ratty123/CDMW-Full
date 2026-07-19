@@ -9,7 +9,13 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import QApplication, QLineEdit, QPlainTextEdit, QPushButton
 
-from cdmw.domain.archives.catalogue import ArchiveSessionHandle
+from cdmw.domain.archives.catalogue import (
+    ArchiveDurableIdentity,
+    ArchiveEntryDto,
+    ArchiveEntryRole,
+    ArchiveLookupResult,
+    ArchiveSessionHandle,
+)
 from cdmw.domain.archives.catalogue_operations import (
     ArchiveExportCollisionPolicy,
     ArchiveExportItem,
@@ -40,11 +46,16 @@ class _ExportService(QObject):
     def __init__(self) -> None:
         super().__init__()
         self.requests: list[tuple[object, int]] = []
+        self.lookup_requests: list[tuple[object, int]] = []
         self.cancelled: list[str] = []
 
     def export(self, request: object, *, ui_generation: int) -> str:
         self.requests.append((request, ui_generation))
         return f"export-{len(self.requests)}"
+
+    def resolve_entries(self, request: object, *, ui_generation: int) -> str:
+        self.lookup_requests.append((request, ui_generation))
+        return f"lookup-{len(self.lookup_requests)}"
 
     def cancel(self, request_id: str) -> bool:
         self.cancelled.append(request_id)
@@ -61,6 +72,7 @@ class _RemoteExportHarness(ArchiveExtractionMixin):
             current_session=ArchiveSessionHandle("session-a", "C:/Game", "fingerprint", 10, 2, True),
         )
         self.archive_remote_actions_safe = True
+        self.archive_entries = _PoisonEntries()
         self.archive_extract_root_edit = QLineEdit()
         self.original_dds_edit = QLineEdit()
         self.filters_edit = QPlainTextEdit()
@@ -77,6 +89,7 @@ class _RemoteExportHarness(ArchiveExtractionMixin):
         self.progress: list[tuple[tuple[object, ...], dict[str, object]]] = []
         self.dashboard_refreshes = 0
         self.activated: list[object] = []
+        self.expected_requested_count = 43
 
     def _suggest_archive_extract_root(self) -> Path:
         return self.output_root
@@ -86,7 +99,7 @@ class _RemoteExportHarness(ArchiveExtractionMixin):
         requested_count: int,
         output_root: Path,
     ) -> tuple[bool, ArchiveExportCollisionPolicy]:
-        assert requested_count == 43
+        assert requested_count == self.expected_requested_count
         assert output_root == self.output_root.resolve()
         return True, ArchiveExportCollisionPolicy.OVERWRITE
 
@@ -111,6 +124,129 @@ class _RemoteExportHarness(ArchiveExtractionMixin):
 
     def _activate_tool_widget(self, widget: object) -> None:
         self.activated.append(widget)
+
+
+class _PoisonEntries:
+    def __iter__(self):
+        raise AssertionError("the v2 related-set flow read the legacy archive catalogue")
+
+
+def _dto(entry_id: int, path: str, extension: str, *, active: bool = False) -> ArchiveEntryDto:
+    return ArchiveEntryDto(
+        session_id="session-a",
+        entry_id=entry_id,
+        identity=ArchiveDurableIdentity(path.casefold(), "0009/0.pamt", 0, entry_id * 100),
+        path=path,
+        source_pamt="C:/Game/0009/0.pamt",
+        paz_file="C:/Game/0009/0.paz",
+        paz_index=0,
+        offset=entry_id * 100,
+        stored_size=128,
+        original_size=128,
+        flags=0,
+        extension=extension,
+        package="0009",
+        role=ArchiveEntryRole.IMAGE if extension == ".dds" else ArchiveEntryRole.MODEL,
+        category="Textures" if extension == ".dds" else "ModelMeshPhysics",
+        is_previewable=True,
+        is_active_override=active,
+    )
+
+
+def test_related_paths_resolve_and_export_in_worker_without_legacy_catalogue(tmp_path: Path) -> None:
+    harness = _RemoteExportHarness(tmp_path / "export")
+    harness.expected_requested_count = 2
+
+    harness.extract_related_archive_set_from_paths(
+        ["Texture/Weapon.dds", "model/weapon.pac", "texture/weapon.dds"],
+        "Extracting Research references...",
+    )
+
+    service = harness.archive_catalogue_service
+    lookup, generation = service.lookup_requests[0]
+    assert generation == 1
+    assert lookup.session_id == "session-a"
+    assert lookup.values == ("texture/weapon.dds", "model/weapon.pac")
+    assert lookup.limit == 4096
+    inactive = _dto(1, "texture/weapon.dds", ".dds")
+    active = _dto(2, "texture/weapon.dds", ".dds", active=True)
+    model = _dto(3, "model/weapon.pac", ".pac")
+    service.batch_ready.emit(
+        "lookup-1",
+        "resolve_entries",
+        ArchiveLookupResult("session-a", (inactive, active, model), 3, False),
+    )
+    service.result_ready.emit(
+        "lookup-1",
+        "resolve_entries",
+        ArchiveLookupResult("session-a", (), 3, False),
+    )
+
+    export, export_generation = service.requests[0]
+    assert export_generation == 2
+    assert export.selection_kind is ArchiveExportSelectionKind.ENTRY_IDS
+    assert export.entry_ids == (2, 3)
+    assert export.include_package_root
+    assert harness.busy_states == [True, False, True]
+
+
+def test_related_path_lookup_truncation_fails_closed_before_export(tmp_path: Path) -> None:
+    harness = _RemoteExportHarness(tmp_path / "export")
+    harness.extract_related_archive_set_from_paths(
+        ["texture/weapon.dds"],
+        "Extracting Research references...",
+    )
+    harness.archive_catalogue_service.result_ready.emit(
+        "lookup-1",
+        "resolve_entries",
+        ArchiveLookupResult("session-a", (_dto(1, "texture/weapon.dds", ".dds"),), 5000, True),
+    )
+
+    assert harness.archive_catalogue_service.requests == []
+    assert harness.statuses[-1][1] is True
+    assert "too many duplicate" in harness.statuses[-1][0]
+
+
+def test_related_path_lookup_rejects_a_changed_archive_session(tmp_path: Path) -> None:
+    harness = _RemoteExportHarness(tmp_path / "export")
+    harness.extract_related_archive_set_from_paths(
+        ["texture/weapon.dds"],
+        "Extracting Research references...",
+    )
+    harness.archive_remote_bridge.current_session = ArchiveSessionHandle(
+        "session-b",
+        "C:/Game",
+        "new-fingerprint",
+        10,
+        2,
+        True,
+    )
+
+    harness.archive_catalogue_service.result_ready.emit(
+        "lookup-1",
+        "resolve_entries",
+        ArchiveLookupResult("session-a", (_dto(1, "texture/weapon.dds", ".dds"),), 1, False),
+    )
+
+    assert harness.archive_catalogue_service.requests == []
+    assert harness.busy_states == [True, False]
+    assert harness.statuses[-1][1] is True
+    assert "session changed" in harness.statuses[-1][0]
+
+
+def test_related_path_lookup_cancel_is_forwarded(tmp_path: Path) -> None:
+    harness = _RemoteExportHarness(tmp_path / "export")
+    harness.extract_related_archive_set_from_paths(
+        ["texture/weapon.dds"],
+        "Extracting Research references...",
+    )
+
+    harness._cancel_remote_archive_export()
+
+    assert harness.archive_catalogue_service.cancelled == ["lookup-1"]
+    harness.archive_catalogue_service.request_cancelled.emit("lookup-1")
+    assert harness.busy_states == [True, False]
+    assert harness.statuses[-1] == ("Related archive lookup cancelled.", False)
 
 
 def test_remote_export_submits_server_side_selection_and_handles_result(tmp_path: Path) -> None:
