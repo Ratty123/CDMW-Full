@@ -15,6 +15,7 @@ internal static class FullArchiveTestRunner
         {
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
+            ("archive_name_index", ArchiveNameIndexAsync),
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
             ("stdio_worker_ping_shutdown", StdioWorkerPingShutdownAsync),
@@ -117,7 +118,7 @@ internal static class FullArchiveTestRunner
                 CancellationToken.None).ConfigureAwait(false);
             var queries = new ArchiveQueryService(sessions);
             var lookup = new ArchiveLookupService(sessions, cache);
-            var names = new ArchiveNameIndexService(sessions, cache);
+            var names = new ArchiveNameIndexService(sessions, cache, native);
             var query = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId),
                 generation: 7,
@@ -147,7 +148,10 @@ internal static class FullArchiveTestRunner
             var generationPath = sessions.GetRequired(sessionHandle.SessionId).GenerationPath;
             Require(File.Exists(Path.Combine(generationPath, "lookups.bin")), "lookup index was not published");
 
-            await names.WarmAsync(sessionHandle.SessionId, CancellationToken.None).ConfigureAwait(false);
+            var unavailableNames = await names.WarmAsync(
+                sessionHandle.SessionId,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(!unavailableNames.IsAvailable, "name index fabricated availability without archive item tables");
             Require(File.Exists(Path.Combine(generationPath, "names.bin")), "name index was not published");
 
             var searchBatches = new List<ArchiveTextSearchBatch>();
@@ -207,6 +211,57 @@ internal static class FullArchiveTestRunner
         {
             DeleteDirectory(cacheRoot);
             DeleteDirectory(exportRoot);
+        }
+    }
+
+    private static async Task ArchiveNameIndexAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateNameIndexAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("names-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var handle = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root),
+                CancellationToken.None).ConfigureAwait(false);
+            var service = new ArchiveNameIndexService(sessions, cache, native);
+            var index = await service.WarmAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
+            Require(index.IsAvailable && index.HasNames, $"synthetic archive name index is unavailable: {index.UnavailableReason}");
+            Require(
+                index.ExactNames.TryGetValue("cd_test_01_sword", out var exactName) && exactName == "Synthetic Blade",
+                "exact prefab-hash localization mapping changed");
+            Require(
+                index.RelatedNames.TryGetValue("cd_related_01_sword", out var relatedName) && relatedName == "Synthetic Blade",
+                "StringInfo related-name mapping changed");
+
+            var session = sessions.GetRequired(handle.SessionId);
+            var exactEntry = session.Index.FindEntriesByPath("character/model/cd_test_01_sword.pac").Single();
+            var enrichedExact = session.ReadEntry(exactEntry.EntryId);
+            Require(
+                enrichedExact.KnownName == "Synthetic Blade" &&
+                enrichedExact.ExactName == "Synthetic Blade" &&
+                enrichedExact.NameEvidence == "Exact localization",
+                "exact archive name evidence changed");
+            var relatedEntry = session.Index.FindEntriesByPath("character/model/cd_related_01_sword_index01.pac").Single();
+            var enrichedRelated = session.ReadEntry(relatedEntry.EntryId);
+            Require(
+                enrichedRelated.KnownName.Length == 0 &&
+                enrichedRelated.NameEvidence == "Name hint: Synthetic Blade",
+                "related archive name evidence changed");
+
+            var persistedPath = Path.Combine(session.GenerationPath, "names.bin");
+            Require(File.Exists(persistedPath), "available archive name index was not persisted");
+            var reloadedService = new ArchiveNameIndexService(sessions, cache, native);
+            var reloaded = await reloadedService.WarmAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
+            Require(
+                reloaded.IsAvailable && reloaded.ExactNames.SequenceEqual(index.ExactNames),
+                "persisted archive name index did not round-trip");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
         }
     }
 
@@ -330,6 +385,19 @@ internal static class FullArchiveTestRunner
                 var page = WorkerProtocol.ReadPayload<ArchivePage>(pageResult)
                     ?? throw new InvalidDataException("worker page result is empty");
                 Require(page.Rows.Count == 1 && page.Rows[0].Path == "text/hello.txt", "worker page result changed");
+
+                var unavailableNameQueryId = Guid.NewGuid();
+                await SendAsync(process, WorkerProtocol.Request(
+                    unavailableNameQueryId,
+                    22,
+                    WorkerProtocol.CreateQuery,
+                    new CreateQueryRequest(new ArchiveQuery(session.SessionId, IncludeText: "name:Crimson")),
+                    session.SessionId)).ConfigureAwait(false);
+                var unavailableNameQuery = await ReadTerminalAsync(process, unavailableNameQueryId).ConfigureAwait(false);
+                Require(
+                    unavailableNameQuery.Status == WorkerMessageStatus.Error &&
+                    unavailableNameQuery.Error?.Message.Contains("iteminfo.pabgb", StringComparison.OrdinalIgnoreCase) == true,
+                    "explicit name query silently degraded without archive name sources");
 
                 var concurrentA = Guid.NewGuid();
                 var concurrentB = Guid.NewGuid();

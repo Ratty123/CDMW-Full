@@ -26,7 +26,7 @@ internal sealed class WorkerRuntime : IAsyncDisposable
         _sessions = new ArchiveSessionManager(_native, _cache);
         _queries = new ArchiveQueryService(_sessions);
         _lookups = new ArchiveLookupService(_sessions, _cache);
-        _names = new ArchiveNameIndexService(_sessions, _cache);
+        _names = new ArchiveNameIndexService(_sessions, _cache, _native);
         _preparation = new ArchiveEntryPreparationService(_sessions, _native);
         _textSearch = new ArchiveTextSearchService(_sessions, _native);
         _exports = new ArchiveExportService(_sessions, _queries, _lookups, _native);
@@ -66,7 +66,14 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                     var query = payload.Query;
                     if (query.IncludeText?.StartsWith("name:", StringComparison.OrdinalIgnoreCase) == true)
                     {
-                        await _names.WarmAsync(query.SessionId, cancellationToken, publishProgress).ConfigureAwait(false);
+                        var nameIndex = await _names.WarmAsync(
+                            query.SessionId,
+                            cancellationToken,
+                            publishProgress).ConfigureAwait(false);
+                        if (!nameIndex.IsAvailable)
+                        {
+                            throw new InvalidDataException(nameIndex.UnavailableReason);
+                        }
                         query = query with { IncludeText = query.IncludeText[5..].Trim() };
                     }
                     var result = await _queries.CreateAsync(

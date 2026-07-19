@@ -7,14 +7,15 @@ namespace Cdmw.FullArchive.Core;
 
 public sealed class ArchiveNameIndexService(
     ArchiveSessionManager sessions,
-    ArchiveCacheStore cache)
+    ArchiveCacheStore cache,
+    NativeArchiveCore native)
 {
-    private const int FileVersion = 2;
-    private static readonly byte[] Magic = "CDMWNAM2"u8.ToArray();
+    private const int FileVersion = 3;
+    private static readonly byte[] Magic = "CDMWNAM3"u8.ToArray();
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveNameIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public async Task WarmAsync(
+    public async Task<ArchiveNameIndex> WarmAsync(
         string sessionId,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null)
@@ -22,6 +23,7 @@ public sealed class ArchiveNameIndexService(
         var session = sessions.GetRequired(sessionId);
         var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
         session.SetNameIndex(index);
+        return index;
     }
 
     private Task<ArchiveNameIndex> GetIndexAsync(
@@ -55,15 +57,12 @@ public sealed class ArchiveNameIndexService(
             }
         }
 
-        // The standalone format deliberately publishes even an empty map. Exact in-game
-        // mappings are populated by the full-owned item/localization parser when its source
-        // tables are present; no filename-derived display names are fabricated.
-        progress?.Invoke(new ProgressUpdate(0, session.Index.EntryCount, "names_scan")).GetAwaiter().GetResult();
-        var index = ArchiveNameIndex.Empty;
+        var index = await Task.Run(
+            () => ArchiveNameIndexBuilder.Build(session, native, cancellationToken, progress),
+            CancellationToken.None).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
         await WriteAsync(path, session.Fingerprint, index, cancellationToken).ConfigureAwait(false);
         await cache.UpdateSecondaryStateAsync(session.GenerationPath, lookupsReady: null, namesReady: true, cancellationToken).ConfigureAwait(false);
-        progress?.Invoke(new ProgressUpdate(session.Index.EntryCount, session.Index.EntryCount, "names_complete")).GetAwaiter().GetResult();
         return index;
     }
 
@@ -90,6 +89,8 @@ public sealed class ArchiveNameIndexService(
                 writer.Write(Magic);
                 writer.Write(FileVersion);
                 writer.Write(fingerprint);
+                writer.Write(index.IsAvailable);
+                writer.Write(index.UnavailableReason);
                 WriteMap(writer, index.ExactNames);
                 WriteMap(writer, index.RelatedNames);
                 writer.Flush();
@@ -115,13 +116,17 @@ public sealed class ArchiveNameIndexService(
         {
             throw new InvalidDataException("Archive name index header is invalid.");
         }
+        var isAvailable = reader.ReadBoolean();
+        var unavailableReason = reader.ReadString();
         var exact = ReadMap(reader);
         var related = ReadMap(reader);
         if (stream.Position != stream.Length)
         {
             throw new InvalidDataException("Archive name index has trailing data.");
         }
-        return ArchiveNameIndex.FromMappings(exact, related);
+        return isAvailable
+            ? ArchiveNameIndex.FromMappings(exact, related)
+            : ArchiveNameIndex.Unavailable(unavailableReason);
     }
 
     private static void WriteMap(BinaryWriter writer, IReadOnlyDictionary<string, string> map)
@@ -200,22 +205,41 @@ public sealed class ArchiveNameIndex
 
     private ArchiveNameIndex(
         IReadOnlyDictionary<string, string> exactNames,
-        IReadOnlyDictionary<string, string> relatedNames)
+        IReadOnlyDictionary<string, string> relatedNames,
+        bool isAvailable,
+        string unavailableReason)
     {
         _exactNames = Normalize(exactNames);
         _relatedNames = Normalize(relatedNames);
+        IsAvailable = isAvailable;
+        UnavailableReason = unavailableReason.Trim();
     }
 
     public static ArchiveNameIndex Empty { get; } = new(
         new Dictionary<string, string>(),
-        new Dictionary<string, string>());
+        new Dictionary<string, string>(),
+        true,
+        string.Empty);
 
     public IReadOnlyDictionary<string, string> ExactNames => _exactNames;
     public IReadOnlyDictionary<string, string> RelatedNames => _relatedNames;
+    public bool IsAvailable { get; }
+    public string UnavailableReason { get; }
+    public bool HasNames => _exactNames.Count > 0 || _relatedNames.Count > 0;
 
     public static ArchiveNameIndex FromMappings(
         IReadOnlyDictionary<string, string> exactNames,
-        IReadOnlyDictionary<string, string> relatedNames) => new(exactNames, relatedNames);
+        IReadOnlyDictionary<string, string> relatedNames) => new(
+            exactNames,
+            relatedNames,
+            true,
+            string.Empty);
+
+    public static ArchiveNameIndex Unavailable(string reason) => new(
+        new Dictionary<string, string>(),
+        new Dictionary<string, string>(),
+        false,
+        string.IsNullOrWhiteSpace(reason) ? "Archive name sources are unavailable." : reason);
 
     public ArchiveEntryDto Enrich(ArchiveEntryDto entry)
     {
