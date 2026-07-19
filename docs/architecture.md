@@ -300,6 +300,13 @@ The paired material audit keeps phase orchestration in `visual_audit_cli.py`,
 production package/checkpoint preparation in `visual_audit_corpus.py`, and the
 resident process, per-asset, and per-view capture contracts in
 `visual_audit_capture.py`; direct verdict finalization remains a separate step.
+Paired Archive Browser/.NET images prove renderer-to-renderer agreement only.
+PAC-source fidelity additionally requires exact PAC XML wrapper, material-owner,
+parameter, and DDS-binding conservation through Archive resolution, Modify
+Original cloning, package creation, and resident delivery, followed by direct
+full-model and every-submesh review. A semantic-green package or a prior
+120/120 paired-image verdict cannot substitute for that source-authority and
+region-level appearance proof.
 Normal/full QA runs the split nonvisual tests and never substitutes synthetic
 checker geometry for the explicit read-only real-game proof. The canonical
 user-facing scenario is `real-archive-mesh-editor-dotnet-edit-smoke`; legacy

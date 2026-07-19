@@ -2,16 +2,26 @@
 
 ## Goal and scope
 
-This completed audit compared Archive Browser and the resident .NET/Vortice
-Mesh Editor across a broad real-PAC corpus. It diagnosed shared causes of
-blown-out color, x-ray appearance, inaccurate material regions, and apparent
-texture-resolution loss while keeping source archives unchanged. It used only
-hidden CDMW renderer automation; visible or licensed real-game testing was not
-authorized.
+The earlier completed audits compared Archive Browser and the resident
+.NET/Vortice Mesh Editor across broad real-PAC corpora. They diagnosed shared
+causes of blown-out color, x-ray appearance, inaccurate material regions, and
+apparent texture-resolution loss while keeping source archives unchanged. They
+used only hidden CDMW renderer automation; visible or licensed real-game
+testing was not authorized.
+
+Those paired audits are renderer-to-renderer compatibility evidence. Even a
+directly reviewed 120/120 PASS means the two renderers agreed on the prepared
+inputs; it does not prove that those inputs retained the exact PAC XML material
+owner, every declared parameter, or authoritative DDS bindings. The active
+PAC-source follow-up therefore treats wrapper/owner/parameter conservation,
+cross-owner and layer-as-base rejection, initial/resident equivalence, source
+boards, and direct full-model/every-submesh review as separate required lanes.
+Its fresh capture and region verdicts are still pending and are not replaced by
+the historical results below.
 
 ## Current verdict
 
-- A fifth material-first audit adds another 120 real PACs while excluding all
+- The historical fifth material-first audit added another 120 real PACs while excluding all
   317 paths in the prior evidence ledger. All 720 paired views were directly
   inspected and finalized at 120 PASS, 0 CONCERN, and 0 FAIL with zero
   unreviewed assets. It found no new shared renderer defect across swords,
