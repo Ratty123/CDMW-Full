@@ -167,6 +167,8 @@ public sealed class NativeModelPreviewService
             ["schema_version"] = 8,
             ["created_at"] = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0,
             ["package_root"] = session.PackageRoot,
+            ["archive_index_path"] = session.Index.Path,
+            ["archive_basename_index_path"] = session.BasenameIndex.Path,
             ["cache_root"] = cacheRoot,
             ["output_root"] = outputRoot,
             ["entry"] = EntryPayload(entry),

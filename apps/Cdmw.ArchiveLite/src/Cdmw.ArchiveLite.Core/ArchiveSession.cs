@@ -12,6 +12,7 @@ public sealed class ArchiveSession : IDisposable
     private ArchiveItemNameIndex? _nameIndex;
     private IReadOnlyList<ArchiveExtensionFacet>? _extensionFacets;
     private readonly string? _ownedIndexPath;
+    private readonly string? _ownedBasenameIndexPath;
     private int _disposed;
 
     internal ArchiveSession(
@@ -19,21 +20,26 @@ public sealed class ArchiveSession : IDisposable
         string packageRoot,
         string fingerprint,
         ArchiveIndex index,
+        ArchiveBasenameIndex basenameIndex,
         IReadOnlyList<string> sourceFiles,
-        string? ownedIndexPath = null)
+        string? ownedIndexPath = null,
+        string? ownedBasenameIndexPath = null)
     {
         Id = id;
         PackageRoot = packageRoot;
         Fingerprint = fingerprint;
         Index = index;
+        BasenameIndex = basenameIndex;
         SourceFiles = sourceFiles;
         _ownedIndexPath = ownedIndexPath;
+        _ownedBasenameIndexPath = ownedBasenameIndexPath;
     }
 
     public string Id { get; }
     public string PackageRoot { get; }
     public string Fingerprint { get; }
     public ArchiveIndex Index { get; }
+    internal ArchiveBasenameIndex BasenameIndex { get; }
     public IReadOnlyList<string> SourceFiles { get; }
     internal SemaphoreSlim NameIndexBuildGate { get; } = new(1, 1);
 
@@ -108,22 +114,36 @@ public sealed class ArchiveSession : IDisposable
             NameIndexBuildGate.Dispose();
             try
             {
-                Index.Dispose();
+                BasenameIndex.Dispose();
             }
             finally
             {
-                if (_ownedIndexPath is not null)
+                try
                 {
-                    try
-                    {
-                        File.Delete(_ownedIndexPath);
-                    }
-                    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
-                    {
-                        // Session-only indexes are best-effort cleanup during process teardown.
-                    }
+                    Index.Dispose();
+                }
+                finally
+                {
+                    DeleteOwnedIndex(_ownedBasenameIndexPath);
+                    DeleteOwnedIndex(_ownedIndexPath);
                 }
             }
+        }
+    }
+
+    private static void DeleteOwnedIndex(string? path)
+    {
+        if (path is null)
+        {
+            return;
+        }
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Session-only indexes are best-effort cleanup during process teardown.
         }
     }
 }

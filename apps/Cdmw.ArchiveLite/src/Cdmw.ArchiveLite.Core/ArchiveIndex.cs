@@ -145,6 +145,34 @@ public sealed class ArchiveIndex : IDisposable
             ArchiveEntryClassifier.IsPreviewable(extension, role));
     }
 
+    internal int GetPathByteLength(long entryId)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (entryId < 0 || entryId >= EntryCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entryId));
+        }
+        var record = checked(_recordsOffset + entryId * RecordSize);
+        return checked((int)_view.ReadUInt32(record + 48));
+    }
+
+    internal int ReadPathBytes(long entryId, byte[] destination)
+    {
+        ArgumentNullException.ThrowIfNull(destination);
+        var length = GetPathByteLength(entryId);
+        if (destination.Length < length)
+        {
+            throw new ArgumentException("The destination buffer is smaller than the archive path.", nameof(destination));
+        }
+        var record = checked(_recordsOffset + entryId * RecordSize);
+        var pathOffset = checked((long)_view.ReadUInt64(record));
+        if (pathOffset < 0 || pathOffset > _stringsSize || length > _stringsSize - pathOffset)
+        {
+            throw new InvalidDataException("Archive index path range is invalid.");
+        }
+        return _view.ReadArray(checked(_stringsOffset + pathOffset), destination, 0, length);
+    }
+
     public IReadOnlyList<ArchiveEntryDto> FindEntriesByPath(string virtualPath, int maximumResults = 32)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);

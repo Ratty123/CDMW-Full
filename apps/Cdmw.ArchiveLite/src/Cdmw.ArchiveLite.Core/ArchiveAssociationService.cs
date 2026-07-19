@@ -118,13 +118,12 @@ public sealed class ArchiveAssociationService
         long scannedEntries = 0;
         if (scannedBasenames.Count > 0)
         {
-            var matches = await ScanByBasenameAsync(
+            var matches = await LookupByBasenameAsync(
                 session,
                 scannedBasenames,
                 "1",
                 publishProgress,
                 cancellationToken).ConfigureAwait(false);
-            scannedEntries += session.Index.EntryCount;
             ApplyScanMatches(session, source, matches, references.Values, discovered);
         }
 
@@ -140,13 +139,12 @@ public sealed class ArchiveAssociationService
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (secondPassBasenames.Count > 0)
         {
-            var matches = await ScanByBasenameAsync(
+            var matches = await LookupByBasenameAsync(
                 session,
                 secondPassBasenames,
                 "2",
                 publishProgress,
                 cancellationToken).ConfigureAwait(false);
-            scannedEntries += session.Index.EntryCount;
             ApplyScanMatches(session, source, matches, references.Values, discovered);
         }
 
@@ -216,58 +214,41 @@ public sealed class ArchiveAssociationService
         }
     }
 
-    private static async Task<IReadOnlyDictionary<string, IReadOnlyList<ArchiveEntryDto>>> ScanByBasenameAsync(
+    private static async Task<IReadOnlyDictionary<string, IReadOnlyList<ArchiveEntryDto>>> LookupByBasenameAsync(
         ArchiveSession session,
         IReadOnlySet<string> requestedBasenames,
         string pass,
         Func<ProgressUpdate, Task>? publishProgress,
         CancellationToken cancellationToken)
     {
-        var matches = new Dictionary<string, List<ArchiveEntryDto>>(StringComparer.OrdinalIgnoreCase);
-        var total = session.Index.EntryCount;
+        var matches = new Dictionary<string, IReadOnlyList<ArchiveEntryDto>>(StringComparer.OrdinalIgnoreCase);
+        var orderedBasenames = requestedBasenames.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+        var total = orderedBasenames.Length;
         if (publishProgress is not null)
         {
-            await publishProgress(new ProgressUpdate(0, total, "association_scan", pass)).ConfigureAwait(false);
+            await publishProgress(new ProgressUpdate(0, total, "association_lookup", pass)).ConfigureAwait(false);
         }
 
-        for (long entryId = 0; entryId < total; entryId++)
+        for (var index = 0; index < orderedBasenames.Length; index++)
         {
-            if ((entryId & 0x1FFF) == 0)
+            cancellationToken.ThrowIfCancellationRequested();
+            var basename = orderedBasenames[index];
+            var candidates = session.BasenameIndex.FindEntriesByBasename(
+                session.Index,
+                basename,
+                MaximumMatchesPerBasename);
+            if (candidates.Count > 0)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (publishProgress is not null)
-                {
-                    await publishProgress(new ProgressUpdate(entryId, total, "association_scan", pass)).ConfigureAwait(false);
-                }
+                matches[basename] = candidates;
             }
-
-            var entry = session.Index.ReadEntry(entryId);
-            var basename = GetBasename(entry.Path);
-            if (!requestedBasenames.Contains(basename))
+            if (publishProgress is not null && ((index & 0x1F) == 0 || index + 1 == total))
             {
-                continue;
-            }
-
-            if (!matches.TryGetValue(basename, out var candidates))
-            {
-                candidates = [];
-                matches.Add(basename, candidates);
-            }
-            if (candidates.Count < MaximumMatchesPerBasename)
-            {
-                candidates.Add(entry);
+                await publishProgress(new ProgressUpdate(index + 1, total, "association_lookup", pass)).ConfigureAwait(false);
             }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (publishProgress is not null)
-        {
-            await publishProgress(new ProgressUpdate(total, total, "association_scan", pass)).ConfigureAwait(false);
-        }
-        return matches.ToDictionary(
-            static pair => pair.Key,
-            static pair => (IReadOnlyList<ArchiveEntryDto>)pair.Value,
-            StringComparer.OrdinalIgnoreCase);
+        return matches;
     }
 
     private static void ApplyScanMatches(

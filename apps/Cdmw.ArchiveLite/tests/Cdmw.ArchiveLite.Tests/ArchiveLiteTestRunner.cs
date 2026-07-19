@@ -1017,8 +1017,9 @@ internal static class ArchiveLiteTestRunner
 
         Require(result.Assets.Count == 6, "the synthetic model family did not resolve all six companions");
         Require(!result.Truncated, "the bounded synthetic model family was unexpectedly truncated");
-        Require(result.ScannedEntries == opened.EntryCount, "associated assets did not use one bounded index pass");
-        Require(progress.Any(update => update.Phase == "association_scan"), "associated-asset scan progress was not published");
+        Require(result.ScannedEntries == 0, "associated assets still scanned the full archive after the basename index was available");
+        Require(progress.Any(update => update.Phase == "association_lookup"), "associated-asset indexed lookup progress was not published");
+        Require(progress.All(update => update.Phase != "association_scan"), "associated assets fell back to a full archive scan");
         Require(
             result.Assets.Single(asset => asset.Entry.Path == "character/modelproperty/hero.pac_xml").Evidence
                 == AssociationEvidence.ExactCompanion,
@@ -1349,7 +1350,9 @@ internal static class ArchiveLiteTestRunner
         };
         var native = new NativeArchiveCore();
         string persistentPath;
+        string persistentBasenamePath;
         string temporaryPath;
+        string temporaryBasenamePath;
         using (var sessions = new ArchiveSessionManager(native))
         {
             var built = await sessions.OpenAsync(
@@ -1359,9 +1362,11 @@ internal static class ArchiveLiteTestRunner
                     CacheMode: ArchiveCacheMode.Persistent),
                 CancellationToken.None).ConfigureAwait(false);
             persistentPath = sessions.GetRequired(built.SessionId).Index.Path;
+            persistentBasenamePath = Path.ChangeExtension(persistentPath, ".abi");
             Require(built.CacheMode == ArchiveCacheMode.Persistent, "persistent cache mode was not returned");
             Require(!built.UsedCachedIndex, "a forced persistent build incorrectly reported a cache hit");
             Require(File.Exists(persistentPath), "persistent archive index was not retained");
+            Require(File.Exists(persistentBasenamePath), "persistent basename lookup index was not retained");
 
             var reused = await sessions.OpenAsync(
                 new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.Persistent),
@@ -1393,16 +1398,20 @@ internal static class ArchiveLiteTestRunner
                 new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.SessionOnly),
                 CancellationToken.None).ConfigureAwait(false);
             temporaryPath = sessions.GetRequired(sessionOnly.SessionId).Index.Path;
+            temporaryBasenamePath = Path.ChangeExtension(temporaryPath, ".abi");
             Require(sessionOnly.CacheMode == ArchiveCacheMode.SessionOnly, "session-only cache mode was not returned");
             Require(!sessionOnly.UsedCachedIndex, "session-only loading reused a persistent index");
             Require(File.Exists(temporaryPath), "session-only index was not available for the live session");
+            Require(File.Exists(temporaryBasenamePath), "session-only basename index was not available for the live session");
             Require(
                 !Path.GetFullPath(temporaryPath).Equals(Path.GetFullPath(persistentPath), StringComparison.OrdinalIgnoreCase),
                 "session-only loading wrote into the persistent index path");
         }
 
         Require(File.Exists(persistentPath), "closing a session removed its persistent index");
+        Require(File.Exists(persistentBasenamePath), "closing a session removed its persistent basename index");
         Require(!File.Exists(temporaryPath), "closing the worker session retained a one-time index");
+        Require(!File.Exists(temporaryBasenamePath), "closing the worker session retained a one-time basename index");
         foreach (var (sourcePath, expectedHash) in sourceHashes)
         {
             Require(
@@ -1821,6 +1830,10 @@ internal static class ArchiveLiteTestRunner
             !previewServiceSource.Contains("ColdModelPreviewDelay", StringComparison.Ordinal)
             && modelPreviewSource.Contains("ColdBuildCoalesceDelay = TimeSpan.FromMilliseconds(35)", StringComparison.Ordinal),
             "native model preparation still retains the old fixed cold-build dwell");
+        Require(
+            modelPreviewSource.Contains("[\"archive_index_path\"] = session.Index.Path", StringComparison.Ordinal)
+            && modelPreviewSource.Contains("[\"archive_basename_index_path\"] = session.BasenameIndex.Path", StringComparison.Ordinal),
+            "native model jobs do not carry the compact cross-package lookup indexes");
         Require(
             buildSource.Contains("-p:PublishSingleFile=false", StringComparison.Ordinal)
             && !buildSource.Contains("-p:IncludeNativeLibrariesForSelfExtract=true", StringComparison.Ordinal),
@@ -2529,7 +2542,7 @@ internal static class ArchiveLiteTestRunner
                 ?? throw new InvalidDataException("worker associated-assets response is missing");
             Require(associations.Assets.Count == 0, "worker invented associations for an isolated text file");
             Require(
-                associationProgress.Any(update => update.Phase == "association_scan"),
+                associationProgress.Any(update => update.Phase == "association_lookup"),
                 "worker did not forward associated-asset progress");
 
             var healthMessage = await ExchangeAsync(

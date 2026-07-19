@@ -54,6 +54,11 @@ public sealed class ArchiveSessionManager : IDisposable
         var ownedIndexPath = persistent ? null : indexPath;
         string? stagingPath = null;
         ArchiveIndex? index = null;
+        ArchiveBasenameIndex? basenameIndex = null;
+        var basenameIndexPath = persistent
+            ? ResolvePersistentBasenameIndexPath(fingerprint.Value)
+            : Path.ChangeExtension(indexPath, ".abi");
+        var ownedBasenameIndexPath = persistent ? null : basenameIndexPath;
         try
         {
             await PublishProgressAsync(
@@ -108,6 +113,14 @@ public sealed class ArchiveSessionManager : IDisposable
             }
 
             var warnings = await ValidatePazReferencesAsync(index, progress, cancellationToken).ConfigureAwait(false);
+            await PublishProgressAsync(
+                progress,
+                new ProgressUpdate(0, index.EntryCount, "lookup_index", Path.GetFileName(basenameIndexPath))).ConfigureAwait(false);
+            basenameIndex = await ArchiveBasenameIndex.OpenOrBuildAsync(
+                index,
+                basenameIndexPath,
+                progress,
+                cancellationToken).ConfigureAwait(false);
             if (persistent)
             {
                 try
@@ -131,10 +144,14 @@ public sealed class ArchiveSessionManager : IDisposable
                 root,
                 fingerprint.Value,
                 index,
+                basenameIndex,
                 fingerprint.SourceFiles,
-                ownedIndexPath);
+                ownedIndexPath,
+                ownedBasenameIndexPath);
             index = null;
+            basenameIndex = null;
             ownedIndexPath = null;
+            ownedBasenameIndexPath = null;
             if (!_sessions.TryAdd(sessionId, session))
             {
                 session.Dispose();
@@ -152,8 +169,10 @@ public sealed class ArchiveSessionManager : IDisposable
         }
         finally
         {
+            basenameIndex?.Dispose();
             index?.Dispose();
             TryDeleteFile(stagingPath);
+            TryDeleteFile(ownedBasenameIndexPath);
             TryDeleteFile(ownedIndexPath);
         }
     }
@@ -162,6 +181,12 @@ public sealed class ArchiveSessionManager : IDisposable
     {
         ArchiveLiteDataPaths.EnsureCreated();
         return Path.Combine(ArchiveLiteDataPaths.IndexCache, $"{fingerprint}.ali");
+    }
+
+    private static string ResolvePersistentBasenameIndexPath(string fingerprint)
+    {
+        ArchiveLiteDataPaths.EnsureCreated();
+        return Path.Combine(ArchiveLiteDataPaths.IndexCache, $"{fingerprint}.abi");
     }
 
     private static void TryDeleteFile(string? path)

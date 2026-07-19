@@ -16,16 +16,21 @@ struct PreviewCacheReleaseStats {
     size_t pamt_after = 0;
     size_t metadata_before = 0;
     size_t metadata_after = 0;
+    size_t archive_lite_lookup_before = 0;
+    size_t archive_lite_lookup_after = 0;
 };
 
 static PreviewCacheReleaseStats release_preview_job_caches() {
     PreviewCacheReleaseStats stats;
     stats.pamt_before = resident_pamt_index_count();
     stats.metadata_before = resident_preview_metadata_cache_count();
+    stats.archive_lite_lookup_before = resident_archive_lite_lookup_count();
     release_resident_pamt_indexes();
     release_resident_preview_metadata_caches();
+    release_resident_archive_lite_lookup();
     stats.pamt_after = resident_pamt_index_count();
     stats.metadata_after = resident_preview_metadata_cache_count();
+    stats.archive_lite_lookup_after = resident_archive_lite_lookup_count();
     return stats;
 }
 
@@ -39,6 +44,9 @@ static void append_preview_cache_release_report(
         << "\"native_metadata_cache_resident_before_release\":" << stats.metadata_before << ","
         << "\"native_metadata_cache_resident_after_release\":" << stats.metadata_after << ","
         << "\"native_metadata_cache_released\":" << (stats.metadata_after == 0 ? "true" : "false") << ",";
+    out << "\"archive_lite_lookup_resident_before_release\":" << stats.archive_lite_lookup_before << ","
+        << "\"archive_lite_lookup_resident_after_release\":" << stats.archive_lite_lookup_after << ","
+        << "\"archive_lite_lookup_released\":" << (stats.archive_lite_lookup_after == 0 ? "true" : "false") << ",";
 }
 
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
@@ -171,6 +179,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
 
 std::string preview_report_for_job(const fs::path& job_path) {
     const auto started = std::chrono::steady_clock::now();
+    reset_archive_lite_lookup_diagnostics();
     EntryJob job = parse_job(job_path);
     std::string status = "unsupported";
     std::string fallback_reason;
@@ -267,6 +276,10 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"native_pamt_index_cache_path\":\"" << json_escape(package.pamt_index_cache_path) << "\",";
     append_preview_cache_release_report(out, cache_release);
     out << "\"asset_family_reference_count\":" << package.asset_family_reference_count << ","
+        << "\"archive_lookup_backend\":\"" << json_escape(archive_lite_lookup_backend()) << "\","
+        << "\"archive_lookup_queries\":" << g_archive_lite_lookup_queries << ","
+        << "\"archive_lookup_candidates\":" << g_archive_lite_lookup_candidates << ","
+        << "\"archive_lookup_error\":\"" << json_escape(g_archive_lite_lookup_error) << "\","
         << "\"decoded_cache_entries\":" << decoded_entry_cache_entries() << ","
         << "\"decoded_cache_bytes\":" << decoded_entry_cache_bytes() << ","
         << "\"decoded_cache_hits\":" << decoded_entry_cache_hits() << ","

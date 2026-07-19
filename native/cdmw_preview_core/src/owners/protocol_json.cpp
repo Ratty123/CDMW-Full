@@ -283,6 +283,8 @@ struct EntryJob {
     fs::path output_root;
     fs::path cache_root;
     fs::path package_root;
+    fs::path archive_index_path;
+    fs::path archive_basename_index_path;
     int schema_version = 4;
     ArchiveEntryRef entry;
     ArchiveEntryRef companion_entry;
@@ -705,6 +707,8 @@ EntryJob parse_job(const fs::path& job_path) {
     job.output_root = fs::path(find_string_value(text, "output_root"));
     job.cache_root = fs::path(find_string_value(text, "cache_root"));
     job.package_root = fs::path(find_string_value(text, "package_root"));
+    job.archive_index_path = fs::path(find_string_value(text, "archive_index_path"));
+    job.archive_basename_index_path = fs::path(find_string_value(text, "archive_basename_index_path"));
     job.schema_version = static_cast<int>(std::max<long long>(1, find_int_value(text, "schema_version", 4)));
     const std::string entry_object = find_object_value(text, "entry");
     job.entry = parse_archive_entry_ref(entry_object.empty() ? text : entry_object);
