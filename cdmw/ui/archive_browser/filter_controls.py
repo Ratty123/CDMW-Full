@@ -94,7 +94,16 @@ class ArchiveFilterControlsMixin:
             if selected_value is not None
             else (self._current_archive_structure_filter_value() or self.archive_structure_filter_pending_value)
         )
-        if rebuild_children or (not self.archive_structure_filter_children and self.archive_entries):
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        remote_structure = bool(remote_bridge is not None and remote_bridge.displays_v2)
+        if remote_structure:
+            if (
+                remote_bridge.structure_requests_ready
+                and self.archive_structure_filter_state != "failed"
+                and not self.archive_structure_filter_children
+            ):
+                QTimer.singleShot(0, lambda bridge=remote_bridge: bridge.request_structure_children(""))
+        elif rebuild_children or (not self.archive_structure_filter_children and self.archive_entries):
             if defer_missing_children:
                 if len(self.archive_entries) >= 100_000:
                     self.append_archive_log(
@@ -117,7 +126,15 @@ class ArchiveFilterControlsMixin:
         self.archive_structure_filter_combos = []
 
         if not self.archive_structure_filter_children:
-            if self.archive_entries:
+            if remote_structure:
+                detail = (
+                    "Folder filters warming..."
+                    if self.archive_structure_filter_state == "warming"
+                    else "No archive folders are available."
+                    if remote_bridge.structure_requests_ready
+                    else "Scan archives to load folder filters."
+                )
+            elif self.archive_entries:
                 detail = (
                     "Folder filters warming..."
                     if self.archive_structure_filter_state == "warming"
@@ -172,6 +189,15 @@ class ArchiveFilterControlsMixin:
         self.archive_structure_filter_layout.addStretch(1)
         self.archive_structure_filter_pending_value = self._current_archive_structure_filter_value() or preferred_value
         self.rebuilding_archive_structure_filters = False
+        if (
+            remote_structure
+            and remote_bridge.structure_requests_ready
+            and self.archive_structure_filter_state != "failed"
+        ):
+            QTimer.singleShot(
+                0,
+                lambda parent=parent, bridge=remote_bridge: bridge.request_structure_children(parent),
+            )
 
     def _handle_archive_structure_combo_changed(self, _level: int) -> None:
         if self.rebuilding_archive_structure_filters:

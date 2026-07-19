@@ -252,6 +252,7 @@ class ArchiveChildrenRequest:
     category: str | None = None
     limit: int = 512
     offset: int = 0
+    include_package_root: bool = False
 
     def __post_init__(self) -> None:
         if self.offset < 0:

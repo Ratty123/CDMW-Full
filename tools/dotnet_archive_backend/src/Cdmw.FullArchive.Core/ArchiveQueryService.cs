@@ -41,18 +41,29 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             rows);
     }
 
-    public ArchiveChildrenResult FetchChildren(string sessionId, ArchiveChildrenRequest request)
+    public ArchiveChildrenResult FetchChildren(
+        string sessionId,
+        ArchiveChildrenRequest request,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
         var session = sessions.GetRequired(sessionId);
-        var compiled = session.GetRequiredQuery(request.QueryId);
+        var compiled = string.IsNullOrWhiteSpace(request.QueryId)
+            ? null
+            : session.GetRequiredQuery(request.QueryId);
         var limit = Math.Clamp(request.Limit, 1, WorkerProtocol.MaximumPageSize);
         var offset = Math.Max(0, request.Offset);
         var parent = NormalizeFolder(request.ParentPath);
         var folders = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var entries = new List<(string Path, long EntryId)>();
-        foreach (var entryId in compiled.EntryIds)
+        var entryCount = compiled?.EntryIds.LongLength ?? session.Index.EntryCount;
+        for (long entryIndex = 0; entryIndex < entryCount; entryIndex++)
         {
+            if ((entryIndex & 0xFFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var entryId = compiled is null ? entryIndex : compiled.EntryIds[entryIndex];
             var entry = session.ReadEntry(entryId);
             if (!string.IsNullOrWhiteSpace(request.Category) &&
                 !entry.Category.Equals(request.Category, StringComparison.OrdinalIgnoreCase) &&
@@ -60,11 +71,14 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             {
                 continue;
             }
-            if (!entry.Path.StartsWith(parent, StringComparison.OrdinalIgnoreCase))
+            var hierarchyPath = request.IncludePackageRoot
+                ? StructurePath(entry)
+                : entry.Path;
+            if (!hierarchyPath.StartsWith(parent, StringComparison.OrdinalIgnoreCase))
             {
                 continue;
             }
-            var relative = entry.Path[parent.Length..].TrimStart('/');
+            var relative = hierarchyPath[parent.Length..].TrimStart('/');
             if (relative.Length == 0)
             {
                 continue;
@@ -110,6 +124,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
                 entry));
         }
         var consumed = (long)offset + pageNodes.Count;
+        cancellationToken.ThrowIfCancellationRequested();
         var nextOffset = consumed < totalChildren ? checked((int)consumed) : (int?)null;
         return new ArchiveChildrenResult(
             session.Id,
@@ -191,7 +206,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         if (!string.IsNullOrWhiteSpace(query.Folder))
         {
             var folder = NormalizeFolder(query.Folder);
-            if (!entry.Path.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+            if (!StructurePath(entry).StartsWith(folder, StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }
@@ -293,6 +308,16 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             return string.Empty;
         }
         return value.Replace('\\', '/').Trim('/') + "/";
+    }
+
+    private static string StructurePath(ArchiveEntryDto entry)
+    {
+        var packageDirectory = Path.GetFileName(Path.GetDirectoryName(entry.SourcePamt));
+        if (string.IsNullOrWhiteSpace(packageDirectory))
+        {
+            packageDirectory = "package";
+        }
+        return $"{packageDirectory.Trim('/')}/{entry.Path.Trim('/')}";
     }
 
     private static void Publish(Func<ProgressUpdate, Task>? progress, ProgressUpdate update) =>

@@ -101,6 +101,9 @@ class _FakeCatalogueService(QObject):
     def fetch_children(self, request, *, ui_generation: int) -> str:
         return self._request("fetch_children", request, ui_generation)
 
+    def fetch_structure_children(self, session_id: str, request, *, ui_generation: int) -> str:
+        return self._request("fetch_structure_children", (session_id, request), ui_generation)
+
     def facets(self, session_id: str, *, ui_generation: int) -> str:
         return self._request("facets", session_id, ui_generation)
 
@@ -365,6 +368,35 @@ def test_folder_and_category_queries_publish_worker_children_and_facets() -> Non
     )
     assert model.rowCount() == 1
     assert model.data(model.index(0, 0)) == "Models (10)"
+
+
+def test_structure_picker_uses_session_scoped_package_root_children() -> None:
+    _app()
+    service = _FakeCatalogueService()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    controller = ArchiveRemoteCatalogueController(service, model)
+    _open_flat(service, controller)
+    ready: list[tuple[str, ArchiveChildrenResult]] = []
+    controller.structureChildrenReady.connect(lambda parent, result: ready.append((parent, result)))
+
+    controller.request_structure_children("")
+    children_id, payload, request_generation = service.latest("fetch_structure_children")
+    session_id, request = payload
+    assert session_id == "session-a"
+    assert request.query_id == ""
+    assert request.parent_path is None
+    assert request.include_package_root
+    assert request_generation == controller.generation
+    result = ArchiveChildrenResult(
+        "session-a",
+        "",
+        (ArchiveChildNode("0009", "0009", True, 2_000),),
+        False,
+        total_children=1,
+    )
+    service.complete(children_id, result)
+
+    assert ready == [("", result)]
 
 
 def test_invalid_first_page_fails_closed_without_replacing_previous_view() -> None:

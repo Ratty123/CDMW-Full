@@ -57,6 +57,12 @@ class _SelectionRequest:
     query_rows: list[int] = field(default_factory=list)
 
 
+@dataclass(frozen=True, slots=True)
+class _StructureChildrenFetch:
+    parent_path: str
+    offset: int
+
+
 class ArchiveRemoteCatalogueController(QObject):
     """Keep old rows visible while a bounded replacement query is prepared."""
 
@@ -64,6 +70,7 @@ class ArchiveRemoteCatalogueController(QObject):
     progressChanged = Signal(str, object)
     queryPublished = Signal(object)
     facetsReady = Signal(object)
+    structureChildrenReady = Signal(str, object)
     selectionIndexReady = Signal(object)
     selectionUnavailable = Signal(object)
     requestFailed = Signal(str, object)
@@ -83,6 +90,8 @@ class ArchiveRemoteCatalogueController(QObject):
         self._staged: _StagedQuery | None = None
         self._current_session: ArchiveSessionHandle | None = None
         self._current_query: ArchiveQuery | None = None
+        self._structure_pending: set[_StructureChildrenFetch] = set()
+        self._structure_inflight: set[_StructureChildrenFetch] = set()
         self._selection_identity: ArchiveDurableIdentity | None = None
         self._pending_selection_row: int | None = None
         self._actions_safe = True
@@ -148,6 +157,14 @@ class ArchiveRemoteCatalogueController(QObject):
     def set_selection_identity(self, identity: ArchiveDurableIdentity | None) -> None:
         self._selection_identity = identity
 
+    def request_structure_children(self, parent_path: str = "", *, offset: int = 0) -> None:
+        normalized_parent = str(parent_path or "").replace("\\", "/").strip("/").casefold()
+        fetch = _StructureChildrenFetch(normalized_parent, max(0, int(offset)))
+        if fetch in self._structure_pending or fetch in self._structure_inflight:
+            return
+        self._structure_pending.add(fetch)
+        self._dispatch_structure_requests()
+
     def entry_for_index(self, index: QModelIndex):
         return self._model.entry_for_index(index)
 
@@ -182,6 +199,7 @@ class ArchiveRemoteCatalogueController(QObject):
             elif tracked.kind == "children" and isinstance(tracked.payload, RemoteChildrenFetch):
                 self._model.reject_children(tracked.payload)
         self._requests.clear()
+        self._structure_inflight.clear()
 
     def _submit_query(self, staged: _StagedQuery) -> None:
         try:
@@ -275,6 +293,7 @@ class ArchiveRemoteCatalogueController(QObject):
         self._staged = None
         self._set_actions_safe(True)
         self.queryPublished.emit(handle)
+        self._dispatch_structure_requests()
         self.statusChanged.emit(f"Archive catalogue ready. Showing {handle.total_matches:,} entries.")
         if staged.query.view_mode is ArchiveViewMode.FLAT and handle.total_matches > 0:
             self._model.request_visible_rows(0, min(handle.total_matches - 1, self._model.page_size - 1))
@@ -356,6 +375,31 @@ class ArchiveRemoteCatalogueController(QObject):
             return
         self._requests[request_id] = _TrackedRequest("children", self._generation, fetch)
 
+    def _dispatch_structure_requests(self) -> None:
+        session = self._current_session
+        if session is None or self._staged is not None or not self._structure_pending:
+            return
+        for fetch in sorted(self._structure_pending, key=lambda item: (item.parent_path, item.offset)):
+            request = ArchiveChildrenRequest(
+                "",
+                parent_path=fetch.parent_path or None,
+                limit=512,
+                offset=fetch.offset,
+                include_package_root=True,
+            )
+            try:
+                request_id = self._service.fetch_structure_children(
+                    session.session_id,
+                    request,
+                    ui_generation=self._generation,
+                )
+            except Exception as exc:
+                self.requestFailed.emit("structure_children", exc)
+                continue
+            self._structure_pending.discard(fetch)
+            self._structure_inflight.add(fetch)
+            self._requests[request_id] = _TrackedRequest("structure_children", self._generation, fetch)
+
     def _handle_result(self, request_id: str, _operation: str, result: object) -> None:
         tracked = self._requests.pop(request_id, None)
         if tracked is None or tracked.generation != self._generation:
@@ -429,6 +473,24 @@ class ArchiveRemoteCatalogueController(QObject):
                 if not self._model.accept_children(fetch, result):
                     self._restart_current_query_after_recovery(result.session_id)
             return
+        if tracked.kind == "structure_children" and isinstance(result, ArchiveChildrenResult):
+            fetch = tracked.payload
+            if not isinstance(fetch, _StructureChildrenFetch):
+                self.requestFailed.emit("structure_children", TypeError("Archive structure request state is invalid."))
+                return
+            self._structure_inflight.discard(fetch)
+            session = self._current_session
+            if (
+                session is None
+                or result.session_id != session.session_id
+                or result.query_id
+                or result.offset != fetch.offset
+            ):
+                self._structure_pending.add(fetch)
+                self._restart_current_query_after_recovery(result.session_id)
+                return
+            self.structureChildrenReady.emit(fetch.parent_path, result)
+            return
         if tracked.kind == "facets" and isinstance(result, ArchiveFacetsResult):
             self.facetsReady.emit(result)
             return
@@ -487,6 +549,11 @@ class ArchiveRemoteCatalogueController(QObject):
         current = tracked or self._requests.pop(request_id, None)
         if current is None or current.generation != self._generation:
             return
+        if current.kind == "structure_children":
+            if isinstance(current.payload, _StructureChildrenFetch):
+                self._structure_inflight.discard(current.payload)
+            self.requestFailed.emit(current.kind, error)
+            return
         if current.kind == "page" and isinstance(current.payload, RemotePageFetch):
             self._model.reject_page(current.payload.page_start)
         elif current.kind == "children" and isinstance(current.payload, RemoteChildrenFetch):
@@ -501,6 +568,10 @@ class ArchiveRemoteCatalogueController(QObject):
     def _handle_cancelled(self, request_id: str) -> None:
         tracked = self._requests.pop(request_id, None)
         if tracked is None:
+            return
+        if tracked.kind == "structure_children" and isinstance(tracked.payload, _StructureChildrenFetch):
+            self._structure_inflight.discard(tracked.payload)
+            self._structure_pending.add(tracked.payload)
             return
         if tracked.kind == "page" and isinstance(tracked.payload, RemotePageFetch):
             self._model.reject_page(tracked.payload.page_start)

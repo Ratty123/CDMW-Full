@@ -166,13 +166,20 @@ def test_query_aware_lookup_parses_selection_row_positions() -> None:
 
 
 def test_archive_children_contract_supports_bounded_continuation_pages() -> None:
-    request = ArchiveChildrenRequest("query-a", parent_path="character", limit=128, offset=256)
+    request = ArchiveChildrenRequest(
+        "query-a",
+        parent_path="character",
+        limit=128,
+        offset=256,
+        include_package_root=True,
+    )
     assert to_wire(request) == {
         "query_id": "query-a",
         "parent_path": "character",
         "category": None,
         "limit": 128,
         "offset": 256,
+        "include_package_root": True,
     }
     result = ArchiveChildrenResult.from_wire(
         {

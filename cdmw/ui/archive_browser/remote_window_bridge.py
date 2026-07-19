@@ -10,6 +10,7 @@ from typing import Iterable
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QTimer
 
 from cdmw.domain.archives.catalogue import (
+    ArchiveChildrenResult,
     ArchiveDurableIdentity,
     ArchiveEntryDto,
     ArchiveFacetsResult,
@@ -51,6 +52,9 @@ class ArchiveRemoteWindowBridge(QObject):
         self._shadow = bool(shadow)
         self._activate_tab_on_publish = False
         self._last_open_root = ""
+        self._structure_rows: dict[str, list[tuple[str, int]]] = {}
+        self._structure_loaded: set[str] = set()
+        self._structure_requests_enabled = False
         self._model = RemoteArchiveBrowserModel(parent=self)
         self._controller = ArchiveRemoteCatalogueController(
             window.archive_catalogue_service,
@@ -61,6 +65,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._controller.progressChanged.connect(self._handle_progress)
         self._controller.queryPublished.connect(self._handle_query_published)
         self._controller.facetsReady.connect(self._handle_facets)
+        self._controller.structureChildrenReady.connect(self._handle_structure_children)
         self._controller.selectionIndexReady.connect(self._restore_selection)
         self._controller.selectionUnavailable.connect(self._selection_unavailable)
         self._controller.requestFailed.connect(self._handle_failure)
@@ -84,6 +89,10 @@ class ArchiveRemoteWindowBridge(QObject):
     def shadows_legacy(self) -> bool:
         return self._shadow
 
+    @property
+    def structure_requests_ready(self) -> bool:
+        return self._display_v2 and self._structure_requests_enabled
+
     def open_archive(
         self,
         package_root: Path | str,
@@ -93,6 +102,13 @@ class ArchiveRemoteWindowBridge(QObject):
     ) -> None:
         self._last_open_root = str(Path(package_root))
         self._activate_tab_on_publish = bool(activate_tab)
+        if self._display_v2:
+            self._structure_requests_enabled = False
+            self._structure_rows.clear()
+            self._structure_loaded.clear()
+            self._window.archive_structure_filter_children = {}
+            self._window.archive_structure_filter_state = "warming"
+            self._window._rebuild_archive_structure_filter_controls(defer_missing_children=True)
         state = self._window._capture_archive_filter_state()
         query = archive_query_from_browser_state("", state)
         self._begin_pending("Refreshing archive catalogue..." if force_refresh else "Loading archive catalogue...")
@@ -159,6 +175,15 @@ class ArchiveRemoteWindowBridge(QObject):
                 break
         return entries
 
+    def request_structure_children(self, parent_path: str = "") -> None:
+        if not self.structure_requests_ready or self._controller.current_session is None:
+            return
+        parent = _normalized(parent_path)
+        if parent in self._structure_loaded:
+            return
+        self._window.archive_structure_filter_state = "warming"
+        self._controller.request_structure_children(parent)
+
     def _begin_pending(self, text: str) -> None:
         if self._shadow:
             return
@@ -214,6 +239,8 @@ class ArchiveRemoteWindowBridge(QObject):
         window.set_busy(False, build_mode=False)
         window._write_heartbeat("running")
         window._release_startup_splash()
+        self._structure_requests_enabled = True
+        self.request_structure_children("")
         QTimer.singleShot(0, self._select_first_row_if_needed)
 
     def _handle_facets(self, facets: ArchiveFacetsResult) -> None:
@@ -228,6 +255,34 @@ class ArchiveRemoteWindowBridge(QObject):
             0,
         )
         window._rebuild_archive_extension_filter_choices()
+
+    def _handle_structure_children(self, parent_path: str, result: ArchiveChildrenResult) -> None:
+        if not self._display_v2:
+            return
+        parent = _normalized(parent_path)
+        rows = self._structure_rows.setdefault(parent, [])
+        if result.offset == 0:
+            rows.clear()
+        folder_nodes = [child for child in result.children if child.is_folder]
+        rows.extend((_normalized(child.key), int(child.match_count)) for child in folder_nodes)
+        if (
+            result.next_offset is not None
+            and result.children
+            and len(folder_nodes) == len(result.children)
+        ):
+            self._controller.request_structure_children(parent, offset=result.next_offset)
+            return
+        self._structure_loaded.add(parent)
+        self._window.archive_structure_filter_children[parent] = sorted(
+            dict(rows).items(),
+            key=lambda item: _structure_sort_key(item[0]),
+        )
+        self._window.archive_structure_filter_state = "ready"
+        selected = self._window._current_archive_structure_filter_value()
+        self._window._rebuild_archive_structure_filter_controls(
+            selected or self._window.archive_structure_filter_pending_value,
+            defer_missing_children=True,
+        )
 
     def _restore_selection(self, index: QModelIndex) -> None:
         if self._shadow or not index.isValid():
@@ -252,6 +307,14 @@ class ArchiveRemoteWindowBridge(QObject):
 
     def _handle_failure(self, kind: str, error: object) -> None:
         detail = str(error)
+        if kind.startswith("structure_"):
+            if self._display_v2:
+                self._window.archive_structure_filter_state = "failed"
+                self._window.append_archive_log(
+                    f"Warning: archive folder filters could not be loaded from the worker: {detail}"
+                )
+                self._window._rebuild_archive_structure_filter_controls(defer_missing_children=True)
+            return
         if self._shadow:
             self._window.append_archive_log(
                 f"Archive v2 shadow comparison failed ({kind}): {detail}",
@@ -382,6 +445,11 @@ def _dto_identity_key(entry: ArchiveEntryDto) -> tuple[object, ...]:
 
 def _normalized(value: object) -> str:
     return str(value or "").replace("\\", "/").strip("/").casefold()
+
+
+def _structure_sort_key(value: str) -> tuple[int, int, str]:
+    leaf = value.rsplit("/", 1)[-1]
+    return (0, int(leaf), leaf) if leaf.isdigit() else (1, 0, leaf)
 
 
 __all__ = [

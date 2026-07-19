@@ -24,6 +24,11 @@ class ArchiveFilterWorkerMixin:
     """Filter worker start, completion, and structure-filter warmup handling."""
 
     def _start_archive_structure_filter_worker(self) -> None:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            if remote_bridge.structure_requests_ready:
+                remote_bridge.request_structure_children(self._current_archive_structure_filter_value())
+            return
         if self._shutting_down or not self.archive_entries:
             self.archive_structure_filter_state = "idle"
             return

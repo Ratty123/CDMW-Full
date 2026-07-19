@@ -18,6 +18,8 @@ if str(_REPOSITORY_ROOT) not in sys.path:
 from PySide6.QtCore import QCoreApplication, QEventLoop, QTimer
 
 from cdmw.domain.archives.catalogue import (
+    ArchiveChildrenRequest,
+    ArchiveChildrenResult,
     ArchivePage,
     ArchiveQuery,
     ArchiveQueryHandle,
@@ -154,10 +156,29 @@ def run_probe(worker: Path) -> dict[str, object]:
             if not isinstance(warm, ArchiveSessionHandle) or not warm.cache_hit:
                 raise AssertionError("Synthetic warm open did not reuse the v2 generation.")
 
+            structure_root = awaiter.wait(
+                service.fetch_structure_children(
+                    warm.session_id,
+                    ArchiveChildrenRequest("", include_package_root=True),
+                    ui_generation=3,
+                )
+            )
+            if (
+                not isinstance(structure_root, ArchiveChildrenResult)
+                or len(structure_root.children) != 1
+                or structure_root.children[0].key != "0009"
+                or structure_root.children[0].match_count != 3
+            ):
+                raise AssertionError("Synthetic package-root folder hierarchy changed.")
+
             query = awaiter.wait(
                 service.create_query(
-                    ArchiveQuery(session_id=warm.session_id, extensions=(".txt",)),
-                    ui_generation=3,
+                    ArchiveQuery(
+                        session_id=warm.session_id,
+                        extensions=(".txt",),
+                        folder="0009/text",
+                    ),
+                    ui_generation=4,
                 )
             )
             if not isinstance(query, ArchiveQueryHandle):
@@ -165,7 +186,7 @@ def run_probe(worker: Path) -> dict[str, object]:
             page = awaiter.wait(
                 service.fetch_page(
                     FetchPageRequest(query.query_id, page_size=256),
-                    ui_generation=4,
+                    ui_generation=5,
                 )
             )
             if not isinstance(page, ArchivePage) or len(page.rows) != 1:
@@ -175,7 +196,7 @@ def run_probe(worker: Path) -> dict[str, object]:
             prepared = awaiter.wait(
                 service.prepare_entry(
                     PrepareEntryRequest(warm.session_id, text_entry.entry_id),
-                    ui_generation=5,
+                    ui_generation=6,
                 )
             )
             if not isinstance(prepared, PrepareEntryResult):
@@ -186,7 +207,7 @@ def run_probe(worker: Path) -> dict[str, object]:
 
             text_request_id = service.text_search(
                 ArchiveTextSearchRequest(warm.session_id, "Crimson", batch_size=1),
-                ui_generation=6,
+                ui_generation=7,
             )
             text_terminal = awaiter.wait(text_request_id)
             text_batches = [
@@ -206,7 +227,7 @@ def run_probe(worker: Path) -> dict[str, object]:
                         destination=str(export_root),
                         query_id=query.query_id,
                     ),
-                    ui_generation=7,
+                    ui_generation=8,
                 )
             )
             if not isinstance(export_result, ArchiveExportResult) or export_result.exported != 1:
@@ -223,6 +244,7 @@ def run_probe(worker: Path) -> dict[str, object]:
                 "cold_cache_hit": cold.cache_hit,
                 "warm_cache_hit": warm.cache_hit,
                 "page_rows": len(page.rows),
+                "structure_root_count": len(structure_root.children),
                 "text_matches": text_matches,
                 "exported": export_result.exported,
                 "prepared_sha256": prepared.sha256,

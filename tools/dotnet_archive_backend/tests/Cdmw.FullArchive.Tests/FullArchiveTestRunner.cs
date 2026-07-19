@@ -146,6 +146,39 @@ internal static class FullArchiveTestRunner
                 !secondChildren.Truncated,
                 "folder-child continuation page is invalid");
 
+            var structureRoot = queries.FetchChildren(
+                sessionHandle.SessionId,
+                new ArchiveChildrenRequest(
+                    string.Empty,
+                    null,
+                    null,
+                    IncludePackageRoot: true));
+            Require(
+                structureRoot.Children is [{ Key: "base", IsFolder: true, MatchCount: 4 }],
+                "package-root structure children changed");
+            var structurePackage = queries.FetchChildren(
+                sessionHandle.SessionId,
+                new ArchiveChildrenRequest(
+                    string.Empty,
+                    "base",
+                    null,
+                    IncludePackageRoot: true));
+            Require(
+                structurePackage.Children.Count == 4 &&
+                structurePackage.Children.All(static child => child.IsFolder) &&
+                structurePackage.Children.Select(static child => child.Key).SequenceEqual(
+                    ["base/binary", "base/materials", "base/text", "base/texture"]),
+                "package-folder structure children changed");
+            using (var cancelledChildren = new CancellationTokenSource())
+            {
+                cancelledChildren.Cancel();
+                Expect<OperationCanceledException>(
+                    () => queries.FetchChildren(
+                        sessionHandle.SessionId,
+                        new ArchiveChildrenRequest(string.Empty, null, null, IncludePackageRoot: true),
+                        cancelledChildren.Token));
+            }
+
             var materialQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, Extensions: [".material"]),
                 generation: 8,
@@ -231,6 +264,11 @@ internal static class FullArchiveTestRunner
             Require(exported.Exported == 1 && !exported.Cancelled, "query-token export failed");
             var materialPath = Path.Combine(exportRoot, "materials", "sample.material");
             Require(await File.ReadAllTextAsync(materialPath).ConfigureAwait(false) == "material alpha", "exported decoded bytes changed");
+            var structureQuery = await queries.CreateAsync(
+                new ArchiveQuery(sessionHandle.SessionId, Folder: "base/text"),
+                generation: 12,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(structureQuery.TotalMatches == 1, "package-aware structure filter changed");
             await File.WriteAllTextAsync(materialPath, "preserve me").ConfigureAwait(false);
             var cancelled = await exports.ExportAsync(
                 new ArchiveExportRequest(

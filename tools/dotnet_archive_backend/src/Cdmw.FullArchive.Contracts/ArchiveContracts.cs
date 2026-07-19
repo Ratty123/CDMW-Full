@@ -137,7 +137,8 @@ public sealed record ArchiveChildrenRequest(
     string? ParentPath,
     string? Category,
     int Limit = 512,
-    int Offset = 0);
+    int Offset = 0,
+    bool IncludePackageRoot = false);
 
 public sealed record ArchiveChildNode(
     string Key,

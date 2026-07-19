@@ -92,7 +92,10 @@ internal sealed class WorkerRuntime : IAsyncDisposable
             case WorkerProtocol.FetchChildren:
                 {
                     var sessionId = RequireSession(request);
-                    var result = _queries.FetchChildren(sessionId, RequirePayload<ArchiveChildrenRequest>(request));
+                    var result = _queries.FetchChildren(
+                        sessionId,
+                        RequirePayload<ArchiveChildrenRequest>(request),
+                        cancellationToken);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, sessionId);
                 }
             case WorkerProtocol.Facets:

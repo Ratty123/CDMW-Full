@@ -10,6 +10,8 @@ from PySide6.QtCore import QEventLoop, QTimer
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.archives.catalogue import (
+    ArchiveChildrenRequest,
+    ArchiveChildrenResult,
     ArchiveEntryDto,
     ArchivePage,
     ArchiveQuery,
@@ -170,6 +172,54 @@ def test_catalogue_service_reopens_session_and_reconstructs_query_after_crash(tm
     assert operations.count("open_archive") == 3
     assert operations.count("create_query") == 3
     assert operations.count("fetch_page") == 2
+
+    service.request_shutdown()
+    assert _wait_until(lambda: client.state is ArchiveBackendClientState.STOPPED)
+
+
+def test_catalogue_service_retries_session_scoped_structure_children_after_crash(tmp_path: Path) -> None:
+    _app()
+    client = ArchiveBackendClient(
+        cache_root=tmp_path,
+        worker_program=sys.executable,
+        worker_arguments=("-u", str(_STUB)),
+    )
+    service = ArchiveCatalogueService(client)
+    results: list[tuple[str, str, object]] = []
+    failures: list[tuple[str, object]] = []
+    service.result_ready.connect(
+        lambda request_id, operation, result: results.append((request_id, operation, result))
+    )
+    service.request_failed.connect(lambda request_id, error: failures.append((request_id, error)))
+
+    open_id = service.open_archive(OpenArchiveRequest("synthetic-root"), ui_generation=1)
+    assert _wait_until(lambda: any(row[0] == open_id for row in results))
+    session = next(row[2] for row in results if row[0] == open_id)
+    assert isinstance(session, ArchiveSessionHandle)
+
+    children_id = service.fetch_structure_children(
+        session.session_id,
+        ArchiveChildrenRequest(
+            "",
+            parent_path="crash_once",
+            include_package_root=True,
+        ),
+        ui_generation=2,
+    )
+    assert _wait_until(
+        lambda: any(row[0] == children_id for row in results or failures),
+        timeout_ms=8_000,
+    )
+    assert not [row for row in failures if row[0] == children_id]
+    children = next(row[2] for row in results if row[0] == children_id)
+    assert isinstance(children, ArchiveChildrenResult)
+    assert children.query_id == ""
+    assert children.children[0].key == "0009"
+
+    operations = (tmp_path / "stub-operations.log").read_text(encoding="utf-8").splitlines()
+    assert operations.count("open_archive") == 2
+    assert operations.count("fetch_children") == 2
+    assert operations.count("create_query") == 0
 
     service.request_shutdown()
     assert _wait_until(lambda: client.state is ArchiveBackendClientState.STOPPED)

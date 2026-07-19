@@ -165,6 +165,24 @@ class ArchiveCatalogueService(QObject):
             query=query,
         )
 
+    def fetch_structure_children(
+        self,
+        session_id: str,
+        request: ArchiveChildrenRequest,
+        *,
+        ui_generation: int,
+    ) -> str:
+        if request.query_id or not request.include_package_root:
+            raise ValueError("Structure children require an empty query token and package-root hierarchy mode.")
+        session = self._require_session(session_id)
+        return self._submit(
+            ArchiveBackendOperation.FETCH_CHILDREN,
+            request,
+            ArchiveChildrenResult.from_wire,
+            ui_generation=ui_generation,
+            session=session,
+        )
+
     def facets(self, session_id: str, *, ui_generation: int) -> str:
         session = self._require_session(session_id)
         return self._submit(
@@ -481,6 +499,16 @@ class ArchiveCatalogueService(QObject):
                 request.payload = {}
             elif request.operation is ArchiveBackendOperation.RESOLVE_ENTRIES and isinstance(request.payload, ArchiveLookupRequest):
                 request.payload = replace(request.payload, session_id=session.session_id)
+            elif (
+                request.operation is ArchiveBackendOperation.FETCH_CHILDREN
+                and request.query is None
+                and isinstance(request.payload, ArchiveChildrenRequest)
+                and not request.payload.query_id
+            ):
+                request.session_id = session.session_id
+                request.fingerprint = session.fingerprint
+                self._dispatch(request_id)
+                return
             elif request.operation in {
                 ArchiveBackendOperation.FETCH_PAGE,
                 ArchiveBackendOperation.FETCH_CHILDREN,

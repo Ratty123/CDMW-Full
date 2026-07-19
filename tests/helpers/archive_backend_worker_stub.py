@@ -174,6 +174,37 @@ def main() -> int:
                     },
                 )
             )
+        elif operation == "fetch_children":
+            payload = request.get("payload") or {}
+            parent_path = str(payload.get("parent_path", "") or "")
+            if parent_path == "crash_once":
+                marker = cache_root / "crashed-children-once.marker"
+                if not marker.exists():
+                    marker.write_text("crashed", encoding="utf-8")
+                    os._exit(77)
+            _send(
+                _message(
+                    request,
+                    "result",
+                    {
+                        "session_id": request.get("session_id"),
+                        "query_id": str(payload.get("query_id", "")),
+                        "children": [
+                            {
+                                "key": "0009",
+                                "label": "0009",
+                                "is_folder": True,
+                                "match_count": 1,
+                                "entry": None,
+                            }
+                        ],
+                        "truncated": False,
+                        "offset": int(payload.get("offset", 0)),
+                        "total_children": 1,
+                        "next_offset": None,
+                    },
+                )
+            )
         elif operation == "export":
             os._exit(74)
         elif operation == "cancel":
