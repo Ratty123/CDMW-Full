@@ -7,8 +7,11 @@ import pytest
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
 from cdmw.ui.archive_browser.workflow_dependencies import (
+    MAX_MERGED_ARCHIVE_WORKFLOW_ENTRIES,
+    ArchiveWorkflowDependencyContext,
     ArchiveWorkflowDependenciesUnavailable,
     archive_workflow_dependency_context,
+    merge_archive_workflow_dependency_contexts,
 )
 
 
@@ -126,3 +129,20 @@ def test_legacy_workflow_context_preserves_existing_catalogue_maps() -> None:
     assert context.entries == (selected, texture)
     assert context.entries_by_normalized_path is path_index
     assert context.entries_by_basename is basename_index
+
+
+def test_remote_workflow_context_merge_fails_closed_above_compatibility_bound() -> None:
+    entries = tuple(
+        _entry(f"character/model/file_{index}.pac", index, prepared=True)
+        for index in range(MAX_MERGED_ARCHIVE_WORKFLOW_ENTRIES + 1)
+    )
+    context = ArchiveWorkflowDependencyContext(
+        selected_entry=entries[0],
+        entries=entries,
+        entries_by_normalized_path={},
+        entries_by_basename={},
+        remote=True,
+    )
+
+    with pytest.raises(ArchiveWorkflowDependenciesUnavailable, match="8,192-entry safety bound"):
+        merge_archive_workflow_dependency_contexts(entries[0], context)

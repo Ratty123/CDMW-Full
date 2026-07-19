@@ -53,8 +53,10 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
     pending_in_game_mesh_swap_target_status,
 )
 from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependencyContext,
     ArchiveWorkflowDependenciesUnavailable,
     archive_workflow_dependency_context,
+    merge_archive_workflow_dependency_contexts,
 )
 
 
@@ -64,6 +66,7 @@ class ArchiveInGameMeshSwapPreparationRequest:
     target_entry: ArchiveEntry
     source_entry: ArchiveEntry
     scope: InGameMeshSwapScopeSelection
+    dependencies: ArchiveWorkflowDependencyContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,7 +84,7 @@ class ArchiveMeshLaunchFlowMixin:
         source_entry: ArchiveEntry,
         scope: InGameMeshSwapScopeSelection,
         *,
-        stop_event: Optional[threading.Event] = None,
+        dependencies: ArchiveWorkflowDependencyContext, stop_event: Optional[threading.Event] = None,
     ) -> Tuple[MeshImportSupplementalFileSpec, ...]:
         raise_if_cancelled(stop_event, "In-game mesh companion preparation cancelled.")
         specs: List[MeshImportSupplementalFileSpec] = []
@@ -91,7 +94,7 @@ class ArchiveMeshLaunchFlowMixin:
                 character_plan = build_character_swap_plan(
                     target_entry,
                     source_entry,
-                    self.archive_entries,
+                    dependencies.entries,
                     swap_scope=SWAP_SCOPE_BODY_HEAD,
                 )
             except Exception:
@@ -100,7 +103,7 @@ class ArchiveMeshLaunchFlowMixin:
             patched_target_path = str(getattr(character_plan, "patched_target_app_path", "") or "").strip()
             if patched_payload and patched_target_path:
                 target_app = None
-                for candidate in tuple(self.archive_entries_by_normalized_path.get(patched_target_path.lower(), ()) or ()):
+                for candidate in tuple(dependencies.entries_by_normalized_path.get(patched_target_path.lower(), ()) or ()):
                     target_app = candidate
                     break
                 specs.append(
@@ -117,7 +120,7 @@ class ArchiveMeshLaunchFlowMixin:
         if scope.replace_target_sidecar_with_source:
             selected_sidecars = [entry for entry in selected_entries if self._archive_entry_is_material_sidecar(entry)]
             if not selected_sidecars:
-                selected_sidecars = list(self._archive_model_sidecar_entries_for_swap(source_entry))[:1]
+                selected_sidecars = list(self._archive_model_sidecar_entries_for_swap(source_entry, dependencies=dependencies))[:1]
             for source_sidecar in selected_sidecars:
                 raise_if_cancelled(stop_event, "In-game mesh companion preparation cancelled.")
                 try:
@@ -127,7 +130,9 @@ class ArchiveMeshLaunchFlowMixin:
                     )
                 except Exception:
                     continue
-                target_path, target_sidecar = self._target_sidecar_path_for_source_sidecar(target_entry, source_sidecar)
+                target_path, target_sidecar = self._target_sidecar_path_for_source_sidecar(
+                    target_entry, source_sidecar, dependencies=dependencies
+                )
                 specs.append(
                     MeshImportSupplementalFileSpec(
                         source_path=Path(PurePosixPath(source_sidecar.path.replace("\\", "/")).name),
@@ -151,8 +156,7 @@ class ArchiveMeshLaunchFlowMixin:
             if not selected_appearances:
                 selected_appearances = list(
                     self._archive_character_appearance_entries_for_swap(
-                        source_entry,
-                        stop_event=stop_event,
+                        source_entry, dependencies=dependencies, stop_event=stop_event
                     )
                 )[:1]
             for source_appearance in selected_appearances:
@@ -165,8 +169,7 @@ class ArchiveMeshLaunchFlowMixin:
                 except Exception:
                     continue
                 target_path, target_appearance = self._target_appearance_path_for_source_appearance(
-                    target_entry,
-                    source_appearance,
+                    target_entry, source_appearance, dependencies=dependencies
                 )
                 if not target_path:
                     continue
@@ -207,9 +210,7 @@ class ArchiveMeshLaunchFlowMixin:
             target_entry_for_spec: Optional[ArchiveEntry] = source_companion
             if scope.retarget_source_family_files:
                 target_path, target_entry_for_spec = self._target_family_path_for_source_companion(
-                    target_entry,
-                    source_entry,
-                    source_companion,
+                    target_entry, source_entry, source_companion, dependencies=dependencies
                 )
             kind = (
                 "texture"
@@ -446,6 +447,37 @@ class ArchiveMeshLaunchFlowMixin:
         if self._same_archive_entry(target_entry, source_entry):
             self.set_status_message(in_game_mesh_swap_same_source_status(), error=True)
             return
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
+            try:
+                target_dependencies = archive_workflow_dependency_context(self, target_entry)
+                source_dependencies = archive_workflow_dependency_context(self, source_entry)
+                dependencies = merge_archive_workflow_dependency_contexts(
+                    target_entry,
+                    target_dependencies,
+                    source_dependencies,
+                )
+            except ArchiveWorkflowDependenciesUnavailable as exc:
+                self.set_status_message(f"In-game mesh swap is unavailable: {exc}", error=True)
+                return
+            prepared_target = dependencies.entry_matching(target_entry)
+            prepared_source = dependencies.entry_matching(source_entry)
+            if prepared_target is None or prepared_source is None:
+                self.set_status_message(
+                    "In-game mesh swap is unavailable because its prepared target/source entries expired.",
+                    error=True,
+                )
+                return
+            target_entry = prepared_target
+            source_entry = prepared_source
+        else:
+            dependencies = ArchiveWorkflowDependencyContext(
+                selected_entry=target_entry,
+                entries=getattr(self, "archive_entries", ()) or (),
+                entries_by_normalized_path=getattr(self, "archive_entries_by_normalized_path", {}) or {},
+                entries_by_basename=getattr(self, "archive_entries_by_basename", {}) or {},
+                remote=False,
+            )
         self._open_mesh_editor_for_entry(
             target_entry,
             mode="in_game_swap",
@@ -458,7 +490,7 @@ class ArchiveMeshLaunchFlowMixin:
             request_id=request_id,
             target_entry=target_entry,
             source_entry=source_entry,
-            archive_entries=self.archive_entries,
+            dependencies=dependencies,
         )
 
         def _task(
@@ -495,7 +527,12 @@ class ArchiveMeshLaunchFlowMixin:
                 prepared_scope=payload,
             )
             if swap_scope is not None:
-                self._continue_archive_in_game_mesh_swap(target_entry, source_entry, swap_scope)
+                self._continue_archive_in_game_mesh_swap(
+                    target_entry,
+                    source_entry,
+                    swap_scope,
+                    dependencies=dependencies,
+                )
 
         self._run_utility_task_when_idle(
             status_message="Preparing in-game mesh swap scope...",
@@ -511,7 +548,7 @@ class ArchiveMeshLaunchFlowMixin:
         self,
         target_entry: ArchiveEntry,
         source_entry: ArchiveEntry,
-        swap_scope: InGameMeshSwapScopeSelection,
+        swap_scope: InGameMeshSwapScopeSelection, *, dependencies: ArchiveWorkflowDependencyContext,
     ) -> None:
         progress_text = in_game_mesh_swap_progress_text()
         request_id = int(getattr(self, "archive_in_game_mesh_swap_request_id", 0) or 0) + 1
@@ -520,7 +557,7 @@ class ArchiveMeshLaunchFlowMixin:
             request_id=request_id,
             target_entry=target_entry,
             source_entry=source_entry,
-            scope=swap_scope,
+            scope=swap_scope, dependencies=dependencies,
         )
 
         def _task(
@@ -535,8 +572,7 @@ class ArchiveMeshLaunchFlowMixin:
             )
             progress(1, 3, "Resolving source texture evidence...")
             source_texture_paths, source_texture_evidence = self._build_archive_swap_source_texture_evidence(
-                request.source_entry,
-                stop_event=stop_event,
+                request.source_entry, dependencies=request.dependencies, stop_event=stop_event
             )
             progress(2, 3, "Preparing source companion payloads...")
             if source_texture_paths:
@@ -549,8 +585,7 @@ class ArchiveMeshLaunchFlowMixin:
             extra_specs = self._build_in_game_mesh_swap_extra_specs(
                 request.target_entry,
                 request.source_entry,
-                request.scope,
-                stop_event=stop_event,
+                request.scope, dependencies=request.dependencies, stop_event=stop_event
             )
             raise_if_cancelled(stop_event, "In-game mesh swap preparation cancelled.")
             progress(3, 3, "In-game mesh source ready.")

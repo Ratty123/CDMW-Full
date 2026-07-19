@@ -29,6 +29,10 @@ from cdmw.services.mesh_workflow_service import classify_texture_binding
 from cdmw.services.mesh_workflow_service import parse_mesh
 from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.mesh_workflow_service import _semantic_tokens
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependencyContext,
+    archive_workflow_dependency_context,
+)
 
 
 class ArchiveMeshSwapSupportMixin:
@@ -40,6 +44,24 @@ class ArchiveMeshSwapSupportMixin:
 
     def _same_archive_entry(self, first: Optional[ArchiveEntry], second: Optional[ArchiveEntry]) -> bool:
         return bool(first is not None and second is not None and self._archive_entry_identity_key(first) == self._archive_entry_identity_key(second))
+
+    def _archive_swap_dependencies(
+        self,
+        entry: ArchiveEntry,
+        dependencies: ArchiveWorkflowDependencyContext | None,
+    ) -> ArchiveWorkflowDependencyContext:
+        if isinstance(dependencies, ArchiveWorkflowDependencyContext):
+            return dependencies
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
+            return archive_workflow_dependency_context(self, entry)
+        return ArchiveWorkflowDependencyContext(
+            selected_entry=entry,
+            entries=getattr(self, "archive_entries", ()) or (),
+            entries_by_normalized_path=getattr(self, "archive_entries_by_normalized_path", {}) or {},
+            entries_by_basename=getattr(self, "archive_entries_by_basename", {}) or {},
+            remote=False,
+        )
 
     @staticmethod
     def _archive_mesh_source_label(entry: ArchiveEntry) -> str:
@@ -162,39 +184,63 @@ class ArchiveMeshSwapSupportMixin:
             return "Mesh companion"
         return "Other"
 
-    def _archive_model_related_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
+    def _archive_model_related_entries_for_swap(
+        self,
+        entry: ArchiveEntry,
+        *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
+    ) -> Tuple[ArchiveEntry, ...]:
         from cdmw.services.archive_query_service import find_archive_model_related_entries as _find_archive_model_related_entries
 
-        return _find_archive_model_related_entries(entry, self.archive_entries_by_basename)
+        context = self._archive_swap_dependencies(entry, dependencies)
+        return _find_archive_model_related_entries(entry, context.entries_by_basename)
 
-    def _archive_model_sidecar_entries_for_swap(self, entry: ArchiveEntry) -> Tuple[ArchiveEntry, ...]:
+    def _archive_model_sidecar_entries_for_swap(
+        self,
+        entry: ArchiveEntry,
+        *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
+    ) -> Tuple[ArchiveEntry, ...]:
         from cdmw.services.archive_query_service import find_archive_model_sidecar_entries as _find_archive_model_sidecar_entries
 
-        return _find_archive_model_sidecar_entries(entry, self.archive_entries_by_basename)
+        context = self._archive_swap_dependencies(entry, dependencies)
+        return _find_archive_model_sidecar_entries(entry, context.entries_by_basename)
 
     def _archive_character_appearance_entries_for_swap(
         self,
         entry: ArchiveEntry,
         *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Tuple[ArchiveEntry, ...]:
         raise_if_cancelled(stop_event, "Character appearance scan cancelled.")
+        context = self._archive_swap_dependencies(entry, dependencies)
         normalized_entry_path = str(getattr(entry, "path", "") or "").replace("\\", "/").strip().lower()
         if "/character/" not in normalized_entry_path:
             return ()
         entry_key = self._archive_entry_identity_key(entry)
         result_cache = getattr(self, "archive_character_appearance_swap_cache", {})
-        if entry_key in result_cache:
+        if not context.remote and entry_key in result_cache:
             return tuple(result_cache[entry_key])
-        extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
-        if not extension_index and getattr(self, "archive_entries", ()):
-            if stop_event is None:
-                self._ensure_archive_basic_index_worker_started()
-            return ()
         appearance_candidates: List[ArchiveEntry] = []
         seen_candidates: set[ArchiveEntryIdentity] = set()
-        for extension in (".app_xml", ".xml"):
-            for candidate in extension_index.get(extension, ()):
+        if context.remote:
+            candidate_groups = (
+                tuple(
+                    candidate
+                    for candidate in context.entries
+                    if str(candidate.extension or "").strip().casefold() in {".app_xml", ".xml"}
+                ),
+            )
+        else:
+            extension_index = getattr(self, "archive_entries_by_extension", {}) or {}
+            if not extension_index and getattr(self, "archive_entries", ()):
+                if stop_event is None:
+                    self._ensure_archive_basic_index_worker_started()
+                return ()
+            candidate_groups = tuple(extension_index.get(extension, ()) for extension in (".app_xml", ".xml"))
+        for candidates in candidate_groups:
+            for candidate in candidates:
                 raise_if_cancelled(stop_event, "Character appearance scan cancelled.")
                 if not isinstance(candidate, ArchiveEntry) or not self._archive_entry_is_appearance_descriptor(candidate):
                     continue
@@ -254,32 +300,22 @@ class ArchiveMeshSwapSupportMixin:
             if len(result) >= 8:
                 break
         resolved = tuple(result)
-        result_cache[entry_key] = resolved
-        self.archive_character_appearance_swap_cache = result_cache
+        if not context.remote:
+            result_cache[entry_key] = resolved
+            self.archive_character_appearance_swap_cache = result_cache
         return resolved
-
-    def _resolve_archive_entries_for_reference_basenames(self, basenames: Sequence[str]) -> Tuple[ArchiveEntry, ...]:
-        result: List[ArchiveEntry] = []
-        seen: set[str] = set()
-        for basename in basenames:
-            normalized_basename = PurePosixPath(str(basename or "").replace("\\", "/")).name.lower()
-            if not normalized_basename:
-                continue
-            for candidate in tuple(self.archive_entries_by_basename.get(normalized_basename, ()) or ()):
-                key = self._archive_entry_identity_key(candidate)
-                if key and key not in seen:
-                    result.append(candidate)
-                    seen.add(key)
-        return tuple(result)
 
     def _archive_character_app_graph_entries_for_swap(
         self,
         entry: ArchiveEntry,
         *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Tuple[ArchiveEntry, ...]:
+        context = self._archive_swap_dependencies(entry, dependencies)
         appearance_entries = self._archive_character_appearance_entries_for_swap(
             entry,
+            dependencies=context,
             stop_event=stop_event,
         )
         if not appearance_entries:
@@ -301,7 +337,7 @@ class ArchiveMeshSwapSupportMixin:
             try:
                 relationship_plan = build_archive_relationship_plan(
                     appearance_entry,
-                    self.archive_entries,
+                    context.entries,
                     mode="swap_source",
                 )
             except Exception:
@@ -315,10 +351,13 @@ class ArchiveMeshSwapSupportMixin:
         self,
         entry: ArchiveEntry,
         *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
         stop_event: Optional[threading.Event] = None,
     ) -> Tuple[ArchiveEntry, ...]:
+        context = self._archive_swap_dependencies(entry, dependencies)
         graph_entries = self._archive_character_app_graph_entries_for_swap(
             entry,
+            dependencies=context,
             stop_event=stop_event,
         )
         if not graph_entries:
@@ -337,7 +376,7 @@ class ArchiveMeshSwapSupportMixin:
         for graph_entry in graph_entries:
             raise_if_cancelled(stop_event, "Character appearance texture graph scan cancelled.")
             try:
-                relationship_plan = resolve_material_texture_graph(graph_entry, self.archive_entries)
+                relationship_plan = resolve_material_texture_graph(graph_entry, context.entries)
             except Exception:
                 raise_if_cancelled(stop_event, "Character appearance texture graph scan cancelled.")
                 relationship_plan = None
@@ -349,11 +388,11 @@ class ArchiveMeshSwapSupportMixin:
         self,
         entry: ArchiveEntry,
         *,
-        stop_event: Optional[threading.Event] = None,
+        dependencies: ArchiveWorkflowDependencyContext | None = None, stop_event: Optional[threading.Event] = None,
     ) -> Tuple[ArchiveEntry, ...]:
         from cdmw.services.archive_workflow_service import _extract_archive_sidecar_texture_lookup_paths
-
         raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
+        context = self._archive_swap_dependencies(entry, dependencies)
         texture_entries_by_key: "OrderedDict[str, ArchiveEntry]" = OrderedDict()
         texture_entry_scores_by_key: Dict[str, int] = {}
         source_path_text = entry.path.replace("\\", "/").strip().lower()
@@ -395,7 +434,7 @@ class ArchiveMeshSwapSupportMixin:
                 texture_entry_scores_by_key[key] = score
 
         try:
-            relationship_plan = resolve_material_texture_graph(entry, self.archive_entries)
+            relationship_plan = resolve_material_texture_graph(entry, context.entries)
             for edge in relationship_plan.edges:
                 raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
                 _add_texture(edge.related_entry, referenced_path=edge.related_path)
@@ -411,14 +450,14 @@ class ArchiveMeshSwapSupportMixin:
                 source_sidecar_texts_by_basename,
             ) = _extract_archive_model_sidecar_texture_references(
                 entry,
-                archive_entries_by_basename=self.archive_entries_by_basename,
+                archive_entries_by_basename=context.entries_by_basename,
             )
             source_texture_references = build_archive_model_texture_references(
                 entry,
                 None,
                 sidecar_texture_references=source_sidecar_bindings,
-                texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                texture_entries_by_basename=self.archive_entries_by_basename,
+                texture_entries_by_normalized_path=context.entries_by_normalized_path,
+                texture_entries_by_basename=context.entries_by_basename,
                 sidecar_texts_by_normalized_path=source_sidecar_texts_by_path,
                 sidecar_texts_by_basename=source_sidecar_texts_by_basename,
             )
@@ -435,7 +474,7 @@ class ArchiveMeshSwapSupportMixin:
         # Some sidecars carry plain texture attributes that are not recognized by
         # the material-binding parser yet. Resolve those raw paths directly so the
         # swap scope still exposes the DDS files for manual inclusion.
-        for sidecar_entry in self._archive_model_sidecar_entries_for_swap(entry):
+        for sidecar_entry in self._archive_model_sidecar_entries_for_swap(entry, dependencies=context):
             raise_if_cancelled(stop_event, "In-game mesh texture scan cancelled.")
             try:
                 sidecar_data, _decompressed, _note = read_archive_entry_data(sidecar_entry)
@@ -445,11 +484,11 @@ class ArchiveMeshSwapSupportMixin:
             for raw_texture_path in _extract_archive_sidecar_texture_lookup_paths(sidecar_text):
                 normalized_path = normalize_texture_reference_for_sidecar_lookup(raw_texture_path)
                 if normalized_path:
-                    for candidate in self.archive_entries_by_normalized_path.get(normalized_path, ()):
+                    for candidate in context.entries_by_normalized_path.get(normalized_path, ()):
                         _add_texture(candidate, referenced_path=raw_texture_path)
                 basename = PurePosixPath(str(raw_texture_path or "").replace("\\", "/")).name.lower()
                 if basename:
-                    for candidate in self.archive_entries_by_basename.get(basename, ()):
+                    for candidate in context.entries_by_basename.get(basename, ()):
                         _add_texture(candidate, referenced_path=raw_texture_path)
 
         return tuple(texture_entries_by_key.values())
@@ -458,22 +497,20 @@ class ArchiveMeshSwapSupportMixin:
         self,
         source_entry: ArchiveEntry,
         *,
-        stop_event: Optional[threading.Event] = None,
+        dependencies: ArchiveWorkflowDependencyContext | None = None, stop_event: Optional[threading.Event] = None,
     ) -> Tuple[Tuple[Path, ...], Tuple[Mapping[str, object], ...]]:
         """Expose source-side DDS/sidecar evidence to Mesh Replacement Alignment suggestions."""
 
         raise_if_cancelled(stop_event, "In-game mesh texture evidence cancelled.")
-        texture_entries = self._archive_model_source_texture_entries_for_swap(
-            source_entry,
-            stop_event=stop_event,
-        )
+        context = self._archive_swap_dependencies(source_entry, dependencies)
+        texture_entries = self._archive_model_source_texture_entries_for_swap(source_entry, dependencies=context, stop_event=stop_event)
         if not texture_entries:
             return (), ()
         bindings: Tuple[object, ...] = ()
         try:
             bindings, _paths, _texts_by_path, _texts_by_basename = _extract_archive_model_sidecar_texture_references(
                 source_entry,
-                archive_entries_by_basename=self.archive_entries_by_basename,
+                archive_entries_by_basename=context.entries_by_basename,
             )
         except Exception:
             bindings = ()
@@ -490,7 +527,7 @@ class ArchiveMeshSwapSupportMixin:
                 bindings_by_basename.setdefault(basename, []).append(binding)
         profile_records_by_normalized_path: Dict[str, List[Tuple[object, object, object]]] = {}
         profile_records_by_basename: Dict[str, List[Tuple[object, object, object]]] = {}
-        source_sidecar_entries = tuple(self._archive_model_sidecar_entries_for_swap(source_entry))
+        source_sidecar_entries = tuple(self._archive_model_sidecar_entries_for_swap(source_entry, dependencies=context))
         for sidecar_entry in source_sidecar_entries:
             raise_if_cancelled(stop_event, "In-game mesh texture evidence cancelled.")
             try:
@@ -648,8 +685,15 @@ class ArchiveMeshSwapSupportMixin:
         self,
         target_entry: ArchiveEntry,
         source_sidecar_entry: ArchiveEntry,
+        *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
     ) -> Tuple[str, Optional[ArchiveEntry]]:
-        target_sidecars = list(self._archive_model_sidecar_entries_for_swap(target_entry))
+        target_sidecars = list(
+            self._archive_model_sidecar_entries_for_swap(
+                target_entry,
+                dependencies=dependencies,
+            )
+        )
         source_extension = str(source_sidecar_entry.extension or "").strip().lower()
         for target_sidecar in target_sidecars:
             if str(target_sidecar.extension or "").strip().lower() == source_extension:
@@ -670,8 +714,15 @@ class ArchiveMeshSwapSupportMixin:
         self,
         target_entry: ArchiveEntry,
         source_appearance_entry: ArchiveEntry,
+        *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
     ) -> Tuple[str, Optional[ArchiveEntry]]:
-        target_appearances = list(self._archive_character_appearance_entries_for_swap(target_entry))
+        target_appearances = list(
+            self._archive_character_appearance_entries_for_swap(
+                target_entry,
+                dependencies=dependencies,
+            )
+        )
         if not target_appearances:
             return "", None
         source_basename = PurePosixPath(source_appearance_entry.path.replace("\\", "/")).name.lower()
@@ -689,13 +740,23 @@ class ArchiveMeshSwapSupportMixin:
         target_entry: ArchiveEntry,
         source_entry: ArchiveEntry,
         source_companion: ArchiveEntry,
+        *,
+        dependencies: ArchiveWorkflowDependencyContext | None = None,
     ) -> Tuple[str, Optional[ArchiveEntry]]:
         if self._same_archive_entry(source_entry, source_companion):
             return target_entry.path.replace("\\", "/"), target_entry
         if self._archive_entry_is_material_sidecar(source_companion):
-            return self._target_sidecar_path_for_source_sidecar(target_entry, source_companion)
+            return self._target_sidecar_path_for_source_sidecar(
+                target_entry,
+                source_companion,
+                dependencies=dependencies,
+            )
         if self._archive_entry_is_appearance_descriptor(source_companion):
-            return self._target_appearance_path_for_source_appearance(target_entry, source_companion)
+            return self._target_appearance_path_for_source_appearance(
+                target_entry,
+                source_companion,
+                dependencies=dependencies,
+            )
         if str(source_companion.extension or "").strip().lower() == ".dds":
             # Source sidecars still point at source texture archive paths, so DDS files stay at source paths.
             return source_companion.path.replace("\\", "/"), source_companion
@@ -707,7 +768,12 @@ class ArchiveMeshSwapSupportMixin:
         target_stem = PurePosixPath(target_entry_path).stem
         source_suffix = PurePosixPath(source_path).suffix
         source_companion_stem = PurePosixPath(source_path).stem
-        target_related_entries = tuple(self._archive_model_related_entries_for_swap(target_entry))
+        target_related_entries = tuple(
+            self._archive_model_related_entries_for_swap(
+                target_entry,
+                dependencies=dependencies,
+            )
+        )
         target_group = self._archive_entry_swap_companion_group(source_companion)
         source_tail = ""
         if source_stem and source_companion_stem.lower().startswith(source_stem.lower()):

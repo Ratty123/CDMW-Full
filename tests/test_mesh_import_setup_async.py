@@ -26,15 +26,30 @@ from cdmw.ui.archive_browser.mesh_import_preflight_controller import (
 )
 from cdmw.ui.archive_browser.mesh_launch_flow import ArchiveMeshLaunchFlowMixin
 from cdmw.ui.archive_browser.mesh_setup_helpers import ArchiveMeshSetupHelperMixin
+from cdmw.ui.archive_browser.mesh_swap_support import ArchiveMeshSwapSupportMixin
 from cdmw.ui.archive_browser.mesh_swap_scope_preflight import (
     ArchiveMeshSwapScopePreflightRequest,
     ArchiveMeshSwapScopePreflightResult,
     prepare_archive_mesh_swap_scope,
 )
+from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
+from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 
 
 def _entry(path: str, offset: int) -> ArchiveEntry:
     return ArchiveEntry(path, Path("0009/0.pamt"), Path("0009/0.paz"), offset, 1, 1, 0, 0)
+
+
+def _dependencies(selected: ArchiveEntry, *entries: ArchiveEntry) -> ArchiveWorkflowDependencyContext:
+    ordered_by_identity = {entry.identity: entry for entry in (selected, *entries)}
+    ordered = tuple(ordered_by_identity.values())
+    return ArchiveWorkflowDependencyContext(
+        selected_entry=selected,
+        entries=ordered,
+        entries_by_normalized_path={entry.path.casefold(): (entry,) for entry in ordered},
+        entries_by_basename={entry.basename.casefold(): (entry,) for entry in ordered},
+        remote=False,
+    )
 
 
 def test_direct_mesh_import_filter_includes_zip_archives() -> None:
@@ -310,8 +325,10 @@ class _SwapOwner(_AsyncTaskOwner, ArchiveMeshLaunchFlowMixin):
     def _build_archive_swap_source_texture_evidence(
         _source: ArchiveEntry,
         *,
+        dependencies: ArchiveWorkflowDependencyContext,
         stop_event: threading.Event,
     ) -> tuple[tuple[Path, ...], tuple[object, ...]]:
+        assert isinstance(dependencies, ArchiveWorkflowDependencyContext)
         assert not stop_event.is_set()
         return (), ()
 
@@ -321,8 +338,10 @@ class _SwapOwner(_AsyncTaskOwner, ArchiveMeshLaunchFlowMixin):
         _source: ArchiveEntry,
         _scope: InGameMeshSwapScopeSelection,
         *,
+        dependencies: ArchiveWorkflowDependencyContext,
         stop_event: threading.Event,
     ) -> tuple[object, ...]:
+        assert isinstance(dependencies, ArchiveWorkflowDependencyContext)
         assert not stop_event.is_set()
         return ()
 
@@ -388,12 +407,189 @@ def test_in_game_swap_archive_io_dispatch_is_under_50ms() -> None:
     assert all(kwargs["task_accepts_cancel"] is True for kwargs in owner.worker_kwargs)
 
 
+def test_v2_in_game_swap_freezes_merged_prepared_dependencies_without_legacy_catalogue(
+    tmp_path: Path,
+) -> None:
+    target = _entry("character/model/target.pac", 11)
+    target.prepared_path = tmp_path / "target.pac"
+    source = _entry("character/model/source.pac", 22)
+    source.prepared_path = tmp_path / "source.pac"
+    sidecar = _entry("character/model/target.pac_xml", 33)
+    sidecar.prepared_path = tmp_path / "target.pac_xml"
+    texture = _entry("character/texture/source_d.dds", 44)
+    texture.prepared_path = tmp_path / "source_d.dds"
+
+    def snapshot(selected: ArchiveEntry, dependency: ArchiveEntry) -> ArchivePreviewDependencySet:
+        entries = (selected, dependency)
+        return ArchivePreviewDependencySet(
+            session_id="session-a",
+            entry_id=selected.offset,
+            entries=entries,
+            entries_by_normalized_path={entry.path.casefold(): (entry,) for entry in entries},
+            entries_by_basename={entry.basename.casefold(): (entry,) for entry in entries},
+            total_candidates=1,
+            truncated=False,
+        )
+
+    snapshots = {
+        target.identity: snapshot(target, sidecar),
+        source.identity: snapshot(source, texture),
+    }
+
+    class _Bridge:
+        displays_v2 = True
+
+        @staticmethod
+        def prepared_dependencies_for(entry: ArchiveEntry) -> ArchivePreviewDependencySet:
+            return snapshots[entry.identity]
+
+    class _PoisonEntries:
+        def __iter__(self):
+            raise AssertionError("v2 in-game swap touched the legacy global catalogue")
+
+        def __bool__(self):
+            raise AssertionError("v2 in-game swap inspected the legacy global catalogue")
+
+    owner = _CapturedSwapOwner()
+    owner.archive_remote_bridge = _Bridge()
+    owner.archive_entries = _PoisonEntries()  # type: ignore[assignment]
+    owner._start_archive_in_game_mesh_swap(target, source)
+
+    captured: list[ArchiveWorkflowDependencyContext] = []
+
+    def prepared_scope(
+        _owner: object,
+        request: ArchiveMeshSwapScopePreflightRequest,
+        *,
+        stop_event: threading.Event,
+    ) -> ArchiveMeshSwapScopePreflightResult:
+        assert not stop_event.is_set()
+        captured.append(request.dependencies)
+        return ArchiveMeshSwapScopePreflightResult(
+            request_id=request.request_id,
+            allow_character_scope=False,
+            item_family_scope=False,
+            same_weapon_folder=False,
+            character_relationship_plan=None,
+            source_related_entries=(),
+            relationship_edges=(),
+            unresolved_relationship_edges=(),
+            source_sidecar_paths=frozenset(),
+            source_appearance_paths=frozenset(),
+            source_pbd_names=(),
+            source_wrapper_count=0,
+            target_wrapper_count=0,
+            source_has_pbd_contract=False,
+            source_has_larger_material_contract=False,
+            preserve_source_contract_default=False,
+        )
+
+    with patch(
+        "cdmw.ui.archive_browser.mesh_launch_flow.prepare_archive_mesh_swap_scope",
+        side_effect=prepared_scope,
+    ):
+        owner.captured_tasks[0]["task"](
+            lambda _message: None,
+            lambda _current, _total, _detail: None,
+            threading.Event(),
+        )
+
+    assert len(captured) == 1
+    assert captured[0].remote
+    assert tuple(entry.path for entry in captured[0].entries) == (
+        "character/model/target.pac",
+        "character/model/target.pac_xml",
+        "character/model/source.pac",
+        "character/texture/source_d.dds",
+    )
+    assert all(entry.prepared_path is not None for entry in captured[0].entries)
+
+
+def test_v2_mesh_swap_preflight_real_support_uses_only_request_dependencies(
+    tmp_path: Path,
+) -> None:
+    target = _entry("character/model/weapon/target.pac", 101)
+    source = _entry("character/model/weapon/source.pac", 102)
+    source_sidecar = _entry("character/model/weapon/source.pac_xml", 103)
+    target_sidecar = _entry("character/model/weapon/target.pac_xml", 104)
+    texture = _entry("character/texture/source_d.dds", 105)
+    for entry in (target, source, source_sidecar, target_sidecar, texture):
+        entry.prepared_path = tmp_path / entry.basename
+    dependencies = ArchiveWorkflowDependencyContext(
+        selected_entry=target,
+        entries=(target, source, source_sidecar, target_sidecar, texture),
+        entries_by_normalized_path={
+            entry.path.casefold(): (entry,)
+            for entry in (target, source, source_sidecar, target_sidecar, texture)
+        },
+        entries_by_basename={
+            entry.basename.casefold(): (entry,)
+            for entry in (target, source, source_sidecar, target_sidecar, texture)
+        },
+        remote=True,
+    )
+
+    class _Owner(ArchiveMeshSwapSupportMixin):
+        @property
+        def archive_entries(self) -> object:
+            raise AssertionError("v2 mesh-swap support touched the legacy global catalogue")
+
+        @property
+        def archive_entries_by_normalized_path(self) -> object:
+            raise AssertionError("v2 mesh-swap support touched the legacy path index")
+
+        @property
+        def archive_entries_by_basename(self) -> object:
+            raise AssertionError("v2 mesh-swap support touched the legacy basename index")
+
+        @property
+        def archive_entries_by_extension(self) -> object:
+            raise AssertionError("v2 mesh-swap support touched the legacy extension index")
+
+    def sidecar_bytes(entry: ArchiveEntry, **_kwargs: object) -> tuple[bytes, bool, str]:
+        payload = (
+            b'<SkinnedMeshMaterialWrapper _pbdSimulationMaterialName="cloth">'
+            if entry.identity == source_sidecar.identity
+            else b"<SkinnedMeshMaterialWrapper>"
+        )
+        return payload, False, ""
+
+    request = ArchiveMeshSwapScopePreflightRequest(
+        1,
+        target,
+        source,
+        dependencies,
+    )
+    with (
+        patch(
+            "cdmw.ui.archive_browser.mesh_swap_scope_preflight.read_archive_entry_data",
+            side_effect=sidecar_bytes,
+        ),
+        patch(
+            "cdmw.ui.archive_browser.mesh_swap_support.read_archive_entry_data",
+            side_effect=sidecar_bytes,
+        ),
+    ):
+        result = prepare_archive_mesh_swap_scope(
+            _Owner(),
+            request,
+            stop_event=threading.Event(),
+        )
+
+    assert result.item_family_scope
+    assert result.source_wrapper_count == 1
+    assert result.target_wrapper_count == 1
+    assert result.source_pbd_names == ("cloth",)
+
+
 def test_mesh_swap_scope_preflight_honors_pre_cancel_and_is_frozen() -> None:
+    target = _entry("target.pac", 1)
+    source = _entry("source.pac", 2)
     request = ArchiveMeshSwapScopePreflightRequest(
         request_id=3,
-        target_entry=_entry("target.pac", 1),
-        source_entry=_entry("source.pac", 2),
-        archive_entries=(),
+        target_entry=target,
+        source_entry=source,
+        dependencies=_dependencies(target, source),
     )
     cancelled = threading.Event()
     cancelled.set()
@@ -427,20 +623,32 @@ def test_mesh_swap_scope_preflight_reads_material_contract_off_dialog_path() -> 
             return entry.identity
 
         @staticmethod
-        def _archive_model_related_entries_for_swap(_entry: ArchiveEntry) -> tuple[ArchiveEntry, ...]:
+        def _archive_model_related_entries_for_swap(
+            _entry: ArchiveEntry,
+            *,
+            dependencies: ArchiveWorkflowDependencyContext,
+        ) -> tuple[ArchiveEntry, ...]:
+            assert dependencies.entries
             return (source_sidecar, texture)
 
         @staticmethod
         def _archive_model_source_texture_entries_for_swap(
             _entry: ArchiveEntry,
             *,
+            dependencies: ArchiveWorkflowDependencyContext,
             stop_event: threading.Event | None = None,
         ) -> tuple[ArchiveEntry, ...]:
+            assert dependencies.entries
             assert stop_event is not None and not stop_event.is_set()
             return (texture,)
 
         @staticmethod
-        def _archive_model_sidecar_entries_for_swap(entry: ArchiveEntry) -> tuple[ArchiveEntry, ...]:
+        def _archive_model_sidecar_entries_for_swap(
+            entry: ArchiveEntry,
+            *,
+            dependencies: ArchiveWorkflowDependencyContext,
+        ) -> tuple[ArchiveEntry, ...]:
+            assert dependencies.entries
             return (source_sidecar,) if entry.identity == source.identity else (target_sidecar,)
 
         @staticmethod
@@ -470,7 +678,12 @@ def test_mesh_swap_scope_preflight_reads_material_contract_off_dialog_path() -> 
     ):
         result = prepare_archive_mesh_swap_scope(
             Owner(),
-            ArchiveMeshSwapScopePreflightRequest(1, target, source, (target, source)),
+            ArchiveMeshSwapScopePreflightRequest(
+                1,
+                target,
+                source,
+                _dependencies(target, source, source_sidecar, target_sidecar, texture),
+            ),
             stop_event=threading.Event(),
         )
 

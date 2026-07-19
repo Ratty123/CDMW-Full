@@ -20,6 +20,7 @@ from cdmw.domain.archives.relationships import (
 from cdmw.services.archive_workflow_service import build_character_swap_plan
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.workflow_dependencies import ArchiveWorkflowDependencyContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,7 +28,7 @@ class ArchiveMeshSwapScopePreflightRequest:
     request_id: int
     target_entry: ArchiveEntry
     source_entry: ArchiveEntry
-    archive_entries: Sequence[ArchiveEntry]
+    dependencies: ArchiveWorkflowDependencyContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,7 +131,7 @@ def prepare_archive_mesh_swap_scope(
             character_relationship_plan = build_character_swap_plan(
                 target_entry,
                 source_entry,
-                request.archive_entries,
+                request.dependencies.entries,
                 swap_scope=SWAP_SCOPE_BODY_HEAD,
             )
         except Exception:
@@ -177,40 +178,36 @@ def prepare_archive_mesh_swap_scope(
         if current is None or rank > current_rank:
             relationship_edges_by_key[key] = edge
 
-    for related_entry in owner._archive_model_related_entries_for_swap(source_entry):
+    for related_entry in owner._archive_model_related_entries_for_swap(source_entry, dependencies=request.dependencies):
         raise_if_cancelled(stop_event, "In-game mesh swap scope preparation cancelled.")
         add_related_entry(related_entry)
     if allow_character_scope:
         for edge in tuple(getattr(character_relationship_plan, "edges", ()) or ()):
             add_relationship_edge(edge)
         for related_entry in owner._archive_character_app_graph_entries_for_swap(
-            source_entry,
-            stop_event=stop_event,
+            source_entry, dependencies=request.dependencies, stop_event=stop_event
         ):
             raise_if_cancelled(stop_event, "In-game mesh swap scope preparation cancelled.")
             add_related_entry(related_entry)
         for texture_entry in owner._archive_character_app_graph_texture_entries_for_swap(
-            source_entry,
-            stop_event=stop_event,
+            source_entry, dependencies=request.dependencies, stop_event=stop_event
         ):
             raise_if_cancelled(stop_event, "In-game mesh swap scope preparation cancelled.")
             add_related_entry(texture_entry)
     for texture_entry in owner._archive_model_source_texture_entries_for_swap(
-        source_entry,
-        stop_event=stop_event,
+        source_entry, dependencies=request.dependencies, stop_event=stop_event
     ):
         add_related_entry(texture_entry)
 
     source_related_entries = list(source_related_entries_by_key.values())
-    source_sidecar_entries = tuple(owner._archive_model_sidecar_entries_for_swap(source_entry))
-    target_sidecar_entries = tuple(owner._archive_model_sidecar_entries_for_swap(target_entry))
+    source_sidecar_entries = tuple(owner._archive_model_sidecar_entries_for_swap(source_entry, dependencies=request.dependencies))
+    target_sidecar_entries = tuple(owner._archive_model_sidecar_entries_for_swap(target_entry, dependencies=request.dependencies))
     source_sidecar_paths = {entry.path for entry in source_sidecar_entries}
     source_appearance_paths = (
         {
             entry.path
             for entry in owner._archive_character_appearance_entries_for_swap(
-                source_entry,
-                stop_event=stop_event,
+                source_entry, dependencies=request.dependencies, stop_event=stop_event
             )
         }
         if allow_character_scope

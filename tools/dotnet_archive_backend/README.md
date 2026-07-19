@@ -60,6 +60,11 @@ enrichment reuse those bounded maps and materialized files instead of the
 legacy process-wide catalogue indexes. Attachment authoring also keeps donor
 search, item icons, socket/skeleton evidence, placement comparison, and native
 placement-preview inputs inside the selected target's prepared candidate set.
+The two-entry in-game mesh-swap flow merges the already prepared target and
+source snapshots into one immutable request context capped at 8,192 entries;
+both cancellable preflight phases consume that context instead of reading the
+global catalogue or its path/basename maps. Legacy mode keeps passing its
+existing catalogue references without copying the full list on the UI thread.
 A standalone-v2 Research tab likewise consumes a bounded, paged prefix of the
 current query, a query-wide bounded image/reference lookup, and a session-wide
 sidecar/reference-source lookup. It materializes only text sources admitted by
