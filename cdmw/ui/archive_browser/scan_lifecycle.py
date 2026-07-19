@@ -795,12 +795,8 @@ class ArchiveScanLifecycleMixin:
                 self._write_heartbeat("running")
                 self._release_startup_splash()
             remote_bridge = getattr(self, "archive_remote_bridge", None)
-            package_root_text = self.archive_package_root_edit.text().strip()
-            if remote_bridge is not None and remote_bridge.shadows_legacy and package_root_text:
-                QTimer.singleShot(
-                    0,
-                    lambda root=package_root_text, bridge=remote_bridge: bridge.start_shadow(root),
-                )
+            if remote_bridge is not None and remote_bridge.shadows_legacy:
+                remote_bridge.schedule_shadow_comparison("scan_complete")
         finally:
             self.archive_scan_finalize_pending = False
             if self.archive_derived_cache_write_pending:

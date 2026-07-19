@@ -18,6 +18,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSessionHandle,
     ArchiveViewMode,
 )
+from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_controller import ArchiveRemoteCatalogueController
 from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel
@@ -52,6 +53,8 @@ class ArchiveRemoteWindowBridge(QObject):
         self._shadow = bool(shadow)
         self._activate_tab_on_publish = False
         self._last_open_root = ""
+        self._shadow_schedule_generation = 0
+        self._shadow_reason = ""
         self._structure_rows: dict[str, list[tuple[str, int]]] = {}
         self._structure_loaded: set[str] = set()
         self._structure_requests_enabled = False
@@ -130,6 +133,50 @@ class ArchiveRemoteWindowBridge(QObject):
         )
         self._window.append_archive_log("Archive backend shadow comparison started.", verbose=True)
         self._controller.open_archive(package_root, query=query, force_refresh=False)
+
+    def schedule_shadow_comparison(self, reason: str, *, delay_ms: int = 0) -> None:
+        if not self._shadow:
+            return
+        self._shadow_schedule_generation += 1
+        generation = self._shadow_schedule_generation
+        self._shadow_reason = str(reason or "legacy_update")
+        QTimer.singleShot(
+            max(0, int(delay_ms)),
+            lambda generation=generation: self._run_scheduled_shadow_comparison(generation, 0),
+        )
+
+    def _run_scheduled_shadow_comparison(self, generation: int, attempt: int) -> None:
+        if generation != self._shadow_schedule_generation or not self._shadow:
+            return
+        window = self._window
+        waiting = bool(
+            getattr(window, "_shutting_down", False)
+            or getattr(window, "worker_thread", None) is not None
+            or getattr(window, "archive_scan_finalize_pending", False)
+            or getattr(window, "archive_filters_dirty", False)
+            or getattr(window, "archive_startup_saved_filter_apply_pending", False)
+        )
+        if waiting:
+            if getattr(window, "_shutting_down", False):
+                return
+            if attempt < 100:
+                QTimer.singleShot(
+                    100,
+                    lambda generation=generation, attempt=attempt + 1: self._run_scheduled_shadow_comparison(
+                        generation,
+                        attempt,
+                    ),
+                )
+            else:
+                window.append_archive_log(
+                    f"Archive backend shadow comparison skipped after waiting for {self._shadow_reason} to settle.",
+                    verbose=True,
+                )
+            return
+        package_root = str(window.archive_package_root_edit.text() or "").strip()
+        if not package_root or not window.archive_entries:
+            return
+        self.start_shadow(package_root)
 
     def apply_current_query(self) -> None:
         session = self._controller.current_session
@@ -333,16 +380,23 @@ class ArchiveRemoteWindowBridge(QObject):
         self._record_runtime("archive_backend_v2_failed", operation=kind, error=detail)
 
     def _handle_actions_safe(self, safe: bool) -> None:
-        self._window.archive_remote_actions_safe = bool(safe)
+        if not self._shadow:
+            self._window.archive_remote_actions_safe = bool(safe)
         self._record_runtime("archive_backend_actions_safe", safe=bool(safe))
 
     def _record_shadow_comparison(self, handle: ArchiveQueryHandle) -> None:
         session = self._controller.current_session
         if session is None:
             return
+        legacy_filtered_entries = self._window.archive_filtered_entries
+        if not archive_browser_sort_is_active(self._window.archive_tree_sort_column):
+            legacy_filtered_entries = sorted(
+                legacy_filtered_entries,
+                key=_base_index_identity_key,
+            )
         comparison = compare_archive_shadow_page(
             self._window.archive_entries,
-            self._window.archive_filtered_entries,
+            legacy_filtered_entries,
             self._model,
             session,
             handle,
@@ -357,6 +411,7 @@ class ArchiveRemoteWindowBridge(QObject):
         )
         self._record_runtime(
             "archive_backend_shadow_comparison",
+            reason=self._shadow_reason,
             matches=comparison.matches,
             legacy_entry_count=comparison.legacy_entry_count,
             v2_entry_count=comparison.v2_entry_count,
@@ -429,6 +484,15 @@ def _legacy_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
         _normalized(identity.normalized_path),
         _normalized(identity.source_pamt),
         int(identity.paz_index),
+        int(identity.entry_offset),
+    )
+
+
+def _base_index_identity_key(entry: ArchiveEntry) -> tuple[object, ...]:
+    identity = entry.identity
+    return (
+        _normalized(identity.normalized_path),
+        str(identity.source_pamt).replace("\\", "/"),
         int(identity.entry_offset),
     )
 

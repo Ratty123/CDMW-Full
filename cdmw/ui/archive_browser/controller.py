@@ -450,14 +450,30 @@ class ArchiveBrowserTreeControllerMixin:
         if self.archive_active_asset_catalog_scope:
             self._sort_current_archive_filtered_entries()
             self._rebuild_archive_browser_indexes_for_current_sort()
-            self._populate_archive_tree(preferred_path, rebuild_index=False)
+            self._populate_archive_tree(
+                preferred_path,
+                rebuild_index=False,
+                on_complete=(
+                    lambda bridge=remote_bridge: bridge.schedule_shadow_comparison("sort_complete")
+                    if remote_bridge is not None and remote_bridge.shadows_legacy
+                    else None
+                ),
+            )
             return
         if self.archive_entries:
             self._start_archive_filter_worker(preferred_path)
         else:
             self._sort_current_archive_filtered_entries()
             self._rebuild_archive_browser_indexes_for_current_sort()
-            self._populate_archive_tree(preferred_path, rebuild_index=False)
+            self._populate_archive_tree(
+                preferred_path,
+                rebuild_index=False,
+                on_complete=(
+                    lambda bridge=remote_bridge: bridge.schedule_shadow_comparison("sort_complete")
+                    if remote_bridge is not None and remote_bridge.shadows_legacy
+                    else None
+                ),
+            )
 
     def _handle_archive_browser_view_mode_changed(self, _index: int) -> None:
         self._mark_archive_browser_render_stale()
@@ -476,7 +492,15 @@ class ArchiveBrowserTreeControllerMixin:
         if (rebuild_tree_index or rebuild_category_index) and self.archive_entries:
             self._start_archive_filter_worker(current_entry_path)
             return
-        self._populate_archive_tree(current_entry_path, rebuild_index=rebuild_tree_index)
+        self._populate_archive_tree(
+            current_entry_path,
+            rebuild_index=rebuild_tree_index,
+            on_complete=(
+                lambda bridge=remote_bridge: bridge.schedule_shadow_comparison("view_mode_complete")
+                if remote_bridge is not None and remote_bridge.shadows_legacy
+                else None
+            ),
+        )
 
     def _rebuild_archive_tree_index(self) -> None:
         (

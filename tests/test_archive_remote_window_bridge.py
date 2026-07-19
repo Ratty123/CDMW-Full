@@ -5,7 +5,8 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtWidgets import QApplication, QLineEdit
 
 from cdmw.domain.archives.catalogue import (
     ArchiveDurableIdentity,
@@ -18,7 +19,7 @@ from cdmw.domain.archives.catalogue import (
 )
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel
-from cdmw.ui.archive_browser.remote_window_bridge import compare_archive_shadow_page
+from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge, compare_archive_shadow_page
 
 
 _APPLICATION: QApplication | None = None
@@ -28,6 +29,39 @@ def _app() -> QApplication:
     global _APPLICATION
     _APPLICATION = QApplication.instance() or QApplication([])
     return _APPLICATION
+
+
+def _drain_events() -> None:
+    app = _app()
+    for _ in range(5):
+        app.processEvents()
+
+
+class _ShadowService(QObject):
+    result_ready = Signal(str, str, object)
+    batch_ready = Signal(str, str, object)
+    request_failed = Signal(str, object)
+    request_cancelled = Signal(str)
+    progress = Signal(str, object)
+
+
+class _ShadowWindow(QObject):
+    def __init__(self) -> None:
+        super().__init__()
+        self.archive_catalogue_service = _ShadowService(self)
+        self.archive_package_root_edit = QLineEdit("C:/Game", parent=None)
+        self.archive_entries = [_legacy(0)]
+        self.archive_filtered_entries = list(self.archive_entries)
+        self.archive_remote_actions_safe = True
+        self.archive_filters_dirty = False
+        self.archive_scan_finalize_pending = False
+        self.archive_startup_saved_filter_apply_pending = False
+        self.worker_thread = None
+        self._shutting_down = False
+        self.logs: list[str] = []
+
+    def append_archive_log(self, message: str, **_kwargs: object) -> None:
+        self.logs.append(message)
 
 
 def _legacy(entry_id: int, path: str | None = None) -> ArchiveEntry:
@@ -109,3 +143,30 @@ def test_shadow_comparison_reports_bounded_identity_and_count_differences() -> N
     assert not comparison.matches
     assert comparison.v2_entry_count == 21
     assert len(comparison.identity_mismatches) == 16
+
+
+def test_shadow_scheduler_waits_for_legacy_work_and_latest_state() -> None:
+    _app()
+    window = _ShadowWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=False, shadow=True)
+    opened: list[str] = []
+    bridge.start_shadow = lambda root: opened.append(str(root))  # type: ignore[method-assign]
+
+    window.worker_thread = object()
+    bridge.schedule_shadow_comparison("filter_complete")
+    _drain_events()
+    assert opened == []
+
+    window.worker_thread = None
+    bridge._run_scheduled_shadow_comparison(bridge._shadow_schedule_generation, 1)
+    assert opened == ["C:/Game"]
+
+
+def test_shadow_safety_diagnostics_do_not_disable_legacy_actions() -> None:
+    _app()
+    window = _ShadowWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=False, shadow=True)
+
+    bridge._handle_actions_safe(False)
+
+    assert window.archive_remote_actions_safe
