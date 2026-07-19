@@ -55,12 +55,14 @@ def _entry_payload() -> dict[str, object]:
         "exact_name": "Example Sword",
         "name_evidence": "Exact localization",
         "is_active_override": False,
+        "override_state": "Shadowed original",
     }
 
 
 def test_archive_entry_and_page_parse_to_frozen_bounded_contracts() -> None:
     entry = ArchiveEntryDto.from_wire(_entry_payload())
     assert entry.role is ArchiveEntryRole.MODEL
+    assert entry.override_state == "Shadowed original"
     assert entry.identity == ArchiveDurableIdentity(
         "character/model/example.pac",
         "c:/game/0009/0.pamt",
@@ -91,6 +93,7 @@ def test_query_serializes_using_worker_snake_case_enums() -> None:
         roles=(ArchiveEntryRole.MODEL,),
         view_mode=ArchiveViewMode.CATEGORIES_AND_FOLDERS,
         sort_field=ArchiveSortField.KNOWN_NAME,
+        sort_active=True,
         sort_descending=True,
     )
     payload = to_wire(CreateQueryRequest(query))
@@ -109,6 +112,7 @@ def test_query_serializes_using_worker_snake_case_enums() -> None:
             "active_overrides_only": False,
             "view_mode": "categories_and_folders",
             "sort_field": "known_name",
+            "sort_active": True,
             "sort_descending": True,
         }
     }

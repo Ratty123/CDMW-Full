@@ -96,6 +96,7 @@ def archive_query_from_browser_state(
         active_overrides_only=bool(state.get("active_overrides_only", False)),
         view_mode=view_mode,
         sort_field=sort_field,
+        sort_active=sort_column >= 0,
         sort_descending=sort_descending,
     )
 

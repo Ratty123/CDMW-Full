@@ -6,10 +6,10 @@ namespace Cdmw.FullArchive.Core;
 
 public sealed class ArchiveIndex : IDisposable
 {
-    public const int Version = 2;
+    public const int Version = 3;
     private const int HeaderSize = 64;
     private const int RecordSize = 80;
-    private static readonly byte[] Magic = "CDMWFAI2"u8.ToArray();
+    private static readonly byte[] Magic = "CDMWFAI3"u8.ToArray();
     private readonly MemoryMappedFile _mapping;
     private readonly MemoryMappedViewAccessor _view;
     private readonly long _recordsOffset;
@@ -124,12 +124,21 @@ public sealed class ArchiveIndex : IDisposable
         var pazLength = checked((int)_view.ReadUInt32(record + 56));
         var flags = checked((int)_view.ReadUInt32(record + 60));
         var pazIndex = checked((int)_view.ReadUInt32(record + 64));
+        var overrideMetadata = _view.ReadUInt32(record + 68);
         var virtualPath = ReadString(pathOffset, pathLength).Replace('\\', '/').Trim('/');
         var pamt = ReadString(pamtOffset, pamtLength);
         var paz = ReadString(pazOffset, pazLength);
         var extension = System.IO.Path.GetExtension(virtualPath).ToLowerInvariant();
         var role = ArchiveEntryClassifier.Classify(virtualPath, extension);
         var identity = new ArchiveDurableIdentity(virtualPath.ToLowerInvariant(), pamt, pazIndex, archiveOffset);
+        var hasDuplicate = (overrideMetadata & 0x2u) != 0;
+        var isActiveOverride = hasDuplicate && (overrideMetadata & 0x1u) != 0;
+        var isModPackage = IsModPackage(pamt);
+        var overrideState = hasDuplicate
+            ? isActiveOverride
+                ? isModPackage ? "Active mod" : "Active original"
+                : isModPackage ? "Shadowed mod" : "Shadowed original"
+            : isModPackage ? "Mod-added" : string.Empty;
         return new ArchiveEntryDto(
             sessionId,
             entryId,
@@ -146,7 +155,20 @@ public sealed class ArchiveIndex : IDisposable
             ArchiveEntryClassifier.PackageLabel(pamt),
             role,
             ArchiveEntryClassifier.ClassifyExtensionCategory(extension).ToString(),
-            ArchiveEntryClassifier.IsPreviewable(extension, role));
+            ArchiveEntryClassifier.IsPreviewable(extension, role),
+            IsActiveOverride: isActiveOverride,
+            OverrideState: overrideState);
+    }
+
+    private static bool IsModPackage(string pamtPath)
+    {
+        var package = (System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(pamtPath)) ?? string.Empty).Trim();
+        if (package.StartsWith("dmm", StringComparison.OrdinalIgnoreCase) ||
+            package.StartsWith("mod", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+        return package.Length > 0 && package.Any(static character => !char.IsDigit(character));
     }
 
     public IReadOnlyList<ArchiveEntryDto> FindEntriesByPath(string virtualPath, int maximumResults = 32)

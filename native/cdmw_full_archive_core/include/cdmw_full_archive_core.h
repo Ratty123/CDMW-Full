@@ -19,7 +19,7 @@ extern "C" {
 
 enum {
     CDMW_FULL_ARCHIVE_CORE_ABI_VERSION = 1,
-    CDMW_FULL_ARCHIVE_INDEX_VERSION = 2,
+    CDMW_FULL_ARCHIVE_INDEX_VERSION = 3,
     CDMW_FULL_ARCHIVE_OK = 0,
     CDMW_FULL_ARCHIVE_INVALID_ARGUMENT = 1,
     CDMW_FULL_ARCHIVE_IO_ERROR = 2,
@@ -39,7 +39,7 @@ typedef int (*cdmw_full_archive_progress_callback)(
 CDMW_FULL_ARCHIVE_API uint32_t cdmw_full_archive_core_abi_version(void);
 
 /*
- * Builds full_archive_index_v2 at index_path. Both paths are UTF-8. The source
+ * Builds full_archive_index_v3 at index_path. Both paths are UTF-8. The source
  * archive tree is opened read-only; only index_path and its sibling staging
  * file can be written.
  */

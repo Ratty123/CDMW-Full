@@ -158,6 +158,7 @@ class ArchiveEntryDto:
     exact_name: str = ""
     name_evidence: str = ""
     is_active_override: bool = False
+    override_state: str = ""
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveEntryDto":
@@ -183,6 +184,7 @@ class ArchiveEntryDto:
             exact_name=read_string(payload, "exact_name", default=""),
             name_evidence=read_string(payload, "name_evidence", default=""),
             is_active_override=read_bool(payload, "is_active_override", default=False),
+            override_state=read_string(payload, "override_state", default=""),
         )
 
 
@@ -201,6 +203,7 @@ class ArchiveQuery:
     active_overrides_only: bool = False
     view_mode: ArchiveViewMode = ArchiveViewMode.FLAT
     sort_field: ArchiveSortField = ArchiveSortField.PATH
+    sort_active: bool = False
     sort_descending: bool = False
 
 
@@ -431,6 +434,7 @@ def archive_query_from_wire(value: object) -> ArchiveQuery:
         active_overrides_only=read_bool(payload, "active_overrides_only", default=False),
         view_mode=read_enum(payload, "view_mode", ArchiveViewMode, default=ArchiveViewMode.FLAT),
         sort_field=read_enum(payload, "sort_field", ArchiveSortField, default=ArchiveSortField.PATH),
+        sort_active=read_bool(payload, "sort_active", default=False),
         sort_descending=read_bool(payload, "sort_descending", default=False),
     )
 

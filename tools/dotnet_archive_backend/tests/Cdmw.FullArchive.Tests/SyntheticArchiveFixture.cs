@@ -141,6 +141,41 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         return fixture;
     }
 
+    public static async Task<SyntheticArchiveFixture> CreateDuplicateOverridesAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-overrides-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        const string duplicatePath = "character/model/duplicate.pac";
+        await BuildPackageAsync(
+            root,
+            "0009",
+            [(duplicatePath, new byte[] { 0x01 })]).ConfigureAwait(false);
+        await BuildPackageAsync(
+            root,
+            "dmm1",
+            [(duplicatePath, new byte[] { 0x02 })]).ConfigureAwait(false);
+        return fixture;
+    }
+
+    public static async Task<SyntheticArchiveFixture> CreateSortParityAsync()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cdmw-full-archive-sort-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(root);
+        var fixture = new SyntheticArchiveFixture(root);
+        await BuildPackageAsync(
+            root,
+            "0009",
+            [
+                ("roles/sidecar.pac_xml", new byte[] { 0x01 }),
+                ("roles/model.pac", new byte[] { 0x02 }),
+                ("roles/property.pamhc", new byte[] { 0x03 }),
+                ("names/item10.bin", new byte[] { 0x04 }),
+                ("names/item2.bin", new byte[] { 0x05 }),
+            ]).ConfigureAwait(false);
+        return fixture;
+    }
+
     public ValueTask DisposeAsync()
     {
         try

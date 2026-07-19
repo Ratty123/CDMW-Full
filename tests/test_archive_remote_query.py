@@ -46,6 +46,7 @@ def test_remote_query_maps_every_existing_archive_filter_control() -> None:
     assert query.active_overrides_only
     assert query.view_mode is ArchiveViewMode.CATEGORIES_AND_FOLDERS
     assert query.sort_field is ArchiveSortField.EXACT_NAME
+    assert query.sort_active
     assert query.sort_descending
 
 
@@ -65,7 +66,9 @@ def test_remote_query_maps_every_existing_archive_filter_control() -> None:
     ],
 )
 def test_remote_query_maps_visible_sort_columns(column: int, field: ArchiveSortField) -> None:
-    assert archive_query_from_browser_state("session-a", {"sort_column": column}).sort_field is field
+    query = archive_query_from_browser_state("session-a", {"sort_column": column})
+    assert query.sort_field is field
+    assert query.sort_active is (column >= 0)
 
 
 @pytest.mark.parametrize(
@@ -94,3 +97,4 @@ def test_remote_query_neutral_state_is_deterministic_and_unfiltered() -> None:
     assert query.minimum_size is None
     assert query.view_mode is ArchiveViewMode.FLAT
     assert query.sort_field is ArchiveSortField.PATH
+    assert not query.sort_active

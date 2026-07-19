@@ -15,6 +15,8 @@ internal static class FullArchiveTestRunner
         {
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
+            ("query_sort_parity", QuerySortParityAsync),
+            ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
@@ -59,7 +61,7 @@ internal static class FullArchiveTestRunner
                 CancellationToken.None).ConfigureAwait(false);
             coldStarted.Stop();
             Require(first.EntryCount == 4, "synthetic entry count changed");
-            Require(first.IndexVersion == 2, "full archive index version changed");
+            Require(first.IndexVersion == 3, "full archive index version changed");
             Require(!first.CacheHit, "first generation unexpectedly reported a cache hit");
             var firstSession = sessions.GetRequired(first.SessionId);
             Require(
@@ -127,6 +129,20 @@ internal static class FullArchiveTestRunner
             var page = queries.FetchPage(sessionHandle.SessionId, new FetchPageRequest(query.QueryId, 0, 2));
             Require(page.Rows.Count == 2 && page.Generation == 7, "paged query result is invalid");
             Require(page.Rows[0].Path == "binary/blob.bin", "path ordering changed");
+            var nameSortedQuery = await queries.CreateAsync(
+                new ArchiveQuery(
+                    sessionHandle.SessionId,
+                    SortField: ArchiveSortField.Name,
+                    SortActive: true),
+                generation: 8,
+                CancellationToken.None).ConfigureAwait(false);
+            var nameSortedPage = queries.FetchPage(
+                sessionHandle.SessionId,
+                new FetchPageRequest(nameSortedQuery.QueryId, PageSize: 16));
+            Require(
+                nameSortedPage.Rows.Select(static row => row.Name).SequenceEqual(
+                    ["blob.bin", "hello.txt", "sample.material", "test.dds"]),
+                "active natural-name sort changed");
             var firstChildren = queries.FetchChildren(
                 sessionHandle.SessionId,
                 new ArchiveChildrenRequest(query.QueryId, null, null, Limit: 2));
@@ -181,24 +197,24 @@ internal static class FullArchiveTestRunner
 
             var materialQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, Extensions: [".material"]),
-                generation: 8,
+                generation: 9,
                 CancellationToken.None).ConfigureAwait(false);
             var materialPage = queries.FetchPage(sessionHandle.SessionId, new FetchPageRequest(materialQuery.QueryId));
             Require(materialPage.TotalMatches == 1 && materialPage.Rows[0].Path == "materials/sample.material", "extension filter changed");
 
             var excludeQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, ExcludeText: "blob;hello"),
-                generation: 9,
+                generation: 10,
                 CancellationToken.None).ConfigureAwait(false);
             Require(excludeQuery.TotalMatches == 2, "semicolon exclude patterns changed");
             var packageQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, Packages: [page.Rows[0].Package[..4]]),
-                generation: 10,
+                generation: 11,
                 CancellationToken.None).ConfigureAwait(false);
             Require(packageQuery.TotalMatches == 4, "package substring filter changed");
             var technicalQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, TechnicalSuffixes: ["*test.dds"]),
-                generation: 11,
+                generation: 12,
                 CancellationToken.None).ConfigureAwait(false);
             Require(technicalQuery.TotalMatches == 3, "technical-suffix exclusion changed");
 
@@ -266,7 +282,7 @@ internal static class FullArchiveTestRunner
             Require(await File.ReadAllTextAsync(materialPath).ConfigureAwait(false) == "material alpha", "exported decoded bytes changed");
             var structureQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, Folder: "base/text"),
-                generation: 12,
+                generation: 13,
                 CancellationToken.None).ConfigureAwait(false);
             Require(structureQuery.TotalMatches == 1, "package-aware structure filter changed");
             await File.WriteAllTextAsync(materialPath, "preserve me").ConfigureAwait(false);
@@ -294,6 +310,118 @@ internal static class FullArchiveTestRunner
         {
             DeleteDirectory(cacheRoot);
             DeleteDirectory(exportRoot);
+        }
+    }
+
+    private static async Task DuplicateOverrideStateAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateDuplicateOverridesAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("override-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var session = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root),
+                CancellationToken.None).ConfigureAwait(false);
+            var queries = new ArchiveQueryService(sessions);
+            var all = await queries.CreateAsync(
+                new ArchiveQuery(session.SessionId),
+                generation: 1,
+                CancellationToken.None).ConfigureAwait(false);
+            var rows = queries.FetchPage(session.SessionId, new FetchPageRequest(all.QueryId, PageSize: 8)).Rows;
+            Require(rows.Count == 2, "duplicate fixture count changed");
+            var original = rows.Single(static row => row.SourcePamt.Contains("0009", StringComparison.OrdinalIgnoreCase));
+            var mod = rows.Single(static row => row.SourcePamt.Contains("dmm1", StringComparison.OrdinalIgnoreCase));
+            Require(!original.IsActiveOverride && original.OverrideState == "Shadowed original", "original override state changed");
+            Require(mod.IsActiveOverride && mod.OverrideState == "Active mod", "mod override state changed");
+
+            var active = await queries.CreateAsync(
+                new ArchiveQuery(session.SessionId, ActiveOverridesOnly: true),
+                generation: 2,
+                CancellationToken.None).ConfigureAwait(false);
+            var activeRows = queries.FetchPage(session.SessionId, new FetchPageRequest(active.QueryId)).Rows;
+            Require(activeRows is [{ OverrideState: "Active mod" }], "active-override filter changed");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+    }
+
+    private static async Task QuerySortParityAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateSortParityAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("sort-cache");
+        try
+        {
+            var native = new NativeArchiveCore();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var session = await sessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root),
+                CancellationToken.None).ConfigureAwait(false);
+            var queries = new ArchiveQueryService(sessions);
+
+            var naturalNames = await queries.CreateAsync(
+                new ArchiveQuery(
+                    session.SessionId,
+                    Extensions: [".bin"],
+                    SortField: ArchiveSortField.Name,
+                    SortActive: true),
+                generation: 1,
+                CancellationToken.None).ConfigureAwait(false);
+            var naturalRows = queries.FetchPage(
+                session.SessionId,
+                new FetchPageRequest(naturalNames.QueryId, PageSize: 16)).Rows;
+            Require(
+                naturalRows.Select(static row => row.Name).SequenceEqual(["item2.bin", "item10.bin"]),
+                "natural numeric name ordering changed");
+
+            var roleAscending = await queries.CreateAsync(
+                new ArchiveQuery(session.SessionId, SortField: ArchiveSortField.Role, SortActive: true),
+                generation: 2,
+                CancellationToken.None).ConfigureAwait(false);
+            var ascendingPaths = queries.FetchPage(
+                session.SessionId,
+                new FetchPageRequest(roleAscending.QueryId, PageSize: 16)).Rows.Select(static row => row.Path);
+            Require(
+                ascendingPaths.SequenceEqual(
+                    [
+                        "roles/sidecar.pac_xml",
+                        "roles/model.pac",
+                        "roles/property.pamhc",
+                        "names/item2.bin",
+                        "names/item10.bin",
+                    ]),
+                "legacy role-display ordering changed");
+
+            var roleDescending = await queries.CreateAsync(
+                new ArchiveQuery(
+                    session.SessionId,
+                    SortField: ArchiveSortField.Role,
+                    SortActive: true,
+                    SortDescending: true),
+                generation: 3,
+                CancellationToken.None).ConfigureAwait(false);
+            var descendingPaths = queries.FetchPage(
+                session.SessionId,
+                new FetchPageRequest(roleDescending.QueryId, PageSize: 16)).Rows.Select(static row => row.Path);
+            Require(
+                descendingPaths.SequenceEqual(
+                    [
+                        "names/item10.bin",
+                        "names/item2.bin",
+                        "roles/property.pamhc",
+                        "roles/model.pac",
+                        "roles/sidecar.pac_xml",
+                    ]),
+                "descending role-display ordering changed");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
         }
     }
 
@@ -431,7 +559,7 @@ internal static class FullArchiveTestRunner
                 Require(started.Status == WorkerMessageStatus.Started, "worker did not acknowledge ping");
                 Require(result.Status == WorkerMessageStatus.Result, "worker ping did not complete");
                 var pingResult = WorkerProtocol.ReadPayload<PingResult>(result);
-                Require(pingResult is { ProtocolVersion: 2, NativeAbiVersion: 1, IndexVersion: 2 }, "worker ping compatibility data changed");
+                Require(pingResult is { ProtocolVersion: 2, NativeAbiVersion: 1, IndexVersion: 3 }, "worker ping compatibility data changed");
 
                 var openId = Guid.NewGuid();
                 await SendAsync(process, WorkerProtocol.Request(

@@ -14,6 +14,7 @@ from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
 from cdmw.domain.archives.catalogue import ArchiveSessionHandle
 from cdmw.domain.archives.catalogue_operations import (
+    ARCHIVE_BACKEND_INDEX_VERSION,
     ARCHIVE_BACKEND_MAXIMUM_MESSAGE_BYTES,
     ARCHIVE_BACKEND_PROTOCOL_VERSION,
     ArchiveBackendEnvelope,
@@ -410,7 +411,11 @@ class ArchiveBackendClient(QObject):
         except ArchiveContractError as exc:
             self._protocol_failure(f"Archive backend handshake was malformed: {exc}")
             return
-        if result.protocol_version != ARCHIVE_BACKEND_PROTOCOL_VERSION or result.native_abi_version != 1 or result.index_version != 2:
+        if (
+            result.protocol_version != ARCHIVE_BACKEND_PROTOCOL_VERSION
+            or result.native_abi_version != 1
+            or result.index_version != ARCHIVE_BACKEND_INDEX_VERSION
+        ):
             self._protocol_failure(
                 "Archive backend compatibility mismatch "
                 f"(protocol={result.protocol_version}, native={result.native_abi_version}, index={result.index_version})."

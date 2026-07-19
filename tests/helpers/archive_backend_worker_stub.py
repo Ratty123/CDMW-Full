@@ -57,7 +57,7 @@ def main() -> int:
                         "worker_version": "stub-2.0",
                         "protocol_version": 2,
                         "native_abi_version": 1,
-                        "index_version": 2,
+                        "index_version": 3,
                         "process_id": os.getpid(),
                     },
                 )
@@ -100,7 +100,7 @@ def main() -> int:
                         "package_root": str(payload.get("package_root", "")),
                         "fingerprint": "fingerprint-stub",
                         "entry_count": 1,
-                        "index_version": 2,
+                        "index_version": 3,
                         "cache_hit": operation == "open_archive",
                     },
                 )

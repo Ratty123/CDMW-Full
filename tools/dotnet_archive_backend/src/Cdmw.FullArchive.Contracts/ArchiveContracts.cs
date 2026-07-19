@@ -40,7 +40,8 @@ public sealed record ArchiveEntryDto(
     string KnownName = "",
     string ExactName = "",
     string NameEvidence = "",
-    bool IsActiveOverride = false)
+    bool IsActiveOverride = false,
+    string OverrideState = "")
 {
     public bool IsCompressed => StoredSize != OriginalSize;
     public int CompressionType => Flags & 0x0F;
@@ -116,6 +117,7 @@ public sealed record ArchiveQuery(
     bool ActiveOverridesOnly = false,
     ArchiveViewMode ViewMode = ArchiveViewMode.Flat,
     ArchiveSortField SortField = ArchiveSortField.Path,
+    bool SortActive = false,
     bool SortDescending = false);
 
 public sealed record ArchiveQueryHandle(

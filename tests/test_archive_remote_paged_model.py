@@ -63,6 +63,7 @@ def _entry(entry_id: int, *, session: str = "session-a", path: str | None = None
         exact_name=f"Exact {entry_id}",
         name_evidence="Exact localization",
         is_active_override=entry_id % 2 == 0,
+        override_state="Active mod" if entry_id % 2 == 0 else "Shadowed original",
     )
 
 
@@ -102,6 +103,7 @@ def test_remote_model_accepts_only_current_bounded_pages_and_repaints_rows() -> 
     assert model.accept_page(current)
     index = model.index(0, 0)
     assert model.data(index, Qt.DisplayRole) == "file_0.pac"
+    assert model.data(model.index(0, 7), Qt.DisplayRole) == "Active mod"
     assert model.data(index, REMOTE_ENTRY_DTO_ROLE) == current.rows[0]
     assert changed == [(0, 3)]
     assert not model.accept_page(ArchivePage("session-a", "old-query", 4, 12, 0, current.rows))

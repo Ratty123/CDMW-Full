@@ -2,7 +2,7 @@
 
 `cdmw-full-archive-core.dll` is full CDMW's independently owned, read-only native
 archive backend. It scans PAMT metadata into the versioned
-`full_archive_index_v2` binary format and decodes selected PAZ entry bytes through
+`full_archive_index_v3` binary format and decodes selected PAZ entry bytes through
 a narrow C ABI. It has no build-time or runtime dependency on Archive Lite.
 
 The ABI has no archive mutation, replacement, patch, or restore functions. The

@@ -38,6 +38,15 @@ void write_u32_at(std::vector<std::uint8_t>& out, size_t offset, std::uint32_t v
     for (int shift = 0; shift < 32; shift += 8) out[offset + shift / 8] = static_cast<std::uint8_t>((value >> shift) & 0xFFu);
 }
 
+std::uint64_t read_u64_at(const std::vector<std::uint8_t>& data, size_t offset) {
+    require(offset <= data.size() && data.size() - offset >= 8, "test read is outside the buffer");
+    std::uint64_t value = 0;
+    for (int shift = 0; shift < 64; shift += 8) {
+        value |= static_cast<std::uint64_t>(data[offset + shift / 8]) << shift;
+    }
+    return value;
+}
+
 void write_bytes(const fs::path& path, const std::vector<std::uint8_t>& bytes) {
     fs::create_directories(path.parent_path());
     std::ofstream stream(path, std::ios::binary | std::ios::trunc);
@@ -45,14 +54,17 @@ void write_bytes(const fs::path& path, const std::vector<std::uint8_t>& bytes) {
     stream.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
 }
 
-std::vector<std::uint8_t> make_pamt(std::uint32_t stored_size, std::uint32_t original_size, std::uint16_t flags) {
+std::vector<std::uint8_t> make_pamt(
+    std::uint32_t stored_size,
+    std::uint32_t original_size,
+    std::uint16_t flags,
+    const std::string& filename = "file.txt") {
     std::vector<std::uint8_t> data;
     cdmw::full_archive::append_u32(data, 0);
     cdmw::full_archive::append_u32(data, 1);
     cdmw::full_archive::append_u32(data, 0);
     for (int index = 0; index < 3; ++index) cdmw::full_archive::append_u32(data, 0);
     cdmw::full_archive::append_u32(data, 0);
-    const std::string filename = "file.txt";
     cdmw::full_archive::append_u32(data, static_cast<std::uint32_t>(5 + filename.size()));
     cdmw::full_archive::append_u32(data, 0xFFFFFFFFu);
     data.push_back(static_cast<std::uint8_t>(filename.size()));
@@ -85,7 +97,7 @@ void test_index_and_raw_decode(const fs::path& root) {
     require(count == 1, "index did not contain one entry");
     const auto index_bytes = cdmw::full_archive::read_binary(index, 1024 * 1024);
     require(index_bytes.size() >= 64 + cdmw::full_archive::kIndexRecordSize, "index is truncated");
-    require(std::memcmp(index_bytes.data(), "CDMWFAI2", 8) == 0, "index magic is wrong");
+    require(std::memcmp(index_bytes.data(), "CDMWFAI3", 8) == 0, "index magic is wrong");
     require(cdmw::full_archive::read_u32(index_bytes, 8) == CDMW_FULL_ARCHIVE_INDEX_VERSION, "index version is wrong");
 
     ProgressCapture progress;
@@ -133,6 +145,43 @@ void test_index_and_raw_decode(const fs::path& root) {
         decoded.data(), decoded.size(), &required, note.data(), note.size(), error.data(), error.size()) == CDMW_FULL_ARCHIVE_OK,
         "raw decode failed");
     require(decoded == payload, "raw decode changed bytes");
+}
+
+void test_duplicate_override_metadata(const fs::path& root) {
+    write_bytes(root / "0009" / "0.paz", {'a'});
+    write_bytes(root / "0009" / "0.pamt", make_pamt(1, 1, 0));
+    write_bytes(root / "dmm1" / "0.paz", {'b'});
+    write_bytes(root / "dmm1" / "0.pamt", make_pamt(1, 1, 0));
+    write_bytes(root / "alpha" / "0.paz", {'c'});
+    write_bytes(root / "alpha" / "0.pamt", make_pamt(1, 1, 0, "other.txt"));
+    write_bytes(root / "alpha" / "a.pamt", make_pamt(1, 1, 0, "other.txt"));
+    const auto index = root / "duplicates.ali";
+    std::uint64_t count = 0;
+    std::array<char, 512> error{};
+    require(cdmw_full_archive_build_index_utf8(
+        root.u8string().c_str(),
+        index.u8string().c_str(),
+        &count,
+        error.data(),
+        error.size()) == CDMW_FULL_ARCHIVE_OK,
+        std::string("duplicate index build failed: ") + error.data());
+    require(count == 4, "duplicate index count changed");
+    const auto bytes = cdmw::full_archive::read_binary(index, 1024 * 1024);
+    const auto records_offset = static_cast<size_t>(read_u64_at(bytes, 24));
+    const auto first_metadata = cdmw::full_archive::read_u32(bytes, records_offset + 68);
+    const auto second_metadata = cdmw::full_archive::read_u32(
+        bytes,
+        records_offset + cdmw::full_archive::kIndexRecordSize + 68);
+    require(first_metadata == 0x2u, "lower-priority duplicate metadata changed");
+    require(second_metadata == 0x3u, "active mod duplicate metadata changed");
+    const auto numeric_pamt_metadata = cdmw::full_archive::read_u32(
+        bytes,
+        records_offset + 2 * cdmw::full_archive::kIndexRecordSize + 68);
+    const auto named_pamt_metadata = cdmw::full_archive::read_u32(
+        bytes,
+        records_offset + 3 * cdmw::full_archive::kIndexRecordSize + 68);
+    require(numeric_pamt_metadata == 0x3u, "numeric PAMT did not outrank a named PAMT");
+    require(named_pamt_metadata == 0x2u, "named PAMT duplicate metadata changed");
 }
 
 void test_lz4_and_chacha(const fs::path& root) {
@@ -228,6 +277,7 @@ int main() {
         fs::create_directories(root);
         require(cdmw_full_archive_core_abi_version() == CDMW_FULL_ARCHIVE_CORE_ABI_VERSION, "ABI version is wrong");
         test_index_and_raw_decode(root / "raw");
+        test_duplicate_override_metadata(root / "duplicates");
         test_lz4_and_chacha(root / "codec");
         test_partial_dds_pathc(root / "partial-dds");
         fs::remove_all(root);

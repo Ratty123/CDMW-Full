@@ -63,6 +63,48 @@ struct FolderRange {
     std::string directory;
 };
 
+struct LoadPriority {
+    int tier = 0;
+    std::uint64_t package_number = 0;
+    bool pamt_is_numeric = false;
+    std::uint64_t pamt_number = 0;
+    std::uint32_t paz_index = 0;
+    std::string pamt_path;
+};
+
+bool parse_decimal(const std::string& value, std::uint64_t& parsed) {
+    if (value.empty() || !std::all_of(value.begin(), value.end(), [](unsigned char ch) { return std::isdigit(ch) != 0; })) {
+        return false;
+    }
+    parsed = 0;
+    for (const auto ch : value) {
+        const auto digit = static_cast<std::uint64_t>(ch - '0');
+        if (parsed > (std::numeric_limits<std::uint64_t>::max() - digit) / 10) return false;
+        parsed = parsed * 10 + digit;
+    }
+    return true;
+}
+
+LoadPriority load_priority(const Entry& entry) {
+    const auto package = lower_copy(entry.pamt_path.parent_path().filename().string());
+    const auto pamt_stem = lower_copy(entry.pamt_path.stem().string());
+    std::uint64_t package_number = 0;
+    std::uint64_t pamt_number = 0;
+    const auto numeric_package = parse_decimal(package, package_number);
+    const auto numeric_pamt = parse_decimal(pamt_stem, pamt_number);
+    const auto tier = package.rfind("dmm", 0) == 0 ? 3 : numeric_package ? 1 : 2;
+    return {tier, package_number, numeric_pamt, pamt_number, entry.paz_index, lower_copy(entry.pamt_path.string())};
+}
+
+bool lower_priority(const LoadPriority& left, const LoadPriority& right) {
+    if (left.tier != right.tier) return left.tier < right.tier;
+    if (left.package_number != right.package_number) return left.package_number < right.package_number;
+    if (left.pamt_is_numeric != right.pamt_is_numeric) return !left.pamt_is_numeric;
+    if (left.pamt_number != right.pamt_number) return left.pamt_number < right.pamt_number;
+    if (left.paz_index != right.paz_index) return left.paz_index < right.paz_index;
+    return left.pamt_path < right.pamt_path;
+}
+
 std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
     const auto data = read_binary(pamt_path, kMaximumPamtBytes);
     if (data.size() < 12) throw std::runtime_error(pamt_path.string() + " is too small to be a PAMT file");
@@ -217,6 +259,26 @@ void write_index_atomic(
     if (!index_path.parent_path().empty()) fs::create_directories(index_path.parent_path());
     std::vector<std::uint8_t> records;
     std::vector<std::uint8_t> strings;
+    std::vector<std::uint32_t> override_metadata(entries.size(), 0);
+    for (size_t group_start = 0; group_start < entries.size();) {
+        const auto normalized_path = lower_copy(entries[group_start].path);
+        auto group_end = group_start + 1;
+        while (group_end < entries.size() && lower_copy(entries[group_end].path) == normalized_path) group_end++;
+        if (group_end - group_start > 1) {
+            auto active_index = group_start;
+            auto active_priority = load_priority(entries[active_index]);
+            for (auto candidate = group_start + 1; candidate < group_end; ++candidate) {
+                const auto priority = load_priority(entries[candidate]);
+                if (lower_priority(active_priority, priority)) {
+                    active_index = candidate;
+                    active_priority = priority;
+                }
+            }
+            for (auto duplicate = group_start; duplicate < group_end; ++duplicate) override_metadata[duplicate] = 0x2u;
+            override_metadata[active_index] |= 0x1u;
+        }
+        group_start = group_end;
+    }
     records.reserve(entries.size() * kIndexRecordSize);
     for (size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
         const auto& entry = entries[entry_index];
@@ -239,15 +301,15 @@ void write_index_atomic(
         append_u32(records, paz_length);
         append_u32(records, entry.flags);
         append_u32(records, entry.paz_index);
-        append_u32(records, 0);
+        append_u32(records, override_metadata[entry_index]);
         append_u64(records, 0);
     }
     if (progress) progress(entries.size(), entries.size(), "index_write", "complete");
 
     std::vector<std::uint8_t> header;
-    const std::array<char, 8> magic = {'C', 'D', 'M', 'W', 'F', 'A', 'I', '2'};
+    const std::array<char, 8> magic = {'C', 'D', 'M', 'W', 'F', 'A', 'I', '3'};
     header.insert(header.end(), magic.begin(), magic.end());
-    append_u32(header, 2);
+    append_u32(header, 3);
     append_u32(header, kIndexRecordSize);
     append_u64(header, entries.size());
     append_u64(header, 64);

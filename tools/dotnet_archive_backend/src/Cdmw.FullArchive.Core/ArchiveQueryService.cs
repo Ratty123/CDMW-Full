@@ -149,7 +149,8 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress)
     {
-        var candidates = new List<QueryCandidate>();
+        var candidates = query.SortActive ? new List<QueryCandidate>() : null;
+        var unsortedIds = query.SortActive ? null : new List<long>();
         var total = session.Index.EntryCount;
         Publish(progress, new ProgressUpdate(0, total, "query_scan"));
         for (long entryId = 0; entryId < total; entryId++)
@@ -164,19 +165,27 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             {
                 continue;
             }
-            candidates.Add(QueryCandidate.Create(entry, query.SortField));
+            if (candidates is not null)
+            {
+                candidates.Add(QueryCandidate.Create(entry, query.SortField));
+            }
+            else
+            {
+                unsortedIds!.Add(entry.EntryId);
+            }
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        if (query.SortField != ArchiveSortField.Path)
+        long[] ids;
+        if (candidates is not null)
         {
-            candidates.Sort((left, right) => CompareCandidates(left, right, query.SortField));
+            candidates.Sort((left, right) => CompareCandidates(left, right, query.SortField, query.SortDescending));
+            ids = candidates.Select(static item => item.EntryId).ToArray();
         }
-        if (query.SortDescending)
+        else
         {
-            candidates.Reverse();
+            ids = unsortedIds!.ToArray();
         }
-        var ids = candidates.Select(static item => item.EntryId).ToArray();
         var queryId = Guid.NewGuid().ToString("N");
         session.StoreQuery(new CompiledArchiveQuery(queryId, generation, query, ids));
         Publish(progress, new ProgressUpdate(total, total, "query_complete"));
@@ -290,16 +299,231 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         return extension.Equals(normalized, StringComparison.OrdinalIgnoreCase);
     }
 
-    private static int CompareCandidates(QueryCandidate left, QueryCandidate right, ArchiveSortField field)
+    private static int CompareCandidates(
+        QueryCandidate left,
+        QueryCandidate right,
+        ArchiveSortField field,
+        bool descending)
+    {
+        var result = CompareCandidateValues(left, right, field);
+        if (result != 0)
+        {
+            return descending ? -result : result;
+        }
+        return left.EntryId.CompareTo(right.EntryId);
+    }
+
+    private static int CompareCandidateValues(QueryCandidate left, QueryCandidate right, ArchiveSortField field)
     {
         var result = field switch
         {
-            ArchiveSortField.OriginalSize or ArchiveSortField.StoredSize => left.Number.CompareTo(right.Number),
-            ArchiveSortField.Compression or ArchiveSortField.Role or ArchiveSortField.ActiveOverride => left.Number.CompareTo(right.Number),
-            _ => StringComparer.OrdinalIgnoreCase.Compare(left.Text, right.Text),
+            ArchiveSortField.OriginalSize or ArchiveSortField.StoredSize =>
+                CompareNumbers(left.PrimaryNumber, right.PrimaryNumber, left.SecondaryNumber, right.SecondaryNumber),
+            ArchiveSortField.Compression =>
+                CompareCompression(left, right),
+            _ => CompareNatural(left.PrimaryText, right.PrimaryText),
         };
-        return result != 0 ? result : left.EntryId.CompareTo(right.EntryId);
+        if (result != 0) return result;
+        result = CompareNatural(left.Path, right.Path);
+        if (result != 0) return result;
+        result = CompareNatural(left.Package, right.Package);
+        if (result != 0) return result;
+        result = left.PazIndex.CompareTo(right.PazIndex);
+        if (result != 0) return result;
+        result = left.ArchiveOffset.CompareTo(right.ArchiveOffset);
+        if (result != 0) return result;
+        result = left.OriginalSize.CompareTo(right.OriginalSize);
+        if (result != 0) return result;
+        return left.StoredSize.CompareTo(right.StoredSize);
     }
+
+    private static int CompareNumbers(long left, long right, long leftSecondary, long rightSecondary)
+    {
+        var result = left.CompareTo(right);
+        return result != 0 ? result : leftSecondary.CompareTo(rightSecondary);
+    }
+
+    private static int CompareCompression(QueryCandidate left, QueryCandidate right)
+    {
+        var result = CompareNatural(left.PrimaryText, right.PrimaryText);
+        if (result != 0) return result;
+        result = left.PrimaryNumber.CompareTo(right.PrimaryNumber);
+        return result != 0 ? result : left.SecondaryNumber.CompareTo(right.SecondaryNumber);
+    }
+
+    private static int CompareNatural(string left, string right)
+    {
+        var leftIndex = 0;
+        var rightIndex = 0;
+        while (leftIndex < left.Length && rightIndex < right.Length)
+        {
+            var leftDigit = char.IsDigit(left[leftIndex]);
+            var rightDigit = char.IsDigit(right[rightIndex]);
+            if (leftDigit != rightDigit)
+            {
+                return leftDigit ? -1 : 1;
+            }
+            var leftEnd = leftIndex + 1;
+            while (leftEnd < left.Length && char.IsDigit(left[leftEnd]) == leftDigit) leftEnd++;
+            var rightEnd = rightIndex + 1;
+            while (rightEnd < right.Length && char.IsDigit(right[rightEnd]) == rightDigit) rightEnd++;
+            int result;
+            if (leftDigit)
+            {
+                var leftSignificant = leftIndex;
+                while (leftSignificant < leftEnd - 1 && left[leftSignificant] == '0') leftSignificant++;
+                var rightSignificant = rightIndex;
+                while (rightSignificant < rightEnd - 1 && right[rightSignificant] == '0') rightSignificant++;
+                result = (leftEnd - leftSignificant).CompareTo(rightEnd - rightSignificant);
+                if (result == 0)
+                {
+                    result = left.AsSpan(leftSignificant, leftEnd - leftSignificant)
+                        .SequenceCompareTo(right.AsSpan(rightSignificant, rightEnd - rightSignificant));
+                }
+                if (result == 0)
+                {
+                    result = left.AsSpan(leftIndex, leftEnd - leftIndex)
+                        .SequenceCompareTo(right.AsSpan(rightIndex, rightEnd - rightIndex));
+                }
+            }
+            else
+            {
+                result = left.AsSpan(leftIndex, leftEnd - leftIndex)
+                    .SequenceCompareTo(right.AsSpan(rightIndex, rightEnd - rightIndex));
+            }
+            if (result != 0) return result;
+            leftIndex = leftEnd;
+            rightIndex = rightEnd;
+        }
+        return (left.Length - leftIndex).CompareTo(right.Length - rightIndex);
+    }
+
+    private static string NaturalText(string? value) =>
+        (value ?? string.Empty).Replace('\\', '/').Trim().ToLowerInvariant();
+
+    private static string CompressionLabel(int compressionType) => compressionType switch
+    {
+        0 => "None",
+        1 => "Partial",
+        2 => "LZ4",
+        3 => "Zlib",
+        4 => "QuickLZ",
+        _ => compressionType.ToString(System.Globalization.CultureInfo.InvariantCulture),
+    };
+
+    private static readonly HashSet<string> BrowserImageExtensions = new(StringComparer.Ordinal)
+    {
+        ".bmp", ".dds", ".gif", ".hdr", ".jpeg", ".jpg", ".png", ".tga", ".tif", ".tiff", ".webp",
+    };
+
+    private static readonly HashSet<string> BrowserAudioExtensions = new(StringComparer.Ordinal)
+    {
+        ".mp3", ".ogg", ".wem", ".wav",
+    };
+
+    private static readonly HashSet<string> BrowserVideoExtensions = new(StringComparer.Ordinal)
+    {
+        ".bk2", ".mp4",
+    };
+
+    private static readonly HashSet<string> BrowserTextExtensions = new(StringComparer.Ordinal)
+    {
+        ".bnk", ".cfg", ".css", ".csv", ".dae", ".html", ".gltf", ".h", ".hpp", ".ini", ".json",
+        ".log", ".lua", ".material", ".mtl", ".obj", ".paloc", ".app_xml", ".pami", ".pac_xml",
+        ".pam_xml", ".pamlod_xml", ".prefabdata_xml", ".shader", ".thtml", ".txt", ".xml", ".yaml", ".yml",
+    };
+
+    private static readonly HashSet<string> BrowserAnimationExtensions = new(StringComparer.Ordinal)
+    {
+        ".paa", ".motionblending", ".pae", ".paem", ".papr", ".paseq", ".paseqc", ".paschedule",
+        ".paschedulepath", ".pastage",
+    };
+
+    private static readonly HashSet<string> BrowserModelExtensions = new(StringComparer.Ordinal)
+    {
+        ".pac", ".pam", ".pamlod", ".obj", ".fbx", ".dae", ".gltf", ".glb", ".mesh", ".mdl", ".model",
+        ".pat", ".patx",
+    };
+
+    private static string RoleDisplayText(ArchiveEntryDto entry)
+    {
+        var extension = entry.Extension.ToLowerInvariant();
+        var path = entry.Path.Replace('\\', '/').ToLowerInvariant();
+        var basename = path[(path.LastIndexOf('/') + 1)..];
+        string role;
+        if (BrowserImageExtensions.Contains(extension))
+        {
+            role = "Texture";
+        }
+        else if (extension is ".pami" or ".pac_xml" or ".pam_xml" or ".pamlod_xml" ||
+                 extension == ".xml" &&
+                 (basename.EndsWith(".pac.xml", StringComparison.Ordinal) ||
+                  basename.EndsWith(".pam.xml", StringComparison.Ordinal) ||
+                  basename.EndsWith(".pamlod.xml", StringComparison.Ordinal)))
+        {
+            role = "Material";
+        }
+        else if (extension is ".hkx" or ".hkt")
+        {
+            role = path.Contains("meshphysics", StringComparison.Ordinal) ||
+                path.Contains("havokphysics", StringComparison.Ordinal) ||
+                path.Contains("ragdoll", StringComparison.Ordinal) ||
+                path.Contains("physics", StringComparison.Ordinal) ? "Physics" : "HKX";
+        }
+        else if (extension == ".paa_metabin")
+        {
+            role = "Animation Metadata";
+        }
+        else if (BrowserAnimationExtensions.Contains(extension))
+        {
+            role = "Animation";
+        }
+        else if (extension == ".pab")
+        {
+            role = "Skeleton / Rig";
+        }
+        else if (extension is ".prefab" or ".prefabdata_xml" or ".prefabdata.xml" or ".pappt")
+        {
+            role = "Prefab";
+        }
+        else if (extension == ".pamhc")
+        {
+            role = "Model Property Metadata";
+        }
+        else if (extension == ".paccd")
+        {
+            role = "Character Customization";
+        }
+        else if (extension == ".seqmt")
+        {
+            role = "Sequence Texture Metadata";
+        }
+        else if (BrowserAudioExtensions.Contains(extension))
+        {
+            role = "Audio";
+        }
+        else if (BrowserVideoExtensions.Contains(extension))
+        {
+            role = "Video";
+        }
+        else if (BrowserTextExtensions.Contains(extension) ||
+                 extension is ".meshinfo" or ".motionblending" or ".paa_metabin" or ".prefab" or ".pappt" or ".pamhc" or ".paccd" or ".seqmt")
+        {
+            role = IsUiPath(path) ? "UI" : "Metadata";
+        }
+        else if (BrowserModelExtensions.Contains(extension))
+        {
+            role = "Mesh";
+        }
+        else
+        {
+            role = IsUiPath(path) ? "UI" : "Unknown";
+        }
+        return $"{role} {extension}".Trim();
+    }
+
+    private static bool IsUiPath(string normalizedPath) =>
+        normalizedPath.Contains("/ui", StringComparison.Ordinal) || normalizedPath.StartsWith("ui/", StringComparison.Ordinal);
 
     private static string NormalizeFolder(string? value)
     {
@@ -323,23 +547,47 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
     private static void Publish(Func<ProgressUpdate, Task>? progress, ProgressUpdate update) =>
         progress?.Invoke(update).GetAwaiter().GetResult();
 
-    private sealed record QueryCandidate(long EntryId, string Text, long Number)
+    private sealed record QueryCandidate(
+        long EntryId,
+        string PrimaryText,
+        long PrimaryNumber,
+        long SecondaryNumber,
+        string Path,
+        string Package,
+        int PazIndex,
+        long ArchiveOffset,
+        long OriginalSize,
+        long StoredSize)
     {
-        public static QueryCandidate Create(ArchiveEntryDto entry, ArchiveSortField field) => field switch
+        public static QueryCandidate Create(ArchiveEntryDto entry, ArchiveSortField field)
         {
-            ArchiveSortField.Name => new(entry.EntryId, entry.Name, 0),
-            ArchiveSortField.KnownName => new(entry.EntryId, entry.KnownName, 0),
-            ArchiveSortField.ExactName => new(entry.EntryId, entry.ExactName, 0),
-            ArchiveSortField.NameEvidence => new(entry.EntryId, entry.NameEvidence, 0),
-            ArchiveSortField.Extension => new(entry.EntryId, entry.Extension, 0),
-            ArchiveSortField.Package => new(entry.EntryId, entry.Package, 0),
-            ArchiveSortField.OriginalSize => new(entry.EntryId, string.Empty, entry.OriginalSize),
-            ArchiveSortField.StoredSize => new(entry.EntryId, string.Empty, entry.StoredSize),
-            ArchiveSortField.Compression => new(entry.EntryId, string.Empty, entry.CompressionType),
-            ArchiveSortField.Role => new(entry.EntryId, string.Empty, (long)entry.Role),
-            ArchiveSortField.Category => new(entry.EntryId, entry.Category, 0),
-            ArchiveSortField.ActiveOverride => new(entry.EntryId, string.Empty, entry.IsActiveOverride ? 1 : 0),
-            _ => new(entry.EntryId, entry.Path, 0),
-        };
+            var (text, number, secondary) = field switch
+            {
+                ArchiveSortField.Name => (entry.Name, 0L, 0L),
+                ArchiveSortField.KnownName => (entry.KnownName, 0L, 0L),
+                ArchiveSortField.ExactName => (entry.ExactName, 0L, 0L),
+                ArchiveSortField.NameEvidence => (entry.NameEvidence, 0L, 0L),
+                ArchiveSortField.Extension => (entry.Extension, 0L, 0L),
+                ArchiveSortField.Package => (entry.Package, 0L, 0L),
+                ArchiveSortField.OriginalSize => (string.Empty, entry.OriginalSize, entry.StoredSize),
+                ArchiveSortField.StoredSize => (string.Empty, entry.StoredSize, entry.OriginalSize),
+                ArchiveSortField.Compression => (CompressionLabel(entry.CompressionType), entry.CompressionType, entry.Flags),
+                ArchiveSortField.Role => (RoleDisplayText(entry), 0L, 0L),
+                ArchiveSortField.Category => (entry.Category, 0L, 0L),
+                ArchiveSortField.ActiveOverride => (entry.OverrideState, 0L, 0L),
+                _ => (entry.Path, 0L, 0L),
+            };
+            return new QueryCandidate(
+                entry.EntryId,
+                NaturalText(text),
+                number,
+                secondary,
+                NaturalText(entry.Path),
+                NaturalText(entry.Package),
+                entry.PazIndex,
+                entry.Offset,
+                entry.OriginalSize,
+                entry.StoredSize);
+        }
     }
 }

@@ -653,7 +653,7 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
         _format_bytes(entry.original_size),
         compression,
         entry.package or "-",
-        "Active" if entry.is_active_override else "-",
+        entry.override_state or "-",
         folder,
     )
     size_tooltip = f"Original: {entry.original_size:,} bytes\nStored: {entry.stored_size:,} bytes"
@@ -665,7 +665,7 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
         size_tooltip,
         compression,
         f"Package: {entry.package}\nPAMT: {entry.source_pamt}",
-        "Active duplicate override" if entry.is_active_override else "",
+        entry.override_state,
         path,
     )
     return ArchiveBrowserRowPayload(columns=columns, tooltips=tooltips)
