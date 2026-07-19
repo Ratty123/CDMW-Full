@@ -104,7 +104,8 @@ public sealed class ArchiveTextSearchService(
                         line,
                         column,
                         span.Length,
-                        Context(text, span.Index, span.Length, contextCharacters)));
+                        Context(text, span.Index, span.Length, contextCharacters),
+                        entry.Package));
                     matchCount++;
                     if (pending.Count >= batchSize)
                     {

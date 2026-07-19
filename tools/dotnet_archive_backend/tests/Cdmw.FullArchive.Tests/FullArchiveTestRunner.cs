@@ -261,6 +261,7 @@ internal static class FullArchiveTestRunner
             var searchMatches = searchBatches.SelectMany(static batch => batch.Matches).ToArray();
             Require(finalSearch.IsFinal && searchMatches.Length == 1, "archive text search result changed");
             Require(searchMatches[0].Path == "text/hello.txt" && searchMatches[0].Line == 1, "text match location changed");
+            Require(searchMatches[0].Package == "base/0.pamt", "text match package label changed");
 
             var preparation = new ArchiveEntryPreparationService(sessions, native);
             var prepared = await preparation.PrepareAsync(

@@ -53,6 +53,14 @@ class TextSearchExportMixin:
 
         request_id = self.export_request_id + 1
         self.export_request_id = request_id
+        start_catalogue_export = getattr(self, "_start_catalogue_export", None)
+        if callable(start_catalogue_export) and start_catalogue_export(
+            request_id,
+            results,
+            export_root,
+            label=label,
+        ):
+            return
         worker = TextSearchExportWorker(
             request_id=request_id,
             results=results,
@@ -98,10 +106,11 @@ class TextSearchExportMixin:
             return
         exported = int(payload.get("exported", 0) or 0)
         renamed = int(payload.get("renamed", 0) or 0)
+        skipped = int(payload.get("skipped", 0) or 0)
         failed = int(payload.get("failed", 0) or 0)
         message = (
             f"Exported {exported:,} file(s) from {label}. "
-            f"Renamed {renamed:,}, failed {failed:,}."
+            f"Renamed {renamed:,}, skipped {skipped:,}, failed {failed:,}."
         )
         self.search_progress_label.setText(message)
         self.search_progress_bar.setRange(0, 1)

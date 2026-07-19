@@ -132,6 +132,8 @@ class TextSearchPreviewWorker(QObject):
         query: str,
         regex_enabled: bool,
         case_sensitive: bool,
+        prepared_archive_path: Path | None = None,
+        prepared_archive_note: str = "",
     ) -> None:
         super().__init__()
         self.request_id = request_id
@@ -139,6 +141,8 @@ class TextSearchPreviewWorker(QObject):
         self.query = query
         self.regex_enabled = regex_enabled
         self.case_sensitive = case_sensitive
+        self.prepared_archive_path = prepared_archive_path
+        self.prepared_archive_note = prepared_archive_note
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -154,6 +158,8 @@ class TextSearchPreviewWorker(QObject):
                 self.query,
                 regex=self.regex_enabled,
                 case_sensitive=self.case_sensitive,
+                prepared_archive_path=self.prepared_archive_path,
+                prepared_archive_note=self.prepared_archive_note,
                 stop_event=self.stop_event,
             )
             if self.stop_event.is_set():

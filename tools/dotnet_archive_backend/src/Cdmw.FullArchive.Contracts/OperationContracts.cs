@@ -44,7 +44,8 @@ public sealed record ArchiveTextMatch(
     int Line,
     int Column,
     int Length,
-    string Context);
+    string Context,
+    string Package = "");
 
 public sealed record ArchiveTextSearchBatch(
     string SessionId,

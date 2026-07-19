@@ -108,9 +108,13 @@ class TextSearchControllerMixin:
         self._update_controls()
 
     def is_busy(self) -> bool:
-        return self.search_thread is not None or self.export_thread is not None
+        remote_busy = getattr(self, "_catalogue_request_busy", lambda: False)()
+        return self.search_thread is not None or self.export_thread is not None or remote_busy
 
     def set_archive_entries(self, entries: Sequence[ArchiveEntry], package_root_text: str = "") -> None:
+        if getattr(self, "archive_catalogue_session", None) is not None:
+            self.archive_entries = []
+            return
         self.archive_entries = entries if isinstance(entries, list) else list(entries)
         self.archive_package_root_text = package_root_text.strip()
         if self.source_combo.currentData() == "archive" and not self.search_results:
@@ -136,6 +140,9 @@ class TextSearchControllerMixin:
         self.pending_preview_result = None
         self.scheduled_preview_result = None
         self.preview_request_id += 1
+        cancel_catalogue_preview = getattr(self, "_cancel_catalogue_preview", None)
+        if callable(cancel_catalogue_preview):
+            cancel_catalogue_preview(clear=True)
         if self.preview_worker is not None:
             self.preview_worker.stop()
 
@@ -203,6 +210,15 @@ class TextSearchControllerMixin:
         if self.export_worker is not None:
             self.export_worker.stop()
             self.export_request_id += 1
+        cancel_catalogue = getattr(self, "_cancel_all_catalogue_requests", None)
+        if callable(cancel_catalogue):
+            if getattr(self, "remote_search_request_id", None) is not None:
+                self.search_request_id += 1
+            if getattr(self, "remote_preview_request_id", None) is not None:
+                self.preview_request_id += 1
+            if getattr(self, "remote_export_request_id", None) is not None:
+                self.export_request_id += 1
+            cancel_catalogue(clear=True)
         for _name, thread, _worker in self.iter_shutdown_workers():
             _shutdown_thread(thread)
 
@@ -305,7 +321,8 @@ class TextSearchControllerMixin:
             )
         loose_root = None
         if source_kind == "archive":
-            if not self.archive_entries:
+            remote_ready = getattr(self, "_catalogue_archive_ready", lambda: False)()
+            if not self.archive_entries and not remote_ready:
                 message = "Scan archives first, or switch the source to a loose folder."
                 self.status_message_requested.emit(message, True)
                 self.append_log(f"ERROR: {message}")
@@ -350,6 +367,16 @@ class TextSearchControllerMixin:
 
         request_id = self.search_request_id + 1
         self.search_request_id = request_id
+        start_catalogue_search = getattr(self, "_start_catalogue_text_search", None)
+        if source_kind == "archive" and callable(start_catalogue_search) and start_catalogue_search(
+            request_id,
+            query=query,
+            extension_text=self.extensions_edit.text().strip(),
+            path_filter=self.path_filter_edit.text().strip(),
+            case_sensitive=self.case_sensitive_checkbox.isChecked(),
+            regex_enabled=self.regex_checkbox.isChecked(),
+        ):
+            return
         worker = TextSearchWorker(
             request_id=request_id,
             source_kind=source_kind,
@@ -385,6 +412,9 @@ class TextSearchControllerMixin:
             self.search_worker.stop()
         if self.export_worker is not None:
             self.export_worker.stop()
+        cancel_catalogue = getattr(self, "_cancel_all_catalogue_requests", None)
+        if callable(cancel_catalogue):
+            cancel_catalogue(clear=False)
 
     def _clear_pending_result_population(self) -> None:
         self._results_population_timer.stop()

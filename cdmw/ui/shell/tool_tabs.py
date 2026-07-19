@@ -6,7 +6,7 @@ from typing import Callable
 
 from PySide6.QtWidgets import QApplication, QWidget
 
-from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
+from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, created_tool_widget
 
 
 _texture_editor_tab_class: type | None = None
@@ -127,15 +127,27 @@ class ShellToolTabsMixin:
             settings=self.settings,
             base_dir=self.settings_file_path.parent,
             theme_key=self.current_theme_key,
+            archive_catalogue_service=getattr(self, "archive_catalogue_service", None),
         )
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
         )
-        tab.set_archive_entries(
-            getattr(self, "archive_entries", []),
-            self.archive_package_root_edit.text().strip(),
-        )
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:
+            tab.set_archive_catalogue_session(remote_bridge.current_session)
+        else:
+            tab.set_archive_entries(
+                getattr(self, "archive_entries", []),
+                self.archive_package_root_edit.text().strip(),
+            )
         return tab
+
+    def _publish_archive_catalogue_session_to_consumers(self, session: object) -> None:
+        text_search_tab = created_tool_widget(getattr(self, "text_search_tab", None))
+        if text_search_tab is not None:
+            setter = getattr(text_search_tab, "set_archive_catalogue_session", None)
+            if callable(setter):
+                setter(session)
 
     def _create_research_tab(self) -> QWidget:
         from cdmw.ui.research import ResearchTab

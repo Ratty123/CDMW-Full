@@ -38,6 +38,9 @@ class TextSearchPreviewMixin:
         self.preview_find_active_index = -1
         self.preview_text_cache = ""
         self.preview_find_status_label.setText("Loading preview...")
+        cancel_catalogue_preview = getattr(self, "_cancel_catalogue_preview", None)
+        if callable(cancel_catalogue_preview):
+            cancel_catalogue_preview(clear=True)
         if self.preview_worker is not None:
             self.preview_worker.stop()
         self.scheduled_preview_result = result
@@ -58,12 +61,27 @@ class TextSearchPreviewMixin:
         self._start_preview_worker(request_id, result)
 
     def _start_preview_worker(self, request_id: int, result: TextSearchResult) -> None:
+        start_catalogue_preview = getattr(self, "_start_catalogue_preview", None)
+        if callable(start_catalogue_preview) and start_catalogue_preview(request_id, result):
+            return
+        self._start_preview_decode_worker(request_id, result)
+
+    def _start_preview_decode_worker(
+        self,
+        request_id: int,
+        result: TextSearchResult,
+        *,
+        prepared_archive_path: Path | None = None,
+        prepared_archive_note: str = "",
+    ) -> None:
         worker = TextSearchPreviewWorker(
             request_id=request_id,
             result=result,
             query=self.last_search_query,
             regex_enabled=self.last_search_regex_enabled,
             case_sensitive=self.last_search_case_sensitive,
+            prepared_archive_path=prepared_archive_path,
+            prepared_archive_note=prepared_archive_note,
         )
         thread = QThread(self)
         worker.moveToThread(thread)

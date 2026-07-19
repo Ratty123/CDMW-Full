@@ -272,6 +272,7 @@ class ArchiveTextMatch:
     column: int
     length: int
     context: str
+    package: str = ""
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveTextMatch":
@@ -283,6 +284,7 @@ class ArchiveTextMatch:
             column=read_int(payload, "column"),
             length=read_int(payload, "length"),
             context=read_string(payload, "context"),
+            package=read_string(payload, "package", default=""),
         )
 
 

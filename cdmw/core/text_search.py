@@ -51,6 +51,8 @@ class TextSearchResult:
     snippet: str
     package_label: str = ""
     archive_entry: Optional[ArchiveEntry] = None
+    archive_session_id: str = ""
+    archive_entry_id: Optional[int] = None
     loose_root: Optional[Path] = None
     loose_path: Optional[Path] = None
 
@@ -373,17 +375,27 @@ def load_text_search_preview(
     *,
     regex: bool = False,
     case_sensitive: bool = False,
+    prepared_archive_path: Optional[Path] = None,
+    prepared_archive_note: str = "",
     stop_event: Optional[threading.Event] = None,
 ) -> TextSearchPreview:
     raise_if_cancelled(stop_event, "Text preview stopped by user.")
     pattern = _compile_search_pattern(query, regex=regex, case_sensitive=case_sensitive)
     if result.source_kind == "archive":
-        if result.archive_entry is None:
+        if result.archive_entry is not None:
+            data, _decompressed, note = read_archive_entry_data(
+                result.archive_entry,
+                stop_event=stop_event,
+            )
+        elif prepared_archive_path is not None:
+            data = _read_file_bytes_cancellable(
+                prepared_archive_path,
+                stop_event,
+                message="Text preview stopped by user.",
+            )
+            note = str(prepared_archive_note or "")
+        else:
             raise ValueError("Archive search result is missing its archive entry reference.")
-        data, _decompressed, note = read_archive_entry_data(
-            result.archive_entry,
-            stop_event=stop_event,
-        )
         text = _decode_text_bytes(data)
         detail_lines = [
             f"Path: {result.relative_path}",

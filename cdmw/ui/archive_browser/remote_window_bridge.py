@@ -85,6 +85,10 @@ class ArchiveRemoteWindowBridge(QObject):
         return self._controller
 
     @property
+    def current_session(self) -> ArchiveSessionHandle | None:
+        return self._controller.current_session
+
+    @property
     def displays_v2(self) -> bool:
         return self._display_v2
 
@@ -266,6 +270,9 @@ class ArchiveRemoteWindowBridge(QObject):
             self._record_shadow_comparison(handle)
             return
         window = self._window
+        publish_consumers = getattr(window, "_publish_archive_catalogue_session_to_consumers", None)
+        if callable(publish_consumers) and self._controller.current_session is not None:
+            publish_consumers(self._controller.current_session)
         window.archive_remote_query_pending = False
         window.archive_remote_total_matches = handle.total_matches
         window.archive_filters_dirty = False

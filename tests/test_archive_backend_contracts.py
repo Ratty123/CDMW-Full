@@ -19,6 +19,7 @@ from cdmw.domain.archives.catalogue import (
 )
 from cdmw.domain.archives.catalogue_operations import (
     ARCHIVE_BACKEND_PROTOCOL_VERSION,
+    ArchiveTextMatch,
     ArchiveBackendEnvelope,
     ArchiveBackendOperation,
     ArchiveBackendStatus,
@@ -116,6 +117,22 @@ def test_query_serializes_using_worker_snake_case_enums() -> None:
             "sort_descending": True,
         }
     }
+
+
+def test_text_match_parses_optional_package_label() -> None:
+    match = ArchiveTextMatch.from_wire(
+        {
+            "entry_id": 7,
+            "path": "text/example.txt",
+            "line": 2,
+            "column": 4,
+            "length": 6,
+            "context": "first needle",
+            "package": "0009/0.pamt",
+        }
+    )
+
+    assert match.package == "0009/0.pamt"
 
 
 def test_envelope_round_trip_validates_correlation_fields() -> None:

@@ -31,11 +31,13 @@ from cdmw.services.text_search_service import (
     TextSearchResult,
     TextSearchRunStats,
 )
+from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.models import ArchiveEntry
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.text_search.controller import TextSearchControllerMixin, TextSearchSettingsMixin
 from cdmw.ui.text_search.export_actions import TextSearchExportMixin
 from cdmw.ui.text_search.preview_panel import TextSearchPreviewMixin
+from cdmw.ui.text_search.remote_catalogue import TextSearchArchiveCatalogueMixin
 from cdmw.ui.text_search.workers import TextSearchExportWorker, TextSearchPreviewWorker, TextSearchWorker
 from cdmw.ui.widgets import (
     CodePreviewEditor,
@@ -50,7 +52,14 @@ from cdmw.ui.widgets import (
 )
 
 
-class TextSearchTab(TextSearchSettingsMixin, TextSearchControllerMixin, TextSearchExportMixin, TextSearchPreviewMixin, QWidget):
+class TextSearchTab(
+    TextSearchSettingsMixin,
+    TextSearchArchiveCatalogueMixin,
+    TextSearchControllerMixin,
+    TextSearchExportMixin,
+    TextSearchPreviewMixin,
+    QWidget,
+):
     status_message_requested = Signal(str, bool)
     PREVIEW_DISPLAY_CHAR_LIMIT = 750_000
     SYNTAX_HIGHLIGHT_CHAR_LIMIT = 250_000
@@ -69,6 +78,7 @@ class TextSearchTab(TextSearchSettingsMixin, TextSearchControllerMixin, TextSear
         settings,
         base_dir: Path,
         theme_key: str,
+        archive_catalogue_service: ArchiveCatalogueService | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -389,6 +399,7 @@ class TextSearchTab(TextSearchSettingsMixin, TextSearchControllerMixin, TextSear
         self.preview_wrap_checkbox.toggled.connect(self.schedule_settings_save)
         self.preview_find_case_checkbox.toggled.connect(self.schedule_settings_save)
 
+        self._initialize_archive_catalogue(archive_catalogue_service)
         self._load_settings()
         self._settings_ready = True
         self._apply_source_state()
