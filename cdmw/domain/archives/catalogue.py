@@ -85,6 +85,17 @@ class ArchiveDurableIdentity:
         )
 
 
+def archive_durable_identity_key(identity: ArchiveDurableIdentity) -> tuple[str, str, int, int]:
+    """Return the case-insensitive key used by the worker lookup index."""
+
+    return (
+        identity.normalized_path.replace("\\", "/").strip("/").casefold(),
+        identity.source_pamt.replace("\\", "/").strip("/").casefold(),
+        int(identity.paz_index),
+        int(identity.archive_offset),
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class ArchiveSessionHandle:
     session_id: str
@@ -444,5 +455,6 @@ __all__ = [
     "ArchiveSessionHandle",
     "ArchiveSortField",
     "ArchiveViewMode",
+    "archive_durable_identity_key",
     "archive_query_from_wire",
 ]

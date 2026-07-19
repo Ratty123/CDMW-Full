@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
+from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
 from cdmw.ui.widgets import FlatSectionPanel, responsive_sidebar_bounds
 
 
@@ -62,6 +63,13 @@ class ArchiveFilesPanelMixin:
             category_provider=self._archive_entry_category,
             category_sort_key=self._archive_category_sort_key,
         )
+        selection = self.archive_backend_selection
+        if selection.displays_v2 or selection.runs_shadow:
+            self.archive_remote_bridge = ArchiveRemoteWindowBridge(
+                self,
+                display_v2=selection.displays_v2,
+                shadow=selection.runs_shadow,
+            )
         self.archive_tree.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.archive_tree.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.archive_tree.setAlternatingRowColors(False)

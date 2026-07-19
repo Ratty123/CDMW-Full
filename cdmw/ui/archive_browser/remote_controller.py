@@ -21,6 +21,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveQueryHandle,
     ArchiveSessionHandle,
     ArchiveViewMode,
+    archive_durable_identity_key,
 )
 from cdmw.domain.archives.catalogue_operations import FetchPageRequest, OpenArchiveRequest
 from cdmw.ui.archive_browser.remote_model import (
@@ -453,7 +454,7 @@ class ArchiveRemoteCatalogueController(QObject):
             identity is None
             or len(result.entries) != 1
             or len(result.query_rows) != 1
-            or result.entries[0].identity != identity
+            or archive_durable_identity_key(result.entries[0].identity) != archive_durable_identity_key(identity)
         ):
             self.selectionUnavailable.emit(identity)
             return
@@ -471,7 +472,7 @@ class ArchiveRemoteCatalogueController(QObject):
         if entry is None:
             return
         self._pending_selection_row = None
-        if entry.identity == identity:
+        if archive_durable_identity_key(entry.identity) == archive_durable_identity_key(identity):
             self.selectionIndexReady.emit(index)
         else:
             self.selectionUnavailable.emit(identity)

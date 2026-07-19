@@ -271,6 +271,9 @@ class ArchiveBrowserActionMixin:
         return targets
 
     def _archive_entry_at_tree_position(self, position) -> Optional[ArchiveEntry]:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            return remote_bridge.compatibility_entry_for_index(self.archive_tree.indexAt(position))
         item = self.archive_tree.itemAt(position)
         if item is None:
             return None

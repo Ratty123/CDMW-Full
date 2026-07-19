@@ -18,6 +18,7 @@ from cdmw.domain.archives.catalogue import (
     ArchivePage,
     ArchiveQueryHandle,
     ArchiveViewMode,
+    archive_durable_identity_key,
 )
 from cdmw.ui.archive_browser.model import ARCHIVE_BROWSER_COLUMNS, ArchiveBrowserRowPayload
 
@@ -326,14 +327,15 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         return None if node is None else node.entry
 
     def find_cached_index_for_identity(self, identity: ArchiveDurableIdentity) -> QModelIndex:
+        target = archive_durable_identity_key(identity)
         if self._view_mode is ArchiveViewMode.FLAT:
             for start, rows in self._pages.items():
                 for offset, entry in enumerate(rows):
-                    if entry.identity == identity:
+                    if archive_durable_identity_key(entry.identity) == target:
                         return self.index(start + offset, 0)
             return QModelIndex()
         for node in self._nodes_by_key.values():
-            if node.entry is not None and node.entry.identity == identity:
+            if node.entry is not None and archive_durable_identity_key(node.entry.identity) == target:
                 return self._index_for_node(node)
         return QModelIndex()
 

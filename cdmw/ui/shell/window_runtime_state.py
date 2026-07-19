@@ -6,6 +6,7 @@ from collections import Counter, OrderedDict, deque
 
 from PySide6.QtCore import Qt, QTimer
 
+from cdmw.domain.archives.backend_mode import resolve_archive_backend_mode
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient
 
@@ -139,6 +140,13 @@ class ShellWindowRuntimeStateMixin:
         self.archive_isolated_package_pending_result: Optional[ArchivePreviewResult] = None
 
     def _initialize_archive_runtime_state(self) -> None:
+        self.archive_backend_selection = resolve_archive_backend_mode()
+        self.archive_backend_mode = self.archive_backend_selection.mode
+        self.archive_backend_mode_warning_logged = False
+        self.archive_remote_bridge = None
+        self.archive_remote_query_pending = False
+        self.archive_remote_actions_safe = True
+        self.archive_remote_total_matches = 0
         self.archive_backend_client = ArchiveBackendClient(
             cache_root=self.archive_cache_root,
             parent=self,

@@ -134,6 +134,11 @@ class ArchiveFilterWorkerMixin:
                     error=str(exc),
                 )
         self._stop_archive_preview_loading_indicator(success=None)
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            remote_bridge.apply_current_query()
+            self._restore_archive_controls_scroll_after_filter()
+            return
         if self.worker_thread is not None:
             if self.archive_filter_worker is not None:
                 self.archive_filter_apply_pending = True
@@ -375,6 +380,13 @@ class ArchiveFilterWorkerMixin:
             self.archive_controls_scroll_filter_anchor = None
             self._finish_startup_benchmark_search_after_filter()
             self._maybe_release_startup_after_archive_ready()
+            remote_bridge = getattr(self, "archive_remote_bridge", None)
+            package_root_text = self.archive_package_root_edit.text().strip()
+            if remote_bridge is not None and remote_bridge.shadows_legacy and package_root_text:
+                QTimer.singleShot(
+                    0,
+                    lambda root=package_root_text, bridge=remote_bridge: bridge.start_shadow(root),
+                )
 
         defer_default_selection = bool(getattr(self, "archive_startup_autoload_defer_preview", False)) or self._startup_benchmark_enabled()
         self.archive_startup_autoload_defer_preview = False

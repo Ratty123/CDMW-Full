@@ -420,6 +420,10 @@ class ArchiveBrowserTreeControllerMixin:
             self.archive_tree_sort_order = "asc"
         self._update_archive_tree_sort_indicator()
         self.schedule_settings_save()
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            remote_bridge.apply_current_query()
+            return
         if self._archive_sort_waits_for_enhanced_index():
             self._ensure_archive_enhanced_index_worker_started()
             self.archive_initial_sort_apply_pending = True
@@ -458,6 +462,10 @@ class ArchiveBrowserTreeControllerMixin:
     def _handle_archive_browser_view_mode_changed(self, _index: int) -> None:
         self._mark_archive_browser_render_stale()
         self.archive_tree.setRootIsDecorated(self._archive_tree_view_enabled())
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            remote_bridge.apply_current_query()
+            return
         if self.worker_thread is not None:
             self.archive_browser_refresh_pending = True
             return
@@ -623,6 +631,9 @@ class ArchiveBrowserTreeControllerMixin:
             self._collect_archive_entries_from_item(item.child(child_index), collected_indexes)
 
     def _selected_archive_entries(self) -> List[ArchiveEntry]:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            return remote_bridge.selected_compatibility_entries()
         collected_indexes: set[int] = set()
         for item in self.archive_tree.selectedItems():
             self._collect_archive_entries_from_item(item, collected_indexes)
@@ -632,6 +643,24 @@ class ArchiveBrowserTreeControllerMixin:
         selected_items = self.archive_tree.selectedItems()
         if not selected_items:
             return 0, False
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            count = 0
+            has_dds = False
+            for item in selected_items:
+                entry = getattr(item, "entry", None)
+                if entry is not None:
+                    count += 1
+                    has_dds = has_dds or entry.extension == ".dds"
+                else:
+                    count += max(0, int(getattr(item, "match_count", 0) or 0))
+                    has_dds = has_dds or str(getattr(item, "category", "") or "").casefold() in {
+                        "texture",
+                        "image",
+                        "normal",
+                        "material",
+                    }
+            return count, has_dds
         if len(selected_items) == 1:
             item = selected_items[0]
             kind = self._archive_tree_item_kind(item)
@@ -662,10 +691,16 @@ class ArchiveBrowserTreeControllerMixin:
         if selected_entries:
             selected_dds = [entry for entry in selected_entries if entry.extension == ".dds"]
             return selected_dds, True
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            return [], False
         filtered_dds = [entry for entry in self.archive_filtered_entries if entry.extension == ".dds"]
         return filtered_dds, False
 
     def _current_archive_entry(self) -> Optional[ArchiveEntry]:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            return remote_bridge.current_compatibility_entry()
         item = self.archive_tree.currentItem()
         if item is None:
             return None
@@ -676,6 +711,12 @@ class ArchiveBrowserTreeControllerMixin:
         return None
 
     def _current_archive_action_entry(self, action_label: str) -> Optional[ArchiveEntry]:
+        if not bool(getattr(self, "archive_remote_actions_safe", True)):
+            self.set_status_message(
+                f"{action_label} is unavailable until the refreshed archive session is published.",
+                error=True,
+            )
+            return None
         entry = self._current_archive_entry()
         if not isinstance(entry, ArchiveEntry):
             self.set_status_message(f"Select an archive file before using {action_label}.", error=True)

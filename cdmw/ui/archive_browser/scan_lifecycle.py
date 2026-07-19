@@ -106,6 +106,17 @@ class ArchiveScanLifecycleMixin:
         return False
 
     def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
+        backend_selection = getattr(self, "archive_backend_selection", None)
+        if (
+            backend_selection is not None
+            and not backend_selection.valid
+            and not self.archive_backend_mode_warning_logged
+        ):
+            self.archive_backend_mode_warning_logged = True
+            self.append_archive_log(
+                "Unsupported CDMW_ARCHIVE_BACKEND value "
+                f"{backend_selection.configured_value!r}; using legacy archive backend."
+            )
         self._archive_scan_progress_timer.stop()
         self._archive_scan_progress_pending = None
         self._mark_archive_browser_render_stale()
@@ -148,6 +159,26 @@ class ArchiveScanLifecycleMixin:
 
         package_root = Path(package_root_text).expanduser()
         if not self._confirm_suspicious_archive_tree_scan(package_root):
+            return
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            self._activate_archive_browser_on_scan_complete = activate_archive_tab
+            self.clear_archive_scan_log()
+            self._set_archive_cache_health(
+                "building",
+                "Cache Status: Building. Standalone archive catalogue is preparing a generation.",
+                package_root=package_root_text,
+            )
+            self._set_last_active_operation(
+                "archive_catalogue_v2_refresh" if force_refresh else "archive_catalogue_v2_open",
+                package_root=str(package_root),
+                force_refresh=force_refresh,
+            )
+            remote_bridge.open_archive(
+                package_root,
+                force_refresh=force_refresh,
+                activate_tab=activate_archive_tab,
+            )
             return
         self._activate_archive_browser_on_scan_complete = activate_archive_tab
         if activate_archive_tab:
@@ -763,6 +794,13 @@ class ArchiveScanLifecycleMixin:
             ):
                 self._write_heartbeat("running")
                 self._release_startup_splash()
+            remote_bridge = getattr(self, "archive_remote_bridge", None)
+            package_root_text = self.archive_package_root_edit.text().strip()
+            if remote_bridge is not None and remote_bridge.shadows_legacy and package_root_text:
+                QTimer.singleShot(
+                    0,
+                    lambda root=package_root_text, bridge=remote_bridge: bridge.start_shadow(root),
+                )
         finally:
             self.archive_scan_finalize_pending = False
             if self.archive_derived_cache_write_pending:
