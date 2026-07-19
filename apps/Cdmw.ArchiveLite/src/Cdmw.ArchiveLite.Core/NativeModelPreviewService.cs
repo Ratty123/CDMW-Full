@@ -9,7 +9,7 @@ namespace Cdmw.ArchiveLite.Core;
 
 public sealed class NativeModelPreviewService
 {
-    private const string PackageVersion = "archive_lite_native_model_v1";
+    private const string PackageVersion = "archive_lite_native_model_v2";
     private static readonly TimeSpan PreviewTimeout = TimeSpan.FromSeconds(90);
     private static readonly TimeSpan ColdBuildCoalesceDelay = TimeSpan.FromMilliseconds(35);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _buildGates = new(StringComparer.Ordinal);
@@ -31,30 +31,30 @@ public sealed class NativeModelPreviewService
 
         var companion = FindCompanion(session.Index, entry);
         ArchiveLiteDataPaths.EnsureCreated();
-        var identity = Encoding.UTF8.GetBytes(string.Join(
-            '|',
-            PackageVersion,
-            session.Fingerprint,
-            entry.EntryId,
-            entry.Path,
-            entry.Offset,
-            entry.StoredSize,
-            entry.OriginalSize,
-            entry.Flags,
-            companion?.EntryId ?? -1,
-            companion?.Path ?? string.Empty));
-        var key = Convert.ToHexString(SHA256.HashData(identity)).ToLowerInvariant();
+        var key = NativeModelPreviewCache.ComputeKey(PackageVersion, session, entry, companion);
         var modelRoot = Path.Combine(ArchiveLiteDataPaths.PreviewCache, "models");
         var nativeCacheRoot = Path.Combine(ArchiveLiteDataPaths.PreviewCache, "native");
         Directory.CreateDirectory(modelRoot);
         Directory.CreateDirectory(nativeCacheRoot);
         var destination = Path.Combine(modelRoot, key);
-        if (IsComplete(destination))
+        if (await NativeModelPreviewCache.IsReusableAsync(
+                destination,
+                PackageVersion,
+                key,
+                session,
+                entry,
+                cancellationToken).ConfigureAwait(false))
         {
             return destination;
         }
         await Task.Delay(ColdBuildCoalesceDelay, cancellationToken).ConfigureAwait(false);
-        if (IsComplete(destination))
+        if (await NativeModelPreviewCache.IsReusableAsync(
+                destination,
+                PackageVersion,
+                key,
+                session,
+                entry,
+                cancellationToken).ConfigureAwait(false))
         {
             return destination;
         }
@@ -63,7 +63,13 @@ public sealed class NativeModelPreviewService
         await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (IsComplete(destination))
+            if (await NativeModelPreviewCache.IsReusableAsync(
+                    destination,
+                    PackageVersion,
+                    key,
+                    session,
+                    entry,
+                    cancellationToken).ConfigureAwait(false))
             {
                 return destination;
             }
@@ -72,7 +78,7 @@ public sealed class NativeModelPreviewService
                 DeleteOwnedDirectory(modelRoot, destination);
             }
 
-            var staging = Path.Combine(modelRoot, $"{key}.staging-{Guid.NewGuid():N}");
+            var staging = Path.Combine(modelRoot, $"_staging_{Guid.NewGuid():N}");
             Directory.CreateDirectory(staging);
             try
             {
@@ -84,22 +90,25 @@ public sealed class NativeModelPreviewService
                 await PublishAsync(publishProgress, "model_preview_native", cancellationToken).ConfigureAwait(false);
                 await WriteJobAsync(jobPath, packageRoot, nativeCacheRoot, session, entry, companion, cancellationToken).ConfigureAwait(false);
                 await RunPreviewCoreAsync(jobPath, reportPath, cancellationToken).ConfigureAwait(false);
-                ValidateReport(reportPath, staging, packageRoot);
+                var dependencyTrace = ValidateReport(reportPath, staging, packageRoot);
 
                 await PublishAsync(publishProgress, "model_preview_adapt", cancellationToken).ConfigureAwait(false);
-                var sourceIdentity = $"{session.Fingerprint}:{entry.EntryId}:{entry.Path}";
-                await NativePreviewPackageAdapter.PrepareAsync(packageRoot, sourceIdentity, cancellationToken).ConfigureAwait(false);
+                var cacheManifest = await NativeModelPreviewCache.CaptureAsync(
+                    PackageVersion,
+                    key,
+                    session,
+                    entry,
+                    dependencyTrace,
+                    cancellationToken).ConfigureAwait(false);
+                await NativePreviewPackageAdapter.PrepareAsync(
+                    packageRoot,
+                    cacheManifest.SourceIdentity,
+                    cancellationToken).ConfigureAwait(false);
                 await AtomicFile.WriteAsync(
                     Path.Combine(packageRoot, "archive_lite_preview.json"),
                     async (stream, token) => await JsonSerializer.SerializeAsync(
                         stream,
-                        new
-                        {
-                            version = PackageVersion,
-                            cache_key = key,
-                            source_identity = sourceIdentity,
-                            entry_path = entry.Path,
-                        },
+                        cacheManifest,
                         NativePreviewPackageAdapter.JsonOptions,
                         token).ConfigureAwait(false),
                     cancellationToken,
@@ -109,9 +118,19 @@ public sealed class NativeModelPreviewService
                 {
                     Directory.Move(packageRoot, destination);
                 }
-                catch (IOException) when (IsComplete(destination))
+                catch (IOException)
                 {
-                    // Another worker published the same immutable package first.
+                    if (!await NativeModelPreviewCache.IsReusableAsync(
+                            destination,
+                            PackageVersion,
+                            key,
+                            session,
+                            entry,
+                            cancellationToken).ConfigureAwait(false))
+                    {
+                        throw;
+                    }
+                    // Another worker published the same reusable package first.
                 }
                 return destination;
             }
@@ -127,15 +146,6 @@ public sealed class NativeModelPreviewService
         {
             gate.Release();
         }
-    }
-
-    private static bool IsComplete(string directory)
-    {
-        return Directory.Exists(directory)
-            && File.Exists(Path.Combine(directory, "manifest.json"))
-            && File.Exists(Path.Combine(directory, "net_materials.json"))
-            && File.Exists(Path.Combine(directory, "dotnet_scene.json"))
-            && File.Exists(Path.Combine(directory, "archive_lite_preview.json"));
     }
 
     private static async Task PublishAsync(
@@ -300,7 +310,10 @@ public sealed class NativeModelPreviewService
         }
     }
 
-    private static void ValidateReport(string reportPath, string stagingRoot, string expectedPackageRoot)
+    private static NativePreviewDependencyTrace ValidateReport(
+        string reportPath,
+        string stagingRoot,
+        string expectedPackageRoot)
     {
         if (!File.Exists(reportPath))
         {
@@ -323,6 +336,7 @@ public sealed class NativeModelPreviewService
         {
             throw new InvalidDataException("cdmw-preview-core reported an unexpected or incomplete package path.");
         }
+        return NativeModelPreviewCache.ReadTrace(root);
     }
 
     private static string ResolvePreviewCorePath()

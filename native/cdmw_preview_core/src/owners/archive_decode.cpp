@@ -1,4 +1,23 @@
 
+static std::vector<ArchiveEntryRef> g_preview_decoded_dependencies;
+static std::set<std::string> g_preview_decoded_dependency_identities;
+
+static void reset_preview_decoded_dependencies() {
+    g_preview_decoded_dependencies.clear();
+    g_preview_decoded_dependency_identities.clear();
+}
+
+static void record_preview_decoded_dependency(const ArchiveEntryRef& entry) {
+    const std::string identity = lower_copy(
+        entry.pamt_path.string() + "|" + entry.paz_file.string() + "|" + entry.path + "|" +
+        std::to_string(entry.offset) + "|" + std::to_string(entry.comp_size) + "|" +
+        std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags) + "|" +
+        std::to_string(entry.paz_index));
+    if (g_preview_decoded_dependency_identities.insert(identity).second) {
+        g_preview_decoded_dependencies.push_back(entry);
+    }
+}
+
 static std::vector<char> read_archive_ref_raw_bytes(const ArchiveEntryRef& entry) {
     if (entry.paz_file.empty()) {
         throw std::runtime_error("job has no paz_file");
@@ -632,6 +651,7 @@ static void prune_decoded_entry_cache() {
 }
 
 static std::vector<char> read_archive_ref_decoded_bytes(const ArchiveEntryRef& entry) {
+    record_preview_decoded_dependency(entry);
     const std::string key = archive_ref_identity(entry);
     auto found = g_decoded_entry_cache.find(key);
     if (found != g_decoded_entry_cache.end()) {

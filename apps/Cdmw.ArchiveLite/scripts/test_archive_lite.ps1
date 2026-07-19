@@ -81,12 +81,15 @@ try {
     & dotnet build $rendererProject -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET/Vortice preview renderer build"
     $rendererExecutable = Join-Path (Split-Path -Parent $rendererProject) "bin\$Configuration\net8.0-windows\cdmw-mesh-dotnet-editor.exe"
+    $previewExecutable = Join-Path $previewBuild "$Configuration\cdmw-preview-core.exe"
     $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH
+    $previousPreviewPath = $env:CDMW_ARCHIVE_LITE_PREVIEW_CORE_PATH
     $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
     $previousMeshCorePath = $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH
     $previousTextureHelperPath = $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
+        $env:CDMW_ARCHIVE_LITE_PREVIEW_CORE_PATH = $previewExecutable
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $meshCoreExecutable
         $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $textureExecutable
@@ -95,6 +98,7 @@ try {
     }
     finally {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $previousRendererPath
+        $env:CDMW_ARCHIVE_LITE_PREVIEW_CORE_PATH = $previousPreviewPath
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $previousMeshCorePath
         $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $previousTextureHelperPath

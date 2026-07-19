@@ -202,6 +202,25 @@ static std::uint64_t g_archive_lite_lookup_queries = 0;
 static std::uint64_t g_archive_lite_lookup_candidates = 0;
 static bool g_archive_lite_lookup_attempted = false;
 static std::string g_archive_lite_lookup_error;
+struct ArchiveLiteDependencyQuery {
+    std::string basename;
+    size_t max_count = 0;
+    std::string scope;
+};
+static std::vector<ArchiveLiteDependencyQuery> g_archive_lite_dependency_queries;
+static std::set<std::string> g_archive_lite_dependency_query_identities;
+
+static void record_archive_lite_dependency_query(
+    const std::string& basename,
+    size_t max_count,
+    const std::string& scope
+) {
+    const std::string normalized = lower_copy(basename_from_path(basename));
+    const std::string identity = scope + "|" + normalized + "|" + std::to_string(max_count);
+    if (g_archive_lite_dependency_query_identities.insert(identity).second) {
+        g_archive_lite_dependency_queries.push_back(ArchiveLiteDependencyQuery{normalized, max_count, scope});
+    }
+}
 
 static ArchiveLiteLookupIndex* cached_archive_lite_lookup_index(const EntryJob& job) {
     if (job.archive_index_path.empty() || job.archive_basename_index_path.empty()) return nullptr;
@@ -227,8 +246,12 @@ static bool lookup_archive_lite_basename(
     std::vector<ArchiveEntryRef>& result
 ) {
     ArchiveLiteLookupIndex* index = cached_archive_lite_lookup_index(job);
-    if (index == nullptr) return false;
+    if (index == nullptr) {
+        record_archive_lite_dependency_query(basename, max_count, "package_scan_fallback");
+        return false;
+    }
     result = index->lookup_basename(basename, max_count);
+    record_archive_lite_dependency_query(basename, max_count, "global_index");
     ++g_archive_lite_lookup_queries;
     g_archive_lite_lookup_candidates += static_cast<std::uint64_t>(result.size());
     return true;
@@ -247,6 +270,8 @@ static void reset_archive_lite_lookup_diagnostics() {
     g_archive_lite_lookup_candidates = 0;
     g_archive_lite_lookup_attempted = false;
     g_archive_lite_lookup_error.clear();
+    g_archive_lite_dependency_queries.clear();
+    g_archive_lite_dependency_query_identities.clear();
 }
 
 static std::string archive_lite_lookup_backend() {

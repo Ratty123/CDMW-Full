@@ -177,14 +177,43 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     return write_d3d11_package(job, parsed.meshes, bindings, package);
 }
 
+static void reset_preview_dependency_report() {
+    reset_archive_lite_lookup_diagnostics();
+    reset_preview_decoded_dependencies();
+}
+
+static void append_preview_dependency_report(std::ostringstream& out) {
+    out << "\"cache_dependency_schema\":1,\"cache_dependency_queries\":[";
+    for (size_t i = 0; i < g_archive_lite_dependency_queries.size(); ++i) {
+        if (i) out << ",";
+        const ArchiveLiteDependencyQuery& query = g_archive_lite_dependency_queries[i];
+        out << "{\"basename\":\"" << json_escape(query.basename) << "\","
+            << "\"maximum_results\":" << query.max_count << ","
+            << "\"scope\":\"" << json_escape(query.scope) << "\"}";
+    }
+    out << "],\"cache_dependency_entries\":[";
+    for (size_t i = 0; i < g_preview_decoded_dependencies.size(); ++i) {
+        if (i) out << ",";
+        const ArchiveEntryRef& dependency = g_preview_decoded_dependencies[i];
+        out << "{\"path\":\"" << json_escape(dependency.path) << "\","
+            << "\"pamt_path\":\"" << json_escape(dependency.pamt_path.string()) << "\","
+            << "\"paz_file\":\"" << json_escape(dependency.paz_file.string()) << "\","
+            << "\"offset\":" << dependency.offset << ","
+            << "\"comp_size\":" << dependency.comp_size << ","
+            << "\"orig_size\":" << dependency.orig_size << ","
+            << "\"flags\":" << dependency.flags << ","
+            << "\"paz_index\":" << dependency.paz_index << "}";
+    }
+    out << "],";
+}
+
 std::string preview_report_for_job(const fs::path& job_path) {
     const auto started = std::chrono::steady_clock::now();
-    reset_archive_lite_lookup_diagnostics();
+    reset_preview_dependency_report();
     EntryJob job = parse_job(job_path);
     std::string status = "unsupported";
     std::string fallback_reason;
-    std::string message;
-    std::string format_fourcc;
+    std::string message, format_fourcc;
     std::uint64_t bytes_read = 0;
     const int compression_type = static_cast<int>(job.flags & 0x0F);
     bool raw_read_ok = false;
@@ -279,8 +308,9 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"archive_lookup_backend\":\"" << json_escape(archive_lite_lookup_backend()) << "\","
         << "\"archive_lookup_queries\":" << g_archive_lite_lookup_queries << ","
         << "\"archive_lookup_candidates\":" << g_archive_lite_lookup_candidates << ","
-        << "\"archive_lookup_error\":\"" << json_escape(g_archive_lite_lookup_error) << "\","
-        << "\"decoded_cache_entries\":" << decoded_entry_cache_entries() << ","
+        << "\"archive_lookup_error\":\"" << json_escape(g_archive_lite_lookup_error) << "\",";
+    append_preview_dependency_report(out);
+    out << "\"decoded_cache_entries\":" << decoded_entry_cache_entries() << ","
         << "\"decoded_cache_bytes\":" << decoded_entry_cache_bytes() << ","
         << "\"decoded_cache_hits\":" << decoded_entry_cache_hits() << ","
         << "\"decoded_cache_misses\":" << decoded_entry_cache_misses() << ","

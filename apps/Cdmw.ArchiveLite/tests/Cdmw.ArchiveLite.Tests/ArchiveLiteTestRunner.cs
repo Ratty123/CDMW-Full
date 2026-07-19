@@ -1745,27 +1745,68 @@ internal static class ArchiveLiteTestRunner
             CancellationToken.None).ConfigureAwait(false);
         var session = sessions.GetRequired(opened.SessionId);
         var entry = session.Index.FindEntriesByPath("character/model/hero.pac").Single();
-        var identity = Encoding.UTF8.GetBytes(string.Join(
-            '|',
-            "archive_lite_native_model_v1",
-            session.Fingerprint,
-            entry.EntryId,
-            entry.Path,
-            entry.Offset,
-            entry.StoredSize,
-            entry.OriginalSize,
-            entry.Flags,
-            -1,
-            string.Empty));
-        var key = Convert.ToHexString(SHA256.HashData(identity)).ToLowerInvariant();
-        var destination = Path.Combine(ArchiveLiteDataPaths.PreviewCache, "models", key);
-        Directory.CreateDirectory(destination);
-        foreach (var name in new[] { "manifest.json", "net_materials.json", "dotnet_scene.json", "archive_lite_preview.json" })
+        var previewCorePath = Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_PREVIEW_CORE_PATH");
+        if (!string.IsNullOrWhiteSpace(previewCorePath))
         {
-            await File.WriteAllTextAsync(Path.Combine(destination, name), "{}").ConfigureAwait(false);
+            await RunNativeDependencyTraceProbeAsync(previewCorePath, session, entry).ConfigureAwait(false);
+        }
+        var previews = new NativeModelPreviewService();
+        using var coldTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var coldTimer = Stopwatch.StartNew();
+        var destination = await previews.BuildAsync(
+            session,
+            entry,
+            null,
+            coldTimeout.Token).ConfigureAwait(false);
+        coldTimer.Stop();
+        var cacheManifestPath = Path.Combine(destination, "archive_lite_preview.json");
+        var cacheManifestText = await File.ReadAllTextAsync(cacheManifestPath).ConfigureAwait(false);
+        using (var cacheManifest = JsonDocument.Parse(cacheManifestText))
+        {
+            var root = cacheManifest.RootElement;
+            Require(root.GetProperty("validation_mode").GetString() == "dependency_v1", "native package cache fell back to whole-session invalidation");
+            Require(
+                root.GetProperty("dependencies").EnumerateArray().Any(dependency =>
+                    dependency.GetProperty("path").GetString() == entry.Path
+                    && dependency.GetProperty("raw_sha256").GetString()?.Length == 64),
+                "native package cache omitted the selected PAC dependency or its stored-byte hash");
+            Require(
+                root.GetProperty("basename_queries").EnumerateArray().Any(query =>
+                    query.GetProperty("basename").GetString() == "hero_s.prefab"
+                    && query.GetProperty("candidates").GetArrayLength() == 0),
+                "native package cache omitted the zero-result prefab dependency query");
+        }
+        var priorFingerprint = "different-unrelated-session-fingerprint";
+        var crossSessionManifest = cacheManifestText.Replace(session.Fingerprint, priorFingerprint, StringComparison.Ordinal);
+        Require(crossSessionManifest != cacheManifestText, "native package cache manifest omitted its source-session fingerprint");
+        await File.WriteAllTextAsync(cacheManifestPath, crossSessionManifest).ConfigureAwait(false);
+
+        var pazPath = Path.IsPathFullyQualified(entry.PazFile)
+            ? Path.GetFullPath(entry.PazFile)
+            : Path.GetFullPath(Path.Combine(Path.GetDirectoryName(entry.SourcePamt)!, entry.PazFile));
+        var originalPaz = await File.ReadAllBytesAsync(pazPath).ConfigureAwait(false);
+        var originalPazTimestamp = File.GetLastWriteTimeUtc(pazPath);
+        var changedPaz = originalPaz.ToArray();
+        changedPaz[checked((int)entry.Offset + 100)] ^= 0x5A;
+        try
+        {
+            await File.WriteAllBytesAsync(pazPath, changedPaz).ConfigureAwait(false);
+            File.SetLastWriteTimeUtc(pazPath, originalPazTimestamp);
+            using var cancelledByRawDependencyChange = new CancellationTokenSource(TimeSpan.FromMilliseconds(10));
+            await RequireThrowsAsync<OperationCanceledException>(() => previews.BuildAsync(
+                    session,
+                    entry,
+                    null,
+                    cancelledByRawDependencyChange.Token))
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            await File.WriteAllBytesAsync(pazPath, originalPaz).ConfigureAwait(false);
+            File.SetLastWriteTimeUtc(pazPath, originalPazTimestamp);
         }
 
-        var previews = new NativeModelPreviewService();
+        var warmTimer = Stopwatch.StartNew();
         using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1)))
         {
             var cached = await previews.BuildAsync(
@@ -1774,6 +1815,52 @@ internal static class ArchiveLiteTestRunner
                 null,
                 timeout.Token).ConfigureAwait(false);
             Require(cached == destination, "warm native model cache hit returned the wrong package");
+        }
+        warmTimer.Stop();
+        Require(
+            warmTimer.Elapsed < coldTimer.Elapsed,
+            $"dependency-validated cache reuse ({warmTimer.Elapsed.TotalMilliseconds:N1} ms) was not faster than the cold native build ({coldTimer.Elapsed.TotalMilliseconds:N1} ms)");
+        Console.WriteLine(
+            $"INFO: native model cache cold={coldTimer.Elapsed.TotalMilliseconds:N1}ms cross-session-warm={warmTimer.Elapsed.TotalMilliseconds:N1}ms");
+
+        var unknownValidationManifest = crossSessionManifest.Replace(
+            "dependency_v1",
+            "unknown",
+            StringComparison.Ordinal);
+        Require(unknownValidationManifest != crossSessionManifest, "native package cache manifest omitted its validation mode");
+        try
+        {
+            await File.WriteAllTextAsync(cacheManifestPath, unknownValidationManifest).ConfigureAwait(false);
+            using var cancelledByUnknownValidation = new CancellationTokenSource(TimeSpan.FromMilliseconds(10));
+            await RequireThrowsAsync<OperationCanceledException>(() => previews.BuildAsync(
+                    session,
+                    entry,
+                    null,
+                    cancelledByUnknownValidation.Token))
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            await File.WriteAllTextAsync(cacheManifestPath, crossSessionManifest).ConfigureAwait(false);
+        }
+
+        await fixture.AddSingleEntryPackageAsync(
+            "added-package",
+            "bin__/prefab/hero_s.prefab",
+            Encoding.UTF8.GetBytes("new cross-package prefab candidate")).ConfigureAwait(false);
+        using (var changedSessions = new ArchiveSessionManager(native))
+        {
+            var changedOpen = await changedSessions.OpenAsync(
+                new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.SessionOnly),
+                CancellationToken.None).ConfigureAwait(false);
+            var changedSession = changedSessions.GetRequired(changedOpen.SessionId);
+            var unchangedEntry = changedSession.Index.FindEntriesByPath(entry.Path).Single();
+            using var cancelledByDependencyChange = new CancellationTokenSource(TimeSpan.FromMilliseconds(5));
+            await RequireThrowsAsync<OperationCanceledException>(() => previews.BuildAsync(
+                changedSession,
+                unchangedEntry,
+                null,
+                cancelledByDependencyChange.Token)).ConfigureAwait(false);
         }
 
         Directory.Delete(destination, recursive: true);
@@ -1845,6 +1932,11 @@ internal static class ArchiveLiteTestRunner
             && modelPreviewSource.Contains("[\"archive_basename_index_path\"] = session.BasenameIndex.Path", StringComparison.Ordinal),
             "native model jobs do not carry the compact cross-package lookup indexes");
         Require(
+            modelPreviewSource.Contains("NativeModelPreviewCache.ComputeKey(PackageVersion, session, entry, companion)", StringComparison.Ordinal)
+            && modelPreviewSource.Contains("NativeModelPreviewCache.IsReusableAsync", StringComparison.Ordinal)
+            && !modelPreviewSource.Contains("PackageVersion,\n            session.Fingerprint", StringComparison.Ordinal),
+            "native model packages are still keyed by the whole archive-session fingerprint");
+        Require(
             rendererHostSource.Contains("resident.LoadPackageAsync(packagePath, generation", StringComparison.Ordinal)
             && rendererHostSource.Contains("The old scene remains live while a fresh-process fallback starts", StringComparison.Ordinal)
             && rendererHostSource.Contains("prior is { IsAlive: true }", StringComparison.Ordinal),
@@ -1853,6 +1945,100 @@ internal static class ArchiveLiteTestRunner
             buildSource.Contains("-p:PublishSingleFile=false", StringComparison.Ordinal)
             && !buildSource.Contains("-p:IncludeNativeLibrariesForSelfExtract=true", StringComparison.Ordinal),
             "the already-contained renderer still incurs a nested single-file extraction launch");
+    }
+
+    private static async Task RunNativeDependencyTraceProbeAsync(
+        string previewCorePath,
+        ArchiveSession session,
+        ArchiveEntryDto entry)
+    {
+        var probeRoot = Path.Combine(Path.GetTempPath(), $"cdmw-archive-lite-dependency-trace-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(probeRoot);
+        try
+        {
+            var outputRoot = Path.Combine(probeRoot, "package");
+            var jobPath = Path.Combine(probeRoot, "job.json");
+            var reportPath = Path.Combine(probeRoot, "report.json");
+            var basenameIndexPath = Path.ChangeExtension(session.Index.Path, ".abi");
+            await File.WriteAllTextAsync(
+                jobPath,
+                JsonSerializer.Serialize(new
+                {
+                    version = 1,
+                    backend = "cdmw_preview_core_0.1",
+                    renderer_backend = "d3d11",
+                    schema_version = 8,
+                    package_root = session.PackageRoot,
+                    archive_index_path = session.Index.Path,
+                    archive_basename_index_path = basenameIndexPath,
+                    cache_root = Path.Combine(probeRoot, "cache"),
+                    output_root = outputRoot,
+                    entry = new
+                    {
+                        path = entry.Path,
+                        basename = entry.Name,
+                        extension = entry.Extension,
+                        pamt_path = entry.SourcePamt,
+                        paz_file = entry.PazFile,
+                        offset = entry.Offset,
+                        comp_size = entry.StoredSize,
+                        orig_size = entry.OriginalSize,
+                        flags = entry.Flags,
+                        paz_index = entry.PazIndex,
+                        compression_type = entry.CompressionType,
+                    },
+                    companion_entry = new { },
+                    render_settings = new
+                    {
+                        visible_texture_mode = "mesh_base_first",
+                        d3d11_view_mode = "lit",
+                        use_textures_by_default = false,
+                        high_quality_by_default = true,
+                    },
+                })).ConfigureAwait(false);
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = Path.GetFullPath(previewCorePath),
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+            };
+            startInfo.ArgumentList.Add("preview-job");
+            startInfo.ArgumentList.Add(jobPath);
+            startInfo.ArgumentList.Add(reportPath);
+            using var process = Process.Start(startInfo)
+                ?? throw new InvalidOperationException("native dependency-trace probe could not start preview-core");
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            var stdoutText = await stdout.ConfigureAwait(false);
+            var stderrText = await stderr.ConfigureAwait(false);
+            Require(process.ExitCode == 0, $"native dependency-trace probe failed: {stderrText}{stdoutText}");
+            using var report = JsonDocument.Parse(await File.ReadAllTextAsync(reportPath).ConfigureAwait(false));
+            var root = report.RootElement;
+            Require(root.GetProperty("cache_dependency_schema").GetInt32() == 1, "native report omitted the cache dependency schema");
+            Require(
+                root.GetProperty("cache_dependency_entries").EnumerateArray().Any(candidate =>
+                    candidate.GetProperty("path").GetString() == entry.Path),
+                "native report did not record the selected PAC dependency");
+            var dependencyQueries = root.GetProperty("cache_dependency_queries");
+            Require(
+                dependencyQueries.EnumerateArray().Any(query =>
+                    query.GetProperty("basename").GetString() == "hero_s.prefab"
+                    && query.GetProperty("scope").GetString() == "global_index"
+                    && query.GetProperty("maximum_results").GetInt32() == 8),
+                $"native report did not retain a zero-result global prefab query: {dependencyQueries.GetRawText()}");
+        }
+        finally
+        {
+            if (Directory.Exists(probeRoot))
+            {
+                Directory.Delete(probeRoot, recursive: true);
+            }
+        }
     }
 
     private static async Task TestAssetMetadataAndHkxPreviewAsync()

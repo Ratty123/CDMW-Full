@@ -51,6 +51,11 @@ static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
         }
     };
     add_from_index(primary_index);
+    if (!result.empty()) {
+        record_archive_lite_dependency_query(basename, max_count, "primary_pamt");
+    } else if (job.package_root.empty()) {
+        record_archive_lite_dependency_query(basename, max_count, "package_scan_fallback");
+    }
     if (!result.empty() || job.package_root.empty()) return result;
     std::vector<ArchiveEntryRef> indexed_candidates;
     if (lookup_archive_lite_basename(job, basename, max_count, indexed_candidates)) {

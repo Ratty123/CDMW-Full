@@ -65,7 +65,7 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
 
         var payloads = new (string Path, byte[] Bytes)[]
         {
-            ("character/model/hero.pac", [0x50, 0x41, 0x43, 0x00, 0x01]),
+            ("character/model/hero.pac", BuildSyntheticPac()),
             (
                 "character/modelproperty/hero.pac_xml",
                 Encoding.UTF8.GetBytes(
@@ -100,6 +100,89 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         }
         await File.WriteAllBytesAsync(fixture.Pamt, BuildPamt(entries)).ConfigureAwait(false);
         return fixture;
+    }
+
+    public async Task AddSingleEntryPackageAsync(string packageName, string virtualPath, byte[] payload)
+    {
+        var packageDirectory = Path.Combine(Root, packageName);
+        Directory.CreateDirectory(packageDirectory);
+        var pamtPath = Path.Combine(packageDirectory, "0.pamt");
+        var pazPath = Path.Combine(packageDirectory, "0.paz");
+        await File.WriteAllBytesAsync(pazPath, payload).ConfigureAwait(false);
+        await File.WriteAllBytesAsync(
+            pamtPath,
+            BuildPamt([new EntrySpec(virtualPath, 0, checked((uint)payload.Length), checked((uint)payload.Length), 0)]))
+            .ConfigureAwait(false);
+    }
+
+    private static byte[] BuildSyntheticPac()
+    {
+        const int gridWidth = 4;
+        const int vertexStride = 40;
+        const int vertexCount = gridWidth * gridWidth;
+        const int indexCount = (gridWidth - 1) * (gridWidth - 1) * 6;
+        var section0 = new byte[64];
+        section0[4] = 1;
+        const int descriptor = 8;
+        section0[descriptor] = 1;
+        BinaryPrimitives.WriteSingleLittleEndian(section0.AsSpan(descriptor + 23, 4), 3.0f);
+        BinaryPrimitives.WriteSingleLittleEndian(section0.AsSpan(descriptor + 27, 4), 3.0f);
+        BinaryPrimitives.WriteSingleLittleEndian(section0.AsSpan(descriptor + 31, 4), 1.0f);
+        section0[descriptor + 35] = 0x02;
+        section0[descriptor + 36] = 0x00;
+        section0[descriptor + 37] = 0x01;
+        BinaryPrimitives.WriteUInt16LittleEndian(section0.AsSpan(descriptor + 40, 2), vertexCount);
+        BinaryPrimitives.WriteUInt32LittleEndian(section0.AsSpan(descriptor + 44, 4), indexCount);
+
+        var geometry = new byte[vertexCount * vertexStride + indexCount * sizeof(ushort)];
+        var packedNormal = 1023u | (512u << 10) | (512u << 20);
+        for (var y = 0; y < gridWidth; y++)
+        {
+            for (var x = 0; x < gridWidth; x++)
+            {
+                var vertex = (y * gridWidth + x) * vertexStride;
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    geometry.AsSpan(vertex, 2),
+                    checked((ushort)Math.Round(x / 3.0 * 32767.0)));
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    geometry.AsSpan(vertex + 2, 2),
+                    checked((ushort)Math.Round(y / 3.0 * 32767.0)));
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    geometry.AsSpan(vertex + 8, 2),
+                    BitConverter.HalfToUInt16Bits((Half)(x / 3.0f)));
+                BinaryPrimitives.WriteUInt16LittleEndian(
+                    geometry.AsSpan(vertex + 10, 2),
+                    BitConverter.HalfToUInt16Bits((Half)(y / 3.0f)));
+                BinaryPrimitives.WriteUInt32LittleEndian(geometry.AsSpan(vertex + 16, 4), packedNormal);
+            }
+        }
+        var indexOffset = vertexCount * vertexStride;
+        var index = 0;
+        for (var y = 0; y < gridWidth - 1; y++)
+        {
+            for (var x = 0; x < gridWidth - 1; x++)
+            {
+                var topLeft = checked((ushort)(y * gridWidth + x));
+                var topRight = checked((ushort)(topLeft + 1));
+                var bottomLeft = checked((ushort)(topLeft + gridWidth));
+                var bottomRight = checked((ushort)(bottomLeft + 1));
+                foreach (var value in new[] { topLeft, topRight, bottomLeft, topRight, bottomRight, bottomLeft })
+                {
+                    BinaryPrimitives.WriteUInt16LittleEndian(
+                        geometry.AsSpan(indexOffset + index * sizeof(ushort), sizeof(ushort)),
+                        value);
+                    index++;
+                }
+            }
+        }
+
+        var pac = new byte[0x50 + section0.Length + geometry.Length];
+        "PAR "u8.CopyTo(pac);
+        BinaryPrimitives.WriteUInt32LittleEndian(pac.AsSpan(0x14, 4), checked((uint)section0.Length));
+        BinaryPrimitives.WriteUInt32LittleEndian(pac.AsSpan(0x34, 4), checked((uint)geometry.Length));
+        section0.CopyTo(pac, 0x50);
+        geometry.CopyTo(pac, 0x50 + section0.Length);
+        return pac;
     }
 
     public ValueTask DisposeAsync()
