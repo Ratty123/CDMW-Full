@@ -180,7 +180,16 @@ def test_fetch_page_enforces_worker_page_bound() -> None:
 
 def test_prepare_entries_contract_is_bounded_and_parses_stream_batches() -> None:
     request = PrepareEntriesRequest("session-a", (7, 9))
-    assert to_wire(request) == {"session_id": "session-a", "entry_ids": [7, 9]}
+    assert to_wire(request) == {
+        "session_id": "session-a",
+        "entry_ids": [7, 9],
+        "content_analysis_entry_id": None,
+    }
+    assert to_wire(PrepareEntriesRequest("session-a", (7, 9), content_analysis_entry_id=7)) == {
+        "session_id": "session-a",
+        "entry_ids": [7, 9],
+        "content_analysis_entry_id": 7,
+    }
     result = PrepareEntriesResult.from_wire(
         {
             "session_id": "session-a",
@@ -210,6 +219,8 @@ def test_prepare_entries_contract_is_bounded_and_parses_stream_batches() -> None
         PrepareEntriesRequest("session-a", ())
     with pytest.raises(ValueError, match="must not contain duplicates"):
         PrepareEntriesRequest("session-a", (7, 7))
+    with pytest.raises(ValueError, match="must be included"):
+        PrepareEntriesRequest("session-a", (7, 9), content_analysis_entry_id=11)
     with pytest.raises(ValueError, match="4,096"):
         PrepareEntriesRequest("session-a", tuple(range(4_097)))
 

@@ -11,6 +11,7 @@ public static class ArchiveLiteDataPaths
     public static string IndexCache { get; } = Path.Combine(Cache, "index");
     public static string IndexRootManifests { get; } = Path.Combine(IndexCache, "roots");
     public static string PreviewCache { get; } = Path.Combine(Cache, "preview");
+    public static string ContentAnalysisCache { get; } = Path.Combine(PreviewCache, "content-analysis");
     public static string NameIndexCache { get; } = Path.Combine(Cache, "names");
 
     public static string CreateSessionIndexPath() => Path.Combine(
@@ -22,6 +23,7 @@ public static class ArchiveLiteDataPaths
         Directory.CreateDirectory(IndexCache);
         Directory.CreateDirectory(IndexRootManifests);
         Directory.CreateDirectory(PreviewCache);
+        Directory.CreateDirectory(ContentAnalysisCache);
         Directory.CreateDirectory(NameIndexCache);
     }
 

@@ -1,4 +1,5 @@
 <Solution>
+  <Project Path="src/Cdmw.Archive.Content/Cdmw.Archive.Content.csproj" />
   <Project Path="src/Cdmw.FullArchive.Contracts/Cdmw.FullArchive.Contracts.csproj" />
   <Project Path="src/Cdmw.FullArchive.Core/Cdmw.FullArchive.Core.csproj" />
   <Project Path="src/Cdmw.FullArchive.Worker/Cdmw.FullArchive.Worker.csproj" />

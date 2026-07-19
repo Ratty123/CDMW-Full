@@ -26,6 +26,7 @@ from cdmw.models import (
 from cdmw.core.common import RunCancelled
 from cdmw.core.archive_model_references import _ArchiveModelSidecarTextureBinding
 from cdmw.core.archive_model_textures import _FAST_ARCHIVE_PREVIEW_TEXTURE_NOTE
+from cdmw.core.archive_content_analysis import load_archive_content_analysis
 from cdmw.core.archive_compat_exports import ARCHIVE_EXPORTS
 
 
@@ -510,7 +511,7 @@ def build_archive_preview_result(
                 loose_preview_detail_text=loose_preview_detail_text,
             )
 
-        if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
+        if extension in {".paa", ".paa_metabin", ".pae", ".paem", ".motionblending", ".papr", ".paseq", ".paseqc", ".paschedule", ".paschedulepath", ".pastage"}:
             structured_preview = build_par_structured_preview(
                 data,
                 entry.path,
@@ -1285,6 +1286,17 @@ def build_archive_preview_result(
             data,
             info_extra="\n".join(info_extra_parts),
         )
+        shared_analysis = load_archive_content_analysis(entry)
+        if shared_analysis is not None:
+            shared_note = (
+                f"Shared decoder baseline: {shared_analysis.analyzer_version} "
+                f"({shared_analysis.content_kind}, {shared_analysis.maturity})\n"
+                f"Normalized JSON: {shared_analysis.json_path}"
+            )
+            info_extra = "\n\n".join(part for part in (info_extra, shared_note) if part)
+            if model_preview is None:
+                preview_text = shared_analysis.text
+                preferred_view = "text"
         header_preview = format_binary_header_preview(data[:ARCHIVE_BINARY_HEX_PREVIEW_LIMIT])
         detail_text = build_archive_entry_detail_text(
             entry,

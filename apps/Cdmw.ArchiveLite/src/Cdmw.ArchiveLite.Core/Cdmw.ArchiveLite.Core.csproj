@@ -5,6 +5,7 @@
     <RootNamespace>Cdmw.ArchiveLite.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../../../../tools/dotnet_archive_backend/src/Cdmw.Archive.Content/Cdmw.Archive.Content.csproj" />
     <ProjectReference Include="../Cdmw.ArchiveLite.Contracts/Cdmw.ArchiveLite.Contracts.csproj" />
   </ItemGroup>
 </Project>

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text;
+using Cdmw.Archive.Content;
 using Cdmw.ArchiveLite.Contracts;
 
 namespace Cdmw.ArchiveLite.Core;
@@ -16,16 +17,13 @@ public sealed class ArchivePreviewService
     {
         ".avi", ".bk2", ".m4v", ".mov", ".mp4", ".mpeg", ".mpg", ".webm", ".wmv",
     };
-    private static readonly HashSet<string> MetadataOnlyExtensions = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ".hkx", ".hkt",
-    };
     private readonly ArchiveSessionManager _sessions;
     private readonly NativeArchiveCore _native;
     private readonly NativeModelPreviewService _modelPreviews;
     private readonly NativeTexturePreviewService _texturePreviews;
     private readonly NativeMediaPreviewService _mediaPreviews;
     private readonly TextDocumentPreviewService _textDocuments;
+    private readonly ArchiveContentPreviewService _contentPreviews;
 
     public ArchivePreviewService(
         ArchiveSessionManager sessions,
@@ -33,7 +31,8 @@ public sealed class ArchivePreviewService
         NativeModelPreviewService? modelPreviews = null,
         NativeTexturePreviewService? texturePreviews = null,
         NativeMediaPreviewService? mediaPreviews = null,
-        TextDocumentPreviewService? textDocuments = null)
+        TextDocumentPreviewService? textDocuments = null,
+        ArchiveContentPreviewService? contentPreviews = null)
     {
         _sessions = sessions;
         _native = native;
@@ -41,6 +40,7 @@ public sealed class ArchivePreviewService
         _texturePreviews = texturePreviews ?? new NativeTexturePreviewService();
         _mediaPreviews = mediaPreviews ?? new NativeMediaPreviewService();
         _textDocuments = textDocuments ?? new TextDocumentPreviewService();
+        _contentPreviews = contentPreviews ?? new ArchiveContentPreviewService();
     }
 
     public Task<PreviewResult> BuildAsync(
@@ -94,14 +94,14 @@ public sealed class ArchivePreviewService
 
         if (entry.OriginalSize > MaximumPreviewBytes)
         {
-            var metadataOnly = MetadataOnlyExtensions.Contains(entry.Extension);
+            var capability = ArchiveContentRegistry.Describe(entry.Extension);
             return new PreviewResult(
                 session.Id,
                 entry.EntryId,
                 NativeModelPreviewService.Supports(entry.Extension) ? PreviewKind.Model : PreviewKind.Metadata,
                 entry.Name,
                 metadata,
-                Text: metadataOnly ? BuildMetadataOnlyPreview(metadata) : metadata,
+                Text: BuildOversizedPreview(metadata, capability),
                 Warnings: [.. warnings, $"Preview was not decoded because the entry exceeds {MaximumPreviewBytes / (1024 * 1024)} MiB."]);
         }
         cancellationToken.ThrowIfCancellationRequested();
@@ -109,20 +109,9 @@ public sealed class ArchivePreviewService
         cancellationToken.ThrowIfCancellationRequested();
         metadata = AssetMetadataInspector.Enrich(metadata, entry.Extension, decoded.Bytes);
         if (!string.IsNullOrWhiteSpace(decoded.Note)) warnings.Add(decoded.Note);
+        var contentCapability = ArchiveContentRegistry.Find(entry.Extension);
 
-        if (MetadataOnlyExtensions.Contains(entry.Extension))
-        {
-            return new PreviewResult(
-                session.Id,
-                entry.EntryId,
-                PreviewKind.Metadata,
-                entry.Name,
-                metadata,
-                Text: BuildMetadataOnlyPreview(metadata),
-                Warnings: warnings);
-        }
-
-        if (entry.Role is ArchiveEntryRole.Text or ArchiveEntryRole.Metadata || LooksTextual(decoded.Bytes))
+        if (contentCapability?.Container == "text" || LooksTextual(decoded.Bytes))
         {
             var artifact = await _textDocuments.PublishAsync(
                 $"archive|{session.Fingerprint}|{entry.EntryId}|{entry.Path}",
@@ -156,14 +145,8 @@ public sealed class ArchivePreviewService
                 catch (Exception exception)
                 {
                     warnings.Add($"DirectXTex DDS preview unavailable: {exception.Message}");
-                    return new PreviewResult(
-                        session.Id,
-                        entry.EntryId,
-                        PreviewKind.Hex,
-                        entry.Name,
-                        metadata,
-                        BuildHex(decoded.Bytes, request.BinaryByteLimit),
-                        Warnings: warnings);
+                    return await BuildSemanticResultAsync(session, entry, decoded.Bytes, metadata, warnings, cancellationToken)
+                        .ConfigureAwait(false);
                 }
             }
             return new PreviewResult(session.Id, entry.EntryId, PreviewKind.Image, entry.Name, metadata, ArtifactPath: artifact, Warnings: warnings);
@@ -186,28 +169,16 @@ public sealed class ArchivePreviewService
                 catch (Exception exception)
                 {
                     warnings.Add($"Wwise audio decode unavailable: {exception.Message}");
-                    return new PreviewResult(
-                        session.Id,
-                        entry.EntryId,
-                        PreviewKind.Hex,
-                        entry.Name,
-                        metadata,
-                        BuildHex(decoded.Bytes, request.BinaryByteLimit),
-                        Warnings: warnings);
+                    return await BuildSemanticResultAsync(session, entry, decoded.Bytes, metadata, warnings, cancellationToken)
+                        .ConfigureAwait(false);
                 }
             }
             else if ((entry.Role == ArchiveEntryRole.Audio && !DirectAudioExtensions.Contains(entry.Extension))
                 || (entry.Role == ArchiveEntryRole.Video && !DirectVideoExtensions.Contains(entry.Extension)))
             {
-                warnings.Add($"No bundled decoder is available for {entry.Extension}; showing a binary preview instead.");
-                return new PreviewResult(
-                    session.Id,
-                    entry.EntryId,
-                    PreviewKind.Hex,
-                    entry.Name,
-                    metadata,
-                    BuildHex(decoded.Bytes, request.BinaryByteLimit),
-                    Warnings: warnings);
+                warnings.Add($"No bundled playback decoder is available for {entry.Extension}; showing readable header analysis instead.");
+                return await BuildSemanticResultAsync(session, entry, decoded.Bytes, metadata, warnings, cancellationToken)
+                    .ConfigureAwait(false);
             }
             if (entry.Extension.Equals(".bk2", StringComparison.OrdinalIgnoreCase))
             {
@@ -217,17 +188,11 @@ public sealed class ArchivePreviewService
             return new PreviewResult(session.Id, entry.EntryId, kind, entry.Name, metadata, ArtifactPath: artifact, MediaKind: entry.Role.ToString().ToLowerInvariant(), Warnings: warnings);
         }
 
-        if (entry.Role is ArchiveEntryRole.Model or ArchiveEntryRole.Animation or ArchiveEntryRole.Physics)
+        if (contentCapability is not null ||
+            entry.Role is ArchiveEntryRole.Model or ArchiveEntryRole.Animation or ArchiveEntryRole.Physics or ArchiveEntryRole.Metadata)
         {
-            var kind = entry.Role == ArchiveEntryRole.Model ? PreviewKind.Model : PreviewKind.Hkx;
-            return new PreviewResult(
-                session.Id,
-                entry.EntryId,
-                kind,
-                entry.Name,
-                metadata,
-                Text: BuildHex(decoded.Bytes, request.BinaryByteLimit),
-                Warnings: warnings);
+            return await BuildSemanticResultAsync(session, entry, decoded.Bytes, metadata, warnings, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         return new PreviewResult(
@@ -240,13 +205,49 @@ public sealed class ArchivePreviewService
             Warnings: warnings);
     }
 
-    private static string BuildMetadataOnlyPreview(string metadata) => string.Join(
+    private static string BuildOversizedPreview(string metadata, ArchiveContentCapability capability) => string.Join(
         Environment.NewLine,
-        "HKX/HKT metadata",
+        $"{capability.Extension} {capability.Analyzer} metadata",
         string.Empty,
         metadata,
         string.Empty,
-        "Visual preview is intentionally disabled. The archive entry remains available for raw export.");
+        $"Decoder maturity: {capability.Maturity}",
+        capability.UnsupportedReason ?? "The archive entry remains available for raw export.");
+
+    private async Task<PreviewResult> BuildSemanticResultAsync(
+        ArchiveSession session,
+        ArchiveEntryDto entry,
+        byte[] bytes,
+        string metadata,
+        List<string> warnings,
+        CancellationToken cancellationToken)
+    {
+        var artifact = await _contentPreviews.BuildAsync(
+            session.Fingerprint,
+            entry,
+            bytes,
+            cancellationToken).ConfigureAwait(false);
+        foreach (var warning in artifact.Document.Warnings)
+        {
+            if (!warnings.Contains(warning, StringComparer.Ordinal)) warnings.Add(warning);
+        }
+        var artifactMetadata = string.Join(
+            Environment.NewLine,
+            metadata,
+            $"Decoder: {artifact.Document.AnalyzerVersion}",
+            $"Decoder maturity: {artifact.Document.Maturity}",
+            $"Semantic JSON: {artifact.JsonPath}");
+        return new PreviewResult(
+            session.Id,
+            entry.EntryId,
+            PreviewKind.StructuredData,
+            entry.Name,
+            artifactMetadata,
+            Text: artifact.Document.ToReadableText(),
+            ArtifactPath: artifact.JsonPath,
+            Warnings: warnings,
+            Syntax: ".txt");
+    }
 
     private static string BuildMetadata(ArchiveEntryDto entry) => string.Join(
         Environment.NewLine,

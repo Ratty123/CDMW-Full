@@ -515,7 +515,7 @@ class ResearchArchiveCatalogueMixin:
         self._remote_research_generation += 1
         try:
             catalogue_request_id = service.prepare_entry(
-                PrepareEntryRequest(session_id, entry_id),
+                PrepareEntryRequest(session_id, entry_id, include_content_analysis=True),
                 ui_generation=self._remote_research_generation,
             )
         except Exception as exc:
@@ -535,6 +535,13 @@ class ResearchArchiveCatalogueMixin:
             return
         entry.prepared_path = Path(result.prepared_path)
         entry.prepared_sha256 = result.sha256
+        entry.content_analysis_json_path = (
+            Path(result.content_analysis_json_path) if result.content_analysis_json_path else None
+        )
+        entry.content_analysis_text_path = (
+            Path(result.content_analysis_text_path) if result.content_analysis_text_path else None
+        )
+        entry.content_analysis_version = str(result.content_analysis_version or "")
         if channel == "archive_picker":
             if request_id == self.archive_picker_preview_request_id:
                 self._start_archive_picker_preview_worker(request_id, entry)

@@ -230,6 +230,7 @@ class FetchPageRequest:
 class PrepareEntryRequest:
     session_id: str
     entry_id: int
+    include_content_analysis: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -239,6 +240,9 @@ class PrepareEntryResult:
     size: int
     sha256: str
     note: str | None = None
+    content_analysis_json_path: str | None = None
+    content_analysis_text_path: str | None = None
+    content_analysis_version: str | None = None
 
     @classmethod
     def from_wire(cls, value: object) -> "PrepareEntryResult":
@@ -249,6 +253,9 @@ class PrepareEntryResult:
             size=read_int(payload, "size"),
             sha256=read_string(payload, "sha256"),
             note=read_optional_string(payload, "note"),
+            content_analysis_json_path=read_optional_string(payload, "content_analysis_json_path"),
+            content_analysis_text_path=read_optional_string(payload, "content_analysis_text_path"),
+            content_analysis_version=read_optional_string(payload, "content_analysis_version"),
         )
 
 
@@ -256,6 +263,7 @@ class PrepareEntryResult:
 class PrepareEntriesRequest:
     session_id: str
     entry_ids: tuple[int, ...]
+    content_analysis_entry_id: int | None = None
 
     def __post_init__(self) -> None:
         if not self.entry_ids:
@@ -272,6 +280,8 @@ class PrepareEntriesRequest:
             raise ValueError("entry_ids must contain only non-negative integers.")
         if len(set(self.entry_ids)) != len(self.entry_ids):
             raise ValueError("entry_ids must not contain duplicates.")
+        if self.content_analysis_entry_id is not None and self.content_analysis_entry_id not in self.entry_ids:
+            raise ValueError("content_analysis_entry_id must be included in entry_ids.")
 
 
 @dataclass(frozen=True, slots=True)

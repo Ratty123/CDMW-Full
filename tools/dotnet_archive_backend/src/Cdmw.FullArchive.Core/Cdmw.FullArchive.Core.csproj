@@ -8,6 +8,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Cdmw.Archive.Content/Cdmw.Archive.Content.csproj" />
     <ProjectReference Include="../Cdmw.FullArchive.Contracts/Cdmw.FullArchive.Contracts.csproj" />
   </ItemGroup>
 </Project>

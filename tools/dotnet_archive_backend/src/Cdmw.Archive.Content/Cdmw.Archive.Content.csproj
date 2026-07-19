@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Cdmw.Archive.Content</AssemblyName>
+    <RootNamespace>Cdmw.Archive.Content</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="../../../../schemas/archive_content_capabilities.v1.json"
+                      LogicalName="Cdmw.Archive.Content.archive_content_capabilities.v1.json" />
+  </ItemGroup>
+</Project>

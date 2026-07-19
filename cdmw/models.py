@@ -423,6 +423,9 @@ class ArchiveEntry:
     prepared_path: Optional[Path] = None
     prepared_sha256: str = ""
     prepared_note: str = ""
+    content_analysis_json_path: Optional[Path] = None
+    content_analysis_text_path: Optional[Path] = None
+    content_analysis_version: str = ""
 
     @property
     def identity(self) -> ArchiveEntryIdentity:

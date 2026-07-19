@@ -14,6 +14,7 @@ public sealed class ArchiveEntryPreparationService(
     private const int PreparedMetadataSchema = 1;
     private const int HashBufferSize = 128 * 1024;
     private const int HashProgressIntervalBytes = 8 * 1024 * 1024;
+    private readonly ArchiveContentArtifactService _contentArtifacts = new();
 
     public async Task<PrepareEntryResult> PrepareAsync(
         PrepareEntryRequest request,
@@ -36,13 +37,19 @@ public sealed class ArchiveEntryPreparationService(
             var metadata = await ReadPreparedMetadataAsync(destination, cancellationToken).ConfigureAwait(false);
             if (MetadataMatches(metadata, info, sourceSha256))
             {
+                var analysis = await BuildAnalysisFromFileIfRequestedAsync(
+                    request,
+                    entry,
+                    destination,
+                    cancellationToken).ConfigureAwait(false);
                 return Result(
                     session,
                     entry,
                     destination,
                     info.Length,
                     metadata!.PreparedSha256,
-                    "prepared cache hit");
+                    "prepared cache hit",
+                    analysis);
             }
             if (metadata is null)
             {
@@ -53,7 +60,12 @@ public sealed class ArchiveEntryPreparationService(
                     existingHash,
                     info,
                     cancellationToken).ConfigureAwait(false);
-                return Result(session, entry, destination, info.Length, existingHash, "prepared cache hit");
+                var analysis = await BuildAnalysisFromFileIfRequestedAsync(
+                    request,
+                    entry,
+                    destination,
+                    cancellationToken).ConfigureAwait(false);
+                return Result(session, entry, destination, info.Length, existingHash, "prepared cache hit", analysis);
             }
             TryDelete(destination);
             TryDelete(MetadataPath(destination));
@@ -105,7 +117,15 @@ public sealed class ArchiveEntryPreparationService(
             {
                 await progress(new ProgressUpdate(decoded.Bytes.LongLength, decoded.Bytes.LongLength, "prepare_complete", entry.Path)).ConfigureAwait(false);
             }
-            return Result(session, entry, destination, info.Length, preparedSha256, decoded.Note);
+            var analysis = request.IncludeContentAnalysis
+                ? await _contentArtifacts.BuildFromBytesAsync(
+                    destination,
+                    entry.Extension,
+                    entry.Path,
+                    decoded.Bytes,
+                    cancellationToken).ConfigureAwait(false)
+                : null;
+            return Result(session, entry, destination, info.Length, preparedSha256, decoded.Note, analysis);
         }
         finally
         {
@@ -129,6 +149,10 @@ public sealed class ArchiveEntryPreparationService(
         {
             throw new InvalidDataException("Prepare entry batches require unique non-negative entry ids.");
         }
+        if (request.ContentAnalysisEntryId is { } analysisEntryId && !request.EntryIds.Contains(analysisEntryId))
+        {
+            throw new InvalidDataException("The content-analysis entry id must be included in the prepare batch.");
+        }
 
         var items = new List<PrepareEntryResult>(request.EntryIds.Count);
         long totalBytes = 0;
@@ -136,7 +160,10 @@ public sealed class ArchiveEntryPreparationService(
         {
             cancellationToken.ThrowIfCancellationRequested();
             var item = await PrepareAsync(
-                new PrepareEntryRequest(request.SessionId, entryId),
+                new PrepareEntryRequest(
+                    request.SessionId,
+                    entryId,
+                    IncludeContentAnalysis: request.ContentAnalysisEntryId == entryId),
                 cancellationToken,
                 progress).ConfigureAwait(false);
             items.Add(item);
@@ -157,12 +184,30 @@ public sealed class ArchiveEntryPreparationService(
         string path,
         long size,
         string hash,
-        string? note) => new(
+        string? note,
+        ArchiveContentArtifact? analysis = null) => new(
         new ArchiveEntryRef(session.Id, entry.EntryId, entry.Identity, entry.Path),
         path,
         size,
         hash,
-        note);
+        note,
+        analysis?.JsonPath,
+        analysis?.TextPath,
+        analysis?.Version);
+
+    private async Task<ArchiveContentArtifact?> BuildAnalysisFromFileIfRequestedAsync(
+        PrepareEntryRequest request,
+        ArchiveEntryDto entry,
+        string preparedPath,
+        CancellationToken cancellationToken)
+    {
+        if (!request.IncludeContentAnalysis) return null;
+        return await _contentArtifacts.BuildFromFileAsync(
+            preparedPath,
+            entry.Extension,
+            entry.Path,
+            cancellationToken).ConfigureAwait(false);
+    }
 
     private static async Task<string> HashFileAsync(string path, CancellationToken cancellationToken)
     {

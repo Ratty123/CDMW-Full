@@ -73,6 +73,17 @@ class ArchivePreviewDependencySet:
             entry.prepared_path = Path(prepared_item.prepared_path)
             entry.prepared_sha256 = prepared_item.sha256
             entry.prepared_note = str(prepared_item.note or "")
+            entry.content_analysis_json_path = (
+                Path(prepared_item.content_analysis_json_path)
+                if prepared_item.content_analysis_json_path
+                else None
+            )
+            entry.content_analysis_text_path = (
+                Path(prepared_item.content_analysis_text_path)
+                if prepared_item.content_analysis_text_path
+                else None
+            )
+            entry.content_analysis_version = str(prepared_item.content_analysis_version or "")
             entries.append(entry)
             normalized_path = _normalized(entry.path)
             if normalized_path:
@@ -310,7 +321,11 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         entry_ids = (pending.selected.entry_id, *pending.candidates)
         try:
             request_id = self._service.prepare_entries(
-                PrepareEntriesRequest(pending.selected.session_id, entry_ids),
+                PrepareEntriesRequest(
+                    pending.selected.session_id,
+                    entry_ids,
+                    content_analysis_entry_id=pending.selected.entry_id,
+                ),
                 ui_generation=pending.ui_request_id,
             )
         except Exception as exc:

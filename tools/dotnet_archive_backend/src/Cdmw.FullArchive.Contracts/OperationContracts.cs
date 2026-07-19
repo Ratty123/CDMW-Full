@@ -17,16 +17,25 @@ public sealed record CreateQueryRequest(ArchiveQuery Query);
 
 public sealed record FetchPageRequest(string QueryId, int PageStart = 0, int PageSize = 256);
 
-public sealed record PrepareEntryRequest(string SessionId, long EntryId);
+public sealed record PrepareEntryRequest(
+    string SessionId,
+    long EntryId,
+    bool IncludeContentAnalysis = false);
 
-public sealed record PrepareEntriesRequest(string SessionId, IReadOnlyList<long> EntryIds);
+public sealed record PrepareEntriesRequest(
+    string SessionId,
+    IReadOnlyList<long> EntryIds,
+    long? ContentAnalysisEntryId = null);
 
 public sealed record PrepareEntryResult(
     ArchiveEntryRef Entry,
     string PreparedPath,
     long Size,
     string Sha256,
-    string? Note = null);
+    string? Note = null,
+    string? ContentAnalysisJsonPath = null,
+    string? ContentAnalysisTextPath = null,
+    string? ContentAnalysisVersion = null);
 
 public sealed record PrepareEntriesResult(
     string SessionId,

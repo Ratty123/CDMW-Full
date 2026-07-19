@@ -9,6 +9,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using System.Windows.Threading;
+using Cdmw.Archive.Content;
 using Cdmw.ArchiveLite.App.Infrastructure;
 using Cdmw.ArchiveLite.App.Services;
 using Cdmw.ArchiveLite.App.ViewModels;
@@ -45,6 +46,7 @@ internal static class ArchiveLiteTestRunner
             ("archive loading supports reusable and session-only indexes", TestArchiveCacheModesAsync),
             ("startup auto-loads current cache and recommends manual refresh after hash changes", TestStartupCacheAutoLoadAsync),
             ("asset metadata keeps HKX read-only and renderer-free", TestAssetMetadataAndHkxPreviewAsync),
+            ("shared content manifest and semantic analyzers stay decoder-parity safe", TestSharedContentAnalyzersAsync),
             ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
             ("native model previews start immediately and warm-cache hits stay delay-free", TestNativeModelPreviewCacheDwellAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
@@ -2085,12 +2087,12 @@ internal static class ArchiveLiteTestRunner
             new PreviewRequest(opened.SessionId, hkxEntry.EntryId),
             CancellationToken.None).ConfigureAwait(false);
         Require(
-            preview.Kind == PreviewKind.Metadata
-            && preview.ArtifactPath is null
-            && preview.Text?.Contains("HKX/HKT metadata", StringComparison.Ordinal) == true
-            && preview.Text.Contains("Visual preview is intentionally disabled", StringComparison.Ordinal)
-            && preview.Text.Contains("raw export", StringComparison.Ordinal),
-            "HKX preview did not remain on the metadata-only, renderer-free path");
+            preview.Kind == PreviewKind.StructuredData
+            && preview.ArtifactPath?.EndsWith(".json", StringComparison.OrdinalIgnoreCase) == true
+            && preview.Text?.Contains("Havok container analysis", StringComparison.Ordinal) == true
+            && preview.Text.Contains("object graphs are not reconstructed", StringComparison.Ordinal)
+            && File.Exists(preview.ArtifactPath),
+            "HKX preview did not remain on the readable, renderer-free analysis path");
 
         var previewSource = File.ReadAllText(Path.Combine(
             FindRepositoryRoot(),
@@ -2100,8 +2102,8 @@ internal static class ArchiveLiteTestRunner
             "Cdmw.ArchiveLite.Core",
             "ArchivePreviewService.cs"));
         Require(
-            previewSource.Contains("MetadataOnlyExtensions", StringComparison.Ordinal)
-            && previewSource.Contains("BuildMetadataOnlyPreview", StringComparison.Ordinal)
+            previewSource.Contains("BuildSemanticResultAsync", StringComparison.Ordinal)
+            && previewSource.Contains("ArchiveContentPreviewService", StringComparison.Ordinal)
             && !previewSource.Contains("NativeHkxPreviewService", StringComparison.Ordinal),
             "archive preview still contains an HKX visual-rendering route");
         var hostSource = File.ReadAllText(Path.Combine(
@@ -3108,6 +3110,77 @@ internal static class ArchiveLiteTestRunner
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
         return completion.Task;
+    }
+
+    private static Task TestSharedContentAnalyzersAsync()
+    {
+        Require(ArchiveContentRegistry.All.Count >= 100, "shared content manifest is unexpectedly small");
+        Require(
+            ArchiveEntryClassifier.Classify("models/tree.obj", ".obj") == ArchiveEntryRole.Text,
+            "textual model formats must not be routed to hex/model decoding");
+        Require(
+            ArchiveEntryClassifier.ClassifyExtensionCategory(".pae") == ArchiveExtensionCategory.AnimationScene,
+            ".pae must stay in the animation/effect category");
+        Require(
+            ArchiveEntryClassifier.ClassifyExtensionCategory(".paschedulepath") == ArchiveExtensionCategory.AnimationScene,
+            ".paschedulepath must use the canonical extension spelling");
+
+        var analyzer = new ArchiveContentAnalyzer();
+        var meshInfoBytes = Encoding.ASCII.GetBytes(
+            "MeshBounds\0SocketRoot\0BreakablePart\0physics/collision.hkx\0texture/tree_color.dds\0");
+        var meshInfo = analyzer.Analyze(".meshinfo", "tree.meshinfo", meshInfoBytes);
+        Require(meshInfo.ContentKind == "meshinfo", "MeshInfo did not use the semantic analyzer");
+        Require(meshInfo.References.Any(reference => reference.Value.EndsWith("tree_color.dds", StringComparison.OrdinalIgnoreCase)),
+            "MeshInfo asset references were not recovered");
+        Require(meshInfo.ToReadableText().Contains("Candidate", StringComparison.Ordinal),
+            "MeshInfo inferred values must remain visibly labeled as candidates");
+
+        var pat = analyzer.Analyze(".pat", "tree.pat", BuildSyntheticPat());
+        var patModel = pat.Model ?? throw new InvalidOperationException("PAT structural tables did not decode");
+        Require(patModel is { LodCount: 1, VertexCount: 3, IndexCount: 3, DrawCount: 1 },
+            "PAT structural tables did not decode");
+        Require(patModel.MaterialCount == 1, "PAT material strings did not decode");
+        using var json = JsonDocument.Parse(ArchiveContentJson.Serialize(pat));
+        Require(json.RootElement.GetProperty("schema_version").GetInt32() == 1,
+            "semantic JSON schema version was not serialized");
+        return Task.CompletedTask;
+
+        static byte[] BuildSyntheticPat()
+        {
+            const int vertexStart = 52;
+            const int vertexEnd = vertexStart + 3 * 32;
+            const int indexStart = vertexEnd + 8;
+            const int indexEnd = indexStart + 6;
+            const int drawStart = indexEnd + 8;
+            const int drawEnd = drawStart + 16;
+            var tail = Encoding.ASCII.GetBytes("oak_mat\0oak_color.dds\0");
+            var bytes = new byte[drawEnd + tail.Length];
+            "PAR "u8.CopyTo(bytes);
+            WriteSingle(bytes, 16, -1f);
+            WriteSingle(bytes, 20, -2f);
+            WriteSingle(bytes, 24, -3f);
+            WriteSingle(bytes, 28, 4f);
+            WriteSingle(bytes, 32, 5f);
+            WriteSingle(bytes, 36, 6f);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(40), 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(48), 3);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(vertexEnd), 0);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(vertexEnd + 4), 3);
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart), 0);
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart + 2), 1);
+            BinaryPrimitives.WriteUInt16LittleEndian(bytes.AsSpan(indexStart + 4), 2);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(indexEnd), 0);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(indexEnd + 4), 1);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart), 0);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 4), 0);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 8), 0);
+            BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(drawStart + 12), 3);
+            tail.CopyTo(bytes.AsSpan(drawEnd));
+            return bytes;
+        }
+
+        static void WriteSingle(byte[] bytes, int offset, float value) =>
+            BinaryPrimitives.WriteInt32LittleEndian(bytes.AsSpan(offset), BitConverter.SingleToInt32Bits(value));
     }
 
     private static async Task<string> Sha256Async(string path)
