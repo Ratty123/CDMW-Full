@@ -168,7 +168,8 @@ $workerPayload = @(
     "CdmwArchiveLite.Worker.dll",
     "CdmwArchiveLite.Worker.deps.json",
     "CdmwArchiveLite.Worker.runtimeconfig.json",
-    "Cdmw.ArchiveLite.Core.dll"
+    "Cdmw.ArchiveLite.Core.dll",
+    "Cdmw.Archive.Content.dll"
 )
 foreach ($workerFile in $workerPayload) {
     $workerSource = Join-Path $workerStage $workerFile

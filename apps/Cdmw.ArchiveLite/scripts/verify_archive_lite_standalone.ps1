@@ -97,6 +97,7 @@ try {
     $required = @(
         "CdmwArchiveLite.exe",
         "CdmwArchiveLite.Worker.exe",
+        "Cdmw.Archive.Content.dll",
         "cdmw-archive-core.dll",
         "PACKAGE-CONTENTS.json",
         ".standalone-ready",

@@ -14,6 +14,7 @@ if (-not (Test-Path -LiteralPath $artifactRoot -PathType Container)) {
 $requiredFiles = @(
     "CdmwArchiveLite.exe",
     "CdmwArchiveLite.Worker.exe",
+    "Cdmw.Archive.Content.dll",
     "cdmw-archive-core.dll",
     "ICSharpCode.AvalonEdit.dll",
     "preview\cdmw-preview-core.exe",
@@ -321,7 +322,13 @@ try {
 
     $applicationExitCode = Invoke-HiddenProcess -Path $application -Arguments @("--self-test")
     if ($applicationExitCode -ne 0) {
-        throw "Packaged application self-test failed with exit code $applicationExitCode."
+        $applicationLog = Join-Path $testDataRoot "logs\archive-lite.log"
+        $diagnostic = if (Test-Path -LiteralPath $applicationLog -PathType Leaf) {
+            (Get-Content -LiteralPath $applicationLog -TotalCount 25 | Out-String).Trim()
+        } else {
+            "No packaged application diagnostic log was written."
+        }
+        throw "Packaged application self-test failed with exit code $applicationExitCode. $diagnostic"
     }
 
     $orphanWorker = Get-CimInstance Win32_Process | Where-Object {

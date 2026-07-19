@@ -1197,6 +1197,33 @@ internal static class ArchiveLiteTestRunner
             launcherSource.Contains("pause", StringComparison.OrdinalIgnoreCase)
             && launcherSource.Contains("%~dp0artifacts", StringComparison.OrdinalIgnoreCase),
             "the double-click launcher does not keep its result visible or identify the output folder");
+        var buildSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "scripts",
+            "build_archive_lite.ps1"));
+        var artifactGuardSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "scripts",
+            "verify_archive_lite_artifact.ps1"));
+        var standaloneGuardSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "scripts",
+            "verify_archive_lite_standalone.ps1"));
+        Require(
+            buildSource.Contains("\"Cdmw.Archive.Content.dll\"", StringComparison.Ordinal)
+            && artifactGuardSource.Contains("\"Cdmw.Archive.Content.dll\"", StringComparison.Ordinal)
+            && standaloneGuardSource.Contains("\"Cdmw.Archive.Content.dll\"", StringComparison.Ordinal),
+            "the shared archive-content decoder is not copied and required throughout portable/standalone packaging");
+        Require(
+            artifactGuardSource.Contains("logs\\archive-lite.log", StringComparison.Ordinal)
+            && artifactGuardSource.Contains("No packaged application diagnostic log was written", StringComparison.Ordinal),
+            "the artifact guard hides packaged application self-test diagnostics");
         return Task.CompletedTask;
     }
 
