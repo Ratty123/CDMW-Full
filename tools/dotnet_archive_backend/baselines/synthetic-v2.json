@@ -1,0 +1,79 @@
+{
+  "schema": "cdmw_full_archive_synthetic_baseline_v2",
+  "captured_utc": "2026-07-19T12:19:05Z",
+  "environment": {
+    "operating_system": "Microsoft Windows NT 10.0.26200.0",
+    "dotnet_runtime": "10.0.0",
+    "cycles": 3
+  },
+  "entry_count": 4,
+  "identities": [
+    {
+      "entry_id": 0,
+      "path": "binary/blob.bin",
+      "source_pamt": "0.pamt",
+      "paz_index": 0,
+      "offset": 35,
+      "stored_size": 7,
+      "original_size": 7,
+      "flags": 0
+    },
+    {
+      "entry_id": 1,
+      "path": "materials/sample.material",
+      "source_pamt": "0.pamt",
+      "paz_index": 0,
+      "offset": 20,
+      "stored_size": 15,
+      "original_size": 14,
+      "flags": 2
+    },
+    {
+      "entry_id": 2,
+      "path": "text/hello.txt",
+      "source_pamt": "0.pamt",
+      "paz_index": 0,
+      "offset": 0,
+      "stored_size": 20,
+      "original_size": 20,
+      "flags": 0
+    },
+    {
+      "entry_id": 3,
+      "path": "texture/test.dds",
+      "source_pamt": "0.pamt",
+      "paz_index": 0,
+      "offset": 42,
+      "stored_size": 137,
+      "original_size": 136,
+      "flags": 1
+    }
+  ],
+  "observed_cycles_ms": [
+    {
+      "cold_build": 90.1226,
+      "warm_open": 5.3863,
+      "forced_refresh": 24.0557,
+      "cache_bytes": 4153
+    },
+    {
+      "cold_build": 26.3881,
+      "warm_open": 3.0446,
+      "forced_refresh": 22.8566,
+      "cache_bytes": 4154
+    },
+    {
+      "cold_build": 24.7085,
+      "warm_open": 3.2678,
+      "forced_refresh": 23.3286,
+      "cache_bytes": 4154
+    }
+  ],
+  "observed_median": {
+    "cold_build_ms": 26.3881,
+    "warm_open_ms": 3.2678,
+    "forced_refresh_ms": 23.3286,
+    "cache_bytes": 4154
+  },
+  "scope": "Generated synthetic PAMT, PAZ, and PATHC only. This is not real-corpus, visible-UI, licensed-game, or release evidence."
+}

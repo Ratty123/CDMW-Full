@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="src/Cdmw.FullArchive.Contracts/Cdmw.FullArchive.Contracts.csproj" />
+  <Project Path="src/Cdmw.FullArchive.Core/Cdmw.FullArchive.Core.csproj" />
+  <Project Path="src/Cdmw.FullArchive.Worker/Cdmw.FullArchive.Worker.csproj" />
+  <Project Path="tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj" />
+</Solution>

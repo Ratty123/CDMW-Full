@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>cdmw-full-archive-worker</AssemblyName>
+    <RootNamespace>Cdmw.FullArchive.Worker</RootNamespace>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Cdmw.FullArchive.Contracts/Cdmw.FullArchive.Contracts.csproj" />
+    <ProjectReference Include="../Cdmw.FullArchive.Core/Cdmw.FullArchive.Core.csproj" />
+  </ItemGroup>
+  <PropertyGroup>
+    <NativeArchiveCorePath>$(MSBuildThisFileDirectory)..\..\..\..\native\cdmw_full_archive_core\build\$(Configuration)\cdmw-full-archive-core.dll</NativeArchiveCorePath>
+  </PropertyGroup>
+  <Target Name="CopyNativeArchiveCore" AfterTargets="Build" Condition="Exists('$(NativeArchiveCorePath)')">
+    <Copy SourceFiles="$(NativeArchiveCorePath)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
+</Project>
