@@ -13,6 +13,7 @@ os.environ.setdefault("CDMW_GUI_STARTUP_SMOKE", "1")
 from PySide6.QtWidgets import QApplication, QLabel, QPushButton
 
 from cdmw.app.events import AppEventBus
+from cdmw.domain.archives.backend_mode import ArchiveBackendMode, ArchiveBackendSelection
 from cdmw.models import ArchiveEntry
 from cdmw.services.service_container import ServiceContainer
 from cdmw.services.settings_service import create_settings
@@ -181,6 +182,16 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             payload_path = root / "sample.hkx"
             payload_path.write_bytes(b"HKX")
             entry = _entry("character/bin__/meshphysics/sample.hkx", root)
+            if self.window.archive_remote_bridge is not None:
+                self.window.archive_remote_bridge.deactivate()
+            self.window.archive_remote_bridge = None
+            self.window.archive_backend_selection = ArchiveBackendSelection(
+                ArchiveBackendMode.LEGACY,
+                "test_session_legacy",
+                True,
+            )
+            self.window.archive_backend_mode = ArchiveBackendMode.LEGACY
+            self.window.archive_tree.use_legacy_model()
             self.window.archive_filtered_entries = [entry]
             self.window.archive_tree.set_archive_state([entry], mode="flat")
             item = self.window.archive_tree.find_item_for_entry(0)

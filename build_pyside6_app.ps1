@@ -831,7 +831,7 @@ if ($NativeHelpersOnly) {
     }
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
     if ($DescribeOnly) {
-        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the self-contained .NET Mesh Editor and full archive worker/DLL, then run their hidden/synthetic gates."
+        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the self-contained .NET Mesh Editor and full archive worker/DLL, then run the hidden d3d11_vortice_shader smoke and full archive synthetic gates."
         return
     }
     Invoke-NativeHelperPreparation `
