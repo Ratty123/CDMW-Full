@@ -8,6 +8,9 @@ the archive mutation service re-export those exact classes, so importing the
 service container does not load the archive writer.
 `mesh_contracts.py` similarly owns archive/mesh preview, supplemental-file,
 loose-export, and authority-audit result shapes without importing mesh parsers.
+`catalogue.py`, `catalogue_operations.py`, and `catalogue_wire.py` own the
+immutable full-CDMW worker requests, results, paging shapes, and strict JSON
+wire validation shared across the shell client, services, and Archive Browser.
 `constants.py` owns archive media/mesh extension and companion-file policy.
 `format.py` owns extension normalization, sidecar classification, and bounded
 text-payload detection. `attachments.py`, `prefab.py`, `relationships.py`, and
