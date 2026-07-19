@@ -123,7 +123,10 @@ internal sealed partial class ExperimentForm : Form
         _viewport = new MeshViewport(document, _materials, _textureSet, _scene, options) { Dock = DockStyle.Fill };
         if (options.SimplePreview)
         {
-            _ = _viewport.TrySetSynchronizedDisplayMode("untextured_faces", out _);
+            _overlaySettings = new MeshOverlaySettings(
+                new MeshOverlayColors(Color.FromArgb(48, 60, 74), MeshOverlayColors.Default.Vertex),
+                new MeshOverlaySizing(1.0f, MeshOverlaySizing.Default.VertexMarkerSizePixels));
+            _ = _viewport.TrySetSynchronizedDisplayMode("untextured_wire", out _);
         }
         _viewport.SetOverlaySettings(_overlaySettings);
         _viewport.ToolOptionsProvider = ToolOptionsPayload;

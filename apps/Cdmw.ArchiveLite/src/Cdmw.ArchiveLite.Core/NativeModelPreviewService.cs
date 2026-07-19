@@ -11,6 +11,7 @@ public sealed class NativeModelPreviewService
 {
     private const string PackageVersion = "archive_lite_native_model_v1";
     private static readonly TimeSpan PreviewTimeout = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan ColdBuildCoalesceDelay = TimeSpan.FromMilliseconds(35);
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _buildGates = new(StringComparer.Ordinal);
 
     public static bool Supports(string extension) => extension.ToLowerInvariant() is ".pac" or ".pam" or ".pamlod";
@@ -19,15 +20,10 @@ public sealed class NativeModelPreviewService
         ArchiveSession session,
         ArchiveEntryDto entry,
         Func<ProgressUpdate, Task>? publishProgress,
-        CancellationToken cancellationToken,
-        TimeSpan coldBuildDelay = default)
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(entry);
-        if (coldBuildDelay < TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(coldBuildDelay));
-        }
         if (!Supports(entry.Extension))
         {
             throw new NotSupportedException($"Native model preview does not support {entry.Extension}.");
@@ -57,13 +53,10 @@ public sealed class NativeModelPreviewService
         {
             return destination;
         }
-        if (coldBuildDelay > TimeSpan.Zero)
+        await Task.Delay(ColdBuildCoalesceDelay, cancellationToken).ConfigureAwait(false);
+        if (IsComplete(destination))
         {
-            await Task.Delay(coldBuildDelay, cancellationToken).ConfigureAwait(false);
-            if (IsComplete(destination))
-            {
-                return destination;
-            }
+            return destination;
         }
 
         var gate = _buildGates.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));

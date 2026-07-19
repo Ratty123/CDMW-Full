@@ -111,6 +111,14 @@ internal static class D3D11UntexturedReadabilityProof
                 });
             }
 
+            var archiveLiteWireProof = CaptureArchiveLiteWireProof(
+                viewport,
+                document,
+                center,
+                bounds,
+                evidenceDirectory,
+                rows);
+
             var windowsHidden = host.IsHandleCreated
                 && viewport.IsHandleCreated
                 && !host.Visible
@@ -125,6 +133,7 @@ internal static class D3D11UntexturedReadabilityProof
                 ["native_windows_remained_hidden"] = windowsHidden,
                 ["front_back_and_oblique_captures_readable"] = rows.Count == views.Length
                     && rows.All(row => row.GetValueOrDefault("readable") is true),
+                ["archive_lite_matte_wire_overlay_rendered"] = archiveLiteWireProof.GetValueOrDefault("ok") is true,
             };
             return new Dictionary<string, object?>
             {
@@ -135,6 +144,7 @@ internal static class D3D11UntexturedReadabilityProof
                 ["minimum_center_luma_range"] = MinimumCenterLumaRange,
                 ["maximum_center_background_fraction"] = MaximumCenterBackgroundFraction,
                 ["captures"] = rows,
+                ["archive_lite_matte_wire_proof"] = archiveLiteWireProof,
                 ["gates"] = gates,
                 ["ok"] = gates.Values.All(value => value),
             };
@@ -150,6 +160,99 @@ internal static class D3D11UntexturedReadabilityProof
                 ["error"] = $"{ex.GetType().Name}: {ex.Message}",
             };
         }
+    }
+
+    private static Dictionary<string, object?> CaptureArchiveLiteWireProof(
+        D3D11MaterialViewport viewport,
+        ObjDocument document,
+        Vec3 center,
+        (Vec3 Min, Vec3 Max) bounds,
+        string evidenceDirectory,
+        IReadOnlyList<Dictionary<string, object?>> plainCaptures)
+    {
+        var camera = NetViewportCamera.Create(
+            center,
+            bounds,
+            0.62f,
+            0.22f,
+            48.0f,
+            0.0f,
+            0.0f,
+            CaptureSize,
+            CaptureSize);
+        var overlay = new MeshOverlaySettings(
+            new MeshOverlayColors(Color.FromArgb(48, 60, 74), MeshOverlayColors.Default.Vertex),
+            new MeshOverlaySizing(1.0f, MeshOverlaySizing.Default.VertexMarkerSizePixels));
+        viewport.SetOverlaySettings(overlay);
+        viewport.UpdateRenderPanes(new[]
+        {
+            new D3D11RenderPane(
+                new Rectangle(Point.Empty, new Size(CaptureSize, CaptureSize)),
+                camera,
+                "editable",
+                "untextured_wire",
+                0,
+                false,
+                true,
+                false,
+                false,
+                true),
+        });
+        viewport.UpdateOverlay(
+            NetEdgeTopology.Build(document),
+            new HashSet<int>(),
+            -1,
+            null,
+            new Dictionary<int, HashSet<int>>(),
+            new Dictionary<int, HashSet<int>>(),
+            new HashSet<int>(),
+            -1,
+            showWire: true,
+            showVertices: false,
+            showXRay: false,
+            brushCursor: null,
+            brushRadius: 24.0f);
+        var before = viewport.ResourceMetricsPayload();
+        var rendered = viewport.TryRunHeadlessFrame(out var frameMs, out _, out var renderError);
+        var capturePath = Path.Combine(evidenceDirectory, "archive_lite_matte_wire.png");
+        var captured = viewport.TryCaptureReplacementPng(
+            capturePath,
+            CaptureSize,
+            CaptureSize,
+            out var sha256,
+            out var captureError);
+        var after = viewport.ResourceMetricsPayload();
+        var wireDrawAdvanced = Convert.ToInt64(after.GetValueOrDefault("wire_overlay_draws") ?? 0L)
+            > Convert.ToInt64(before.GetValueOrDefault("wire_overlay_draws") ?? 0L);
+        var configuredStyle = string.Equals(
+                after.GetValueOrDefault("wire_overlay_color") as string,
+                "#303C4A",
+                StringComparison.Ordinal)
+            && Math.Abs(Convert.ToSingle(after.GetValueOrDefault("wire_overlay_width_pixels") ?? 0.0f) - 1.0f) <= 0.0001f;
+        var plainHash = plainCaptures
+            .FirstOrDefault(row => string.Equals(row.GetValueOrDefault("name") as string, "front_oblique", StringComparison.Ordinal))
+            ?.GetValueOrDefault("sha256") as string;
+        var outputChanged = captured
+            && !string.IsNullOrWhiteSpace(sha256)
+            && !string.Equals(sha256, plainHash, StringComparison.Ordinal);
+        return new Dictionary<string, object?>
+        {
+            ["ok"] = rendered && captured && wireDrawAdvanced && configuredStyle,
+            ["mode"] = "untextured_wire",
+            ["textures_enabled"] = false,
+            ["capture_scope"] = "solid_only",
+            ["rendered"] = rendered,
+            ["frame_ms"] = frameMs,
+            ["render_error"] = renderError,
+            ["captured"] = captured,
+            ["capture_path"] = capturePath,
+            ["capture_sha256"] = sha256,
+            ["capture_error"] = captureError,
+            ["output_changed_from_plain"] = outputChanged,
+            ["wire_draw_advanced"] = wireDrawAdvanced,
+            ["wire_color"] = after.GetValueOrDefault("wire_overlay_color"),
+            ["wire_width_pixels"] = after.GetValueOrDefault("wire_overlay_width_pixels"),
+        };
     }
 
     private static ObjDocument BuildFacetedShape()

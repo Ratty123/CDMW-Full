@@ -29,6 +29,7 @@ internal sealed partial class MeshViewport
         {
             "textured" => (true, false, false, false, true),
             "untextured_faces" or "faces" => (true, false, false, false, false),
+            "untextured_wire" => (true, true, false, false, false),
             "textured_wire" or "solid_wire" => (true, true, false, false, true),
             "wire" => (false, true, false, false, false),
             "vertices" => (false, false, true, false, false),
@@ -37,7 +38,7 @@ internal sealed partial class MeshViewport
             _ => default,
         };
         if (normalized is not (
-            "textured" or "untextured_faces" or "faces" or "textured_wire" or "solid_wire"
+            "textured" or "untextured_faces" or "faces" or "untextured_wire" or "textured_wire" or "solid_wire"
             or "wire" or "vertices" or "wire_vertices" or "xray"))
         {
             error = $"Unknown viewport display mode: {mode}";

@@ -132,8 +132,7 @@ try {
     Assert-LastExitCode ".NET solution build"
 
     & dotnet publish $rendererProject -c $Configuration -r win-x64 --self-contained true --nologo --output $rendererStage `
-        -p:PublishSingleFile=true -p:PublishTrimmed=false -p:PublishReadyToRun=true `
-        -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None
+        -p:PublishSingleFile=false -p:PublishTrimmed=false -p:PublishReadyToRun=true -p:DebugType=None
     Assert-LastExitCode ".NET/Vortice preview renderer publish"
     $rendererExecutable = Join-Path $rendererStage "cdmw-mesh-dotnet-editor.exe"
     $previousRendererPath = $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH

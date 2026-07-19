@@ -93,6 +93,8 @@ internal sealed partial class D3D11MaterialViewport
             && (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase));
         _overlayShowWire = string.Equals(mode, "wire", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "untextured_wire", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)
             || string.Equals(mode, "wire_vertices", StringComparison.OrdinalIgnoreCase)
             || string.Equals(mode, "xray", StringComparison.OrdinalIgnoreCase);
         _overlayShowVertices = string.Equals(mode, "vertices", StringComparison.OrdinalIgnoreCase)

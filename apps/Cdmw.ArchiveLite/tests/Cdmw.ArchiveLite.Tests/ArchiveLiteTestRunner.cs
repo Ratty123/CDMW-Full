@@ -44,7 +44,7 @@ internal static class ArchiveLiteTestRunner
             ("startup auto-loads current cache and recommends manual refresh after hash changes", TestStartupCacheAutoLoadAsync),
             ("asset metadata keeps HKX read-only and renderer-free", TestAssetMetadataAndHkxPreviewAsync),
             ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
-            ("native model warm-cache hits bypass the cold-build dwell", TestNativeModelPreviewCacheDwellAsync),
+            ("native model previews start immediately and warm-cache hits stay delay-free", TestNativeModelPreviewCacheDwellAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
             ("native archive ABI scans and decodes synthetic PAMT/PAZ", TestNativeArchiveAsync),
@@ -954,6 +954,26 @@ internal static class ArchiveLiteTestRunner
             rendererProgram.Contains("_presentationGridVisible = scene.GridVisible", StringComparison.Ordinal)
             && rendererProgram.Contains("_presentationGizmoVisible = scene.GizmoVisible", StringComparison.Ordinal),
             "the renderer presentation contexts can restore the grid or gizmo over a hidden scene setting");
+        Require(
+            rendererProgram.Contains("TrySetSynchronizedDisplayMode(\"untextured_wire\"", StringComparison.Ordinal)
+            && rendererProgram.Contains("Color.FromArgb(48, 60, 74)", StringComparison.Ordinal)
+            && rendererProgram.Contains("new MeshOverlaySizing(1.0f", StringComparison.Ordinal),
+            "the simple Archive Lite renderer does not use the restrained matte topology presentation");
+        var displayModesSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "tools",
+            "dotnet_mesh_editor_experiment",
+            "MeshViewport.DisplayModes.cs"));
+        var renderPanesSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "tools",
+            "dotnet_mesh_editor_experiment",
+            "D3D11MaterialViewport.Panes.cs"));
+        Require(
+            displayModesSource.Contains("\"untextured_wire\" => (true, true, false, false, false)", StringComparison.Ordinal)
+            && renderPanesSource.Contains("string.Equals(mode, \"untextured_wire\"", StringComparison.Ordinal)
+            && renderPanesSource.Contains("string.Equals(mode, \"textured_wire\"", StringComparison.Ordinal),
+            "solid topology modes do not reach the D3D11 wire overlay without enabling textures");
         var materialShader = File.ReadAllText(Path.Combine(
             repositoryRoot,
             "tools",
@@ -961,8 +981,9 @@ internal static class ArchiveLiteTestRunner
             "D3D11MaterialShaders.hlsl"));
         Require(
             materialShader.Contains("per-part tone shift", StringComparison.Ordinal)
-            && materialShader.Contains("keyLight * 0.48f", StringComparison.Ordinal),
-            "textureless preview shading does not preserve enough part and contour separation");
+            && materialShader.Contains("keyLight * 0.48f", StringComparison.Ordinal)
+            && materialShader.Contains("rimShape * 0.025f", StringComparison.Ordinal),
+            "textureless preview shading does not preserve form without the exaggerated rim glow");
         return Task.CompletedTask;
     }
 
@@ -1714,10 +1735,20 @@ internal static class ArchiveLiteTestRunner
                 session,
                 entry,
                 null,
-                timeout.Token,
-                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+                timeout.Token).ConfigureAwait(false);
             Require(cached == destination, "warm native model cache hit returned the wrong package");
         }
+
+        Directory.Delete(destination, recursive: true);
+        using (var cancelled = new CancellationTokenSource(TimeSpan.FromMilliseconds(5)))
+        {
+            await RequireThrowsAsync<OperationCanceledException>(() => previews.BuildAsync(
+                session,
+                entry,
+                null,
+                cancelled.Token)).ConfigureAwait(false);
+        }
+        Require(!Directory.Exists(destination), "cancelled cold native model request published a partial package");
 
         var nonDurableProbe = Path.Combine(ArchiveLiteDataPaths.PreviewCache, "staged-cache-write-probe.json");
         await AtomicFile.WriteAsync(
@@ -1743,13 +1774,31 @@ internal static class ArchiveLiteTestRunner
             "src",
             "Cdmw.ArchiveLite.Core",
             "ArchivePreviewService.cs"));
+        var modelPreviewSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.Core",
+            "NativeModelPreviewService.cs"));
+        var buildSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "scripts",
+            "build_archive_lite.ps1"));
         Require(
-            viewModelSource.Contains("await Task.Delay(90, operation.Token)", StringComparison.Ordinal)
-            && !viewModelSource.Contains("isNativeModel ? 450 : 90", StringComparison.Ordinal),
-            "warm model selections still pay the full cold-build UI dwell");
+            viewModelSource.Contains("if (!isNativeModel)", StringComparison.Ordinal)
+            && viewModelSource.Contains("await Task.Delay(90, operation.Token)", StringComparison.Ordinal),
+            "native model selections still pay the UI preview debounce");
         Require(
-            previewServiceSource.Contains("ColdModelPreviewDelay = TimeSpan.FromMilliseconds(360)", StringComparison.Ordinal),
-            "cold model builds no longer retain the anti-thrash dwell after the cache probe");
+            !previewServiceSource.Contains("ColdModelPreviewDelay", StringComparison.Ordinal)
+            && modelPreviewSource.Contains("ColdBuildCoalesceDelay = TimeSpan.FromMilliseconds(35)", StringComparison.Ordinal),
+            "native model preparation still retains the old fixed cold-build dwell");
+        Require(
+            buildSource.Contains("-p:PublishSingleFile=false", StringComparison.Ordinal)
+            && !buildSource.Contains("-p:IncludeNativeLibrariesForSelfExtract=true", StringComparison.Ordinal),
+            "the already-contained renderer still incurs a nested single-file extraction launch");
     }
 
     private static async Task TestAssetMetadataAndHkxPreviewAsync()

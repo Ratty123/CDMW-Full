@@ -331,7 +331,7 @@ float3 WorkbenchGeometryColor(VSOutput input)
         + keyLight * 0.48f
         + fillLight * 0.16f
         + cameraShape * 0.05f
-        + rimShape * 0.12f;
+        + rimShape * 0.025f;
     return saturate(SrgbUiColorToLinear(geometryColor) * illumination);
 }
 
