@@ -269,6 +269,58 @@ internal static class FullArchiveTestRunner
                 new PrepareEntryRequest(sessionHandle.SessionId, 2),
                 CancellationToken.None).ConfigureAwait(false);
             Require(await File.ReadAllTextAsync(prepared.PreparedPath).ConfigureAwait(false) == "Hello Crimson\nline 2", "prepared bytes changed");
+            var preparedSource = sessions.GetRequired(sessionHandle.SessionId).ReadEntry(2);
+            var sourceTimestamp = File.GetLastWriteTimeUtc(preparedSource.PazFile);
+            var originalRaw = new byte[checked((int)preparedSource.StoredSize)];
+            await using (var source = new FileStream(
+                preparedSource.PazFile,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete))
+            {
+                source.Seek(preparedSource.Offset, SeekOrigin.Begin);
+                await source.ReadExactlyAsync(originalRaw).ConfigureAwait(false);
+            }
+            try
+            {
+                var mutatedRaw = (byte[])originalRaw.Clone();
+                mutatedRaw[0] = (byte)'J';
+                await using (var source = new FileStream(
+                    preparedSource.PazFile,
+                    FileMode.Open,
+                    FileAccess.Write,
+                    FileShare.Read))
+                {
+                    source.Seek(preparedSource.Offset, SeekOrigin.Begin);
+                    await source.WriteAsync(mutatedRaw).ConfigureAwait(false);
+                    await source.FlushAsync().ConfigureAwait(false);
+                    source.Flush(flushToDisk: true);
+                }
+                File.SetLastWriteTimeUtc(preparedSource.PazFile, sourceTimestamp);
+                var mutatedPrepared = await preparation.PrepareAsync(
+                    new PrepareEntryRequest(sessionHandle.SessionId, 2),
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(
+                    mutatedPrepared.PreparedPath != prepared.PreparedPath &&
+                    mutatedPrepared.Sha256 != prepared.Sha256 &&
+                    await File.ReadAllTextAsync(mutatedPrepared.PreparedPath).ConfigureAwait(false) == "Jello Crimson\nline 2",
+                    "same-size same-timestamp source mutation reused stale prepared bytes");
+            }
+            finally
+            {
+                await using (var source = new FileStream(
+                    preparedSource.PazFile,
+                    FileMode.Open,
+                    FileAccess.Write,
+                    FileShare.Read))
+                {
+                    source.Seek(preparedSource.Offset, SeekOrigin.Begin);
+                    await source.WriteAsync(originalRaw).ConfigureAwait(false);
+                    await source.FlushAsync().ConfigureAwait(false);
+                    source.Flush(flushToDisk: true);
+                }
+                File.SetLastWriteTimeUtc(preparedSource.PazFile, sourceTimestamp);
+            }
             var preparedBatch = await preparation.PrepareManyAsync(
                 new PrepareEntriesRequest(sessionHandle.SessionId, [1, 2]),
                 CancellationToken.None).ConfigureAwait(false);

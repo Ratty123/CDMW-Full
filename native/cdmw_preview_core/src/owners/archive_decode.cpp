@@ -575,7 +575,7 @@ static std::string archive_ref_identity(const ArchiveEntryRef& entry) {
     return entry.pamt_path.string() + "|" + entry.paz_file.string() + "|" + entry.path + "|" +
         std::to_string(entry.offset) + "|" + std::to_string(entry.comp_size) + "|" +
         std::to_string(entry.orig_size) + "|" + std::to_string(entry.flags) + "|" +
-        std::to_string(entry.paz_index);
+        std::to_string(entry.paz_index) + "|prepared:" + entry.prepared_sha256;
 }
 
 struct DecodedEntryCacheValue {
@@ -653,15 +653,23 @@ static void prune_decoded_entry_cache() {
 static std::vector<char> read_archive_ref_decoded_bytes(const ArchiveEntryRef& entry) {
     record_preview_decoded_dependency(entry);
     const std::string key = archive_ref_identity(entry);
-    auto found = g_decoded_entry_cache.find(key);
-    if (found != g_decoded_entry_cache.end()) {
-        ++g_decoded_entry_cache_hits;
-        found->second.last_used = ++g_decoded_entry_cache_clock;
-        return found->second.bytes;
+    const bool cacheable = entry.prepared_path.empty() || !entry.prepared_sha256.empty();
+    if (cacheable) {
+        auto found = g_decoded_entry_cache.find(key);
+        if (found != g_decoded_entry_cache.end()) {
+            ++g_decoded_entry_cache_hits;
+            found->second.last_used = ++g_decoded_entry_cache_clock;
+            return found->second.bytes;
+        }
     }
     ++g_decoded_entry_cache_misses;
-    std::vector<char> decoded = decode_archive_ref_bytes(entry, read_archive_ref_raw_bytes(entry));
-    if (decoded.size() <= kDecodedEntryCacheMaxSingleBytes) {
+    std::vector<char> decoded = entry.prepared_path.empty()
+        ? decode_archive_ref_bytes(entry, read_archive_ref_raw_bytes(entry))
+        : read_binary_file(entry.prepared_path);
+    if (entry.orig_size > 0 && static_cast<std::uint64_t>(decoded.size()) != entry.orig_size) {
+        throw std::runtime_error("prepared archive dependency size does not match its entry metadata");
+    }
+    if (cacheable && decoded.size() <= kDecodedEntryCacheMaxSingleBytes) {
         g_decoded_entry_cache_bytes += decoded.size();
         g_decoded_entry_cache.emplace(key, DecodedEntryCacheValue{decoded, ++g_decoded_entry_cache_clock});
         prune_decoded_entry_cache();

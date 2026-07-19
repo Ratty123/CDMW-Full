@@ -35,4 +35,7 @@ cdmw-preview-core.exe name-index-job input.tsv output.bin report.json [progress.
 `preview-job` reads a Python-written job file and writes a JSON report. On
 supported entries it returns `status=ok` and a package path. Unsupported or
 unsafe inputs produce an explicit error/fallback reason; callers decide how to
-surface that result.
+surface that result. Full-CDMW archive-v2 callers also send an authoritative,
+bounded `archive_dependency_entries` snapshot. The native core resolves
+cross-PAMT basenames and paths from that snapshot and reads its prepared files;
+legacy callers retain the Archive Lite basename-index and package-scan fallback.

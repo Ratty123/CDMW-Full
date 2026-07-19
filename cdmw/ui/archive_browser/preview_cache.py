@@ -33,6 +33,35 @@ from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
 from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 
 
+def _archive_preview_dependency_digest(entries: Sequence[ArchiveEntry]) -> str:
+    """Hash one authoritative prepared dependency snapshot without archive I/O."""
+
+    rows: List[Tuple[object, ...]] = []
+    for entry in entries:
+        prepared_sha256 = str(getattr(entry, "prepared_sha256", "") or "").strip().lower()
+        if len(prepared_sha256) != 64:
+            return ""
+        try:
+            bytes.fromhex(prepared_sha256)
+        except ValueError:
+            return ""
+        rows.append(
+            (
+                str(getattr(entry, "path", "") or "").replace("\\", "/").strip("/").casefold(),
+                str(getattr(entry, "pamt_path", "") or "").replace("\\", "/").casefold(),
+                str(getattr(entry, "paz_file", "") or "").replace("\\", "/").casefold(),
+                int(getattr(entry, "paz_index", 0) or 0),
+                int(getattr(entry, "offset", 0) or 0),
+                int(getattr(entry, "comp_size", 0) or 0),
+                int(getattr(entry, "orig_size", 0) or 0),
+                int(getattr(entry, "flags", 0) or 0),
+                prepared_sha256,
+            )
+        )
+    encoded = json.dumps(sorted(rows), separators=(",", ":"), ensure_ascii=True).encode("ascii")
+    return hashlib.sha256(encoded).hexdigest() if rows else ""
+
+
 class ArchivePreviewCacheMixin:
     """Archive preview cache identity, validation, and local cache helpers."""
 
@@ -67,6 +96,7 @@ class ArchivePreviewCacheMixin:
         include_loose_preview_assets: bool = False,
         sidecar_generation: Optional[int] = None,
         quality_tier: str = "full",
+        dependency_entries: Sequence[ArchiveEntry] = (),
     ) -> str:
         if entry is None:
             return ""
@@ -75,6 +105,10 @@ class ArchivePreviewCacheMixin:
         # result caching so an edited overlay can never reuse stale geometry or
         # textures.
         if include_loose_preview_assets:
+            return ""
+        dependency_entries = tuple(dependency_entries)
+        dependency_digest = _archive_preview_dependency_digest(dependency_entries)
+        if dependency_entries and not dependency_digest:
             return ""
         preview_settings = self._current_model_preview_render_settings()
         support_slots_key = ",".join(self._archive_preview_support_texture_slots(preview_settings))
@@ -87,8 +121,7 @@ class ArchivePreviewCacheMixin:
                 pathc_stamp = self._archive_file_stamp_for_cache(resolve_archive_pathc_path(entry))
             except Exception:
                 pathc_stamp = "pathc:missing"
-        return "::".join(
-            [
+        key_parts = [
                 entry.path.strip().lower(),
                 str(entry.pamt_path).strip().lower(),
                 pamt_stamp,
@@ -113,7 +146,9 @@ class ArchivePreviewCacheMixin:
                 "tex" if preview_settings.use_textures_by_default else "flat",
                 "archive",
             ]
-        )
+        if dependency_digest:
+            key_parts.append(f"dependencies:{dependency_digest}")
+        return "::".join(key_parts)
 
     def _native_preview_package_cache_root(self) -> Path:
         return self.archive_cache_root / "native_preview_core"
@@ -163,6 +198,7 @@ class ArchivePreviewCacheMixin:
             "flags": int(getattr(entry, "flags", 0) or 0),
             "paz_index": int(getattr(entry, "paz_index", 0) or 0),
             "compression_type": int(getattr(entry, "compression_type", 0) or 0),
+            "prepared_sha256": str(getattr(entry, "prepared_sha256", "") or "").strip().lower(),
         }
 
     def _archive_native_preview_package_cache_key(
@@ -172,6 +208,7 @@ class ArchivePreviewCacheMixin:
         loose_search_roots: Sequence[Path],
         *,
         include_loose_preview_assets: bool = False,
+        dependency_entries: Sequence[ArchiveEntry] = (),
     ) -> str:
         if entry is None:
             return ""
@@ -183,12 +220,17 @@ class ArchivePreviewCacheMixin:
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
             quality_tier="full",
+            dependency_entries=dependency_entries,
         )
+        if not base_key:
+            return ""
+        dependency_digest = _archive_preview_dependency_digest(tuple(dependency_entries))
         payload = {
             "schema": NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
             "base_preview_key": base_key,
             "entry": self._archive_entry_native_cache_signature(entry),
             "companion": self._archive_entry_native_cache_signature(companion_entry),
+            "dependency_digest": dependency_digest,
             "render_settings": render_settings_to_native_preview_core_dict(self._current_model_preview_render_settings()),
             "support_slots": self._archive_preview_support_texture_slots(self._current_model_preview_render_settings()),
             "renderer_backend": str(self._archive_model_renderer_backend() or "").strip().lower(),

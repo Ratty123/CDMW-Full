@@ -193,12 +193,14 @@ class ArchivePreviewWorkerMixin:
             return
 
         loose_search_roots = self._collect_archive_preview_loose_roots()
+        dependency_entries = remote_dependencies.entries if remote_dependencies is not None else ()
         cache_key = self._archive_preview_cache_key(
             entry,
             loose_search_roots,
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
             quality_tier="full",
+            dependency_entries=dependency_entries,
         )
         self.archive_preview_cache_keys[request_id] = cache_key
 
@@ -224,6 +226,7 @@ class ArchivePreviewWorkerMixin:
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
             quality_tier="fast",
+            dependency_entries=dependency_entries,
         )
         performance_settings = self._current_archive_performance_settings()
         preview_cache_snapshot = {
@@ -304,6 +307,8 @@ class ArchivePreviewWorkerMixin:
             sidecar_entries_by_texture_basename=(
                 {} if remote_dependencies is not None else self.archive_sidecar_entries_by_texture_basename
             ),
+            native_preview_dependency_entries=dependency_entries,
+            native_preview_dependency_entries_complete=remote_dependencies is not None,
         )
 
     def _handle_archive_remote_preview_dependencies_ready(
@@ -375,6 +380,8 @@ class ArchivePreviewWorkerMixin:
         texture_entries_by_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         sidecar_entries_by_texture_path: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
         sidecar_entries_by_texture_basename: Optional[Mapping[str, Sequence[ArchiveEntry]]] = None,
+        native_preview_dependency_entries: Sequence[ArchiveEntry] = (),
+        native_preview_dependency_entries_complete: bool = False,
     ) -> None:
         if companion_entry is None:
             companion_entry = self._find_archive_preview_companion_entry(
@@ -397,6 +404,7 @@ class ArchivePreviewWorkerMixin:
                 companion_entry,
                 loose_search_roots,
                 include_loose_preview_assets=include_loose_preview_assets,
+                dependency_entries=native_preview_dependency_entries,
             )
         self._record_runtime_event(
             "archive_preview_worker_start",
@@ -437,6 +445,8 @@ class ArchivePreviewWorkerMixin:
                 if self.archive_package_root_edit.text().strip()
                 else None
             ),
+            native_preview_dependency_entries=native_preview_dependency_entries,
+            native_preview_dependency_entries_complete=native_preview_dependency_entries_complete,
             native_preview_package_cache_key=native_package_cache_key,
             native_preview_package_cache_mode=native_cache_mode,
             native_preview_package_cache_max_bytes=native_cache_max_bytes,

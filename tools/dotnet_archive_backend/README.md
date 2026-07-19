@@ -92,7 +92,10 @@ preview, so Research never reconstructs the full Python catalogue. The three
 bounded sets retain fewer than 10,000 compatibility entries. Truncation and
 preparation limits are shown in Research status text.
 A workflow fails closed until its selected entry has a complete prepared
-snapshot; legacy mode keeps the existing catalogue behavior.
+snapshot; legacy mode keeps the existing catalogue behavior. Prepared files
+are content-addressed with the current raw PAZ entry hash, so same-size,
+same-timestamp source changes cannot reuse stale decoded bytes. Native model
+preview keys also include the complete prepared dependency snapshot.
 
 Regenerate a three-cycle synthetic timing report outside the repository with:
 

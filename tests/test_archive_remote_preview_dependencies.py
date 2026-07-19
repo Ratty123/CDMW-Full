@@ -343,6 +343,8 @@ def test_v2_preview_flush_uses_only_remote_dependency_maps() -> None:
     assert harness.started["texture_entries_by_basename"] is snapshot.entries_by_basename
     assert harness.started["sidecar_entries_by_texture_path"] == {}
     assert harness.started["sidecar_entries_by_texture_basename"] == {}
+    assert harness.started["native_preview_dependency_entries"] is snapshot.entries
+    assert harness.started["native_preview_dependency_entries_complete"] is True
 
 
 def test_v2_preview_flush_waits_for_remote_dependencies_without_starting_worker() -> None:

@@ -135,6 +135,10 @@ class ArchivePreviewNativeMixin:
                 cache_root=cache_root,
                 render_settings=self.render_settings,
                 companion_entry=self.companion_entry,
+                dependency_entries=getattr(self, "native_preview_dependency_entries", ()),
+                dependency_entries_complete=bool(
+                    getattr(self, "native_preview_dependency_entries_complete", False)
+                ),
                 package_root=self.native_preview_core_package_root,
                 output_root=output_root,
                 timeout_seconds=8.0,

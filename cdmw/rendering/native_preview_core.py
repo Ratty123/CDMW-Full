@@ -34,6 +34,7 @@ NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES = 64 * 1024 * 1024
 NATIVE_PREVIEW_CORE_MATERIAL_CONTRACT_SCHEMA_VERSION = 2
 NATIVE_PREVIEW_CORE_MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 2
 NATIVE_PREVIEW_CORE_TEXTURE_QUALITY_SCHEMA_VERSION = 1
+NATIVE_PREVIEW_CORE_MAX_DEPENDENCY_ENTRIES = 4096
 
 
 def _repo_root() -> Path:
@@ -717,7 +718,22 @@ def archive_entry_to_native_preview_core_dict(entry: Optional[ArchiveEntry]) -> 
         "flags": int(entry.flags),
         "paz_index": int(entry.paz_index),
         "compression_type": int(entry.compression_type),
+        "prepared_path": str(entry.prepared_path or ""),
+        "prepared_sha256": str(entry.prepared_sha256 or "").strip().lower(),
     }
+
+
+def _validated_native_preview_dependency_entries(
+    dependency_entries: Sequence[ArchiveEntry],
+    *,
+    complete: bool,
+) -> tuple[ArchiveEntry, ...]:
+    entries = tuple(dependency_entries)
+    if complete and not entries:
+        raise ValueError("A complete native preview dependency snapshot must contain the selected entry.")
+    if len(entries) > NATIVE_PREVIEW_CORE_MAX_DEPENDENCY_ENTRIES:
+        raise ValueError("Native preview dependency snapshots are limited to 4,096 entries.")
+    return entries
 
 
 def build_native_preview_core_job(
@@ -727,10 +743,16 @@ def build_native_preview_core_job(
     output_root: Path,
     render_settings: Optional[ModelPreviewRenderSettings] = None,
     companion_entry: Optional[ArchiveEntry] = None,
+    dependency_entries: Sequence[ArchiveEntry] = (),
+    dependency_entries_complete: bool = False,
     package_root: Optional[Path] = None,
     renderer_backend: str = "d3d11",
     schema_version: int = 8,
 ) -> Dict[str, Any]:
+    dependency_entries = _validated_native_preview_dependency_entries(
+        dependency_entries,
+        complete=dependency_entries_complete,
+    )
     return {
         "version": 1,
         "backend": NATIVE_PREVIEW_CORE_BACKEND_ID,
@@ -742,6 +764,11 @@ def build_native_preview_core_job(
         "output_root": str(output_root),
         "entry": archive_entry_to_native_preview_core_dict(entry),
         "companion_entry": archive_entry_to_native_preview_core_dict(companion_entry),
+        "archive_dependency_entries": [
+            archive_entry_to_native_preview_core_dict(dependency)
+            for dependency in dependency_entries
+        ],
+        "archive_dependency_entries_complete": bool(dependency_entries_complete),
         "render_settings": render_settings_to_native_preview_core_dict(render_settings),
         "capabilities": {
             "direct_dds": True,
@@ -761,6 +788,8 @@ def run_native_preview_core_preview_job(
     cache_root: Path,
     render_settings: Optional[ModelPreviewRenderSettings] = None,
     companion_entry: Optional[ArchiveEntry] = None,
+    dependency_entries: Sequence[ArchiveEntry] = (),
+    dependency_entries_complete: bool = False,
     package_root: Optional[Path] = None,
     output_root: Optional[Path] = None,
     timeout_seconds: float = 3.0,
@@ -772,6 +801,10 @@ def run_native_preview_core_preview_job(
     dds_cache_target_bytes: int = NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES,
 ) -> NativePreviewCoreAttempt:
     raise_if_cancelled(stop_event, "Native preview-core job cancelled.")
+    dependency_entries = _validated_native_preview_dependency_entries(
+        dependency_entries,
+        complete=dependency_entries_complete,
+    )
     binary = find_native_preview_core_binary()
     if binary is None:
         return NativePreviewCoreAttempt(
@@ -793,6 +826,8 @@ def run_native_preview_core_preview_job(
         output_root=output_root,
         render_settings=render_settings,
         companion_entry=companion_entry,
+        dependency_entries=dependency_entries,
+        dependency_entries_complete=dependency_entries_complete,
         package_root=package_root,
     )
     job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")
@@ -912,6 +947,7 @@ __all__ = [
     "NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES",
     "NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES",
     "NATIVE_PREVIEW_CORE_DDS_CACHE_TARGET_BYTES",
+    "NATIVE_PREVIEW_CORE_MAX_DEPENDENCY_ENTRIES",
     "NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS",
     "NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES",
     "NativePreviewCoreAttempt",

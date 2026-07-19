@@ -121,6 +121,69 @@ std::string find_object_value(const std::string& json, const std::string& key) {
     return {};
 }
 
+static std::vector<std::string> find_object_array_values(
+    const std::string& json,
+    const std::string& key,
+    size_t max_count,
+    bool& truncated
+) {
+    std::vector<std::string> values;
+    truncated = false;
+    const std::string needle = "\"" + key + "\"";
+    size_t pos = json.find(needle);
+    if (pos == std::string::npos) return values;
+    pos = json.find(':', pos + needle.size());
+    if (pos == std::string::npos) return values;
+    const size_t array_start = json.find('[', pos + 1);
+    if (array_start == std::string::npos) return values;
+    bool in_string = false;
+    bool escaped = false;
+    int array_depth = 0;
+    int object_depth = 0;
+    size_t item_start = std::string::npos;
+    for (size_t i = array_start; i < json.size(); ++i) {
+        const char ch = json[i];
+        if (escaped) {
+            escaped = false;
+            continue;
+        }
+        if (ch == '\\' && in_string) {
+            escaped = true;
+            continue;
+        }
+        if (ch == '"') {
+            in_string = !in_string;
+            continue;
+        }
+        if (in_string) continue;
+        if (ch == '[') {
+            ++array_depth;
+            continue;
+        }
+        if (ch == ']') {
+            --array_depth;
+            if (array_depth <= 0) break;
+            continue;
+        }
+        if (array_depth != 1) continue;
+        if (ch == '{') {
+            if (object_depth == 0) item_start = i;
+            ++object_depth;
+        } else if (ch == '}' && object_depth > 0) {
+            --object_depth;
+            if (object_depth == 0 && item_start != std::string::npos) {
+                if (values.size() < max_count) {
+                    values.push_back(json.substr(item_start, i - item_start + 1));
+                } else {
+                    truncated = true;
+                }
+                item_start = std::string::npos;
+            }
+        }
+    }
+    return values;
+}
+
 long long find_int_value(const std::string& json, const std::string& key, long long fallback = 0) {
     const std::string needle = "\"" + key + "\"";
     size_t pos = json.find(needle);
@@ -254,6 +317,8 @@ struct ArchiveEntryRef {
     std::uint64_t orig_size = 0;
     std::uint32_t flags = 0;
     std::uint32_t paz_index = 0;
+    fs::path prepared_path;
+    std::string prepared_sha256;
 
     int compression_type() const {
         return static_cast<int>(flags & 0x0F);
@@ -288,6 +353,8 @@ struct EntryJob {
     int schema_version = 4;
     ArchiveEntryRef entry;
     ArchiveEntryRef companion_entry;
+    std::vector<ArchiveEntryRef> archive_dependency_entries;
+    bool archive_dependency_entries_complete = false;
     bool use_textures = true;
     bool high_quality_textures = true;
     bool disable_all_support_maps = false;
@@ -368,6 +435,8 @@ ArchiveEntryRef parse_archive_entry_ref(const std::string& object) {
     entry.orig_size = static_cast<std::uint64_t>(std::max<long long>(0, find_int_value(object, "orig_size")));
     entry.flags = static_cast<std::uint32_t>(std::max<long long>(0, find_int_value(object, "flags")));
     entry.paz_index = static_cast<std::uint32_t>(std::max<long long>(0, find_int_value(object, "paz_index")));
+    entry.prepared_path = fs::path(find_string_value(object, "prepared_path"));
+    entry.prepared_sha256 = lower_copy(find_string_value(object, "prepared_sha256"));
     return entry;
 }
 
@@ -714,6 +783,21 @@ EntryJob parse_job(const fs::path& job_path) {
     job.entry = parse_archive_entry_ref(entry_object.empty() ? text : entry_object);
     const std::string companion_object = find_object_value(text, "companion_entry");
     job.companion_entry = parse_archive_entry_ref(companion_object);
+    bool dependency_entries_truncated = false;
+    for (const std::string& dependency_object : find_object_array_values(
+             text,
+             "archive_dependency_entries",
+             4096,
+             dependency_entries_truncated)) {
+        job.archive_dependency_entries.push_back(parse_archive_entry_ref(dependency_object));
+    }
+    job.archive_dependency_entries_complete = find_bool_value(
+        text,
+        "archive_dependency_entries_complete",
+        false);
+    if (job.archive_dependency_entries_complete && dependency_entries_truncated) {
+        throw std::runtime_error("archive dependency entries exceeded the 4,096-entry safety bound");
+    }
     job.path = job.entry.path;
     job.extension = job.entry.extension.empty() ? basename_extension(job.path) : job.entry.extension;
     job.paz_file = job.entry.paz_file;

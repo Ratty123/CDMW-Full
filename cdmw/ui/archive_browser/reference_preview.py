@@ -623,6 +623,25 @@ class ArchiveReferencePreviewMixin:
             self._show_archive_reference_preview_dialog(resolved_entry, current_result)
             self.set_status_message(f"Opened preview for {resolved_entry.basename}.")
             return
+        remote_dependencies = None
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            remote_dependencies = remote_bridge.prepared_dependencies_for(resolved_entry)
+            if remote_dependencies is None:
+                self.set_status_message(
+                    "Referenced preview dependencies are no longer available; select the source asset again.",
+                    error=True,
+                )
+                return
+        dependency_entries = remote_dependencies.entries if remote_dependencies is not None else ()
+        companion_entry = self._find_archive_preview_companion_entry(
+            resolved_entry,
+            entries_by_normalized_path=(
+                remote_dependencies.entries_by_normalized_path
+                if remote_dependencies is not None
+                else None
+            ),
+        )
 
         def _task(log: Callable[[str], None]) -> ArchivePreviewResult:
             log(f"Preparing referenced-file preview for {resolved_entry.path}...")
@@ -636,7 +655,9 @@ class ArchiveReferencePreviewMixin:
                         resolved_entry,
                         cache_root=self.archive_cache_root / "native_preview_core",
                         render_settings=preview_settings,
-                        companion_entry=self._find_archive_preview_companion_entry(resolved_entry),
+                        companion_entry=companion_entry,
+                        dependency_entries=dependency_entries,
+                        dependency_entries_complete=remote_dependencies is not None,
                         package_root=(
                             Path(self.archive_package_root_edit.text().strip()).expanduser()
                             if self.archive_package_root_edit.text().strip()

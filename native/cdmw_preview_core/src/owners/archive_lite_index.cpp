@@ -201,6 +201,7 @@ static std::optional<ArchiveLiteLookupIndex> g_archive_lite_lookup_index;
 static std::uint64_t g_archive_lite_lookup_queries = 0;
 static std::uint64_t g_archive_lite_lookup_candidates = 0;
 static bool g_archive_lite_lookup_attempted = false;
+static bool g_bounded_archive_dependency_lookup_used = false;
 static std::string g_archive_lite_lookup_error;
 struct ArchiveLiteDependencyQuery {
     std::string basename;
@@ -269,12 +270,14 @@ static void reset_archive_lite_lookup_diagnostics() {
     g_archive_lite_lookup_queries = 0;
     g_archive_lite_lookup_candidates = 0;
     g_archive_lite_lookup_attempted = false;
+    g_bounded_archive_dependency_lookup_used = false;
     g_archive_lite_lookup_error.clear();
     g_archive_lite_dependency_queries.clear();
     g_archive_lite_dependency_query_identities.clear();
 }
 
 static std::string archive_lite_lookup_backend() {
+    if (g_bounded_archive_dependency_lookup_used) return "bounded_dependencies";
     if (g_archive_lite_lookup_queries > 0 || g_archive_lite_lookup_index.has_value()) return "archive_lite_basename_index_v1";
     if (g_archive_lite_lookup_attempted && !g_archive_lite_lookup_error.empty()) return "package_scan_fallback";
     return "package_scan";

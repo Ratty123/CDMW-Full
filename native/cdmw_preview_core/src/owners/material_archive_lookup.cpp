@@ -53,7 +53,18 @@ static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
     add_from_index(primary_index);
     if (!result.empty()) {
         record_archive_lite_dependency_query(basename, max_count, "primary_pamt");
-    } else if (job.package_root.empty()) {
+        return result;
+    }
+    std::vector<ArchiveEntryRef> bounded_candidates;
+    if (lookup_bounded_archive_dependency_basename(job, basename, max_count, bounded_candidates)) {
+        for (const ArchiveEntryRef& ref : bounded_candidates) {
+            const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
+            if (seen.insert(key).second) result.push_back(ref);
+            if (result.size() >= max_count) break;
+        }
+        return result;
+    }
+    if (job.package_root.empty()) {
         record_archive_lite_dependency_query(basename, max_count, "package_scan_fallback");
     }
     if (!result.empty() || job.package_root.empty()) return result;
@@ -100,26 +111,39 @@ static std::optional<ArchiveEntryRef> resolve_archive_path_across_package(
         }
     };
     add_from_index(primary_index);
-    std::vector<ArchiveEntryRef> indexed_candidates;
-    const bool used_archive_lite_index = lookup_archive_lite_basename(
+    std::vector<ArchiveEntryRef> bounded_candidates;
+    const bool used_bounded_dependencies = lookup_bounded_archive_dependency_basename(
         job,
         wanted_basename,
         64,
-        indexed_candidates);
-    if (used_archive_lite_index) {
-        for (const ArchiveEntryRef& ref : indexed_candidates) {
+        bounded_candidates);
+    if (used_bounded_dependencies) {
+        for (const ArchiveEntryRef& ref : bounded_candidates) {
             const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
             if (seen.insert(key).second) candidates.push_back(ref);
         }
-    } else if (!job.package_root.empty()) {
-        std::set<std::string> seen_pamts;
-        seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
-        for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
-            const std::string pamt_key = fs::absolute(pamt_path).string();
-            if (!seen_pamts.insert(pamt_key).second) continue;
-            try {
-                add_from_index(cached_pamt_index(pamt_path));
-            } catch (...) {
+    } else {
+        std::vector<ArchiveEntryRef> indexed_candidates;
+        const bool used_archive_lite_index = lookup_archive_lite_basename(
+            job,
+            wanted_basename,
+            64,
+            indexed_candidates);
+        if (used_archive_lite_index) {
+            for (const ArchiveEntryRef& ref : indexed_candidates) {
+                const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
+                if (seen.insert(key).second) candidates.push_back(ref);
+            }
+        } else if (!job.package_root.empty()) {
+            std::set<std::string> seen_pamts;
+            seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
+            for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+                const std::string pamt_key = fs::absolute(pamt_path).string();
+                if (!seen_pamts.insert(pamt_key).second) continue;
+                try {
+                    add_from_index(cached_pamt_index(pamt_path));
+                } catch (...) {
+                }
             }
         }
     }

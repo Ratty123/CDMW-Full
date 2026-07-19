@@ -87,6 +87,8 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         native_preview_core_enabled: bool = False,
         native_preview_core_cache_root: Optional[Path] = None,
         native_preview_core_package_root: Optional[Path] = None,
+        native_preview_dependency_entries: Sequence[ArchiveEntry] = (),
+        native_preview_dependency_entries_complete: bool = False,
         native_preview_package_cache_key: str = "",
         native_preview_package_cache_mode: str = "off",
         native_preview_package_cache_max_bytes: int = 0,
@@ -125,6 +127,8 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         self.native_preview_core_enabled = bool(native_preview_core_enabled)
         self.native_preview_core_cache_root = native_preview_core_cache_root
         self.native_preview_core_package_root = native_preview_core_package_root
+        self.native_preview_dependency_entries = tuple(native_preview_dependency_entries)
+        self.native_preview_dependency_entries_complete = bool(native_preview_dependency_entries_complete)
         self.native_preview_package_cache_key = str(native_preview_package_cache_key or "").strip()
         self.native_preview_package_cache_mode = str(native_preview_package_cache_mode or "off").strip().lower()
         self.native_preview_package_cache_max_bytes = max(0, int(native_preview_package_cache_max_bytes or 0))
