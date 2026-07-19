@@ -119,6 +119,8 @@ def _start_archive_picker_preview_worker(
     request_id: int,
     entry: Optional[ArchiveEntry],
 ) -> None:
+    if self._start_catalogue_research_preview("archive_picker", request_id, entry):
+        return
     worker = UnknownResolverPreviewWorker(request_id, entry)
     thread = QThread(self)
     worker.moveToThread(thread)
@@ -269,6 +271,8 @@ def _start_unknown_preview_worker(
     request_id: int,
     entry: Optional[ArchiveEntry],
 ) -> None:
+    if self._start_catalogue_research_preview("unknown", request_id, entry):
+        return
     worker = UnknownResolverPreviewWorker(request_id, entry)
     thread = QThread(self)
     worker.moveToThread(thread)

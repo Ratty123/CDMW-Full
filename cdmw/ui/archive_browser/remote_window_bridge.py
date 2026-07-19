@@ -445,7 +445,7 @@ class ArchiveRemoteWindowBridge(QObject):
         window = self._window
         publish_consumers = getattr(window, "_publish_archive_catalogue_session_to_consumers", None)
         if callable(publish_consumers) and self._controller.current_session is not None:
-            publish_consumers(self._controller.current_session)
+            publish_consumers(self._controller.current_session, handle)
         window.archive_remote_query_pending = False
         window.archive_remote_total_matches = handle.total_matches
         window.archive_filters_dirty = False

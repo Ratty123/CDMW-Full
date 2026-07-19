@@ -14,22 +14,14 @@ from cdmw.core.common import raise_if_cancelled
 from cdmw.core.research_archive_analysis import TEXTURE_IMAGE_EXTENSIONS, TEXTURE_SIDECAR_EXTENSIONS, derive_texture_group_key
 from cdmw.core.texture_pipeline.inspection import parse_dds
 from cdmw.domain.research.classification import _normalized_parts
-from cdmw.domain.research.contracts import MaterialTextureReferenceRow, SidecarDiscoveryRow
+from cdmw.domain.research.contracts import (
+    RESEARCH_REFERENCE_SOURCE_EXTENSIONS,
+    MaterialTextureReferenceRow,
+    SidecarDiscoveryRow,
+)
 from cdmw.models import ArchiveEntry
 
-REFERENCE_SOURCE_EXTENSIONS = {
-    ".cfg",
-    ".ini",
-    ".json",
-    ".lua",
-    ".material",
-    ".pami",
-    ".shader",
-    ".txt",
-    ".xml",
-    ".yaml",
-    ".yml",
-}
+REFERENCE_SOURCE_EXTENSIONS = set(RESEARCH_REFERENCE_SOURCE_EXTENSIONS)
 
 
 TEXTURE_REFERENCE_PATTERN = re.compile(

@@ -126,6 +126,27 @@ def main() -> int:
                     },
                 )
             )
+        elif operation == "resolve_entries":
+            payload = request.get("payload") or {}
+            values = {str(value) for value in payload.get("values", [])}
+            if "crash_once" in values:
+                marker = cache_root / "crashed-lookup-once.marker"
+                if not marker.exists():
+                    marker.write_text("crashed", encoding="utf-8")
+                    os._exit(78)
+            _send(
+                _message(
+                    request,
+                    "result",
+                    {
+                        "session_id": request.get("session_id"),
+                        "entries": [],
+                        "total_matches": 0,
+                        "truncated": False,
+                        "query_rows": [],
+                    },
+                )
+            )
         elif operation == "fetch_page":
             payload = request.get("payload") or {}
             if int(payload.get("page_start", 0)) == 512:

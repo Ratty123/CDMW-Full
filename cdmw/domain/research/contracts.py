@@ -7,6 +7,39 @@ from typing import List
 
 
 REGEX_PRESET_DEFAULT_EXTENSIONS = ".xml;.json;.cfg;.ini;.lua;.material;.shader;.pami"
+RESEARCH_TEXTURE_IMAGE_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".bmp",
+        ".dds",
+        ".gif",
+        ".hdr",
+        ".jpeg",
+        ".jpg",
+        ".png",
+        ".tga",
+        ".tif",
+        ".tiff",
+        ".webp",
+    }
+)
+RESEARCH_TEXTURE_SIDECAR_EXTENSIONS: frozenset[str] = frozenset(
+    {".json", ".material", ".pami", ".shader", ".xml"}
+)
+RESEARCH_REFERENCE_SOURCE_EXTENSIONS: frozenset[str] = frozenset(
+    {
+        ".cfg",
+        ".ini",
+        ".json",
+        ".lua",
+        ".material",
+        ".pami",
+        ".shader",
+        ".txt",
+        ".xml",
+        ".yaml",
+        ".yml",
+    }
+)
 
 
 @dataclass(slots=True)
@@ -310,6 +343,9 @@ __all__ = [
     'MaterialTextureReferenceRow',
     'MipAnalysisRow',
     'NormalValidationRow',
+    'RESEARCH_REFERENCE_SOURCE_EXTENSIONS',
+    'RESEARCH_TEXTURE_IMAGE_EXTENSIONS',
+    'RESEARCH_TEXTURE_SIDECAR_EXTENSIONS',
     'RegexPreset',
     'ResearchNote',
     'SearchCluster',

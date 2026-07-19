@@ -32,10 +32,10 @@ from cdmw.ui.research.models import (
 )
 
 def refresh_archive_picker(self) -> None:
-    self.archive_picker_entries = archive_picker_entries_from_sources(
-        self.get_filtered_archive_entries(),
-        self.get_archive_entries(),
-    )
+    if self._prepare_catalogue_research_refresh_if_needed("archive_picker"):
+        return
+    filtered_entries, fallback_entries = self._research_archive_picker_entry_sources()
+    self.archive_picker_entries = archive_picker_entries_from_sources(filtered_entries, fallback_entries)
     self.archive_picker_lazy_entry_index_by_path = {}
     lookup_maps = archive_picker_path_lookup_maps(self.archive_picker_entries)
     self.archive_picker_entry_index_by_path = lookup_maps.entry_index_by_path

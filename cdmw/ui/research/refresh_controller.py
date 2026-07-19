@@ -62,6 +62,9 @@ from cdmw.ui.research.workers import ResearchRefreshWorker, UIConstraintRefreshW
 def refresh_research(self) -> None:
     if self.refresh_thread is not None:
         return
+    if self._prepare_catalogue_research_refresh_if_needed("refresh"):
+        return
+    self._pending_refresh_catalogue_context = self._research_catalogue_context_key()
     self.mark_archive_picker_dirty()
     archive_entries = self.get_archive_entries()
     filtered_entries = self.get_filtered_archive_entries()
@@ -124,6 +127,9 @@ def refresh_research(self) -> None:
 def refresh_ui_constraints(self) -> None:
     if self.ui_constraint_thread is not None:
         return
+    if self._prepare_catalogue_research_refresh_if_needed("ui_constraints"):
+        return
+    self._pending_ui_constraint_catalogue_context = self._research_catalogue_context_key()
     archive_entries = self.get_archive_entries()
     archive_key = cached_archive_snapshot_cache_key(archive_entries, self._archive_snapshot_key_cache)
     worker = UIConstraintRefreshWorker(archive_entries=archive_entries)
@@ -172,11 +178,15 @@ def focus_texture_analysis_for_compare_path(
     self._focus_pending_mip_row()
 
 def _handle_refresh_progress(self, current: int, total: int, detail: str) -> None:
+    if self._pending_refresh_catalogue_context != self._research_catalogue_context_key():
+        return
     self.refresh_status_label.setText(detail)
     set_research_progress(self.refresh_progress, current, total)
     self.status_message_requested.emit(detail, False)
 
 def _handle_refresh_complete(self, payload: object) -> None:
+    if self._pending_refresh_catalogue_context != self._research_catalogue_context_key():
+        return
     previous_ui_rows = self.research_payload.get("ui_constraint_rows", []) if isinstance(self.research_payload, dict) else []
     preserve_ui_rows = (
         self._ui_constraint_scan_archive_key
@@ -206,6 +216,8 @@ def _handle_refresh_complete(self, payload: object) -> None:
     self._begin_refresh_population()
 
 def _handle_refresh_error(self, message: str) -> None:
+    if self._pending_refresh_catalogue_context != self._research_catalogue_context_key():
+        return
     self.pending_mip_focus_relative_path = ""
     self.refresh_status_label.setText(message)
     set_progress_error(self.refresh_progress)
@@ -219,11 +231,15 @@ def _cleanup_refresh_refs(self) -> None:
     self.refresh_button.setEnabled(True)
 
 def _handle_ui_constraint_progress(self, current: int, total: int, detail: str) -> None:
+    if self._pending_ui_constraint_catalogue_context != self._research_catalogue_context_key():
+        return
     self.ui_constraint_status_label.setText(detail)
     set_research_progress(self.ui_constraint_progress, current, total)
     self.status_message_requested.emit(detail, False)
 
 def _handle_ui_constraint_complete(self, rows: object) -> None:
+    if self._pending_ui_constraint_catalogue_context != self._research_catalogue_context_key():
+        return
     ui_rows = [row for row in rows if isinstance(row, MaterialTextureReferenceRow)] if isinstance(rows, list) else []
     self.research_payload["ui_constraint_rows"] = ui_rows
     self._ui_constraint_scan_archive_key = self._pending_ui_constraint_archive_key
@@ -235,6 +251,8 @@ def _handle_ui_constraint_complete(self, rows: object) -> None:
     self.status_message_requested.emit(complete_state.user_status_text, False)
 
 def _handle_ui_constraint_error(self, message: str) -> None:
+    if self._pending_ui_constraint_catalogue_context != self._research_catalogue_context_key():
+        return
     self.ui_constraint_status_label.setText(message)
     set_progress_error(self.ui_constraint_progress)
     self.status_message_requested.emit(message, True)
@@ -465,13 +483,13 @@ def _finalize_budget_population(self) -> None:
 def _finish_refresh_population(self) -> None:
     self._stop_refresh_population()
     self._refresh_texture_analysis_summary()
-    self.refresh_status_label.setText(
-        research_refresh_ready_status_text(
-            uses_full_archive_view=self._pending_research_uses_full_archive_view,
-            archive_entry_count=self._pending_research_full_archive_entry_count,
-            view_entry_count=self._pending_research_view_entry_count,
-        )
+    ready_text = research_refresh_ready_status_text(
+        uses_full_archive_view=self._pending_research_uses_full_archive_view,
+        archive_entry_count=self._pending_research_full_archive_entry_count,
+        view_entry_count=self._pending_research_view_entry_count,
     )
+    catalogue_suffix = self._research_catalogue_status_suffix()
+    self.refresh_status_label.setText(f"{ready_text} {catalogue_suffix}".strip())
     set_progress_ready(self.refresh_progress)
     self.status_message_requested.emit(self.refresh_status_label.text(), False)
     self._focus_pending_mip_row()

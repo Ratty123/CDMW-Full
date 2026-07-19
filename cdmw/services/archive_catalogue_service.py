@@ -196,7 +196,14 @@ class ArchiveCatalogueService(QObject):
         )
 
     def resolve_entries(self, request: ArchiveLookupRequest, *, ui_generation: int) -> str:
-        session = self._require_session(request.session_id)
+        query = None
+        if request.query_id:
+            query, _handle, fingerprint = self._require_query(request.query_id)
+            if query.session_id != request.session_id:
+                raise ValueError("Archive lookup query does not belong to the requested session.")
+            session = self._require_session(request.session_id, fingerprint=fingerprint)
+        else:
+            session = self._require_session(request.session_id)
         return self._submit(
             ArchiveBackendOperation.RESOLVE_ENTRIES,
             request,
@@ -204,6 +211,7 @@ class ArchiveCatalogueService(QObject):
             batch_parser=ArchiveLookupResult.from_wire,
             ui_generation=ui_generation,
             session=session,
+            query=query,
         )
 
     def find_association_candidates(
@@ -512,6 +520,9 @@ class ArchiveCatalogueService(QObject):
             elif request.operation is ArchiveBackendOperation.FACETS:
                 request.payload = {}
             elif request.operation is ArchiveBackendOperation.RESOLVE_ENTRIES and isinstance(request.payload, ArchiveLookupRequest):
+                if request.payload.query_id and request.query is not None:
+                    self._start_recovery_query(request_id, request, session)
+                    return
                 request.payload = replace(request.payload, session_id=session.session_id)
             elif (
                 request.operation is ArchiveBackendOperation.FETCH_CHILDREN
@@ -578,6 +589,12 @@ class ArchiveCatalogueService(QObject):
             target.payload = replace(target.payload, query_id=handle.query_id)
         elif isinstance(target.payload, ArchiveChildrenRequest):
             target.payload = replace(target.payload, query_id=handle.query_id)
+        elif isinstance(target.payload, ArchiveLookupRequest):
+            target.payload = replace(
+                target.payload,
+                session_id=session.session_id,
+                query_id=handle.query_id,
+            )
         else:
             self._fail_recovery_target(
                 target_id,

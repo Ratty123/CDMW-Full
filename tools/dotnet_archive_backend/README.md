@@ -60,6 +60,13 @@ enrichment reuse those bounded maps and materialized files instead of the
 legacy process-wide catalogue indexes. Attachment authoring also keeps donor
 search, item icons, socket/skeleton evidence, placement comparison, and native
 placement-preview inputs inside the selected target's prepared candidate set.
+A standalone-v2 Research tab likewise consumes a bounded, paged prefix of the
+current query, a query-wide bounded image/reference lookup, and a session-wide
+sidecar/reference-source lookup. It materializes only text sources admitted by
+explicit count and byte budgets and prepares other entries on demand for
+preview, so Research never reconstructs the full Python catalogue. The three
+bounded sets retain fewer than 10,000 compatibility entries. Truncation and
+preparation limits are shown in Research status text.
 A workflow fails closed until its selected entry has a complete prepared
 snapshot; legacy mode keeps the existing catalogue behavior.
 

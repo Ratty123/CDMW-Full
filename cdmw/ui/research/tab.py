@@ -32,6 +32,7 @@ from cdmw.constants import (
     DEFAULT_UI_PREVIEW_COLOR_SCHEME,
     DEFAULT_UI_THEME,
 )
+from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.services.archive_query_service import build_archive_tree_index
 from cdmw.services.texture_workflow_service import (
     remove_registered_texture_classifications,
@@ -198,6 +199,7 @@ from cdmw.ui.research.progress_helpers import (
     set_progress_ready,
     set_research_progress,
 )
+from cdmw.ui.research.remote_catalogue import ResearchArchiveCatalogueMixin
 from cdmw.ui.research.tab_builders import build_archive_tab, build_texture_tab
 from cdmw.ui.research.tab_side_panel_builders import (
     build_analysis_detail_group,
@@ -269,7 +271,7 @@ from cdmw.ui.widgets import (
 )
 
 
-class ResearchTab(QWidget):
+class ResearchTab(ResearchArchiveCatalogueMixin, QWidget):
     status_message_requested = Signal(str, bool)
     extract_related_set_requested = Signal(object, str)
     focus_archive_browser_requested = Signal()
@@ -436,14 +438,14 @@ class ResearchTab(QWidget):
         get_current_text_search_path: Callable[[], str],
         get_current_compare_path: Callable[[], str],
         get_archive_browser_tree_state: Optional[Callable[[], Dict[str, object]]] = None,
+        archive_catalogue_service: ArchiveCatalogueService | None = None,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
         self.settings = settings
         self.current_theme_key = self._read_theme_key()
         self.base_dir = base_dir
-        self.get_archive_entries = get_archive_entries
-        self.get_filtered_archive_entries = get_filtered_archive_entries
+        self._initialize_research_archive_catalogue(archive_catalogue_service, get_archive_entries, get_filtered_archive_entries)
         self.get_original_root = get_original_root
         self.get_output_root = get_output_root
         self.get_app_config = get_app_config
@@ -674,6 +676,7 @@ class ResearchTab(QWidget):
     def request_shutdown(self) -> None:
         self._refresh_population_timer.stop()
         self._unknown_population_timer.stop()
+        self._cancel_research_catalogue_requests(clear=True)
         self.analysis_task_controller.request_shutdown()
         if self.refresh_worker is not None:
             self.refresh_worker.stop()

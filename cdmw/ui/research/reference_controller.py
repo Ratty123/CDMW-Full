@@ -34,6 +34,9 @@ from cdmw.ui.research.workers import ReferenceResolveWorker
 def resolve_references(self) -> None:
     if self.resolve_thread is not None:
         return
+    if self._prepare_catalogue_research_refresh_if_needed("references"):
+        return
+    self._pending_reference_catalogue_context = self._research_catalogue_context_key()
     target_path = self.reference_target_edit.text().strip()
     if not target_path:
         self.status_message_requested.emit(reference_resolve_missing_target_status_text(), True)
@@ -78,11 +81,15 @@ def focus_references_for_path(self, target_path: str, auto_resolve: bool = True)
             self.reference_status_label.setText(reference_resolve_already_running_status_text(normalized_path))
 
 def _handle_reference_progress(self, current: int, total: int, detail: str) -> None:
+    if self._pending_reference_catalogue_context != self._research_catalogue_context_key():
+        return
     self.reference_status_label.setText(detail)
     set_research_progress(self.reference_progress, current, total)
     self.status_message_requested.emit(detail, False)
 
 def _handle_reference_complete(self, payload: object) -> None:
+    if self._pending_reference_catalogue_context != self._research_catalogue_context_key():
+        return
     self.reference_payload = payload if isinstance(payload, dict) else {}
     self._populate_reference_rows(self.reference_payload.get("reference_rows", []))
     self._populate_sidecar_rows(self.reference_payload.get("sidecar_rows", []))
@@ -92,6 +99,8 @@ def _handle_reference_complete(self, payload: object) -> None:
     self.status_message_requested.emit(complete_state.user_status_text, False)
 
 def _handle_reference_error(self, message: str) -> None:
+    if self._pending_reference_catalogue_context != self._research_catalogue_context_key():
+        return
     self.reference_status_label.setText(message)
     set_progress_error(self.reference_progress)
     self.status_message_requested.emit(message, True)

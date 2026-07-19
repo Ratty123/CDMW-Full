@@ -20,6 +20,8 @@ from cdmw.core.upscale_profiles import (
 from cdmw.domain.research.classification import _normalized_parts, _package_bucket_for_path, system_area_from_path
 from cdmw.domain.research.contracts import (
     DependencyEdge,
+    RESEARCH_TEXTURE_IMAGE_EXTENSIONS,
+    RESEARCH_TEXTURE_SIDECAR_EXTENSIONS,
     TextureClassificationRow,
     TextureSetGroup,
     TextureSetMember,
@@ -27,28 +29,8 @@ from cdmw.domain.research.contracts import (
 )
 from cdmw.models import ArchiveEntry
 
-TEXTURE_IMAGE_EXTENSIONS = {
-    ".bmp",
-    ".dds",
-    ".gif",
-    ".hdr",
-    ".jpeg",
-    ".jpg",
-    ".png",
-    ".tga",
-    ".tif",
-    ".tiff",
-    ".webp",
-}
-
-
-TEXTURE_SIDECAR_EXTENSIONS = {
-    ".material",
-    ".shader",
-    ".xml",
-    ".json",
-    ".pami",
-}
+TEXTURE_IMAGE_EXTENSIONS = set(RESEARCH_TEXTURE_IMAGE_EXTENSIONS)
+TEXTURE_SIDECAR_EXTENSIONS = set(RESEARCH_TEXTURE_SIDECAR_EXTENSIONS)
 
 
 def build_archive_dependency_graph(entries: Sequence[ArchiveEntry], *, top_n: int = 120) -> List[DependencyEdge]:

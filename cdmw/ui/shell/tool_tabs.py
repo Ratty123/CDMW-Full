@@ -142,7 +142,11 @@ class ShellToolTabsMixin:
             )
         return tab
 
-    def _publish_archive_catalogue_session_to_consumers(self, session: object) -> None:
+    def _publish_archive_catalogue_session_to_consumers(
+        self,
+        session: object,
+        query_handle: object = None,
+    ) -> None:
         for tab_name in ("text_search_tab", "replace_assistant_tab"):
             tab = created_tool_widget(getattr(self, tab_name, None))
             if tab is None:
@@ -150,6 +154,23 @@ class ShellToolTabsMixin:
             setter = getattr(tab, "set_archive_catalogue_session", None)
             if callable(setter):
                 setter(session)
+        research_tab = created_tool_widget(getattr(self, "research_tab", None))
+        research_setter = getattr(research_tab, "set_archive_catalogue_context", None)
+        if callable(research_setter):
+            research_setter(session, query_handle)
+
+    def _research_archive_browser_tree_state(self) -> dict[str, object]:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            return {}
+        return {
+            "entries": self.archive_filtered_entries,
+            "tree_child_folders": self.archive_tree_child_folders,
+            "tree_direct_files": self.archive_tree_direct_files,
+            "tree_folder_entry_indexes": self.archive_tree_folder_entry_indexes,
+            "tree_folder_preview_stats": self.archive_tree_folder_preview_stats,
+            "tree_index_ready": self.archive_tree_index_ready,
+        }
 
     def _create_research_tab(self) -> QWidget:
         from cdmw.ui.research import ResearchTab
@@ -165,14 +186,8 @@ class ShellToolTabsMixin:
             get_current_archive_path=self.current_archive_path_for_research,
             get_current_text_search_path=lambda: self.text_search_tab.current_result_path(),
             get_current_compare_path=self.current_compare_path_for_research,
-            get_archive_browser_tree_state=lambda: {
-                "entries": self.archive_filtered_entries,
-                "tree_child_folders": self.archive_tree_child_folders,
-                "tree_direct_files": self.archive_tree_direct_files,
-                "tree_folder_entry_indexes": self.archive_tree_folder_entry_indexes,
-                "tree_folder_preview_stats": self.archive_tree_folder_preview_stats,
-                "tree_index_ready": self.archive_tree_index_ready,
-            },
+            get_archive_browser_tree_state=self._research_archive_browser_tree_state,
+            archive_catalogue_service=getattr(self, "archive_catalogue_service", None),
         )
         tab.status_message_requested.connect(
             lambda message, is_error: self.set_status_message(message, error=is_error)
@@ -180,6 +195,9 @@ class ShellToolTabsMixin:
         tab.focus_archive_browser_requested.connect(lambda: self._activate_tool_widget(self.archive_browser_tab))
         tab.extract_related_set_requested.connect(self.extract_related_archive_set_from_paths)
         tab.review_reference_in_text_search_requested.connect(self._review_reference_in_text_search)
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:
+            tab.set_archive_catalogue_context(remote_bridge.current_session, remote_bridge.model.query_handle)
         return tab
 
     def _create_replace_assistant_tab(self) -> QWidget:
