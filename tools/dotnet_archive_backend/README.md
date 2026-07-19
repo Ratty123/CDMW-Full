@@ -26,6 +26,13 @@ Mapped generations remain protected while a session owns them. Corrupt base
 generations are quarantined; corrupt secondary indexes are rebuilt. The cache
 family is capped at five GiB without pruning current or active generations.
 
+Raw export accepts bounded entry IDs, a server-side query token, a query-scoped
+folder, or a worker-side family seed. The worker decodes into a sibling staging
+directory before publication, can preserve the legacy PAMT-parent folder layout,
+and supports skip, overwrite, rename, cancel, or confirmed whole-destination
+replacement without writing to game archives. Item details stream in bounded
+batches while the terminal result carries aggregate counts and manifest path.
+
 Build and test from the repository root:
 
 ```powershell
@@ -39,8 +46,9 @@ dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/C
 
 The Python probe is synthetic and headless. It exercises the frozen catalogue
 contracts and resident `QProcess` client through cold/warm open, worker paging,
-bounded prepare, text search, query-token export, .NET, and the renamed native
-DLL without opening the application or reading licensed game data.
+bounded prepare, text search, streamed query-token export, package-root layout,
+rename collision handling, .NET, and the renamed native DLL without opening the
+application or reading licensed game data.
 
 Regenerate a three-cycle synthetic timing report outside the repository with:
 

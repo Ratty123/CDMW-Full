@@ -118,12 +118,11 @@ public sealed class ArchiveLookupService(
         ArgumentNullException.ThrowIfNull(request);
         var session = sessions.GetRequired(request.SessionId);
         var selected = session.ReadEntry(request.EntryId);
-        var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
-        var ids = new HashSet<long>();
-        Add(index.Stems, Path.GetFileNameWithoutExtension(selected.Path), ids);
-        var folder = NormalizePath(Path.GetDirectoryName(selected.Path.Replace('/', Path.DirectorySeparatorChar)) ?? string.Empty);
-        Add(index.Folders, folder, ids);
-        ids.Remove(selected.EntryId);
+        var ids = await ResolveAssociationEntryIdsAsync(
+            request.SessionId,
+            request.EntryId,
+            cancellationToken,
+            progress).ConfigureAwait(false);
         var limit = Math.Clamp(request.Limit, 1, 4096);
         var ranked = ids
             .Select(session.ReadEntry)
@@ -137,6 +136,24 @@ public sealed class ArchiveLookupService(
             ranked.Take(limit).ToArray(),
             ids.Count,
             ids.Count > limit);
+    }
+
+    internal async Task<IReadOnlyList<long>> ResolveAssociationEntryIdsAsync(
+        string sessionId,
+        long entryId,
+        CancellationToken cancellationToken,
+        Func<ProgressUpdate, Task>? progress = null)
+    {
+        var session = sessions.GetRequired(sessionId);
+        var selected = session.ReadEntry(entryId);
+        var index = await GetIndexAsync(session, cancellationToken, progress).ConfigureAwait(false);
+        var ids = new HashSet<long>();
+        AddCancellable(index.Stems, Path.GetFileNameWithoutExtension(selected.Path), ids, cancellationToken);
+        var folder = NormalizePath(Path.GetDirectoryName(selected.Path.Replace('/', Path.DirectorySeparatorChar)) ?? string.Empty);
+        AddCancellable(index.Folders, folder, ids, cancellationToken);
+        ids.Remove(selected.EntryId);
+        cancellationToken.ThrowIfCancellationRequested();
+        return ids.Order().ToArray();
     }
 
     public async Task<ArchiveFacetsResult> FacetsAsync(
@@ -384,6 +401,26 @@ public sealed class ArchiveLookupService(
         if (map.TryGetValue(key, out var postings))
         {
             destination.UnionWith(postings);
+        }
+    }
+
+    private static void AddCancellable(
+        Dictionary<string, List<long>> map,
+        string key,
+        HashSet<long> destination,
+        CancellationToken cancellationToken)
+    {
+        if (!map.TryGetValue(key, out var postings))
+        {
+            return;
+        }
+        for (var index = 0; index < postings.Count; index++)
+        {
+            if ((index & 0x1FFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            destination.Add(postings[index]);
         }
     }
 

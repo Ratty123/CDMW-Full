@@ -69,6 +69,7 @@ public enum ArchiveExportCollisionPolicy
 {
     Skip,
     Overwrite,
+    Rename,
     Cancel,
 }
 
@@ -81,7 +82,10 @@ public sealed record ArchiveExportRequest(
     string? FolderPath = null,
     long? FamilyEntryId = null,
     ArchiveExportCollisionPolicy CollisionPolicy = ArchiveExportCollisionPolicy.Skip,
-    bool WriteManifest = true);
+    bool WriteManifest = true,
+    bool IncludePackageRoot = false,
+    bool ReplaceDestination = false,
+    IReadOnlyList<string>? Extensions = null);
 
 public sealed record ArchiveExportItem(
     string SourcePath,

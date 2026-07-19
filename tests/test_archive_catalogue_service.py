@@ -6,7 +6,7 @@ import sys
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEventLoop, QTimer
+from PySide6.QtCore import QEventLoop, QObject, QTimer, Signal
 from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.archives.catalogue import (
@@ -20,6 +20,9 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSortField,
 )
 from cdmw.domain.archives.catalogue_operations import (
+    ArchiveExportRequest,
+    ArchiveExportResult,
+    ArchiveExportSelectionKind,
     FetchPageRequest,
     OpenArchiveRequest,
 )
@@ -29,6 +32,26 @@ from cdmw.ui.shell.archive_backend_client import ArchiveBackendClient, ArchiveBa
 
 _APPLICATION: QApplication | None = None
 _STUB = Path(__file__).parent / "helpers" / "archive_backend_worker_stub.py"
+
+
+class _SignalClient(QObject):
+    request_progress = Signal(str, object)
+    request_batch = Signal(str, object)
+    request_succeeded = Signal(str, object)
+    request_failed = Signal(str, object)
+    request_cancelled = Signal(str)
+    state_changed = Signal(str)
+    worker_crashed = Signal(str)
+    worker_ready = Signal()
+
+    def submit(self, *_args: object, **_kwargs: object) -> None:
+        return None
+
+    def cancel(self, _request_id: str) -> bool:
+        return True
+
+    def shutdown(self) -> None:
+        return None
 
 
 def _app() -> QApplication:
@@ -223,3 +246,53 @@ def test_catalogue_service_retries_session_scoped_structure_children_after_crash
 
     service.request_shutdown()
     assert _wait_until(lambda: client.state is ArchiveBackendClientState.STOPPED)
+
+
+def test_catalogue_service_parses_streamed_export_items() -> None:
+    _app()
+    client = _SignalClient()
+    service = ArchiveCatalogueService(client)
+    session = ArchiveSessionHandle("session-a", "C:/Game", "fingerprint", 2, 2, True)
+    service._sessions[session.session_id] = session
+    service._current_session_id = session.session_id
+    batches: list[tuple[str, str, object]] = []
+    results: list[tuple[str, str, object]] = []
+    service.batch_ready.connect(lambda request_id, operation, payload: batches.append((request_id, operation, payload)))
+    service.result_ready.connect(lambda request_id, operation, payload: results.append((request_id, operation, payload)))
+    request_id = service.export(
+        ArchiveExportRequest(
+            session.session_id,
+            ArchiveExportSelectionKind.ENTRY_IDS,
+            "C:/export",
+            entry_ids=(7,),
+        ),
+        ui_generation=1,
+    )
+    batch_payload = {
+        "session_id": session.session_id,
+        "requested": 1,
+        "exported": 1,
+        "skipped": 0,
+        "failed": 0,
+        "cancelled": False,
+        "manifest_path": "C:/export/cdmw-export-manifest.json",
+        "items": [
+            {
+                "source_path": "texture/albedo.dds",
+                "output_path": "C:/export/texture/albedo_2.dds",
+                "status": "renamed",
+                "message": None,
+            }
+        ],
+        "items_truncated": False,
+    }
+    client.request_batch.emit(request_id, batch_payload)
+    client.request_succeeded.emit(request_id, {**batch_payload, "items": []})
+
+    assert len(batches) == 1
+    assert batches[0][0:2] == (request_id, "export")
+    assert isinstance(batches[0][2], ArchiveExportResult)
+    assert batches[0][2].items[0].status == "renamed"
+    assert len(results) == 1
+    assert isinstance(results[0][2], ArchiveExportResult)
+    assert results[0][2].items == ()

@@ -247,6 +247,7 @@ class ArchiveCatalogueService(QObject):
             ArchiveBackendOperation.EXPORT,
             request,
             ArchiveExportResult.from_wire,
+            batch_parser=ArchiveExportResult.from_wire,
             ui_generation=ui_generation,
             session=session,
         )

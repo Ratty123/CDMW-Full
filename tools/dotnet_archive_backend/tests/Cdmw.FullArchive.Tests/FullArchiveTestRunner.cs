@@ -298,6 +298,125 @@ internal static class FullArchiveTestRunner
             Require(cancelled.Cancelled, "collision cancellation was not reported");
             Require(await File.ReadAllTextAsync(materialPath).ConfigureAwait(false) == "preserve me", "cancelled export changed its destination");
 
+            var renameRoot = Path.Combine(exportRoot, "rename-export");
+            var existingPackageMaterial = Path.Combine(renameRoot, "base", "materials", "sample.material");
+            Directory.CreateDirectory(Path.GetDirectoryName(existingPackageMaterial)!);
+            await File.WriteAllTextAsync(existingPackageMaterial, "keep existing").ConfigureAwait(false);
+            var existingManifest = Path.Combine(renameRoot, "cdmw-export-manifest.json");
+            await File.WriteAllTextAsync(existingManifest, "keep manifest").ConfigureAwait(false);
+            var renamed = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    sessionHandle.SessionId,
+                    ArchiveExportSelectionKind.EntryIds,
+                    renameRoot,
+                    EntryIds: [materialPage.Rows[0].EntryId],
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Rename,
+                    IncludePackageRoot: true),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(renamed.Exported == 1 && renamed.Items.Single().Status == "renamed", "rename collision policy changed");
+            Require(
+                await File.ReadAllTextAsync(Path.Combine(renameRoot, "base", "materials", "sample_2.material")).ConfigureAwait(false) == "material alpha",
+                "renamed package-root export bytes changed");
+            Require(
+                await File.ReadAllTextAsync(existingPackageMaterial).ConfigureAwait(false) == "keep existing",
+                "rename export overwrote its collision target");
+            Require(
+                renamed.ManifestPath == Path.Combine(renameRoot, "cdmw-export-manifest_2.json") &&
+                File.Exists(renamed.ManifestPath) &&
+                await File.ReadAllTextAsync(existingManifest).ConfigureAwait(false) == "keep manifest",
+                "rename export manifest collision handling changed");
+
+            var folderRoot = Path.Combine(exportRoot, "folder-export");
+            var folderExport = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    sessionHandle.SessionId,
+                    ArchiveExportSelectionKind.Folder,
+                    folderRoot,
+                    QueryId: structureQuery.QueryId,
+                    FolderPath: "base",
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Overwrite,
+                    IncludePackageRoot: true),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(folderExport.Exported == 1, "folder export selection changed");
+            Require(
+                await File.ReadAllTextAsync(Path.Combine(folderRoot, "base", "text", "hello.txt")).ConfigureAwait(false) == "Hello Crimson\nline 2",
+                "folder export package layout changed");
+
+            var familyRoot = Path.Combine(exportRoot, "family-export");
+            var familyExport = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    sessionHandle.SessionId,
+                    ArchiveExportSelectionKind.Family,
+                    familyRoot,
+                    FamilyEntryId: materialPage.Rows[0].EntryId,
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Overwrite),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(familyExport.Exported >= 1, "family export selection changed");
+            Require(File.Exists(Path.Combine(familyRoot, "materials", "sample.material")), "family export omitted its seed");
+
+            var replaceRoot = Path.Combine(exportRoot, "replace-export");
+            Directory.CreateDirectory(replaceRoot);
+            await File.WriteAllTextAsync(Path.Combine(replaceRoot, "stale.txt"), "stale").ConfigureAwait(false);
+            var replaced = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    sessionHandle.SessionId,
+                    ArchiveExportSelectionKind.EntryIds,
+                    replaceRoot,
+                    EntryIds: [prepared.Entry.EntryId],
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Overwrite,
+                    IncludePackageRoot: true,
+                    ReplaceDestination: true),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(replaced.Exported == 1 && !File.Exists(Path.Combine(replaceRoot, "stale.txt")), "replace-destination export changed");
+            Require(
+                await File.ReadAllTextAsync(Path.Combine(replaceRoot, "base", "text", "hello.txt")).ConfigureAwait(false) == "Hello Crimson\nline 2",
+                "replace-destination export bytes changed");
+
+            var cancellationRoot = Path.Combine(exportRoot, "cancelled-export");
+            Directory.CreateDirectory(cancellationRoot);
+            var cancellationMarker = Path.Combine(cancellationRoot, "keep.txt");
+            await File.WriteAllTextAsync(cancellationMarker, "keep destination").ConfigureAwait(false);
+            var cancellationQuery = await queries.CreateAsync(
+                new ArchiveQuery(sessionHandle.SessionId),
+                generation: 19,
+                CancellationToken.None).ConfigureAwait(false);
+            using var exportCancellation = new CancellationTokenSource();
+            var cancellationObserved = false;
+            try
+            {
+                _ = await exports.ExportAsync(
+                    new ArchiveExportRequest(
+                        sessionHandle.SessionId,
+                        ArchiveExportSelectionKind.Query,
+                        cancellationRoot,
+                        QueryId: cancellationQuery.QueryId,
+                        CollisionPolicy: ArchiveExportCollisionPolicy.Overwrite,
+                        IncludePackageRoot: true,
+                        ReplaceDestination: true),
+                    exportCancellation.Token,
+                    update =>
+                    {
+                        if (update.Phase == "export_publish")
+                        {
+                            exportCancellation.Cancel();
+                        }
+                        return Task.CompletedTask;
+                    }).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                cancellationObserved = true;
+            }
+            Require(cancellationObserved, "export cancellation was not observed");
+            Require(
+                Directory.GetFiles(cancellationRoot, "*", SearchOption.AllDirectories) is [var onlyFile] &&
+                onlyFile.Equals(cancellationMarker, StringComparison.OrdinalIgnoreCase) &&
+                await File.ReadAllTextAsync(cancellationMarker).ConfigureAwait(false) == "keep destination",
+                "cancelled export changed its previous destination");
+            Require(
+                !Directory.EnumerateFileSystemEntries(exportRoot, ".cancelled-export.cdmw-*").Any(),
+                "cancelled export left a staging directory");
+
             for (var generation = 20; generation < 25; generation++)
             {
                 _ = await queries.CreateAsync(
@@ -344,6 +463,41 @@ internal static class FullArchiveTestRunner
                 CancellationToken.None).ConfigureAwait(false);
             var activeRows = queries.FetchPage(session.SessionId, new FetchPageRequest(active.QueryId)).Rows;
             Require(activeRows is [{ OverrideState: "Active mod" }], "active-override filter changed");
+
+            var lookup = new ArchiveLookupService(sessions, cache);
+            var exports = new ArchiveExportService(sessions, queries, lookup, native);
+            var overwriteRoot = Path.Combine(fixture.OutputRoot, "duplicate-overwrite");
+            var overwritten = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    session.SessionId,
+                    ArchiveExportSelectionKind.Query,
+                    overwriteRoot,
+                    QueryId: all.QueryId,
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Overwrite),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                overwritten.Requested == 2 && overwritten.Exported == 1 &&
+                await File.ReadAllBytesAsync(Path.Combine(overwriteRoot, "character", "model", "duplicate.pac"))
+                    .ConfigureAwait(false) is [0x02],
+                "duplicate overwrite export did not preserve the active mod bytes");
+
+            var renameRoot = Path.Combine(fixture.OutputRoot, "duplicate-rename");
+            var renamed = await exports.ExportAsync(
+                new ArchiveExportRequest(
+                    session.SessionId,
+                    ArchiveExportSelectionKind.Query,
+                    renameRoot,
+                    QueryId: all.QueryId,
+                    CollisionPolicy: ArchiveExportCollisionPolicy.Rename),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                renamed.Exported == 2 &&
+                renamed.Items.Count(static item => item.Status == "renamed") == 1 &&
+                await File.ReadAllBytesAsync(Path.Combine(renameRoot, "character", "model", "duplicate.pac"))
+                    .ConfigureAwait(false) is [0x01] &&
+                await File.ReadAllBytesAsync(Path.Combine(renameRoot, "character", "model", "duplicate_2.pac"))
+                    .ConfigureAwait(false) is [0x02],
+                "duplicate rename export did not preserve both ordered payloads");
         }
         finally
         {

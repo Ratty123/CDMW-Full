@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, replace
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterable
 
 from PySide6.QtCore import QItemSelectionModel, QModelIndex, QObject, QTimer
@@ -18,11 +18,15 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSessionHandle,
     ArchiveViewMode,
 )
+from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind
 from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_controller import ArchiveRemoteCatalogueController
 from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel
 from cdmw.ui.archive_browser.remote_query import archive_query_from_browser_state
+
+
+MAX_REMOTE_EXPORT_ENTRY_IDS = 4096
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +47,21 @@ class ArchiveShadowComparison:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ArchiveRemoteExportSelection:
+    selection_kind: ArchiveExportSelectionKind
+    requested_count: int
+    entry_ids: tuple[int, ...] = ()
+    query_id: str | None = None
+    folder_path: str | None = None
+    family_entry_id: int | None = None
+    all_dds: bool = False
+    workflow_paths: tuple[str, ...] = ()
+    dds_count: int = 0
+    extensions: tuple[str, ...] = ()
+    include_package_root: bool = True
+
+
 class ArchiveRemoteWindowBridge(QObject):
     """Adapt remote catalogue lifecycle signals to the existing window shell."""
 
@@ -58,6 +77,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._structure_rows: dict[str, list[tuple[str, int]]] = {}
         self._structure_loaded: set[str] = set()
         self._structure_requests_enabled = False
+        self._export_selection_error = ""
         self._model = RemoteArchiveBrowserModel(parent=self)
         self._controller = ArchiveRemoteCatalogueController(
             window.archive_catalogue_service,
@@ -99,6 +119,10 @@ class ArchiveRemoteWindowBridge(QObject):
     @property
     def structure_requests_ready(self) -> bool:
         return self._display_v2 and self._structure_requests_enabled
+
+    @property
+    def export_selection_error(self) -> str:
+        return self._export_selection_error
 
     def open_archive(
         self,
@@ -225,6 +249,95 @@ class ArchiveRemoteWindowBridge(QObject):
             if len(entries) >= max(1, int(limit)):
                 break
         return entries
+
+    def selected_export_selection(self) -> ArchiveRemoteExportSelection | None:
+        self._export_selection_error = ""
+        if not self._display_v2:
+            return None
+        selection_model = self._window.archive_tree.selectionModel()
+        if selection_model is None:
+            return None
+        selected_row_count = sum(
+            selected_range.bottom() - selected_range.top() + 1
+            for selected_range in selection_model.selection()
+        )
+        if selected_row_count > MAX_REMOTE_EXPORT_ENTRY_IDS:
+            self._export_selection_error = (
+                f"Select at most {MAX_REMOTE_EXPORT_ENTRY_IDS:,} individual files, or use Extract Filtered for a larger set."
+            )
+            return None
+        rows = selection_model.selectedRows(0)
+        if not rows:
+            return None
+        entries = [self._model.entry_for_index(index) for index in rows]
+        if all(entry is not None for entry in entries):
+            entry_ids = tuple(dict.fromkeys(entry.entry_id for entry in entries if entry is not None))
+            return ArchiveRemoteExportSelection(
+                ArchiveExportSelectionKind.ENTRY_IDS,
+                len(entry_ids),
+                entry_ids=entry_ids,
+                all_dds=bool(entries) and all(entry is not None and entry.extension == ".dds" for entry in entries),
+                workflow_paths=tuple(_workflow_path(entry) for entry in entries if entry is not None),
+                dds_count=sum(entry is not None and entry.extension == ".dds" for entry in entries),
+            )
+        if len(rows) != 1:
+            return None
+        node = self._model.node_from_index(rows[0])
+        if node is None or node.kind != "folder" or not node.path:
+            return None
+        return ArchiveRemoteExportSelection(
+            ArchiveExportSelectionKind.FOLDER,
+            max(0, int(node.match_count)),
+            query_id=self._model.query_handle.query_id if self._model.query_handle is not None else None,
+            folder_path=node.path,
+        )
+
+    def filtered_export_selection(self) -> ArchiveRemoteExportSelection | None:
+        handle = self._model.query_handle
+        query = self._controller.current_query
+        if not self._display_v2 or handle is None or query is None:
+            return None
+        normalized_extensions = {
+            value if value.startswith(".") else f".{value}"
+            for value in (extension.strip().casefold() for extension in query.extensions)
+            if value
+        }
+        return ArchiveRemoteExportSelection(
+            ArchiveExportSelectionKind.QUERY,
+            handle.total_matches,
+            query_id=handle.query_id,
+            all_dds=normalized_extensions == {".dds"},
+            dds_count=handle.total_matches if normalized_extensions == {".dds"} else 0,
+        )
+
+    def current_family_export_selection(self) -> ArchiveRemoteExportSelection | None:
+        if not self._display_v2:
+            return None
+        entry = self._model.entry_for_index(self._window.archive_tree.currentIndex())
+        if entry is None:
+            return None
+        return ArchiveRemoteExportSelection(
+            ArchiveExportSelectionKind.FAMILY,
+            1,
+            family_entry_id=entry.entry_id,
+            all_dds=entry.extension == ".dds",
+            include_package_root=False,
+        )
+
+    def current_entry_export_selection(self) -> ArchiveRemoteExportSelection | None:
+        if not self._display_v2:
+            return None
+        entry = self._model.entry_for_index(self._window.archive_tree.currentIndex())
+        if entry is None:
+            return None
+        return ArchiveRemoteExportSelection(
+            ArchiveExportSelectionKind.ENTRY_IDS,
+            1,
+            entry_ids=(entry.entry_id,),
+            all_dds=entry.extension == ".dds",
+            workflow_paths=(_workflow_path(entry),),
+            dds_count=1 if entry.extension == ".dds" else 0,
+        )
 
     def request_structure_children(self, parent_path: str = "") -> None:
         if not self.structure_requests_ready or self._controller.current_session is None:
@@ -523,7 +636,14 @@ def _structure_sort_key(value: str) -> tuple[int, int, str]:
     return (0, int(leaf), leaf) if leaf.isdigit() else (1, 0, leaf)
 
 
+def _workflow_path(entry: ArchiveEntryDto) -> str:
+    package_root = PurePosixPath(entry.source_pamt.replace("\\", "/")).parent.name.strip() or "package"
+    normalized_path = entry.path.replace("\\", "/").lstrip("/")
+    return f"{package_root}/{normalized_path}"
+
+
 __all__ = [
+    "ArchiveRemoteExportSelection",
     "ArchiveRemoteWindowBridge",
     "ArchiveShadowComparison",
     "compare_archive_shadow_page",

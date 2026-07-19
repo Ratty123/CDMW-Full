@@ -550,6 +550,18 @@ class ArchiveBrowserActionMixin:
         entry = self._current_archive_action_entry("Extract File")
         if entry is None:
             return
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            selection = remote_bridge.current_entry_export_selection()
+            if selection is None:
+                self.set_status_message("Select an archive file before using Extract File.", error=True)
+                return
+            self._run_remote_archive_export(
+                selection,
+                allow_original_dds_root=True,
+                description=f"Extracting {entry.basename}...",
+            )
+            return
         self._run_archive_extract(
             [entry],
             allow_original_dds_root=True,

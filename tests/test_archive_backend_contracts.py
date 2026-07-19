@@ -19,10 +19,13 @@ from cdmw.domain.archives.catalogue import (
 )
 from cdmw.domain.archives.catalogue_operations import (
     ARCHIVE_BACKEND_PROTOCOL_VERSION,
-    ArchiveTextMatch,
     ArchiveBackendEnvelope,
     ArchiveBackendOperation,
     ArchiveBackendStatus,
+    ArchiveExportCollisionPolicy,
+    ArchiveExportRequest,
+    ArchiveExportSelectionKind,
+    ArchiveTextMatch,
     CreateQueryRequest,
     FetchPageRequest,
 )
@@ -229,3 +232,31 @@ def test_archive_children_contract_supports_bounded_continuation_pages() -> None
 
     with pytest.raises(ValueError, match="must not be negative"):
         ArchiveChildrenRequest("query-a", offset=-1)
+
+
+def test_archive_export_contract_carries_worker_owned_layout_and_collision_options() -> None:
+    request = ArchiveExportRequest(
+        session_id="session-a",
+        selection_kind=ArchiveExportSelectionKind.FOLDER,
+        destination="C:/exports/current",
+        folder_path="0009/character/model",
+        collision_policy=ArchiveExportCollisionPolicy.RENAME,
+        include_package_root=True,
+        replace_destination=True,
+        extensions=(".dds", "material"),
+    )
+
+    assert to_wire(request) == {
+        "session_id": "session-a",
+        "selection_kind": "folder",
+        "destination": "C:/exports/current",
+        "entry_ids": [],
+        "query_id": None,
+        "folder_path": "0009/character/model",
+        "family_entry_id": None,
+        "collision_policy": "rename",
+        "write_manifest": True,
+        "include_package_root": True,
+        "replace_destination": True,
+        "extensions": [".dds", "material"],
+    }

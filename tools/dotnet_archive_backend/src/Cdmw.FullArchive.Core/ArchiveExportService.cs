@@ -38,6 +38,7 @@ public sealed class ArchiveExportService(
         Directory.CreateDirectory(stagingRoot);
         var items = new List<ArchiveExportItem>(Math.Min(entryIds.Count, MaximumReportedItems));
         var publishFiles = new List<PublishFile>();
+        var reservedFinalPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         long skipped = 0;
         try
         {
@@ -49,9 +50,25 @@ public sealed class ArchiveExportService(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var entry = session.ReadEntry(entryIds[index]);
-                var relative = ExportPathPolicy.NormalizeVirtualPath(entry.Path);
+                var relative = ExportRelativePath(entry, request.IncludePackageRoot);
                 var finalPath = ExportPathPolicy.ResolveContainedPath(destination, relative);
-                if (File.Exists(finalPath))
+                var collidesWithRequest = reservedFinalPaths.Contains(finalPath);
+                var collidesWithDestination = !request.ReplaceDestination && File.Exists(finalPath);
+                var renamed = false;
+                if (request.CollisionPolicy == ArchiveExportCollisionPolicy.Rename &&
+                    (collidesWithRequest || collidesWithDestination))
+                {
+                    finalPath = FindAvailableOutputPath(
+                        destination,
+                        finalPath,
+                        reservedFinalPaths,
+                        considerExisting: !request.ReplaceDestination);
+                    relative = Path.GetRelativePath(destination, finalPath).Replace('\\', '/');
+                    renamed = true;
+                    collidesWithRequest = false;
+                    collidesWithDestination = false;
+                }
+                if (collidesWithRequest || collidesWithDestination)
                 {
                     if (request.CollisionPolicy == ArchiveExportCollisionPolicy.Cancel)
                     {
@@ -63,6 +80,16 @@ public sealed class ArchiveExportService(
                         AddItem(items, new ArchiveExportItem(entry.Path, finalPath, "skipped", "destination exists"));
                         continue;
                     }
+                    if (collidesWithRequest)
+                    {
+                        var supersededIndex = publishFiles.FindIndex(file =>
+                            file.Entry is not null && file.FinalPath.Equals(finalPath, StringComparison.OrdinalIgnoreCase));
+                        if (supersededIndex >= 0)
+                        {
+                            TryDeleteFile(publishFiles[supersededIndex].StagedPath);
+                            publishFiles.RemoveAt(supersededIndex);
+                        }
+                    }
                 }
 
                 var stagedPath = ExportPathPolicy.ResolveContainedPath(stagingRoot, relative);
@@ -70,7 +97,12 @@ public sealed class ArchiveExportService(
                 var decoded = await Task.Run(() => native.Decode(entry), cancellationToken).ConfigureAwait(false);
                 await WriteFileAsync(stagedPath, decoded.Bytes, cancellationToken).ConfigureAwait(false);
                 publishFiles.Add(new PublishFile(entry, relative, stagedPath, finalPath));
-                AddItem(items, new ArchiveExportItem(entry.Path, finalPath, "exported", decoded.Note));
+                reservedFinalPaths.Add(finalPath);
+                AddItem(items, new ArchiveExportItem(
+                    entry.Path,
+                    finalPath,
+                    renamed ? "renamed" : "exported",
+                    decoded.Note));
                 if (progress is not null && ((index & 0x3F) == 0 || index + 1 == entryIds.Count))
                 {
                     await progress(new ProgressUpdate(index + 1, entryIds.Count, "export_decode", entry.Path)).ConfigureAwait(false);
@@ -81,7 +113,19 @@ public sealed class ArchiveExportService(
             if (request.WriteManifest)
             {
                 manifestRelativePath = "cdmw-export-manifest.json";
+                var finalManifest = Path.Combine(destination, manifestRelativePath);
+                if (request.CollisionPolicy == ArchiveExportCollisionPolicy.Rename &&
+                    (reservedFinalPaths.Contains(finalManifest) || (!request.ReplaceDestination && File.Exists(finalManifest))))
+                {
+                    finalManifest = FindAvailableOutputPath(
+                        destination,
+                        finalManifest,
+                        reservedFinalPaths,
+                        considerExisting: !request.ReplaceDestination);
+                    manifestRelativePath = Path.GetRelativePath(destination, finalManifest).Replace('\\', '/');
+                }
                 var stagedManifest = Path.Combine(stagingRoot, manifestRelativePath);
+                Directory.CreateDirectory(Path.GetDirectoryName(stagedManifest)!);
                 var manifest = new ArchiveExportManifest(
                     "cdmw_full_archive_export_v2",
                     session.Fingerprint,
@@ -98,14 +142,20 @@ public sealed class ArchiveExportService(
                             entry.Flags);
                     }).ToArray());
                 await WriteJsonAsync(stagedManifest, manifest, cancellationToken).ConfigureAwait(false);
-                var finalManifest = Path.Combine(destination, manifestRelativePath);
-                if (File.Exists(finalManifest) && request.CollisionPolicy == ArchiveExportCollisionPolicy.Cancel)
+                if (!request.ReplaceDestination && File.Exists(finalManifest) &&
+                    request.CollisionPolicy == ArchiveExportCollisionPolicy.Cancel)
                 {
                     return Result(session.Id, entryIds.Count, 0, skipped, 0, cancelled: true, null, items);
                 }
-                if (!File.Exists(finalManifest) || request.CollisionPolicy == ArchiveExportCollisionPolicy.Overwrite)
+                if (request.ReplaceDestination || !File.Exists(finalManifest) ||
+                    request.CollisionPolicy is ArchiveExportCollisionPolicy.Overwrite or ArchiveExportCollisionPolicy.Rename)
                 {
                     publishFiles.Add(new PublishFile(null, manifestRelativePath, stagedManifest, finalManifest));
+                    reservedFinalPaths.Add(finalManifest);
+                }
+                else
+                {
+                    manifestRelativePath = null;
                 }
             }
 
@@ -114,7 +164,12 @@ public sealed class ArchiveExportService(
             {
                 await progress(new ProgressUpdate(0, publishFiles.Count, "export_publish")).ConfigureAwait(false);
             }
-            if (!Directory.Exists(destination))
+            cancellationToken.ThrowIfCancellationRequested();
+            if (request.ReplaceDestination && Directory.Exists(destination))
+            {
+                PublishReplacingDestination(destination, stagingRoot, rollbackRoot);
+            }
+            else if (!Directory.Exists(destination))
             {
                 Directory.Move(stagingRoot, destination);
             }
@@ -122,8 +177,9 @@ public sealed class ArchiveExportService(
             {
                 PublishIntoExistingDestination(destination, rollbackRoot, publishFiles);
             }
-            var manifestPath = request.WriteManifest
-                ? Path.Combine(destination, "cdmw-export-manifest.json")
+            TryDeleteDirectory(rollbackRoot);
+            var manifestPath = manifestRelativePath is not null
+                ? ExportPathPolicy.ResolveContainedPath(destination, manifestRelativePath)
                 : null;
             if (progress is not null)
             {
@@ -142,7 +198,6 @@ public sealed class ArchiveExportService(
         finally
         {
             TryDeleteDirectory(stagingRoot);
-            TryDeleteDirectory(rollbackRoot);
         }
     }
 
@@ -151,20 +206,23 @@ public sealed class ArchiveExportService(
         ArchiveExportRequest request,
         CancellationToken cancellationToken)
     {
+        IReadOnlyList<long> resolved;
         switch (request.SelectionKind)
         {
             case ArchiveExportSelectionKind.EntryIds:
-                return (request.EntryIds ?? [])
+                resolved = (request.EntryIds ?? [])
                     .Where(id => id >= 0 && id < session.Index.EntryCount)
                     .Distinct()
                     .Order()
                     .ToArray();
+                break;
             case ArchiveExportSelectionKind.Query:
                 if (string.IsNullOrWhiteSpace(request.QueryId))
                 {
                     throw new InvalidDataException("Filtered export requires a server-side query token.");
                 }
-                return queries.GetEntryIds(session.Id, request.QueryId).ToArray();
+                resolved = queries.GetEntryIds(session.Id, request.QueryId);
+                break;
             case ArchiveExportSelectionKind.Folder:
                 if (string.IsNullOrWhiteSpace(request.FolderPath))
                 {
@@ -172,33 +230,139 @@ public sealed class ArchiveExportService(
                 }
                 var folder = request.FolderPath.Replace('\\', '/').Trim('/') + "/";
                 var folderIds = new List<long>();
-                for (long entryId = 0; entryId < session.Index.EntryCount; entryId++)
+                var queryEntryIds = string.IsNullOrWhiteSpace(request.QueryId)
+                    ? null
+                    : queries.GetEntryIds(session.Id, request.QueryId);
+                var candidateCount = queryEntryIds is null ? session.Index.EntryCount : queryEntryIds.Count;
+                for (long candidateIndex = 0; candidateIndex < candidateCount; candidateIndex++)
                 {
-                    if ((entryId & 0x1FFF) == 0)
+                    if ((candidateIndex & 0x1FFF) == 0)
                     {
                         cancellationToken.ThrowIfCancellationRequested();
                     }
-                    if (session.ReadEntry(entryId).Path.StartsWith(folder, StringComparison.OrdinalIgnoreCase))
+                    var entryId = queryEntryIds is null
+                        ? candidateIndex
+                        : queryEntryIds[checked((int)candidateIndex)];
+                    if (StructurePath(session.ReadEntry(entryId)).StartsWith(folder, StringComparison.OrdinalIgnoreCase))
                     {
                         folderIds.Add(entryId);
                     }
                 }
-                return folderIds;
+                resolved = folderIds;
+                break;
             case ArchiveExportSelectionKind.Family:
                 if (request.FamilyEntryId is not { } familyEntryId)
                 {
                     throw new InvalidDataException("Family export requires a seed entry id.");
                 }
-                var associated = await lookups.FindAssociationCandidatesAsync(
-                    new ArchiveAssociationRequest(session.Id, familyEntryId, 4096),
+                var associated = await lookups.ResolveAssociationEntryIdsAsync(
+                    session.Id,
+                    familyEntryId,
                     cancellationToken).ConfigureAwait(false);
-                return associated.Candidates.Select(static entry => entry.EntryId)
+                resolved = associated
                     .Append(familyEntryId)
                     .Distinct()
                     .Order()
                     .ToArray();
+                break;
             default:
                 throw new InvalidDataException("The archive export selection kind is not supported.");
+        }
+        var extensions = (request.Extensions ?? [])
+            .Select(NormalizeExtension)
+            .Where(static value => !string.IsNullOrWhiteSpace(value))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (extensions.Count == 0)
+        {
+            return resolved;
+        }
+        var filtered = new List<long>();
+        for (var index = 0; index < resolved.Count; index++)
+        {
+            if ((index & 0x1FFF) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+            var entryId = resolved[index];
+            if (extensions.Contains(session.ReadEntry(entryId).Extension))
+            {
+                filtered.Add(entryId);
+            }
+        }
+        return filtered;
+    }
+
+    private static string NormalizeExtension(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant();
+        return string.IsNullOrEmpty(normalized) || normalized.StartsWith('.') ? normalized : "." + normalized;
+    }
+
+    private static string ExportRelativePath(ArchiveEntryDto entry, bool includePackageRoot)
+    {
+        var relative = ExportPathPolicy.NormalizeVirtualPath(entry.Path);
+        if (!includePackageRoot)
+        {
+            return relative;
+        }
+        return ExportPathPolicy.NormalizeVirtualPath($"{PackageRoot(entry)}/{relative}");
+    }
+
+    private static string StructurePath(ArchiveEntryDto entry)
+    {
+        return $"{PackageRoot(entry)}/{entry.Path.Trim('/')}";
+    }
+
+    private static string PackageRoot(ArchiveEntryDto entry)
+    {
+        var normalizedSource = entry.SourcePamt.Replace('/', Path.DirectorySeparatorChar);
+        var packageRoot = Path.GetFileName(Path.GetDirectoryName(normalizedSource));
+        if (string.IsNullOrWhiteSpace(packageRoot))
+        {
+            packageRoot = "package";
+        }
+        return packageRoot.Trim('/');
+    }
+
+    private static string FindAvailableOutputPath(
+        string destination,
+        string targetPath,
+        IReadOnlySet<string> reservedPaths,
+        bool considerExisting)
+    {
+        var parent = Path.GetDirectoryName(targetPath)!;
+        var stem = Path.GetFileNameWithoutExtension(targetPath);
+        var extension = Path.GetExtension(targetPath);
+        for (var counter = 2; ; counter++)
+        {
+            var candidate = Path.Combine(parent, $"{stem}_{counter}{extension}");
+            candidate = ExportPathPolicy.ResolveContainedPath(
+                destination,
+                Path.GetRelativePath(destination, candidate).Replace('\\', '/'));
+            if (!reservedPaths.Contains(candidate) && (!considerExisting || !File.Exists(candidate)))
+            {
+                return candidate;
+            }
+        }
+    }
+
+    private static void PublishReplacingDestination(
+        string destination,
+        string stagingRoot,
+        string rollbackRoot)
+    {
+        Directory.Move(destination, rollbackRoot);
+        try
+        {
+            Directory.Move(stagingRoot, destination);
+        }
+        catch
+        {
+            if (!Directory.Exists(destination) && Directory.Exists(rollbackRoot))
+            {
+                Directory.Move(rollbackRoot, destination);
+            }
+            throw;
         }
     }
 

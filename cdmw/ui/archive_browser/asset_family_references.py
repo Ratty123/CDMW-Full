@@ -3,11 +3,21 @@
 from __future__ import annotations
 
 import re
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import List, Optional, Sequence, Tuple
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QCheckBox, QDialog, QHBoxLayout, QLabel, QPushButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout
+from PySide6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+)
 
 from cdmw.services.archive_workflow_service import _strip_archive_model_family_variant_suffix
 from cdmw.services.texture_workflow_service import derive_texture_group_key
@@ -237,6 +247,27 @@ class ArchiveAssetFamilyReferenceMixin:
         self._scope_archive_reference_entries(entries, scope_label=f"Asset family for {entry.basename}{suffix}")
 
     def _export_archive_asset_family_for_entry(self, entry: ArchiveEntry, *, include_hints: bool = False) -> None:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2:
+            selection = remote_bridge.current_family_export_selection()
+            if selection is None:
+                self.set_status_message("Select an archive file before exporting its family.", error=True)
+                return
+            default_dir = self.settings_file_path.parent / "archive_related_export"
+            output_dir = QFileDialog.getExistingDirectory(
+                self,
+                f"Export Asset Family - {entry.basename}",
+                str(default_dir),
+            )
+            if not output_dir:
+                return
+            self._run_remote_archive_export(
+                selection,
+                description=f"Exporting archive family for {entry.basename}...",
+                output_root_override=Path(output_dir),
+                prompt_options=False,
+            )
+            return
         if self._archive_lookup_indexes_snapshot() is None:
             self.set_status_message(
                 "Archive path lookup is warming; retry family export when indexing finishes."

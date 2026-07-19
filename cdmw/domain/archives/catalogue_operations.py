@@ -66,6 +66,7 @@ class ArchiveExportSelectionKind(str, Enum):
 class ArchiveExportCollisionPolicy(str, Enum):
     SKIP = "skip"
     OVERWRITE = "overwrite"
+    RENAME = "rename"
     CANCEL = "cancel"
 
 
@@ -326,6 +327,9 @@ class ArchiveExportRequest:
     family_entry_id: int | None = None
     collision_policy: ArchiveExportCollisionPolicy = ArchiveExportCollisionPolicy.SKIP
     write_manifest: bool = True
+    include_package_root: bool = False
+    replace_destination: bool = False
+    extensions: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

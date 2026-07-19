@@ -5,20 +5,25 @@ from pathlib import Path
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, QObject, Signal
 from PySide6.QtWidgets import QApplication, QLineEdit
 
 from cdmw.domain.archives.catalogue import (
+    ArchiveChildNode,
+    ArchiveChildrenResult,
     ArchiveDurableIdentity,
     ArchiveEntryDto,
     ArchiveEntryRole,
     ArchivePage,
+    ArchiveQuery,
     ArchiveQueryHandle,
     ArchiveSessionHandle,
     ArchiveViewMode,
 )
+from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind
 from cdmw.models import ArchiveEntry
-from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel
+from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
+from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel, RemoteChildrenFetch
 from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge, compare_archive_shadow_page
 
 
@@ -64,6 +69,12 @@ class _ShadowWindow(QObject):
         self.logs.append(message)
 
 
+class _RemoteExportWindow(_ShadowWindow):
+    def __init__(self) -> None:
+        super().__init__()
+        self.archive_tree = ArchiveBrowserTreeView()
+
+
 def _legacy(entry_id: int, path: str | None = None) -> ArchiveEntry:
     return ArchiveEntry(
         path=path or f"character/file_{entry_id}.pac",
@@ -77,7 +88,7 @@ def _legacy(entry_id: int, path: str | None = None) -> ArchiveEntry:
     )
 
 
-def _remote(entry_id: int, path: str | None = None) -> ArchiveEntryDto:
+def _remote(entry_id: int, path: str | None = None, *, extension: str = ".pac") -> ArchiveEntryDto:
     resolved = path or f"character/file_{entry_id}.pac"
     return ArchiveEntryDto(
         "session-a",
@@ -91,7 +102,7 @@ def _remote(entry_id: int, path: str | None = None) -> ArchiveEntryDto:
         10,
         20,
         0,
-        ".pac",
+        extension,
         "0009/0.pamt",
         ArchiveEntryRole.MODEL,
         "model_mesh_physics",
@@ -170,3 +181,111 @@ def test_shadow_safety_diagnostics_do_not_disable_legacy_actions() -> None:
     bridge._handle_actions_safe(False)
 
     assert window.archive_remote_actions_safe
+
+
+def test_remote_export_selection_uses_session_ids_without_materializing_global_entries() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    handle = ArchiveQueryHandle("session-a", "query-a", 5, 2)
+    bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
+    rows = (
+        _remote(7, "texture/albedo.dds", extension=".dds"),
+        _remote(8, "texture/normal.dds", extension=".dds"),
+    )
+    assert bridge.model.accept_page(ArchivePage("session-a", "query-a", 5, 2, 0, rows))
+    selection_model = window.archive_tree.selectionModel()
+    assert selection_model is not None
+    selection_model.select(
+        bridge.model.index(0, 0),
+        QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+    )
+    selection_model.select(
+        bridge.model.index(1, 0),
+        QItemSelectionModel.SelectionFlag.Select | QItemSelectionModel.SelectionFlag.Rows,
+    )
+
+    selection = bridge.selected_export_selection()
+
+    assert selection is not None
+    assert selection.selection_kind is ArchiveExportSelectionKind.ENTRY_IDS
+    assert selection.entry_ids == (7, 8)
+    assert selection.requested_count == 2
+    assert selection.all_dds
+    assert selection.dds_count == 2
+    assert selection.workflow_paths == ("0009/texture/albedo.dds", "0009/texture/normal.dds")
+    assert not hasattr(window, "archive_entries_by_path")
+
+    window.archive_tree.setCurrentIndex(bridge.model.index(0, 0))
+    family_selection = bridge.current_family_export_selection()
+    assert family_selection is not None
+    assert family_selection.selection_kind is ArchiveExportSelectionKind.FAMILY
+    assert family_selection.family_entry_id == 7
+    assert not family_selection.include_package_root
+
+
+def test_remote_export_selection_represents_folder_and_filtered_query_server_side() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    handle = ArchiveQueryHandle("session-a", "query-folder", 6, 43)
+    bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FOLDERS, prime=False)
+    fetch = RemoteChildrenFetch("session-a", "query-folder", 6, "root", None, None, 0, 512)
+    assert bridge.model.accept_children(
+        fetch,
+        ArchiveChildrenResult(
+            "session-a",
+            "query-folder",
+            (ArchiveChildNode("0009/texture", "texture", True, 43),),
+            False,
+            offset=0,
+            total_children=1,
+            next_offset=None,
+        ),
+    )
+    folder_index = bridge.model.index(0, 0, QModelIndex())
+    selection_model = window.archive_tree.selectionModel()
+    assert selection_model is not None
+    selection_model.select(
+        folder_index,
+        QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows,
+    )
+
+    folder_selection = bridge.selected_export_selection()
+
+    assert folder_selection is not None
+    assert folder_selection.selection_kind is ArchiveExportSelectionKind.FOLDER
+    assert folder_selection.query_id == "query-folder"
+    assert folder_selection.folder_path == "0009/texture"
+    assert folder_selection.requested_count == 43
+
+    bridge.controller._current_query = ArchiveQuery("session-a", extensions=(".dds",))
+    filtered_selection = bridge.filtered_export_selection()
+    assert filtered_selection is not None
+    assert filtered_selection.selection_kind is ArchiveExportSelectionKind.QUERY
+    assert filtered_selection.query_id == "query-folder"
+    assert filtered_selection.requested_count == 43
+    assert filtered_selection.all_dds
+    assert filtered_selection.dds_count == 43
+
+
+def test_remote_export_rejects_an_explicit_selection_larger_than_the_protocol_bound() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    bridge.model.publish_query(
+        ArchiveQueryHandle("session-a", "query-large", 7, 5_000),
+        view_mode=ArchiveViewMode.FLAT,
+        prime=False,
+    )
+    selection_model = window.archive_tree.selectionModel()
+    assert selection_model is not None
+    selection_model.select(
+        QItemSelection(bridge.model.index(0, 0), bridge.model.index(4_096, 0)),
+        QItemSelectionModel.SelectionFlag.ClearAndSelect | QItemSelectionModel.SelectionFlag.Rows,
+    )
+
+    assert bridge.selected_export_selection() is None
+    assert bridge.export_selection_error == (
+        "Select at most 4,096 individual files, or use Extract Filtered for a larger set."
+    )

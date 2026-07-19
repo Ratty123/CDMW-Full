@@ -406,6 +406,17 @@ class TextureWorkflowWorkerMixin:
     def stop_build(self) -> None:
         active_worker = self.build_worker or self.dds_to_png_worker or self.utility_worker
         if active_worker is None:
+            request_id = getattr(self, "_archive_remote_export_request_id", None)
+            cancel_remote_export = getattr(self, "_cancel_remote_archive_export", None)
+            if request_id is not None and callable(cancel_remote_export):
+                cancel_remote_export()
+                self.set_status_message("Stop requested. Waiting for the archive export to exit cleanly...")
+                self.append_log("Archive export stop requested by user.")
+                self._set_archive_load_progress(
+                    "Stop requested. Waiting for the archive export to exit cleanly...",
+                    phase="Stopping",
+                )
+                self.stop_button.setEnabled(False)
             return
         active_worker.stop()
         self.set_status_message("Stop requested. Waiting for the current task to exit cleanly...")

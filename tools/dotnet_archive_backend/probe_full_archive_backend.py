@@ -26,6 +26,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSessionHandle,
 )
 from cdmw.domain.archives.catalogue_operations import (
+    ArchiveExportCollisionPolicy,
     ArchiveExportRequest,
     ArchiveExportResult,
     ArchiveExportSelectionKind,
@@ -219,22 +220,40 @@ def run_probe(worker: Path) -> dict[str, object]:
             if not isinstance(text_terminal, ArchiveTextSearchBatch) or text_matches != 1:
                 raise AssertionError("Synthetic worker-side text search changed.")
 
-            export_result = awaiter.wait(
-                service.export(
-                    ArchiveExportRequest(
-                        session_id=warm.session_id,
-                        selection_kind=ArchiveExportSelectionKind.QUERY,
-                        destination=str(export_root),
-                        query_id=query.query_id,
-                    ),
-                    ui_generation=8,
-                )
+            existing_export = export_root / "0009" / "text" / "hello.txt"
+            existing_export.parent.mkdir(parents=True)
+            existing_export.write_bytes(b"keep existing")
+            export_request_id = service.export(
+                ArchiveExportRequest(
+                    session_id=warm.session_id,
+                    selection_kind=ArchiveExportSelectionKind.QUERY,
+                    destination=str(export_root),
+                    query_id=query.query_id,
+                    collision_policy=ArchiveExportCollisionPolicy.RENAME,
+                    include_package_root=True,
+                    extensions=("txt",),
+                ),
+                ui_generation=8,
             )
-            if not isinstance(export_result, ArchiveExportResult) or export_result.exported != 1:
+            export_result = awaiter.wait(export_request_id)
+            export_items = tuple(
+                item
+                for batch in awaiter.batches.get(export_request_id, [])
+                if isinstance(batch, ArchiveExportResult)
+                for item in batch.items
+            )
+            if (
+                not isinstance(export_result, ArchiveExportResult)
+                or export_result.exported != 1
+                or len(export_items) != 1
+                or export_items[0].status != "renamed"
+            ):
                 raise AssertionError("Synthetic query-token export changed.")
-            exported_bytes = (export_root / "text" / "hello.txt").read_bytes()
+            exported_bytes = (export_root / "0009" / "text" / "hello_2.txt").read_bytes()
             if exported_bytes != prepared_bytes:
                 raise AssertionError("Synthetic exported bytes differ from prepared bytes.")
+            if existing_export.read_bytes() != b"keep existing":
+                raise AssertionError("Synthetic renamed export overwrote its collision target.")
 
             report = {
                 "status": "passed",
@@ -247,6 +266,7 @@ def run_probe(worker: Path) -> dict[str, object]:
                 "structure_root_count": len(structure_root.children),
                 "text_matches": text_matches,
                 "exported": export_result.exported,
+                "export_renamed": export_items[0].status == "renamed",
                 "prepared_sha256": prepared.sha256,
                 "progress_phases": sorted(set(awaiter.progress_phases)),
                 "stderr_tail_bytes": len(client.diagnostics_tail.encode("utf-8")),
