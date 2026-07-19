@@ -39,6 +39,8 @@ The second command launches a visible desktop window and is intentionally not pa
 
 ## Build the standalone EXE and portable ZIP
 
+For the simplest fresh build, double-click `BUILD-FRESH-EXE.bat` in this folder. It runs the complete verified release pipeline, leaves the result window open, and writes the new standalone EXE beneath `artifacts/`.
+
 ```powershell
 .\apps\Cdmw.ArchiveLite\scripts\build_archive_lite.ps1
 ```

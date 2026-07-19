@@ -38,6 +38,7 @@ internal static class ArchiveLiteTestRunner
             ("export paths reject traversal and roots", TestExportPathPolicyAsync),
             ("isolated cache maintenance is bounded and deterministic", TestCacheMaintenanceAsync),
             ("standalone payload extraction is atomic, reusable, and traversal-safe", TestStandaloneRuntimeAsync),
+            ("double-click build launcher routes to the verified release pipeline", TestBuildLauncherSourceAsync),
             ("game discovery recognizes archive roots and Steam libraries", TestGameInstallDiscoveryAsync),
             ("archive cache health detects missing, current, and stale indexes", TestArchiveCacheHealthAsync),
             ("archive loading supports reusable and session-only indexes", TestArchiveCacheModesAsync),
@@ -1153,6 +1154,31 @@ internal static class ArchiveLiteTestRunner
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static Task TestBuildLauncherSourceAsync()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        var launcherSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "BUILD-FRESH-EXE.bat"));
+        Require(
+            launcherSource.Contains(
+                "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File \"%~dp0scripts\\build_archive_lite.ps1\"",
+                StringComparison.OrdinalIgnoreCase),
+            "the double-click launcher bypasses the verified Archive Lite release builder");
+        Require(
+            launcherSource.Contains("set \"BUILD_EXIT_CODE=%ERRORLEVEL%\"", StringComparison.OrdinalIgnoreCase)
+            && launcherSource.Contains("if not \"%BUILD_EXIT_CODE%\"==\"0\" goto build_failed", StringComparison.OrdinalIgnoreCase)
+            && launcherSource.Contains("exit /b %BUILD_EXIT_CODE%", StringComparison.OrdinalIgnoreCase),
+            "the double-click launcher does not preserve and report build failures");
+        Require(
+            launcherSource.Contains("pause", StringComparison.OrdinalIgnoreCase)
+            && launcherSource.Contains("%~dp0artifacts", StringComparison.OrdinalIgnoreCase),
+            "the double-click launcher does not keep its result visible or identify the output folder");
+        return Task.CompletedTask;
     }
 
     private static async Task TestStandaloneRuntimeAsync()
