@@ -33,6 +33,16 @@ New worker code uses shared contracts in `cdmw/workers/`.
   the exact `QProcess` object and its monotonic generation before terminate or
   kill; stale stop records cannot suppress a later process failure, and device
   loss remains diagnostic.
+- The full archive backend is one resident, independently packaged .NET
+  `QProcess` with `cdmw-full-archive-core.dll` beside it. Its first request is a
+  protocol/native-ABI/index-version handshake; application work stays queued
+  until that succeeds. Requests carry UI generations, cancellation is explicit,
+  stale responses are rejected, and stderr is retained only as a bounded
+  diagnostic tail. Normal close sends `shutdown`, waits by timer, then terminates
+  the process tree after the grace period. A user-selected legacy recovery is
+  process-local: cancel bridge requests, restore the legacy model, request the
+  same nonblocking shutdown, and only then schedule the legacy scan. Never
+  restart or fall back invisibly after an incompatible or failed handshake.
 - Shell lazy-feature callbacks verify that their Qt window owner is still alive
   before resolving or invoking provider code. Late process or worker signals
   delivered after window destruction are ignored.

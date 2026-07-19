@@ -49,8 +49,27 @@ contracts and resident `QProcess` client through cold/warm open, worker paging,
 the latest-wins semantic preview-candidate provider with one bounded streamed
 preparation batch for the selected input and its dependencies, text search,
 streamed query-token export, package-root layout, rename collision handling,
-.NET, and the renamed native DLL without opening the application or reading
-licensed game data.
+.NET, an acknowledged refresh cancellation, clean worker shutdown, and the
+renamed native DLL without opening the application or reading licensed game
+data. The initial ping fails closed unless protocol v2, native ABI 1, and the
+current index version all match.
+
+`v2` is the application default for the stable transition release.
+`CDMW_ARCHIVE_BACKEND=legacy|v2|shadow` remains a developer override, not a
+saved setting. A startup or catalogue-publication failure is shown explicitly.
+The dialog can retry v2, cancel, or switch to the retained legacy scanner for
+the current process only; CDMW never changes the environment or silently
+reconstructs the legacy catalogue. Legacy code and caches remain intact for
+this release and are scheduled for removal in the following release.
+
+Release builds publish the self-contained worker and
+`cdmw-full-archive-core.dll` to
+`native/cdmw_full_archive_backend/build/<Configuration>/`. PyInstaller places
+the complete runtime under `archive_backend/` in onedir and onefile artifacts.
+The release builder probes the published bundle and then the exact packaged
+bundle. Both probes must handshake, cold/warm open a synthetic PAMT/PAZ,
+create and page a query, acknowledge cancellation, shut down cleanly, and
+leave no resident worker process.
 
 In displayed v2 mode, Archive Browser retains at most four recent prepared
 dependency snapshots. Archive preview, mesh-import preflight/preview, mesh
@@ -81,6 +100,6 @@ Regenerate a three-cycle synthetic timing report outside the repository with:
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj -c Release --no-build -- --baseline-report "$env:TEMP/cdmw-full-archive-synthetic-v2.json"
 ```
 
-The committed baseline is synthetic regression evidence only. Real-game corpus,
-visible UI, packaging, and release gates require their separately authorized
-workflows.
+The committed baseline and packaged probe are synthetic regression evidence
+only. Real-game corpus and visible UI gates require separate explicit
+authorization.

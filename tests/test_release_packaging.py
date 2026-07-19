@@ -21,6 +21,7 @@ CONSTRAINTS = ROOT / "constraints-release.txt"
 BUILDER = ROOT / "build_pyside6_app.ps1"
 SPEC = ROOT / "CrimsonDesertModWorkbench.spec"
 STARTUP_VERIFIER = ROOT / "scripts" / "verify_packaged_startup.ps1"
+ARCHIVE_BACKEND_RELEASE_HELPER = ROOT / "scripts" / "full_archive_backend_release.ps1"
 WORKFLOW = ROOT / ".github" / "workflows" / "windows-build.yml"
 POWERSHELL = shutil.which("powershell.exe")
 
@@ -64,6 +65,7 @@ def test_release_dependency_verifier_reports_missing_and_wrong_versions() -> Non
 def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_before_publish() -> None:
     source = BUILDER.read_text(encoding="utf-8")
     spec_source = SPEC.read_text(encoding="utf-8")
+    archive_backend_source = ARCHIVE_BACKEND_RELEASE_HELPER.read_text(encoding="utf-8")
 
     assert '[string]$Mode = "onefile"' in source
     assert '[string]$BuildProfile = "release"' in source
@@ -106,6 +108,15 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert source.index("generate_window_feature_provider_members.py") < source.index("Starting PyInstaller")
     assert 'NATIVE_CONFIGURATION = "Debug" if PROFILE == "debug" else "Release"' in spec_source
     assert 'native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl' in spec_source
+    assert 'native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}' in spec_source
+    assert '"archive_backend"' in spec_source
+    assert 'scripts\\full_archive_backend_release.ps1' in source
+    assert "function Invoke-FullArchiveBackendBuild" in archive_backend_source
+    assert "function Test-OnedirFullArchiveBackend" in archive_backend_source
+    assert "function Test-OnefileFullArchiveBackend" in archive_backend_source
+    archive_backend_stage = 'Stage "Verifying packaged full archive backend"'
+    assert archive_backend_stage in source
+    assert source.index(archive_backend_stage) < source.index('Stage "Verifying packaged startup"')
 
 
 def test_onedir_publish_removes_runtime_artifacts_created_by_startup_smoke() -> None:

@@ -28,6 +28,7 @@ $releaseConstraintsPath = Join-Path $scriptDir "constraints-release.txt"
 $releaseDependencyVerifier = Join-Path $scriptDir "scripts\verify_release_dependencies.py"
 $providerMetadataGenerator = Join-Path $scriptDir "scripts\generate_window_feature_provider_members.py"
 $packagedStartupVerifier = Join-Path $scriptDir "scripts\verify_packaged_startup.ps1"
+$fullArchiveBackendProbe = Join-Path $scriptDir "tools\dotnet_archive_backend\probe_full_archive_backend.py"
 $vgmstreamRuntimeDir = Join-Path $scriptDir ".tools\vgmstream"
 $vgmstreamVersion = "r1980"
 $vgmstreamBuildCommit = "21bfb6f0a513271f2e18a51322128756bb59f365"
@@ -551,7 +552,9 @@ function Test-NativeOutputsPresent {
         "native\cdmw_preview_core\build\$Configuration\cdmw-preview-core.exe",
         "native\cdmw_d3d11_preview\build\$Configuration\cdmw-d3d11-preview.exe",
         "native\cdmw_archive_accelerator\build\$Configuration\cdmw-archive-accelerator.exe",
-        "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.exe"
+        "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.exe",
+        "native\cdmw_full_archive_backend\build\$Configuration\cdmw-full-archive-worker.exe",
+        "native\cdmw_full_archive_backend\build\$Configuration\cdmw-full-archive-core.dll"
     )
 
     foreach ($relativePath in $required) {
@@ -696,6 +699,7 @@ function Invoke-DotNetMeshEditorBuild {
         "resident_material_updates_v2"
         "resident_material_parameter_updates_v1"
         "resident_texture_region_updates_v1"
+        "resident_package_load_v1"
         "viewport_display_modes_v1"
         "resident_scene_state_v1"
         "authoritative_resident_scene_frame_v2"
@@ -740,6 +744,8 @@ function Invoke-DotNetMeshEditorBuild {
     }
 }
 
+. (Join-Path $scriptDir "scripts\full_archive_backend_release.ps1")
+
 function Invoke-NativeHelperPreparation {
     param(
         [Parameter(Mandatory = $true)]
@@ -759,6 +765,10 @@ function Invoke-NativeHelperPreparation {
         throw "Native helper build failed with exit code $LASTEXITCODE."
     }
     Invoke-DotNetMeshEditorBuild -Configuration $Configuration -Required:$RequireDotNet
+    Invoke-FullArchiveBackendBuild `
+        -Configuration $Configuration `
+        -Clean:$Clean `
+        -Required:$RequireDotNet
 }
 
 function Assert-CleanPythonSitePackages {
@@ -804,7 +814,7 @@ function Write-BuildSummary {
     Write-Host "  Work cache: $pyInstallerWorkDir"
     Write-Host "  Temporary output: $pyInstallerDistDir"
     Write-Host "  Final output: $OutputPath"
-    Write-Host "  .NET helper: win-x64 self-contained single-file"
+    Write-Host "  .NET helpers: self-contained Mesh Editor plus standalone archive worker/DLL"
     Write-Host ""
 }
 
@@ -821,7 +831,7 @@ if ($NativeHelpersOnly) {
     }
     $nativeConfig = if ($BuildProfile -eq "debug") { "Debug" } else { "Release" }
     if ($DescribeOnly) {
-        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the self-contained .NET Mesh Editor, and require its hidden d3d11_vortice_shader smoke."
+        Write-Host "Native helper-only gate: rebuild $nativeConfig helpers, publish the self-contained .NET Mesh Editor and full archive worker/DLL, then run their hidden/synthetic gates."
         return
     }
     Invoke-NativeHelperPreparation `
@@ -985,6 +995,12 @@ if ($BuildProfile -eq "release") {
         Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"
     } else {
         Write-Host "Direct packaged .NET helper smoke is deferred for onefile because PyInstaller extracts helpers at app runtime."
+    }
+    Write-BuildProgress -Percent 95 -Stage "Verifying packaged full archive backend"
+    if ($Mode -eq "onefile") {
+        Test-OnefileFullArchiveBackend -PythonExe $pythonExe -ExePath $packagedOnefile
+    } else {
+        Test-OnedirFullArchiveBackend -PythonExe $pythonExe -OnedirPath $packagedOnedir
     }
     Write-BuildProgress -Percent 96 -Stage "Verifying packaged startup"
     $startupSmokeExecutable = if ($Mode -eq "onefile") {

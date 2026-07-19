@@ -33,6 +33,7 @@ Last updated: 2026-07-19
 
 - Archive scan preflight treats nested PAMT trees outside root-level, `NNNN/`, `game_files/`, and `game_files/NNNN/` layouts as suspicious. It warns and lets the user cancel, open the folder, or scan anyway; it never auto-excludes files.
 - Archive entries use one immutable identity: normalized virtual path, source PAMT, PAZ index, and entry offset. Caches, selection, shell bridges, and replacement flows must use all four parts.
+- Full Archive Browser catalogue v2 is the default transition-release backend. The resident self-contained .NET worker owns scan/cache/query/facet/lookup/prepare/text/export and loads only the adjacent native full-archive DLL; Python retains remote pages and bounded prepared contexts. `legacy|v2|shadow` is a developer process override, never a saved user setting. Legacy code/caches remain for this release, and fallback requires an explicit session-only dialog choice followed by request cancellation and nonblocking worker shutdown.
 - File/package/report writes use a sibling temporary file or staging directory, flush as appropriate, then atomic replacement/publication. Cancellation must leave no partially published output.
 - ZIP/model ingestion is streaming and cancellable, validates member count, expanded size, ratio, traversal, duplicate targets, free space, and time/byte ceilings, then atomically publishes a content-fingerprinted fresh extraction.
 - Worker-owning UI follows one contract: immutable snapshot, cancellation token, monotonic request ID, queued delivery, stale-result rejection, bounded progress, `request_shutdown()`, and `iter_shutdown_workers()`.
@@ -151,6 +152,7 @@ Last updated: 2026-07-19
   defer-deletes both objects after that same fence.
 - Release builds regenerate and verify provider metadata before PyInstaller. The
   configured-archive gate loads 1.67M entries, paints, filters, and requires a clean shutdown.
+- Release packaging carries the full archive worker plus native DLL under `archive_backend/` in onedir and onefile. The published and exact packaged bundles must pass the headless synthetic protocol/ABI, open/query/page, cancellation, and no-orphan shutdown probe; that does not substitute for separately authorized real-corpus evidence.
 - Startup benchmark evidence is owned by
   `docs/reference/app-startup-benchmark-phase5.json` and
   `docs/reference/app-startup-benchmark-phase6.json`; dated timing summaries

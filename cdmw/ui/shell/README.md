@@ -6,6 +6,11 @@ activation handling, diagnostics, and app-level dialogs.
 `archive_backend_client.py` owns the resident, bounded `QProcess` protocol and
 nonblocking shutdown lifecycle for the independent full archive worker;
 `archive_backend_resources.py` owns packaged and development worker discovery.
+The shell defaults to v2, validates protocol/native ABI/index compatibility
+before dispatch, and never silently falls back. A catalogue-publication failure
+offers retry, cancel, or a legacy scan for the current process only. Explicit
+session fallback cancels tracked requests, restores the legacy tree model, and
+requests nonblocking worker shutdown without persisting a setting.
 
 Keep this package focused on application frame behavior. Feature tabs belong in
 `cdmw/ui/<feature>/`; business coordination belongs in `cdmw/services/`; slow

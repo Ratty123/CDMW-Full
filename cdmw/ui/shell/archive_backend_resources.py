@@ -37,6 +37,10 @@ def archive_backend_worker_candidates() -> tuple[Path, ...]:
         )
 
     repository_root = Path(__file__).resolve().parents[3]
+    staged_backend = repository_root / "native" / "cdmw_full_archive_backend" / "build"
+    for configuration in ("Release", "Debug"):
+        candidates.append(staged_backend / configuration / ARCHIVE_BACKEND_WORKER_NAME)
+
     worker_project = (
         repository_root
         / "tools"

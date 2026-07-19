@@ -261,6 +261,17 @@ attachment, model relationship, sidecar, audio, prefab, weapon-swap, and index
 owners through the cached lazy `archive_workflow_service.py`; it has no direct
 imports of `cdmw.core.archive*` implementations.
 
+The full Archive Browser catalogue defaults to the independently packaged
+`tools/dotnet_archive_backend/` worker. `ArchiveBackendClient` owns its bounded
+resident `QProcess`, protocol/native-ABI/index handshake, request correlation,
+cancellation, diagnostics tail, restart limit, and nonblocking shutdown. The
+worker owns scan/cache/query/facet/lookup/prepare/text/export work and maps the
+native `archive.ali`; the PySide shell retains only remote pages and explicitly
+bounded compatibility snapshots. `CDMW_ARCHIVE_BACKEND=legacy|v2|shadow` is a
+developer-only process override. The transition release retains legacy code and
+caches, but fallback is never automatic: a publication failure may offer a
+process-local legacy choice that cancels v2 requests and shuts down the worker.
+
 `ResearchService` composes explicit archive-analysis, reference-query,
 texture-analysis/report, preview, and note-persistence surfaces. UI handlers
 snapshot inputs and dispatch archive reads, preview preparation, and report
@@ -348,6 +359,11 @@ Mesh Editor remains a self-contained `win-x64` single-file publish;
 framework-dependent publishing is not a release fallback. Release helper
 publication also runs a hidden Vortice GPU smoke that requires
 `d3d11_vortice_shader` and no visible native windows.
+The full archive worker is a separate self-contained `win-x64` publish with
+`cdmw-full-archive-core.dll` beside it. PyInstaller carries that full directory
+under `archive_backend/` in both modes. Before publication, the release builder
+probes the published bundle and the exact packaged bundle for protocol/ABI,
+synthetic open/query/page, cancellation, and clean no-orphan shutdown.
 
 Before a PyInstaller candidate is moved into `dist/`,
 `scripts/verify_packaged_startup.ps1` launches it offscreen with a unique

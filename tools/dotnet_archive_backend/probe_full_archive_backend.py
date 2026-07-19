@@ -149,6 +149,8 @@ def run_probe(worker: Path) -> dict[str, object]:
         )
         service = ArchiveCatalogueService(client)
         awaiter = _Awaiter(service)
+        report: dict[str, object] | None = None
+        worker_pid = 0
         try:
             cold = awaiter.wait(
                 service.open_archive(OpenArchiveRequest(str(archive_root)), ui_generation=1)
@@ -314,6 +316,25 @@ def run_probe(worker: Path) -> dict[str, object]:
             if existing_export.read_bytes() != b"keep existing":
                 raise AssertionError("Synthetic renamed export overwrote its collision target.")
 
+            cancel_request_id = service.refresh_archive(archive_root, ui_generation=12)
+            if not service.cancel(cancel_request_id):
+                raise AssertionError("Synthetic refresh cancellation was not accepted.")
+            if not _Awaiter._wait_until(
+                lambda: (
+                    cancel_request_id in awaiter.cancelled
+                    or cancel_request_id in awaiter.results
+                    or cancel_request_id in awaiter.failures
+                ),
+                timeout_ms=15_000,
+            ):
+                raise TimeoutError("Synthetic refresh cancellation timed out.")
+            if cancel_request_id not in awaiter.cancelled:
+                raise AssertionError("Synthetic refresh completed instead of acknowledging cancellation.")
+
+            worker_pid = client.process_id
+            if worker_pid <= 0:
+                raise AssertionError("Synthetic probe could not identify the resident worker process.")
+
             report = {
                 "status": "passed",
                 "evidence": "synthetic_headless_qprocess",
@@ -328,17 +349,27 @@ def run_probe(worker: Path) -> dict[str, object]:
                 "text_matches": text_matches,
                 "exported": export_result.exported,
                 "export_renamed": export_items[0].status == "renamed",
+                "cancelled": True,
                 "prepared_sha256": prepared.sha256,
                 "progress_phases": sorted(set(awaiter.progress_phases)),
                 "stderr_tail_bytes": len(client.diagnostics_tail.encode("utf-8")),
             }
         finally:
             service.request_shutdown()
-            _Awaiter._wait_until(
-                lambda: client.state in {ArchiveBackendClientState.STOPPED, ArchiveBackendClientState.FAILED},
+            stopped = _Awaiter._wait_until(
+                lambda: client.state is ArchiveBackendClientState.STOPPED and client.process_id == 0,
                 timeout_ms=5_000,
             )
             app.processEvents()
+            if not stopped:
+                raise AssertionError(
+                    "Synthetic probe did not observe a clean worker shutdown; "
+                    f"state={client.state.value}, pid={client.process_id}."
+                )
+        if report is None:
+            raise AssertionError("Synthetic probe did not produce a report.")
+        report["worker_pid"] = worker_pid
+        report["worker_stopped"] = True
         return report
 
 

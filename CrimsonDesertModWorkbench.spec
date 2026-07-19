@@ -151,6 +151,12 @@ _add_native_binary_tree(
     required_release=(ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Cdmw.MeshEditorExperiment.csproj").exists(),
     suffixes={".exe", ".dll", ".json", ".pdb"},
 )
+_add_native_binary_tree(
+    f"native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}",
+    "archive_backend",
+    required_release=True,
+    suffixes={".exe", ".dll", ".json"},
+)
 _add_data_if_exists(
     datas,
     f"native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}/D3D11MaterialShaders.hlsl",
