@@ -30,6 +30,7 @@ public partial class App : Application
         var settings = await SettingsStore.LoadAsync(CancellationToken.None).ConfigureAwait(true);
         LocalizationManager.ApplyCulture(settings.Language);
         ThemeManager.Apply(settings.Theme);
+        UiPreferencesManager.Apply(settings.FontSize, settings.LayoutDensity);
 
         try
         {
@@ -59,6 +60,7 @@ public partial class App : Application
         {
             LocalizationManager.ApplyCulture("en");
             ThemeManager.Apply("graphite");
+            UiPreferencesManager.Apply("medium", "comfortable");
             _worker = await WorkerProcessHost.StartAsync(CancellationToken.None).ConfigureAwait(true);
             var result = await _worker.SendAsync<PingRequest, PingResult>(
                 WorkerProtocol.Ping,
@@ -76,13 +78,17 @@ public partial class App : Application
                 ThemeManager.Apply(theme.Id);
                 foreach (var size in new[] { new Size(1440, 880), new Size(1200, 720) })
                 {
-                    window.ApplyTemplate();
-                    window.Measure(size);
-                    window.Arrange(new Rect(new Point(), size));
-                    if (!double.IsFinite(window.DesiredSize.Width) || !double.IsFinite(window.DesiredSize.Height))
-                    {
-                        throw new InvalidDataException($"The {theme.Id} theme produced an invalid window layout.");
-                    }
+                    ValidateHiddenLayout(window, size, $"theme {theme.Id}");
+                }
+            }
+            ThemeManager.Apply("graphite");
+            foreach (var fontSize in UiPreferencesManager.AvailableFontSizes)
+            {
+                foreach (var density in UiPreferencesManager.AvailableLayoutDensities)
+                {
+                    UiPreferencesManager.Apply(fontSize.Id, density.Id);
+                    var size = new Size(1200, 720);
+                    ValidateHiddenLayout(window, size, $"appearance {fontSize.Id}/{density.Id}");
                 }
             }
             await _worker.ShutdownAsync().ConfigureAwait(true);
@@ -92,6 +98,30 @@ public partial class App : Application
         {
             await DiagnosticLog.WriteAsync("self-test", exception.ToString(), CancellationToken.None).ConfigureAwait(true);
             Shutdown(1);
+        }
+    }
+
+    private static void ValidateHiddenLayout(MainWindow window, Size size, string variant)
+    {
+        window.ApplyTemplate();
+        window.Measure(size);
+        window.Arrange(new Rect(new Point(), size));
+        window.UpdateLayout();
+        if (!double.IsFinite(window.DesiredSize.Width) || !double.IsFinite(window.DesiredSize.Height))
+        {
+            throw new InvalidDataException($"The {variant} produced an invalid window layout.");
+        }
+
+        const double tolerance = 0.5;
+        foreach (var child in window.TitleBarGrid.Children.OfType<FrameworkElement>().Where(static child => child.Visibility == Visibility.Visible))
+        {
+            var origin = child.TranslatePoint(new Point(), window.TitleBarGrid);
+            if (!double.IsFinite(origin.X)
+                || origin.X < -tolerance
+                || origin.X + child.ActualWidth > window.TitleBarGrid.ActualWidth + tolerance)
+            {
+                throw new InvalidDataException($"The {variant} places a title-row control outside the available window width.");
+            }
         }
     }
 

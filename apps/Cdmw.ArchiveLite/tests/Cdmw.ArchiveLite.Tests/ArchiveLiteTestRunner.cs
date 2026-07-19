@@ -42,6 +42,7 @@ internal static class ArchiveLiteTestRunner
             ("archive cache health detects missing, current, and stale indexes", TestArchiveCacheHealthAsync),
             ("archive loading supports reusable and session-only indexes", TestArchiveCacheModesAsync),
             ("startup auto-loads current cache and recommends manual refresh after hash changes", TestStartupCacheAutoLoadAsync),
+            ("asset metadata and native HKX preview expose meaningful structure", TestAssetMetadataAndHkxPreviewAsync),
             ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
@@ -289,6 +290,8 @@ internal static class ArchiveLiteTestRunner
             Language: "de",
             ArchiveRoot: "C:\\game",
             Theme: "midnight",
+            FontSize: "large",
+            LayoutDensity: "compact",
             ArchiveSortField: ArchiveSortField.KnownName,
             ArchiveSortDescending: true,
             ArchiveVisibleColumns: ["Name", "Path"],
@@ -338,6 +341,7 @@ internal static class ArchiveLiteTestRunner
         Require(actual.TextSearch == expected.TextSearch, "text-search filters did not round-trip through portable settings");
         Require(actual.WindowPlacement == expected.WindowPlacement, "window placement did not round-trip through portable settings");
         Require(actual.WorkspaceLayout == expected.WorkspaceLayout, "split-pane widths did not round-trip through portable settings");
+        Require(actual.FontSize == "large" && actual.LayoutDensity == "compact", "global font size and layout density did not round-trip through portable settings");
         Require(
             actual.ArchiveColumnLayout?.SequenceEqual(expected.ArchiveColumnLayout!) == true,
             "archive column widths/order did not round-trip through portable settings");
@@ -396,7 +400,7 @@ internal static class ArchiveLiteTestRunner
             "Cdmw.ArchiveLite.App");
         var themeRoot = Path.Combine(appRoot, "Themes");
         var themePaths = Directory.GetFiles(themeRoot, "Theme.*.xaml", SearchOption.TopDirectoryOnly);
-        Require(themePaths.Length == 3, "Archive Lite must ship exactly three selectable color themes");
+        Require(themePaths.Length == 6, "Archive Lite must ship all six selectable color themes");
 
         var requiredKeys = new[]
         {
@@ -409,6 +413,10 @@ internal static class ArchiveLiteTestRunner
             "AccentTextBrush",
             "BorderBrush",
             "SelectionBrush",
+            "AssociatedAssetModelBrush",
+            "AssociatedAssetTextureBrush",
+            "AssociatedAssetPhysicsBrush",
+            "AssociatedAssetOtherBrush",
         };
         foreach (var themePath in themePaths)
         {
@@ -482,6 +490,10 @@ internal static class ArchiveLiteTestRunner
         Require(styleKeys.Contains("TopBarComboBoxStyle"), "custom chrome has no compact top-bar selector style");
         Require(styleKeys.Contains("WorkspaceNavigationButtonStyle"), "title row has no shared workspace navigation style");
         Require(styleKeys.Contains("WorkspaceContentTabControlStyle"), "workspace content has no headerless tab host style");
+        Require(
+            window.Descendants().Any(element => ((string?)element.Attribute("ItemsSource"))?.Contains("FontSizes", StringComparison.Ordinal) == true)
+            && window.Descendants().Any(element => ((string?)element.Attribute("ItemsSource"))?.Contains("LayoutDensities", StringComparison.Ordinal) == true),
+            "title row has no global font-size and layout-density selectors");
         var navigationButtons = window.Descendants()
             .Where(element => element.Name.LocalName == "ToggleButton"
                 && string.Equals((string?)element.Attribute("Click"), "OnWorkspaceNavigationClick", StringComparison.Ordinal))
@@ -712,8 +724,12 @@ internal static class ArchiveLiteTestRunner
             "archive grid does not support exporting multiple selected files");
         Require(
             double.TryParse((string?)archiveGrid.Attribute("MinColumnWidth"), out var minimumColumnWidth)
-            && minimumColumnWidth >= 70,
-            "archive grid allows columns to collapse into unreadable slivers");
+            && minimumColumnWidth <= 48,
+            "archive grid still prevents users from freely narrowing columns");
+        Require(
+            string.Equals((string?)archiveGrid.Attribute("CanUserResizeColumns"), "True", StringComparison.OrdinalIgnoreCase)
+            && archiveGrid.Descendants().Where(element => element.Name.LocalName.EndsWith("Column", StringComparison.Ordinal)).All(element => element.Attribute("MinWidth") is null),
+            "archive grid columns retain fixed per-column resize constraints");
         Require(
             archiveGrid.Attributes().Any(attribute =>
                 attribute.Name.LocalName.EndsWith("HorizontalScrollBarVisibility", StringComparison.Ordinal)
@@ -761,6 +777,10 @@ internal static class ArchiveLiteTestRunner
             string.Equals((string?)associatedAssetsList.Attribute("SelectionMode"), "Extended", StringComparison.OrdinalIgnoreCase)
             && string.Equals((string?)associatedAssetsList.Attribute("SelectionChanged"), "OnAssociatedAssetsSelectionChanged", StringComparison.Ordinal),
             "associated-assets export does not support multiple selected family rows");
+        Require(
+            associatedAssetsList.Descendants().Any(element => ((string?)element.Attribute("Text"))?.Contains("AssociatedAssetCategoryLabelConverter", StringComparison.Ordinal) == true)
+            && associatedAssetsList.Descendants().Any(element => ((string?)element.Attribute("BorderBrush"))?.Contains("AssociatedAssetOtherBrush", StringComparison.Ordinal) == true),
+            "associated assets are not grouped into localized color-coded sections");
         Require(
             window.Descendants()
                 .Where(element => element.Name.LocalName == "ComboBox")
@@ -948,6 +968,10 @@ internal static class ArchiveLiteTestRunner
             && windowSource.Contains("AssociatedAssets.ExportSelectedCommand", StringComparison.Ordinal)
             && windowSource.Contains("AssociatedAssets.ExportFamilyCommand", StringComparison.Ordinal),
             "Archive Browser does not expose grouped find, open, and export associated-assets controls");
+        Require(
+            windowSource.Contains("AssociatedAssetCategoryLabelConverter", StringComparison.Ordinal)
+            && !windowSource.Contains("Text=\"{Binding KnownName}\"", StringComparison.Ordinal),
+            "associated-assets rows repeat path/name detail instead of showing a compact filename-only row");
         var viewModelSource = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "AssociatedAssetsViewModel.cs"));
         Require(
             viewModelSource.Contains("CancellationTokenSource.CreateLinkedTokenSource", StringComparison.Ordinal)
@@ -1228,6 +1252,7 @@ internal static class ArchiveLiteTestRunner
     private static async Task TestStartupCacheAutoLoadAsync()
     {
         await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        await using var missingFixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
         var native = new NativeArchiveCore();
         using (var sessions = new ArchiveSessionManager(native))
         {
@@ -1274,6 +1299,7 @@ internal static class ArchiveLiteTestRunner
             WorkerProcessHost? worker = null;
             ArchiveBrowserViewModel? currentViewModel = null;
             ArchiveBrowserViewModel? changedViewModel = null;
+            ArchiveBrowserViewModel? missingViewModel = null;
             byte[]? originalPamt = null;
             DateTime originalTimestamp = default;
             try
@@ -1287,6 +1313,20 @@ internal static class ArchiveLiteTestRunner
                 }
 
                 LocalizationManager.ApplyCulture("en");
+                var missingPromptCount = 0;
+                missingViewModel = new ArchiveBrowserViewModel(
+                    worker,
+                    missingFixture.Root,
+                    _ => { },
+                    (_, _) =>
+                    {
+                        missingPromptCount++;
+                        return ArchiveCacheMode.Persistent;
+                    });
+                await missingViewModel.InitializeEnvironmentAsync(CancellationToken.None);
+                Require(missingPromptCount == 1, "missing startup cache did not show the archive loading choice");
+                Require(!string.IsNullOrWhiteSpace(missingViewModel.SessionId), "accepted missing-cache choice did not open the archive");
+
                 currentViewModel = new ArchiveBrowserViewModel(worker, fixture.Root, _ => { }, CacheChoice);
                 await currentViewModel.InitializeEnvironmentAsync(CancellationToken.None);
                 Require(!string.IsNullOrWhiteSpace(currentViewModel.SessionId), "current persistent cache was not auto-loaded at startup");
@@ -1315,6 +1355,7 @@ internal static class ArchiveLiteTestRunner
             {
                 currentViewModel?.RequestShutdown();
                 changedViewModel?.RequestShutdown();
+                missingViewModel?.RequestShutdown();
                 if (worker is not null)
                 {
                     await worker.ShutdownAsync();
@@ -1520,6 +1561,170 @@ internal static class ArchiveLiteTestRunner
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
     }
+
+    private static async Task TestAssetMetadataAndHkxPreviewAsync()
+    {
+        var dds = new byte[148 + 16];
+        "DDS "u8.CopyTo(dds);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(4, 4), 124);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(12, 4), 512);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(16, 4), 1024);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(20, 4), 524288);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(28, 4), 6);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(80, 4), 0x4);
+        "DX10"u8.CopyTo(dds.AsSpan(84, 4));
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(128, 4), 98);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(132, 4), 3);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(140, 4), 1);
+        BinaryPrimitives.WriteUInt32LittleEndian(dds.AsSpan(144, 4), 3);
+        var ddsMetadata = AssetMetadataInspector.Describe(".dds", dds);
+        Require(
+            ddsMetadata.Contains($"{1024:N0}", StringComparison.Ordinal)
+            && ddsMetadata.Contains($"{512:N0}", StringComparison.Ordinal)
+            && ddsMetadata.Contains("BC7_UNORM", StringComparison.Ordinal)
+            && ddsMetadata.Contains("Mip levels: 6", StringComparison.Ordinal)
+            && ddsMetadata.Contains("alpha opaque", StringComparison.Ordinal),
+            "DDS metadata omits dimensions, DXGI format, mip levels, or alpha mode");
+
+        var hkx = BuildSyntheticSkeletonHkx();
+        var hkxMetadata = AssetMetadataInspector.Describe(".hkx", hkx);
+        Require(
+            hkxMetadata.Contains("Havok tagfile", StringComparison.Ordinal)
+            && hkxMetadata.Contains("20240200", StringComparison.Ordinal)
+            && hkxMetadata.Contains("ITEM", StringComparison.Ordinal),
+            "HKX metadata does not identify its SDK and tagfile sections");
+
+        var helper = Environment.GetEnvironmentVariable("CDMW_ARCHIVE_LITE_HKX_HELPER_PATH");
+        if (string.IsNullOrWhiteSpace(helper))
+        {
+            helper = Path.Combine(FindRepositoryRoot(), "native", "cd_hkx", "target", "release", "cd-hkx.exe");
+        }
+        Require(File.Exists(helper), "native HKX helper was not built for the focused test");
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = helper,
+            UseShellExecute = false,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true,
+        };
+        startInfo.ArgumentList.Add("preview-json");
+        startInfo.ArgumentList.Add("-");
+        using var process = Process.Start(startInfo) ?? throw new InvalidOperationException("could not start native HKX helper");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        await process.StandardInput.BaseStream.WriteAsync(hkx).ConfigureAwait(false);
+        process.StandardInput.Close();
+        await process.WaitForExitAsync().ConfigureAwait(false);
+        var stdoutText = await stdout.ConfigureAwait(false);
+        var stderrText = await stderr.ConfigureAwait(false);
+        Require(process.ExitCode == 0, $"native HKX helper failed: {stderrText}");
+        using var report = JsonDocument.Parse(stdoutText);
+        Require(
+            report.RootElement.GetProperty("preview_kind").GetString() == "skeleton"
+            && report.RootElement.GetProperty("bone_count").GetInt32() == 2
+            && report.RootElement.GetProperty("bones")[1].GetProperty("parent_index").GetInt32() == 0,
+            "native HKX helper did not recover the synthetic skeleton hierarchy");
+
+        var previewSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.Core",
+            "ArchivePreviewService.cs"));
+        Require(
+            previewSource.Contains("NativeHkxPreviewService.Supports", StringComparison.Ordinal)
+            && previewSource.Contains("PreviewKind.Model", StringComparison.Ordinal)
+            && previewSource.Contains("This HKX did not expose a renderable skeleton or object structure", StringComparison.Ordinal),
+            "archive preview still routes HKX files to a raw hex-only surface");
+    }
+
+    private static byte[] BuildSyntheticSkeletonHkx()
+    {
+        var typeNames = Encoding.ASCII.GetBytes("char\0HavokShapeNameProperty\0hkQsTransform\0hkBone\0hkInt16\0hkSkeleton\0hknpMaterial\0").Concat([byte.MaxValue]).ToArray();
+        byte[] tna1 = [8, 0, 0, 1, 0, 2, 0, 3, 0, 4, 0, 5, 0, 6, 0];
+        var data = new byte[480];
+        Encoding.ASCII.GetBytes("Bone_Test\0").CopyTo(data, 0);
+        WriteU32(data, 32 + 0x20, 1);
+        for (var row = 0; row < 2; row++)
+        {
+            var offset = 80 + row * 48;
+            foreach (var (component, value) in new[] { (0, (float)row), (1, 1.0f), (2, 2.0f), (3, 1.0f) })
+            {
+                WriteF32(data, offset + component * 4, value);
+            }
+            foreach (var (component, value) in new[] { (0, 0.0f), (1, 0.0f), (2, 0.0f), (3, 1.0f) })
+            {
+                WriteF32(data, offset + 16 + component * 4, value);
+            }
+            foreach (var component in Enumerable.Range(0, 4)) WriteF32(data, offset + 32 + component * 4, 1.0f);
+        }
+        WriteU32(data, 176, 1);
+        WriteU32(data, 184, uint.MaxValue);
+        WriteU32(data, 192, 1);
+        BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(208, 2), -1);
+        BinaryPrimitives.WriteInt16LittleEndian(data.AsSpan(210, 2), 0);
+        foreach (var (offset, value) in new[]
+        {
+            (224 + 0x18, 176u), (224 + 0x1C, 2u),
+            (224 + 0x28, 208u), (224 + 0x2C, 2u),
+            (224 + 0x38, 80u), (224 + 0x3C, 2u),
+        })
+        {
+            WriteU32(data, offset, value);
+        }
+
+        var items = new List<byte>(12 + 7 * 12);
+        items.AddRange(new byte[12]);
+        foreach (var (typeFlags, offset, count) in new[]
+        {
+            (0x1000_0001u, 0u, 11u),
+            (0x1000_0002u, 32u, 1u),
+            (0x2000_0003u, 80u, 2u),
+            (0x2000_0004u, 176u, 2u),
+            (0x2000_0005u, 208u, 2u),
+            (0x1000_0006u, 224u, 1u),
+            (0x2000_0007u, 320u, 2u),
+        })
+        {
+            items.AddRange(BitConverter.GetBytes(typeFlags));
+            items.AddRange(BitConverter.GetBytes(offset));
+            items.AddRange(BitConverter.GetBytes(count));
+        }
+
+        var body = new List<byte>(1024);
+        body.AddRange("TAG0"u8.ToArray());
+        body.AddRange(BuildHkxTagItem("SDKV", "20240200"u8.ToArray()));
+        body.AddRange(BuildHkxTagItem("DATA", data));
+        body.AddRange(BuildHkxTagItem("TST1", typeNames));
+        body.AddRange(BuildHkxTagItem("TNA1", tna1));
+        var itemLength = new byte[4];
+        BinaryPrimitives.WriteUInt32BigEndian(itemLength, checked((uint)(8 + items.Count)));
+        body.AddRange(itemLength);
+        body.AddRange("ITEM"u8.ToArray());
+        body.AddRange(items);
+        var output = new byte[body.Count + 4];
+        BinaryPrimitives.WriteUInt32BigEndian(output.AsSpan(0, 4), checked((uint)output.Length));
+        body.CopyTo(output, 4);
+        return output;
+    }
+
+    private static byte[] BuildHkxTagItem(string marker, byte[] payload)
+    {
+        var result = new byte[8 + payload.Length];
+        BinaryPrimitives.WriteUInt32BigEndian(result.AsSpan(0, 4), 0x4000_0000u | checked((uint)result.Length));
+        Encoding.ASCII.GetBytes(marker).CopyTo(result, 4);
+        payload.CopyTo(result, 8);
+        return result;
+    }
+
+    private static void WriteU32(byte[] data, int offset, uint value) =>
+        BinaryPrimitives.WriteUInt32LittleEndian(data.AsSpan(offset, 4), value);
+
+    private static void WriteF32(byte[] data, int offset, float value) =>
+        BinaryPrimitives.WriteSingleLittleEndian(data.AsSpan(offset, 4), value);
 
     private static Task TestArchiveItemNamesAsync()
     {

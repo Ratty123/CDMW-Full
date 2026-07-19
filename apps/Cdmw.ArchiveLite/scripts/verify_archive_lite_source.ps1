@@ -8,8 +8,9 @@ $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
 $acceleratorRoot = Join-Path $repositoryRoot "native\cdmw_archive_accelerator"
 $meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
 $textureRoot = Join-Path $repositoryRoot "native\cd_texture_dx"
+$hkxRoot = Join-Path $repositoryRoot "native\cd_hkx"
 $rendererRoot = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment"
-$roots = @($liteRoot, $nativeRoot, $previewRoot, $acceleratorRoot, $meshCoreRoot, $textureRoot, $rendererRoot)
+$roots = @($liteRoot, $nativeRoot, $previewRoot, $acceleratorRoot, $meshCoreRoot, $textureRoot, $hkxRoot, $rendererRoot)
 $bannedExtensions = @(".py", ".pyc", ".pyo", ".pyd", ".pyw", ".whl", ".egg", ".ipynb")
 
 $bannedFiles = foreach ($root in $roots) {
@@ -21,7 +22,7 @@ if ($bannedFiles) {
     throw "Archive Lite source contains a Python payload: $($bannedFiles.FullName -join ', ')"
 }
 
-$sourceExtensions = @(".cs", ".csproj", ".props", ".targets", ".ps1", ".cpp", ".hpp", ".h", ".txt")
+$sourceExtensions = @(".cs", ".csproj", ".props", ".targets", ".ps1", ".cpp", ".hpp", ".h", ".rs", ".txt")
 $shellInvocationPattern = [Text.RegularExpressions.Regex]::new(
     '(?im)(?:^|[;&|]\s*|FileName\s*=\s*["'']|Command\s*=\s*["''])(?:[^\r\n"'']*[\\/])?(?:python(?:w|3(?:\.\d+)?)?|pyinstaller|pytest)(?:\.exe)?(?:\s|["'']|$)',
     [Text.RegularExpressions.RegexOptions]::CultureInvariant)

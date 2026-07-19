@@ -7,6 +7,8 @@ public sealed record LiteSettings(
     string? ArchiveRoot = null,
     string? ExportRoot = null,
     string Theme = "graphite",
+    string FontSize = "medium",
+    string LayoutDensity = "comfortable",
     ArchiveSortField ArchiveSortField = ArchiveSortField.Path,
     bool ArchiveSortDescending = false,
     string[]? ArchiveVisibleColumns = null,

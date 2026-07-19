@@ -19,7 +19,7 @@ if ($resolvedOutputRoot.Equals($driveRoot, [StringComparison]::OrdinalIgnoreCase
     throw "Refusing to use a broad output root: $resolvedOutputRoot"
 }
 
-$version = "0.5.5"
+$version = "0.6.0"
 $nativeRoot = Join-Path $repositoryRoot "native\cdmw_archive_core"
 $nativeBuild = Join-Path $nativeRoot "build"
 $previewRoot = Join-Path $repositoryRoot "native\cdmw_preview_core"
@@ -30,6 +30,8 @@ $meshCoreRoot = Join-Path $repositoryRoot "native\cdmw_mesh_core"
 $meshCoreBuild = Join-Path $meshCoreRoot "build"
 $textureRoot = Join-Path $repositoryRoot "native\cd_texture_dx"
 $textureBuild = Join-Path $textureRoot "build"
+$hkxRoot = Join-Path $repositoryRoot "native\cd_hkx"
+$hkxExecutable = Join-Path $hkxRoot "target\release\cd-hkx.exe"
 $vgmstreamRoot = Join-Path $repositoryRoot ".tools\vgmstream"
 $vgmstreamManifestPath = Join-Path $vgmstreamRoot ".cdmw-dependency.json"
 $rendererProject = Join-Path $repositoryRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
@@ -128,6 +130,11 @@ try {
     & $textureExecutable self-test
     Assert-LastExitCode "Native DirectXTex self-test"
 
+    & cargo test --quiet --manifest-path (Join-Path $hkxRoot "Cargo.toml")
+    Assert-LastExitCode "Native HKX tests"
+    & cargo build --release --quiet --manifest-path (Join-Path $hkxRoot "Cargo.toml")
+    Assert-LastExitCode "Native HKX build"
+
     & dotnet build (Join-Path $liteRoot "Cdmw.ArchiveLite.slnx") -c $Configuration --nologo --verbosity:minimal
     Assert-LastExitCode ".NET solution build"
 
@@ -140,11 +147,13 @@ try {
     $previousItemIndexPath = $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH
     $previousMeshCorePath = $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH
     $previousTextureHelperPath = $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH
+    $previousHkxHelperPath = $env:CDMW_ARCHIVE_LITE_HKX_HELPER_PATH
     try {
         $env:CDMW_ARCHIVE_LITE_DOTNET_PREVIEW_PATH = $rendererExecutable
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $acceleratorExecutable
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $meshCoreExecutable
         $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $textureExecutable
+        $env:CDMW_ARCHIVE_LITE_HKX_HELPER_PATH = $hkxExecutable
         & dotnet run --project (Join-Path $liteRoot "tests\Cdmw.ArchiveLite.Tests\Cdmw.ArchiveLite.Tests.csproj") -c $Configuration --no-build
         Assert-LastExitCode "Archive Lite focused tests"
     }
@@ -153,6 +162,7 @@ try {
         $env:CDMW_ARCHIVE_LITE_ITEM_INDEX_PATH = $previousItemIndexPath
         $env:CDMW_ARCHIVE_LITE_MESH_CORE_PATH = $previousMeshCorePath
         $env:CDMW_ARCHIVE_LITE_TEXTURE_HELPER_PATH = $previousTextureHelperPath
+        $env:CDMW_ARCHIVE_LITE_HKX_HELPER_PATH = $previousHkxHelperPath
     }
 
     & dotnet publish $appProject -c $Configuration -r win-x64 --self-contained true --nologo --output $stage -p:Version=$version -p:DebugType=None
@@ -184,17 +194,20 @@ $rendererPayload = Join-Path $stage "renderer"
 $indexerPayload = Join-Path $stage "indexer"
 $meshPayload = Join-Path $stage "mesh"
 $texturePayload = Join-Path $stage "texture"
+$hkxPayload = Join-Path $stage "hkx"
 $mediaPayload = Join-Path $stage "media"
 New-Item -ItemType Directory -Path $previewPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $rendererPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $indexerPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $meshPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $texturePayload -Force | Out-Null
+New-Item -ItemType Directory -Path $hkxPayload -Force | Out-Null
 New-Item -ItemType Directory -Path $mediaPayload -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $previewBuild "$Configuration\cdmw-preview-core.exe") -Destination $previewPayload -Force
 Copy-Item -LiteralPath $acceleratorExecutable -Destination $indexerPayload -Force
 Copy-Item -LiteralPath $meshCoreExecutable -Destination $meshPayload -Force
 Copy-Item -LiteralPath $textureExecutable -Destination $texturePayload -Force
+Copy-Item -LiteralPath $hkxExecutable -Destination $hkxPayload -Force
 Copy-Item -Path (Join-Path $rendererStage "*") -Destination $rendererPayload -Recurse -Force
 $vgmstreamManifest = Get-Content -LiteralPath $vgmstreamManifestPath -Raw | ConvertFrom-Json
 if ($vgmstreamManifest.version -ne "r1980" -or

@@ -50,7 +50,7 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
         ExportSelectedCommand = new AsyncCommand(ExportSelectedAsync, CanExportSelected);
         ExportFamilyCommand = new AsyncCommand(ExportFamilyAsync, CanExportFamily);
         AssetsView = CollectionViewSource.GetDefaultView(Assets);
-        AssetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(AssociatedAssetRow.CategoryLabel)));
+        AssetsView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(AssociatedAssetRow.Category)));
     }
 
     public ObservableCollection<AssociatedAssetRow> Assets { get; } = [];
@@ -389,6 +389,7 @@ public sealed class AssociatedAssetsViewModel : ObservableObject
 public sealed record AssociatedAssetRow(AssociatedAssetDto Asset)
 {
     public ArchiveEntryDto Entry => Asset.Entry;
+    public AssociatedAssetCategory Category => Asset.Category;
     public string Name => Entry.Name;
     public string KnownName => Entry.KnownName;
     public string Path => Entry.Path;

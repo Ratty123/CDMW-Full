@@ -23,5 +23,15 @@
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#4B5D72" />
     <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#6A819A" />
     <SolidColorBrush x:Key="ShadowBrush" Color="#80000000" />
+    <SolidColorBrush x:Key="AssociatedAssetModelBrush" Color="#66B3FF" />
+    <SolidColorBrush x:Key="AssociatedAssetMaterialBrush" Color="#F2A65A" />
+    <SolidColorBrush x:Key="AssociatedAssetTextureBrush" Color="#61D6A8" />
+    <SolidColorBrush x:Key="AssociatedAssetPhysicsBrush" Color="#FF7A90" />
+    <SolidColorBrush x:Key="AssociatedAssetMetadataBrush" Color="#B69CFF" />
+    <SolidColorBrush x:Key="AssociatedAssetRigBrush" Color="#F2D35E" />
+    <SolidColorBrush x:Key="AssociatedAssetAnimationBrush" Color="#D88CFF" />
+    <SolidColorBrush x:Key="AssociatedAssetMediaBrush" Color="#55D1E7" />
+    <SolidColorBrush x:Key="AssociatedAssetUiBrush" Color="#7ED6FF" />
+    <SolidColorBrush x:Key="AssociatedAssetOtherBrush" Color="#A7B4C4" />
     <Color x:Key="NativePreviewBackgroundColor">#111923</Color>
 </ResourceDictionary>

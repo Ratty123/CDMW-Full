@@ -1,0 +1,37 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#20242C" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#292E39" />
+    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#333A47" />
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#404958" />
+    <SolidColorBrush x:Key="SurfacePressedBrush" Color="#1B2028" />
+    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#242A34" />
+    <SolidColorBrush x:Key="BorderBrush" Color="#465264" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="#63758C" />
+    <SolidColorBrush x:Key="TextBrush" Color="#ECEFF4" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#B4BECE" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="#778396" />
+    <SolidColorBrush x:Key="AccentBrush" Color="#88C0D0" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#9AD0DE" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#6FA5B5" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#162329" />
+    <SolidColorBrush x:Key="SelectionBrush" Color="#40576A" />
+    <SolidColorBrush x:Key="SelectionInactiveBrush" Color="#3A4350" />
+    <SolidColorBrush x:Key="OverlayBrush" Color="#DB1A1F27" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#EBCB8B" />
+    <SolidColorBrush x:Key="SuccessBrush" Color="#A3BE8C" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#55657A" />
+    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#708399" />
+    <SolidColorBrush x:Key="ShadowBrush" Color="#80000000" />
+    <SolidColorBrush x:Key="AssociatedAssetModelBrush" Color="#81A1C1" />
+    <SolidColorBrush x:Key="AssociatedAssetMaterialBrush" Color="#D08770" />
+    <SolidColorBrush x:Key="AssociatedAssetTextureBrush" Color="#A3BE8C" />
+    <SolidColorBrush x:Key="AssociatedAssetPhysicsBrush" Color="#BF616A" />
+    <SolidColorBrush x:Key="AssociatedAssetMetadataBrush" Color="#B48EAD" />
+    <SolidColorBrush x:Key="AssociatedAssetRigBrush" Color="#EBCB8B" />
+    <SolidColorBrush x:Key="AssociatedAssetAnimationBrush" Color="#C895C2" />
+    <SolidColorBrush x:Key="AssociatedAssetMediaBrush" Color="#8FBCBB" />
+    <SolidColorBrush x:Key="AssociatedAssetUiBrush" Color="#88C0D0" />
+    <SolidColorBrush x:Key="AssociatedAssetOtherBrush" Color="#B4BECE" />
+    <Color x:Key="NativePreviewBackgroundColor">#242A34</Color>
+</ResourceDictionary>

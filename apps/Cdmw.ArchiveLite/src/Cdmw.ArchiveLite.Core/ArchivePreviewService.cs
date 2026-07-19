@@ -21,6 +21,7 @@ public sealed class ArchivePreviewService
     private readonly NativeModelPreviewService _modelPreviews;
     private readonly NativeTexturePreviewService _texturePreviews;
     private readonly NativeMediaPreviewService _mediaPreviews;
+    private readonly NativeHkxPreviewService _hkxPreviews;
     private readonly TextDocumentPreviewService _textDocuments;
 
     public ArchivePreviewService(
@@ -29,6 +30,7 @@ public sealed class ArchivePreviewService
         NativeModelPreviewService? modelPreviews = null,
         NativeTexturePreviewService? texturePreviews = null,
         NativeMediaPreviewService? mediaPreviews = null,
+        NativeHkxPreviewService? hkxPreviews = null,
         TextDocumentPreviewService? textDocuments = null)
     {
         _sessions = sessions;
@@ -36,6 +38,7 @@ public sealed class ArchivePreviewService
         _modelPreviews = modelPreviews ?? new NativeModelPreviewService();
         _texturePreviews = texturePreviews ?? new NativeTexturePreviewService();
         _mediaPreviews = mediaPreviews ?? new NativeMediaPreviewService();
+        _hkxPreviews = hkxPreviews ?? new NativeHkxPreviewService();
         _textDocuments = textDocuments ?? new TextDocumentPreviewService();
     }
 
@@ -102,6 +105,7 @@ public sealed class ArchivePreviewService
         cancellationToken.ThrowIfCancellationRequested();
         var decoded = _native.Decode(entry);
         cancellationToken.ThrowIfCancellationRequested();
+        metadata = AssetMetadataInspector.Enrich(metadata, entry.Extension, decoded.Bytes);
         if (!string.IsNullOrWhiteSpace(decoded.Note)) warnings.Add(decoded.Note);
 
         if (entry.Role is ArchiveEntryRole.Text or ArchiveEntryRole.Metadata || LooksTextual(decoded.Bytes))
@@ -197,6 +201,51 @@ public sealed class ArchivePreviewService
             }
             var kind = entry.Role == ArchiveEntryRole.Audio ? PreviewKind.Audio : PreviewKind.Video;
             return new PreviewResult(session.Id, entry.EntryId, kind, entry.Name, metadata, ArtifactPath: artifact, MediaKind: entry.Role.ToString().ToLowerInvariant(), Warnings: warnings);
+        }
+
+        if (NativeHkxPreviewService.Supports(entry.Extension))
+        {
+            try
+            {
+                var artifact = await _hkxPreviews.BuildAsync(
+                    session,
+                    entry,
+                    decoded.Bytes,
+                    publishProgress,
+                    cancellationToken).ConfigureAwait(false);
+                metadata = string.Join(
+                    Environment.NewLine,
+                    metadata,
+                    string.Empty,
+                    artifact.PreviewKind.Equals("skeleton", StringComparison.OrdinalIgnoreCase)
+                        ? $"Native visual preview: skeleton ({artifact.BoneCount:N0} bones)"
+                        : $"Native visual preview: HKX object structure ({artifact.NodeCount:N0} objects)");
+                warnings.AddRange(artifact.Warnings);
+                return new PreviewResult(
+                    session.Id,
+                    entry.EntryId,
+                    PreviewKind.Model,
+                    entry.Name,
+                    metadata,
+                    ArtifactPath: artifact.PackagePath,
+                    Warnings: warnings);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                warnings.Add($"Native HKX visual preview unavailable: {exception.Message}");
+                return new PreviewResult(
+                    session.Id,
+                    entry.EntryId,
+                    PreviewKind.Hkx,
+                    entry.Name,
+                    metadata,
+                    Text: "This HKX did not expose a renderable skeleton or object structure. Its format details remain available in Metadata.",
+                    Warnings: warnings);
+            }
         }
 
         if (entry.Role is ArchiveEntryRole.Model or ArchiveEntryRole.Animation or ArchiveEntryRole.Physics)

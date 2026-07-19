@@ -108,8 +108,22 @@
   <data name="Theme" xml:space="preserve"><value>Design</value></data>
   <data name="ThemeGraphite" xml:space="preserve"><value>Graphit</value></data>
   <data name="ThemeMidnight" xml:space="preserve"><value>Mitternacht</value></data>
+  <data name="ThemeNord" xml:space="preserve"><value>Nord</value></data>
+  <data name="ThemeEmber" xml:space="preserve"><value>Glut</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Hell</value></data>
+  <data name="ThemeFrost" xml:space="preserve"><value>Frost</value></data>
   <data name="ThemeApplied" xml:space="preserve"><value>Design angewendet.</value></data>
+  <data name="FontSize" xml:space="preserve"><value>Schriftgröße</value></data>
+  <data name="FontSizeSmall" xml:space="preserve"><value>Klein</value></data>
+  <data name="FontSizeMedium" xml:space="preserve"><value>Mittel</value></data>
+  <data name="FontSizeLarge" xml:space="preserve"><value>Groß</value></data>
+  <data name="FontSizeExtraLarge" xml:space="preserve"><value>Sehr groß</value></data>
+  <data name="FontSizeApplied" xml:space="preserve"><value>Schriftgröße angewendet.</value></data>
+  <data name="LayoutDensity" xml:space="preserve"><value>Layoutdichte</value></data>
+  <data name="LayoutCompact" xml:space="preserve"><value>Kompakt</value></data>
+  <data name="LayoutComfortable" xml:space="preserve"><value>Komfortabel</value></data>
+  <data name="LayoutSpacious" xml:space="preserve"><value>Geräumig</value></data>
+  <data name="LayoutApplied" xml:space="preserve"><value>Layoutdichte angewendet.</value></data>
   <data name="LanguageApplied" xml:space="preserve"><value>Sprache angewendet.</value></data>
   <data name="CollisionPolicy" xml:space="preserve"><value>Wenn eine Datei vorhanden ist</value></data>
   <data name="ManifestFormat" xml:space="preserve"><value>Manifestformat</value></data>

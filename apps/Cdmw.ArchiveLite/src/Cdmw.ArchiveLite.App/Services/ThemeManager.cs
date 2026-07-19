@@ -9,7 +9,10 @@ public static class ThemeManager
     [
         new("graphite", "ThemeGraphite", "Themes/Theme.Graphite.xaml", true),
         new("midnight", "ThemeMidnight", "Themes/Theme.Midnight.xaml", true),
+        new("nord", "ThemeNord", "Themes/Theme.Nord.xaml", true),
+        new("ember", "ThemeEmber", "Themes/Theme.Ember.xaml", true),
         new("light", "ThemeLight", "Themes/Theme.Light.xaml", false),
+        new("frost", "ThemeFrost", "Themes/Theme.Frost.xaml", false),
     ];
 
     public static event EventHandler? ThemeChanged;

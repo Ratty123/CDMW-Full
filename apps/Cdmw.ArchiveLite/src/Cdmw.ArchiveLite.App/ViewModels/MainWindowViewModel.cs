@@ -15,6 +15,10 @@ public sealed class MainWindowViewModel : ObservableObject
     private LanguageOption _selectedLanguage;
     private ThemeOption _selectedTheme;
     private IReadOnlyList<ThemeOption> _themes = [];
+    private AppearanceOption _selectedFontSize;
+    private AppearanceOption _selectedLayoutDensity;
+    private IReadOnlyList<AppearanceOption> _fontSizes = [];
+    private IReadOnlyList<AppearanceOption> _layoutDensities = [];
 
     public MainWindowViewModel(WorkerProcessHost worker, LiteSettings settings)
     {
@@ -29,6 +33,10 @@ public sealed class MainWindowViewModel : ObservableObject
         _selectedLanguage = Languages.FirstOrDefault(option => option.Code.Equals(settings.Language, StringComparison.OrdinalIgnoreCase)) ?? Languages[0];
         _themes = BuildThemeOptions();
         _selectedTheme = Themes.FirstOrDefault(option => option.Id.Equals(settings.Theme, StringComparison.OrdinalIgnoreCase)) ?? Themes[0];
+        _fontSizes = BuildFontSizeOptions();
+        _selectedFontSize = FontSizes.FirstOrDefault(option => option.Id.Equals(settings.FontSize, StringComparison.OrdinalIgnoreCase)) ?? FontSizes[1];
+        _layoutDensities = BuildLayoutDensityOptions();
+        _selectedLayoutDensity = LayoutDensities.FirstOrDefault(option => option.Id.Equals(settings.LayoutDensity, StringComparison.OrdinalIgnoreCase)) ?? LayoutDensities[1];
         var cacheChoicePrompt = new ArchiveCacheChoicePrompt(() => Application.Current?.MainWindow);
         ArchiveBrowser = new ArchiveBrowserViewModel(
             worker,
@@ -53,6 +61,10 @@ public sealed class MainWindowViewModel : ObservableObject
     public IReadOnlyList<LanguageOption> Languages { get; }
 
     public IReadOnlyList<ThemeOption> Themes => _themes;
+
+    public IReadOnlyList<AppearanceOption> FontSizes => _fontSizes;
+
+    public IReadOnlyList<AppearanceOption> LayoutDensities => _layoutDensities;
 
     public IReadOnlyList<string>? ArchiveVisibleColumns => _settings.ArchiveVisibleColumns;
 
@@ -101,7 +113,7 @@ public sealed class MainWindowViewModel : ObservableObject
                 LocalizationManager.ApplyCulture(value.Code);
                 ArchiveBrowser.RefreshLocalization();
                 TextSearch.RefreshLocalization();
-                RefreshThemeLabels();
+                RefreshAppearanceLabels();
                 Status = LocalizationManager.Get("LanguageApplied");
             }
         }
@@ -117,6 +129,34 @@ public sealed class MainWindowViewModel : ObservableObject
                 ThemeManager.Apply(value.Id);
                 _settings = _settings with { Theme = value.Id };
                 Status = LocalizationManager.Get("ThemeApplied");
+            }
+        }
+    }
+
+    public AppearanceOption SelectedFontSize
+    {
+        get => _selectedFontSize;
+        set
+        {
+            if (value is not null && SetProperty(ref _selectedFontSize, value))
+            {
+                UiPreferencesManager.Apply(value.Id, _selectedLayoutDensity.Id);
+                _settings = _settings with { FontSize = value.Id };
+                Status = LocalizationManager.Get("FontSizeApplied");
+            }
+        }
+    }
+
+    public AppearanceOption SelectedLayoutDensity
+    {
+        get => _selectedLayoutDensity;
+        set
+        {
+            if (value is not null && SetProperty(ref _selectedLayoutDensity, value))
+            {
+                UiPreferencesManager.Apply(_selectedFontSize.Id, value.Id);
+                _settings = _settings with { LayoutDensity = value.Id };
+                Status = LocalizationManager.Get("LayoutApplied");
             }
         }
     }
@@ -207,13 +247,31 @@ public sealed class MainWindowViewModel : ObservableObject
         .Select(definition => new ThemeOption(definition.Id, LocalizationManager.Get(definition.ResourceKey)))
         .ToArray();
 
-    private void RefreshThemeLabels()
+    private static IReadOnlyList<AppearanceOption> BuildFontSizeOptions() => UiPreferencesManager.AvailableFontSizes
+        .Select(definition => new AppearanceOption(definition.Id, LocalizationManager.Get(definition.ResourceKey)))
+        .ToArray();
+
+    private static IReadOnlyList<AppearanceOption> BuildLayoutDensityOptions() => UiPreferencesManager.AvailableLayoutDensities
+        .Select(definition => new AppearanceOption(definition.Id, LocalizationManager.Get(definition.ResourceKey)))
+        .ToArray();
+
+    private void RefreshAppearanceLabels()
     {
         var selectedThemeId = _selectedTheme.Id;
+        var selectedFontSizeId = _selectedFontSize.Id;
+        var selectedLayoutDensityId = _selectedLayoutDensity.Id;
         _themes = BuildThemeOptions();
+        _fontSizes = BuildFontSizeOptions();
+        _layoutDensities = BuildLayoutDensityOptions();
         OnPropertyChanged(nameof(Themes));
+        OnPropertyChanged(nameof(FontSizes));
+        OnPropertyChanged(nameof(LayoutDensities));
         _selectedTheme = Themes.First(option => option.Id.Equals(selectedThemeId, StringComparison.OrdinalIgnoreCase));
+        _selectedFontSize = FontSizes.First(option => option.Id.Equals(selectedFontSizeId, StringComparison.OrdinalIgnoreCase));
+        _selectedLayoutDensity = LayoutDensities.First(option => option.Id.Equals(selectedLayoutDensityId, StringComparison.OrdinalIgnoreCase));
         OnPropertyChanged(nameof(SelectedTheme));
+        OnPropertyChanged(nameof(SelectedFontSize));
+        OnPropertyChanged(nameof(SelectedLayoutDensity));
     }
 }
 
@@ -223,6 +281,11 @@ public sealed record LanguageOption(string Code, string Label)
 }
 
 public sealed record ThemeOption(string Id, string Label)
+{
+    public override string ToString() => Label;
+}
+
+public sealed record AppearanceOption(string Id, string Label)
 {
     public override string ToString() => Label;
 }

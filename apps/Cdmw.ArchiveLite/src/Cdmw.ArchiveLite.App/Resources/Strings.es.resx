@@ -108,8 +108,22 @@
   <data name="Theme" xml:space="preserve"><value>Tema</value></data>
   <data name="ThemeGraphite" xml:space="preserve"><value>Grafito</value></data>
   <data name="ThemeMidnight" xml:space="preserve"><value>Medianoche</value></data>
+  <data name="ThemeNord" xml:space="preserve"><value>Nórdico</value></data>
+  <data name="ThemeEmber" xml:space="preserve"><value>Brasa</value></data>
   <data name="ThemeLight" xml:space="preserve"><value>Claro</value></data>
+  <data name="ThemeFrost" xml:space="preserve"><value>Escarcha</value></data>
   <data name="ThemeApplied" xml:space="preserve"><value>Tema aplicado.</value></data>
+  <data name="FontSize" xml:space="preserve"><value>Tamaño de fuente</value></data>
+  <data name="FontSizeSmall" xml:space="preserve"><value>Pequeño</value></data>
+  <data name="FontSizeMedium" xml:space="preserve"><value>Mediano</value></data>
+  <data name="FontSizeLarge" xml:space="preserve"><value>Grande</value></data>
+  <data name="FontSizeExtraLarge" xml:space="preserve"><value>Muy grande</value></data>
+  <data name="FontSizeApplied" xml:space="preserve"><value>Tamaño de fuente aplicado.</value></data>
+  <data name="LayoutDensity" xml:space="preserve"><value>Densidad del diseño</value></data>
+  <data name="LayoutCompact" xml:space="preserve"><value>Compacto</value></data>
+  <data name="LayoutComfortable" xml:space="preserve"><value>Cómodo</value></data>
+  <data name="LayoutSpacious" xml:space="preserve"><value>Espacioso</value></data>
+  <data name="LayoutApplied" xml:space="preserve"><value>Densidad del diseño aplicada.</value></data>
   <data name="LanguageApplied" xml:space="preserve"><value>Idioma aplicado.</value></data>
   <data name="CollisionPolicy" xml:space="preserve"><value>Si ya existe un archivo</value></data>
   <data name="ManifestFormat" xml:space="preserve"><value>Formato del manifiesto</value></data>

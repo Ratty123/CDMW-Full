@@ -9,6 +9,8 @@ fn print_usage() {
     eprintln!("Usage:");
     eprintln!("  cd-hkx summary-json <file.hkx>");
     eprintln!("  cd-hkx summary-json -");
+    eprintln!("  cd-hkx preview-json <file.hkx>");
+    eprintln!("  cd-hkx preview-json -");
     eprintln!("  cd-hkx roundtrip-noedit <input.hkx> <output.hkx>");
     eprintln!("  cd-hkx patch-fixed-f32 <input.hkx> <output.hkx> <record-index> <item-index> <offset> <value>");
     eprintln!("  cd-hkx corpus-json <folder-or-file> [max-files]");
@@ -99,6 +101,15 @@ fn command_summary_json(path: &str) -> Result<(), String> {
     println!(
         "{}",
         cd_hkx::summary_to_json_with_no_edit_report(&summary, &writer_report)
+    );
+    Ok(())
+}
+
+fn command_preview_json(path: &str) -> Result<(), String> {
+    let data = read_input(path).map_err(|error| format!("failed to read {path}: {error}"))?;
+    println!(
+        "{}",
+        cd_hkx::hkx_preview_to_json(&cd_hkx::build_hkx_preview(&data))
     );
     Ok(())
 }
@@ -502,6 +513,7 @@ fn command_corpus_json(
 fn run(args: &[String]) -> Result<(), String> {
     match args.get(1).map(String::as_str) {
         Some("summary-json") if args.len() == 3 => command_summary_json(&args[2]),
+        Some("preview-json") if args.len() == 3 => command_preview_json(&args[2]),
         Some("roundtrip-noedit") => command_roundtrip_noedit(args),
         Some("patch-fixed-f32") => command_patch_fixed_f32(args),
         Some("corpus-json") if args.len() == 3 || args.len() == 4 => command_corpus_json(

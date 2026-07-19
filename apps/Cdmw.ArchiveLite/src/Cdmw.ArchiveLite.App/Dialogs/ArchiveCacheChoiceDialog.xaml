@@ -67,7 +67,7 @@
                                 Margin="20,0,12,0"
                                 VerticalAlignment="Center"
                                 IsHitTestVisible="False">
-                        <TextBlock FontSize="14.5"
+                        <TextBlock FontSize="{DynamicResource TitleFontSize}"
                                    FontWeight="SemiBold"
                                    Text="{infra:Loc Key=CacheChoiceTitle}" />
                         <TextBlock Margin="0,2,0,0"
@@ -109,7 +109,7 @@
                 </Grid.RowDefinitions>
 
                 <TextBlock Grid.Row="0"
-                           FontSize="22"
+                            FontSize="{DynamicResource DialogTitleFontSize}"
                            FontWeight="SemiBold"
                            Text="{infra:Loc Key=CacheChoiceHeading}" />
                 <TextBlock Grid.Row="1"
@@ -158,7 +158,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="PersistentTitleText"
-                                   FontSize="15"
+                                   FontSize="{DynamicResource TitleFontSize}"
                                    FontWeight="SemiBold"
                                    TextTrimming="None" />
                         <Border Grid.Column="1"
@@ -167,7 +167,7 @@
                                 VerticalAlignment="Center"
                                 Background="{DynamicResource AccentBrush}"
                                 CornerRadius="9">
-                            <TextBlock FontSize="10"
+                            <TextBlock FontSize="{DynamicResource BadgeFontSize}"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource AccentTextBrush}"
                                        Text="{infra:Loc Key=CacheChoiceRecommended}" />
@@ -191,7 +191,7 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <TextBlock FontSize="15"
+                        <TextBlock FontSize="{DynamicResource TitleFontSize}"
                                    FontWeight="SemiBold"
                                    Text="{infra:Loc Key=CacheChoiceSessionTitle}"
                                    TextTrimming="None" />

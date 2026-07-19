@@ -17,7 +17,7 @@
         <Setter Property="Background" Value="{DynamicResource WindowBackgroundBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="FontFamily" Value="Segoe UI" />
-        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontSize" Value="{DynamicResource BaseFontSize}" />
         <Setter Property="TextOptions.TextFormattingMode" Value="Display" />
         <Setter Property="TextOptions.TextRenderingMode" Value="ClearType" />
         <Setter Property="TextOptions.TextHintingMode" Value="Fixed" />
@@ -37,13 +37,13 @@
 
     <Style x:Key="CaptionTextStyle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
 
     <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-        <Setter Property="FontSize" Value="17" />
+        <Setter Property="FontSize" Value="{DynamicResource SectionTitleFontSize}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="TextTrimming" Value="CharacterEllipsis" />
     </Style>
@@ -53,7 +53,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="CornerRadius" Value="12" />
-        <Setter Property="Padding" Value="16" />
+        <Setter Property="Padding" Value="{DynamicResource CardPadding}" />
     </Style>
 
     <Style x:Key="BadgeBorderStyle" TargetType="Border">
@@ -69,8 +69,8 @@
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="13,7" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="{DynamicResource ControlPadding}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlMinHeight}" />
         <Setter Property="MinWidth" Value="76" />
         <Setter Property="HorizontalContentAlignment" Value="Center" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
@@ -137,8 +137,8 @@
     </Style>
 
     <Style x:Key="CompactButtonStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-        <Setter Property="Padding" Value="10,5" />
-        <Setter Property="MinHeight" Value="30" />
+        <Setter Property="Padding" Value="{DynamicResource CompactControlPadding}" />
+        <Setter Property="MinHeight" Value="{DynamicResource CompactControlMinHeight}" />
         <Setter Property="MinWidth" Value="64" />
     </Style>
 
@@ -174,8 +174,8 @@
         <Setter Property="SelectionBrush" Value="{DynamicResource AccentBrush}" />
         <Setter Property="SelectionOpacity" Value="0.45" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="9,6" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="{DynamicResource ControlPadding}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlMinHeight}" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisualStyle}" />
         <Style.Triggers>
@@ -236,8 +236,8 @@
         <Setter Property="Background" Value="{DynamicResource InputBackgroundBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-        <Setter Property="Padding" Value="10,6,38,6" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="Padding" Value="{DynamicResource ComboBoxPadding}" />
+        <Setter Property="MinHeight" Value="{DynamicResource ControlMinHeight}" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisualStyle}" />
@@ -308,12 +308,12 @@
     <Style x:Key="TopBarComboBoxStyle" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
         <Setter Property="MinHeight" Value="32" />
         <Setter Property="Padding" Value="10,5,36,5" />
-        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontSize" Value="{DynamicResource CaptionFontSize}" />
     </Style>
 
     <Style TargetType="ComboBoxItem">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-        <Setter Property="Padding" Value="10,7" />
+        <Setter Property="Padding" Value="{DynamicResource ComboItemPadding}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
@@ -394,15 +394,15 @@
     <Style TargetType="GroupBox">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
-        <Setter Property="Padding" Value="14" />
-        <Setter Property="Margin" Value="0,0,0,12" />
+        <Setter Property="Padding" Value="{DynamicResource GroupBoxPadding}" />
+        <Setter Property="Margin" Value="{DynamicResource GroupBoxMargin}" />
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="GroupBox">
                     <StackPanel>
                         <ContentPresenter Margin="2,0,2,7"
                                           ContentSource="Header"
-                                          TextElement.FontSize="12"
+                                          TextElement.FontSize="{DynamicResource CaptionFontSize}"
                                           TextElement.FontWeight="SemiBold"
                                           TextElement.Foreground="{DynamicResource TextMutedBrush}" />
                         <Border Background="{DynamicResource SurfaceBrush}"
@@ -438,8 +438,8 @@
         <Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="BorderThickness" Value="1" />
-        <Setter Property="Padding" Value="14,7" />
-        <Setter Property="Height" Value="36" />
+        <Setter Property="Padding" Value="{DynamicResource NavigationPadding}" />
+        <Setter Property="Height" Value="{DynamicResource NavigationHeight}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisualStyle}" />
         <Setter Property="Template">
@@ -486,7 +486,7 @@
     </Style>
 
     <Style TargetType="ListBoxItem">
-        <Setter Property="Padding" Value="8,6" />
+        <Setter Property="Padding" Value="{DynamicResource ListItemPadding}" />
         <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         <Setter Property="Template">
             <Setter.Value>
@@ -530,7 +530,7 @@
         <Setter Property="BorderBrush" Value="{DynamicResource BorderBrush}" />
         <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
         <Setter Property="BorderThickness" Value="0,0,1,1" />
-        <Setter Property="Padding" Value="10,8" />
+        <Setter Property="Padding" Value="{DynamicResource DataGridHeaderPadding}" />
         <Setter Property="FontWeight" Value="SemiBold" />
         <Setter Property="HorizontalContentAlignment" Value="Left" />
         <Setter Property="Template">
@@ -577,7 +577,7 @@
 
     <Style TargetType="DataGridRow">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-        <Setter Property="MinHeight" Value="34" />
+        <Setter Property="MinHeight" Value="{DynamicResource DataGridRowMinHeight}" />
         <Setter Property="SnapsToDevicePixels" Value="True" />
         <Setter Property="Template">
             <Setter.Value>
@@ -601,7 +601,7 @@
     <Style TargetType="DataGridCell">
         <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
         <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="10,6" />
+        <Setter Property="Padding" Value="{DynamicResource DataGridCellPadding}" />
         <Setter Property="FocusVisualStyle" Value="{x:Null}" />
         <Setter Property="Template">
             <Setter.Value>

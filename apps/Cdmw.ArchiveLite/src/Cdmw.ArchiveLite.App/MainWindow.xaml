@@ -28,6 +28,7 @@
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <infra:ArchiveRoleLabelConverter x:Key="ArchiveRoleLabelConverter" />
+        <infra:AssociatedAssetCategoryLabelConverter x:Key="AssociatedAssetCategoryLabelConverter" />
         <infra:VisibilityBooleanConverter x:Key="VisibilityBooleanConverter" />
     </Window.Resources>
 
@@ -38,7 +39,10 @@
             <RowDefinition Height="40" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Background="{DynamicResource SurfaceRaisedBrush}">
+        <Grid x:Name="TitleBarGrid"
+              Grid.Row="0"
+              Background="{DynamicResource SurfaceRaisedBrush}"
+              ClipToBounds="True">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
@@ -49,11 +53,17 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
-            <Grid Grid.Column="0" Margin="18,0,16,0" MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
+            <Grid Grid.Column="0"
+                  Width="180"
+                  Margin="12,0,8,0"
+                  ClipToBounds="True"
+                  MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="38" />
-                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
                 <Border Width="32"
                         Height="32"
@@ -67,39 +77,47 @@
                                Text="CD" />
                 </Border>
                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                    <TextBlock FontSize="14.5"
+                    <TextBlock FontSize="{DynamicResource TitleFontSize}"
                                FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis"
                                Text="{infra:Loc Key=ProductName}" />
                     <TextBlock Margin="0,1,0,0"
                                Style="{StaticResource CaptionTextStyle}"
+                               TextTrimming="CharacterEllipsis"
                                Text="{infra:Loc Key=ProductSubtitle}" />
                 </StackPanel>
             </Grid>
             <Border Grid.Column="1"
-                    Margin="0,0,12,0"
-                    Padding="9,4"
+                    Width="38"
+                    Height="24"
+                    Margin="0,0,10,0"
                     VerticalAlignment="Center"
                     Background="{DynamicResource SelectionInactiveBrush}"
-                    CornerRadius="10">
-                <TextBlock FontSize="10"
+                    CornerRadius="10"
+                    ToolTip="{infra:Loc Key=ReadOnlyPill}">
+                <TextBlock FontSize="{DynamicResource BadgeFontSize}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource AccentBrush}"
-                           Text="{infra:Loc Key=ReadOnlyPill}" />
+                           Text="RO" />
             </Border>
             <StackPanel Grid.Column="2"
-                        Margin="0,0,14,0"
+                        Margin="0,0,12,0"
                         VerticalAlignment="Center"
                         Orientation="Horizontal"
                         shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <ToggleButton x:Name="ArchiveBrowserNavigationButton"
-                              MinWidth="112"
+                              Width="136"
+                              Padding="8,6"
                               IsChecked="True"
                               Style="{StaticResource WorkspaceNavigationButtonStyle}"
                               Tag="0"
                               Content="{infra:Loc Key=ArchiveBrowserTab}"
                               Click="OnWorkspaceNavigationClick" />
                 <ToggleButton x:Name="TextSearchNavigationButton"
-                              MinWidth="94"
+                              Width="108"
+                              Padding="8,6"
                               Margin="6,0,0,0"
                               Style="{StaticResource WorkspaceNavigationButtonStyle}"
                               Tag="1"
@@ -110,7 +128,7 @@
                     Background="Transparent"
                     MouseLeftButtonDown="OnTitleBarMouseLeftButtonDown" />
             <ComboBox Grid.Column="4"
-                      Width="132"
+                      Width="126"
                       Margin="0,11,8,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
                       ToolTip="{infra:Loc Key=Theme}"
@@ -118,35 +136,51 @@
                       SelectedItem="{Binding SelectedTheme}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
             <ComboBox Grid.Column="5"
-                      Width="106"
-                      Margin="0,11,12,11"
+                      Width="126"
+                      Margin="0,11,8,11"
+                      Style="{StaticResource TopBarComboBoxStyle}"
+                      ToolTip="{infra:Loc Key=FontSize}"
+                      ItemsSource="{Binding FontSizes}"
+                      SelectedItem="{Binding SelectedFontSize}"
+                      shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+            <ComboBox Grid.Column="6"
+                      Width="140"
+                      Margin="0,11,8,11"
+                      Style="{StaticResource TopBarComboBoxStyle}"
+                      ToolTip="{infra:Loc Key=LayoutDensity}"
+                      ItemsSource="{Binding LayoutDensities}"
+                      SelectedItem="{Binding SelectedLayoutDensity}"
+                      shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+            <ComboBox Grid.Column="7"
+                      Width="110"
+                      Margin="0,11,10,11"
                       Style="{StaticResource TopBarComboBoxStyle}"
                       ToolTip="{infra:Loc Key=Language}"
                       ItemsSource="{Binding Languages}"
                       SelectedItem="{Binding SelectedLanguage}"
                       shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <Button Grid.Column="6"
+            <Button Grid.Column="8"
                     Style="{StaticResource WindowCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Minimize}"
                     Click="OnMinimizeClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <Border Width="11" Height="1" Background="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" />
             </Button>
-            <Button Grid.Column="7"
+            <Button Grid.Column="9"
                     Style="{StaticResource WindowCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Maximize}"
                     Click="OnMaximizeRestoreClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True">
                 <Border Width="10" Height="10" BorderBrush="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" BorderThickness="1" />
             </Button>
-            <Button Grid.Column="8"
+            <Button Grid.Column="10"
                     Style="{StaticResource CloseCaptionButtonStyle}"
                     ToolTip="{infra:Loc Key=Close}"
                     Content="&#x00D7;"
                     FontSize="19"
                     Click="OnCloseClick"
                     shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-            <Border Grid.ColumnSpan="9"
+            <Border Grid.ColumnSpan="11"
                     VerticalAlignment="Bottom"
                     BorderBrush="{DynamicResource BorderBrush}"
                     BorderThickness="0,0,0,1" />
@@ -213,7 +247,7 @@
                                                Text="{infra:Loc Key=ReadOnlyCaption}" />
                                     <TextBlock Margin="0,3,0,0"
                                                Foreground="{DynamicResource TextMutedBrush}"
-                                               FontSize="11"
+                                               FontSize="{DynamicResource CaptionFontSize}"
                                                TextTrimming="CharacterEllipsis"
                                                Text="{Binding ArchiveBrowser.EnvironmentStatus}" />
                                 </StackPanel>
@@ -224,7 +258,7 @@
                                         Background="{DynamicResource SelectionInactiveBrush}"
                                         CornerRadius="11"
                                         ToolTip="{Binding ArchiveBrowser.CacheHealthDetail}">
-                                    <TextBlock FontSize="11"
+                                    <TextBlock FontSize="{DynamicResource CaptionFontSize}"
                                                FontWeight="SemiBold"
                                                Text="{Binding ArchiveBrowser.CacheHealthLabel}">
                                         <TextBlock.Style>
@@ -511,22 +545,22 @@
                                           CanUserSortColumns="True"
                                           CanUserReorderColumns="True"
                                           CanUserResizeColumns="True"
-                                          MinColumnWidth="78"
+                                          MinColumnWidth="48"
                                           Sorting="OnArchiveGridSorting"
                                           AlternationCount="2"
                                           ScrollViewer.CanContentScroll="True"
                                           ScrollViewer.HorizontalScrollBarVisibility="Auto">
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="{infra:Loc Key=Name}" SortMemberPath="Name" Binding="{Binding Name}" Width="1.05*" MinWidth="125" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=KnownName}" SortMemberPath="KnownName" Binding="{Binding KnownName}" Width="1.05*" MinWidth="130" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=NameEvidence}" SortMemberPath="NameEvidence" Binding="{Binding NameEvidence}" Width="1.15*" MinWidth="145" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Extension}" SortMemberPath="Extension" Binding="{Binding Extension}" Width="86" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Type}" SortMemberPath="Role" Binding="{Binding Role, Converter={StaticResource ArchiveRoleLabelConverter}}" Width="95" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Size}" SortMemberPath="OriginalSize" Binding="{Binding OriginalSize, StringFormat={}{0:N0}}" Width="92" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=StoredSize}" SortMemberPath="StoredSize" Binding="{Binding StoredSize, StringFormat={}{0:N0}}" Width="92" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Compression}" SortMemberPath="Compression" Binding="{Binding CompressionLabel}" Width="100" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Package}" SortMemberPath="Package" Binding="{Binding Package}" Width="125" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Path}" SortMemberPath="Path" Binding="{Binding Path}" Width="1.6*" MinWidth="190" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Name}" SortMemberPath="Name" Binding="{Binding Name}" Width="170" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=KnownName}" SortMemberPath="KnownName" Binding="{Binding KnownName}" Width="180" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=NameEvidence}" SortMemberPath="NameEvidence" Binding="{Binding NameEvidence}" Width="190" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Extension}" SortMemberPath="Extension" Binding="{Binding Extension}" Width="90" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Type}" SortMemberPath="Role" Binding="{Binding Role, Converter={StaticResource ArchiveRoleLabelConverter}}" Width="110" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Size}" SortMemberPath="OriginalSize" Binding="{Binding OriginalSize, StringFormat={}{0:N0}}" Width="100" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=StoredSize}" SortMemberPath="StoredSize" Binding="{Binding StoredSize, StringFormat={}{0:N0}}" Width="100" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Compression}" SortMemberPath="Compression" Binding="{Binding CompressionLabel}" Width="110" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Package}" SortMemberPath="Package" Binding="{Binding Package}" Width="140" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Path}" SortMemberPath="Path" Binding="{Binding Path}" Width="320" />
                                     </DataGrid.Columns>
                                 </DataGrid>
                                 <Border Grid.Row="2"
@@ -596,7 +630,7 @@
                                             Content="{Binding ArchiveBrowser.AssociatedAssets.Header}"
                                             Command="{Binding ArchiveBrowser.AssociatedAssets.ToggleDrawerCommand}" />
                                     <Border Grid.Column="2" Style="{StaticResource BadgeBorderStyle}" Margin="8,0,0,0">
-                                        <TextBlock FontSize="10"
+                                         <TextBlock FontSize="{DynamicResource BadgeFontSize}"
                                                    FontWeight="Bold"
                                                    Foreground="{DynamicResource TextMutedBrush}"
                                                    Text="{infra:Loc Key=ReadOnlyBadge}" />
@@ -707,7 +741,7 @@
                                                                ShowLineNumbers="True"
                                                                WordWrap="False"
                                                                FontFamily="Consolas"
-                                                               FontSize="12.5"
+                                                                FontSize="{DynamicResource EditorFontSize}"
                                                                Background="{DynamicResource InputBackgroundBrush}"
                                                                Foreground="{DynamicResource TextBrush}"
                                                                LineNumbersForeground="{DynamicResource TextMutedBrush}"
@@ -838,7 +872,7 @@
                                             </Grid.ColumnDefinitions>
                                             <TextBlock Margin="1,0,8,0"
                                                        VerticalAlignment="Center"
-                                                       FontSize="11"
+                                                       FontSize="{DynamicResource CaptionFontSize}"
                                                        Foreground="{DynamicResource TextMutedBrush}"
                                                        TextWrapping="Wrap"
                                                        Text="{Binding ArchiveBrowser.AssociatedAssets.Status}" />
@@ -873,15 +907,61 @@
                                                 <GroupStyle>
                                                     <GroupStyle.HeaderTemplate>
                                                         <DataTemplate>
-                                                            <Border Margin="0,4,0,2"
+                                                            <Border x:Name="CategoryHeader"
+                                                                    Margin="0,4,0,2"
                                                                     Padding="7,4"
                                                                     Background="{DynamicResource SurfaceRaisedBrush}"
+                                                                    BorderBrush="{DynamicResource AssociatedAssetOtherBrush}"
+                                                                    BorderThickness="3,0,0,0"
                                                                     CornerRadius="4">
-                                                                <TextBlock FontSize="11"
+                                                                <TextBlock x:Name="CategoryLabel"
+                                                                           FontSize="{DynamicResource CaptionFontSize}"
                                                                            FontWeight="SemiBold"
-                                                                           Foreground="{DynamicResource AccentBrush}"
-                                                                           Text="{Binding Name}" />
+                                                                           Foreground="{DynamicResource AssociatedAssetOtherBrush}"
+                                                                           Text="{Binding Name, Converter={StaticResource AssociatedAssetCategoryLabelConverter}}" />
                                                             </Border>
+                                                            <DataTemplate.Triggers>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.Model}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetModelBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetModelBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.Material}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetMaterialBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetMaterialBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.Texture}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetTextureBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetTextureBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.Physics}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetPhysicsBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetPhysicsBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.MeshMetadata}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetMetadataBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetMetadataBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.PrefabMetadata}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetMetadataBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetMetadataBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.SkeletonRig}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetRigBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetRigBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.AnimationMotion}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetAnimationBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetAnimationBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.AudioVideo}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetMediaBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetMediaBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Name}" Value="{x:Static contracts:AssociatedAssetCategory.UserInterface}">
+                                                                    <Setter TargetName="CategoryHeader" Property="BorderBrush" Value="{DynamicResource AssociatedAssetUiBrush}" />
+                                                                    <Setter TargetName="CategoryLabel" Property="Foreground" Value="{DynamicResource AssociatedAssetUiBrush}" />
+                                                                </DataTrigger>
+                                                            </DataTemplate.Triggers>
                                                         </DataTemplate>
                                                     </GroupStyle.HeaderTemplate>
                                                 </GroupStyle>
@@ -899,26 +979,9 @@
                                                                            Text="{Binding Reason}" />
                                                             </StackPanel>
                                                         </Grid.ToolTip>
-                                                        <Grid.RowDefinitions>
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                            <RowDefinition Height="Auto" />
-                                                        </Grid.RowDefinitions>
                                                         <TextBlock FontWeight="SemiBold"
                                                                    TextTrimming="CharacterEllipsis"
                                                                    Text="{Binding Name}" />
-                                                        <TextBlock Grid.Row="1"
-                                                                   Margin="0,1,0,0"
-                                                                   FontSize="10.5"
-                                                                   Foreground="{DynamicResource AccentBrush}"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   Text="{Binding KnownName}" />
-                                                        <TextBlock Grid.Row="2"
-                                                                   Margin="0,1,0,0"
-                                                                   FontSize="10.5"
-                                                                   Foreground="{DynamicResource TextMutedBrush}"
-                                                                   TextTrimming="CharacterEllipsis"
-                                                                   Text="{Binding Path}" />
                                                     </Grid>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
@@ -1125,7 +1188,7 @@
                                                        ShowLineNumbers="True"
                                                        WordWrap="False"
                                                        FontFamily="Consolas"
-                                                       FontSize="12.5"
+                                                        FontSize="{DynamicResource EditorFontSize}"
                                                        Background="{DynamicResource InputBackgroundBrush}"
                                                        Foreground="{DynamicResource TextBrush}"
                                                        LineNumbersForeground="{DynamicResource TextMutedBrush}"
@@ -1166,7 +1229,7 @@
                            Foreground="{DynamicResource TextMutedBrush}"
                            Text="{Binding Status}" />
                 <TextBlock Grid.Column="2"
-                           FontSize="11"
+                            FontSize="{DynamicResource CaptionFontSize}"
                            Foreground="{DynamicResource TextMutedBrush}"
                            Text="{infra:Loc Key=ReadOnlyFooter}" />
             </Grid>

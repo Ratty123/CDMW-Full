@@ -629,6 +629,12 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                 cancellationToken,
                 allowCacheBuild: false).ConfigureAwait(true);
         }
+        else if (CacheHealthState == ArchiveCacheHealthState.Missing &&
+                 string.IsNullOrWhiteSpace(SessionId) &&
+                 !string.IsNullOrWhiteSpace(ArchiveRoot))
+        {
+            await ChooseAndOpenArchiveAsync(forceRefresh: false, cancellationToken).ConfigureAwait(true);
+        }
     }
 
     private async Task BrowseAsync(CancellationToken cancellationToken)

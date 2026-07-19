@@ -493,3 +493,18 @@ fn decodes_compound_tree_instance_and_property_blocker_layouts() {
         assert!(target.observed_record_count > 0);
     }
 }
+
+#[test]
+fn builds_native_skeleton_preview_from_reference_pose() {
+    let preview = build_hkx_preview(&skeleton_support_hkx());
+    assert_eq!(preview.status, "ok");
+    assert_eq!(preview.preview_kind, "skeleton");
+    assert_eq!(preview.bone_count, 2);
+    assert_eq!(preview.bones[0].parent_index, -1);
+    assert_eq!(preview.bones[1].parent_index, 0);
+    assert_eq!(preview.bones[0].position, [0.0, 1.0, 2.0]);
+    assert_eq!(preview.bones[1].position, [1.0, 2.0, 4.0]);
+    let json = hkx_preview_to_json(&preview);
+    assert!(json.contains("\"preview_kind\":\"skeleton\""));
+    assert!(json.contains("\"bone_count\":2"));
+}
