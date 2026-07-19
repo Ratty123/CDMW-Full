@@ -18,6 +18,10 @@ from cdmw.domain.archives.constants import (
 )
 from cdmw.services.material_sidecar_service import is_material_sidecar_entry
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 ARCHIVE_CONTEXT_MENU_ICON_COLORS = {
@@ -189,7 +193,10 @@ class ArchiveBrowserActionMixin:
         current_entry = self._current_archive_entry()
         if current_entry is None or current_entry.extension not in ARCHIVE_MESH_EXTENSIONS:
             return None
-        return current_entry
+        try:
+            return archive_workflow_dependency_context(self, current_entry).selected_entry
+        except ArchiveWorkflowDependenciesUnavailable:
+            return None
 
     def _current_archive_hkx_entry(self) -> Optional[ArchiveEntry]:
         if self.archive_preview_showing_loose:

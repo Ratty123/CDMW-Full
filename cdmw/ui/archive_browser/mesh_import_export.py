@@ -51,6 +51,10 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
     mesh_import_setup_control_text as _mesh_import_setup_control_text,
     mesh_import_static_guidance_text as _mesh_import_static_guidance_text,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 class ArchiveMeshImportExportMixin:
     """Archive mesh import setup and export UI flow."""
@@ -663,6 +667,12 @@ class ArchiveMeshImportExportMixin:
         )
 
     def _start_archive_mesh_export(self, entry: ArchiveEntry, export_format: str) -> None:
+        try:
+            dependencies = archive_workflow_dependency_context(self, entry)
+        except ArchiveWorkflowDependenciesUnavailable as exc:
+            self.set_status_message(f"Mesh export is unavailable: {exc}", error=True)
+            return
+        entry = dependencies.selected_entry
         default_dir = self.settings_file_path.parent / "mesh_export"
         output_dir = QFileDialog.getExistingDirectory(
             self,
@@ -694,8 +704,8 @@ class ArchiveMeshImportExportMixin:
                     entry,
                     Path(output_dir),
                     export_format,
-                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    archive_entries_by_basename=self.archive_entries_by_basename,
+                    archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                    archive_entries_by_basename=dependencies.entries_by_basename,
                     related_entries=selected_related_entries,
                     allow_missing_skeleton=allow_missing_skeleton,
                     on_log=log,

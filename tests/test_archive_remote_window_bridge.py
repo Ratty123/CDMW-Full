@@ -13,6 +13,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveChildrenResult,
     ArchiveDurableIdentity,
     ArchiveEntryDto,
+    ArchiveEntryRef,
     ArchiveEntryRole,
     ArchivePage,
     ArchiveQuery,
@@ -20,10 +21,12 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSessionHandle,
     ArchiveViewMode,
 )
-from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind
+from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind, PrepareEntryResult
 from cdmw.models import ArchiveEntry
+from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
 from cdmw.ui.archive_browser.remote_model import RemoteArchiveBrowserModel, RemoteChildrenFetch
+from cdmw.ui.archive_browser.remote_preview_dependencies import ArchivePreviewDependencySet
 from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge, compare_archive_shadow_page
 
 
@@ -48,6 +51,8 @@ class _ShadowService(QObject):
     request_failed = Signal(str, object)
     request_cancelled = Signal(str)
     progress = Signal(str, object)
+
+    compatibility_entry = staticmethod(ArchiveCatalogueService.compatibility_entry)
 
 
 class _ShadowWindow(QObject):
@@ -222,6 +227,41 @@ def test_remote_export_selection_uses_session_ids_without_materializing_global_e
     assert family_selection.selection_kind is ArchiveExportSelectionKind.FAMILY
     assert family_selection.family_entry_id == 7
     assert not family_selection.include_package_root
+
+
+def test_remote_current_entry_reuses_worker_prepared_dependency_snapshot() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    row = _remote(7, "character/model/hero.pac")
+    bridge.model.publish_query(
+        ArchiveQueryHandle("session-a", "query-a", 1, 1),
+        view_mode=ArchiveViewMode.FLAT,
+        prime=False,
+    )
+    assert bridge.model.accept_page(ArchivePage("session-a", "query-a", 1, 1, 0, (row,)))
+    window.archive_tree.setCurrentIndex(bridge.model.index(0, 0))
+    prepared = PrepareEntryResult(
+        ArchiveEntryRef(row.session_id, row.entry_id, row.identity, row.path),
+        "C:/cache/hero.pac",
+        row.original_size,
+        "sha-hero",
+        "prepared test source",
+    )
+    snapshot = ArchivePreviewDependencySet.from_dtos(
+        row,
+        (),
+        total_candidates=0,
+        truncated=False,
+        prepared={row.entry_id: prepared},
+    )
+    assert bridge._preview_dependencies is not None
+    bridge._preview_dependencies._remember_snapshot(snapshot)
+
+    current = bridge.current_compatibility_entry()
+
+    assert current is snapshot.selected_entry
+    assert current.prepared_path == Path("C:/cache/hero.pac")
 
 
 def test_remote_export_selection_represents_folder_and_filtered_query_server_side() -> None:

@@ -18,6 +18,7 @@ from cdmw.ui.archive_browser.remote_preview_dependencies import (
     ArchivePreviewDependencySet,
     ArchiveRemotePreviewDependencyProvider,
     MAX_ARCHIVE_PREVIEW_DEPENDENCIES,
+    MAX_ARCHIVE_PREVIEW_SNAPSHOTS,
 )
 from cdmw.ui.archive_browser.workers import ArchivePreviewWorkerMixin
 
@@ -143,6 +144,12 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
     assert not snapshot.truncated
     assert provider.snapshot_for(41, 7) is snapshot
     assert provider.snapshot_for(42, 7) is None
+    assert provider.snapshot_for_entry(snapshot.selected_entry) is snapshot
+
+    assert provider.request(_dto(10, "character/next.pac"), ui_request_id=42)
+    assert provider.snapshot_for_entry(snapshot.selected_entry) is snapshot
+    provider.cancel(clear_snapshot=True)
+    assert provider.snapshot_for_entry(snapshot.selected_entry) is None
 
 
 def test_remote_preview_provider_cancels_and_ignores_obsolete_requests() -> None:
@@ -184,6 +191,25 @@ def test_remote_preview_provider_cancels_and_ignores_obsolete_requests() -> None
 
     assert ready == [2]
     assert provider.snapshot_for(2, 8) is not None
+
+
+def test_remote_preview_provider_retains_only_the_bounded_recent_snapshots() -> None:
+    provider = ArchiveRemotePreviewDependencyProvider(_CatalogueService())
+    selected_entries: list[ArchiveEntry] = []
+    for index in range(MAX_ARCHIVE_PREVIEW_SNAPSHOTS + 1):
+        dto = _dto(index, f"character/model_{index}.pac")
+        snapshot = ArchivePreviewDependencySet.from_dtos(
+            dto,
+            (),
+            total_candidates=0,
+            truncated=False,
+            prepared={dto.entry_id: _prepared(dto)},
+        )
+        selected_entries.append(snapshot.selected_entry)
+        provider._remember_snapshot(snapshot)
+
+    assert provider.snapshot_for_entry(selected_entries[0]) is None
+    assert provider.snapshot_for_entry(selected_entries[-1]) is not None
 
 
 class _PreviewBridge:
@@ -267,7 +293,8 @@ class _PreviewHarness(ArchivePreviewWorkerMixin):
     def set_status_message(self, text: str, **_kwargs: object) -> None:
         self.status = text
 
-    def _start_archive_preview_worker(self, *_args: object, **kwargs: object) -> None:
+    def _start_archive_preview_worker(self, _request_id: int, entry: object, *_args: object, **kwargs: object) -> None:
+        kwargs["entry"] = entry
         self.started = kwargs
 
 
@@ -291,6 +318,8 @@ def test_v2_preview_flush_uses_only_remote_dependency_maps() -> None:
     harness._flush_scheduled_archive_preview_request()
 
     assert harness.started is not None
+    assert harness.started["entry"] is snapshot.selected_entry
+    assert harness.started["entry"].prepared_path == Path("C:/cache/7.pac")
     assert harness.started["texture_entries_by_normalized_path"] is snapshot.entries_by_normalized_path
     assert harness.started["texture_entries_by_basename"] is snapshot.entries_by_basename
     assert harness.started["sidecar_entries_by_texture_path"] == {}

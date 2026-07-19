@@ -173,6 +173,7 @@ class ArchivePreviewWorkerMixin:
                         )
                         self.set_status_message(detail)
                 return
+            entry = remote_dependencies.selected_entry
         if (
             entry is not None
             and str(getattr(entry, "extension", "") or "").strip().lower()
@@ -334,6 +335,10 @@ class ArchivePreviewWorkerMixin:
             candidate_count=max(0, len(payload.entries) - 1),
             total_candidates=payload.total_candidates,
         )
+        update_controls = getattr(self, "_update_archive_model_action_controls", None)
+        controls_target = getattr(self, "_archive_model_preview_controls_target", None)
+        if callable(update_controls) and callable(controls_target):
+            update_controls(controls_target())
         self._flush_scheduled_archive_preview_request()
 
     def _handle_archive_remote_preview_dependencies_failed(

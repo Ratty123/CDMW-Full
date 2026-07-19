@@ -36,6 +36,23 @@ from cdmw.ui.archive_browser.static_replacement_alignment_setup_state import (
     alignment_builder_window_title,
     alignment_preview_build_failed_status,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependencyContext,
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
+
+
+def _mesh_patch_dependencies(
+    owner: object,
+    entry: ArchiveEntry,
+) -> tuple[ArchiveWorkflowDependencyContext | None, ArchiveEntry | None]:
+    try:
+        dependencies = archive_workflow_dependency_context(owner, entry)
+    except ArchiveWorkflowDependenciesUnavailable as exc:
+        owner.set_status_message(f"Mesh replacement is unavailable: {exc}", error=True)
+        return None, None
+    return dependencies, dependencies.selected_entry
 
 
 class ArchiveMeshPatchFlowMixin:
@@ -45,7 +62,11 @@ class ArchiveMeshPatchFlowMixin:
         *,
         preset_setup: Optional[MeshImportSetupSelection] = None,
     ) -> None:
-        if preset_setup is None:
+        dependencies, entry = _mesh_patch_dependencies(self, entry)
+        if dependencies is None or entry is None:
+            return
+        setup = preset_setup
+        if setup is None:
             scene_path, _selected = QFileDialog.getOpenFileName(
                 self,
                 mesh_import_file_dialog_title(),
@@ -65,8 +86,6 @@ class ArchiveMeshPatchFlowMixin:
                 ),
             )
             return
-        else:
-            setup = preset_setup
         scene_path_obj = setup.scene_path
         import_mode = setup.import_mode
         setup_title_key = f"{setup.placement_review_title} {setup.source_label}".casefold()
@@ -162,7 +181,7 @@ class ArchiveMeshPatchFlowMixin:
 
             paired_entry = None
             if build_entry.extension == ".pam":
-                paired_entry = self._find_archive_entry_by_virtual_path(str(PurePosixPath(build_entry.path).with_suffix(".pamlod")))
+                paired_entry = dependencies.entry_for_path(str(PurePosixPath(build_entry.path).with_suffix(".pamlod")))
             require_source_owned_colors = bool(getattr(static_replacement_options, "complete_external_swap", False))
 
             def _preview_task(
@@ -187,9 +206,9 @@ class ArchiveMeshPatchFlowMixin:
                     static_replacement_options=active_static_options,
                     scene_import_result=setup.scene_import_result,
                     source_display_label=setup.source_label,
-                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    texture_entries_by_basename=self.archive_entries_by_basename,
+                    archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                    texture_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                    texture_entries_by_basename=dependencies.entries_by_basename,
                     visible_texture_mode=preview_settings.visible_texture_mode,
                     supplemental_files=supplemental_files,
                     stop_event=stop_event,
@@ -197,8 +216,8 @@ class ArchiveMeshPatchFlowMixin:
                 return preview_result
             _archive_dds_preview_source_for_path, _archive_dds_preview_sources_for_basename = (
                 _archive_dds_preview_resolver_pair_helper(
-                    self.archive_entries_by_normalized_path,
-                    self.archive_entries_by_basename,
+                    dependencies.entries_by_normalized_path,
+                    dependencies.entries_by_basename,
                     ensure_preview_source=ensure_archive_preview_source,
                 )
             )

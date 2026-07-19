@@ -22,6 +22,10 @@ from cdmw.services.mesh_workflow_service import ParsedMesh, parse_mesh
 from cdmw.services.mesh_workflow_service import SceneImportResult, import_scene_mesh_with_report
 from cdmw.services.diagnostics_service import is_expected_cancellation_message
 from cdmw.ui.archive_browser.mesh_import_setup_state import mesh_import_setup_control_text
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +138,15 @@ def dispatch_mesh_import_setup_preflight(
 ) -> int:
     request_id = int(getattr(owner, "archive_mesh_import_setup_request_id", 0) or 0) + 1
     setattr(owner, "archive_mesh_import_setup_request_id", request_id)
+    try:
+        dependencies = archive_workflow_dependency_context(owner, entry)
+    except ArchiveWorkflowDependenciesUnavailable as exc:
+        set_status = getattr(owner, "set_status_message", None)
+        if callable(set_status):
+            set_status(f"Mesh import setup is unavailable: {exc}", error=True)
+        on_complete(None)
+        return request_id
+    entry = dependencies.selected_entry
     request = MeshImportSetupPreflightRequest(
         request_id=request_id,
         entry=entry,
@@ -141,7 +154,7 @@ def dispatch_mesh_import_setup_preflight(
         scene_import_result=scene_import_result,
         original_mesh=original_mesh,
         force_static_replacement=bool(force_static_replacement),
-        archive_entries_by_basename=getattr(owner, "archive_entries_by_basename"),
+        archive_entries_by_basename=dependencies.entries_by_basename,
         selected_member=str(selected_member or ""),
     )
     setup_control_text = mesh_import_setup_control_text()

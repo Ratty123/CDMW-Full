@@ -52,6 +52,13 @@ streamed query-token export, package-root layout, rename collision handling,
 .NET, and the renamed native DLL without opening the application or reading
 licensed game data.
 
+In displayed v2 mode, Archive Browser retains at most four recent prepared
+dependency snapshots. Archive preview, mesh-import preflight/preview, mesh
+replacement builds, and mesh export reuse those bounded maps and materialized
+files instead of the legacy process-wide catalogue indexes. A workflow fails
+closed until its selected entry has a complete prepared snapshot; legacy mode
+keeps the existing catalogue behavior.
+
 Regenerate a three-cycle synthetic timing report outside the repository with:
 
 ```powershell

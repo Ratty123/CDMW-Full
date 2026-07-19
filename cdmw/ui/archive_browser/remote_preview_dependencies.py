@@ -1,7 +1,8 @@
-"""Latest-wins bounded dependency lookups for v2 archive previews."""
+"""Latest-wins bounded dependency lookups for v2 previews and workflows."""
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Mapping
@@ -19,12 +20,13 @@ from cdmw.domain.archives.catalogue_operations import (
     PrepareEntriesRequest,
     PrepareEntriesResult,
 )
-from cdmw.models import ArchiveEntry
+from cdmw.models import ArchiveEntry, ArchiveEntryIdentity
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 
 
 MAX_ARCHIVE_PREVIEW_ENTRIES = 4096
 MAX_ARCHIVE_PREVIEW_DEPENDENCIES = MAX_ARCHIVE_PREVIEW_ENTRIES - 1
+MAX_ARCHIVE_PREVIEW_SNAPSHOTS = 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +40,12 @@ class ArchivePreviewDependencySet:
     entries_by_basename: Mapping[str, tuple[ArchiveEntry, ...]]
     total_candidates: int
     truncated: bool
+
+    @property
+    def selected_entry(self) -> ArchiveEntry:
+        if not self.entries:
+            raise ValueError("Archive preview dependency set has no selected entry.")
+        return self.entries[0]
 
     @classmethod
     def from_dtos(
@@ -96,7 +104,7 @@ class _PendingPreviewDependencies:
 
 
 class ArchiveRemotePreviewDependencyProvider(QObject):
-    """Resolve one preview's candidate set without retaining the global catalogue."""
+    """Resolve prepared dependency sets without retaining the global catalogue."""
 
     ready = Signal(int, object)
     failed = Signal(int, str)
@@ -107,6 +115,10 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         self._pending: _PendingPreviewDependencies | None = None
         self._snapshot: ArchivePreviewDependencySet | None = None
         self._snapshot_ui_request_id = -1
+        self._snapshots_by_identity: OrderedDict[
+            ArchiveEntryIdentity,
+            ArchivePreviewDependencySet,
+        ] = OrderedDict()
         service.batch_ready.connect(self._handle_batch)
         service.result_ready.connect(self._handle_result)
         service.request_failed.connect(self._handle_failure)
@@ -124,8 +136,16 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             return None
         return snapshot
 
+    def snapshot_for_entry(self, entry: ArchiveEntry) -> ArchivePreviewDependencySet | None:
+        if not isinstance(entry, ArchiveEntry):
+            return None
+        snapshot = self._snapshots_by_identity.get(entry.identity)
+        if snapshot is not None:
+            self._snapshots_by_identity.move_to_end(entry.identity)
+        return snapshot
+
     def request(self, selected: ArchiveEntryDto, *, ui_request_id: int) -> bool:
-        self.cancel(clear_snapshot=True)
+        self.cancel(clear_snapshot=False)
         request = ArchiveAssociationRequest(
             selected.session_id,
             selected.entry_id,
@@ -159,6 +179,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         if clear_snapshot:
             self._snapshot = None
             self._snapshot_ui_request_id = -1
+            self._snapshots_by_identity.clear()
 
     def _handle_batch(self, request_id: str, operation: str, payload: object) -> None:
         pending = self._matching_pending(request_id, operation)
@@ -203,7 +224,15 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         )
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
+        self._remember_snapshot(snapshot)
         self.ready.emit(pending.ui_request_id, snapshot)
+
+    def _remember_snapshot(self, snapshot: ArchivePreviewDependencySet) -> None:
+        identity = snapshot.selected_entry.identity
+        self._snapshots_by_identity[identity] = snapshot
+        self._snapshots_by_identity.move_to_end(identity)
+        while len(self._snapshots_by_identity) > MAX_ARCHIVE_PREVIEW_SNAPSHOTS:
+            self._snapshots_by_identity.popitem(last=False)
 
     def _handle_failure(self, request_id: str, error: object) -> None:
         pending = self._pending
@@ -302,4 +331,5 @@ __all__ = [
     "ArchiveRemotePreviewDependencyProvider",
     "MAX_ARCHIVE_PREVIEW_DEPENDENCIES",
     "MAX_ARCHIVE_PREVIEW_ENTRIES",
+    "MAX_ARCHIVE_PREVIEW_SNAPSHOTS",
 ]

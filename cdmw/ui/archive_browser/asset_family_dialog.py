@@ -24,6 +24,7 @@ from cdmw.models import (
     AssetFamilyMember,
     AttachmentPlacementEvidence,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import archive_workflow_dependency_context
 
 
 class ArchiveAssetFamilyDialogMixin:
@@ -90,10 +91,12 @@ class ArchiveAssetFamilyDialogMixin:
             f"Asset family cache miss; rebuilding: {entry.path}",
             verbose=True,
         )
+        dependencies = archive_workflow_dependency_context(self, entry)
+        entry = dependencies.selected_entry
         references = build_archive_relationship_references(
             entry,
-            archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-            archive_entries_by_basename=self.archive_entries_by_basename,
+            archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+            archive_entries_by_basename=dependencies.entries_by_basename,
         )
         combined_references = list(references)
         if str(entry.extension or "").lower() == ".dds":
@@ -101,8 +104,8 @@ class ArchiveAssetFamilyDialogMixin:
         item_icon_references = build_archive_item_icon_references_from_catalog(
             entry,
             tuple(getattr(self, "archive_item_asset_catalog", ()) or ()),
-            archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-            archive_entries_by_basename=self.archive_entries_by_basename,
+            archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+            archive_entries_by_basename=dependencies.entries_by_basename,
             related_references=tuple(combined_references),
         )
         if item_icon_references:

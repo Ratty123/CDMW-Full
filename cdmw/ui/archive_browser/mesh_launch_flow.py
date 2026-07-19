@@ -52,6 +52,10 @@ from cdmw.ui.archive_browser.mesh_import_setup_state import (
     pending_in_game_mesh_swap_cancelled_status,
     pending_in_game_mesh_swap_target_status,
 )
+from cdmw.ui.archive_browser.workflow_dependencies import (
+    ArchiveWorkflowDependenciesUnavailable,
+    archive_workflow_dependency_context,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -334,6 +338,12 @@ class ArchiveMeshLaunchFlowMixin:
         *,
         preset_setup: Optional[MeshImportSetupSelection] = None,
     ) -> None:
+        try:
+            dependencies = archive_workflow_dependency_context(self, entry)
+        except ArchiveWorkflowDependenciesUnavailable as exc:
+            self.set_status_message(f"Mesh import preview is unavailable: {exc}", error=True)
+            return
+        entry = dependencies.selected_entry
         if preset_setup is None:
             scene_path, _selected = QFileDialog.getOpenFileName(
                 self,
@@ -388,9 +398,9 @@ class ArchiveMeshLaunchFlowMixin:
                     static_replacement_options=static_replacement_options,
                     scene_import_result=setup.scene_import_result,
                     source_display_label=setup.source_label,
-                    archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    texture_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                    texture_entries_by_basename=self.archive_entries_by_basename,
+                    archive_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                    texture_entries_by_normalized_path=dependencies.entries_by_normalized_path,
+                    texture_entries_by_basename=dependencies.entries_by_basename,
                     visible_texture_mode=preview_settings.visible_texture_mode,
                     supplemental_files=supplemental_files,
                 )
