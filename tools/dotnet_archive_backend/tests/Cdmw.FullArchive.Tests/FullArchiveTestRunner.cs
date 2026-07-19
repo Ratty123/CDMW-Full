@@ -161,6 +161,17 @@ internal static class FullArchiveTestRunner
                     Values: ["text/hello.txt"]),
                 CancellationToken.None).ConfigureAwait(false);
             Require(exact.TotalMatches == 1 && exact.Entries[0].EntryId == 2, "exact-path lookup changed");
+            var selectionPosition = await lookup.ResolveAsync(
+                new ArchiveLookupRequest(
+                    sessionHandle.SessionId,
+                    ArchiveLookupKind.Identities,
+                    Identities: [page.Rows[1].Identity],
+                    QueryId: query.QueryId),
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                selectionPosition.Entries.Count == 1 &&
+                selectionPosition.QueryRows is [1],
+                "durable selection query position changed");
             var facets = await lookup.FacetsAsync(sessionHandle.SessionId, CancellationToken.None).ConfigureAwait(false);
             Require(facets.Extensions.Any(static facet => facet.Key == ".txt" && facet.Count == 1), "extension facets changed");
             var generationPath = sessions.GetRequired(sessionHandle.SessionId).GenerationPath;

@@ -11,6 +11,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveDurableIdentity,
     ArchiveEntryDto,
     ArchiveEntryRole,
+    ArchiveLookupResult,
     ArchivePage,
     ArchiveQuery,
     ArchiveSortField,
@@ -147,6 +148,21 @@ def test_archive_entry_rejects_malformed_worker_payloads(payload: object, messag
 def test_fetch_page_enforces_worker_page_bound() -> None:
     with pytest.raises(ValueError, match="between 1 and 512"):
         FetchPageRequest("query-a", page_size=513)
+
+
+def test_query_aware_lookup_parses_selection_row_positions() -> None:
+    result = ArchiveLookupResult.from_wire(
+        {
+            "session_id": "session-a",
+            "entries": [_entry_payload()],
+            "total_matches": 1,
+            "truncated": False,
+            "query_rows": [98],
+        }
+    )
+
+    assert result.entries[0].entry_id == 41
+    assert result.query_rows == (98,)
 
 
 def test_archive_children_contract_supports_bounded_continuation_pages() -> None:

@@ -76,12 +76,38 @@ public sealed class ArchiveLookupService(
                 throw new InvalidDataException("The archive lookup kind is not supported.");
         }
 
+        if (!string.IsNullOrWhiteSpace(request.QueryId))
+        {
+            var compiled = session.GetRequiredQuery(request.QueryId);
+            var matches = new List<(long Row, long EntryId)>();
+            for (var row = 0; row < compiled.EntryIds.LongLength; row++)
+            {
+                if ((row & 0x1FFF) == 0)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                }
+                var entryId = compiled.EntryIds[row];
+                if (ids.Contains(entryId))
+                {
+                    matches.Add((row, entryId));
+                }
+            }
+            var selected = matches.Take(limit).ToArray();
+            return new ArchiveLookupResult(
+                session.Id,
+                selected.Select(item => session.ReadEntry(item.EntryId)).ToArray(),
+                matches.Count,
+                matches.Count > limit,
+                selected.Select(static item => item.Row).ToArray());
+        }
+
         var ordered = ids.Order().Take(limit + 1).ToArray();
         return new ArchiveLookupResult(
             session.Id,
             ordered.Take(limit).Select(session.ReadEntry).ToArray(),
             ids.Count,
-            ids.Count > limit);
+            ids.Count > limit,
+            []);
     }
 
     public async Task<ArchiveAssociationResult> FindAssociationCandidatesAsync(

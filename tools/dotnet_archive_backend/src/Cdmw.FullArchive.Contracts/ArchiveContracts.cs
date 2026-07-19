@@ -180,13 +180,15 @@ public sealed record ArchiveLookupRequest(
     IReadOnlyList<ArchiveDurableIdentity>? Identities = null,
     IReadOnlyList<string>? Values = null,
     IReadOnlyList<ArchiveEntryRole>? Roles = null,
-    int Limit = 512);
+    int Limit = 512,
+    string? QueryId = null);
 
 public sealed record ArchiveLookupResult(
     string SessionId,
     IReadOnlyList<ArchiveEntryDto> Entries,
     long TotalMatches,
-    bool Truncated);
+    bool Truncated,
+    IReadOnlyList<long>? QueryRows = null);
 
 public sealed record ArchiveAssociationRequest(
     string SessionId,

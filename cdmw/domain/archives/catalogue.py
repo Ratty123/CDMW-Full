@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Mapping
 
 from .catalogue_wire import (
+    ArchiveContractError,
     read_bool,
     read_enum,
     read_int,
@@ -343,6 +344,7 @@ class ArchiveLookupRequest:
     values: tuple[str, ...] = ()
     roles: tuple[ArchiveEntryRole, ...] = ()
     limit: int = 512
+    query_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -351,16 +353,21 @@ class ArchiveLookupResult:
     entries: tuple[ArchiveEntryDto, ...]
     total_matches: int
     truncated: bool
+    query_rows: tuple[int, ...] = ()
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveLookupResult":
         payload = require_mapping(value, "archive lookup result")
         entries = require_sequence(payload.get("entries"), "entries")
+        raw_query_rows = require_sequence(payload.get("query_rows", ()), "query_rows")
+        if any(isinstance(row, bool) or not isinstance(row, int) for row in raw_query_rows):
+            raise ArchiveContractError("query_rows must contain only integers.")
         return cls(
             session_id=read_string(payload, "session_id"),
             entries=tuple(ArchiveEntryDto.from_wire(entry) for entry in entries),
             total_matches=read_int(payload, "total_matches"),
             truncated=read_bool(payload, "truncated"),
+            query_rows=tuple(raw_query_rows),  # type: ignore[arg-type]
         )
 
 
