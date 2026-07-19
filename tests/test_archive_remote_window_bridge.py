@@ -188,6 +188,25 @@ def test_shadow_safety_diagnostics_do_not_disable_legacy_actions() -> None:
     assert window.archive_remote_actions_safe
 
 
+def test_v2_bridge_only_offers_session_recovery_for_catalogue_failures() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    window.archive_remote_query_pending = True
+    window._update_archive_filter_button_state = lambda: None
+    window._set_archive_warmup_overlay = lambda _visible: None
+    window.set_busy = lambda _busy, **_kwargs: None
+    window.set_status_message = lambda _message: None
+    window._record_runtime_event = lambda _event, **_fields: None
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    failures: list[tuple[str, str]] = []
+    bridge.backendFailed.connect(lambda kind, detail: failures.append((kind, detail)))
+
+    bridge._handle_failure("selection_lookup", RuntimeError("selection lookup failed"))
+    bridge._handle_failure("open", RuntimeError("worker unavailable"))
+
+    assert failures == [("open", "worker unavailable")]
+
+
 def test_remote_export_selection_uses_session_ids_without_materializing_global_entries() -> None:
     _app()
     window = _RemoteExportWindow()

@@ -71,6 +71,9 @@ class ArchiveFilesPanelMixin:
                 shadow=selection.runs_shadow,
             )
             if selection.displays_v2:
+                self.archive_remote_bridge.backendFailed.connect(
+                    self._handle_archive_backend_v2_failure
+                )
                 self.archive_remote_bridge.previewDependenciesReady.connect(
                     self._handle_archive_remote_preview_dependencies_ready
                 )

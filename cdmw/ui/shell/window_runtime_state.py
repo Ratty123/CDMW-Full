@@ -143,6 +143,7 @@ class ShellWindowRuntimeStateMixin:
         self.archive_backend_selection = resolve_archive_backend_mode()
         self.archive_backend_mode = self.archive_backend_selection.mode
         self.archive_backend_mode_warning_logged = False
+        self.archive_backend_failure_dialog_open = False
         self.archive_remote_bridge = None
         self.archive_remote_query_pending = False
         self.archive_remote_actions_safe = True

@@ -31,6 +31,22 @@ from cdmw.ui.archive_browser.remote_query import archive_query_from_browser_stat
 
 
 MAX_REMOTE_EXPORT_ENTRY_IDS = 4096
+_SESSION_RECOVERY_FAILURES = frozenset(
+    {
+        "open",
+        "open_archive",
+        "query",
+        "create_query",
+        "stage_page",
+        "stage_children",
+        "stage_facets",
+        "fetch_page",
+        "fetch_children",
+        "facets",
+        "publish",
+        "worker_recovery",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,14 +87,17 @@ class ArchiveRemoteWindowBridge(QObject):
 
     previewDependenciesReady = Signal(int, object)
     previewDependenciesFailed = Signal(int, str)
+    backendFailed = Signal(str, str)
 
     def __init__(self, window: object, *, display_v2: bool, shadow: bool) -> None:
         super().__init__(window)  # type: ignore[arg-type]
         self._window = window
         self._display_v2 = bool(display_v2)
         self._shadow = bool(shadow)
+        self._active = True
         self._activate_tab_on_publish = False
         self._last_open_root = ""
+        self._last_force_refresh = False
         self._shadow_schedule_generation = 0
         self._shadow_reason = ""
         self._structure_rows: dict[str, list[tuple[str, int]]] = {}
@@ -139,6 +158,14 @@ class ArchiveRemoteWindowBridge(QObject):
     def export_selection_error(self) -> str:
         return self._export_selection_error
 
+    @property
+    def last_force_refresh(self) -> bool:
+        return self._last_force_refresh
+
+    @property
+    def last_activate_tab(self) -> bool:
+        return self._activate_tab_on_publish
+
     def open_archive(
         self,
         package_root: Path | str,
@@ -148,6 +175,7 @@ class ArchiveRemoteWindowBridge(QObject):
     ) -> None:
         self.cancel_preview_dependencies(clear_snapshot=True)
         self._last_open_root = str(Path(package_root))
+        self._last_force_refresh = bool(force_refresh)
         self._activate_tab_on_publish = bool(activate_tab)
         if self._display_v2:
             self._structure_requests_enabled = False
@@ -165,6 +193,25 @@ class ArchiveRemoteWindowBridge(QObject):
             force_refresh=force_refresh,
             selection_identity=self.current_selection_identity(),
         )
+
+    def retry_last_open(self) -> bool:
+        if not self._active or not self._last_open_root:
+            return False
+        self.open_archive(
+            self._last_open_root,
+            force_refresh=self._last_force_refresh,
+            activate_tab=self._activate_tab_on_publish,
+        )
+        return True
+
+    def deactivate(self) -> None:
+        """Stop requests before an explicit session-only legacy handoff."""
+
+        if not self._active:
+            return
+        self._active = False
+        self.cancel_preview_dependencies(clear_snapshot=True)
+        self._controller.cancel_pending()
 
     def start_shadow(self, package_root: Path | str) -> None:
         if not self._shadow:
@@ -533,6 +580,8 @@ class ArchiveRemoteWindowBridge(QObject):
             self._restore_selection(first)
 
     def _handle_failure(self, kind: str, error: object) -> None:
+        if not self._active:
+            return
         detail = str(error)
         if kind.startswith("structure_"):
             if self._display_v2:
@@ -558,6 +607,8 @@ class ArchiveRemoteWindowBridge(QObject):
         window.set_status_message(message)
         window.append_archive_log(message)
         self._record_runtime("archive_backend_v2_failed", operation=kind, error=detail)
+        if kind in _SESSION_RECOVERY_FAILURES:
+            self.backendFailed.emit(kind, detail)
 
     def _handle_actions_safe(self, safe: bool) -> None:
         if not self._shadow:

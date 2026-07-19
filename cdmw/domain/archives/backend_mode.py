@@ -1,4 +1,4 @@
-"""Developer-only selection for the full archive catalogue backend."""
+"""Session selection for the full archive catalogue backend."""
 
 from __future__ import annotations
 
@@ -39,16 +39,16 @@ class ArchiveBackendSelection:
 def resolve_archive_backend_mode(
     environment: Mapping[str, str] | None = None,
 ) -> ArchiveBackendSelection:
-    """Resolve the developer environment switch, defaulting safely to legacy."""
+    """Resolve the developer override, defaulting the stable rollout to v2."""
 
     source = os.environ if environment is None else environment
     configured = str(source.get(ARCHIVE_BACKEND_ENV, "") or "").strip().lower()
     if not configured:
-        return ArchiveBackendSelection(ArchiveBackendMode.LEGACY, "", True)
+        return ArchiveBackendSelection(ArchiveBackendMode.V2, "", True)
     try:
         return ArchiveBackendSelection(ArchiveBackendMode(configured), configured, True)
     except ValueError:
-        return ArchiveBackendSelection(ArchiveBackendMode.LEGACY, configured, False)
+        return ArchiveBackendSelection(ArchiveBackendMode.V2, configured, False)
 
 
 __all__ = [

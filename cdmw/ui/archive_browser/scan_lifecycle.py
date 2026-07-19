@@ -12,6 +12,10 @@ from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import QMessageBox
 
 from cdmw.constants import ARCHIVE_BROWSER_VIEW_MODE
+from cdmw.domain.archives.backend_mode import (
+    ArchiveBackendMode,
+    ArchiveBackendSelection,
+)
 from cdmw.services.archive_workflow_service import ArchiveNameSearchIndex
 from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.services.diagnostics_service import timing_value as _timing_value
@@ -70,6 +74,82 @@ class _ArchiveScanUiReceiver(QObject):
 class ArchiveScanLifecycleMixin:
     """Archive scan start, result intake, and scan finalization."""
 
+    def _handle_archive_backend_v2_failure(self, kind: str, detail: str) -> None:
+        """Offer retry or an explicit, non-persistent legacy recovery."""
+
+        bridge = getattr(self, "archive_remote_bridge", None)
+        if (
+            bridge is None
+            or not bridge.displays_v2
+            or getattr(self, "archive_backend_mode", None) is not ArchiveBackendMode.V2
+            or bool(getattr(self, "archive_backend_failure_dialog_open", False))
+        ):
+            return
+
+        self.archive_backend_failure_dialog_open = True
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Critical)
+        box.setWindowTitle("Archive Backend Failed")
+        box.setText(
+            "The standalone archive backend could not finish the requested operation."
+        )
+        box.setInformativeText(
+            f"Operation: {kind}\n\n{detail}\n\n"
+            "Retry v2, or explicitly use the legacy archive scanner for this app session only. "
+            "CDMW will not change your saved settings."
+        )
+        retry_button = box.addButton("Retry v2", QMessageBox.AcceptRole)
+        legacy_button = box.addButton("Use Legacy This Session", QMessageBox.ActionRole)
+        box.addButton("Cancel", QMessageBox.RejectRole)
+        box.setDefaultButton(retry_button)
+        try:
+            box.exec()
+            clicked = box.clickedButton()
+        finally:
+            self.archive_backend_failure_dialog_open = False
+
+        if clicked is retry_button:
+            bridge.retry_last_open()
+            return
+        if clicked is not legacy_button:
+            return
+
+        force_refresh = bool(bridge.last_force_refresh)
+        activate_tab = bool(bridge.last_activate_tab)
+        bridge.deactivate()
+        self.archive_remote_bridge = None
+        self.archive_backend_selection = ArchiveBackendSelection(
+            ArchiveBackendMode.LEGACY,
+            "session_failure_recovery",
+            True,
+        )
+        self.archive_backend_mode = ArchiveBackendMode.LEGACY
+        self.archive_remote_actions_safe = True
+        self.archive_remote_query_pending = False
+        self.archive_remote_total_matches = 0
+        self.archive_tree.use_legacy_model()
+        self.archive_tree.setRootIsDecorated(True)
+        self.archive_tree.setEnabled(True)
+        self.archive_catalogue_service.request_shutdown()
+        self.append_archive_log(
+            "Archive backend v2 was disabled for this app session by explicit user choice; "
+            "starting the retained legacy archive scanner."
+        )
+        recorder = getattr(self, "_record_runtime_event", None)
+        if callable(recorder):
+            recorder(
+                "archive_backend_session_legacy_selected",
+                failed_operation=str(kind),
+                error=str(detail),
+            )
+        QTimer.singleShot(
+            0,
+            lambda: self.scan_archives(
+                force_refresh=force_refresh,
+                activate_archive_tab=activate_tab,
+            ),
+        )
+
     def _confirm_suspicious_archive_tree_scan(self, package_root: Path) -> bool:
         try:
             suspicious_roots = find_suspicious_archive_tree_roots(package_root)
@@ -115,7 +195,7 @@ class ArchiveScanLifecycleMixin:
             self.archive_backend_mode_warning_logged = True
             self.append_archive_log(
                 "Unsupported CDMW_ARCHIVE_BACKEND value "
-                f"{backend_selection.configured_value!r}; using legacy archive backend."
+                f"{backend_selection.configured_value!r}; using the default v2 archive backend."
             )
         self._archive_scan_progress_timer.stop()
         self._archive_scan_progress_pending = None
