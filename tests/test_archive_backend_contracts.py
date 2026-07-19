@@ -173,5 +173,15 @@ def test_archive_children_contract_supports_bounded_continuation_pages() -> None
     assert result.total_children == 900
     assert result.next_offset == 384
 
+    legacy_result = ArchiveChildrenResult.from_wire(
+        {
+            "session_id": "session-a",
+            "query_id": "query-a",
+            "children": [],
+            "truncated": True,
+        }
+    )
+    assert legacy_result.next_offset == 0
+
     with pytest.raises(ValueError, match="must not be negative"):
         ArchiveChildrenRequest("query-a", offset=-1)

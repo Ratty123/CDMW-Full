@@ -282,14 +282,19 @@ class ArchiveChildrenResult:
     def from_wire(cls, value: object) -> "ArchiveChildrenResult":
         payload = require_mapping(value, "archive children result")
         children = require_sequence(payload.get("children"), "children")
+        offset = read_int(payload, "offset", default=0)
+        truncated = read_bool(payload, "truncated")
+        next_offset = read_optional_int(payload, "next_offset")
+        if truncated and next_offset is None:
+            next_offset = offset + len(children)
         return cls(
             session_id=read_string(payload, "session_id"),
             query_id=read_string(payload, "query_id"),
             children=tuple(ArchiveChildNode.from_wire(child) for child in children),
-            truncated=read_bool(payload, "truncated"),
-            offset=read_int(payload, "offset", default=0),
+            truncated=truncated,
+            offset=offset,
             total_children=read_int(payload, "total_children", default=len(children)),
-            next_offset=read_optional_int(payload, "next_offset"),
+            next_offset=next_offset,
         )
 
 
