@@ -19,10 +19,15 @@ public sealed class NativeModelPreviewService
         ArchiveSession session,
         ArchiveEntryDto entry,
         Func<ProgressUpdate, Task>? publishProgress,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan coldBuildDelay = default)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(entry);
+        if (coldBuildDelay < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(coldBuildDelay));
+        }
         if (!Supports(entry.Extension))
         {
             throw new NotSupportedException($"Native model preview does not support {entry.Extension}.");
@@ -51,6 +56,14 @@ public sealed class NativeModelPreviewService
         if (IsComplete(destination))
         {
             return destination;
+        }
+        if (coldBuildDelay > TimeSpan.Zero)
+        {
+            await Task.Delay(coldBuildDelay, cancellationToken).ConfigureAwait(false);
+            if (IsComplete(destination))
+            {
+                return destination;
+            }
         }
 
         var gate = _buildGates.GetOrAdd(key, static _ => new SemaphoreSlim(1, 1));
@@ -96,7 +109,8 @@ public sealed class NativeModelPreviewService
                         },
                         NativePreviewPackageAdapter.JsonOptions,
                         token).ConfigureAwait(false),
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    flushToDisk: false).ConfigureAwait(false);
 
                 try
                 {
@@ -189,7 +203,8 @@ public sealed class NativeModelPreviewService
                 payload,
                 NativePreviewPackageAdapter.JsonOptions,
                 token).ConfigureAwait(false),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            flushToDisk: false).ConfigureAwait(false);
     }
 
     private static ArchiveEntryDto? FindCompanion(ArchiveIndex index, ArchiveEntryDto entry)
@@ -649,7 +664,8 @@ public static class NativePreviewPackageAdapter
         await AtomicFile.WriteAsync(
             path,
             async (stream, token) => await JsonSerializer.SerializeAsync(stream, payload, JsonOptions, token).ConfigureAwait(false),
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            flushToDisk: false).ConfigureAwait(false);
     }
 
     private static string ResolveContainedFile(string packageRoot, string relativePath)

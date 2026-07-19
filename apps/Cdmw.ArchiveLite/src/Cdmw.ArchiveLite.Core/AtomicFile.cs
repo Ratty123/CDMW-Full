@@ -6,7 +6,8 @@ public static class AtomicFile
         string destination,
         Func<Stream, CancellationToken, Task> writer,
         CancellationToken cancellationToken,
-        bool overwrite = true)
+        bool overwrite = true,
+        bool flushToDisk = true)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(destination);
         ArgumentNullException.ThrowIfNull(writer);
@@ -27,7 +28,10 @@ public static class AtomicFile
             {
                 await writer(stream, cancellationToken).ConfigureAwait(false);
                 await stream.FlushAsync(cancellationToken).ConfigureAwait(false);
-                stream.Flush(flushToDisk: true);
+                if (flushToDisk)
+                {
+                    stream.Flush(flushToDisk: true);
+                }
             }
 
             cancellationToken.ThrowIfCancellationRequested();

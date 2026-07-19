@@ -44,6 +44,7 @@ internal static class ArchiveLiteTestRunner
             ("startup auto-loads current cache and recommends manual refresh after hash changes", TestStartupCacheAutoLoadAsync),
             ("asset metadata and native HKX preview expose meaningful structure", TestAssetMetadataAndHkxPreviewAsync),
             ("native model packages adapt safely and export Blender interchange formats", TestNativeModelPreviewPackageAsync),
+            ("native model warm-cache hits bypass the cold-build dwell", TestNativeModelPreviewCacheDwellAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
             ("native archive ABI scans and decodes synthetic PAMT/PAZ", TestNativeArchiveAsync),
@@ -1674,6 +1675,81 @@ internal static class ArchiveLiteTestRunner
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    private static async Task TestNativeModelPreviewCacheDwellAsync()
+    {
+        await using var fixture = await SyntheticArchiveFixture.CreateAssociatedAssetsAsync().ConfigureAwait(false);
+        var native = new NativeArchiveCore();
+        using var sessions = new ArchiveSessionManager(native);
+        var opened = await sessions.OpenAsync(
+            new OpenArchiveRequest(fixture.Root, CacheMode: ArchiveCacheMode.SessionOnly),
+            CancellationToken.None).ConfigureAwait(false);
+        var session = sessions.GetRequired(opened.SessionId);
+        var entry = session.Index.FindEntriesByPath("character/model/hero.pac").Single();
+        var identity = Encoding.UTF8.GetBytes(string.Join(
+            '|',
+            "archive_lite_native_model_v1",
+            session.Fingerprint,
+            entry.EntryId,
+            entry.Path,
+            entry.Offset,
+            entry.StoredSize,
+            entry.OriginalSize,
+            entry.Flags,
+            -1,
+            string.Empty));
+        var key = Convert.ToHexString(SHA256.HashData(identity)).ToLowerInvariant();
+        var destination = Path.Combine(ArchiveLiteDataPaths.PreviewCache, "models", key);
+        Directory.CreateDirectory(destination);
+        foreach (var name in new[] { "manifest.json", "net_materials.json", "dotnet_scene.json", "archive_lite_preview.json" })
+        {
+            await File.WriteAllTextAsync(Path.Combine(destination, name), "{}").ConfigureAwait(false);
+        }
+
+        var previews = new NativeModelPreviewService();
+        using (var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(1)))
+        {
+            var cached = await previews.BuildAsync(
+                session,
+                entry,
+                null,
+                timeout.Token,
+                TimeSpan.FromSeconds(30)).ConfigureAwait(false);
+            Require(cached == destination, "warm native model cache hit returned the wrong package");
+        }
+
+        var nonDurableProbe = Path.Combine(ArchiveLiteDataPaths.PreviewCache, "staged-cache-write-probe.json");
+        await AtomicFile.WriteAsync(
+            nonDurableProbe,
+            async (stream, token) => await stream.WriteAsync("cache"u8.ToArray(), token).ConfigureAwait(false),
+            CancellationToken.None,
+            flushToDisk: false).ConfigureAwait(false);
+        Require(await File.ReadAllTextAsync(nonDurableProbe).ConfigureAwait(false) == "cache", "non-durable staged cache write was not published atomically");
+
+        var repositoryRoot = FindRepositoryRoot();
+        var viewModelSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.App",
+            "ViewModels",
+            "ArchiveBrowserViewModel.cs"));
+        var previewServiceSource = File.ReadAllText(Path.Combine(
+            repositoryRoot,
+            "apps",
+            "Cdmw.ArchiveLite",
+            "src",
+            "Cdmw.ArchiveLite.Core",
+            "ArchivePreviewService.cs"));
+        Require(
+            viewModelSource.Contains("await Task.Delay(90, operation.Token)", StringComparison.Ordinal)
+            && !viewModelSource.Contains("isNativeModel ? 450 : 90", StringComparison.Ordinal),
+            "warm model selections still pay the full cold-build UI dwell");
+        Require(
+            previewServiceSource.Contains("ColdModelPreviewDelay = TimeSpan.FromMilliseconds(360)", StringComparison.Ordinal),
+            "cold model builds no longer retain the anti-thrash dwell after the cache probe");
     }
 
     private static async Task TestAssetMetadataAndHkxPreviewAsync()

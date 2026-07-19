@@ -1301,11 +1301,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
         try
         {
-            var isNativeModel = entry.Extension.Equals(".pac", StringComparison.OrdinalIgnoreCase)
-                || entry.Extension.Equals(".pam", StringComparison.OrdinalIgnoreCase)
-                || entry.Extension.Equals(".pamlod", StringComparison.OrdinalIgnoreCase);
-            var milliseconds = isNativeModel ? 450 : 90;
-            await Task.Delay(milliseconds, operation.Token).ConfigureAwait(true);
+            await Task.Delay(90, operation.Token).ConfigureAwait(true);
             if (generation != Volatile.Read(ref _previewGeneration))
             {
                 return;

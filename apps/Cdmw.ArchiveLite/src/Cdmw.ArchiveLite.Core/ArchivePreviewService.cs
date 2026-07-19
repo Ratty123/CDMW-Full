@@ -8,6 +8,7 @@ public sealed class ArchivePreviewService
 {
     private const long MaximumPreviewBytes = 64L * 1024L * 1024L;
     private const string PreviewArtifactVersion = "preview_v3_native_media";
+    private static readonly TimeSpan ColdModelPreviewDelay = TimeSpan.FromMilliseconds(360);
     private static readonly HashSet<string> DirectAudioExtensions = new(StringComparer.OrdinalIgnoreCase)
     {
         ".aac", ".flac", ".m4a", ".mp3", ".ogg", ".wav", ".wma",
@@ -71,7 +72,8 @@ public sealed class ArchivePreviewService
                     session,
                     entry,
                     publishProgress,
-                    cancellationToken).ConfigureAwait(false);
+                    cancellationToken,
+                    ColdModelPreviewDelay).ConfigureAwait(false);
                 return new PreviewResult(
                     session.Id,
                     entry.EntryId,
