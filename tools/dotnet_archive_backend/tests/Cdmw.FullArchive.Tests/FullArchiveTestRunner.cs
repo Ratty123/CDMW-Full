@@ -127,6 +127,24 @@ internal static class FullArchiveTestRunner
             var page = queries.FetchPage(sessionHandle.SessionId, new FetchPageRequest(query.QueryId, 0, 2));
             Require(page.Rows.Count == 2 && page.Generation == 7, "paged query result is invalid");
             Require(page.Rows[0].Path == "binary/blob.bin", "path ordering changed");
+            var firstChildren = queries.FetchChildren(
+                sessionHandle.SessionId,
+                new ArchiveChildrenRequest(query.QueryId, null, null, Limit: 2));
+            Require(
+                firstChildren.Children.Count == 2 &&
+                firstChildren.TotalChildren == 4 &&
+                firstChildren.NextOffset == 2 &&
+                firstChildren.Truncated,
+                "first folder-child page is invalid");
+            var secondChildren = queries.FetchChildren(
+                sessionHandle.SessionId,
+                new ArchiveChildrenRequest(query.QueryId, null, null, Limit: 2, Offset: 2));
+            Require(
+                secondChildren.Children.Count == 2 &&
+                secondChildren.Offset == 2 &&
+                secondChildren.NextOffset is null &&
+                !secondChildren.Truncated,
+                "folder-child continuation page is invalid");
 
             var materialQuery = await queries.CreateAsync(
                 new ArchiveQuery(sessionHandle.SessionId, Extensions: [".material"]),

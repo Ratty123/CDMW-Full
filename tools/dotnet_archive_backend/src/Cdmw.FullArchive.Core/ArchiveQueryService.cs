@@ -47,9 +47,10 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         var session = sessions.GetRequired(sessionId);
         var compiled = session.GetRequiredQuery(request.QueryId);
         var limit = Math.Clamp(request.Limit, 1, WorkerProtocol.MaximumPageSize);
+        var offset = Math.Max(0, request.Offset);
         var parent = NormalizeFolder(request.ParentPath);
         var folders = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
-        var entries = new List<ArchiveEntryDto>();
+        var entries = new List<(string Path, long EntryId)>();
         foreach (var entryId in compiled.EntryIds)
         {
             var entry = session.ReadEntry(entryId);
@@ -75,30 +76,49 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
                 var full = string.IsNullOrEmpty(parent) ? name : $"{parent.TrimEnd('/')}/{name}";
                 folders[full] = folders.GetValueOrDefault(full) + 1;
             }
-            else if (entries.Count < limit)
+            else
             {
-                entries.Add(entry);
+                entries.Add((entry.Path, entry.EntryId));
             }
         }
 
-        var nodes = folders
+        var folderNodes = folders
             .OrderBy(static pair => pair.Key, StringComparer.OrdinalIgnoreCase)
             .Select(static pair => new ArchiveChildNode(pair.Key, Path.GetFileName(pair.Key), true, pair.Value))
-            .Concat(entries
-                .OrderBy(static entry => entry.Path, StringComparer.OrdinalIgnoreCase)
-                .Select(static entry => new ArchiveChildNode(
-                    $"entry:{entry.EntryId}",
-                    entry.Name,
-                    false,
-                    1,
-                    entry)))
-            .Take(limit)
             .ToArray();
+        entries.Sort(static (left, right) =>
+        {
+            var compared = StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path);
+            return compared != 0 ? compared : left.EntryId.CompareTo(right.EntryId);
+        });
+        var totalChildren = (long)folderNodes.Length + entries.Count;
+        var pageNodes = new List<ArchiveChildNode>(limit);
+        for (long childIndex = offset; childIndex < totalChildren && pageNodes.Count < limit; childIndex++)
+        {
+            if (childIndex < folderNodes.Length)
+            {
+                pageNodes.Add(folderNodes[childIndex]);
+                continue;
+            }
+            var direct = entries[checked((int)(childIndex - folderNodes.Length))];
+            var entry = session.ReadEntry(direct.EntryId);
+            pageNodes.Add(new ArchiveChildNode(
+                $"entry:{entry.EntryId}",
+                entry.Name,
+                false,
+                1,
+                entry));
+        }
+        var consumed = (long)offset + pageNodes.Count;
+        var nextOffset = consumed < totalChildren ? checked((int)consumed) : (int?)null;
         return new ArchiveChildrenResult(
             session.Id,
             request.QueryId,
-            nodes,
-            folders.Count + entries.Count > limit);
+            pageNodes,
+            nextOffset is not null,
+            offset,
+            totalChildren,
+            nextOffset);
     }
 
     public IReadOnlyList<long> GetEntryIds(string sessionId, string queryId)

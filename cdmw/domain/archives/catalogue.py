@@ -10,6 +10,7 @@ from .catalogue_wire import (
     read_bool,
     read_enum,
     read_int,
+    read_optional_int,
     read_string,
     read_string_tuple,
     require_mapping,
@@ -237,6 +238,13 @@ class ArchiveChildrenRequest:
     parent_path: str | None = None
     category: str | None = None
     limit: int = 512
+    offset: int = 0
+
+    def __post_init__(self) -> None:
+        if self.offset < 0:
+            raise ValueError("offset must not be negative.")
+        if not 1 <= self.limit <= 512:
+            raise ValueError("limit must be between 1 and 512.")
 
 
 @dataclass(frozen=True, slots=True)
@@ -266,6 +274,9 @@ class ArchiveChildrenResult:
     query_id: str
     children: tuple[ArchiveChildNode, ...]
     truncated: bool
+    offset: int = 0
+    total_children: int = 0
+    next_offset: int | None = None
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveChildrenResult":
@@ -276,6 +287,9 @@ class ArchiveChildrenResult:
             query_id=read_string(payload, "query_id"),
             children=tuple(ArchiveChildNode.from_wire(child) for child in children),
             truncated=read_bool(payload, "truncated"),
+            offset=read_int(payload, "offset", default=0),
+            total_children=read_int(payload, "total_children", default=len(children)),
+            next_offset=read_optional_int(payload, "next_offset"),
         )
 
 

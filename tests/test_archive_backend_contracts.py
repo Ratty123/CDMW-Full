@@ -6,6 +6,8 @@ from uuid import uuid4
 import pytest
 
 from cdmw.domain.archives.catalogue import (
+    ArchiveChildrenRequest,
+    ArchiveChildrenResult,
     ArchiveDurableIdentity,
     ArchiveEntryDto,
     ArchiveEntryRole,
@@ -145,3 +147,31 @@ def test_archive_entry_rejects_malformed_worker_payloads(payload: object, messag
 def test_fetch_page_enforces_worker_page_bound() -> None:
     with pytest.raises(ValueError, match="between 1 and 512"):
         FetchPageRequest("query-a", page_size=513)
+
+
+def test_archive_children_contract_supports_bounded_continuation_pages() -> None:
+    request = ArchiveChildrenRequest("query-a", parent_path="character", limit=128, offset=256)
+    assert to_wire(request) == {
+        "query_id": "query-a",
+        "parent_path": "character",
+        "category": None,
+        "limit": 128,
+        "offset": 256,
+    }
+    result = ArchiveChildrenResult.from_wire(
+        {
+            "session_id": "session-a",
+            "query_id": "query-a",
+            "children": [],
+            "truncated": True,
+            "offset": 256,
+            "total_children": 900,
+            "next_offset": 384,
+        }
+    )
+    assert result.offset == 256
+    assert result.total_children == 900
+    assert result.next_offset == 384
+
+    with pytest.raises(ValueError, match="must not be negative"):
+        ArchiveChildrenRequest("query-a", offset=-1)

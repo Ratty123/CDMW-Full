@@ -135,7 +135,8 @@ public sealed record ArchiveChildrenRequest(
     string QueryId,
     string? ParentPath,
     string? Category,
-    int Limit = 512);
+    int Limit = 512,
+    int Offset = 0);
 
 public sealed record ArchiveChildNode(
     string Key,
@@ -148,7 +149,10 @@ public sealed record ArchiveChildrenResult(
     string SessionId,
     string QueryId,
     IReadOnlyList<ArchiveChildNode> Children,
-    bool Truncated);
+    bool Truncated,
+    int Offset = 0,
+    long TotalChildren = 0,
+    int? NextOffset = null);
 
 public sealed record ArchiveFacet(string Key, string Label, long Count);
 
