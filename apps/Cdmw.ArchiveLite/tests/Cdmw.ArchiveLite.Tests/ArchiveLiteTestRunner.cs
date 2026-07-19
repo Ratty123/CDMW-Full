@@ -401,6 +401,10 @@ internal static class ArchiveLiteTestRunner
         var themeRoot = Path.Combine(appRoot, "Themes");
         var themePaths = Directory.GetFiles(themeRoot, "Theme.*.xaml", SearchOption.TopDirectoryOnly);
         Require(themePaths.Length == 6, "Archive Lite must ship all six selectable color themes");
+        var themeDocuments = themePaths.ToDictionary(
+            static path => Path.GetFileNameWithoutExtension(path),
+            System.Xml.Linq.XDocument.Load,
+            StringComparer.Ordinal);
 
         var requiredKeys = new[]
         {
@@ -420,7 +424,7 @@ internal static class ArchiveLiteTestRunner
         };
         foreach (var themePath in themePaths)
         {
-            var document = System.Xml.Linq.XDocument.Load(themePath);
+            var document = themeDocuments[Path.GetFileNameWithoutExtension(themePath)];
             var keys = document.Root!
                 .Elements()
                 .Select(element => element.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "Key")?.Value)
@@ -430,6 +434,53 @@ internal static class ArchiveLiteTestRunner
                 requiredKeys.All(requiredKey => keys.Contains(requiredKey)),
                 $"{Path.GetFileName(themePath)} is missing a shared theme resource");
         }
+
+        var lightTheme = themeDocuments["Theme.Light"];
+        var frostTheme = themeDocuments["Theme.Frost"];
+        Require(
+            RgbDistance(
+                ThemeBrushColor(lightTheme, "WindowBackgroundBrush"),
+                ThemeBrushColor(frostTheme, "WindowBackgroundBrush")) >= 18d
+            && RgbDistance(
+                ThemeBrushColor(lightTheme, "SurfaceBrush"),
+                ThemeBrushColor(frostTheme, "SurfaceBrush")) >= 10d,
+            "Frost is not visually distinct from the neutral Light theme");
+        foreach (var (name, theme) in new[] { ("Light", lightTheme), ("Frost", frostTheme) })
+        {
+            var accentText = ThemeBrushColor(theme, "AccentTextBrush");
+            Require(
+                string.Equals(accentText, "#FFFFFF", StringComparison.OrdinalIgnoreCase),
+                $"{name} accent buttons do not use a light foreground");
+            foreach (var accentKey in new[] { "AccentBrush", "AccentHoverBrush", "AccentPressedBrush" })
+            {
+                Require(
+                    ContrastRatio(ThemeBrushColor(theme, accentKey), accentText) >= 4.5d,
+                    $"{name} {accentKey} does not retain readable accent-button text");
+            }
+        }
+
+        var controls = System.Xml.Linq.XDocument.Load(Path.Combine(themeRoot, "Controls.xaml"));
+        var primaryButtonStyle = controls.Root!.Elements().Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Key" && attribute.Value == "PrimaryButtonStyle"));
+        Require(
+            primaryButtonStyle.Elements().Any(element =>
+                element.Name.LocalName == "Setter"
+                && string.Equals((string?)element.Attribute("Property"), "Foreground", StringComparison.Ordinal)
+                && ((string?)element.Attribute("Value"))?.Contains("AccentTextBrush", StringComparison.Ordinal) == true),
+            "primary buttons do not select the theme's accent-text foreground");
+        var buttonContentPresenter = controls.Root!.Elements()
+            .Single(element =>
+                element.Name.LocalName == "Style"
+                && string.Equals((string?)element.Attribute("TargetType"), "Button", StringComparison.Ordinal)
+                && !element.Attributes().Any(attribute => attribute.Name.LocalName == "Key"))
+            .Descendants()
+            .Single(element => element.Name.LocalName == "ContentPresenter");
+        Require(
+            buttonContentPresenter.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "TextElement.Foreground"
+                && attribute.Value.Contains("TemplateBinding Foreground", StringComparison.Ordinal)),
+            "button templates do not pass their foreground into generated label text");
 
         var window = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "MainWindow.xaml"));
         var progressBindings = window
@@ -2482,6 +2533,60 @@ internal static class ArchiveLiteTestRunner
     {
         await using var stream = File.OpenRead(path);
         return Convert.ToHexString(await SHA256.HashDataAsync(stream).ConfigureAwait(false));
+    }
+
+    private static string ThemeBrushColor(System.Xml.Linq.XDocument theme, string key) =>
+        theme.Root!.Elements().Single(element =>
+            element.Attributes().Any(attribute =>
+                attribute.Name.LocalName == "Key" && attribute.Value == key))
+            .Attribute("Color")?.Value
+        ?? throw new InvalidDataException($"Theme brush {key} has no color.");
+
+    private static double RgbDistance(string first, string second)
+    {
+        var firstRgb = ParseRgb(first);
+        var secondRgb = ParseRgb(second);
+        return Math.Sqrt(
+            Math.Pow(firstRgb.Red - secondRgb.Red, 2d)
+            + Math.Pow(firstRgb.Green - secondRgb.Green, 2d)
+            + Math.Pow(firstRgb.Blue - secondRgb.Blue, 2d));
+    }
+
+    private static double ContrastRatio(string first, string second)
+    {
+        var firstLuminance = RelativeLuminance(first);
+        var secondLuminance = RelativeLuminance(second);
+        return (Math.Max(firstLuminance, secondLuminance) + 0.05d)
+            / (Math.Min(firstLuminance, secondLuminance) + 0.05d);
+    }
+
+    private static double RelativeLuminance(string color)
+    {
+        var rgb = ParseRgb(color);
+        return 0.2126d * Linearize(rgb.Red)
+            + 0.7152d * Linearize(rgb.Green)
+            + 0.0722d * Linearize(rgb.Blue);
+
+        static double Linearize(byte channel)
+        {
+            var value = channel / 255d;
+            return value <= 0.04045d
+                ? value / 12.92d
+                : Math.Pow((value + 0.055d) / 1.055d, 2.4d);
+        }
+    }
+
+    private static (byte Red, byte Green, byte Blue) ParseRgb(string color)
+    {
+        if (color.Length != 7 || color[0] != '#')
+        {
+            throw new FormatException($"Expected #RRGGBB, received {color}.");
+        }
+
+        return (
+            Convert.ToByte(color.Substring(1, 2), 16),
+            Convert.ToByte(color.Substring(3, 2), 16),
+            Convert.ToByte(color.Substring(5, 2), 16));
     }
 
     private static void Require(bool condition, string message)
