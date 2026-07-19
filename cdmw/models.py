@@ -420,6 +420,9 @@ class ArchiveEntry:
     orig_size: int
     flags: int
     paz_index: int
+    prepared_path: Optional[Path] = None
+    prepared_sha256: str = ""
+    prepared_note: str = ""
 
     @property
     def identity(self) -> ArchiveEntryIdentity:

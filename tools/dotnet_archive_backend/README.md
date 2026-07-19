@@ -46,10 +46,10 @@ dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/C
 
 The Python probe is synthetic and headless. It exercises the frozen catalogue
 contracts and resident `QProcess` client through cold/warm open, worker paging,
-the latest-wins bounded preview-candidate provider, bounded prepare, text search,
-streamed query-token export, package-root layout, rename collision handling,
-.NET, and the renamed native DLL without opening the application or reading
-licensed game data.
+the latest-wins bounded preview-candidate provider with worker-materialized
+selected input, bounded prepare, text search, streamed query-token export,
+package-root layout, rename collision handling, .NET, and the renamed native DLL
+without opening the application or reading licensed game data.
 
 Regenerate a three-cycle synthetic timing report outside the repository with:
 

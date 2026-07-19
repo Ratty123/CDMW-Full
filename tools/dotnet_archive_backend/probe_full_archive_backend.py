@@ -239,6 +239,12 @@ def run_probe(worker: Path) -> dict[str, object]:
                 entry.path for entry in preview_snapshot.entries
             } != {"model/example.pac", "materials/example.material"}:
                 raise AssertionError("Synthetic bounded preview candidates changed.")
+            selected_preview_entry = preview_snapshot.entries[0]
+            if (
+                selected_preview_entry.prepared_path is None
+                or selected_preview_entry.prepared_path.read_bytes() != b"PAC\x00synthetic"
+            ):
+                raise AssertionError("Synthetic selected preview source was not worker-materialized.")
 
             prepared = awaiter.wait(
                 service.prepare_entry(

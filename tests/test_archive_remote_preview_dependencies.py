@@ -8,9 +8,11 @@ from PySide6.QtCore import QObject, Signal
 from cdmw.domain.archives.catalogue import (
     ArchiveAssociationResult,
     ArchiveDurableIdentity,
+    ArchiveEntryRef,
     ArchiveEntryDto,
     ArchiveEntryRole,
 )
+from cdmw.domain.archives.catalogue_operations import PrepareEntryResult
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_preview_dependencies import (
     ArchivePreviewDependencySet,
@@ -34,6 +36,10 @@ class _CatalogueService(QObject):
     def find_association_candidates(self, request: object, *, ui_generation: int) -> str:
         self.requests.append((request, ui_generation))
         return f"association-{len(self.requests)}"
+
+    def prepare_entry(self, request: object, *, ui_generation: int) -> str:
+        self.requests.append((request, ui_generation))
+        return f"prepare-{len(self.requests)}"
 
     def cancel(self, request_id: str) -> bool:
         self.cancelled.append(request_id)
@@ -59,6 +65,16 @@ def _dto(entry_id: int, path: str) -> ArchiveEntryDto:
         ArchiveEntryRole.MODEL if extension != ".dds" else ArchiveEntryRole.IMAGE,
         "model" if extension != ".dds" else "texture",
         True,
+    )
+
+
+def _prepared(dto: ArchiveEntryDto) -> PrepareEntryResult:
+    return PrepareEntryResult(
+        ArchiveEntryRef(dto.session_id, dto.entry_id, dto.identity, dto.path),
+        f"C:/cache/{dto.entry_id}{dto.extension}",
+        dto.original_size,
+        f"sha-{dto.entry_id}",
+        "prepared test source",
     )
 
 
@@ -93,6 +109,8 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
         "find_association_candidates",
         ArchiveAssociationResult("session-a", 7, (), 2, False),
     )
+    assert service.requests[1][0].entry_id == 7
+    service.result_ready.emit("prepare-2", "prepare_entry", _prepared(selected))
 
     assert len(ready) == 1
     request_id, snapshot = ready[0]
@@ -104,6 +122,8 @@ def test_remote_preview_provider_streams_one_bounded_candidate_snapshot() -> Non
     ]
     assert snapshot.entries_by_normalized_path["character/sword.pac_xml"][0].offset == 800
     assert snapshot.entries_by_basename["sword_d.dds"][0].offset == 900
+    assert snapshot.entries[0].prepared_path == Path("C:/cache/7.pac")
+    assert snapshot.entries[0].prepared_sha256 == "sha-7"
     assert not snapshot.truncated
     assert provider.snapshot_for(41, 7) is snapshot
     assert provider.snapshot_for(42, 7) is None
@@ -129,6 +149,7 @@ def test_remote_preview_provider_cancels_and_ignores_obsolete_requests() -> None
         "find_association_candidates",
         ArchiveAssociationResult("session-a", 8, (), 0, False),
     )
+    service.result_ready.emit("prepare-3", "prepare_entry", _prepared(_dto(8, "character/new.pac")))
 
     assert ready == [2]
     assert provider.snapshot_for(2, 8) is not None
@@ -229,6 +250,7 @@ def test_v2_preview_flush_uses_only_remote_dependency_maps() -> None:
         (_dto(8, "character/sword.pac_xml"),),
         total_candidates=1,
         truncated=False,
+        prepared=_prepared(_dto(7, "character/sword.pac")),
     )
     harness = _PreviewHarness(snapshot)
 

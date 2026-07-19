@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Mapping
 
 from PySide6.QtCore import QObject, Signal
@@ -11,6 +12,10 @@ from cdmw.domain.archives.catalogue import (
     ArchiveAssociationRequest,
     ArchiveAssociationResult,
     ArchiveEntryDto,
+)
+from cdmw.domain.archives.catalogue_operations import (
+    PrepareEntryRequest,
+    PrepareEntryResult,
 )
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
@@ -39,6 +44,7 @@ class ArchivePreviewDependencySet:
         *,
         total_candidates: int,
         truncated: bool,
+        prepared: PrepareEntryResult,
     ) -> "ArchivePreviewDependencySet":
         ordered_dtos = (selected, *candidates)
         seen_ids: set[int] = set()
@@ -50,6 +56,10 @@ class ArchivePreviewDependencySet:
                 continue
             seen_ids.add(dto.entry_id)
             entry = ArchiveCatalogueService.compatibility_entry(dto)
+            if dto.entry_id == selected.entry_id:
+                entry.prepared_path = Path(prepared.prepared_path)
+                entry.prepared_sha256 = prepared.sha256
+                entry.prepared_note = str(prepared.note or "")
             entries.append(entry)
             normalized_path = _normalized(entry.path)
             if normalized_path:
@@ -71,6 +81,7 @@ class ArchivePreviewDependencySet:
 @dataclass(slots=True)
 class _PendingPreviewDependencies:
     request_id: str
+    operation: str
     ui_request_id: int
     selected: ArchiveEntryDto
     candidates: dict[int, ArchiveEntryDto] = field(default_factory=dict)
@@ -124,6 +135,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             return False
         self._pending = _PendingPreviewDependencies(
             request_id=str(request_id),
+            operation="find_association_candidates",
             ui_request_id=int(ui_request_id),
             selected=selected,
         )
@@ -143,7 +155,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
 
     def _handle_batch(self, request_id: str, operation: str, payload: object) -> None:
         pending = self._matching_pending(request_id, operation)
-        if pending is None:
+        if pending is None or pending.operation != "find_association_candidates":
             return
         if not self._accept_payload(pending, payload):
             self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
@@ -152,8 +164,20 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         pending = self._matching_pending(request_id, operation)
         if pending is None:
             return
-        if not self._accept_payload(pending, payload):
-            self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
+        if pending.operation == "find_association_candidates":
+            if not self._accept_payload(pending, payload):
+                self._fail_pending("The archive worker returned preview candidates for the wrong entry.")
+                return
+            self._start_selected_preparation(pending)
+            return
+        if pending.operation != "prepare_entry" or not isinstance(payload, PrepareEntryResult):
+            self._fail_pending("The archive worker returned an invalid prepared preview source.")
+            return
+        if (
+            payload.entry.session_id != pending.selected.session_id
+            or payload.entry.entry_id != pending.selected.entry_id
+        ):
+            self._fail_pending("The archive worker prepared the wrong preview entry.")
             return
         self._pending = None
         snapshot = ArchivePreviewDependencySet.from_dtos(
@@ -161,6 +185,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
             tuple(pending.candidates.values()),
             total_candidates=pending.total_candidates,
             truncated=pending.truncated,
+            prepared=payload,
         )
         self._snapshot = snapshot
         self._snapshot_ui_request_id = pending.ui_request_id
@@ -187,7 +212,7 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         if (
             pending is None
             or pending.request_id != str(request_id)
-            or str(operation) != "find_association_candidates"
+            or str(operation) != pending.operation
         ):
             return None
         return pending
@@ -204,10 +229,26 @@ class ArchiveRemotePreviewDependencyProvider(QObject):
         pending.truncated = pending.truncated or bool(payload.truncated)
         return True
 
+    def _start_selected_preparation(self, pending: _PendingPreviewDependencies) -> None:
+        try:
+            request_id = self._service.prepare_entry(
+                PrepareEntryRequest(pending.selected.session_id, pending.selected.entry_id),
+                ui_generation=pending.ui_request_id,
+            )
+        except Exception as exc:
+            self._fail_pending(str(exc))
+            return
+        pending.request_id = str(request_id)
+        pending.operation = "prepare_entry"
+
     def _fail_pending(self, message: str) -> None:
         pending = self._pending
         self._pending = None
         if pending is not None:
+            try:
+                self._service.cancel(pending.request_id)
+            except (AttributeError, RuntimeError):
+                pass
             self.failed.emit(pending.ui_request_id, str(message))
 
 

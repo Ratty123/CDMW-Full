@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import shutil
@@ -460,6 +461,41 @@ def read_archive_entry_data(
     entry: ArchiveEntry,
     stop_event: Optional[threading.Event] = None,
 ) -> Tuple[bytes, bool, str]:
+    prepared_path = getattr(entry, "prepared_path", None)
+    if prepared_path is not None:
+        path = Path(prepared_path)
+        raise_if_cancelled(stop_event)
+        try:
+            size = path.stat().st_size
+        except OSError as exc:
+            raise ValueError(
+                f"Prepared archive source is unavailable for {entry.path}: {path}"
+            ) from exc
+        expected_size = max(0, int(entry.orig_size or 0))
+        if expected_size and size != expected_size:
+            raise ValueError(
+                f"Prepared archive source size changed for {entry.path}: "
+                f"expected {expected_size:,} bytes, found {size:,}."
+            )
+        with path.open("rb") as stream:
+            data = stream.read()
+        raise_if_cancelled(stop_event)
+        if len(data) != size:
+            raise ValueError(f"Prepared archive source changed while reading {entry.path}.")
+        expected_sha256 = (
+            str(getattr(entry, "prepared_sha256", "") or "").strip().casefold()
+        )
+        if expected_sha256 and hashlib.sha256(data).hexdigest() != expected_sha256:
+            raise ValueError(f"Prepared archive source checksum changed for {entry.path}.")
+        note = ",".join(
+            part
+            for part in (
+                str(getattr(entry, "prepared_note", "") or "").strip(),
+                "standalone archive worker prepared source",
+            )
+            if part
+        )
+        return data, bool(entry.compressed), note
     try:
         from cdmw.core.archive_accelerator import read_archive_entry_data_native
 
