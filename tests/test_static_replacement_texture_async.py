@@ -197,6 +197,7 @@ def test_material_resource_worker_is_latest_wins_dds_safe_and_ack_cleaned(
     tmp_path: Path,
     monkeypatch,
 ) -> None:  # type: ignore[no-untyped-def]
+    _app()
     from PIL import Image
     from cdmw.core.dds_native import inspect_dds_native_path
     from cdmw.domain.cancellation import raise_if_cancelled
@@ -214,7 +215,7 @@ def test_material_resource_worker_is_latest_wins_dds_safe_and_ack_cleaned(
     original_encode = resource_service._encode_owned_dds
     encode_count = 0
 
-    def delayed_encode(source: Path, target: Path, channel: str, stop_event: threading.Event) -> None:
+    def delayed_encode(source: Path, target: Path, channel: str, stop_event: threading.Event) -> object:
         nonlocal encode_count
         encode_count += 1
         worker_threads.append(threading.get_ident())
@@ -223,7 +224,7 @@ def test_material_resource_worker_is_latest_wins_dds_safe_and_ack_cleaned(
             for _index in range(80):
                 time.sleep(0.003)
                 raise_if_cancelled(stop_event, "cancelled")
-        original_encode(source, target, channel, stop_event)
+        return original_encode(source, target, channel, stop_event)
 
     monkeypatch.setattr(resource_service, "_encode_owned_dds", delayed_encode)
     results: list[MaterialAuthorityResourceResult] = []

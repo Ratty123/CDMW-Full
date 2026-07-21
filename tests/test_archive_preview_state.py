@@ -16,16 +16,37 @@ def test_archive_model_preview_refresh_tooltip_preserves_copy() -> None:
     )
 
 
-def test_archive_model_initial_view_state_is_overhead_and_fitted() -> None:
+def test_archive_model_initial_view_state_is_front_facing_by_default() -> None:
     assert archive_model_initial_view_state() == {
         "role": "replacement",
-        "reason": "archive_model_initial_overhead",
+        "reason": "archive_model_initial_front",
         "zoom_factor": 1.0,
         "fit_to_view": True,
         "yaw": 0.0,
-        "pitch": -89.0,
+        "pitch": 0.0,
         "pan": (0.0, 0.0, 0.0),
     }
+
+
+def test_archive_model_initial_view_state_uses_overhead_only_for_weapon_paths() -> None:
+    overhead_paths = (
+        "character/model/1_pc/1_phm/weapon/1_longsword/blade.pac",
+        "character/model/1_pc/1_phm/subweapon/quiver.pac",
+        "character/model/1_pc/1_phm/shield/buckler.pac",
+        "character/model/1_pc/1_phm/4_bow/bow.pac",
+        "character/model/1_pc/1_phm/twohandweapon/axe.pac",
+    )
+    front_paths = (
+        "character/model/1_pc/1_phm/upper/armor.pac",
+        "character/model/1_pc/1_phm/lower/trousers.pac",
+        "character/model/1_pc/1_phm/hand/gloves.pac",
+        "character/model/1_pc/1_phm/foot/boots.pac",
+        "character/model/object/chair.pac",
+        "",
+    )
+
+    assert all(archive_model_initial_view_state(path)["pitch"] == -89.0 for path in overhead_paths)
+    assert all(archive_model_initial_view_state(path)["pitch"] == 0.0 for path in front_paths)
 
 
 def test_archive_model_pending_view_state_clears_only_after_restore() -> None:

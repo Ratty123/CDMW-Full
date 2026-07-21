@@ -150,7 +150,7 @@ class ArchiveD3D11RendererSourceGuardTests(unittest.TestCase):
         self.assertIn("next_model_key = self._d3d11_preview_package_model_key(package_dir)", reload_source)
         self.assertIn("same_d3d11_model", reload_source)
         self.assertIn("reset_view=not same_d3d11_model", reload_source)
-        self.assertIn("archive_model_initial_view_state()", reload_source)
+        self.assertIn("archive_model_initial_view_state(_archive_model_manifest_source_path(package_dir))", reload_source)
         self.assertIn("self.archive_d3d11_pending_view_state = dict(view_state_for_load)", reload_source)
         self.assertIn("self._restore_archive_d3d11_pending_view_state()", source)
         self.assertIn("archive_d3d11_has_view_state = False", reload_source)

@@ -5324,10 +5324,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         guard_start = prompt_source.index('if getattr(alignment_prompt_setup, "alignment_setup_failed", False):')
         guard_end = prompt_source.index("finish_static_replacement_prompt_transform", guard_start)
         guard_source = prompt_source[guard_start:guard_end]
-        self.assertIn("_finish_alignment_startup_progress()", guard_source)
-        self.assertIn("self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)", guard_source)
-        self.assertIn("dialog.deleteLater()", guard_source)
-        self.assertIn("Mesh Replacement Builder setup failed", guard_source)
+        self.assertIn("_abort_alignment_builder_construction(", guard_source)
+        self.assertIn('stage="replacement_setup"', guard_source)
+        self.assertIn("alignment_setup_traceback", guard_source)
         self.assertIn("return", guard_source)
 
         inflight_start = callback_source.index("def _alignment_d3d11_package_refresh_in_flight() -> bool:")

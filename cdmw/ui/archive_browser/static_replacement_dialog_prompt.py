@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import traceback
+
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
@@ -121,7 +123,83 @@ def prompt_archive_static_replacement_options(
         "tuple": tuple,
     }
     prompt_shell_context = {**globals(), **builtin_context, **locals()}
-    alignment_prompt_shell = create_static_replacement_prompt_shell(prompt_shell_context)
+    dialog = None
+    construction_failed = object()
+
+    def _abort_alignment_builder_construction(
+        message: object,
+        *,
+        stage: str,
+        traceback_text: str = "",
+    ) -> None:
+        partial_dialog = dialog or self._modeless_alignment_dialogs.get(alignment_dialog_key)
+        disposer = getattr(self, "_dispose_partial_alignment_builder", None)
+        if callable(disposer):
+            disposer(
+                alignment_dialog_key,
+                partial_dialog,
+                context=prompt_shell_context,
+            )
+        error_text = str(message or "unknown error")
+        _record_runtime_event(
+            "mesh_alignment_construction_failed",
+            path=getattr(entry, "path", ""),
+            dialog_title=dialog_title,
+            stage=str(stage or "builder_construction"),
+            message=error_text,
+            traceback=str(traceback_text or ""),
+            modify_original_clone=bool(getattr(prompt_preflight, "modify_original_clone_mode", False)),
+        )
+        if not bool(getattr(self, "_shutting_down", False)):
+            self.set_status_message(f"Mesh Replacement Builder setup failed: {error_text}", error=True)
+            if embedded_host is not None and hasattr(self, "mesh_editor_tab"):
+                QTimer.singleShot(
+                    0,
+                    lambda: self.mesh_editor_tab.show_empty_state(
+                        "Mesh Replacement Builder setup failed. See workspace logs."
+                    ),
+                )
+
+    def _builder_construction_step(stage: str, callback: Callable[[], object]) -> object:
+        if bool(getattr(self, "_shutting_down", False)):
+            _abort_alignment_builder_construction("cancelled during application shutdown", stage=stage)
+            return construction_failed
+        try:
+            return callback()
+        except Exception as exc:
+            _abort_alignment_builder_construction(
+                exc,
+                stage=stage,
+                traceback_text="".join(traceback.format_exception(type(exc), exc, exc.__traceback__)),
+            )
+            return construction_failed
+
+    alignment_prompt_shell = _builder_construction_step(
+        "prompt_shell",
+        lambda: create_static_replacement_prompt_shell(prompt_shell_context),
+    )
+    if alignment_prompt_shell is construction_failed:
+        return
+    shell_values = _builder_construction_step(
+        "prompt_shell_bindings",
+        lambda: static_replacement_section_values(
+            alignment_prompt_shell,
+            (
+                "alignment_dialog_key_hash", "alignment_d3d11_view_state_reset_generation", "embedded_alignment_builder",
+                "preview_build_entry", "modify_original_clone_mode", "original_texture_preview_default",
+                "original_texture_preview_state", "original_reference_texture_preview_state", "alignment_startup_text",
+                "startup_progress", "startup_progress_closed", "alignment_startup_step_state", "_alignment_startup_step",
+                "_finish_alignment_startup_progress", "dialog", "alignment_dialog_closing", "_alignment_dialog_widgets_live",
+                "_complete_external_swap_enabled", "_complete_external_swap_mappings", "_sync_complete_external_swap_mode",
+                "_refresh_output_impact_review", "_clear_all_part_selections", "_d3d11_source_part_selected",
+                "_mesh_edit_begin_stroke", "_mesh_edit_apply_preview_payload", "_mesh_edit_finish_stroke",
+                "_mesh_edit_cancel_stroke", "_mesh_edit_selection_changed", "alignment_texture_lookup_cache",
+                "_alignment_texture_lookup_indexes",
+            ),
+        ),
+    )
+    if shell_values is construction_failed:
+        return
     (
         alignment_dialog_key_hash, alignment_d3d11_view_state_reset_generation, embedded_alignment_builder,
         preview_build_entry, modify_original_clone_mode, original_texture_preview_default,
@@ -133,32 +211,24 @@ def prompt_archive_static_replacement_options(
         _mesh_edit_begin_stroke, _mesh_edit_apply_preview_payload, _mesh_edit_finish_stroke,
         _mesh_edit_cancel_stroke, _mesh_edit_selection_changed, alignment_texture_lookup_cache,
         _alignment_texture_lookup_indexes,
-    ) = static_replacement_section_values(
-        alignment_prompt_shell,
-        (
-            "alignment_dialog_key_hash", "alignment_d3d11_view_state_reset_generation", "embedded_alignment_builder",
-            "preview_build_entry", "modify_original_clone_mode", "original_texture_preview_default",
-            "original_texture_preview_state", "original_reference_texture_preview_state", "alignment_startup_text",
-            "startup_progress", "startup_progress_closed", "alignment_startup_step_state", "_alignment_startup_step",
-            "_finish_alignment_startup_progress", "dialog", "alignment_dialog_closing", "_alignment_dialog_widgets_live",
-            "_complete_external_swap_enabled", "_complete_external_swap_mappings", "_sync_complete_external_swap_mode",
-            "_refresh_output_impact_review", "_clear_all_part_selections", "_d3d11_source_part_selected",
-            "_mesh_edit_begin_stroke", "_mesh_edit_apply_preview_payload", "_mesh_edit_finish_stroke",
-            "_mesh_edit_cancel_stroke", "_mesh_edit_selection_changed", "alignment_texture_lookup_cache",
-            "_alignment_texture_lookup_indexes",
-        ),
-    )
+    ) = shell_values
     def _sync_highlight_sets_when_ready(*args, **kwargs):
         callback = prompt_shell_context.get("_sync_highlight_sets")
         if callable(callback):
             return callback(*args, **kwargs)
         return None
 
-    alignment_preview_shell_section = create_alignment_preview_shell_section({
+    alignment_preview_shell_context = {
         **prompt_shell_context,
         **locals(),
         '_sync_highlight_sets': _sync_highlight_sets_when_ready,
-    })
+    }
+    alignment_preview_shell_section = _builder_construction_step(
+        "preview_shell",
+        lambda: create_alignment_preview_shell_section(alignment_preview_shell_context),
+    )
+    if alignment_preview_shell_section is construction_failed:
+        return
     (
         _alignment_current_camera_state, _alignment_d3d11_host_ready, _alignment_d3d11_live_frame_available, _alignment_d3d11_loading_stuck,
         _alignment_d3d11_saved_view_state, _apply_alignment_dialog_responsive_layout, _clear_stuck_alignment_d3d11_loading, _copy_mesh_editor_diagnostics,
@@ -213,7 +283,13 @@ def prompt_archive_static_replacement_options(
             "static_dialog_preview", "tooltip",
         ),
     )
-    alignment_workflow_shell_section = create_alignment_workflow_shell_section({**prompt_shell_context, **locals()})
+    alignment_workflow_shell_context = {**prompt_shell_context, **locals()}
+    alignment_workflow_shell_section = _builder_construction_step(
+        "workflow_shell",
+        lambda: create_alignment_workflow_shell_section(alignment_workflow_shell_context),
+    )
+    if alignment_workflow_shell_section is construction_failed:
+        return
     (
         _add_loose_source_folder_for_alignment, _choose_loaded_archive_mesh_source_for_alignment,
         _choose_mod_archive_mesh_source_for_alignment, add_archive_source_button,
@@ -250,34 +326,37 @@ def prompt_archive_static_replacement_options(
     )
 
     prompt_shell_context.update(locals())
-    alignment_prompt_state_callbacks = create_static_replacement_prompt_state_callbacks(prompt_shell_context)
+    alignment_prompt_state_callbacks = _builder_construction_step(
+        "state_callbacks",
+        lambda: create_static_replacement_prompt_state_callbacks(prompt_shell_context),
+    )
+    if alignment_prompt_state_callbacks is construction_failed:
+        return
     prompt_shell_context.update(vars(alignment_prompt_state_callbacks))
 
     prompt_shell_context.update(locals())
-    alignment_prompt_setup = create_static_replacement_prompt_setup(prompt_shell_context)
+    alignment_prompt_setup = _builder_construction_step(
+        "replacement_setup",
+        lambda: create_static_replacement_prompt_setup(prompt_shell_context),
+    )
+    if alignment_prompt_setup is construction_failed:
+        return
     prompt_shell_context.update(vars(alignment_prompt_setup))
     if getattr(alignment_prompt_setup, "alignment_setup_failed", False):
-        _finish_alignment_startup_progress()
-        try:
-            self._unregister_modeless_alignment_dialog(alignment_dialog_key, dialog)
-        except Exception:
-            pass
-        try:
-            dialog.close()
-            dialog.deleteLater()
-        except Exception:
-            pass
         error_text = str(getattr(alignment_prompt_setup, "alignment_setup_error", "") or "unknown error")
-        self.set_status_message(f"Mesh Replacement Builder setup failed: {error_text}", error=True)
-        if embedded_alignment_builder and hasattr(self, "mesh_editor_tab"):
-            QTimer.singleShot(
-                0,
-                lambda: self.mesh_editor_tab.show_empty_state(
-                    "Mesh Replacement Builder setup failed. See workspace logs."
-                ),
-            )
+        _abort_alignment_builder_construction(
+            error_text,
+            stage="replacement_setup",
+            traceback_text=str(getattr(alignment_prompt_setup, "alignment_setup_traceback", "") or ""),
+        )
         return
-    finish_static_replacement_prompt_transform(prompt_shell_context)
+    transform_result = _builder_construction_step(
+        "options_and_open",
+        lambda: finish_static_replacement_prompt_transform(prompt_shell_context),
+    )
+    if transform_result is construction_failed:
+        return
+    setattr(dialog, "_cdmw_builder_construction_complete", True)
     return
 
 

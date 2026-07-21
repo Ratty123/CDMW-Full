@@ -496,7 +496,6 @@ def _setup_options_transform_step_006(_state):
     _state.modify_original_texture_tuning_checkbox = _state.QCheckBox('Advanced Texture Tuning')
     _state.modify_original_texture_tuning_checkbox.setObjectName('MeshAlignmentModifyOriginalAdvancedTextureTuningCheckbox')
     _state.modify_original_texture_tuning_checkbox.setToolTip('Enable tuning-only texture/material values for Modify Original output. Import Mesh Material Authority settings are not used.')
-    _state.modify_original_texture_tuning_checkbox.setVisible(bool(_state.modify_original_clone_mode))
     _state.modify_original_tuning_raw = _state.self.settings.value(_state.modify_original_texture_tuning_enabled_key, 'false')
 
 def _setup_options_transform_step_007(_state):
@@ -620,8 +619,9 @@ def _setup_options_transform_step_010(_state):
     for _state.unsafe_widget in _state.unsafe_material_widgets:
         _state.material_authority_unsafe_section.body_layout.addWidget(_state.unsafe_widget)
     _state.modify_original_texture_tuning_section = _state.CollapsibleSection('Advanced Texture Tuning', expanded=False)
-    _state.modify_original_texture_tuning_section.setVisible(bool(_state.modify_original_clone_mode))
+    _state.modify_original_texture_tuning_section.setObjectName('MeshAlignmentAdvancedTextureTuningSection')
     _state.modify_original_texture_tuning_section.body_layout.addWidget(_state.modify_original_texture_tuning_checkbox)
+    _state.modify_original_texture_tuning_checkbox.setVisible(bool(_state.modify_original_clone_mode))
     if _state.modify_original_clone_mode:
         _state.modify_original_texture_tuning_section.body_layout.addWidget(_state.manual_profile_group)
     else:

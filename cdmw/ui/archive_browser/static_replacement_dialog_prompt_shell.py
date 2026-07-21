@@ -99,6 +99,9 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         dialog.setMinimumSize(980, 700)
     dialog.setSizeGripEnabled(not embedded_alignment_builder)
     self._register_modeless_alignment_dialog(alignment_dialog_key, dialog)
+    setattr(dialog, "_cdmw_builder_startup_progress", startup_progress)
+    setattr(dialog, "_cdmw_builder_construction_context", context)
+    setattr(dialog, "_cdmw_builder_construction_complete", False)
     alignment_dialog_closing = _alignment_dialog_closing_initial_state_helper()
 
     def _alignment_dialog_widgets_live() -> bool:

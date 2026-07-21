@@ -146,6 +146,7 @@ def _setup_options_transform_step_016(_state):
         _state.setup_layout.addWidget(_state.advanced_setup_section)
     if _state.modify_original_clone_mode:
         _state.setup_layout.addWidget(_state.modify_original_texture_tuning_section)
+        _state.modify_original_texture_tuning_section.setVisible(True)
     if _state.placement_note is not None:
         _state.setup_layout.addWidget(_state.placement_note)
     _state.scale_syncing = _state._scale_syncing_initial_state_helper()

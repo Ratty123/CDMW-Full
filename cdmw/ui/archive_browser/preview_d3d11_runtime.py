@@ -13,16 +13,66 @@ from cdmw.models import ArchivePreviewResult
 from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
 
 
-def archive_model_initial_view_state() -> dict[str, object]:
-    """Return the fitted overhead camera used for a newly selected archive model."""
+_ARCHIVE_OVERHEAD_CAMERA_SEGMENTS = frozenset(
+    {
+        "weapon",
+        "subweapon",
+        "shield",
+        "onehandweapon",
+        "twohandweapon",
+        "sword",
+        "longsword",
+        "greatsword",
+        "dagger",
+        "axe",
+        "spear",
+        "lance",
+        "staff",
+        "mace",
+        "hammer",
+        "bow",
+        "crossbow",
+        "musket",
+        "cannon",
+        "instrument",
+    }
+)
+
+
+def _archive_model_uses_overhead_camera(source_path: object) -> bool:
+    normalized = str(source_path or "").replace("\\", "/").strip().casefold()
+    if not normalized:
+        return False
+    segments = tuple(segment for segment in normalized.split("/") if segment)
+    for segment in segments[:-1] if len(segments) > 1 else segments:
+        family = segment.lstrip("0123456789_-")
+        if family in _ARCHIVE_OVERHEAD_CAMERA_SEGMENTS:
+            return True
+    return False
+
+
+def _archive_model_manifest_source_path(package_dir: Path) -> str:
+    try:
+        payload = json.loads((Path(package_dir) / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return ""
+    if not isinstance(payload, Mapping):
+        return ""
+    return str(payload.get("source_path", "") or "").strip()
+
+
+def archive_model_initial_view_state(source_path: object = "") -> dict[str, object]:
+    """Return the fitted camera chosen from a newly selected archive model path."""
+
+    overhead = _archive_model_uses_overhead_camera(source_path)
 
     return {
         "role": "replacement",
-        "reason": "archive_model_initial_overhead",
+        "reason": "archive_model_initial_overhead" if overhead else "archive_model_initial_front",
         "zoom_factor": 1.0,
         "fit_to_view": True,
         "yaw": 0.0,
-        "pitch": -89.0,
+        "pitch": -89.0 if overhead else 0.0,
         "pan": (0.0, 0.0, 0.0),
     }
 
@@ -113,7 +163,7 @@ class ArchivePreviewD3D11RuntimeMixin:
         view_state_for_load = (
             self._sanitize_d3d11_view_state_for_restore(self.archive_d3d11_view_state)
             if same_d3d11_model and bool(getattr(self, "archive_d3d11_has_view_state", False))
-            else archive_model_initial_view_state()
+            else archive_model_initial_view_state(_archive_model_manifest_source_path(package_dir))
         )
         if same_d3d11_model and view_state_for_load and bool(view_state_for_load.get("fit_to_view", True)):
             # Same model refresh: keep camera feel while allowing the package to refit its center.
