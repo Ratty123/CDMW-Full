@@ -150,7 +150,9 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress)
     {
-        var requestedIds = query.EntryIds?.Distinct().ToArray();
+        var requestedIds = query.EntryIds is { Count: > 0 }
+            ? query.EntryIds.Distinct().ToArray()
+            : null;
         if (requestedIds is { Length: > MaximumBoundedEntryIds })
         {
             throw new InvalidDataException($"Archive queries may contain at most {MaximumBoundedEntryIds} bounded entry ids.");

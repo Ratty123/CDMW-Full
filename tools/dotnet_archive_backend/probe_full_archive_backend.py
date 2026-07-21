@@ -1,4 +1,4 @@
-"""Headless synthetic probe for Python -> QProcess -> .NET -> native archive v2."""
+"""Headless synthetic probe for Python -> QProcess -> .NET -> native archive v2/protocol v3."""
 
 from __future__ import annotations
 
@@ -197,7 +197,11 @@ def run_probe(worker: Path) -> dict[str, object]:
                 )
             )
             if not isinstance(page, ArchivePage) or len(page.rows) != 1:
-                raise AssertionError("Synthetic filtered page did not contain one text entry.")
+                row_paths = [row.ref.virtual_path for row in page.rows] if isinstance(page, ArchivePage) else []
+                raise AssertionError(
+                    "Synthetic filtered page did not contain one text entry "
+                    f"(matches={getattr(query, 'total_matches', None)}, rows={row_paths!r})."
+                )
             text_entry = page.rows[0]
 
             model_query = awaiter.wait(

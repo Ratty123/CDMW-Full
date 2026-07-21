@@ -123,6 +123,13 @@ internal static class FullArchiveTestRunner
                 page.TotalMatches == 2
                 && page.Rows.Select(static row => row.EntryId).SequenceEqual([3L, 1L]),
                 "bounded entry-id query did not preserve a unique server-owned scope");
+            var unboundedQuery = await queries.CreateAsync(
+                new ArchiveQuery(session.SessionId, EntryIds: []),
+                18,
+                CancellationToken.None).ConfigureAwait(false);
+            Require(
+                unboundedQuery.TotalMatches == session.EntryCount,
+                "an empty wire entry-id list must retain unbounded query semantics");
         }
         finally
         {
