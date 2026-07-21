@@ -70,6 +70,8 @@
   <data name="Path" xml:space="preserve"><value>Ruta</value></data>
   <data name="Name" xml:space="preserve"><value>Nombre</value></data>
   <data name="Type" xml:space="preserve"><value>Tipo</value></data>
+  <data name="FileType" xml:space="preserve"><value>Tipo de archivo</value></data>
+  <data name="Usage" xml:space="preserve"><value>Uso</value></data>
   <data name="Size" xml:space="preserve"><value>Tamaño</value></data>
   <data name="Package" xml:space="preserve"><value>Paquete</value></data>
   <data name="Preview" xml:space="preserve"><value>Vista previa</value></data>
@@ -140,6 +142,21 @@
   <data name="RoleMaterial" xml:space="preserve"><value>Material</value></data>
   <data name="RoleImage" xml:space="preserve"><value>Imagen</value></data>
   <data name="RoleText" xml:space="preserve"><value>Texto</value></data>
+  <data name="FileTypeOther" xml:space="preserve"><value>Otro</value></data>
+  <data name="FileTypeModel" xml:space="preserve"><value>Modelo</value></data>
+  <data name="FileTypeAnimation" xml:space="preserve"><value>Animación</value></data>
+  <data name="FileTypePhysics" xml:space="preserve"><value>Física</value></data>
+  <data name="FileTypeMetadata" xml:space="preserve"><value>Metadatos</value></data>
+  <data name="FileTypeVideo" xml:space="preserve"><value>Video</value></data>
+  <data name="FileTypeAudio" xml:space="preserve"><value>Audio</value></data>
+  <data name="FileTypeUserInterface" xml:space="preserve"><value>Interfaz de usuario</value></data>
+  <data name="FileTypeTexture" xml:space="preserve"><value>Textura</value></data>
+  <data name="FileTypeImage" xml:space="preserve"><value>Imagen</value></data>
+  <data name="FileTypeText" xml:space="preserve"><value>Texto</value></data>
+  <data name="TextureUsageUnknown" xml:space="preserve"><value>Desconocido</value></data>
+  <data name="TextureUsageColor" xml:space="preserve"><value>Color</value></data>
+  <data name="TextureUsageNormalMap" xml:space="preserve"><value>Mapa de normales</value></data>
+  <data name="TextureUsageMaterialMap" xml:space="preserve"><value>Mapa de material</value></data>
   <data name="SortPath" xml:space="preserve"><value>Ruta</value></data>
   <data name="SortName" xml:space="preserve"><value>Nombre</value></data>
   <data name="SortExtension" xml:space="preserve"><value>Extensión</value></data>
@@ -147,6 +164,8 @@
   <data name="SortOriginalSize" xml:space="preserve"><value>Tamaño original</value></data>
   <data name="SortStoredSize" xml:space="preserve"><value>Tamaño almacenado</value></data>
   <data name="SortRole" xml:space="preserve"><value>Función</value></data>
+  <data name="SortFileType" xml:space="preserve"><value>Tipo de archivo</value></data>
+  <data name="SortTextureUsage" xml:space="preserve"><value>Uso de textura</value></data>
   <data name="CollisionSkip" xml:space="preserve"><value>Omitir</value></data>
   <data name="CollisionOverwrite" xml:space="preserve"><value>Sobrescribir</value></data>
   <data name="CollisionCancel" xml:space="preserve"><value>Cancelar exportación</value></data>
@@ -278,6 +297,7 @@
   <data name="Clear" xml:space="preserve"><value>Limpiar</value></data>
   <data name="None" xml:space="preserve"><value>Ninguno</value></data>
   <data name="ItemFinderTitle" xml:space="preserve"><value>Item Finder</value></data>
+  <data name="ItemFinderNavigation" xml:space="preserve"><value>Item Finder</value></data>
   <data name="ItemFinderSubtitle" xml:space="preserve"><value>Nombres recuperados, iconos de inventario, enlaces de modelos y evidencia de materiales</value></data>
   <data name="ItemFinderIntro" xml:space="preserve"><value>Explora el mismo catálogo nativo de objetos que CDMW Full. Los iconos visibles se cargan primero; las demás miniaturas se preparan en segundo plano y se reutilizan desde la caché persistente.</value></data>
   <data name="ItemFinderSearchHint" xml:space="preserve"><value>Buscar por nombre visible, nombre interno, ID, categoría, modelo, ruta de icono, nombre localizado o etiqueta de material</value></data>
@@ -307,4 +327,7 @@
   <data name="ItemFinderScopeLoading" xml:space="preserve"><value>Resolviendo enlaces de Item Finder...</value></data>
   <data name="ItemFinderExactScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} archivo(s) enlazado(s) exacto(s)</value></data>
   <data name="ItemFinderRelatedScopeApplied" xml:space="preserve"><value>Item Finder: {0} - {1:N0} archivo(s) relacionado(s), incluidos {2:N0} enlace(s) directo(s)</value></data>
+  <data name="ClearItemScope" xml:space="preserve"><value>Borrar conjunto de elementos</value></data>
+  <data name="MostCommonExtensions" xml:space="preserve"><value>Más comunes</value></data>
+  <data name="MostCommonExtensionsHint" xml:space="preserve"><value>Muestra las extensiones más comunes del archivo o conjunto de Item Finder activo.</value></data>
 </root>

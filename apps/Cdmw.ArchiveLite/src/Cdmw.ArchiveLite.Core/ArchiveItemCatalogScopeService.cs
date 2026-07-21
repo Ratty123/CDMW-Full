@@ -87,13 +87,15 @@ public sealed class ArchiveItemCatalogScopeService(
         {
             await publishProgress(new ProgressUpdate(resolved.Count, resolved.Count, "item_scope_ready")).ConfigureAwait(false);
         }
+        var extensionFacets = ArchiveExtensionFacetBuilder.Build(resolved.Values);
         return new ItemCatalogScopeResult(
             request.SessionId,
             request.ItemId,
             request.IncludeRelated,
             resolved.Keys.Order().ToArray(),
             directCount,
-            truncated);
+            truncated,
+            extensionFacets);
     }
 
     private static void AddResolvedPath(

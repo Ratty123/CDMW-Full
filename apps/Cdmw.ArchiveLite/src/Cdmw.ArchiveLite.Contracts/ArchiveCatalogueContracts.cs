@@ -116,4 +116,5 @@ public sealed record ItemCatalogScopeResult(
     bool IncludeRelated,
     IReadOnlyList<long> EntryIds,
     long DirectCount,
-    bool Truncated);
+    bool Truncated,
+    IReadOnlyList<ArchiveExtensionFacet>? Extensions = null);

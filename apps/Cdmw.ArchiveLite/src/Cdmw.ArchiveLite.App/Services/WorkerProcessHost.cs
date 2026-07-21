@@ -8,7 +8,7 @@ using Cdmw.ArchiveLite.Contracts;
 
 namespace Cdmw.ArchiveLite.App.Services;
 
-public sealed class WorkerProcessHost : IAsyncDisposable
+public sealed class WorkerProcessHost : IWorkerRequestClient, IAsyncDisposable
 {
     private readonly Process _process;
     private readonly WorkerJob _job;

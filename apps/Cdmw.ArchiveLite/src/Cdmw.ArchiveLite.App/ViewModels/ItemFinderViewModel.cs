@@ -12,7 +12,8 @@ public sealed class ItemFinderViewModel : ObservableObject
     private const int IconBatchSize = 24;
     private const int ThumbnailSize = 120;
     private const int MaximumMemoryIcons = 96;
-    private readonly WorkerProcessHost _worker;
+    private static readonly TimeSpan FilterDebounce = TimeSpan.FromMilliseconds(220);
+    private readonly IWorkerRequestClient _worker;
     private readonly Func<string?> _getSessionId;
     private readonly Action<string> _setShellStatus;
     private readonly Func<int, string, bool, CancellationToken, Task<bool>> _showItemScope;
@@ -20,6 +21,8 @@ public sealed class ItemFinderViewModel : ObservableObject
     private readonly LinkedList<string> _bitmapLru = new();
     private CancellationTokenSource? _activation;
     private CancellationTokenSource? _searchOperation;
+    private CancellationTokenSource? _filterDebounceOperation;
+    private CancellationTokenSource? _pageIconOperation;
     private CancellationTokenSource? _warmupOperation;
     private Task? _pageIconTask;
     private Task? _warmupTask;
@@ -41,9 +44,12 @@ public sealed class ItemFinderViewModel : ObservableObject
     private string? _preferredCategory;
     private string? _preferredGroup;
     private string? _preferredMaterialTag;
+    private IReadOnlyList<ItemCatalogCategoryFacet> _categoryFacets = [];
+    private IReadOnlyList<ItemCatalogValueFacet> _materialFacets = [];
+    private int _suppressFilterSearch;
 
     public ItemFinderViewModel(
-        WorkerProcessHost worker,
+        IWorkerRequestClient worker,
         Func<string?> getSessionId,
         Action<string> setShellStatus,
         Func<int, string, bool, CancellationToken, Task<bool>> showItemScope,
@@ -60,7 +66,7 @@ public sealed class ItemFinderViewModel : ObservableObject
         _preferredMaterialTag = settings.MaterialTag;
         WindowWidth = NormalizeWindowDimension(settings.Width, 1240, 940, 2400);
         WindowHeight = NormalizeWindowDimension(settings.Height, 800, 640, 1600);
-        SearchCommand = new AsyncCommand(token => SearchLatestAsync(resetPage: true, token), () => IsAvailable);
+        SearchCommand = new AsyncCommand(SearchNowAsync, () => IsAvailable);
         PreviousPageCommand = new AsyncCommand(token => MovePageAsync(-PageSize, token), () => IsAvailable && PageStart > 0);
         NextPageCommand = new AsyncCommand(token => MovePageAsync(PageSize, token), () => IsAvailable && PageStart + PageSize < TotalMatches);
         ClearCommand = new RelayCommand(ClearFilters, () => IsAvailable);
@@ -86,19 +92,37 @@ public sealed class ItemFinderViewModel : ObservableObject
     public string Query
     {
         get => _query;
-        set => SetProperty(ref _query, value ?? string.Empty);
+        set
+        {
+            if (SetProperty(ref _query, value ?? string.Empty))
+            {
+                ScheduleFilterSearch();
+            }
+        }
     }
 
     public ItemFinderCategoryOption? SelectedCategory
     {
         get => _selectedCategory;
-        set => SetProperty(ref _selectedCategory, value);
+        set
+        {
+            if (SetProperty(ref _selectedCategory, value))
+            {
+                ScheduleFilterSearch();
+            }
+        }
     }
 
     public ItemFinderValueOption? SelectedMaterialTag
     {
         get => _selectedMaterialTag;
-        set => SetProperty(ref _selectedMaterialTag, value);
+        set
+        {
+            if (SetProperty(ref _selectedMaterialTag, value))
+            {
+                ScheduleFilterSearch();
+            }
+        }
     }
 
     public ItemFinderRowViewModel? SelectedItem
@@ -170,7 +194,7 @@ public sealed class ItemFinderViewModel : ObservableObject
     }
 
     public async Task RefreshAsync(CancellationToken cancellationToken) =>
-        await SearchLatestAsync(resetPage: true, cancellationToken).ConfigureAwait(true);
+        await SearchNowAsync(cancellationToken).ConfigureAwait(true);
 
     public void Deactivate()
     {
@@ -222,15 +246,23 @@ public sealed class ItemFinderViewModel : ObservableObject
     {
         var selectedCategoryKey = SelectedCategory?.Key;
         var selectedMaterial = SelectedMaterialTag?.Value;
-        if (CategoryOptions.Count > 0)
+        _suppressFilterSearch++;
+        try
         {
-            CategoryOptions[0] = ItemFinderCategoryOption.All();
-            SelectedCategory = CategoryOptions.FirstOrDefault(option => option.Key == selectedCategoryKey) ?? CategoryOptions[0];
+            if (CategoryOptions.Count > 0)
+            {
+                CategoryOptions[0] = ItemFinderCategoryOption.All();
+                SelectedCategory = CategoryOptions.FirstOrDefault(option => option.Key == selectedCategoryKey) ?? CategoryOptions[0];
+            }
+            if (MaterialTagOptions.Count > 0)
+            {
+                MaterialTagOptions[0] = ItemFinderValueOption.All();
+                SelectedMaterialTag = MaterialTagOptions.FirstOrDefault(option => option.Value == selectedMaterial) ?? MaterialTagOptions[0];
+            }
         }
-        if (MaterialTagOptions.Count > 0)
+        finally
         {
-            MaterialTagOptions[0] = ItemFinderValueOption.All();
-            SelectedMaterialTag = MaterialTagOptions.FirstOrDefault(option => option.Value == selectedMaterial) ?? MaterialTagOptions[0];
+            _suppressFilterSearch--;
         }
         OnPropertyChanged(nameof(PageSummary));
     }
@@ -249,6 +281,50 @@ public sealed class ItemFinderViewModel : ObservableObject
         WindowHeight = NormalizeWindowDimension(height, 800, 640, 1600);
     }
 
+    private void ScheduleFilterSearch()
+    {
+        if (_suppressFilterSearch > 0 || !_isActive || !IsAvailable)
+        {
+            return;
+        }
+
+        Interlocked.Increment(ref _generation);
+        CancelOperation(_searchOperation);
+        CancelPageIcons();
+        CancelFilterDebounce();
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(
+            _activation?.Token ?? CancellationToken.None);
+        _filterDebounceOperation = operation;
+        _ = DebounceFilterAsync(operation);
+    }
+
+    private async Task DebounceFilterAsync(CancellationTokenSource operation)
+    {
+        try
+        {
+            await Task.Delay(FilterDebounce, operation.Token).ConfigureAwait(true);
+            if (ReferenceEquals(_filterDebounceOperation, operation))
+            {
+                await SearchLatestAsync(resetPage: true, operation.Token).ConfigureAwait(true);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer filter, dialog close, or archive session owns the search.
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _filterDebounceOperation, null, operation);
+            operation.Dispose();
+        }
+    }
+
+    private async Task SearchNowAsync(CancellationToken cancellationToken)
+    {
+        CancelFilterDebounce();
+        await SearchLatestAsync(resetPage: true, cancellationToken).ConfigureAwait(true);
+    }
+
     private async Task SearchLatestAsync(bool resetPage, CancellationToken commandToken)
     {
         var sessionId = _sessionId;
@@ -262,11 +338,14 @@ public sealed class ItemFinderViewModel : ObservableObject
             _pageStart = 0;
         }
 
-        _searchOperation?.Cancel();
-        _searchOperation?.Dispose();
-        _searchOperation = CancellationTokenSource.CreateLinkedTokenSource(commandToken, _activation?.Token ?? CancellationToken.None);
-        var cancellationToken = _searchOperation.Token;
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(
+            commandToken,
+            _activation?.Token ?? CancellationToken.None);
+        var priorOperation = Interlocked.Exchange(ref _searchOperation, operation);
+        CancelOperation(priorOperation);
+        var cancellationToken = operation.Token;
         var generation = Interlocked.Increment(ref _generation);
+        CancelPageIcons();
         IsBusy = true;
         Status = LocalizationManager.Get("ItemFinderLoading");
         RaiseCommandStates();
@@ -310,18 +389,9 @@ public sealed class ItemFinderViewModel : ObservableObject
             OnPropertyChanged(nameof(TotalMatches));
             OnPropertyChanged(nameof(PageSummary));
             Status = result.Warning ?? PageSummary;
-            if (Items.Count > 0)
-            {
-                await LoadIconsAsync(Items.Take(IconBatchSize).ToArray(), sessionId, generation, cancellationToken).ConfigureAwait(true);
-                if (IsCurrent(sessionId, generation))
-                {
-                    _pageIconTask = LoadRemainingIconsAsync(
-                        Items.Skip(IconBatchSize).ToArray(),
-                        sessionId,
-                        generation,
-                        cancellationToken);
-                }
-            }
+            IsBusy = false;
+            RaiseCommandStates();
+            StartPageIconLoading(Items.ToArray(), sessionId, generation);
             StartWarmup(sessionId, Items.Select(static item => item.ItemId).ToArray());
         }
         catch (OperationCanceledException)
@@ -343,6 +413,8 @@ public sealed class ItemFinderViewModel : ObservableObject
                 IsBusy = false;
                 RaiseCommandStates();
             }
+            Interlocked.CompareExchange(ref _searchOperation, null, operation);
+            operation.Dispose();
         }
     }
 
@@ -358,30 +430,81 @@ public sealed class ItemFinderViewModel : ObservableObject
             ? ItemFinderCategoryOption.BuildKey(_preferredCategory, _preferredGroup)
             : SelectedCategory?.Key;
         var materialValue = _preferredMaterialTag ?? SelectedMaterialTag?.Value;
-        CategoryOptions.Clear();
-        CategoryOptions.Add(ItemFinderCategoryOption.All());
-        foreach (var facet in result.Categories)
+        var categoryFacets = result.Categories.ToArray();
+        var materialFacets = result.MaterialTags.Take(250).ToArray();
+        _suppressFilterSearch++;
+        try
         {
-            CategoryOptions.Add(new ItemFinderCategoryOption(
-                facet.Category,
-                facet.Group,
-                $"{facet.Category} / {facet.Group} ({facet.Count:N0})"));
-        }
-        SelectedCategory = CategoryOptions.FirstOrDefault(option => option.Key == categoryKey) ?? CategoryOptions[0];
+            if (!_categoryFacets.SequenceEqual(categoryFacets))
+            {
+                _categoryFacets = categoryFacets;
+                CategoryOptions.Clear();
+                CategoryOptions.Add(ItemFinderCategoryOption.All());
+                foreach (var facet in categoryFacets)
+                {
+                    CategoryOptions.Add(new ItemFinderCategoryOption(
+                        facet.Category,
+                        facet.Group,
+                        $"{facet.Category} / {facet.Group} ({facet.Count:N0})"));
+                }
+            }
+            SelectedCategory = CategoryOptions.FirstOrDefault(option => option.Key == categoryKey) ?? CategoryOptions[0];
 
-        MaterialTagOptions.Clear();
-        MaterialTagOptions.Add(ItemFinderValueOption.All());
-        foreach (var facet in result.MaterialTags.Take(250))
-        {
-            MaterialTagOptions.Add(new ItemFinderValueOption(facet.Value, $"{facet.Value} ({facet.Count:N0})"));
+            if (!_materialFacets.SequenceEqual(materialFacets))
+            {
+                _materialFacets = materialFacets;
+                MaterialTagOptions.Clear();
+                MaterialTagOptions.Add(ItemFinderValueOption.All());
+                foreach (var facet in materialFacets)
+                {
+                    MaterialTagOptions.Add(new ItemFinderValueOption(facet.Value, $"{facet.Value} ({facet.Count:N0})"));
+                }
+            }
+            SelectedMaterialTag = MaterialTagOptions.FirstOrDefault(option => option.Value == materialValue) ?? MaterialTagOptions[0];
         }
-        SelectedMaterialTag = MaterialTagOptions.FirstOrDefault(option => option.Value == materialValue) ?? MaterialTagOptions[0];
+        finally
+        {
+            _suppressFilterSearch--;
+        }
         _preferredCategory = null;
         _preferredGroup = null;
         _preferredMaterialTag = null;
     }
 
-    private async Task LoadRemainingIconsAsync(
+    private void StartPageIconLoading(
+        IReadOnlyList<ItemFinderRowViewModel> rows,
+        string sessionId,
+        long generation)
+    {
+        if (rows.Count == 0)
+        {
+            return;
+        }
+        var operation = CancellationTokenSource.CreateLinkedTokenSource(
+            _activation?.Token ?? CancellationToken.None);
+        var priorOperation = Interlocked.Exchange(ref _pageIconOperation, operation);
+        CancelOperation(priorOperation);
+        _pageIconTask = LoadPageIconsOwnedAsync(rows, sessionId, generation, operation);
+    }
+
+    private async Task LoadPageIconsOwnedAsync(
+        IReadOnlyList<ItemFinderRowViewModel> rows,
+        string sessionId,
+        long generation,
+        CancellationTokenSource operation)
+    {
+        try
+        {
+            await LoadPageIconsAsync(rows, sessionId, generation, operation.Token).ConfigureAwait(true);
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _pageIconOperation, null, operation);
+            operation.Dispose();
+        }
+    }
+
+    private async Task LoadPageIconsAsync(
         IReadOnlyList<ItemFinderRowViewModel> rows,
         string sessionId,
         long generation,
@@ -444,6 +567,10 @@ public sealed class ItemFinderViewModel : ObservableObject
             if (!IsCurrent(sessionId, generation))
             {
                 return;
+            }
+            if (row.Icon is not null)
+            {
+                continue;
             }
             row.Icon = bitmap;
             StoreBitmap(sessionId, icon.ItemId, bitmap);
@@ -524,9 +651,18 @@ public sealed class ItemFinderViewModel : ObservableObject
 
     private void ClearFilters()
     {
-        Query = string.Empty;
-        SelectedCategory = CategoryOptions.FirstOrDefault();
-        SelectedMaterialTag = MaterialTagOptions.FirstOrDefault();
+        CancelFilterDebounce();
+        _suppressFilterSearch++;
+        try
+        {
+            Query = string.Empty;
+            SelectedCategory = CategoryOptions.FirstOrDefault();
+            SelectedMaterialTag = MaterialTagOptions.FirstOrDefault();
+        }
+        finally
+        {
+            _suppressFilterSearch--;
+        }
         SearchCommand.Execute(null);
     }
 
@@ -614,18 +750,50 @@ public sealed class ItemFinderViewModel : ObservableObject
 
     private void CancelDialogOperations()
     {
+        Interlocked.Increment(ref _generation);
         SearchCommand.Cancel();
         PreviousPageCommand.Cancel();
         NextPageCommand.Cancel();
         ShowExactLinksCommand.Cancel();
         ShowRelatedSetCommand.Cancel();
-        _searchOperation?.Cancel();
-        _activation?.Cancel();
-        _searchOperation?.Dispose();
-        _activation?.Dispose();
-        _searchOperation = null;
-        _activation = null;
+        CancelFilterDebounce();
+        CancelPageIcons();
+        var searchOperation = Interlocked.Exchange(ref _searchOperation, null);
+        CancelOperation(searchOperation);
+        var activation = Interlocked.Exchange(ref _activation, null);
+        CancelOperation(activation);
+        activation?.Dispose();
         _pageIconTask = null;
+        IsBusy = false;
+    }
+
+    private void CancelFilterDebounce()
+    {
+        var operation = Interlocked.Exchange(ref _filterDebounceOperation, null);
+        CancelOperation(operation);
+    }
+
+    private void CancelPageIcons()
+    {
+        var operation = Interlocked.Exchange(ref _pageIconOperation, null);
+        CancelOperation(operation);
+        _pageIconTask = null;
+    }
+
+    private static void CancelOperation(CancellationTokenSource? operation)
+    {
+        if (operation is null)
+        {
+            return;
+        }
+        try
+        {
+            operation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            // The owning async operation completed between the ownership read and cancellation.
+        }
     }
 
     private void CancelWarmup()

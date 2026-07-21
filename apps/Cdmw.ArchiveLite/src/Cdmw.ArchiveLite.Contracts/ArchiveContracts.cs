@@ -15,7 +15,9 @@ public sealed record ArchiveEntryDto(
     ArchiveEntryRole Role,
     bool IsPreviewable,
     string KnownName = "",
-    string NameEvidence = "")
+    string NameEvidence = "",
+    ArchiveEntryFileType FileType = ArchiveEntryFileType.Other,
+    ArchiveTextureUsage TextureUsage = ArchiveTextureUsage.None)
 {
     public bool IsCompressed => StoredSize != OriginalSize;
     public int CompressionType => Flags & 0x0F;
@@ -42,6 +44,30 @@ public enum ArchiveEntryRole
     Text,
 }
 
+public enum ArchiveEntryFileType
+{
+    Other,
+    Model,
+    Animation,
+    Physics,
+    Metadata,
+    Video,
+    Audio,
+    UserInterface,
+    Texture,
+    Image,
+    Text,
+}
+
+public enum ArchiveTextureUsage
+{
+    None,
+    Unknown,
+    Color,
+    NormalMap,
+    MaterialMap,
+}
+
 public enum ArchiveViewMode
 {
     Folders,
@@ -62,6 +88,8 @@ public enum ArchiveSortField
     StoredSize,
     Compression,
     Role,
+    FileType,
+    TextureUsage,
 }
 
 public enum ArchiveCacheMode

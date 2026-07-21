@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Cdmw.Archive.Content;
 using Cdmw.FullArchive.Contracts;
 using Cdmw.FullArchive.Core;
 using Cdmw.FullArchive.Worker;
@@ -20,6 +21,8 @@ internal static class FullArchiveTestRunner
             ("query_sort_parity", QuerySortParityAsync),
             ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
+            ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),
+            ("texture_usage_classification", TextureUsageClassificationAsync),
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
             ("stdio_worker_ping_shutdown", StdioWorkerPingShutdownAsync),
@@ -45,6 +48,86 @@ internal static class FullArchiveTestRunner
         }
         Console.Error.WriteLine(string.Join(Environment.NewLine + Environment.NewLine, failures));
         return 1;
+    }
+
+    private static Task TextureUsageClassificationAsync()
+    {
+        Require(
+            ArchiveContentClassification.ClassifyTextureUsage("equipment/metal_sword_d.dds") == ArchiveTextureUsageKind.Color
+            && ArchiveEntryClassifier.Classify("equipment/metal_sword_d.dds", ".dds") == ArchiveEntryRole.Image,
+            "a terminal color suffix lost to an earlier material-like word");
+        Require(
+            ArchiveContentClassification.ClassifyTextureUsage("equipment/sword_nrm.dds") == ArchiveTextureUsageKind.NormalMap
+            && ArchiveEntryClassifier.Classify("equipment/sword_nrm.dds", ".dds") == ArchiveEntryRole.Normal,
+            "normal-map suffix classification drifted");
+        Require(
+            new[] { "_m", "_ma", "_mg", "_mask", "_orm", "_mra", "_ao", "_roughness", "_metallic", "_specular" }
+                .All(suffix => ArchiveContentClassification.ClassifyTextureUsage($"equipment/sword{suffix}.dds") == ArchiveTextureUsageKind.MaterialMap),
+            "a material-map suffix family is missing");
+        Require(
+            ArchiveContentClassification.ClassifyTextureUsage("equipment/metal_sword_detail.dds") == ArchiveTextureUsageKind.Unknown
+            && ArchiveEntryClassifier.Classify("equipment/metal_sword_detail.dds", ".dds") == ArchiveEntryRole.Image,
+            "unknown DDS semantics are still inferred from a word elsewhere in the name");
+        return Task.CompletedTask;
+    }
+
+    private static async Task ItemCataloguePagingAndBoundedScopeAsync()
+    {
+        var catalog = ArchiveItemCatalog.FromRecords(
+        [
+            new ArchiveItemCatalogRecord(
+                10,
+                "steel_sword",
+                "Steel Sword",
+                ["Steel Sword"],
+                [123u],
+                ["steel_sword"],
+                ["equipment/weapon/steel_sword.pac"],
+                ["ui/icon/steel_sword.dds"],
+                ["metal"]),
+            new ArchiveItemCatalogRecord(
+                11,
+                "leather_glove",
+                "Leather Glove",
+                ["Leather Glove"],
+                [],
+                ["leather_glove"],
+                ["equipment/hand/leather_glove.pac"],
+                [],
+                ["leather"]),
+        ]);
+        var metal = catalog.Search("steel", null, null, "metal", 0, 72);
+        Require(
+            catalog.Count == 2
+            && metal.TotalMatches == 1
+            && metal.Items[0].ItemId == 10
+            && catalog.MaterialFacets.Count == 2,
+            "item catalogue search, classification, or material facets changed");
+
+        await using var fixture = await SyntheticArchiveFixture.CreateAsync().ConfigureAwait(false);
+        var cacheRoot = TempDirectory("bounded-entry-query");
+        try
+        {
+            var native = new NativeArchiveCore();
+            native.EnsureCompatible();
+            var cache = new ArchiveCacheStore(cacheRoot);
+            using var sessions = new ArchiveSessionManager(native, cache);
+            var session = await sessions.OpenAsync(new OpenArchiveRequest(fixture.Root), CancellationToken.None).ConfigureAwait(false);
+            var queries = new ArchiveQueryService(sessions);
+            var query = await queries.CreateAsync(
+                new ArchiveQuery(session.SessionId, EntryIds: [3, 1, 3]),
+                17,
+                CancellationToken.None).ConfigureAwait(false);
+            var page = queries.FetchPage(session.SessionId, new FetchPageRequest(query.QueryId));
+            Require(
+                page.TotalMatches == 2
+                && page.Rows.Select(static row => row.EntryId).SequenceEqual([3L, 1L]),
+                "bounded entry-id query did not preserve a unique server-owned scope");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
     }
 
     private static async Task NativeAndGenerationCacheAsync()
@@ -890,7 +973,8 @@ internal static class FullArchiveTestRunner
             var text = await File.ReadAllTextAsync(path).ConfigureAwait(false);
             Require(!text.Contains(liteNamespace, StringComparison.Ordinal), $"Archive Lite namespace leaked into {path}");
             Require(!text.Contains(liteBinary, StringComparison.Ordinal), $"Archive Lite native binary leaked into {path}");
-            Require(!text.Contains(liteAbi, StringComparison.Ordinal), $"Archive Lite native ABI leaked into {path}");
+            var withoutSharedAccelerator = text.Replace("cdmw_archive_accelerator", string.Empty, StringComparison.Ordinal);
+            Require(!withoutSharedAccelerator.Contains(liteAbi, StringComparison.Ordinal), $"Archive Lite native ABI leaked into {path}");
         }
 
         var baselinePath = Path.Combine(backendRoot, "baselines", "synthetic-v2.json");
@@ -942,7 +1026,7 @@ internal static class FullArchiveTestRunner
                 Require(started.Status == WorkerMessageStatus.Started, "worker did not acknowledge ping");
                 Require(result.Status == WorkerMessageStatus.Result, "worker ping did not complete");
                 var pingResult = WorkerProtocol.ReadPayload<PingResult>(result);
-                Require(pingResult is { ProtocolVersion: 2, NativeAbiVersion: 1, IndexVersion: 3 }, "worker ping compatibility data changed");
+                Require(pingResult is { ProtocolVersion: 3, NativeAbiVersion: 1, IndexVersion: 3 }, "worker ping compatibility data changed");
 
                 var openId = Guid.NewGuid();
                 await SendAsync(process, WorkerProtocol.Request(

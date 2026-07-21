@@ -1,9 +1,7 @@
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Interop;
 using Cdmw.ArchiveLite.App.Infrastructure;
 using Cdmw.ArchiveLite.App.Dialogs;
 using Cdmw.ArchiveLite.App.Services;
@@ -27,6 +25,8 @@ public partial class MainWindow : Window
         nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.KnownName),
         nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.NameEvidence),
         nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Extension),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.FileType),
+        nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.TextureUsage),
         nameof(Cdmw.ArchiveLite.Contracts.ArchiveSortField.Path),
     };
 
@@ -58,7 +58,7 @@ public partial class MainWindow : Window
         ApplyWindowPlacement();
     }
 
-    private void OnSourceInitialized(object? sender, EventArgs eventArgs) => ApplyTitleBarTheme();
+    private void OnSourceInitialized(object? sender, EventArgs eventArgs) => ThemedWindowChrome.Apply(this);
 
     private void OnThemeChanged(object? sender, EventArgs eventArgs)
     {
@@ -74,28 +74,9 @@ public partial class MainWindow : Window
 
     private void ApplyThemePresentation()
     {
-        ApplyTitleBarTheme();
+        ThemedWindowChrome.Apply(this);
         AvalonEditBinding.RefreshSyntax(ArchiveTextPreviewEditor);
         AvalonEditBinding.RefreshSyntax(TextSearchPreviewEditor);
-    }
-
-    private void ApplyTitleBarTheme()
-    {
-        var handle = new WindowInteropHelper(this).Handle;
-        if (handle == IntPtr.Zero)
-        {
-            return;
-        }
-
-        var dark = ThemeManager.Current.IsDark ? 1 : 0;
-        if (DwmSetWindowAttribute(handle, 20, ref dark, sizeof(int)) != 0)
-        {
-            _ = DwmSetWindowAttribute(handle, 19, ref dark, sizeof(int));
-        }
-
-        const int roundedCornerPreference = 2;
-        var corners = roundedCornerPreference;
-        _ = DwmSetWindowAttribute(handle, 33, ref corners, sizeof(int));
     }
 
     private void OnTitleBarMouseLeftButtonDown(object sender, MouseButtonEventArgs eventArgs)
@@ -162,7 +143,7 @@ public partial class MainWindow : Window
         WorkspaceTabs.SelectedIndex = 0;
         ArchiveColumnChooser.ItemsSource = ArchiveGrid.Columns;
         ApplyArchiveColumnLayout();
-        ApplyGridColumnLayout(ArchiveGrid, _viewModel.ArchiveColumnLayout);
+        ApplyGridColumnLayout(ArchiveGrid, _viewModel.ArchiveColumnLayout, migrateArchiveRole: true);
         ApplyGridColumnLayout(TextSearchResultsGrid, _viewModel.TextSearchColumnLayout);
         ApplyWorkspaceLayout();
         UpdateArchiveSortIndicators();
@@ -177,6 +158,18 @@ public partial class MainWindow : Window
         if (ArchiveExtensionFilterComboBox.SelectedItem is ArchiveExtensionChoice choice)
         {
             _viewModel.ArchiveBrowser.ExtensionFilter = choice.Extension;
+        }
+    }
+
+    private void OnMostCommonExtensionsButtonClick(object sender, RoutedEventArgs eventArgs) =>
+        MostCommonExtensionsPopup.IsOpen = !MostCommonExtensionsPopup.IsOpen;
+
+    private void OnCommonExtensionClick(object sender, RoutedEventArgs eventArgs)
+    {
+        if (sender is Button { DataContext: ArchiveExtensionChoice choice })
+        {
+            MostCommonExtensionsPopup.IsOpen = false;
+            _viewModel.ArchiveBrowser.ApplyCommonExtension(choice);
         }
     }
 
@@ -284,7 +277,7 @@ public partial class MainWindow : Window
             : null;
         var visible = configuredSet is null || configuredSet.SetEquals(LegacyDefaultArchiveColumns)
             ? DefaultArchiveColumns
-            : configuredSet;
+            : MigrateArchiveColumnKeys(configuredSet);
         _applyingArchiveColumnLayout = true;
         try
         {
@@ -468,13 +461,17 @@ public partial class MainWindow : Window
 
     private static void ApplyGridColumnLayout(
         DataGrid grid,
-        IReadOnlyList<GridColumnSettings>? configured)
+        IReadOnlyList<GridColumnSettings>? configured,
+        bool migrateArchiveRole = false)
     {
         if (configured is not { Count: > 0 } || grid.Columns.Count == 0)
         {
             return;
         }
 
+        configured = migrateArchiveRole
+            ? MigrateArchiveColumnLayout(configured)
+            : configured;
         var columnsByKey = grid.Columns
             .Where(static column => !string.IsNullOrWhiteSpace(column.SortMemberPath))
             .ToDictionary(static column => column.SortMemberPath, StringComparer.Ordinal);
@@ -504,6 +501,39 @@ public partial class MainWindow : Window
                 column.Width = new DataGridLength(Math.Clamp(setting.Width, minimum, 1600), DataGridLengthUnitType.Pixel);
             }
         }
+    }
+
+    private static HashSet<string> MigrateArchiveColumnKeys(IEnumerable<string> configured)
+    {
+        var migrated = configured.ToHashSet(StringComparer.Ordinal);
+        if (migrated.Remove(nameof(ArchiveSortField.Role)))
+        {
+            migrated.Add(nameof(ArchiveSortField.FileType));
+            migrated.Add(nameof(ArchiveSortField.TextureUsage));
+        }
+        return migrated;
+    }
+
+    private static IReadOnlyList<GridColumnSettings> MigrateArchiveColumnLayout(
+        IReadOnlyList<GridColumnSettings> configured)
+    {
+        if (!configured.Any(static setting => setting.Key == nameof(ArchiveSortField.Role)))
+        {
+            return configured;
+        }
+
+        var migrated = new List<GridColumnSettings>(configured.Count + 1);
+        foreach (var setting in configured.OrderBy(static setting => setting.DisplayIndex))
+        {
+            if (setting.Key != nameof(ArchiveSortField.Role))
+            {
+                migrated.Add(setting with { DisplayIndex = migrated.Count });
+                continue;
+            }
+            migrated.Add(new GridColumnSettings(nameof(ArchiveSortField.FileType), migrated.Count, setting.Width));
+            migrated.Add(new GridColumnSettings(nameof(ArchiveSortField.TextureUsage), migrated.Count, Math.Max(120, setting.Width)));
+        }
+        return migrated;
     }
 
     private void CaptureUiState()
@@ -593,10 +623,4 @@ public partial class MainWindow : Window
         && bounds.Width > 0
         && bounds.Height > 0;
 
-    [DllImport("dwmapi.dll")]
-    private static extern int DwmSetWindowAttribute(
-        IntPtr windowHandle,
-        int attribute,
-        ref int attributeValue,
-        int attributeSize);
 }

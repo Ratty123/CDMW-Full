@@ -129,6 +129,8 @@ public sealed class ArchiveIndex : IDisposable
         var paz = ReadString(pazOffset, pazLength);
         var extension = System.IO.Path.GetExtension(virtualPath).ToLowerInvariant();
         var role = ArchiveEntryClassifier.Classify(virtualPath, extension);
+        var fileType = ArchiveEntryClassifier.ClassifyFileType(extension, role);
+        var textureUsage = ArchiveEntryClassifier.ClassifyTextureUsage(virtualPath, extension);
         return new ArchiveEntryDto(
             entryId,
             virtualPath,
@@ -142,7 +144,9 @@ public sealed class ArchiveIndex : IDisposable
             extension,
             ArchiveEntryClassifier.PackageLabel(pamt),
             role,
-            ArchiveEntryClassifier.IsPreviewable(extension, role));
+            ArchiveEntryClassifier.IsPreviewable(extension, role),
+            FileType: fileType,
+            TextureUsage: textureUsage);
     }
 
     internal int GetPathByteLength(long entryId)

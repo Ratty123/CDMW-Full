@@ -52,6 +52,8 @@ internal static class ArchiveLiteTestRunner
             ("native model previews start immediately and warm-cache hits stay delay-free", TestNativeModelPreviewCacheDwellAsync),
             ("known item names distinguish exact names from related hints", TestArchiveItemNamesAsync),
             ("Item Finder shares the Full catalog contract and keeps icon work bounded", TestItemFinderCatalogAsync),
+            ("Item Finder debounce, facet refresh, icons, close, and session changes stay latest-wins", TestItemFinderViewModelLifecycleAsync),
+            ("DDS file type and terminal-suffix usage classification stay explicit", TestDdsTextureClassificationAsync),
             ("UTF-8, UTF-16, and Latin-1 text decode without Python codecs", TestTextDecodingAsync),
             ("native archive ABI scans and decodes synthetic PAMT/PAZ", TestNativeArchiveAsync),
             ("archive query, preview, and text search are read-only", TestArchiveServicesAsync),
@@ -880,7 +882,8 @@ internal static class ArchiveLiteTestRunner
             nameof(ArchiveSortField.KnownName),
             nameof(ArchiveSortField.NameEvidence),
             nameof(ArchiveSortField.Extension),
-            nameof(ArchiveSortField.Role),
+            nameof(ArchiveSortField.FileType),
+            nameof(ArchiveSortField.TextureUsage),
             nameof(ArchiveSortField.OriginalSize),
             nameof(ArchiveSortField.StoredSize),
             nameof(ArchiveSortField.Compression),
@@ -888,6 +891,10 @@ internal static class ArchiveLiteTestRunner
             nameof(ArchiveSortField.Path),
         };
         Require(expectedSortMembers.All(sortMembers.Contains), "archive grid is missing a sortable requested column");
+        Require(
+            archiveGrid.Descendants().Any(element => ((string?)element.Attribute("Binding"))?.Contains("ArchiveEntryFileTypeLabelConverter", StringComparison.Ordinal) == true)
+            && archiveGrid.Descendants().Any(element => ((string?)element.Attribute("Binding"))?.Contains("ArchiveTextureUsageLabelConverter", StringComparison.Ordinal) == true),
+            "archive grid does not present localized file type and DDS usage separately");
         Require(
             window.Descendants().Any(element => element.Attributes().Any(
                 attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ArchiveColumnChooser")),
@@ -951,8 +958,27 @@ internal static class ArchiveLiteTestRunner
 
         var windowSource = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml.cs"));
         Require(
-            windowSource.Contains("LegacyDefaultArchiveColumns", StringComparison.Ordinal),
-            "legacy default column layouts are not migrated to the readable modern default");
+            windowSource.Contains("LegacyDefaultArchiveColumns", StringComparison.Ordinal)
+            && windowSource.Contains("MigrateArchiveColumnKeys", StringComparison.Ordinal)
+            && windowSource.Contains("MigrateArchiveColumnLayout", StringComparison.Ordinal),
+            "legacy Role visibility, ordering, and width are not migrated to File type and Usage");
+        var migrateLayout = typeof(Cdmw.ArchiveLite.App.MainWindow).GetMethod(
+            "MigrateArchiveColumnLayout",
+            BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new MissingMethodException("Archive column migration helper is missing");
+        var migratedLayout = (IReadOnlyList<GridColumnSettings>)(migrateLayout.Invoke(
+            null,
+            [new GridColumnSettings[]
+            {
+                new("Name", 0, 180),
+                new("Role", 1, 111),
+                new("Path", 2, 420),
+            }]) ?? throw new InvalidOperationException("Archive column migration returned no layout"));
+        Require(
+            migratedLayout.Select(static setting => setting.Key).SequenceEqual(["Name", "FileType", "TextureUsage", "Path"])
+            && migratedLayout[1].Width == 111
+            && migratedLayout[3].Width == 420,
+            "legacy Role layout migration disturbed another saved column or lost the old width");
 
         var hostSource = File.ReadAllText(Path.Combine(appRoot, "Controls", "DotNetModelPreviewHost.cs"));
         Require(hostSource.Contains("--simple-preview", StringComparison.Ordinal), "Archive Lite does not request the simple renderer surface");
@@ -2336,6 +2362,35 @@ internal static class ArchiveLiteTestRunner
             ArchiveItemCatalog.FromRecords([cachedRow]).Search("gilded", null, null, null, 0, 72).TotalMatches == 1,
             "Item Finder did not rebuild search text after a persistent-cache load");
 
+        var extensionFacets = Enumerable.Range(0, 12)
+            .Select(index => new ArchiveExtensionFacet(
+                $".{(char)('a' + index)}",
+                index is 9 or 10 ? 50 : 100 - index,
+                ArchiveExtensionCategory.Other))
+            .ToArray();
+        var mostCommon = ArchiveExtensionFacetSelection.MostCommon(extensionFacets);
+        Require(mostCommon.Count == 10, "the common-extension picker did not cap its active set at ten");
+        Require(
+            mostCommon.Zip(mostCommon.Skip(1)).All(pair =>
+                pair.First.Count > pair.Second.Count
+                || (pair.First.Count == pair.Second.Count
+                    && StringComparer.Ordinal.Compare(pair.First.Extension, pair.Second.Extension) < 0)),
+            "common-extension ordering is not count-descending with deterministic name ties");
+        Require(
+            ArchiveExtensionFacetSelection.MostCommon(extensionFacets.Take(3)).Count == 3,
+            "a small archive padded the common-extension picker with nonexistent entries");
+
+        var scopedFacets = ArchiveExtensionFacetBuilder.Build(
+        [
+            CreateArchiveEntry("scope/one.dds") with { EntryId = 1 },
+            CreateArchiveEntry("scope/two.DDS") with { EntryId = 2, Extension = ".DDS" },
+            CreateArchiveEntry("scope/model.pac") with { EntryId = 3 },
+        ]);
+        Require(
+            scopedFacets.Single(facet => facet.Extension == ".dds").Count == 2
+            && scopedFacets.Single(facet => facet.Extension == ".pac").Count == 1,
+            "an Item Finder scope did not expose extension counts from only its resolved rows");
+
         var repositoryRoot = FindRepositoryRoot();
         var acceleratorSource = File.ReadAllText(Path.Combine(repositoryRoot, "native", "cdmw_archive_accelerator", "src", "main.cpp"));
         var fullCatalogSource = File.ReadAllText(Path.Combine(repositoryRoot, "cdmw", "core", "item_index.py"));
@@ -2354,7 +2409,10 @@ internal static class ArchiveLiteTestRunner
 
         var appRoot = Path.Combine(repositoryRoot, "apps", "Cdmw.ArchiveLite", "src", "Cdmw.ArchiveLite.App");
         var mainWindow = File.ReadAllText(Path.Combine(appRoot, "MainWindow.xaml"));
+        var mainWindowDocument = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "MainWindow.xaml"));
         var itemFinderDialog = File.ReadAllText(Path.Combine(appRoot, "Dialogs", "ItemFinderDialog.xaml"));
+        var itemFinderDialogDocument = System.Xml.Linq.XDocument.Load(Path.Combine(appRoot, "Dialogs", "ItemFinderDialog.xaml"));
+        var itemFinderDialogSource = File.ReadAllText(Path.Combine(appRoot, "Dialogs", "ItemFinderDialog.xaml.cs"));
         var itemFinderViewModel = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "ItemFinderViewModel.cs"));
         var archiveBrowserViewModel = File.ReadAllText(Path.Combine(appRoot, "ViewModels", "ArchiveBrowserViewModel.cs"));
         var iconService = File.ReadAllText(Path.Combine(
@@ -2368,12 +2426,38 @@ internal static class ArchiveLiteTestRunner
             mainWindow.Contains("OnItemFinderClick", StringComparison.Ordinal)
             && itemFinderDialog.Contains("ItemsSource=\"{Binding Items}\"", StringComparison.Ordinal),
             "Archive Lite does not expose the Item Finder dialog");
+        var itemFinderLauncher = mainWindowDocument.Descendants()
+            .Single(element => element.Name.LocalName == "Button"
+                && element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "ItemFinderNavigationButton"));
+        Require(
+            itemFinderLauncher.Ancestors().Any(element => element.Attributes().Any(attribute => attribute.Name.LocalName == "Name" && attribute.Value == "TitleBarGrid")),
+            "Item Finder is not a top-navigation action");
+        Require(
+            !mainWindowDocument.Descendants()
+                .Where(element => element.Name.LocalName == "GroupBox"
+                    && ((string?)element.Attribute("Header"))?.Contains("ReadOnlyTools", StringComparison.Ordinal) == true)
+                .SelectMany(static element => element.Descendants())
+                .Any(element => element.Attributes().Any(attribute => attribute.Name.LocalName == "Click" && attribute.Value == "OnItemFinderClick")),
+            "Item Finder is still nested under Export Options");
+        Require(
+            itemFinderDialogDocument.Descendants().Any(element => element.Name.LocalName == "WindowChrome")
+            && itemFinderDialog.Contains("ResizeMode=\"CanResize\"", StringComparison.Ordinal)
+            && itemFinderDialog.Contains("BorderThickness=\"0,0,0,1\"", StringComparison.Ordinal)
+            && itemFinderDialogSource.Contains("ThemedWindowChrome.Apply(this)", StringComparison.Ordinal),
+            "Item Finder does not share the resizable themed chrome while retaining its title divider");
         Require(
             itemFinderViewModel.Contains("MaximumMemoryIcons = 96", StringComparison.Ordinal)
+            && itemFinderViewModel.Contains("FilterDebounce = TimeSpan.FromMilliseconds(220)", StringComparison.Ordinal)
+            && itemFinderViewModel.Contains("_suppressFilterSearch", StringComparison.Ordinal)
+            && itemFinderViewModel.Contains("StartPageIconLoading", StringComparison.Ordinal)
+            && !itemFinderDialogSource.Contains("DispatcherTimer", StringComparison.Ordinal)
             && itemFinderViewModel.Contains("WarmItemIconsRequest", StringComparison.Ordinal)
             && itemFinderViewModel.Contains("ShowRelatedSetCommand", StringComparison.Ordinal)
             && archiveBrowserViewModel.Contains("ItemCatalogReady?.Invoke", StringComparison.Ordinal)
             && archiveBrowserViewModel.Contains("ShowItemScopeAsync", StringComparison.Ordinal)
+            && archiveBrowserViewModel.Contains("ClearItemScopeCommand", StringComparison.Ordinal)
+            && archiveBrowserViewModel.Contains("scope.Extensions ?? []", StringComparison.Ordinal)
+            && archiveBrowserViewModel.Contains("MostCommonExtensionChoices", StringComparison.Ordinal)
             && iconService.Contains("WaitForVisibleRequestsAsync", StringComparison.Ordinal)
             && iconService.Contains("WaitForForegroundAsync", StringComparison.Ordinal)
             && iconService.Contains("BuildThumbnailAsync", StringComparison.Ordinal),
@@ -2386,6 +2470,141 @@ internal static class ArchiveLiteTestRunner
         Require(!backgroundWait.IsCompleted, "background icon preload did not yield to foreground archive work");
         lease.Dispose();
         await backgroundWait.WaitAsync(TimeSpan.FromSeconds(1)).ConfigureAwait(false);
+    }
+
+    private static async Task TestItemFinderViewModelLifecycleAsync()
+    {
+        var iconPath = Path.Combine(Path.GetTempPath(), $"cdmw-item-finder-icon-{Guid.NewGuid():N}.png");
+        await File.WriteAllBytesAsync(
+            iconPath,
+            Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=")).ConfigureAwait(false);
+        try
+        {
+            await RunOnWpfDispatcherAsync(async () =>
+            {
+                var fakeWorker = new FakeItemFinderWorker(iconPath)
+                {
+                    IconDelay = TimeSpan.FromMilliseconds(120),
+                };
+                var sessionId = "session-a";
+                var viewModel = new ItemFinderViewModel(
+                    fakeWorker,
+                    () => sessionId,
+                    _ => { },
+                    static (_, _, _, _) => Task.FromResult(true));
+                var collectionChanges = 0;
+                viewModel.Items.CollectionChanged += (_, _) => collectionChanges++;
+
+                await viewModel.ActivateAsync(CancellationToken.None).ConfigureAwait(true);
+                Require(fakeWorker.SearchCount == 1 && viewModel.Items.Count == 1, "Item Finder activation did not publish one search page");
+                var initialRow = viewModel.Items.Single();
+                var iconChanges = 0;
+                initialRow.PropertyChanged += (_, eventArgs) =>
+                {
+                    if (eventArgs.PropertyName == nameof(ItemFinderRowViewModel.Icon))
+                    {
+                        iconChanges++;
+                    }
+                };
+                await WaitUntilAsync(() => initialRow.Icon is not null, TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+                Require(iconChanges == 1 && fakeWorker.IconCount == 1, "an Item Finder tile did not transition to its icon exactly once");
+
+                var changesBeforeCategory = collectionChanges;
+                viewModel.SelectedCategory = viewModel.CategoryOptions.Single(option => option.Category == "Weapon");
+                await WaitUntilAsync(() => fakeWorker.SearchCount == 2 && !viewModel.IsBusy, TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+                await Task.Delay(320).ConfigureAwait(true);
+                Require(fakeWorker.SearchCount == 2, "a programmatic facet selection scheduled an extra Item Finder search");
+                Require(collectionChanges - changesBeforeCategory == 2, "one category change recreated the Item Finder page more than once");
+                Require(fakeWorker.IconCount == 1, "a cached Item Finder icon was loaded from the worker again");
+
+                viewModel.Query = "g";
+                await Task.Delay(35).ConfigureAwait(true);
+                viewModel.Query = "gi";
+                await Task.Delay(35).ConfigureAwait(true);
+                viewModel.Query = "gilded";
+                await WaitUntilAsync(() => fakeWorker.SearchCount == 3 && !viewModel.IsBusy, TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+                await Task.Delay(320).ConfigureAwait(true);
+                Require(
+                    fakeWorker.SearchCount == 3 && fakeWorker.SearchRequests.Last().Query == "gilded",
+                    "rapid Item Finder changes did not collapse into one latest debounced request");
+
+                viewModel.RefreshLocalization();
+                await Task.Delay(320).ConfigureAwait(true);
+                Require(fakeWorker.SearchCount == 3, "programmatic localized facet refresh triggered a search");
+
+                fakeWorker.SearchDelay = TimeSpan.FromMilliseconds(350);
+                fakeWorker.IgnoreSearchCancellation = true;
+                viewModel.Query = "late-session";
+                await WaitUntilAsync(() => fakeWorker.SearchCount == 4, TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+                sessionId = "session-b";
+                viewModel.NotifyArchiveSessionChanged();
+                Require(viewModel.Items.Count == 0, "session change did not clear the prior Item Finder page");
+                await Task.Delay(430).ConfigureAwait(true);
+                Require(viewModel.Items.Count == 0, "a late prior-session Item Finder result repopulated the page");
+
+                viewModel.Query = "late-close";
+                await WaitUntilAsync(() => fakeWorker.SearchCount == 5, TimeSpan.FromSeconds(2)).ConfigureAwait(true);
+                viewModel.Deactivate();
+                await Task.Delay(430).ConfigureAwait(true);
+                Require(viewModel.Items.Count == 0, "a late Item Finder result published after dialog close");
+                viewModel.RequestShutdown();
+            }).ConfigureAwait(false);
+        }
+        finally
+        {
+            File.Delete(iconPath);
+        }
+    }
+
+    private static Task TestDdsTextureClassificationAsync()
+    {
+        var colorPaths = new[] { "stone_d.dds", "stone_diffuse.dds", "stone_albedo.dds", "stone_basecolor.dds" };
+        var normalPaths = new[] { "stone_n.dds", "stone_normal.dds", "stone_nrm.dds" };
+        var materialPaths = new[]
+        {
+            "stone_m.dds", "stone_ma.dds", "stone_mg.dds", "stone_mask.dds", "stone_orm.dds", "stone_mra.dds",
+            "stone_ao.dds", "stone_roughness.dds", "stone_metallic.dds", "stone_specular.dds",
+        };
+        Require(
+            colorPaths.All(path => ArchiveContentClassification.ClassifyTextureUsage(path) == ArchiveTextureUsageKind.Color),
+            "a terminal color suffix was not classified as Color");
+        Require(
+            normalPaths.All(path => ArchiveContentClassification.ClassifyTextureUsage(path) == ArchiveTextureUsageKind.NormalMap),
+            "a terminal normal suffix was not classified as Normal map");
+        Require(
+            materialPaths.All(path => ArchiveContentClassification.ClassifyTextureUsage(path) == ArchiveTextureUsageKind.MaterialMap),
+            "a terminal packed/material suffix was not classified as Material map");
+        Require(
+            ArchiveContentClassification.ClassifyTextureUsage("metal_gate_d.dds") == ArchiveTextureUsageKind.Color
+            && ArchiveContentClassification.ClassifyRole("texture/metal_gate_d.dds", ".dds") == "image",
+            "a word such as metal elsewhere in the filename overrode its terminal color suffix");
+        Require(
+            ArchiveContentClassification.ClassifyTextureUsage("metal_gate_detail.dds") == ArchiveTextureUsageKind.Unknown
+            && ArchiveEntryClassifier.ClassifyTextureUsage("metal_gate_detail.dds", ".dds") == ArchiveTextureUsage.Unknown,
+            "an unrecognized DDS filename did not remain explicitly Unknown");
+        Require(
+            Enum.GetValues<ArchiveEntryRole>().All(role => ArchiveEntryClassifier.ClassifyFileType(".dds", role) == ArchiveEntryFileType.Texture),
+            "a DDS row can still acquire a non-Texture file type from its legacy role");
+        Require(
+            ArchiveEntryClassifier.ClassifyTextureUsage("stone_n.png", ".png") == ArchiveTextureUsage.None,
+            "non-DDS images were assigned an inferred DDS usage");
+        var legacyEntryJson = System.Text.Json.Nodes.JsonNode.Parse(
+            JsonSerializer.Serialize(CreateArchiveEntry("legacy/file.dds"), WorkerProtocol.JsonOptions))!
+            .AsObject();
+        legacyEntryJson.Remove("file_type");
+        legacyEntryJson.Remove("texture_usage");
+        var legacyEntry = JsonSerializer.Deserialize<ArchiveEntryDto>(legacyEntryJson, WorkerProtocol.JsonOptions)
+            ?? throw new InvalidDataException("legacy ArchiveEntryDto did not deserialize");
+        Require(
+            legacyEntry is { FileType: ArchiveEntryFileType.Other, TextureUsage: ArchiveTextureUsage.None },
+            "defaulted Type/Usage fields broke an older archive-row payload");
+        var legacyScopeJson = """
+            {"session_id":"legacy","item_id":7,"include_related":true,"entry_ids":[1,2],"direct_count":1,"truncated":false}
+            """;
+        var legacyScope = JsonSerializer.Deserialize<ItemCatalogScopeResult>(legacyScopeJson, WorkerProtocol.JsonOptions)
+            ?? throw new InvalidDataException("legacy ItemCatalogScopeResult did not deserialize");
+        Require(legacyScope.Extensions is null, "defaulted scoped extension facets broke an older protocol payload");
+        return Task.CompletedTask;
     }
 
     private static ArchiveEntryDto CreateArchiveEntry(string path) => new(
@@ -2825,6 +3044,23 @@ internal static class ArchiveLiteTestRunner
             new ArchiveQuerySpec(opened.SessionId, Extensions: [".dds"]),
             12,
             CancellationToken.None).ConfigureAwait(false);
+        Require(
+            imagePage.Entries.Single() is { FileType: ArchiveEntryFileType.Texture, TextureUsage: ArchiveTextureUsage.Unknown },
+            "an unrecognized DDS archive row did not expose Type=Texture and Usage=Unknown");
+        var fileTypePage = await queries.QueryAsync(
+            new ArchiveQuerySpec(opened.SessionId, SortField: ArchiveSortField.FileType, PageSize: 4),
+            121,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(
+            fileTypePage.Entries.Zip(fileTypePage.Entries.Skip(1)).All(pair => pair.First.FileType.CompareTo(pair.Second.FileType) <= 0),
+            "server-side file-type sorting is not deterministic");
+        var usagePage = await queries.QueryAsync(
+            new ArchiveQuerySpec(opened.SessionId, SortField: ArchiveSortField.TextureUsage, PageSize: 4),
+            122,
+            CancellationToken.None).ConfigureAwait(false);
+        Require(
+            usagePage.Entries.Zip(usagePage.Entries.Skip(1)).All(pair => pair.First.TextureUsage.CompareTo(pair.Second.TextureUsage) <= 0),
+            "server-side texture-usage sorting is not deterministic");
         var imagePreview = await previewService.BuildAsync(
             new PreviewRequest(opened.SessionId, imagePage.Entries.Single().EntryId),
             CancellationToken.None).ConfigureAwait(false);
@@ -3489,6 +3725,116 @@ internal static class ArchiveLiteTestRunner
             Convert.ToByte(color.Substring(1, 2), 16),
             Convert.ToByte(color.Substring(3, 2), 16),
             Convert.ToByte(color.Substring(5, 2), 16));
+    }
+
+    private static async Task WaitUntilAsync(Func<bool> condition, TimeSpan timeout)
+    {
+        var elapsed = Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (elapsed.Elapsed >= timeout)
+            {
+                throw new TimeoutException("The expected asynchronous state was not reached in time.");
+            }
+            await Task.Delay(15).ConfigureAwait(true);
+        }
+    }
+
+    private sealed class FakeItemFinderWorker(string iconPath) : IWorkerRequestClient
+    {
+        private readonly object _requestGate = new();
+        private readonly List<ItemCatalogSearchRequest> _searchRequests = [];
+        private int _searchCount;
+        private int _iconCount;
+
+        public TimeSpan SearchDelay { get; set; }
+        public TimeSpan IconDelay { get; set; }
+        public bool IgnoreSearchCancellation { get; set; }
+        public int SearchCount => Volatile.Read(ref _searchCount);
+        public int IconCount => Volatile.Read(ref _iconCount);
+        public IReadOnlyList<ItemCatalogSearchRequest> SearchRequests
+        {
+            get
+            {
+                lock (_requestGate)
+                {
+                    return _searchRequests.ToArray();
+                }
+            }
+        }
+
+        public async Task<TResult> SendAsync<TRequest, TResult>(
+            string kind,
+            long generation,
+            TRequest payload,
+            CancellationToken cancellationToken,
+            IProgress<ProgressUpdate>? progress = null)
+        {
+            if (kind == WorkerProtocol.SearchItemCatalog && payload is ItemCatalogSearchRequest search)
+            {
+                Interlocked.Increment(ref _searchCount);
+                lock (_requestGate)
+                {
+                    _searchRequests.Add(search);
+                }
+                if (SearchDelay > TimeSpan.Zero)
+                {
+                    if (IgnoreSearchCancellation)
+                    {
+                        await Task.Delay(SearchDelay).ConfigureAwait(true);
+                    }
+                    else
+                    {
+                        await Task.Delay(SearchDelay, cancellationToken).ConfigureAwait(true);
+                    }
+                }
+                var categories = search.Query == "gilded"
+                    ? new ItemCatalogCategoryFacet[]
+                    {
+                        new("Weapon", "Sword", 1),
+                        new("Armor", "Helmet", 1),
+                    }
+                    : [new ItemCatalogCategoryFacet("Weapon", "Sword", 1)];
+                var result = new ItemCatalogSearchResult(
+                    search.SessionId,
+                    1,
+                    search.PageStart,
+                    search.PageSize,
+                    [new ItemCatalogRow(
+                        101,
+                        "OneHandSword_Gilded",
+                        "Gilded Longsword",
+                        "Weapon",
+                        "Sword",
+                        "Recovered category",
+                        ["equipment/sword.pac"],
+                        ["equipment/sword"],
+                        ["ui/icon/item/sword_d.dds"],
+                        ["Gilded Longsword"],
+                        ["steel"],
+                        1,
+                        "Synthetic regression row")],
+                    categories,
+                    [new ItemCatalogValueFacet("steel", 1)]);
+                return (TResult)(object)result;
+            }
+            if (kind == WorkerProtocol.LoadItemIcons && payload is ItemIconBatchRequest icons)
+            {
+                Interlocked.Increment(ref _iconCount);
+                if (IconDelay > TimeSpan.Zero)
+                {
+                    await Task.Delay(IconDelay, cancellationToken).ConfigureAwait(true);
+                }
+                return (TResult)(object)new ItemIconBatchResult(
+                    icons.SessionId,
+                    icons.ItemIds.Select(itemId => new ItemIconResult(itemId, iconPath, "ui/icon/item/sword_d.dds")).ToArray());
+            }
+            if (kind == WorkerProtocol.WarmItemIcons && payload is WarmItemIconsRequest warmup)
+            {
+                return (TResult)(object)new WarmItemIconsResult(warmup.SessionId, 1, 1, 0, 0);
+            }
+            throw new InvalidOperationException($"Unexpected fake Item Finder request: {kind}");
+        }
     }
 
     private static void Require(bool condition, string message)

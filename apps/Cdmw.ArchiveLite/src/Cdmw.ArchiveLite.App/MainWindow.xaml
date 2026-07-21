@@ -28,6 +28,8 @@
     </shell:WindowChrome.WindowChrome>
     <Window.Resources>
         <infra:ArchiveRoleLabelConverter x:Key="ArchiveRoleLabelConverter" />
+        <infra:ArchiveEntryFileTypeLabelConverter x:Key="ArchiveEntryFileTypeLabelConverter" />
+        <infra:ArchiveTextureUsageLabelConverter x:Key="ArchiveTextureUsageLabelConverter" />
         <infra:AssociatedAssetCategoryLabelConverter x:Key="AssociatedAssetCategoryLabelConverter" />
         <infra:VisibilityBooleanConverter x:Key="VisibilityBooleanConverter" />
     </Window.Resources>
@@ -83,6 +85,15 @@
                               Tag="1"
                               Content="{infra:Loc Key=TextSearchTab}"
                               Click="OnWorkspaceNavigationClick" />
+                <Button x:Name="ItemFinderNavigationButton"
+                        Width="106"
+                        Margin="6,0,0,0"
+                        Padding="8,6"
+                        Style="{StaticResource TopNavigationActionButtonStyle}"
+                        Content="{infra:Loc Key=ItemFinderNavigation}"
+                        ToolTip="{infra:Loc Key=ItemFinderButtonHint}"
+                        IsEnabled="{Binding ItemFinder.IsAvailable}"
+                        Click="OnItemFinderClick" />
             </StackPanel>
             <Border Grid.Column="2"
                     Background="Transparent"
@@ -316,8 +327,13 @@
                                             </TextBox.InputBindings>
                                         </TextBox>
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ExtensionFilter}" />
-                                        <ComboBox x:Name="ArchiveExtensionFilterComboBox"
-                                                  Margin="0,0,0,10"
+                                        <Grid Margin="0,0,0,10">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <ComboBox x:Name="ArchiveExtensionFilterComboBox"
+                                                  Margin="0"
                                                   IsEditable="True"
                                                   IsTextSearchEnabled="True"
                                                   StaysOpenOnEdit="True"
@@ -365,7 +381,61 @@
                                                     </Grid>
                                                 </DataTemplate>
                                             </ComboBox.ItemTemplate>
-                                        </ComboBox>
+                                            </ComboBox>
+                                            <Button x:Name="MostCommonExtensionsButton"
+                                                    Grid.Column="1"
+                                                    Margin="6,0,0,0"
+                                                    Padding="8,4"
+                                                    MinWidth="0"
+                                                    Style="{StaticResource CompactButtonStyle}"
+                                                    Content="{infra:Loc Key=MostCommonExtensions}"
+                                                    ToolTip="{infra:Loc Key=MostCommonExtensionsHint}"
+                                                    Click="OnMostCommonExtensionsButtonClick" />
+                                            <Popup x:Name="MostCommonExtensionsPopup"
+                                                   Grid.Column="1"
+                                                   Placement="Bottom"
+                                                   PlacementTarget="{Binding ElementName=MostCommonExtensionsButton}"
+                                                   StaysOpen="False"
+                                                   AllowsTransparency="True"
+                                                   PopupAnimation="Fade">
+                                                <Border MinWidth="210"
+                                                        MaxWidth="300"
+                                                        Margin="0,4,0,0"
+                                                        Padding="8"
+                                                        Background="{DynamicResource SurfaceRaisedBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="6">
+                                                    <StackPanel>
+                                                        <TextBlock Margin="4,2,4,7"
+                                                                   Style="{StaticResource SectionTitleStyle}"
+                                                                   Text="{infra:Loc Key=MostCommonExtensions}" />
+                                                        <ItemsControl ItemsSource="{Binding ArchiveBrowser.MostCommonExtensionChoices}">
+                                                            <ItemsControl.ItemTemplate>
+                                                                <DataTemplate>
+                                                                    <Button Margin="0,1"
+                                                                            Padding="8,5"
+                                                                            HorizontalContentAlignment="Stretch"
+                                                                            Click="OnCommonExtensionClick">
+                                                                        <Grid>
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock Text="{Binding Label}" />
+                                                                            <TextBlock Grid.Column="1"
+                                                                                       Margin="16,0,0,0"
+                                                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                                                       Text="{Binding Count, StringFormat={}{0:N0}}" />
+                                                                        </Grid>
+                                                                    </Button>
+                                                                </DataTemplate>
+                                                            </ItemsControl.ItemTemplate>
+                                                        </ItemsControl>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Popup>
+                                        </Grid>
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=ViewMode}" />
                                         <ComboBox Margin="0,0,0,10"
                                                   ItemsSource="{Binding ArchiveBrowser.ViewModes}"
@@ -407,12 +477,6 @@
 
                                 <GroupBox Header="{infra:Loc Key=ReadOnlyTools}">
                                     <StackPanel>
-                                        <Button Margin="0,0,0,12"
-                                                Style="{StaticResource PrimaryButtonStyle}"
-                                                Content="{infra:Loc Key=ItemFinderTitle}"
-                                                ToolTip="{infra:Loc Key=ItemFinderButtonHint}"
-                                                IsEnabled="{Binding ItemFinder.IsAvailable}"
-                                                Click="OnItemFinderClick" />
                                         <TextBlock Margin="0,0,0,5" Text="{infra:Loc Key=CollisionPolicy}" />
                                         <ComboBox Margin="0,0,0,10"
                                                   ItemsSource="{Binding ArchiveBrowser.CollisionPolicies}"
@@ -475,12 +539,19 @@
                                                        Text="{Binding ArchiveBrowser.ItemScopeStatus}"
                                                        Visibility="{Binding ArchiveBrowser.HasItemScope, Converter={StaticResource BooleanToVisibilityConverter}}" />
                                         </StackPanel>
-                                        <Button x:Name="ArchiveColumnsButton"
-                                                Grid.Column="1"
-                                                Margin="10,0,0,0"
-                                                Style="{StaticResource CompactButtonStyle}"
-                                                Content="{infra:Loc Key=Columns}"
-                                                Click="OnArchiveColumnsButtonClick" />
+                                        <StackPanel Grid.Column="1"
+                                                    Margin="10,0,0,0"
+                                                    Orientation="Horizontal">
+                                            <Button Margin="0,0,7,0"
+                                                    Style="{StaticResource CompactButtonStyle}"
+                                                    Content="{infra:Loc Key=ClearItemScope}"
+                                                    Command="{Binding ArchiveBrowser.ClearItemScopeCommand}"
+                                                    Visibility="{Binding ArchiveBrowser.HasItemScope, Converter={StaticResource BooleanToVisibilityConverter}}" />
+                                            <Button x:Name="ArchiveColumnsButton"
+                                                    Style="{StaticResource CompactButtonStyle}"
+                                                    Content="{infra:Loc Key=Columns}"
+                                                    Click="OnArchiveColumnsButtonClick" />
+                                        </StackPanel>
                                         <Popup x:Name="ArchiveColumnsPopup"
                                                Grid.Column="1"
                                                Placement="Bottom"
@@ -544,7 +615,8 @@
                                         <DataGridTextColumn Header="{infra:Loc Key=KnownName}" SortMemberPath="KnownName" Binding="{Binding KnownName}" Width="180" />
                                         <DataGridTextColumn Header="{infra:Loc Key=NameEvidence}" SortMemberPath="NameEvidence" Binding="{Binding NameEvidence}" Width="190" />
                                         <DataGridTextColumn Header="{infra:Loc Key=Extension}" SortMemberPath="Extension" Binding="{Binding Extension}" Width="90" />
-                                        <DataGridTextColumn Header="{infra:Loc Key=Type}" SortMemberPath="Role" Binding="{Binding Role, Converter={StaticResource ArchiveRoleLabelConverter}}" Width="110" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=FileType}" SortMemberPath="FileType" Binding="{Binding FileType, Converter={StaticResource ArchiveEntryFileTypeLabelConverter}}" Width="110" />
+                                        <DataGridTextColumn Header="{infra:Loc Key=Usage}" SortMemberPath="TextureUsage" Binding="{Binding TextureUsage, Converter={StaticResource ArchiveTextureUsageLabelConverter}}" Width="120" />
                                         <DataGridTextColumn Header="{infra:Loc Key=Size}" SortMemberPath="OriginalSize" Binding="{Binding OriginalSize, StringFormat={}{0:N0}}" Width="100" />
                                         <DataGridTextColumn Header="{infra:Loc Key=StoredSize}" SortMemberPath="StoredSize" Binding="{Binding StoredSize, StringFormat={}{0:N0}}" Width="100" />
                                         <DataGridTextColumn Header="{infra:Loc Key=Compression}" SortMemberPath="Compression" Binding="{Binding CompressionLabel}" Width="110" />

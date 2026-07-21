@@ -64,6 +64,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     private string _catalogueStatus = string.Empty;
     private IReadOnlyList<long>? _itemScopeEntryIds;
     private string _itemScopeStatus = string.Empty;
+    private IReadOnlyList<ArchiveExtensionFacet> _globalExtensionFacets = [];
+    private IReadOnlyList<ArchiveExtensionFacet> _activeExtensionFacets = [];
     private bool _suppressPreviewSelection;
     private ArchiveQuerySpec? _lastAppliedQuery;
     private bool _isEnvironmentBusy;
@@ -98,6 +100,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         _extensionFilter = browserSettings.ExtensionFilter ?? string.Empty;
         _viewMode = Enum.IsDefined(browserSettings.ViewMode) ? browserSettings.ViewMode : ArchiveViewMode.Flat;
         _sortField = Enum.IsDefined(initialSortField) ? initialSortField : ArchiveSortField.Path;
+        if (_sortField == ArchiveSortField.Role)
+        {
+            _sortField = ArchiveSortField.FileType;
+        }
         _sortDescending = initialSortDescending;
         _selectedFolder = string.IsNullOrWhiteSpace(browserSettings.FolderPath)
             ? null
@@ -122,7 +128,10 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         RefreshCommand = new AsyncCommand(
             token => ChooseAndOpenArchiveAsync(true, token),
             CanRefreshArchive);
-        ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token, clearItemScope: true), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
+        ApplyFilterCommand = new AsyncCommand(token => QueryAsync(0, token), () => !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
+        ClearItemScopeCommand = new AsyncCommand(
+            ClearItemScopeAndRefreshAsync,
+            () => HasItemScope && !string.IsNullOrWhiteSpace(SessionId) && !IsBusy);
         PreviousPageCommand = new AsyncCommand(token => QueryAsync(Math.Max(0, PageStart - PageSize), token), () => PageStart > 0 && !IsBusy);
         NextPageCommand = new AsyncCommand(token => QueryAsync(PageStart + PageSize, token), () => PageStart + Entries.Count < TotalMatches && !IsBusy);
         CancelCommand = new RelayCommand(CancelForeground, () => IsBusy);
@@ -136,6 +145,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         ExportFilteredCommand = new AsyncCommand(ExportFilteredAsync, () => TotalMatches > 0 && !IsBusy);
         RebuildLocalizedOptions(null);
         ExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(LocalizationManager.Get("AllFiles"), LocalizationManager.Get("ExtensionGroupAll")));
+        MostCommonExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(LocalizationManager.Get("AllFiles"), LocalizationManager.Get("ExtensionGroupAll")));
         ExtensionChoicesView = CollectionViewSource.GetDefaultView(ExtensionChoices);
         ExtensionChoicesView.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ArchiveExtensionChoice.Group)));
     }
@@ -144,6 +154,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public ObservableCollection<ArchiveFolderFilter> Folders { get; } = [];
     public ObservableCollection<ArchiveCategoryCount> Categories { get; } = [];
     public ObservableCollection<ArchiveExtensionChoice> ExtensionChoices { get; } = [];
+    public ObservableCollection<ArchiveExtensionChoice> MostCommonExtensionChoices { get; } = [];
     public ICollectionView ExtensionChoicesView { get; }
     public AssociatedAssetsViewModel AssociatedAssets { get; }
 
@@ -158,6 +169,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public AsyncCommand OpenCommand { get; }
     public AsyncCommand RefreshCommand { get; }
     public AsyncCommand ApplyFilterCommand { get; }
+    public AsyncCommand ClearItemScopeCommand { get; }
     public AsyncCommand PreviousPageCommand { get; }
     public AsyncCommand NextPageCommand { get; }
     public RelayCommand CancelCommand { get; }
@@ -372,16 +384,21 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     public string ItemScopeStatus
     {
         get => _itemScopeStatus;
-        private set
-        {
-            if (SetProperty(ref _itemScopeStatus, value))
-            {
-                OnPropertyChanged(nameof(HasItemScope));
-            }
-        }
+        private set => SetProperty(ref _itemScopeStatus, value);
     }
 
-    public bool HasItemScope => !string.IsNullOrWhiteSpace(ItemScopeStatus);
+    public bool HasItemScope => _itemScopeEntryIds is not null;
+
+    public void ApplyCommonExtension(ArchiveExtensionChoice choice)
+    {
+        ArgumentNullException.ThrowIfNull(choice);
+        if (IsBusy || string.IsNullOrWhiteSpace(SessionId))
+        {
+            return;
+        }
+        ExtensionFilter = choice.Extension;
+        ApplyFilterCommand.Execute(null);
+    }
 
     public void ApplyColumnSort(ArchiveSortField field)
     {
@@ -823,6 +840,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
     {
         using var operation = BeginForegroundOperation(commandToken);
         var generation = Interlocked.Increment(ref _foregroundGeneration);
+        ClearItemScope();
         CancelCatalogue();
         CancelPreviewAndClear();
         try
@@ -871,7 +889,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         }
     }
 
-    private async Task QueryAsync(int pageStart, CancellationToken commandToken, bool clearItemScope = false)
+    private async Task QueryAsync(int pageStart, CancellationToken commandToken)
     {
         if (string.IsNullOrWhiteSpace(SessionId))
         {
@@ -882,10 +900,6 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         var generation = Interlocked.Increment(ref _foregroundGeneration);
         try
         {
-            if (clearItemScope)
-            {
-                ClearItemScope();
-            }
             SetOperationProgress(LocalizationManager.Get("ProgressLoadingEntries"));
             await QueryPageCoreAsync(pageStart, generation, operation.Token).ConfigureAwait(true);
         }
@@ -939,6 +953,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             }
 
             _itemScopeEntryIds = scope.EntryIds;
+            OnPropertyChanged(nameof(HasItemScope));
             PathFilter = string.Empty;
             ExtensionFilter = string.Empty;
             PackageFilter = string.Empty;
@@ -954,6 +969,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                 displayName,
                 scope.EntryIds.Count,
                 scope.DirectCount);
+            ApplyActiveExtensionFacets(scope.Extensions ?? []);
             await QueryPageCoreAsync(0, generation, operation.Token).ConfigureAwait(true);
             _setShellStatus(ItemScopeStatus);
             applied = true;
@@ -1033,6 +1049,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             return;
         }
 
+        ClearItemScope();
         PathFilter = target.Path;
         ExtensionFilter = string.Empty;
         PackageFilter = string.Empty;
@@ -1092,10 +1109,23 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             EntryIds: _itemScopeEntryIds);
     }
 
+    private async Task ClearItemScopeAndRefreshAsync(CancellationToken cancellationToken)
+    {
+        ClearItemScope();
+        await QueryAsync(0, cancellationToken).ConfigureAwait(true);
+    }
+
     private void ClearItemScope()
     {
+        var hadScope = _itemScopeEntryIds is not null;
         _itemScopeEntryIds = null;
         ItemScopeStatus = string.Empty;
+        if (hadScope)
+        {
+            OnPropertyChanged(nameof(HasItemScope));
+        }
+        ApplyActiveExtensionFacets(_globalExtensionFacets);
+        ClearItemScopeCommand?.RaiseCanExecuteChanged();
     }
 
     private void StartCatalogueLoad(string sessionId)
@@ -1134,7 +1164,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
             {
                 return;
             }
-            ApplyExtensionFacets(facets.Extensions);
+            ApplyGlobalExtensionFacets(facets.Extensions);
             IsExtensionCatalogBusy = false;
 
             IsNameIndexBusy = true;
@@ -1184,13 +1214,33 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         }
     }
 
-    private void ApplyExtensionFacets(IReadOnlyList<ArchiveExtensionFacet> facets)
+    private void ApplyGlobalExtensionFacets(IReadOnlyList<ArchiveExtensionFacet> facets)
     {
+        var canonical = CanonicalizeExtensionFacets(facets);
+        if (!_globalExtensionFacets.SequenceEqual(canonical))
+        {
+            _globalExtensionFacets = canonical;
+        }
+        if (!HasItemScope)
+        {
+            ApplyActiveExtensionFacets(_globalExtensionFacets);
+        }
+    }
+
+    private void ApplyActiveExtensionFacets(IReadOnlyList<ArchiveExtensionFacet> facets, bool force = false)
+    {
+        var canonical = CanonicalizeExtensionFacets(facets);
+        if (!force && _activeExtensionFacets.SequenceEqual(canonical))
+        {
+            return;
+        }
+        _activeExtensionFacets = canonical;
         ExtensionChoices.Clear();
         ExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(
             LocalizationManager.Get("AllFiles"),
-            LocalizationManager.Get("ExtensionGroupAll")));
-        foreach (var facet in facets)
+            LocalizationManager.Get("ExtensionGroupAll"),
+            canonical.Sum(static facet => facet.Count)));
+        foreach (var facet in canonical)
         {
             ExtensionChoices.Add(new ArchiveExtensionChoice(
                 facet.Extension,
@@ -1199,7 +1249,30 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
                 facet.Category));
         }
         ExtensionChoicesView.Refresh();
+
+        MostCommonExtensionChoices.Clear();
+        MostCommonExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(
+            LocalizationManager.Get("AllFiles"),
+            LocalizationManager.Get("ExtensionGroupAll"),
+            canonical.Sum(static facet => facet.Count)));
+        foreach (var facet in ArchiveExtensionFacetSelection.MostCommon(canonical))
+        {
+            MostCommonExtensionChoices.Add(new ArchiveExtensionChoice(
+                facet.Extension,
+                facet.Count,
+                LocalizationManager.Get($"ExtensionGroup{facet.Category}"),
+                facet.Category));
+        }
     }
+
+    private static IReadOnlyList<ArchiveExtensionFacet> CanonicalizeExtensionFacets(
+        IEnumerable<ArchiveExtensionFacet> facets) => facets
+        .Where(static facet => !string.IsNullOrWhiteSpace(facet.Extension))
+        .Select(static facet => facet with { Extension = facet.Extension.Trim().ToLowerInvariant() })
+        .OrderBy(static facet => facet.Category)
+        .ThenByDescending(static facet => facet.Count)
+        .ThenBy(static facet => facet.Extension, StringComparer.Ordinal)
+        .ToArray();
 
     private void RebuildLocalizedOptions(ArchiveEntryRole? selectedRole = null)
     {
@@ -1277,13 +1350,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
 
     private void RefreshExtensionLabels()
     {
-        var extensions = ExtensionChoices
-            .Where(static choice => choice.Category.HasValue)
-            .Select(static choice => (choice.Extension, choice.Count, Category: choice.Category!.Value))
-            .ToArray();
-        ApplyExtensionFacets(extensions
-            .Select(static choice => new ArchiveExtensionFacet(choice.Extension, choice.Count, choice.Category))
-            .ToArray());
+        ApplyActiveExtensionFacets(_activeExtensionFacets, force: true);
     }
 
     private void ApplyNameIndexProgress(string sessionId, long generation, ProgressUpdate update)
@@ -1379,10 +1446,8 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         IsExtensionCatalogBusy = false;
         IsNameIndexBusy = false;
         CatalogueStatus = string.Empty;
-        ExtensionChoices.Clear();
-        ExtensionChoices.Add(ArchiveExtensionChoice.AllFiles(
-            LocalizationManager.Get("AllFiles"),
-            LocalizationManager.Get("ExtensionGroupAll")));
+        _globalExtensionFacets = [];
+        ApplyActiveExtensionFacets([], force: true);
     }
 
     private async Task LoadPreviewLatestAsync(ArchiveEntryDto? entry)
@@ -1937,6 +2002,7 @@ public sealed class ArchiveBrowserViewModel : ObservableObject
         OpenCommand.RaiseCanExecuteChanged();
         RefreshCommand.RaiseCanExecuteChanged();
         ApplyFilterCommand.RaiseCanExecuteChanged();
+        ClearItemScopeCommand.RaiseCanExecuteChanged();
         PreviousPageCommand.RaiseCanExecuteChanged();
         NextPageCommand.RaiseCanExecuteChanged();
         CancelCommand.RaiseCanExecuteChanged();
@@ -1978,7 +2044,7 @@ public sealed record ArchiveExtensionChoice(
 {
     public string Label => DisplayLabel ?? Extension;
 
-    public static ArchiveExtensionChoice AllFiles(string label, string group) => new(string.Empty, 0, group, null, label);
+    public static ArchiveExtensionChoice AllFiles(string label, string group, long count = 0) => new(string.Empty, count, group, null, label);
 
     public override string ToString() => Extension;
 }

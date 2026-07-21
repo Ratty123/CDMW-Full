@@ -281,6 +281,8 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
                     ? left.CompressionType.CompareTo(right.CompressionType)
                     : left.StoredSize.CompareTo(right.StoredSize),
                 ArchiveSortField.Role => left.Role.CompareTo(right.Role),
+                ArchiveSortField.FileType => left.FileType.CompareTo(right.FileType),
+                ArchiveSortField.TextureUsage => left.TextureUsage.CompareTo(right.TextureUsage),
                 _ => StringComparer.OrdinalIgnoreCase.Compare(left.Path, right.Path),
             };
             return result != 0 ? result : left.EntryId.CompareTo(right.EntryId);

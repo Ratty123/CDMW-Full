@@ -23,6 +23,42 @@ public static class ArchiveEntryClassifier
             _ => ArchiveEntryRole.Other,
         };
 
+    public static ArchiveEntryFileType ClassifyFileType(string extension, ArchiveEntryRole role)
+    {
+        if (ArchiveContentRegistry.NormalizeExtension(extension) == ".dds")
+        {
+            return ArchiveEntryFileType.Texture;
+        }
+        return role switch
+        {
+            ArchiveEntryRole.Model => ArchiveEntryFileType.Model,
+            ArchiveEntryRole.Animation => ArchiveEntryFileType.Animation,
+            ArchiveEntryRole.Physics => ArchiveEntryFileType.Physics,
+            ArchiveEntryRole.Metadata => ArchiveEntryFileType.Metadata,
+            ArchiveEntryRole.Video => ArchiveEntryFileType.Video,
+            ArchiveEntryRole.Audio => ArchiveEntryFileType.Audio,
+            ArchiveEntryRole.UserInterface => ArchiveEntryFileType.UserInterface,
+            ArchiveEntryRole.Impostor or ArchiveEntryRole.Normal or ArchiveEntryRole.Material or ArchiveEntryRole.Image => ArchiveEntryFileType.Image,
+            ArchiveEntryRole.Text => ArchiveEntryFileType.Text,
+            _ => ArchiveEntryFileType.Other,
+        };
+    }
+
+    public static ArchiveTextureUsage ClassifyTextureUsage(string path, string extension)
+    {
+        if (ArchiveContentRegistry.NormalizeExtension(extension) != ".dds")
+        {
+            return ArchiveTextureUsage.None;
+        }
+        return ArchiveContentClassification.ClassifyTextureUsage(path) switch
+        {
+            ArchiveTextureUsageKind.Color => ArchiveTextureUsage.Color,
+            ArchiveTextureUsageKind.NormalMap => ArchiveTextureUsage.NormalMap,
+            ArchiveTextureUsageKind.MaterialMap => ArchiveTextureUsage.MaterialMap,
+            _ => ArchiveTextureUsage.Unknown,
+        };
+    }
+
     public static bool IsPreviewable(string extension, ArchiveEntryRole role) =>
         role != ArchiveEntryRole.Other || ArchiveContentClassification.IsPreviewable(extension);
 

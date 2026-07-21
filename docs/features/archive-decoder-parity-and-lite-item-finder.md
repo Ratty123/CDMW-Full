@@ -1,6 +1,6 @@
 # Archive Decoder Parity And Archive Lite Item Finder
 
-Updated: 2026-07-19
+Updated: 2026-07-21
 
 Status: IMPLEMENTED - SYNTHETIC FULL/LITE GATES PASS; REAL-CORPUS, VISIBLE, AND RELEASE GATES DEFERRED
 
@@ -28,12 +28,24 @@ than a second independent Lite decoder stack:
   existing full-CDMW path and Lite. Lite atomically caches the catalog beside
   its name maps and provides paged search, category/material facets, variant
   grouping, localized and secondary IDs, exact/related Archive Browser scopes,
-  and persistent dialog state.
+  scope-specific extension facets, deterministic common-extension shortcuts,
+  and persistent dialog state. Archive Browser filters and sorting refine an
+  active item set until the explicit scope-only clear action restores global
+  extension facets.
 - Lite prepares persistent 120-pixel item thumbnails in the background. Visible
   rows have priority; foreground archive work pauses warmup; batches and decode
   concurrency are bounded; negative results have short TTLs; and the WPF image
-  LRU is capped at 96. A warm disk hit performs no archive decode or DirectXTex
-  launch.
+  LRU is capped at 96. Rows publish once with cached/fallback icons before
+  missing icons load asynchronously, so each current tile transitions at most
+  once. A warm disk hit performs no archive decode or DirectXTex launch.
+- Archive Lite launches the modal Item Finder from the top navigation and uses
+  the same resizable `WindowChrome` and DWM theme owner as the main window. The
+  view model owns one 220 ms latest-wins debounce; immutable facet replacement
+  is suppressed from scheduling feedback searches.
+- `Cdmw.Archive.Content` owns the path-only terminal-suffix DDS usage rule.
+  Lite presents `.dds` as File type **Texture** plus Color, Normal map,
+  Material map, or explicit Unknown usage; a material-like word elsewhere in
+  the asset name cannot override a terminal color suffix.
 
 Synthetic validation completed on 2026-07-19:
 
@@ -45,6 +57,18 @@ Synthetic validation completed on 2026-07-19:
 - Full catalog/cache tests: 96 passed.
 - Full decoder/contracts/structured-preview tests: 41 passed plus 2 subtests.
 - Native archive accelerator Release build and protocol version check: PASS.
+
+Focused validation for the Item Finder/classification follow-up on 2026-07-21:
+
+- Archive Lite official Debug gate: PASS, 33 managed scenarios plus the native
+  archive/preview/accelerator/mesh/DirectXTex builds and self-tests.
+- Repository Archive area gate: PASS, 112 tests.
+- Full archive Release native self-test, build, and the new shared
+  `texture_usage_classification` scenario: PASS. The complete runner then
+  stopped at two pre-existing dirty-baseline checks owned by the in-progress
+  Full item-catalog protocol work (`ArchiveItemCatalogBuildService.cs` source
+  independence and worker ping compatibility); those unrelated owners were not
+  changed by this follow-up.
 
 The deferred gates remain intentionally outside this implementation: licensed
 real-PAMT/PAC semantic coverage, real-corpus Item Finder completeness and
@@ -373,8 +397,9 @@ serve data it already computes.
 
 ### WPF Item Finder parity surface
 
-Add a modeless-or-modal WPF Item Finder launched from Archive Browser, matching
-full CDMW's functional layout rather than copying Qt implementation details:
+The implemented modal WPF Item Finder is launched from the top navigation and
+matches full CDMW's functional layout rather than copying Qt implementation
+details:
 
 - search across display/localized names, internal ID, model/PAC stem, category,
   group, material tag, texture/reference, and icon path;
@@ -394,6 +419,14 @@ full CDMW's functional layout rather than copying Qt implementation details:
 Use WPF data virtualization or paging. Do not construct thousands of item-card
 controls at once. Search/filter work belongs in the worker or a bounded indexed
 view, not a linear dispatcher-thread rebuild.
+
+The Archive Browser keeps two immutable extension universes: archive-wide
+facets and the active Item Finder scope facets returned with
+`ItemCatalogScopeResult`. Search, extension, path, role, and sorting never drop
+the active entry-ID scope. **Clear item set** removes only that scope, preserves
+the current filters, and republishes archive-wide facets. **Most common** lists
+All files plus at most ten extensions from the active universe, ordered by
+count descending and then extension name.
 
 ### What "icons are pre-loaded and quick" means
 
@@ -588,11 +621,14 @@ Existing focused anchors include:
 .\.venv\Scripts\python.exe -m pytest tests/test_item_name_archive_search.py tests/test_archive_caches.py tests/test_archive_relationships.py tests/test_archive_browser_asset_understanding_ui_source_guards.py
 ```
 
-Add Lite managed tests for catalog cache schema/fingerprint behavior, paged
-search, grouping, exact-versus-related evidence, icon cache identity, persistent
-hits, DirectXTex batch counts, visible-priority ordering, negative-cache expiry,
+Lite managed tests cover catalog cache schema/fingerprint behavior, paged
+search, grouping, exact-versus-related evidence, scope-specific extension
+counts, deterministic common-extension ordering, icon cache identity,
+persistent hits, DirectXTex batch counts, visible-priority ordering,
 cancellation, stale generation rejection, bounded memory, settings,
-localization, and a real named-pipe worker round trip.
+localization, and a real named-pipe worker round trip. The WPF regression drives
+the real debounce and verifies category/programmatic-facet behavior, one icon
+transition, rapid changes, session invalidation, and dialog close.
 
 ### Product gates
 
@@ -614,6 +650,10 @@ Do not run these merely to implement a phase:
 - licensed real-PAMT/PAC extension coverage and semantic parity;
 - real-corpus Item Finder cold/warm p50 and p95 measurements;
 - visible renderer, Blender, or game fidelity checks.
+
+The Item Finder chrome is covered structurally/headlessly. Confirming the
+reported outer top-edge artifact is gone is visual desktop evidence and remains
+outside the synthetic gate until explicitly authorized.
 
 They require explicit release, real-corpus, or visual-validation scope. Passing
 synthetic tests must not be described as proof for proprietary corpus variants
