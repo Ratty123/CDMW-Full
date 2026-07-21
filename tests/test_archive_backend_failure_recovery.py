@@ -69,6 +69,7 @@ class _Bridge:
     def __init__(self) -> None:
         self.retry_count = 0
         self.deactivate_count = 0
+        self.cancel_count = 0
 
     def retry_last_open(self) -> bool:
         self.retry_count += 1
@@ -76,6 +77,9 @@ class _Bridge:
 
     def deactivate(self) -> None:
         self.deactivate_count += 1
+
+    def cancel_pending_update(self) -> None:
+        self.cancel_count += 1
 
 
 class _Tree:
@@ -139,6 +143,15 @@ def test_backend_failure_retry_keeps_v2_and_retries_last_request(monkeypatch) ->
     assert bridge.deactivate_count == 0
     assert window.archive_backend_mode is ArchiveBackendMode.V2
     assert window.scans == []
+
+
+def test_refresh_cancels_the_active_remote_update_before_resetting_state() -> None:
+    window = _Window()
+
+    ArchiveScanLifecycleMixin.scan_archives(window, force_refresh=True)
+
+    assert window.archive_remote_bridge.cancel_count == 1
+    assert window.archive_remote_query_pending
 
 
 def test_backend_failure_legacy_choice_is_session_only_and_explicit(monkeypatch) -> None:

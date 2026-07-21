@@ -186,6 +186,15 @@ class ArchiveScanLifecycleMixin:
         return False
 
     def scan_archives(self, force_refresh: bool = False, *, activate_archive_tab: bool = True) -> None:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if (
+            force_refresh
+            and remote_bridge is not None
+            and remote_bridge.displays_v2
+            and bool(getattr(self, "archive_remote_query_pending", False))
+        ):
+            remote_bridge.cancel_pending_update()
+            return
         backend_selection = getattr(self, "archive_backend_selection", None)
         if (
             backend_selection is not None
@@ -237,7 +246,6 @@ class ArchiveScanLifecycleMixin:
         self.archive_sidecar_request_id += 1
         self.archive_sidecar_pending_start = False
 
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
         package_root = Path(package_root_text).expanduser()
         if remote_bridge is not None and remote_bridge.displays_v2:
             self._activate_archive_browser_on_scan_complete = activate_archive_tab
@@ -451,17 +459,6 @@ class ArchiveScanLifecycleMixin:
         self.worker_thread = thread
         self.set_busy(True, build_mode=False)
         thread.start()
-
-    def refresh_archives_or_cancel(self) -> None:
-        remote_bridge = getattr(self, "archive_remote_bridge", None)
-        if (
-            remote_bridge is not None
-            and remote_bridge.displays_v2
-            and bool(getattr(self, "archive_remote_query_pending", False))
-        ):
-            remote_bridge.cancel_pending_update()
-            return
-        self.scan_archives(force_refresh=True)
 
     def _ensure_archive_extension_index_ready(self) -> None:
         if self.archive_entries_by_extension or not self.archive_entries:

@@ -38,7 +38,7 @@ class ShellSignalWiringMixin:
         self.refresh_compare_button.clicked.connect(self.refresh_compare_list)
         self.archive_package_root_detect_button.clicked.connect(self.autodetect_archive_package_root)
         self.archive_scan_button.clicked.connect(self.scan_archives)
-        self.archive_refresh_scan_button.clicked.connect(self.refresh_archives_or_cancel)
+        self.archive_refresh_scan_button.clicked.connect(lambda: self.scan_archives(force_refresh=True))
         self.archive_asset_catalog_button.clicked.connect(self._show_archive_asset_catalog_dialog)
         self.archive_material_finder_button.clicked.connect(self._show_archive_material_finder_dialog)
         self.archive_clear_asset_scope_button.clicked.connect(self._clear_archive_asset_catalog_scope)
