@@ -5,6 +5,7 @@ namespace Cdmw.FullArchive.Core;
 
 public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
 {
+    private const int MaximumBoundedEntryIds = 4096;
     public Task<ArchiveQueryHandle> CreateAsync(
         ArchiveQuery query,
         long generation,
@@ -149,16 +150,26 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress)
     {
+        var requestedIds = query.EntryIds?.Distinct().ToArray();
+        if (requestedIds is { Length: > MaximumBoundedEntryIds })
+        {
+            throw new InvalidDataException($"Archive queries may contain at most {MaximumBoundedEntryIds} bounded entry ids.");
+        }
         var candidates = query.SortActive ? new List<QueryCandidate>() : null;
         var unsortedIds = query.SortActive ? null : new List<long>();
-        var total = session.Index.EntryCount;
+        var total = requestedIds?.LongLength ?? session.Index.EntryCount;
         Publish(progress, new ProgressUpdate(0, total, "query_scan"));
-        for (long entryId = 0; entryId < total; entryId++)
+        for (long candidateIndex = 0; candidateIndex < total; candidateIndex++)
         {
-            if ((entryId & 0x1FFF) == 0)
+            if ((candidateIndex & 0x1FFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                Publish(progress, new ProgressUpdate(entryId, total, "query_scan"));
+                Publish(progress, new ProgressUpdate(candidateIndex, total, "query_scan"));
+            }
+            var entryId = requestedIds is null ? candidateIndex : requestedIds[candidateIndex];
+            if (entryId < 0 || entryId >= session.Index.EntryCount)
+            {
+                continue;
             }
             var entry = session.ReadEntry(entryId);
             if (!Matches(entry, query))

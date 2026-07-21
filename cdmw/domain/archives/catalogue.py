@@ -109,6 +109,7 @@ class ArchiveSessionHandle:
     entry_count: int
     index_version: int
     cache_hit: bool
+    discovery_warnings: tuple[str, ...] = ()
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveSessionHandle":
@@ -120,6 +121,7 @@ class ArchiveSessionHandle:
             entry_count=read_int(payload, "entry_count"),
             index_version=read_int(payload, "index_version"),
             cache_hit=read_bool(payload, "cache_hit"),
+            discovery_warnings=read_string_tuple(payload, "discovery_warnings"),
         )
 
 
@@ -212,6 +214,7 @@ class ArchiveQuery:
     sort_field: ArchiveSortField = ArchiveSortField.PATH
     sort_active: bool = False
     sort_descending: bool = False
+    entry_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -428,6 +431,9 @@ class ArchiveAssociationResult:
 def archive_query_from_wire(value: object) -> ArchiveQuery:
     payload = require_mapping(value, "archive query")
     raw_roles = require_sequence(payload.get("roles", ()), "roles")
+    raw_entry_ids = require_sequence(payload.get("entry_ids", ()), "entry_ids")
+    if any(isinstance(entry_id, bool) or not isinstance(entry_id, int) for entry_id in raw_entry_ids):
+        raise ArchiveContractError("entry_ids must contain only integers.")
     return ArchiveQuery(
         session_id=read_string(payload, "session_id"),
         include_text=payload.get("include_text") if isinstance(payload.get("include_text"), str) else None,
@@ -444,6 +450,7 @@ def archive_query_from_wire(value: object) -> ArchiveQuery:
         sort_field=read_enum(payload, "sort_field", ArchiveSortField, default=ArchiveSortField.PATH),
         sort_active=read_bool(payload, "sort_active", default=False),
         sort_descending=read_bool(payload, "sort_descending", default=False),
+        entry_ids=tuple(raw_entry_ids),  # type: ignore[arg-type]
     )
 
 

@@ -108,8 +108,18 @@ class LogControllerMixin:
         self.archive_extract_root_browse_button.setEnabled(not busy)
         self.archive_scan_button.setEnabled(not busy)
         self.archive_refresh_scan_button.setEnabled(not busy)
-        self.archive_asset_catalog_button.setEnabled(not busy and bool(self.archive_item_asset_catalog))
-        self.archive_material_finder_button.setEnabled(not busy and bool(self._archive_material_catalog_rows()))
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        remote_session_ready = bool(
+            remote_bridge is not None
+            and remote_bridge.displays_v2
+            and remote_bridge.current_session is not None
+        )
+        self.archive_asset_catalog_button.setEnabled(
+            not busy and (remote_session_ready or bool(self.archive_item_asset_catalog))
+        )
+        self.archive_material_finder_button.setEnabled(
+            not busy and (remote_session_ready or bool(self._archive_material_catalog_rows()))
+        )
         self.archive_clear_asset_scope_button.setEnabled(not busy and bool(self.archive_active_asset_catalog_scope))
         self.archive_filter_edit.setEnabled(not busy)
         self.archive_path_search_button.setEnabled(not busy)

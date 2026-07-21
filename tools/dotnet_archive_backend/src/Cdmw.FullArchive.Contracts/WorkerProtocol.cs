@@ -5,7 +5,7 @@ namespace Cdmw.FullArchive.Contracts;
 
 public static class WorkerProtocol
 {
-    public const int Version = 2;
+    public const int Version = 3;
     public const int MaximumMessageBytes = 1024 * 1024;
     public const int DefaultPageSize = 256;
     public const int MaximumPageSize = 512;
@@ -16,12 +16,17 @@ public static class WorkerProtocol
     public const string CacheHealth = "cache_health";
     public const string OpenArchive = "open_archive";
     public const string RefreshArchive = "refresh_archive";
+    public const string CloseArchive = "close_archive";
     public const string CreateQuery = "create_query";
     public const string FetchPage = "fetch_page";
     public const string FetchChildren = "fetch_children";
     public const string Facets = "facets";
     public const string ResolveEntries = "resolve_entries";
     public const string FindAssociationCandidates = "find_association_candidates";
+    public const string BuildNameIndex = "build_name_index";
+    public const string SearchItemCatalog = "search_item_catalog";
+    public const string LoadItemIcons = "load_item_icons";
+    public const string ScopeItemCatalog = "scope_item_catalog";
     public const string PrepareEntry = "prepare_entry";
     public const string TextSearch = "text_search";
     public const string Export = "export";

@@ -36,6 +36,12 @@ from cdmw.models import ArchiveEntry
 class ArchiveAssetCatalogDialogMixin:
     """Item Finder dialog and visible-row icon loading UI."""
     def _show_archive_asset_catalog_dialog(self) -> None:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:
+            from cdmw.ui.archive_browser.remote_finder_dialog import show_remote_archive_finder
+
+            show_remote_archive_finder(self, material_only=False)
+            return
         if not self.archive_item_asset_catalog:
             QMessageBox.information(
                 self,

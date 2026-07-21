@@ -32,6 +32,8 @@ from cdmw.domain.archives.catalogue_operations import (
     ArchiveTextSearchRequest,
     CacheHealthRequest,
     CacheHealthResult,
+    CloseArchiveRequest,
+    CloseArchiveResult,
     CreateQueryRequest,
     FetchPageRequest,
     OpenArchiveRequest,
@@ -40,6 +42,16 @@ from cdmw.domain.archives.catalogue_operations import (
     PrepareEntriesRequest,
     PrepareEntriesResult,
     ProgressUpdate,
+)
+from cdmw.domain.archives.item_catalogue import (
+    BuildNameIndexRequest,
+    BuildNameIndexResult,
+    ItemCatalogScopeRequest,
+    ItemCatalogScopeResult,
+    ItemCatalogSearchRequest,
+    ItemCatalogSearchResult,
+    ItemIconBatchRequest,
+    ItemIconBatchResult,
 )
 from cdmw.domain.archives.catalogue_wire import ArchiveContractError
 from cdmw.models import ArchiveEntry
@@ -127,8 +139,21 @@ class ArchiveCatalogueService(QObject):
         )
 
     def refresh_archive(self, package_root: Path | str, *, ui_generation: int) -> str:
+        current = self.current_session
         return self.open_archive(
-            OpenArchiveRequest(str(Path(package_root)), force_refresh=True),
+            OpenArchiveRequest(
+                str(Path(package_root)),
+                force_refresh=True,
+                supersedes_session_id=current.session_id if current is not None else None,
+            ),
+            ui_generation=ui_generation,
+        )
+
+    def close_archive(self, session_id: str, *, ui_generation: int) -> str:
+        return self._submit(
+            ArchiveBackendOperation.CLOSE_ARCHIVE,
+            CloseArchiveRequest(session_id),
+            CloseArchiveResult.from_wire,
             ui_generation=ui_generation,
         )
 
@@ -226,6 +251,61 @@ class ArchiveCatalogueService(QObject):
             request,
             ArchiveAssociationResult.from_wire,
             batch_parser=ArchiveAssociationResult.from_wire,
+            ui_generation=ui_generation,
+            session=session,
+        )
+
+    def build_name_index(self, session_id: str, *, ui_generation: int) -> str:
+        session = self._require_session(session_id)
+        return self._submit(
+            ArchiveBackendOperation.BUILD_NAME_INDEX,
+            BuildNameIndexRequest(session_id),
+            BuildNameIndexResult.from_wire,
+            ui_generation=ui_generation,
+            session=session,
+        )
+
+    def search_item_catalog(
+        self,
+        request: ItemCatalogSearchRequest,
+        *,
+        ui_generation: int,
+    ) -> str:
+        session = self._require_session(request.session_id)
+        return self._submit(
+            ArchiveBackendOperation.SEARCH_ITEM_CATALOG,
+            request,
+            ItemCatalogSearchResult.from_wire,
+            ui_generation=ui_generation,
+            session=session,
+        )
+
+    def load_item_icons(
+        self,
+        request: ItemIconBatchRequest,
+        *,
+        ui_generation: int,
+    ) -> str:
+        session = self._require_session(request.session_id)
+        return self._submit(
+            ArchiveBackendOperation.LOAD_ITEM_ICONS,
+            request,
+            ItemIconBatchResult.from_wire,
+            ui_generation=ui_generation,
+            session=session,
+        )
+
+    def scope_item_catalog(
+        self,
+        request: ItemCatalogScopeRequest,
+        *,
+        ui_generation: int,
+    ) -> str:
+        session = self._require_session(request.session_id)
+        return self._submit(
+            ArchiveBackendOperation.SCOPE_ITEM_CATALOG,
+            request,
+            ItemCatalogScopeResult.from_wire,
             ui_generation=ui_generation,
             session=session,
         )
@@ -519,6 +599,13 @@ class ArchiveCatalogueService(QObject):
                 request.payload = CreateQueryRequest(request.query)
             elif request.operation is ArchiveBackendOperation.FACETS:
                 request.payload = {}
+            elif request.operation in {
+                ArchiveBackendOperation.BUILD_NAME_INDEX,
+                ArchiveBackendOperation.SEARCH_ITEM_CATALOG,
+                ArchiveBackendOperation.LOAD_ITEM_ICONS,
+                ArchiveBackendOperation.SCOPE_ITEM_CATALOG,
+            }:
+                request.payload = replace(request.payload, session_id=session.session_id)
             elif request.operation is ArchiveBackendOperation.RESOLVE_ENTRIES and isinstance(request.payload, ArchiveLookupRequest):
                 if request.payload.query_id and request.query is not None:
                     self._start_recovery_query(request_id, request, session)
@@ -619,6 +706,10 @@ class ArchiveCatalogueService(QObject):
             ArchiveBackendOperation.FETCH_PAGE,
             ArchiveBackendOperation.FETCH_CHILDREN,
             ArchiveBackendOperation.FACETS,
+            ArchiveBackendOperation.BUILD_NAME_INDEX,
+            ArchiveBackendOperation.SEARCH_ITEM_CATALOG,
+            ArchiveBackendOperation.LOAD_ITEM_ICONS,
+            ArchiveBackendOperation.SCOPE_ITEM_CATALOG,
         }:
             return request.session_id is not None
         if request.operation is ArchiveBackendOperation.RESOLVE_ENTRIES:

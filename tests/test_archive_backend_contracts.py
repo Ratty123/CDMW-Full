@@ -123,7 +123,8 @@ def test_query_serializes_using_worker_snake_case_enums() -> None:
             "view_mode": "categories_and_folders",
             "sort_field": "known_name",
             "sort_active": True,
-            "sort_descending": True,
+                "sort_descending": True,
+                "entry_ids": [],
         }
     }
 

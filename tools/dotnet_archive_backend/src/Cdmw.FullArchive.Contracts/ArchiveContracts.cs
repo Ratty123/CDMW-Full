@@ -12,7 +12,8 @@ public sealed record ArchiveSessionHandle(
     string Fingerprint,
     long EntryCount,
     int IndexVersion,
-    bool CacheHit);
+    bool CacheHit,
+    IReadOnlyList<string>? DiscoveryWarnings = null);
 
 public sealed record ArchiveEntryRef(
     string SessionId,
@@ -119,7 +120,8 @@ public sealed record ArchiveQuery(
     ArchiveViewMode ViewMode = ArchiveViewMode.Flat,
     ArchiveSortField SortField = ArchiveSortField.Path,
     bool SortActive = false,
-    bool SortDescending = false);
+    bool SortDescending = false,
+    IReadOnlyList<long>? EntryIds = null);
 
 public sealed record ArchiveQueryHandle(
     string SessionId,

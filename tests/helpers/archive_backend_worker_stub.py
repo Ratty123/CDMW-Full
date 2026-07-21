@@ -13,7 +13,7 @@ from typing import Mapping
 
 def _message(request: Mapping[str, object], status: str, payload: object = None, error: object = None) -> dict[str, object]:
     return {
-        "protocol_version": 2,
+        "protocol_version": 3,
         "request_id": request["request_id"],
         "ui_generation": request["ui_generation"],
         "session_id": request.get("session_id"),
@@ -55,7 +55,7 @@ def main() -> int:
                     "result",
                     {
                         "worker_version": "stub-2.0",
-                        "protocol_version": 2,
+                        "protocol_version": 3,
                         "native_abi_version": 1,
                         "index_version": 3,
                         "process_id": os.getpid(),
@@ -105,6 +105,18 @@ def main() -> int:
                     },
                 )
                 | {"session_id": "session-stub"}
+            )
+        elif operation == "close_archive":
+            payload = request.get("payload") or {}
+            _send(
+                _message(
+                    request,
+                    "result",
+                    {
+                        "session_id": str(payload.get("session_id", "")),
+                        "closed": True,
+                    },
+                )
             )
         elif operation == "create_query":
             payload = request.get("payload") or {}

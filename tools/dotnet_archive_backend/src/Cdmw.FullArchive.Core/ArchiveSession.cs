@@ -10,6 +10,7 @@ public sealed class ArchiveSession : IDisposable
     private readonly LinkedList<CompiledArchiveQuery> _queryLru = new();
     private readonly ArchiveGenerationLease _generation;
     private ArchiveNameIndex? _nameIndex;
+    private ArchiveItemCatalog? _itemCatalog;
     private int _disposed;
 
     internal ArchiveSession(string id, ArchiveGenerationLease generation)
@@ -34,7 +35,8 @@ public sealed class ArchiveSession : IDisposable
         Fingerprint,
         Index.EntryCount,
         ArchiveIndex.Version,
-        CacheHit);
+        CacheHit,
+        ArchiveDiscoveryWarnings.FromManifest(_generation.Manifest));
 
     public ArchiveEntryDto ReadEntry(long entryId)
     {
@@ -43,6 +45,24 @@ public sealed class ArchiveSession : IDisposable
     }
 
     internal void SetNameIndex(ArchiveNameIndex index) => Volatile.Write(ref _nameIndex, index);
+
+    internal bool TryGetNameIndex(out ArchiveNameIndex? index)
+    {
+        index = Volatile.Read(ref _nameIndex);
+        return index is not null;
+    }
+
+    internal void SetCatalogue(ArchiveNameIndex index, ArchiveItemCatalog catalog)
+    {
+        Volatile.Write(ref _nameIndex, index);
+        Volatile.Write(ref _itemCatalog, catalog);
+    }
+
+    internal bool TryGetItemCatalog(out ArchiveItemCatalog? catalog)
+    {
+        catalog = Volatile.Read(ref _itemCatalog);
+        return catalog is not null;
+    }
 
     internal void StoreQuery(CompiledArchiveQuery query)
     {
@@ -88,6 +108,53 @@ public sealed class ArchiveSession : IDisposable
             _generation.Dispose();
         }
     }
+}
+
+internal static class ArchiveDiscoveryWarnings
+{
+    public static IReadOnlyList<string> FromManifest(ArchiveGenerationManifest manifest)
+    {
+        if (File.Exists(manifest.PackageRoot))
+        {
+            return [];
+        }
+        var suspicious = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var source in manifest.SourceFiles)
+        {
+            if (!source.RelativePath.EndsWith(".pamt", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            var parts = source.RelativePath.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length == 1 || parts.Length == 2 && IsPackageGroup(parts[0]))
+            {
+                continue;
+            }
+            string relativeRoot;
+            if (parts[0].Equals("game_files", StringComparison.OrdinalIgnoreCase))
+            {
+                if (parts.Length == 2 || parts.Length == 3 && IsPackageGroup(parts[1]))
+                {
+                    continue;
+                }
+                relativeRoot = string.Join(Path.DirectorySeparatorChar, parts[..^1]);
+            }
+            else
+            {
+                relativeRoot = IsPackageGroup(parts[0])
+                    ? string.Join(Path.DirectorySeparatorChar, parts[..^1])
+                    : parts[0];
+            }
+            suspicious.Add(Path.GetFullPath(Path.Combine(manifest.PackageRoot, relativeRoot)));
+        }
+        return suspicious
+            .Order(StringComparer.OrdinalIgnoreCase)
+            .Select(static path => $"Possible duplicate archive tree: {path}")
+            .ToArray();
+    }
+
+    private static bool IsPackageGroup(string value) =>
+        value.Length == 4 && value.All(static character => character is >= '0' and <= '9');
 }
 
 internal sealed record CompiledArchiveQuery(

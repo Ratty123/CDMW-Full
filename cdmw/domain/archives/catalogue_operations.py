@@ -21,7 +21,7 @@ from .catalogue_wire import (
 )
 
 
-ARCHIVE_BACKEND_PROTOCOL_VERSION = 2
+ARCHIVE_BACKEND_PROTOCOL_VERSION = 3
 ARCHIVE_BACKEND_INDEX_VERSION = 3
 ARCHIVE_BACKEND_MAXIMUM_MESSAGE_BYTES = 1024 * 1024
 ARCHIVE_BACKEND_DEFAULT_PAGE_SIZE = 256
@@ -36,12 +36,17 @@ class ArchiveBackendOperation(str, Enum):
     CACHE_HEALTH = "cache_health"
     OPEN_ARCHIVE = "open_archive"
     REFRESH_ARCHIVE = "refresh_archive"
+    CLOSE_ARCHIVE = "close_archive"
     CREATE_QUERY = "create_query"
     FETCH_PAGE = "fetch_page"
     FETCH_CHILDREN = "fetch_children"
     FACETS = "facets"
     RESOLVE_ENTRIES = "resolve_entries"
     FIND_ASSOCIATION_CANDIDATES = "find_association_candidates"
+    BUILD_NAME_INDEX = "build_name_index"
+    SEARCH_ITEM_CATALOG = "search_item_catalog"
+    LOAD_ITEM_ICONS = "load_item_icons"
+    SCOPE_ITEM_CATALOG = "scope_item_catalog"
     PREPARE_ENTRY = "prepare_entry"
     TEXT_SEARCH = "text_search"
     EXPORT = "export"
@@ -206,6 +211,26 @@ class CacheHealthResult:
 class OpenArchiveRequest:
     package_root: str
     force_refresh: bool = False
+    supersedes_session_id: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CloseArchiveRequest:
+    session_id: str
+
+
+@dataclass(frozen=True, slots=True)
+class CloseArchiveResult:
+    session_id: str
+    closed: bool
+
+    @classmethod
+    def from_wire(cls, value: object) -> "CloseArchiveResult":
+        payload = require_mapping(value, "close archive result")
+        return cls(
+            session_id=read_string(payload, "session_id"),
+            closed=read_bool(payload, "closed"),
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -473,6 +498,8 @@ __all__ = [
     "CancelRequest",
     "CacheHealthRequest",
     "CacheHealthResult",
+    "CloseArchiveRequest",
+    "CloseArchiveResult",
     "CreateQueryRequest",
     "FetchPageRequest",
     "OpenArchiveRequest",

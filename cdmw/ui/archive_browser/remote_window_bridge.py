@@ -15,6 +15,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveEntryDto,
     ArchiveFacetsResult,
     ArchiveQueryHandle,
+    ArchiveQuery,
     ArchiveSessionHandle,
     ArchiveViewMode,
 )
@@ -98,6 +99,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._activate_tab_on_publish = False
         self._last_open_root = ""
         self._last_force_refresh = False
+        self._superseded_session_id: str | None = None
         self._shadow_schedule_generation = 0
         self._shadow_reason = ""
         self._structure_rows: dict[str, list[tuple[str, int]]] = {}
@@ -173,6 +175,12 @@ class ArchiveRemoteWindowBridge(QObject):
         force_refresh: bool,
         activate_tab: bool,
     ) -> None:
+        current_session = self.current_session
+        self._superseded_session_id = (
+            current_session.session_id
+            if force_refresh and current_session is not None
+            else None
+        )
         self.cancel_preview_dependencies(clear_snapshot=True)
         self._last_open_root = str(Path(package_root))
         self._last_force_refresh = bool(force_refresh)
@@ -302,6 +310,29 @@ class ArchiveRemoteWindowBridge(QObject):
             query,
             selection_identity=self.current_selection_identity(),
         )
+
+    def apply_entry_id_scope(self, entry_ids: Iterable[int], *, label: str) -> bool:
+        session = self._controller.current_session
+        bounded_ids = tuple(dict.fromkeys(int(entry_id) for entry_id in entry_ids))[:MAX_REMOTE_EXPORT_ENTRY_IDS]
+        if session is None or not bounded_ids:
+            return False
+        self.cancel_preview_dependencies(clear_snapshot=True)
+        window = self._window
+        window.archive_active_asset_catalog_scope = str(label or "Finder results")
+        window.archive_clear_asset_scope_button.setVisible(True)
+        if hasattr(window, "archive_scope_banner_label"):
+            window.archive_scope_banner_label.setText(
+                f"Scope active: {window.archive_active_asset_catalog_scope}. Clear Scope returns to normal archive filtering."
+            )
+            window.archive_scope_banner_label.setVisible(True)
+        query = ArchiveQuery(
+            session_id=session.session_id,
+            entry_ids=bounded_ids,
+            view_mode=ArchiveViewMode.FLAT,
+        )
+        self._begin_pending(f"Applying {label} scope...")
+        self._controller.apply_query(query, selection_identity=None)
+        return True
 
     def current_selection_identity(self) -> ArchiveDurableIdentity | None:
         if self._display_v2:
@@ -542,6 +573,10 @@ class ArchiveRemoteWindowBridge(QObject):
         publish_consumers = getattr(window, "_publish_archive_catalogue_session_to_consumers", None)
         if callable(publish_consumers) and self._controller.current_session is not None:
             publish_consumers(self._controller.current_session, handle)
+        current_session = self._controller.current_session
+        if current_session is not None:
+            for warning in current_session.discovery_warnings:
+                window.append_archive_log(f"Warning: {warning}")
         window.archive_remote_query_pending = False
         window.archive_startup_autoload_defer_preview = False
         window.archive_remote_total_matches = handle.total_matches
@@ -561,6 +596,23 @@ class ArchiveRemoteWindowBridge(QObject):
             window._activate_tool_widget(window.archive_browser_tab)
         self._activate_tab_on_publish = False
         self._set_remote_operation_busy(False)
+        superseded = self._superseded_session_id
+        self._superseded_session_id = None
+        if (
+            superseded
+            and self._controller.current_session is not None
+            and superseded != self._controller.current_session.session_id
+        ):
+            try:
+                window.archive_catalogue_service.close_archive(
+                    superseded,
+                    ui_generation=self._controller.generation,
+                )
+            except (RuntimeError, ValueError):
+                window.append_archive_log(
+                    "Warning: the superseded archive session will remain until backend shutdown.",
+                    verbose=True,
+                )
         window._write_heartbeat("running")
         window._release_startup_splash()
         self._structure_requests_enabled = True

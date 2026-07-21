@@ -213,15 +213,29 @@ class ArchiveFilterControlsMixin:
         self.archive_filter_apply_button.setText(button_label)
         self.archive_path_search_button.setText(search_button_label)
         remote_pending = bool(getattr(self, "archive_remote_query_pending", False))
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        remote_session_ready = bool(
+            remote_bridge is not None
+            and remote_bridge.displays_v2
+            and remote_bridge.current_session is not None
+        )
         can_apply = self.worker_thread is None and not remote_pending and self.archive_filters_dirty
         self.archive_filter_apply_button.setEnabled(can_apply)
         self.archive_path_search_button.setEnabled(self.worker_thread is None and not remote_pending)
         self.archive_filter_clear_button.setEnabled(self.worker_thread is None and not remote_pending)
         self.archive_asset_catalog_button.setEnabled(
-            self.worker_thread is None and not remote_pending and bool(self.archive_item_asset_catalog)
+            self.worker_thread is None
+            and (
+                remote_session_ready
+                or (not remote_pending and bool(self.archive_item_asset_catalog))
+            )
         )
         self.archive_material_finder_button.setEnabled(
-            self.worker_thread is None and not remote_pending and bool(self._archive_material_catalog_rows())
+            self.worker_thread is None
+            and (
+                remote_session_ready
+                or (not remote_pending and bool(self._archive_material_catalog_rows()))
+            )
         )
         self.archive_clear_asset_scope_button.setVisible(bool(self.archive_active_asset_catalog_scope))
         self.archive_clear_asset_scope_button.setEnabled(

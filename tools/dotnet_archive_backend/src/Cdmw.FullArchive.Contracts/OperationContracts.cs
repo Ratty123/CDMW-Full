@@ -11,7 +11,14 @@ public sealed record CacheHealthResult(
     string? GenerationId = null,
     long EntryCount = 0);
 
-public sealed record OpenArchiveRequest(string PackageRoot, bool ForceRefresh = false);
+public sealed record OpenArchiveRequest(
+    string PackageRoot,
+    bool ForceRefresh = false,
+    string? SupersedesSessionId = null);
+
+public sealed record CloseArchiveRequest(string SessionId);
+
+public sealed record CloseArchiveResult(string SessionId, bool Closed);
 
 public sealed record CreateQueryRequest(ArchiveQuery Query);
 

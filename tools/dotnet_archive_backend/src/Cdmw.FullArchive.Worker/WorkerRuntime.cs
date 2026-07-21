@@ -12,6 +12,10 @@ internal sealed class WorkerRuntime : IAsyncDisposable
     private readonly ArchiveQueryService _queries;
     private readonly ArchiveLookupService _lookups;
     private readonly ArchiveNameIndexService _names;
+    private readonly ArchiveItemCatalogBuildService _itemCatalogBuilder;
+    private readonly ArchiveItemCatalogService _itemCatalog;
+    private readonly ArchiveItemIconService _itemIcons;
+    private readonly ArchiveItemCatalogScopeService _itemScopes;
     private readonly ArchiveEntryPreparationService _preparation;
     private readonly ArchiveTextSearchService _textSearch;
     private readonly ArchiveExportService _exports;
@@ -28,6 +32,10 @@ internal sealed class WorkerRuntime : IAsyncDisposable
         _lookups = new ArchiveLookupService(_sessions, _cache, _native);
         _names = new ArchiveNameIndexService(_sessions, _cache, _native);
         _preparation = new ArchiveEntryPreparationService(_sessions, _native);
+        _itemCatalogBuilder = new ArchiveItemCatalogBuildService(_sessions, _native);
+        _itemCatalog = new ArchiveItemCatalogService(_sessions, _itemCatalogBuilder);
+        _itemIcons = new ArchiveItemIconService(_sessions, _itemCatalogBuilder, _preparation);
+        _itemScopes = new ArchiveItemCatalogScopeService(_sessions, _itemCatalogBuilder, _lookups);
         _textSearch = new ArchiveTextSearchService(_sessions, _native);
         _exports = new ArchiveExportService(_sessions, _queries, _lookups, _native);
     }
@@ -58,6 +66,16 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                         : await _sessions.OpenAsync(payload, cancellationToken, publishProgress).ConfigureAwait(false);
                     StartLookupWarmup(result.SessionId);
                     return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, result.SessionId);
+                }
+            case WorkerProtocol.CloseArchive:
+                {
+                    var payload = RequirePayload<CloseArchiveRequest>(request);
+                    var closed = _sessions.Close(payload.SessionId);
+                    return WorkerProtocol.Response(
+                        request,
+                        WorkerMessageStatus.Result,
+                        new CloseArchiveResult(payload.SessionId, closed),
+                        payload.SessionId);
                 }
             case WorkerProtocol.CreateQuery:
                 {
@@ -149,6 +167,43 @@ internal sealed class WorkerRuntime : IAsyncDisposable
                         WorkerMessageStatus.Result,
                         result with { Candidates = [] },
                         result.SessionId);
+                }
+            case WorkerProtocol.BuildNameIndex:
+                {
+                    var payload = RequirePayload<BuildNameIndexRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _itemCatalogBuilder.BuildAsync(
+                        payload,
+                        publishProgress,
+                        cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.SearchItemCatalog:
+                {
+                    var payload = RequirePayload<ItemCatalogSearchRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _itemCatalog.SearchAsync(
+                        payload,
+                        publishProgress,
+                        cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.LoadItemIcons:
+                {
+                    var payload = RequirePayload<ItemIconBatchRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _itemIcons.LoadAsync(payload, cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
+                }
+            case WorkerProtocol.ScopeItemCatalog:
+                {
+                    var payload = RequirePayload<ItemCatalogScopeRequest>(request);
+                    RequireSession(request, payload.SessionId);
+                    var result = await _itemScopes.ResolveAsync(
+                        payload,
+                        publishProgress,
+                        cancellationToken).ConfigureAwait(false);
+                    return WorkerProtocol.Response(request, WorkerMessageStatus.Result, result, payload.SessionId);
                 }
             case WorkerProtocol.PrepareEntry:
                 {
