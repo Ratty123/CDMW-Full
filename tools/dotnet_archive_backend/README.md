@@ -4,7 +4,7 @@ This package is full CDMW's independently owned archive backend. It does not
 reference Archive Lite projects, assemblies, settings, processes, or caches.
 
 The self-contained Windows x64 worker uses newline-delimited JSON on standard
-input and output. Protocol v2 caps each message at one MiB and carries request,
+input and output. Protocol v3 caps each message at one MiB and carries request,
 UI-generation, session, operation, and status fields. The worker loads only
 `cdmw-full-archive-core.dll` for PAMT scanning, `.ali` construction, and entry
 decode.
@@ -34,6 +34,12 @@ association therefore resolves only requested names without reconstructing the
 general `lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
 index for explicit general lookup operations.
 
+Item Finder and Material Finder use the fingerprint-owned native item catalogue
+on first open. Search, facets, paging, visible icon batches, and exact/related
+scope resolution stay worker-side; bounded entry IDs are then applied through
+the normal remote archive query. Failed catalogue loads remain retryable and an
+archive with no material evidence publishes an explicit empty material result.
+
 Raw export accepts bounded entry IDs, a server-side query token, a query-scoped
 folder, or a worker-side family seed. The worker decodes into a sibling staging
 directory before publication, can preserve the legacy PAMT-parent folder layout,
@@ -59,7 +65,7 @@ preparation batch for the selected input and its dependencies, text search,
 streamed query-token export, package-root layout, rename collision handling,
 .NET, an acknowledged refresh cancellation, clean worker shutdown, and the
 renamed native DLL without opening the application or reading licensed game
-data. The initial ping fails closed unless protocol v2, native ABI 1, and the
+data. The initial ping fails closed unless protocol v3, native ABI 1, and the
 current index version all match.
 
 `v2` is the application default for the stable transition release.

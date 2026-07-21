@@ -325,6 +325,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   malformed non-finite vertex, normal, UV, tangent, or bitangent data is present.
   Explicit fallback-only test helpers still sanitize those values for diagnostic
   payload checks.
+- Import Mesh and Modify Original share one post-preflight construction guard.
+  The `Preparing Alignment` overlay closes on success, exception, or shutdown;
+  a failed partial builder stops texture/package workers and its renderer,
+  unregisters itself, records the traceback, and returns Archive Preview to a
+  usable state. Advanced Texture Tuning and source-parts controls are inserted
+  into their owning layout before visibility is applied, so setup sections never
+  flash or survive as parentless top-level windows.
 - The .NET/Vortice child starts automatically when an embedded replacement
   builder or standalone original/imported mesh session is ready. `Edit Mesh`
   now changes the resident scene from placement-only interaction to geometry
@@ -745,10 +752,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
 - Model Library D3D11 preview derives high-quality texture packaging from the
   active render setting and logs the actual value instead of forcing low-quality
   packages.
-- Archive Browser starts each newly selected mesh package in a fitted overhead
-  view (`yaw=0`, `pitch=-89`). Refreshing the same model preserves its current
-  camera; the initial framing is presentation-only and never changes mesh or
-  export transforms.
+- Archive Browser chooses a newly selected mesh camera from the package
+  manifest `source_path`. Weapon, subweapon, shield, and recognized weapon-family
+  path segments use the fitted overhead view (`yaw=0`, `pitch=-89`); armor,
+  hands, feet, generic, unknown, and missing paths use the straight-on view
+  (`yaw=0`, `pitch=0`). Refreshing the same model preserves its current camera;
+  the initial framing is presentation-only and never changes mesh or export
+  transforms.
 - Exact import proof uses
   `character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac`
   with `wolf_gravestone_sword_free (1).zip`: original batches use archive-resolved

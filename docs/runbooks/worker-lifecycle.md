@@ -11,10 +11,14 @@ New worker code uses shared contracts in `cdmw/workers/`.
 - Report diagnostic names and elapsed time where practical.
 - Worker-heavy tabs implement `request_shutdown()` and
   `iter_shutdown_workers()`.
-- Shell close flow requests tab shutdowns, asks tracked threads to quit, waits
-  asynchronously, and force-stops only after timeout. It retains every owned
-  `QThread` until nonblocking `wait(0)` confirms native teardown; `finished`
-  alone is not a safe ownership-release boundary.
+- The first accepted shell close hides the main window immediately and starts
+  one idempotent shutdown coordinator. It rejects registered modeless mesh
+  builders before requesting tab/worker shutdown, then polls builders,
+  `QThread`s, owned `QProcess` objects, and the archive backend asynchronously.
+  It retains every owned thread/process object until teardown is confirmed;
+  `finished` alone is not a safe ownership-release boundary. After eight
+  seconds it force-stops only owned external process trees, never a `QThread`,
+  and continues polling. Duplicate close requests do not start another flow.
 - A parentless Python `QObject` worker that will be deleted by the UI must move
   back to the owning UI thread from its terminal worker-thread signal before
   `QThread.quit()`. After `wait(0)` confirms native teardown, the UI may clear
@@ -33,13 +37,21 @@ New worker code uses shared contracts in `cdmw/workers/`.
   the exact `QProcess` object and its monotonic generation before terminate or
   kill; stale stop records cannot suppress a later process failure, and device
   loss remains diagnostic.
+- Static-replacement post-preflight construction is one failure-safe lifecycle.
+  The preparation overlay and partial dialog are registered together; failure
+  or shutdown stops their timers, texture/package workers, and renderer before
+  unregistering and deleting the dialog. Successful open transfers ownership
+  to the normal modeless-dialog finished callback. Setup widgets must be added
+  to a parent/layout before any `show()` or `setVisible(True)` call.
 - The full archive backend is one resident, independently packaged .NET
   `QProcess` with `cdmw-full-archive-core.dll` beside it. Its first request is a
   protocol/native-ABI/index-version handshake; application work stays queued
   until that succeeds. Requests carry UI generations, cancellation is explicit,
   stale responses are rejected, and stderr is retained only as a bounded
-  diagnostic tail. Normal close sends `shutdown`, waits by timer, then terminates
-  the process tree after the grace period. A user-selected legacy recovery is
+  diagnostic tail. Protocol v3 rejects stale packaged workers at handshake.
+  Normal close sends `shutdown`, gives the backend one second to exit, then uses
+  one-second terminate/kill grace while the shell coordinator keeps polling. A
+  user-selected legacy recovery is
   process-local: cancel bridge requests, restore the legacy model, request the
   same nonblocking shutdown, and only then schedule the legacy scan. Never
   restart or fall back invisibly after an incompatible or failed handshake.
@@ -51,6 +63,10 @@ New worker code uses shared contracts in `cdmw/workers/`.
 
 Never call blocking `thread.wait(...)` from UI close paths. `wait(0)` is the
 nonblocking completion fence used by the close poller.
+
+The clean-shutdown heartbeat phase `closed` is written only after registered
+builders, owned threads/processes, resident renderers, and the archive backend
+have stopped and the final `QMainWindow` close is being accepted.
 
 Model Library ZIP resolution/extraction and shell scene import/companion scans
 stay in their existing task/utility workers. Recolor analysis and DDS preview

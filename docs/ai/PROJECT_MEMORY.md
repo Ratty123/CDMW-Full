@@ -33,7 +33,7 @@ Last updated: 2026-07-19
 
 - Archive scan preflight treats nested PAMT trees outside root-level, `NNNN/`, `game_files/`, and `game_files/NNNN/` layouts as suspicious. It warns and lets the user cancel, open the folder, or scan anyway; it never auto-excludes files.
 - Archive entries use one immutable identity: normalized virtual path, source PAMT, PAZ index, and entry offset. Caches, selection, shell bridges, and replacement flows must use all four parts.
-- Full Archive Browser catalogue v2 is the default transition-release backend. The resident self-contained .NET worker owns scan/cache/query/facet/lookup/prepare/text/export and loads only the adjacent native full-archive DLL; Python retains remote pages and bounded prepared contexts. Each generation maps `archive.ali` plus the compact `archive.adi` basename/stem/facet index; PAC association and selection/path/basename restoration use targeted lookups without materializing `lookups.bin`, while general maps remain lazy. Prepared PAC contexts pass bounded explicit dependency entries and hash that prepared snapshot for cache identity. `legacy|v2|shadow` is a developer process override, never a saved user setting. Legacy code/caches remain for this release, and fallback requires an explicit session-only dialog choice followed by request cancellation and nonblocking worker shutdown.
+- Full Archive Browser catalogue v2 is the default transition-release backend and uses worker protocol v3. The resident self-contained .NET worker owns scan/cache/query/facet/lookup/prepare/text/export and lazy item/material catalogues, and loads only the adjacent native full-archive DLL; Python retains remote pages and bounded prepared contexts. Each generation maps `archive.ali` plus the compact `archive.adi` basename/stem/facet index; PAC association and selection/path/basename restoration use targeted lookups without materializing `lookups.bin`, while general maps remain lazy. Prepared PAC contexts pass bounded explicit dependency entries and hash that prepared snapshot for cache identity. `legacy|v2|shadow` is a developer process override, never a saved user setting. Legacy code/caches remain for this release, and fallback requires an explicit session-only dialog choice followed by request cancellation and nonblocking worker shutdown.
 - File/package/report writes use a sibling temporary file or staging directory, flush as appropriate, then atomic replacement/publication. Cancellation must leave no partially published output.
 - ZIP/model ingestion is streaming and cancellable, validates member count, expanded size, ratio, traversal, duplicate targets, free space, and time/byte ceilings, then atomically publishes a content-fingerprinted fresh extraction.
 - Worker-owning UI follows one contract: immutable snapshot, cancellation token, monotonic request ID, queued delivery, stale-result rejection, bounded progress, `request_shutdown()`, and `iter_shutdown_workers()`.
@@ -118,7 +118,7 @@ Last updated: 2026-07-19
 - OpenImageIO is offline metadata/diff evidence only, never runtime shading or DDS authority. Shader comparisons require exact same-camera captures and retained amplified diffs; identical corpus inputs require identical fingerprints.
 - `cd-texture-dx` batch JSON parsing stays allocation-light without `std::regex`; archive/icon warmup can leave the parent near 1.7 GiB private memory. Its executable self-test owns JSON escape and alias coverage.
 - External OBJ/DAE/glTF/GLB missing/incomplete UVs use cancellable xatlas and report review-required. Shared UV transforms bake before the V flip; differing sets use sampler/color-space-correct raster baking, native tangents, normal-basis conversion, gutters, and atomic hashes. Unsupported input blocks safely; PAC/PAM is never auto-unwrapped.
-- External ZIP import uses verified extraction; geometry fits the original frame, centers and Y-grounds, and overlay/side-by-side share one grid. Exact `cd_phm_01_sword_0016.pac` plus `wolf_gravestone_sword_free (1).zip` uses archive-resolved original textures and ZIP-owned imported textures. Archive Browser switches to a different mesh package at a fitted overhead camera (`yaw=0`, `pitch=-89`); refreshing the same model preserves its camera.
+- External ZIP import uses verified extraction; geometry fits the original frame, centers and Y-grounds, and overlay/side-by-side share one grid. Exact `cd_phm_01_sword_0016.pac` plus `wolf_gravestone_sword_free (1).zip` uses archive-resolved original textures and ZIP-owned imported textures. Archive Browser derives a new package's camera from manifest `source_path`: weapon/subweapon/shield families use fitted overhead (`yaw=0`, `pitch=-89`), while armor/hands/feet/generic/missing paths use straight-on (`yaw=0`, `pitch=0`); refreshing the same model preserves its camera.
 - Hardware soak must cover production-scale sparse updates, tail shrink,
   material lineage, handler time, and post-warmup RSS; dated results belong in
   `docs/release-confidence-plan.md`.
@@ -141,15 +141,17 @@ Last updated: 2026-07-19
   must not pull NumPy, OpenCV, or preview stacks into cold facade import.
 - Startup smoke uses a unique instance namespace and an atomic marker written
   only after window construction. Lock collision is failure.
-- Startup autoload completes path/name lookup caches in the archive scan worker before releasing the splash; manual Archive Browser loads may defer them. The top status must terminalize as `Ready`/`Cache: Healthy`, including failure paths.
+- Full startup releases the splash after UI construction and schedules archive load on the next event-loop turn; legacy startup retains its cache behavior. Full's top status belongs only to archive work, uses indeterminate progress without a total, and terminalizes as `Archive ready 100%`; preview readiness stays inside the preview pane.
 - Lazy composed `MainWindow` callbacks are QObject-owned and import-deferred.
   Worker signals need those or an owning-thread QObject receiver; lambdas/plain
   callables execute in the worker even with `QueuedConnection`.
-- Shell Qt virtuals are explicit controller bridges. Close retains all owned
-  `QThread`s until nonblocking `wait(0)` confirms native teardown; only then may
-  QObject teardown publish `clean_shutdown: true`. A finished parentless Python
-  worker returns to the UI thread before its QThread quits; UI-side cleanup then
-  defer-deletes both objects after that same fence.
+- Shell Qt virtuals are explicit controller bridges. The first accepted close
+  hides the shell, rejects registered modeless builders, and starts one
+  nonblocking coordinator. Close retains all owned `QThread`s and processes
+  until teardown is confirmed, force-stops only owned external process trees
+  after grace, and publishes the final closed heartbeat last. A finished
+  parentless Python worker returns to the UI thread before its QThread quits;
+  UI-side cleanup then defer-deletes both objects after that same fence.
 - Release builds regenerate and verify provider metadata before PyInstaller. The
   configured-archive gate loads 1.67M entries, paints, filters, and requires a clean shutdown.
 - Release packaging carries the full archive worker plus native DLL under `archive_backend/` in onedir and onefile. The published and exact packaged bundles must pass the headless synthetic protocol/ABI, open/query/page, cancellation, and no-orphan shutdown probe; that does not substitute for separately authorized real-corpus evidence.

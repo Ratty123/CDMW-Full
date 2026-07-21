@@ -26,9 +26,11 @@ CLI mode runs startup maintenance synchronously and then calls the pipeline CLI.
   created once on first display or explicit feature-method use.
 - Collapsed Texture Workflow sections create their bodies on first expansion,
   and Settings helper/service discovery waits until the owning control is used.
-- Archive startup completes the path/basename and item-name search caches in
-  the archive scan worker before releasing the splash. Manual Archive Browser
-  loads may keep those indexes on-demand. Global sidecar and folder-filter
+- Full archive mode releases the splash and shows the shell after UI
+  construction, then schedules the resident-backend load on the next event-loop
+  turn. Its first query, refresh, and lazy Finder catalogue work never hold the
+  main window or run Python archive-tree walks on the UI thread. Legacy mode
+  retains its existing startup/cache behavior. Global sidecar and folder-filter
   indexes still start only from their owning control or a maximum-throughput
   profile.
 - The .NET Mesh Editor helper emits `protocol_ready` before D3D device setup so
@@ -56,10 +58,19 @@ grace period before terminate/kill. The host also deletes its artifacts on every
 exit path; background startup maintenance prunes stale artifacts from crashed
 older sessions without touching a live owner PID.
 
-Neither splash implementation imposes a minimum display duration. Once startup
-is ready, the main window is shown immediately; when Archive Browser has entries,
-the splash closes after its first visible paint or after a one-second fallback.
-Both paths retain the same splash-artifact cleanup.
+Neither splash implementation imposes a minimum display duration. Once UI
+construction is ready, the main window is shown immediately. Full mode does not
+wait for archive discovery or the initial query; legacy archive startup may keep
+its prior first-paint/one-second fallback. Both paths retain the same
+splash-artifact cleanup.
+
+Full's top-right progress bar belongs only to archive load/refresh. Backend
+progress maps `completed`, `total`, `phase`, and `current_item`; unknown totals
+are indeterminate and successful publication ends at `Archive ready 100%`.
+Preview readiness stays inside the preview pane. Refresh keeps the published
+session usable and atomically replaces it only after the next session/query is
+ready. Item and Material Finder catalogues build lazily on first open and reuse
+the archive-fingerprint cache.
 
 The initial archive-path dialog runs package-root discovery and path validation
 through `startup_path_task_controller.py`. Requests are cancellable and
