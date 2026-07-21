@@ -126,7 +126,6 @@ TARGET_ARCHITECTURE_PATHS = (
     "cdmw/ui/archive_browser/hkx_xml_highlighter.py",
     "cdmw/ui/archive_browser/import_actions.py",
     "cdmw/ui/archive_browser/weapon_placement_studio.py",
-    "cdmw/ui/archive_browser/material_finder.py",
     "cdmw/ui/archive_browser/material_sidecar_actions.py",
     "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py",
     "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py",

@@ -43,7 +43,6 @@ from cdmw.ui.archive_browser.hkx_editor_dialog import ArchiveHkxEditorDialogMixi
 from cdmw.ui.archive_browser.icon_pipeline import ArchiveIconPipelineMixin
 from cdmw.ui.archive_browser.import_actions import ArchiveImportActionsMixin
 from cdmw.ui.archive_browser.index_workers import ArchiveIndexWorkerMixin
-from cdmw.ui.archive_browser.material_finder import ArchiveMaterialFinderMixin
 from cdmw.ui.archive_browser.material_sidecar_actions import ArchiveMaterialSidecarActionsMixin
 from cdmw.ui.archive_browser.material_sidecar_editor_dialog import ArchiveMaterialSidecarEditorMixin
 from cdmw.ui.archive_browser.mesh_builder_lifecycle import ArchiveMeshBuilderLifecycleMixin
@@ -203,7 +202,6 @@ ARCHIVE_FEATURE_PROVIDERS = (
     ArchiveControlsPanelMixin,
     ArchiveExtractionMixin,
     ArchiveIconPipelineMixin,
-    ArchiveMaterialFinderMixin,
     ArchiveMaterialSidecarActionsMixin,
     ArchiveMaterialSidecarEditorMixin,
     ArchiveModReadyExportMixin,

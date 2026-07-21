@@ -105,7 +105,10 @@ def _row(item_id: int, *, materials: tuple[str, ...] = ()) -> ItemCatalogRow:
 def test_full_item_finder_loads_immediately_and_pages_server_side() -> None:
     _app()
     window = _Window()
-    dialog = RemoteArchiveFinderDialog(window, material_only=False)
+    dialog = RemoteArchiveFinderDialog(window)
+    assert dialog.windowTitle() == "Item Finder"
+    assert not hasattr(dialog, "_material_only")
+    assert not hasattr(dialog, "_all_button")
     assert dialog._status.text() == "Loading catalogue..."
     _drain()
     assert len(window.archive_catalogue_service.searches) == 1
@@ -129,29 +132,10 @@ def test_full_item_finder_loads_immediately_and_pages_server_side() -> None:
     assert "of 80" in dialog._status.text()
     dialog.close()
 
-
-def test_full_material_finder_stays_open_with_explicit_empty_evidence() -> None:
-    _app()
-    window = _Window()
-    dialog = RemoteArchiveFinderDialog(window, material_only=True)
-    _drain()
-    request = window.archive_catalogue_service.searches[-1]
-    assert request.page_size == 256
-    window.archive_catalogue_service.result_ready.emit(
-        "search-1",
-        "search_item_catalog",
-        ItemCatalogSearchResult("session-a", 0, 0, 256, (), (), (), False),
-    )
-    _drain()
-    assert "No material evidence" in dialog._status.text()
-    assert dialog._retry_button.isHidden()
-    dialog.close()
-
-
 def test_full_finder_search_is_latest_wins_and_scope_uses_entry_ids() -> None:
     _app()
     window = _Window()
-    dialog = RemoteArchiveFinderDialog(window, material_only=False)
+    dialog = RemoteArchiveFinderDialog(window)
     _drain()
     dialog._start_search()
     assert window.archive_catalogue_service.cancelled == ["search-1"]

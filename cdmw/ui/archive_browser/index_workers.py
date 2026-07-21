@@ -346,7 +346,6 @@ class ArchiveIndexWorkerMixin:
         cache_loaded = bool(payload.get("cache_loaded"))
         self.archive_derived_cache_write_pending = not cache_loaded
         self.archive_asset_catalog_button.setEnabled(bool(self.archive_item_asset_catalog))
-        self.archive_material_finder_button.setEnabled(bool(self._archive_material_catalog_rows()))
         self._clear_archive_asset_catalog_icon_cache()
         self._schedule_archive_asset_catalog_icon_preload()
         self._invalidate_archive_browser_name_columns()

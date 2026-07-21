@@ -1,11 +1,10 @@
-"""Archive browser item/material catalog helper logic."""
+"""Archive browser Item Finder catalog helper logic."""
 
 from __future__ import annotations
 
-from collections import Counter
 from collections.abc import Mapping, Sequence
 from pathlib import PurePosixPath
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from cdmw.services.archive_workflow_service import (
     _strip_archive_model_family_variant_suffix,
@@ -17,7 +16,7 @@ from cdmw.models import ArchiveEntry
 
 
 class ArchiveAssetCatalogMixin:
-    """Item Finder and Material Finder data helpers owned by Archive Browser."""
+    """Item Finder data helpers owned by Archive Browser."""
 
     def _archive_entry_model_base_key_matches(self, entry: ArchiveEntry) -> Tuple[Tuple[str, str], ...]:
         stem = PurePosixPath(entry.basename.replace("\\", "/")).stem.strip().lower()
@@ -231,26 +230,5 @@ class ArchiveAssetCatalogMixin:
             and (not normalized_category or str(row.get("category", "") or "").strip() == normalized_category)
         }
         return tuple(sorted(groups, key=lambda group: self._archive_asset_catalog_group_sort_key(normalized_category, group)))
-
-    def _archive_material_catalog_rows(self) -> List[Dict[str, object]]:
-        rows: List[Dict[str, object]] = []
-        for row in tuple(getattr(self, "archive_item_asset_catalog", ()) or ()):
-            if not isinstance(row, Mapping):
-                continue
-            if self._archive_asset_catalog_row_values(row, "material_tags") or self._archive_asset_catalog_row_values(row, "material_evidence"):
-                rows.append(dict(row))
-        return rows
-
-    def _archive_material_catalog_tag_counts(self, rows: Optional[Sequence[Mapping[str, object]]] = None) -> Counter:
-        counts: Counter = Counter()
-        source_rows = rows if rows is not None else self._archive_material_catalog_rows()
-        for row in source_rows:
-            tags = self._archive_asset_catalog_row_values(row, "material_tags")
-            if tags:
-                counts.update(tag.strip().lower() for tag in tags if tag.strip())
-            elif self._archive_asset_catalog_row_values(row, "material_evidence"):
-                counts["untagged evidence"] += 1
-        return counts
-
 
 __all__ = ["ArchiveAssetCatalogMixin"]

@@ -95,7 +95,6 @@ ARCHIVE_ASSET_FAMILY_PANEL = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_f
 ARCHIVE_ASSET_FAMILY_REFERENCES = ROOT / "cdmw" / "ui" / "archive_browser" / "asset_family_references.py"
 ARCHIVE_REFERENCE_PREVIEW = ROOT / "cdmw" / "ui" / "archive_browser" / "reference_preview.py"
 ARCHIVE_ICON_PIPELINE = ROOT / "cdmw" / "ui" / "archive_browser" / "icon_pipeline.py"
-ARCHIVE_MATERIAL_FINDER = ROOT / "cdmw" / "ui" / "archive_browser" / "material_finder.py"
 ARCHIVE_PREVIEW_RESULT = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_result.py"
 ARCHIVE_PREVIEW_LAYOUT = ROOT / "cdmw" / "ui" / "archive_browser" / "preview_layout.py"
 ARCHIVE_UI_FORMATTING = ROOT / "cdmw" / "ui" / "archive_browser" / "ui_formatting.py"
@@ -862,7 +861,7 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('self.settings_tab.show_settings_section("setup")', navigation_source)
         self.assertIn('self.settings_tab.show_settings_section("paths")', navigation_source)
 
-    def test_archive_browser_has_asset_catalog_scope_dialog(self) -> None:
+    def test_archive_browser_has_item_finder_scope_dialog(self) -> None:
         source = "\n".join(
             (
                 MAIN_WINDOW.read_text(encoding="utf-8"),
@@ -879,24 +878,15 @@ class CrashReportingGuardTests(unittest.TestCase):
                 ARCHIVE_ASSET_FAMILY_REFERENCES.read_text(encoding="utf-8"),
                 ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8"),
                 ARCHIVE_ICON_PIPELINE.read_text(encoding="utf-8"),
-                ARCHIVE_MATERIAL_FINDER.read_text(encoding="utf-8"),
                 ARCHIVE_UI_FORMATTING.read_text(encoding="utf-8"),
             )
         )
         self.assertIn('self.archive_asset_catalog_button = QPushButton("Item Finder")', source)
-        self.assertIn('self.archive_material_finder_button = QPushButton("Material Finder")', source)
+        self.assertNotIn("archive_material_finder_button", source)
+        self.assertNotIn("_show_archive_material_finder_dialog", source)
+        self.assertFalse((ROOT / "cdmw" / "ui" / "archive_browser" / "material_finder.py").exists())
         self.assertIn('self.archive_clear_asset_scope_button = QPushButton("Clear Scope")', source)
         self.assertIn("def _show_archive_asset_catalog_dialog(self) -> None:", source)
-        self.assertIn("def _show_archive_material_finder_dialog(self) -> None:", source)
-        self.assertIn("def _archive_material_catalog_rows(self) -> List[Dict[str, object]]:", source)
-        self.assertIn("def _archive_material_catalog_tag_counts(", source)
-        self.assertIn('tag_tree.setHeaderLabels(["Material", "Items"])', source)
-        self.assertIn('result_tree.setHeaderLabels(["Item", "Material tags", "Links", "Evidence"])', source)
-        self.assertIn('detail_tree.setHeaderLabels(["Group", "Value"])', source)
-        self.assertIn('scope_selected_button = QPushButton("Show Selected Related Set")', source)
-        self.assertIn('scope_all_button = QPushButton("Show All Matches")', source)
-        self.assertIn("Material Finder scoped Archive Browser to:", source)
-        self.assertIn("models, material sidecars, DDS textures, and texture-layer families", source)
         self.assertIn(
             "def _apply_archive_asset_catalog_scope(self, row: Mapping[str, object], *, include_related: bool = True) -> None:",
             source,

@@ -9,6 +9,11 @@ The format is intentionally simple:
 - `Fixed` for bug fixes
 - `Docs` for README, guide, or release-note changes
 
+## [Unreleased]
+
+### Changed
+- Removed the standalone Material Finder from CDMW Full while retaining Item Finder, including its material-tag search and filtering.
+
 ## [0.10.0-alpha.2] - 2026-06-06
 
 ### Added

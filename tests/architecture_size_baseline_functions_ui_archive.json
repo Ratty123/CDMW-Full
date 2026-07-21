@@ -24,7 +24,6 @@
     "cdmw/ui/archive_browser/attachment_visual_geometry.py::ArchiveAttachmentVisualGeometryMixin._attachment_visual_clone_model_meshes": 165,
     "cdmw/ui/archive_browser/binary_sidecar_actions.py::ArchiveBinarySidecarActionsMixin._export_hkx_converter_corpus_report": 241,
     "cdmw/ui/archive_browser/controls_panel.py::ArchiveControlsPanelMixin._build_archive_controls_panel": 340,
-    "cdmw/ui/archive_browser/material_finder.py::ArchiveMaterialFinderMixin._show_archive_material_finder_dialog": 367,
     "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py::ArchiveMaterialSidecarEditorMixin._show_material_sidecar_editor": 862,
     "cdmw/ui/archive_browser/mesh_import_export.py::ArchiveMeshImportExportMixin._prompt_archive_mesh_import_setup": 574,
     "cdmw/ui/archive_browser/mesh_launch_flow.py::ArchiveMeshLaunchFlowMixin._build_in_game_mesh_swap_extra_specs": 159,

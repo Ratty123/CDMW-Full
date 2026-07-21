@@ -152,7 +152,6 @@ LIMITS = {
     "cdmw/ui/archive_browser/index_workers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
     "cdmw/ui/archive_browser/import_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
     "cdmw/ui/archive_browser/weapon_placement_studio.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/material_finder.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
     "cdmw/ui/archive_browser/material_sidecar_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
     "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py": 1100,
     "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,

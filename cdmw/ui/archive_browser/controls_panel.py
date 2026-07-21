@@ -108,12 +108,6 @@ class ArchiveControlsPanelMixin:
             "Selecting a row can scope the Archive Browser to that asset's likely files."
         )
         self.archive_asset_catalog_button.setEnabled(False)
-        self.archive_material_finder_button = QPushButton("Material Finder")
-        self.archive_material_finder_button.setToolTip(
-            "Search indexed material evidence such as stone, wood, metal, cloth, leather, hair, and texture-layer families. "
-            "Selecting rows scopes the Archive Browser to matching models, material sidecars, DDS textures, and item links."
-        )
-        self.archive_material_finder_button.setEnabled(False)
         self.archive_clear_asset_scope_button = QPushButton("Clear Scope")
         self.archive_clear_asset_scope_button.setToolTip("Clear the active Item Finder scope and return to normal archive filters.")
         self.archive_clear_asset_scope_button.setVisible(False)
@@ -165,7 +159,6 @@ class ArchiveControlsPanelMixin:
         archive_scan_actions_row.addWidget(self.archive_scan_button)
         archive_scan_actions_row.addWidget(self.archive_refresh_scan_button)
         archive_scan_actions_row.addWidget(self.archive_asset_catalog_button)
-        archive_scan_actions_row.addWidget(self.archive_material_finder_button)
         archive_scan_actions_row.addWidget(self.archive_clear_asset_scope_button)
         archive_scan_actions_row.addStretch(1)
         archive_search_layout.addLayout(archive_scan_actions_row)

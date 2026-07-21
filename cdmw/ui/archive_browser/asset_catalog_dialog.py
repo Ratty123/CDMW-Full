@@ -40,7 +40,7 @@ class ArchiveAssetCatalogDialogMixin:
         if remote_bridge is not None and remote_bridge.displays_v2 and remote_bridge.current_session is not None:
             from cdmw.ui.archive_browser.remote_finder_dialog import show_remote_archive_finder
 
-            show_remote_archive_finder(self, material_only=False)
+            show_remote_archive_finder(self)
             return
         if not self.archive_item_asset_catalog:
             QMessageBox.information(

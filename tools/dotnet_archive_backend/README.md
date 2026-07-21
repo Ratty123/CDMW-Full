@@ -34,11 +34,10 @@ association therefore resolves only requested names without reconstructing the
 general `lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
 index for explicit general lookup operations.
 
-Item Finder and Material Finder use the fingerprint-owned native item catalogue
-on first open. Search, facets, paging, visible icon batches, and exact/related
+Item Finder uses the fingerprint-owned native item catalogue on first open.
+Search, category/material facets, paging, visible icon batches, and exact/related
 scope resolution stay worker-side; bounded entry IDs are then applied through
-the normal remote archive query. Failed catalogue loads remain retryable and an
-archive with no material evidence publishes an explicit empty material result.
+the normal remote archive query. Failed catalogue loads remain retryable.
 
 Raw export accepts bounded entry IDs, a server-side query token, a query-scoped
 folder, or a worker-side family seed. The worker decodes into a sibling staging

@@ -69,8 +69,8 @@ progress maps `completed`, `total`, `phase`, and `current_item`; unknown totals
 are indeterminate and successful publication ends at `Archive ready 100%`.
 Preview readiness stays inside the preview pane. Refresh keeps the published
 session usable and atomically replaces it only after the next session/query is
-ready. Item and Material Finder catalogues build lazily on first open and reuse
-the archive-fingerprint cache.
+ready. The Item Finder catalogue builds lazily on first open and reuses the
+archive-fingerprint cache.
 
 The initial archive-path dialog runs package-root discovery and path validation
 through `startup_path_task_controller.py`. Requests are cancellable and

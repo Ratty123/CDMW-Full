@@ -624,7 +624,6 @@ class ArchiveScanLifecycleMixin:
         self.archive_clear_asset_scope_button.setEnabled(False)
         self.archive_filter_edit.setPlaceholderText("Include path/item-name filter or glob, e.g. Vow of the Dead King or */texture/*")
         self.archive_asset_catalog_button.setEnabled(bool(self.archive_item_asset_catalog))
-        self.archive_material_finder_button.setEnabled(bool(self._archive_material_catalog_rows()))
         self.archive_derived_cache_write_pending = bool(
             payload.get("derived_cache_needs_write")
             and self.archive_entries

@@ -230,13 +230,6 @@ class ArchiveFilterControlsMixin:
                 or (not remote_pending and bool(self.archive_item_asset_catalog))
             )
         )
-        self.archive_material_finder_button.setEnabled(
-            self.worker_thread is None
-            and (
-                remote_session_ready
-                or (not remote_pending and bool(self._archive_material_catalog_rows()))
-            )
-        )
         self.archive_clear_asset_scope_button.setVisible(bool(self.archive_active_asset_catalog_scope))
         self.archive_clear_asset_scope_button.setEnabled(
             self.worker_thread is None and not remote_pending and bool(self.archive_active_asset_catalog_scope)

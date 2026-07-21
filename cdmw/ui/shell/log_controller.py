@@ -117,9 +117,6 @@ class LogControllerMixin:
         self.archive_asset_catalog_button.setEnabled(
             not busy and (remote_session_ready or bool(self.archive_item_asset_catalog))
         )
-        self.archive_material_finder_button.setEnabled(
-            not busy and (remote_session_ready or bool(self._archive_material_catalog_rows()))
-        )
         self.archive_clear_asset_scope_button.setEnabled(not busy and bool(self.archive_active_asset_catalog_scope))
         self.archive_filter_edit.setEnabled(not busy)
         self.archive_path_search_button.setEnabled(not busy)

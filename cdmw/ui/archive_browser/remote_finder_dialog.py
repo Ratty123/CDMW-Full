@@ -1,4 +1,4 @@
-"""Lazy paged Item and Material Finder dialogs for the Full archive backend."""
+"""Lazy paged Item Finder dialog for the Full archive backend."""
 
 from __future__ import annotations
 
@@ -67,9 +67,9 @@ class _IconConversionWorker(QObject):
 
 
 class RemoteArchiveFinderDialog(QDialog):
-    """A latest-request-wins finder over one published archive fingerprint."""
+    """A latest-request-wins Item Finder over one published archive fingerprint."""
 
-    def __init__(self, window: object, *, material_only: bool) -> None:
+    def __init__(self, window: object) -> None:
         super().__init__(window)  # type: ignore[arg-type]
         self._window = window
         self._service = window.archive_catalogue_service
@@ -79,8 +79,7 @@ class RemoteArchiveFinderDialog(QDialog):
             raise RuntimeError("A Full archive session must be ready before opening a Finder.")
         self._session_id = session.session_id
         self._fingerprint = session.fingerprint
-        self._material_only = bool(material_only)
-        self._page_size = 256 if material_only else 72
+        self._page_size = 72
         self._page_start = 0
         self._total_matches = 0
         self._search_request_id: str | None = None
@@ -98,17 +97,14 @@ class RemoteArchiveFinderDialog(QDialog):
         QTimer.singleShot(0, self._start_search)
 
     def _build_ui(self) -> None:
-        title = "Material Finder" if self._material_only else "Item Finder"
-        self.setWindowTitle(title)
+        self.setWindowTitle("Item Finder")
         self.resize(1160, 760)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
 
         intro = QLabel(
-            "Search recovered material evidence and scope the Archive Browser without loading the whole catalogue into the UI."
-            if self._material_only
-            else "Search recovered item names, model links, icons, and categories. Results are loaded one page at a time."
+            "Search recovered item names, model links, icons, and categories. Results are loaded one page at a time."
         )
         intro.setObjectName("HintLabel")
         intro.setWordWrap(True)
@@ -116,19 +112,14 @@ class RemoteArchiveFinderDialog(QDialog):
 
         controls = QHBoxLayout()
         self._search_edit = QLineEdit()
-        self._search_edit.setPlaceholderText(
-            "Search material tag, item name, model stem, or texture family"
-            if self._material_only
-            else "Search item name, ID, model stem, category, material tag, or icon path"
-        )
+        self._search_edit.setPlaceholderText("Search item name, ID, model stem, category, material tag, or icon path")
         self._category_combo = QComboBox()
         self._category_combo.addItem("All categories", (None, None))
         self._material_combo = QComboBox()
         self._material_combo.addItem("All materials", None)
         clear_button = QPushButton("Clear")
         controls.addWidget(self._search_edit, stretch=1)
-        if not self._material_only:
-            controls.addWidget(self._category_combo)
+        controls.addWidget(self._category_combo)
         controls.addWidget(self._material_combo)
         controls.addWidget(clear_button)
         layout.addLayout(controls)
@@ -145,9 +136,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._tree.setRootIsDecorated(False)
         self._tree.setAlternatingRowColors(True)
         self._tree.setUniformRowHeights(True)
-        self._tree.setSelectionMode(
-            QAbstractItemView.ExtendedSelection if self._material_only else QAbstractItemView.SingleSelection
-        )
+        self._tree.setSelectionMode(QAbstractItemView.SingleSelection)
         self._tree.header().setStretchLastSection(True)
         self._tree.setColumnWidth(0, 310)
         self._tree.setColumnWidth(1, 180)
@@ -163,18 +152,14 @@ class RemoteArchiveFinderDialog(QDialog):
         self._cancel_button = QPushButton("Cancel Loading")
         self._exact_button = QPushButton("Show Exact Links")
         self._related_button = QPushButton("Show Related Set")
-        self._all_button = QPushButton("Show All Matches")
-        self._all_button.setVisible(self._material_only)
         close_button = QPushButton("Close")
         buttons.addWidget(self._previous_button)
         buttons.addWidget(self._next_button)
         buttons.addWidget(self._retry_button)
         buttons.addWidget(self._cancel_button)
         buttons.addStretch(1)
-        if not self._material_only:
-            buttons.addWidget(self._exact_button)
+        buttons.addWidget(self._exact_button)
         buttons.addWidget(self._related_button)
-        buttons.addWidget(self._all_button)
         buttons.addWidget(close_button)
         layout.addLayout(buttons)
 
@@ -198,7 +183,6 @@ class RemoteArchiveFinderDialog(QDialog):
         self._cancel_button.clicked.connect(self._cancel_search)
         self._exact_button.clicked.connect(lambda: self._scope_selected(include_related=False))
         self._related_button.clicked.connect(lambda: self._scope_selected(include_related=True))
-        self._all_button.clicked.connect(self._scope_all)
         self._tree.itemDoubleClicked.connect(lambda _item, _column: self._scope_selected(include_related=True))
         close_button.clicked.connect(self.reject)
         self._update_buttons()
@@ -232,11 +216,10 @@ class RemoteArchiveFinderDialog(QDialog):
     def _selected_filters(self) -> tuple[str | None, str | None, str | None]:
         category: str | None = None
         group: str | None = None
-        if not self._material_only:
-            value = self._category_combo.currentData()
-            if isinstance(value, tuple) and len(value) == 2:
-                category = str(value[0]) if value[0] else None
-                group = str(value[1]) if value[1] else None
+        value = self._category_combo.currentData()
+        if isinstance(value, tuple) and len(value) == 2:
+            category = str(value[0]) if value[0] else None
+            group = str(value[1]) if value[1] else None
         material_value = self._material_combo.currentData()
         material = str(material_value) if material_value else None
         return category, group, material
@@ -359,8 +342,6 @@ class RemoteArchiveFinderDialog(QDialog):
         shown_end = min(result.total_matches, result.page_start + len(result.items))
         if result.warning:
             self._status.setText(result.warning)
-        elif self._material_only and not result.has_material_evidence:
-            self._status.setText("No material evidence exists in this archive catalogue.")
         elif result.total_matches == 0:
             self._status.setText("No catalogue entries match the current search and filters.")
         else:
@@ -371,8 +352,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._retry_button.setVisible(bool(result.warning))
         self._tree.setEnabled(True)
         self._update_buttons()
-        if not self._material_only:
-            QTimer.singleShot(0, self._request_visible_icons)
+        QTimer.singleShot(0, self._request_visible_icons)
 
     def _populate_facets(self, result: ItemCatalogSearchResult) -> None:
         category_value = self._category_combo.currentData()
@@ -435,24 +415,6 @@ class RemoteArchiveFinderDialog(QDialog):
             label=f"{self.windowTitle()}: {label}",
         )
 
-    def _scope_all(self) -> None:
-        if self._total_matches <= 0:
-            QMessageBox.information(self, self.windowTitle(), "No matching catalogue rows are available to scope.")
-            return
-        category, group, material = self._selected_filters()
-        label = material or self._search_edit.text().strip() or "all matching materials"
-        self._start_scope(
-            ItemCatalogScopeRequest(
-                self._session_id,
-                query=self._search_edit.text().strip(),
-                category=category,
-                group=group,
-                material_tag=material,
-                include_related=True,
-            ),
-            label=f"Material Finder: {label}",
-        )
-
     def _start_scope(self, request: ItemCatalogScopeRequest, *, label: str) -> None:
         self._cancel_request("_scope_request_id")
         self._pending_scope_label = label
@@ -481,7 +443,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._update_buttons()
 
     def _request_visible_icons(self) -> None:
-        if self._material_only or self._icon_request_id or not self._tree_items or self._closing:
+        if self._icon_request_id or not self._tree_items or self._closing:
             return
         viewport = self._tree.viewport()
         first = self._tree.indexAt(QPoint(2, 2)).row()
@@ -564,7 +526,6 @@ class RemoteArchiveFinderDialog(QDialog):
         has_selection = bool(self._tree.selectedItems())
         self._exact_button.setEnabled(not busy and has_selection)
         self._related_button.setEnabled(not busy and has_selection)
-        self._all_button.setEnabled(not busy and self._total_matches > 0)
 
     def closeEvent(self, event: object) -> None:
         self._closing = True
@@ -586,8 +547,8 @@ class RemoteArchiveFinderDialog(QDialog):
             retained.discard(self)
 
 
-def show_remote_archive_finder(window: object, *, material_only: bool) -> None:
-    dialog = RemoteArchiveFinderDialog(window, material_only=material_only)
+def show_remote_archive_finder(window: object) -> None:
+    dialog = RemoteArchiveFinderDialog(window)
     retained = getattr(window, "_remote_archive_finder_dialogs", None)
     if not isinstance(retained, set):
         retained = set()
