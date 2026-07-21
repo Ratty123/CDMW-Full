@@ -408,6 +408,7 @@ class ArchivePreviewD3D11RuntimeMixin:
             self._promote_archive_d3d11_pending_package_if_loaded(status_file)
             self._restore_archive_d3d11_pending_view_state()
             self.archive_d3d11_preview_host.set_render_tuning(self._current_model_preview_render_settings())
+            self._set_archive_d3d11_hidden_parts_from_menu()
             self._cleanup_archive_isolated_renderer_packages(include_active=False)
             self._set_archive_isolated_renderer_debug(self._format_archive_isolated_renderer_debug(payload))
             texture_integrity = str(payload.get("texture_integrity", "ok") or "ok").strip().lower()
