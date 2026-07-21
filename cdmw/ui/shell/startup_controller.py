@@ -284,22 +284,30 @@ class StartupPromptMixin:
             return
 
         self.append_archive_log("Startup Archive Browser preload is enabled.")
-        health_report = self._check_archive_cache_health(package_root_text)
-        self._warn_if_archive_cache_stale(health_report, package_root_text)
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        use_remote_backend = bool(remote_bridge is not None and remote_bridge.displays_v2)
+        if not use_remote_backend:
+            health_report = self._check_archive_cache_health(package_root_text)
+            self._warn_if_archive_cache_stale(health_report, package_root_text)
         if bool(getattr(self, "_startup_archive_path_prompt_accepted", False)):
-            self.append_archive_log(
-                "Building the first archive cache now. Keep CDMW open until the cache status reaches ready."
-            )
-            self._update_startup_splash(
-                "Building archive cache. First load can take a while; let it finish.",
-                1,
-                100,
-            )
+            if use_remote_backend:
+                self.append_archive_log(
+                    "Archive catalogue loading will continue in the background after CDMW opens."
+                )
+            else:
+                self.append_archive_log(
+                    "Building the first archive cache now. Keep CDMW open until the cache status reaches ready."
+                )
+                self._update_startup_splash(
+                    "Building archive cache. First load can take a while; let it finish.",
+                    1,
+                    100,
+                )
         else:
             self._update_startup_splash("Loading Archive Browser...")
         self.archive_startup_autoload_defer_preview = True
-        self.archive_startup_hold_until_ready = True
-        self.archive_startup_index_warmup_required = True
+        self.archive_startup_hold_until_ready = not use_remote_backend
+        self.archive_startup_index_warmup_required = not use_remote_backend
         self.archive_startup_saved_filter_state = {}
         self.archive_startup_saved_filter_apply_pending = False
         self.archive_startup_saved_filter_wait_logged = False
@@ -307,11 +315,20 @@ class StartupPromptMixin:
         self.archive_filters_dirty = False
         self._update_archive_filter_button_state()
         self._record_runtime_event("startup_autoload_begin", package_root=str(package_root))
+        force_refresh = not self._preference_bool("prefer_archive_cache_on_startup", True)
+        if use_remote_backend:
+            self._write_heartbeat("running")
+            self._release_startup_splash()
+            QTimer.singleShot(
+                0,
+                lambda: self.scan_archives(
+                    force_refresh=force_refresh,
+                    activate_archive_tab=False,
+                ),
+            )
+            return
         self._write_heartbeat("archive_autoload")
-        self.scan_archives(
-            force_refresh=not self._preference_bool("prefer_archive_cache_on_startup", True),
-            activate_archive_tab=False,
-        )
+        self.scan_archives(force_refresh=force_refresh, activate_archive_tab=False)
 
     def _load_game_executable_fingerprints(self) -> Dict[str, Dict[str, object]]:
         raw_value = self.settings.value("archive/game_executable_fingerprints", "{}")

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 from pathlib import Path
 
@@ -103,12 +104,23 @@ def test_remote_model_accepts_only_current_bounded_pages_and_repaints_rows() -> 
     assert model.accept_page(current)
     index = model.index(0, 0)
     assert model.data(index, Qt.DisplayRole) == "file_0.pac"
+    assert model.data(model.index(0, 3), Qt.DisplayRole) == "Mesh .pac"
     assert model.data(model.index(0, 7), Qt.DisplayRole) == "Active mod"
     assert model.data(index, REMOTE_ENTRY_DTO_ROLE) == current.rows[0]
     assert changed == [(0, 3)]
     assert not model.accept_page(ArchivePage("session-a", "old-query", 4, 12, 0, current.rows))
     assert not model.accept_page(ArchivePage("session-a", "query-a", 4, 12, 1, current.rows))
     assert rejected == ["page", "page"]
+
+
+def test_remote_model_prefers_backend_canonical_type_display() -> None:
+    _app()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    model.publish_query(_handle(total=1), view_mode=ArchiveViewMode.FLAT, prime=False)
+    row = replace(_entry(0), type_display="Canonical Mesh .pac")
+
+    assert model.accept_page(ArchivePage("session-a", "query-a", 4, 1, 0, (row,)))
+    assert model.data(model.index(0, 3), Qt.DisplayRole) == "Canonical Mesh .pac"
 
 
 def test_remote_page_cache_is_lru_bounded_below_ten_thousand_entries() -> None:

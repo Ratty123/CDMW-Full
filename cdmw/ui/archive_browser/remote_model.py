@@ -644,7 +644,7 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
     display_name = parts[-1] if parts else path
     folder = path if show_full_path else "/".join(parts[:-1])
     compression = "Stored" if entry.stored_size == entry.original_size else f"Type {entry.flags & 0x0F}"
-    role = entry.category.replace("_", " ").title() if entry.category else entry.role.value.replace("_", " ").title()
+    role = _remote_type_display(entry)
     columns = (
         display_name,
         entry.exact_name or "-",
@@ -669,6 +669,29 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
         path,
     )
     return ArchiveBrowserRowPayload(columns=columns, tooltips=tooltips)
+
+
+def _remote_type_display(entry: ArchiveEntryDto) -> str:
+    canonical = str(entry.type_display or "").strip()
+    if canonical:
+        return canonical
+    labels = {
+        "model": "Mesh",
+        "animation": "Animation",
+        "physics": "Physics",
+        "metadata": "Metadata",
+        "video": "Video",
+        "audio": "Audio",
+        "user_interface": "UI",
+        "impostor": "Impostor",
+        "normal": "Normal",
+        "material": "Material",
+        "image": "Texture",
+        "text": "Text",
+        "other": "Unknown",
+    }
+    label = labels.get(entry.role.value, entry.role.value.replace("_", " ").title())
+    return f"{label} {str(entry.extension or '').strip().lower()}".strip()
 
 
 def _format_bytes(value: int) -> str:

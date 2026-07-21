@@ -41,7 +41,8 @@ public sealed record ArchiveEntryDto(
     string ExactName = "",
     string NameEvidence = "",
     bool IsActiveOverride = false,
-    string OverrideState = "")
+    string OverrideState = "",
+    string TypeDisplay = "")
 {
     public bool IsCompressed => StoredSize != OriginalSize;
     public int CompressionType => Flags & 0x0F;

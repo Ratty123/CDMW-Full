@@ -64,6 +64,7 @@ def _entry_payload() -> dict[str, object]:
         "name_evidence": "Exact localization",
         "is_active_override": False,
         "override_state": "Shadowed original",
+        "type_display": "Mesh .pac",
     }
 
 
@@ -71,6 +72,7 @@ def test_archive_entry_and_page_parse_to_frozen_bounded_contracts() -> None:
     entry = ArchiveEntryDto.from_wire(_entry_payload())
     assert entry.role is ArchiveEntryRole.MODEL
     assert entry.override_state == "Shadowed original"
+    assert entry.type_display == "Mesh .pac"
     assert entry.identity == ArchiveDurableIdentity(
         "character/model/example.pac",
         "c:/game/0009/0.pamt",

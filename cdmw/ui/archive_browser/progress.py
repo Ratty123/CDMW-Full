@@ -94,6 +94,7 @@ class ArchiveProgressMixin:
         phase: str = "",
         percent: Optional[int] = None,
         allow_decrease: bool = False,
+        indeterminate: bool = False,
     ) -> None:
         detail_text = str(detail or "Working...").strip() or "Working..."
         phase_text = str(phase or "").strip()
@@ -112,13 +113,17 @@ class ArchiveProgressMixin:
         )
         if not allow_decrease and not new_work_after_ready:
             percent_value = max(previous, percent_value)
-        self._archive_load_progress_active = percent_value < 100 and phase_text not in {"Ready", "Failed"}
+        self._archive_load_progress_active = (indeterminate or percent_value < 100) and phase_text not in {"Ready", "Failed"}
         self._archive_load_progress_percent = percent_value
         self._archive_load_progress_detail = detail_text
         if hasattr(self, "archive_scan_progress_bar"):
-            self.archive_scan_progress_bar.setRange(0, 100)
-            self.archive_scan_progress_bar.setValue(percent_value)
-            self.archive_scan_progress_bar.setFormat(f"{percent_value}%")
+            if indeterminate:
+                self.archive_scan_progress_bar.setRange(0, 0)
+                self.archive_scan_progress_bar.setFormat("")
+            else:
+                self.archive_scan_progress_bar.setRange(0, 100)
+                self.archive_scan_progress_bar.setValue(percent_value)
+                self.archive_scan_progress_bar.setFormat(f"{percent_value}%")
             self.archive_scan_progress_bar.setToolTip(detail_text)
         if hasattr(self, "archive_scan_progress_label"):
             self.archive_scan_progress_label.setText(phase_text)
@@ -147,8 +152,14 @@ class ArchiveProgressMixin:
         else:
             percent = self._archive_progress_percent_for_detail(current, total, progress_detail)
             detail_with_progress = progress_detail
-            self._set_archive_load_progress(progress_detail, current, total, percent=percent)
-            self._update_startup_splash(detail_with_progress, percent, 100)
+            self._set_archive_load_progress(
+                progress_detail,
+                current,
+                total,
+                percent=percent,
+                indeterminate=True,
+            )
+            self._update_startup_splash(detail_with_progress)
             self._set_archive_warmup_overlay(
                 True,
                 "Scanning Archive Packages",

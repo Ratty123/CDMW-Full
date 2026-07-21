@@ -139,7 +139,7 @@ public sealed class ArchiveIndex : IDisposable
                 ? isModPackage ? "Active mod" : "Active original"
                 : isModPackage ? "Shadowed mod" : "Shadowed original"
             : isModPackage ? "Mod-added" : string.Empty;
-        return new ArchiveEntryDto(
+        var entry = new ArchiveEntryDto(
             sessionId,
             entryId,
             identity,
@@ -158,6 +158,7 @@ public sealed class ArchiveIndex : IDisposable
             ArchiveEntryClassifier.IsPreviewable(extension, role),
             IsActiveOverride: isActiveOverride,
             OverrideState: overrideState);
+        return entry with { TypeDisplay = ArchiveRoleDisplay.For(entry) };
     }
 
     internal int GetPathByteLength(long entryId)

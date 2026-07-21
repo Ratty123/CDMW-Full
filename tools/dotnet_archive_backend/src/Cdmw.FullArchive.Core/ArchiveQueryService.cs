@@ -572,7 +572,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
                 ArchiveSortField.OriginalSize => (string.Empty, entry.OriginalSize, entry.StoredSize),
                 ArchiveSortField.StoredSize => (string.Empty, entry.StoredSize, entry.OriginalSize),
                 ArchiveSortField.Compression => (CompressionLabel(entry.CompressionType), entry.CompressionType, entry.Flags),
-                ArchiveSortField.Role => (RoleDisplayText(entry), 0L, 0L),
+                ArchiveSortField.Role => (ArchiveRoleDisplay.For(entry), 0L, 0L),
                 ArchiveSortField.Category => (entry.Category, 0L, 0L),
                 ArchiveSortField.ActiveOverride => (entry.OverrideState, 0L, 0L),
                 _ => (entry.Path, 0L, 0L),

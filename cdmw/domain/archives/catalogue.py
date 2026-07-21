@@ -164,6 +164,7 @@ class ArchiveEntryDto:
     name_evidence: str = ""
     is_active_override: bool = False
     override_state: str = ""
+    type_display: str = ""
 
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveEntryDto":
@@ -190,6 +191,7 @@ class ArchiveEntryDto:
             name_evidence=read_string(payload, "name_evidence", default=""),
             is_active_override=read_bool(payload, "is_active_override", default=False),
             override_state=read_string(payload, "override_state", default=""),
+            type_display=read_string(payload, "type_display", default=""),
         )
 
 

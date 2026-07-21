@@ -204,6 +204,24 @@ class ArchiveRemoteWindowBridge(QObject):
         )
         return True
 
+    def cancel_pending_update(self) -> bool:
+        if self._shadow or not bool(getattr(self._window, "archive_remote_query_pending", False)):
+            return False
+        self._controller.cancel_pending()
+        window = self._window
+        window.archive_remote_query_pending = False
+        self._set_remote_operation_busy(False)
+        window._set_archive_warmup_overlay(False)
+        window._update_archive_filter_button_state()
+        if self.current_session is None:
+            message = "Archive catalogue loading cancelled."
+        else:
+            message = "Archive refresh cancelled. The previous catalogue remains available."
+        window._set_archive_load_progress(message, phase="Ready", percent=100)
+        window.set_status_message(message)
+        window.append_archive_log(message)
+        return True
+
     def deactivate(self) -> None:
         """Stop requests before an explicit session-only legacy handoff."""
 
@@ -469,7 +487,34 @@ class ArchiveRemoteWindowBridge(QObject):
         )
         window.set_status_message(text)
         window.append_archive_log(text)
-        window.set_busy(True, build_mode=False)
+        self._set_remote_operation_busy(True)
+
+    def _set_remote_operation_busy(self, busy: bool) -> None:
+        """Gate only controls that can start a conflicting catalogue generation."""
+
+        window = self._window
+        for name in (
+            "archive_package_root_edit",
+            "archive_package_root_browse_button",
+            "archive_package_root_detect_button",
+            "archive_scan_button",
+        ):
+            widget = getattr(window, name, None)
+            setter = getattr(widget, "setEnabled", None)
+            if callable(setter):
+                setter(not busy)
+        refresh_button = getattr(window, "archive_refresh_scan_button", None)
+        if refresh_button is not None:
+            try:
+                refresh_button.setText("Cancel" if busy else "Refresh")
+                refresh_button.setToolTip(
+                    "Cancel the in-progress archive catalogue update and keep the previous view."
+                    if busy
+                    else "Ignore the archive cache and rebuild it from the .pamt files."
+                )
+                refresh_button.setEnabled(True)
+            except RuntimeError:
+                pass
 
     def _handle_status(self, message: str) -> None:
         if self._shadow:
@@ -480,9 +525,13 @@ class ArchiveRemoteWindowBridge(QObject):
     def _handle_progress(self, kind: str, update: object) -> None:
         if self._shadow:
             return
-        current = int(getattr(update, "current", 0) or 0)
+        current = int(getattr(update, "completed", 0) or 0)
         total = int(getattr(update, "total", 0) or 0)
-        detail = str(getattr(update, "detail", kind) or kind)
+        phase = str(getattr(update, "phase", kind) or kind).strip()
+        current_item = str(getattr(update, "current_item", "") or "").strip()
+        detail = phase.replace("_", " ").strip().capitalize() or str(kind or "Working")
+        if current_item:
+            detail = f"{detail}: {current_item}"
         self._window._handle_archive_scan_progress(current, total, detail)
 
     def _handle_query_published(self, handle: ArchiveQueryHandle) -> None:
@@ -494,6 +543,7 @@ class ArchiveRemoteWindowBridge(QObject):
         if callable(publish_consumers) and self._controller.current_session is not None:
             publish_consumers(self._controller.current_session, handle)
         window.archive_remote_query_pending = False
+        window.archive_startup_autoload_defer_preview = False
         window.archive_remote_total_matches = handle.total_matches
         window.archive_filters_dirty = False
         window.archive_result_filter_signature = window._current_archive_filter_signature()
@@ -510,7 +560,7 @@ class ArchiveRemoteWindowBridge(QObject):
         if self._activate_tab_on_publish:
             window._activate_tool_widget(window.archive_browser_tab)
         self._activate_tab_on_publish = False
-        window.set_busy(False, build_mode=False)
+        self._set_remote_operation_busy(False)
         window._write_heartbeat("running")
         window._release_startup_splash()
         self._structure_requests_enabled = True
@@ -602,7 +652,7 @@ class ArchiveRemoteWindowBridge(QObject):
         window.archive_remote_query_pending = False
         window._update_archive_filter_button_state()
         window._set_archive_warmup_overlay(False)
-        window.set_busy(False, build_mode=False)
+        self._set_remote_operation_busy(False)
         message = f"Archive backend v2 failed during {kind}: {detail}"
         window.set_status_message(message)
         window.append_archive_log(message)

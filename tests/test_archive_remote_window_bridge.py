@@ -6,7 +6,7 @@ from pathlib import Path
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QItemSelection, QItemSelectionModel, QModelIndex, QObject, Signal
-from PySide6.QtWidgets import QApplication, QLineEdit
+from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton
 
 from cdmw.domain.archives.catalogue import (
     ArchiveChildNode,
@@ -21,7 +21,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveSessionHandle,
     ArchiveViewMode,
 )
-from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind, PrepareEntryResult
+from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind, PrepareEntryResult, ProgressUpdate
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
@@ -205,6 +205,46 @@ def test_v2_bridge_only_offers_session_recovery_for_catalogue_failures() -> None
     bridge._handle_failure("open", RuntimeError("worker unavailable"))
 
     assert failures == [("open", "worker unavailable")]
+
+
+def test_v2_bridge_maps_real_progress_contract_fields() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    updates: list[tuple[int, int, str]] = []
+    window._handle_archive_scan_progress = lambda current, total, detail: updates.append((current, total, detail))
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+
+    bridge._handle_progress(
+        "open",
+        ProgressUpdate(completed=17, total=40, phase="fingerprint_scan", current_item="0009/0.pamt"),
+    )
+
+    assert updates == [(17, 40, "Fingerprint scan: 0009/0.pamt")]
+
+
+def test_v2_bridge_scopes_busy_state_and_cancel_keeps_existing_view() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    window.archive_scan_button = QPushButton("Scan")
+    window.archive_refresh_scan_button = QPushButton("Refresh")
+    window._update_archive_filter_button_state = lambda: None
+    window._set_archive_warmup_overlay = lambda *_args, **_kwargs: None
+    progress: list[tuple[str, str, int]] = []
+    window._set_archive_load_progress = lambda text, **kwargs: progress.append(
+        (text, str(kwargs.get("phase", "")), int(kwargs.get("percent", 0)))
+    )
+    window.set_status_message = lambda _message: None
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    window.archive_remote_query_pending = True
+
+    bridge._set_remote_operation_busy(True)
+
+    assert window.archive_tree.isEnabled()
+    assert not window.archive_scan_button.isEnabled()
+    assert window.archive_refresh_scan_button.text() == "Cancel"
+    assert bridge.cancel_pending_update()
+    assert window.archive_refresh_scan_button.text() == "Refresh"
+    assert progress[-1] == ("Archive catalogue loading cancelled.", "Ready", 100)
 
 
 def test_remote_export_selection_uses_session_ids_without_materializing_global_entries() -> None:

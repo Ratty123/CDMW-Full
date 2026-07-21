@@ -237,10 +237,8 @@ class ArchiveScanLifecycleMixin:
         self.archive_sidecar_request_id += 1
         self.archive_sidecar_pending_start = False
 
-        package_root = Path(package_root_text).expanduser()
-        if not self._confirm_suspicious_archive_tree_scan(package_root):
-            return
         remote_bridge = getattr(self, "archive_remote_bridge", None)
+        package_root = Path(package_root_text).expanduser()
         if remote_bridge is not None and remote_bridge.displays_v2:
             self._activate_archive_browser_on_scan_complete = activate_archive_tab
             self.clear_archive_scan_log()
@@ -259,6 +257,8 @@ class ArchiveScanLifecycleMixin:
                 force_refresh=force_refresh,
                 activate_tab=activate_archive_tab,
             )
+            return
+        if not self._confirm_suspicious_archive_tree_scan(package_root):
             return
         self._activate_archive_browser_on_scan_complete = activate_archive_tab
         if activate_archive_tab:
@@ -451,6 +451,17 @@ class ArchiveScanLifecycleMixin:
         self.worker_thread = thread
         self.set_busy(True, build_mode=False)
         thread.start()
+
+    def refresh_archives_or_cancel(self) -> None:
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if (
+            remote_bridge is not None
+            and remote_bridge.displays_v2
+            and bool(getattr(self, "archive_remote_query_pending", False))
+        ):
+            remote_bridge.cancel_pending_update()
+            return
+        self.scan_archives(force_refresh=True)
 
     def _ensure_archive_extension_index_ready(self) -> None:
         if self.archive_entries_by_extension or not self.archive_entries:
