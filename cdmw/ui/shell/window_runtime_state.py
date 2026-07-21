@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter, OrderedDict, deque
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QProcess, Qt, QTimer
 
 from cdmw.domain.archives.backend_mode import resolve_archive_backend_mode
 from cdmw.services.archive_catalogue_service import ArchiveCatalogueService
@@ -48,6 +48,9 @@ class ShellWindowRuntimeStateMixin:
         self._close_pending_started_at = 0.0
         self._close_force_stop_requested = False
         self._close_pending_worker_threads: list[tuple[str, QThread]] = []
+        self._close_pending_processes: list[tuple[str, QProcess]] = []
+        self._close_pending_builder_dialogs: list[object] = []
+        self._close_finalized = False
         self._close_worker_wait_timer = QTimer(self)
         self._close_worker_wait_timer.setInterval(100)
         self._close_worker_wait_timer.timeout.connect(self._finish_deferred_close_if_workers_stopped)

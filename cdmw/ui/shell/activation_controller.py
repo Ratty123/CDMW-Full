@@ -79,6 +79,8 @@ class ActivationControllerMixin:
             self._present_main_window("tray_icon")
 
     def _present_main_window(self, reason: str = "") -> None:
+        if bool(getattr(self, "_close_after_workers_requested", False)):
+            return
         if self.isMinimized():
             self.showNormal()
         else:
@@ -93,8 +95,6 @@ class ActivationControllerMixin:
             QApplication.alert(self, 2500)
         except Exception:
             pass
-        if bool(getattr(self, "_close_after_workers_requested", False)):
-            self.set_status_message("Close is still waiting for background workers to stop.")
         recorder = getattr(self, "_record_runtime_event", None)
         if callable(recorder):
             recorder("main_window_present_requested", reason=str(reason or "unknown"))

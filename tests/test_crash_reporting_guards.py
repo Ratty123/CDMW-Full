@@ -435,18 +435,19 @@ class CrashReportingGuardTests(unittest.TestCase):
     def test_close_waits_for_workers_asynchronously(self) -> None:
         main_source = MAIN_WINDOW.read_text(encoding="utf-8")
         close_source = CLOSE_CONTROLLER.read_text(encoding="utf-8")
+        activation_source = ACTIVATION_CONTROLLER.read_text(encoding="utf-8")
         source = main_source + "\n" + close_source
         self.assertIn("def _begin_deferred_close_for_workers", close_source)
         self.assertIn("event.ignore()", close_source)
         self.assertIn("thread.finished.connect(self._finish_deferred_close_if_workers_stopped", close_source)
         self.assertIn("self._close_force_accept = True", close_source)
         self.assertIn("CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS", close_source)
-        self.assertIn("def _force_stop_close_worker_threads", close_source)
-        self.assertIn("self._force_stop_close_worker_threads(running_entries)", close_source)
+        self.assertIn("def _force_stop_owned_external_processes", close_source)
+        self.assertIn("self._force_stop_owned_external_processes(running_processes)", close_source)
         self.assertIn("def _request_tab_shutdowns(self) -> None:", close_source)
         self.assertIn('getattr(tab, "request_shutdown", None)', close_source)
         self.assertIn('getattr(tab, "iter_shutdown_workers", None)', close_source)
-        self.assertIn('close_phase="force_stop"', close_source)
+        self.assertIn('close_phase="force_stop_processes"', close_source)
         self.assertIn('close_phase="waiting"', close_source)
         self.assertIn('close_phase="ready_to_accept"', close_source)
         self.assertIn('close_phase="begin_deferred"', close_source)
@@ -456,11 +457,23 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("def _clear_active_main_window(window: object) -> None:", main_source)
         close_start = close_source.index("    def _begin_deferred_close_for_workers")
         close_body = close_source[close_start:]
-        self.assertNotIn("self.hide()", close_body)
+        self.assertIn("self.hide()", close_body)
+        self.assertIn("tray_icon.hide()", close_body)
+        initial_shutdown_body = close_body[close_body.index("self.hide()"):]
+        self.assertLess(
+            initial_shutdown_body.index("self._close_modeless_alignment_builders()"),
+            initial_shutdown_body.index("self._request_tracked_workers_to_stop()"),
+        )
         self.assertNotIn("self.setEnabled(False)", close_body)
         self.assertNotIn(".wait(", close_body)
         self.assertNotIn("thread.wait(wait_ms)", source)
         self.assertNotIn("wait_ms: int = 1200", source)
+        present_start = activation_source.index("    def _present_main_window")
+        present_body = activation_source[present_start:]
+        self.assertLess(
+            present_body.index('_close_after_workers_requested'),
+            present_body.index("self.isMinimized()"),
+        )
 
     def test_worker_tabs_expose_nonblocking_shutdown_protocol(self) -> None:
         for tab_path in (
@@ -972,8 +985,9 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("health_report = self._check_archive_cache_health(package_root_text)", autoload_body)
         self.assertIn("self._warn_if_archive_cache_stale(health_report, package_root_text)", autoload_body)
         self.assertIn("Keep CDMW open until the cache status reaches ready.", autoload_body)
-        self.assertIn("self.scan_archives(\n            force_refresh=", autoload_body)
-        self.assertNotIn("self._release_startup_splash()", autoload_body[autoload_body.index("        self.scan_archives(") :])
+        self.assertIn("lambda: self.scan_archives(\n                    force_refresh=", autoload_body)
+        legacy_scan_start = autoload_body.rindex("self.scan_archives(force_refresh=")
+        self.assertNotIn("self._release_startup_splash()", autoload_body[legacy_scan_start:])
         self.assertIn("window._show_startup_archive_path_prompt_if_needed(startup_splash)", source)
         self.assertIn("QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)", source)
         self.assertLess(

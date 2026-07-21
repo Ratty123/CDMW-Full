@@ -5,8 +5,10 @@ import weakref
 from collections.abc import Callable, Iterator, Sequence
 from typing import Any
 
-from PySide6.QtCore import Qt, QThread, QTimer
-from PySide6.QtWidgets import QMainWindow
+from PySide6.QtCore import QProcess, Qt, QThread, QTimer
+from PySide6.QtWidgets import QApplication, QMainWindow
+
+from cdmw.services.process_control_service import force_stop_windows_process_tree
 
 
 CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS = 8.0
@@ -183,6 +185,37 @@ class CloseControllerMixin:
     def _running_worker_threads(self) -> list[QThread]:
         return [thread for _name, thread in self._running_worker_thread_entries()]
 
+    def _running_owned_process_entries(self) -> list[tuple[str, QProcess]]:
+        candidates: list[tuple[str, QProcess]] = list(
+            getattr(self, "_close_pending_processes", ())
+        )
+        find_children = getattr(self, "findChildren", None)
+        if callable(find_children):
+            try:
+                for process in find_children(QProcess):
+                    candidates.append((str(process.objectName() or "owned_qprocess"), process))
+            except RuntimeError:
+                pass
+        backend_process = getattr(getattr(self, "archive_backend_client", None), "_process", None)
+        if isinstance(backend_process, QProcess):
+            candidates.append(("archive_backend", backend_process))
+
+        running: list[tuple[str, QProcess]] = []
+        seen: set[int] = set()
+        for name, process in candidates:
+            identity = id(process)
+            if identity in seen:
+                continue
+            seen.add(identity)
+            try:
+                if process.state() != QProcess.NotRunning:
+                    running.append((name, process))
+            except RuntimeError:
+                continue
+        if bool(getattr(self, "_close_after_workers_requested", False)):
+            self._close_pending_processes = list(running)
+        return running
+
     def _request_tab_shutdowns(self) -> None:
         def _record_tab_shutdown_error(tab_name: str, message: str) -> None:
             self._record_close_event(
@@ -222,29 +255,85 @@ class CloseControllerMixin:
                 except Exception:
                     pass
 
-    def _force_stop_close_worker_threads(self, running_entries: Sequence[tuple[str, QThread]]) -> None:
-        worker_names = [name for name, _thread in running_entries]
+    def _close_modeless_alignment_builders(self) -> None:
+        dialogs = list(getattr(self, "_modeless_alignment_dialogs", {}).items())
+        self._close_pending_builder_dialogs = [dialog for _key, dialog in dialogs if dialog is not None]
+        for key, dialog in dialogs:
+            if dialog is None:
+                getattr(self, "_modeless_alignment_dialogs", {}).pop(str(key or ""), None)
+                continue
+            try:
+                dialog.reject()
+            except RuntimeError:
+                getattr(self, "_modeless_alignment_dialogs", {}).pop(str(key or ""), None)
+            except Exception as exc:
+                self._record_close_event(
+                    "close_builder_reject_failed",
+                    close_phase="close_builders",
+                    builder=str(key or ""),
+                    message=str(exc),
+                )
+                try:
+                    dialog.close()
+                except RuntimeError:
+                    getattr(self, "_modeless_alignment_dialogs", {}).pop(str(key or ""), None)
+            if getattr(self, "_modeless_alignment_dialogs", {}).get(str(key or "")) is dialog:
+                disposer = getattr(self, "_dispose_partial_alignment_builder", None)
+                if callable(disposer):
+                    disposer(
+                        str(key or ""),
+                        dialog,
+                        context=getattr(dialog, "_cdmw_builder_construction_context", None),
+                    )
+                else:
+                    getattr(self, "_modeless_alignment_dialogs", {}).pop(str(key or ""), None)
+
+        for widget in QApplication.topLevelWidgets():
+            try:
+                if widget.objectName() != "MeshAlignmentAdvancedTextureTuningSection":
+                    continue
+                widget.hide()
+                widget.close()
+                widget.deleteLater()
+            except RuntimeError:
+                pass
+
+    def _force_stop_owned_external_processes(
+        self,
+        running_entries: Sequence[tuple[str, QProcess]],
+    ) -> None:
+        process_names = [name for name, _process in running_entries]
         self._record_close_event(
-            "close_force_stop_workers",
-            close_phase="force_stop",
-            workers=tuple(worker_names),
-            worker_count=len(worker_names),
+            "close_force_stop_processes",
+            close_phase="force_stop_processes",
+            processes=tuple(process_names),
+            process_count=len(process_names),
         )
-        for _name, thread in running_entries:
+        for _name, process in running_entries:
             try:
-                thread.requestInterruption()
-            except Exception:
-                pass
+                process_id = int(process.processId())
+            except (RuntimeError, TypeError, ValueError):
+                process_id = 0
+            if process_id > 0:
+                force_stop_windows_process_tree(process_id, include_root=False)
             try:
-                thread.quit()
-            except Exception:
+                process.kill()
+            except RuntimeError:
                 pass
+
+    def _archive_backend_shutdown_complete(self) -> bool:
+        backend = getattr(self, "archive_backend_client", None)
+        state = str(getattr(getattr(backend, "state", None), "value", "stopped"))
+        return state in {"stopped", "failed"}
 
     def _finish_deferred_close_if_workers_stopped(self) -> None:
         if not self._close_after_workers_requested:
             return
         running_entries = self._running_worker_thread_entries()
-        if running_entries:
+        running_processes = self._running_owned_process_entries()
+        backend_ready = self._archive_backend_shutdown_complete()
+        registered_builders = len(getattr(self, "_modeless_alignment_dialogs", {}))
+        if running_entries or running_processes or not backend_ready or registered_builders:
             elapsed = (
                 time.monotonic() - self._close_pending_started_at
                 if self._close_pending_started_at > 0.0
@@ -252,25 +341,41 @@ class CloseControllerMixin:
             )
             if elapsed >= CLOSE_WORKER_FORCE_STOP_AFTER_SECONDS and not self._close_force_stop_requested:
                 self._close_force_stop_requested = True
-                self._force_stop_close_worker_threads(running_entries)
-                self.set_status_message("Still waiting for background worker(s) to stop safely...")
+                self._force_stop_owned_external_processes(running_processes)
+                self._request_tracked_workers_to_stop()
+                self.set_status_message("Still waiting for owned background work to stop safely...")
                 return
-            running_names = ", ".join(name for name, _thread in running_entries[:3])
-            if len(running_entries) > 3:
-                running_names += ", ..."
-            suffix = f" ({running_names})" if running_names else ""
-            self.set_status_message(f"Closing after {len(running_entries):,} background worker(s) stop{suffix}...")
+            running_names = [name for name, _thread in running_entries]
+            running_names.extend(name for name, _process in running_processes)
+            if not backend_ready and "archive_backend" not in running_names:
+                running_names.append("archive_backend")
+            display_names = ", ".join(running_names[:3])
+            if len(running_names) > 3:
+                display_names += ", ..."
+            suffix = f" ({display_names})" if display_names else ""
+            remaining_count = (
+                len(running_entries)
+                + len(running_processes)
+                + registered_builders
+                + (0 if backend_ready else 1)
+            )
+            self.set_status_message(f"Closing after {remaining_count:,} owned task(s) stop{suffix}...")
             self._record_close_event(
                 "close_waiting_for_workers",
                 close_phase="waiting",
                 worker_count=len(running_entries),
+                process_count=len(running_processes),
+                builder_count=registered_builders,
+                backend_ready=backend_ready,
                 workers=tuple(name for name, _thread in running_entries[:8]),
+                processes=tuple(name for name, _process in running_processes[:8]),
                 elapsed_seconds=round(elapsed, 3),
             )
             return
         self._close_worker_wait_timer.stop()
-        self._close_after_workers_requested = False
         self._close_pending_worker_threads.clear()
+        self._close_pending_processes.clear()
+        self._close_pending_builder_dialogs.clear()
         self._close_pending_started_at = 0.0
         self._close_force_stop_requested = False
         self._close_force_accept = True
@@ -292,6 +397,7 @@ class CloseControllerMixin:
             return
         self._close_after_workers_requested = True
         self._close_pending_worker_threads = list(initial_entries)
+        self._close_pending_processes = self._running_owned_process_entries()
         self._close_pending_started_at = time.monotonic()
         self._close_force_stop_requested = False
         self._shutting_down = True
@@ -300,8 +406,16 @@ class CloseControllerMixin:
             close_phase="begin_deferred",
             worker_count=len(initial_entries),
         )
+        self.hide()
+        tray_icon = getattr(self, "app_tray_icon", None)
+        if tray_icon is not None:
+            try:
+                tray_icon.hide()
+            except RuntimeError:
+                pass
         self._release_startup_splash()
         self._save_detached_tool_geometries()
+        self._close_modeless_alignment_builders()
         self._settings_save_timer.stop()
         self._external_activation_timer.stop()
         self._chainner_analysis_timer.stop()
@@ -320,7 +434,15 @@ class CloseControllerMixin:
         self.archive_item_icon_preload_queue.clear()
         self.archive_item_icon_priority_queue.clear()
         self.archive_item_icon_visible_warmup_remaining = 0
+        self._shutdown_archive_isolated_renderer_host()
         self._request_tracked_workers_to_stop()
+        archive_backend = getattr(self, "archive_backend_client", None)
+        shutdown_backend = getattr(archive_backend, "shutdown", None)
+        if callable(shutdown_backend):
+            try:
+                shutdown_backend()
+            except (AttributeError, RuntimeError):
+                pass
         self.set_status_message("Closing after active background workers stop...")
         self._close_worker_wait_timer.start()
         for thread in self._running_worker_threads():
@@ -334,6 +456,9 @@ class CloseControllerMixin:
         self._finish_deferred_close_if_workers_stopped()
 
     def _finalize_close(self) -> None:
+        if bool(getattr(self, "_close_finalized", False)):
+            return
+        self._close_finalized = True
         self._record_close_event("close_finalize", close_phase="finalize")
         self._request_tab_shutdowns()
         catalogue = getattr(self, "archive_catalogue_service", None)
@@ -388,41 +513,18 @@ class CloseControllerMixin:
             write_heartbeat("closed", clean_shutdown=True)
 
     def closeEvent(self, event) -> None:  # type: ignore[override]
-        running_entries = [] if self._close_force_accept else self._running_worker_thread_entries()
-        if running_entries:
-            self._begin_deferred_close_for_workers(event, running_entries)
+        if bool(getattr(self, "_close_force_accept", False)):
+            self._finalize_close()
+            QMainWindow.closeEvent(self, event)  # type: ignore[arg-type]
             return
-        archive_backend = getattr(self, "archive_backend_client", None)
-        archive_backend_state = str(getattr(getattr(archive_backend, "state", None), "value", "stopped"))
-        if archive_backend_state not in {"stopped", "failed"}:
+        if bool(getattr(self, "_close_after_workers_requested", False)):
             try:
                 event.ignore()
             except Exception:
                 pass
-            if not bool(getattr(self, "_archive_backend_close_pending", False)):
-                self._archive_backend_close_pending = True
-
-                def finish_archive_backend_close(state: str) -> None:
-                    if state not in {"stopped", "failed"}:
-                        return
-                    self._archive_backend_close_pending = False
-                    QTimer.singleShot(0, self.close)
-
-                try:
-                    archive_backend.state_changed.connect(finish_archive_backend_close, Qt.UniqueConnection)
-                except (AttributeError, RuntimeError, TypeError):
-                    try:
-                        archive_backend.state_changed.connect(finish_archive_backend_close)
-                    except (AttributeError, RuntimeError, TypeError):
-                        pass
-            try:
-                archive_backend.shutdown()
-            except (AttributeError, RuntimeError):
-                self._archive_backend_close_pending = False
-                QTimer.singleShot(0, self.close)
+            self._finish_deferred_close_if_workers_stopped()
             return
-        self._finalize_close()
-        QMainWindow.closeEvent(self, event)  # type: ignore[arg-type]
+        self._begin_deferred_close_for_workers(event, self._running_worker_thread_entries())
 
 
 __all__ = [
