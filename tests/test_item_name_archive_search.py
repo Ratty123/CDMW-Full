@@ -23,6 +23,7 @@ from cdmw.core.item_index import (
     _build_archive_item_search_index_from_records,
     _build_archive_model_hash_table_from_entries,
     _collect_archive_item_index_sources,
+    _item_icon_model_reference_is_compatible,
     _parse_archive_iteminfo_data,
     _parse_part_prefab_dye_slot_material_index_data,
     _parse_stringinfo_model_icon_hashes_from_data,
@@ -707,7 +708,17 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         )
 
         self.assertEqual(exact_name, "")
-        self.assertEqual(name_hint, "Name hint: Hwando")
+        self.assertEqual(name_hint, "Hwando")
+        self.assertIn("Possible related item name", reason)
+
+    def test_item_name_match_recovers_item_icon_texture_family_name(self) -> None:
+        exact_name, name_evidence, reason = archive_entry_item_name_match(
+            _entry("ui/itemicon/itemicon_prefab_cd_phm_02_sword_0036_n.dds"),
+            item_exact_display_names={"cd_phm_02_sword_0036": "Hwando"},
+        )
+
+        self.assertEqual(exact_name, "")
+        self.assertEqual(name_evidence, "Hwando")
         self.assertIn("Possible related item name", reason)
 
     def test_stringinfo_icon_hashes_can_supply_compatible_model_stems(self) -> None:
@@ -748,6 +759,108 @@ class ItemNameArchiveSearchTests(unittest.TestCase):
         self.assertEqual(records[0].model_stems, ["cd_phm_01_sword_0166_index01_r"])
         self.assertIn("ItemInfo._itemName", summarize_table_evidence(records[0].table_evidence))
         self.assertIn("ItemInfo._itemIconList", summarize_table_evidence(records[0].table_evidence))
+
+    def test_stringinfo_alternate_icon_prefix_and_semantic_tokens_supply_model_stem(self) -> None:
+        icon_name = b"Icon_Prefab_cd_marni_laser_hel_0001"
+        icon_hash = hashlittle(icon_name, 0xC5EDE)
+        stringinfo_data = (
+            len(icon_name).to_bytes(4, "little")
+            + icon_name
+            + icon_hash.to_bytes(4, "little")
+            + b"\x00\x00\x00\x00"
+        )
+        icon_hashes = _parse_stringinfo_model_icon_hashes_from_data(stringinfo_data)
+        internal_name = b"Item_Marni_Laser_Helm"
+        loc_id = b"4301512826159216"
+        iteminfo_data = (
+            (1234).to_bytes(4, "little")
+            + (len(internal_name) + 1).to_bytes(4, "little")
+            + internal_name
+            + _ITEMINFO_MARKER
+            + b"\x00" * (18 - len(_ITEMINFO_MARKER))
+            + len(loc_id).to_bytes(4, "little")
+            + loc_id
+            + b"\x00" * 24
+            + icon_hash.to_bytes(4, "little")
+            + b"\x00" * 24
+        )
+
+        records = _parse_archive_iteminfo_data(
+            iteminfo_data,
+            {"eng": {loc_id.decode("ascii"): "Marni Laser Helm"}},
+            icon_model_hashes=icon_hashes,
+        )
+
+        self.assertEqual(records[0].model_stems, ["cd_marni_laser_hel_0001"])
+        self.assertFalse(
+            _item_icon_model_reference_is_compatible(
+                "Item_OneHandSword",
+                "cd_phm_00_hand_0001",
+            )
+        )
+
+    def test_iteminfo_localization_id_recovers_from_shifted_record_layout(self) -> None:
+        internal_name = b"Item_Shifted_Name"
+        loc_id = b"4301512826159216"
+        iteminfo_data = (
+            (1234).to_bytes(4, "little")
+            + (len(internal_name) + 1).to_bytes(4, "little")
+            + internal_name
+            + _ITEMINFO_MARKER
+            + b"\x00" * 16
+            + len(loc_id).to_bytes(4, "little")
+            + loc_id
+            + b"\x00" * 16
+        )
+
+        records = _parse_archive_iteminfo_data(
+            iteminfo_data,
+            {"eng": {loc_id.decode("ascii"): "Recovered Name"}},
+        )
+
+        self.assertEqual(records[0].display_name, "Recovered Name")
+
+    def test_iteminfo_prefab_hash_parser_accepts_larger_bounded_lists(self) -> None:
+        internal_name = b"Item_Multi_Prefab"
+        prefab_hashes = [hashlittle(f"cd_model_{index}".encode("ascii"), 0xC5EDE) for index in range(6)]
+        iteminfo_data = (
+            (1234).to_bytes(4, "little")
+            + (len(internal_name) + 1).to_bytes(4, "little")
+            + internal_name
+            + _ITEMINFO_MARKER
+            + b"\x0e\x00\x00"
+            + (6).to_bytes(4, "little")
+            + (6).to_bytes(4, "little")
+            + b"".join(value.to_bytes(4, "little") for value in prefab_hashes)
+            + b"\x00" * 16
+        )
+
+        records = _parse_archive_iteminfo_data(iteminfo_data, {"eng": {}})
+
+        self.assertEqual(records[0].prefab_hashes, prefab_hashes)
+
+    def test_iteminfo_prefab_hash_parser_collects_multiple_bounded_lists(self) -> None:
+        internal_name = b"Item_Multiple_Prefab_Lists"
+        prefab_hashes = [hashlittle(f"cd_model_{index}".encode("ascii"), 0xC5EDE) for index in range(2)]
+        iteminfo_data = (
+            (1234).to_bytes(4, "little")
+            + (len(internal_name) + 1).to_bytes(4, "little")
+            + internal_name
+            + _ITEMINFO_MARKER
+            + b"\x0e\x00\x00"
+            + (1).to_bytes(4, "little")
+            + (1).to_bytes(4, "little")
+            + prefab_hashes[0].to_bytes(4, "little")
+            + b"\x0f\x00\x00"
+            + (1).to_bytes(4, "little")
+            + (1).to_bytes(4, "little")
+            + prefab_hashes[1].to_bytes(4, "little")
+            + b"\x00" * 16
+        )
+
+        records = _parse_archive_iteminfo_data(iteminfo_data, {"eng": {}})
+
+        self.assertEqual(records[0].prefab_hashes, prefab_hashes)
 
     def test_iteminfo_prefab_hash_parser_accepts_new_delimiter_byte(self) -> None:
         prefab_hash = hashlittle(b"cd_phm_01_sword_0166", 0xC5EDE)

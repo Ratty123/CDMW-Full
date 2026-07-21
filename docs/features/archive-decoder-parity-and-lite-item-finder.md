@@ -400,6 +400,14 @@ item-row output disabled. The full report already knows:
 - exact and related model-name maps;
 - source counts for model hashes, icons, and materials.
 
+Name-map recovery keeps direct prefab-hash matches separate from inferred
+evidence. It accepts bounded multi-prefab ItemInfo lists, recovers localization
+IDs near the documented field when record layouts shift, and admits StringInfo
+icon/model links only when item-name semantics remain compatible. Related names
+also propagate to recognizable item-icon, texture-family, component, and
+sidecar filenames. The Archive Browser renders the recovered related name
+directly in **Name Evidence**; it does not add a redundant `Name hint:` prefix.
+
 Lite therefore does not need a second archive scan. It needs to retain and
 serve data it already computes.
 

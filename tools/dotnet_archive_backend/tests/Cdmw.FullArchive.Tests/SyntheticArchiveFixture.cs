@@ -116,11 +116,11 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
 
         var itemInfo = BuildItemInfo(
             itemId: 1234,
-            internalName: "OneHandSwordSynthetic",
+            internalName: "Item_Marni_Laser_Helm",
             localizationId,
             exactModelHash,
             relatedModelHash);
-        var stringInfo = BuildStringInfo("ItemIcon_Prefab_cd_related_01_sword", relatedModelHash);
+        var stringInfo = BuildStringInfo("Icon_Prefab_cd_marni_laser_hel_0001", relatedModelHash);
         var localization = BuildLocalization(localizationId, "Synthetic Blade");
 
         await BuildPackageAsync(
@@ -135,7 +135,8 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
             "0009",
             [
                 ("character/model/cd_test_01_sword.pac", new byte[] { 0x50, 0x41, 0x43, 0x00 }),
-                ("character/model/cd_related_01_sword_index01.pac", new byte[] { 0x50, 0x41, 0x43, 0x01 }),
+                ("character/model/cd_marni_laser_hel_0001_index01.pac", new byte[] { 0x50, 0x41, 0x43, 0x01 }),
+                ("ui/itemicon/itemicon_prefab_cd_marni_laser_hel_0001_n.dds", new byte[] { 0x44, 0x44, 0x53, 0x20 }),
             ]).ConfigureAwait(false);
         await BuildPackageAsync(
             root,
@@ -293,11 +294,22 @@ internal sealed class SyntheticArchiveFixture : IAsyncDisposable
         WriteUInt32(output, checked((uint)name.Length));
         output.Write(name);
         output.Write(marker);
-        WriteUInt32(output, 0);
+        output.Write(new byte[16]);
         var localization = Encoding.ASCII.GetBytes(localizationId);
         WriteUInt32(output, checked((uint)localization.Length));
         output.Write(localization);
         output.WriteByte(0x0E);
+        output.WriteByte(0);
+        output.WriteByte(0);
+        WriteUInt32(output, 6);
+        WriteUInt32(output, 6);
+        WriteUInt32(output, 0x11111111);
+        WriteUInt32(output, 0x22222222);
+        WriteUInt32(output, 0x33333333);
+        WriteUInt32(output, 0x44444444);
+        WriteUInt32(output, 0x55555555);
+        WriteUInt32(output, 0x66666666);
+        output.WriteByte(0x0F);
         output.WriteByte(0);
         output.WriteByte(0);
         WriteUInt32(output, 1);

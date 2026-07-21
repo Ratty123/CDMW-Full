@@ -1032,7 +1032,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 resolve_archive_derived_index_cache_path(root, cache_root)
             )
 
-            self.assertEqual(raw_payload.get("version"), 11)
+            self.assertEqual(raw_payload.get("version"), 12)
             self.assertEqual(
                 raw_payload.get("table_catalog"),
                 table_catalog_cache_metadata(row_counts={"item_asset_catalog": 1}),
@@ -1303,7 +1303,7 @@ class ArchiveCacheTests(unittest.TestCase):
             )
             self.assertIsNotNone((loaded or {}).get("name_search_index"))
 
-    def test_derived_index_cache_v10_still_loads(self) -> None:
+    def test_derived_index_cache_v10_rebuilds_after_name_index_upgrade(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             cache_root = root / "cache"
@@ -1336,7 +1336,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 current_sources=scan_metadata.get("entry_metadata_sources") or (),
             )
 
-            self.assertIsNotNone(loaded)
+            self.assertIsNone(loaded)
 
     def test_name_search_shard_metadata_v1_still_loads(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1522,7 +1522,7 @@ class ArchiveCacheTests(unittest.TestCase):
                 )
 
             self.assertIsNone(loaded)
-            self.assertTrue(any("missing compact metadata" in line for line in logs))
+            self.assertTrue(any("format changed" in line for line in logs))
 
     def test_derived_index_cache_v8_is_rejected_after_table_catalog_metadata_added(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

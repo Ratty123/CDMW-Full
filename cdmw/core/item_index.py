@@ -112,6 +112,7 @@ _ITEMINFO_MARKER = b"\x00\x01\x00\x00\x00\x00\x00\x00\x00\x07\x70\x00\x00\x00"
 _ITEM_INTERNAL_NAME_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
 _MODEL_HASH_SUFFIXES = (
     "",
+    "_in",
     "_l",
     "_r",
     "_u",
@@ -151,7 +152,6 @@ _LOCALIZATION_TABLES = (
     ("zho-cn", "localizationstring_zho-cn"),
 )
 _LOCALIZATION_TABLE_BY_NAME = {table_name: language_code for language_code, table_name in _LOCALIZATION_TABLES}
-_ITEM_ICON_PREFAB_PREFIX = "itemicon_prefab_"
 _ITEM_ICON_STEM_PREFIXES = (
     "itemicon_prefab_",
     "itemicon_",
@@ -178,7 +178,63 @@ _ITEM_ICON_MODEL_COMPATIBILITY_TOKENS: Tuple[Tuple[str, str], ...] = (
     ("glove", "hand"),
     ("boots", "foot"),
     ("saddle", "horse_ub"),
+    ("horsearmor", "horse_ub"),
+    ("barding", "horse_ub"),
+    ("dagger", "dagger"),
+    ("rapier", "rapier"),
+    ("axe", "axe"),
+    ("mace", "mace"),
+    ("bow", "bow"),
+    ("crossbow", "crossbow"),
+    ("pistol", "pistol"),
+    ("musket", "musket"),
+    ("cannon", "cannon"),
+    ("wand", "wand"),
+    ("gauntlet", "hand"),
+    ("bracer", "hand"),
+    ("shoe", "foot"),
+    ("sandal", "foot"),
+    ("greave", "foot"),
+    ("pants", "lb"),
+    ("trouser", "lb"),
+    ("skirt", "lb"),
+    ("cape", "cloak"),
+    ("veil", "mask"),
+    ("pendant", "necklace"),
+    ("amulet", "necklace"),
 )
+_ITEM_MODEL_GENERIC_TOKENS = frozenset(
+    {
+        "abyss",
+        "armor",
+        "armour",
+        "character",
+        "common",
+        "customize",
+        "default",
+        "equip",
+        "equipment",
+        "hand",
+        "icon",
+        "index",
+        "item",
+        "material",
+        "model",
+        "mysterm",
+        "normal",
+        "prefab",
+        "related",
+        "reward",
+        "standard",
+        "sub",
+        "texture",
+        "weapon",
+    }
+)
+_ITEMINFO_LOCALIZATION_SCAN_BYTES = 160
+_ITEMINFO_PREFAB_SCAN_BYTES = 800
+_ITEMINFO_MAX_PREFAB_LIST_COUNT = 32
+_ITEMINFO_MAX_PREFAB_HASHES = 128
 _MATERIAL_TAG_ALIASES: Mapping[str, Tuple[str, ...]] = {
     "cloth": ("cloth", "cloths", "fabric", "textile", "wool"),
     "leather": ("leather", "hide"),
@@ -437,8 +493,9 @@ def _parse_stringinfo_model_icon_hashes_from_data(data: bytes) -> Dict[int, str]
             except UnicodeDecodeError:
                 text = ""
             lower_text = text.lower()
-            if lower_text.startswith(_ITEM_ICON_PREFAB_PREFIX):
-                model_stem = _normalize_item_icon_model_stem(text[len(_ITEM_ICON_PREFAB_PREFIX) :])
+            prefix = next((value for value in _ITEM_ICON_STEM_PREFIXES if lower_text.startswith(value)), "")
+            if prefix:
+                model_stem = _normalize_item_icon_model_stem(text[len(prefix) :])
                 if model_stem.startswith("cd_"):
                     stored_hash = struct.unpack_from("<I", data, pos + 4 + slen)[0]
                     icon_hashes[stored_hash] = model_stem
@@ -646,15 +703,76 @@ def _material_evidence_for_item(
     )
 
 
-def _item_icon_model_reference_is_compatible(internal_name: str, model_stem: str) -> bool:
-    normalized_internal = str(internal_name or "").strip().lower()
+def _item_model_semantic_tokens(value: str) -> frozenset[str]:
+    separated = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", "_", str(value or "").strip())
+    return frozenset(
+        token
+        for token in re.findall(r"[a-z0-9]+", separated.lower())
+        if len(token) >= 4 and not token.isdigit() and token not in _ITEM_MODEL_GENERIC_TOKENS
+    )
+
+
+def _item_icon_model_reference_is_compatible(
+    internal_name: str,
+    model_stem: str,
+    display_name: str = "",
+) -> bool:
+    normalized_internal = " ".join(
+        value for value in (str(internal_name or "").strip().lower(), str(display_name or "").strip().lower()) if value
+    )
     normalized_model = str(model_stem or "").strip().lower()
     if not normalized_internal or not normalized_model:
         return False
-    return any(
+    if any(
         internal_token in normalized_internal and model_token in normalized_model
         for internal_token, model_token in _ITEM_ICON_MODEL_COMPATIBILITY_TOKENS
+    ):
+        return True
+    internal_tokens = _item_model_semantic_tokens(normalized_internal)
+    model_tokens = _item_model_semantic_tokens(normalized_model)
+    if internal_tokens & model_tokens:
+        return True
+    return any(
+        min(len(internal_token), len(model_token)) >= 6
+        and (internal_token in model_token or model_token in internal_token)
+        for internal_token in internal_tokens
+        for model_token in model_tokens
     )
+
+
+def _read_iteminfo_localization_id(data: bytes, offset: int, record_end: int) -> str:
+    if offset < 0 or offset + 4 > record_end:
+        return ""
+    loc_len = struct.unpack_from("<I", data, offset)[0]
+    if not (5 < loc_len < 25 and offset + 4 + loc_len <= record_end):
+        return ""
+    loc_bytes = data[offset + 4 : offset + 4 + loc_len]
+    if not all(0x30 <= value <= 0x39 for value in loc_bytes):
+        return ""
+    return loc_bytes.decode("ascii")
+
+
+def _iteminfo_localization_id_candidates(data: bytes, marker_offset: int, record_end: int) -> Tuple[str, ...]:
+    expected = marker_offset + 18
+    scan_start = marker_offset + len(_ITEMINFO_MARKER)
+    scan_end = min(record_end, marker_offset + _ITEMINFO_LOCALIZATION_SCAN_BYTES)
+    candidates: List[str] = []
+    seen: set[str] = set()
+
+    def add_at(offset: int) -> None:
+        value = _read_iteminfo_localization_id(data, offset, scan_end)
+        if value and value not in seen:
+            candidates.append(value)
+            seen.add(value)
+
+    add_at(expected)
+    max_distance = max(expected - scan_start, scan_end - expected)
+    for distance in range(1, max_distance + 1):
+        if expected - distance >= scan_start:
+            add_at(expected - distance)
+        if expected + distance < scan_end:
+            add_at(expected + distance)
+    return tuple(candidates)
 
 
 def _parse_archive_iteminfo_data(
@@ -697,48 +815,17 @@ def _parse_archive_iteminfo_data(
             continue
         seen_ids.add(item_id)
 
-        loc_id = ""
-        loc_off = pos + 18
-        if loc_off + 4 < len(data):
-            loc_len = struct.unpack_from("<I", data, loc_off)[0]
-            if 5 < loc_len < 25 and loc_off + 4 + loc_len <= len(data):
-                loc_bytes = data[loc_off + 4 : loc_off + 4 + loc_len]
-                if all(0x30 <= value <= 0x39 for value in loc_bytes):
-                    loc_id = loc_bytes.decode("ascii")
-
-        prefab_hashes: List[int] = []
-        search_end = min(len(data), pos + 800)
-        for scan in range(pos + 14, search_end - 15):
-            if data[scan] not in {0x0E, 0x0F, 0x10}:
-                continue
-            count1 = struct.unpack_from("<I", data, scan + 3)[0]
-            count2 = struct.unpack_from("<I", data, scan + 7)[0]
-            if not (0 < count1 <= 5 and 0 < count2 <= 5):
-                continue
-            for hash_index in range(count2):
-                value = struct.unpack_from("<I", data, scan + 11 + hash_index * 4)[0]
-                if value:
-                    prefab_hashes.append(value)
-            if prefab_hashes:
-                break
-
-        model_stems: List[str] = []
-        if icon_model_hashes:
-            next_record_pos = data.find(_ITEMINFO_MARKER, idx)
-            icon_search_end = min(
-                len(data),
-                next_record_pos if next_record_pos != -1 else pos + 2500,
-                pos + 2500,
-            )
-            for scan in range(pos, max(pos, icon_search_end - 3)):
-                value = struct.unpack_from("<I", data, scan)[0]
-                model_stem = _normalize_item_icon_model_stem(icon_model_hashes.get(value, ""))
-                if (
-                    model_stem
-                    and model_stem not in model_stems
-                    and _item_icon_model_reference_is_compatible(name, model_stem)
-                ):
-                    model_stems.append(model_stem)
+        next_record_pos = data.find(_ITEMINFO_MARKER, idx)
+        record_end = min(len(data), next_record_pos if next_record_pos != -1 else len(data))
+        localization_ids = _iteminfo_localization_id_candidates(data, pos, record_end)
+        loc_id = next(
+            (
+                candidate
+                for candidate in localization_ids
+                if any(str(table.get(candidate, "") or "").strip() for table in loc_tables.values())
+            ),
+            localization_ids[0] if localization_ids else "",
+        )
 
         localized_names: List[str] = []
         seen_names: set[str] = set()
@@ -754,6 +841,48 @@ def _parse_archive_iteminfo_data(
             display_name = str(loc_tables.get("eng", {}).get(loc_id, "") or "").strip()
             if not display_name and localized_names:
                 display_name = localized_names[0]
+
+        prefab_hashes: List[int] = []
+        seen_prefab_hashes: set[int] = set()
+        search_end = min(record_end, pos + _ITEMINFO_PREFAB_SCAN_BYTES)
+        scan = pos + len(_ITEMINFO_MARKER)
+        while scan + 15 < search_end and len(prefab_hashes) < _ITEMINFO_MAX_PREFAB_HASHES:
+            if data[scan] not in {0x0E, 0x0F, 0x10}:
+                scan += 1
+                continue
+            count1 = struct.unpack_from("<I", data, scan + 3)[0]
+            count2 = struct.unpack_from("<I", data, scan + 7)[0]
+            list_end = scan + 11 + count2 * 4
+            if not (
+                0 < count1 <= _ITEMINFO_MAX_PREFAB_LIST_COUNT
+                and 0 < count2 <= _ITEMINFO_MAX_PREFAB_LIST_COUNT
+                and list_end <= search_end
+            ):
+                scan += 1
+                continue
+            for hash_index in range(count2):
+                value = struct.unpack_from("<I", data, scan + 11 + hash_index * 4)[0]
+                if value and value not in seen_prefab_hashes:
+                    prefab_hashes.append(value)
+                    seen_prefab_hashes.add(value)
+            scan = list_end
+
+        model_stems: List[str] = []
+        if icon_model_hashes:
+            icon_search_end = min(
+                len(data),
+                next_record_pos if next_record_pos != -1 else pos + 2500,
+                pos + 2500,
+            )
+            for scan in range(pos, max(pos, icon_search_end - 3)):
+                value = struct.unpack_from("<I", data, scan)[0]
+                model_stem = _normalize_item_icon_model_stem(icon_model_hashes.get(value, ""))
+                if (
+                    model_stem
+                    and model_stem not in model_stems
+                    and _item_icon_model_reference_is_compatible(name, model_stem, display_name)
+                ):
+                    model_stems.append(model_stem)
 
         table_evidence = build_item_table_evidence(
             item_id=item_id,

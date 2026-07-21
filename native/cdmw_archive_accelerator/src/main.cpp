@@ -354,7 +354,7 @@ std::string strip_model_variant_suffix(std::string stem) {
     stem = lower_copy(stem);
     static const std::vector<std::string> suffixes = {
         "_index01_l", "_index01_r", "_index02_l", "_index02_r", "_index03_l", "_index03_r",
-        "_index01", "_index02", "_index03", "_sub01", "_sub02", "_sub03", "_l", "_r", "_u", "_s", "_t", "_c", "_d"
+        "_index01", "_index02", "_index03", "_sub01", "_sub02", "_sub03", "_in", "_l", "_r", "_u", "_s", "_t", "_c", "_d"
     };
     bool changed = true;
     while (changed) {
@@ -940,8 +940,14 @@ std::map<std::uint32_t, std::string> parse_stringinfo_hashes(const std::vector<c
             std::string text(data.begin() + static_cast<std::ptrdiff_t>(pos + 4), data.begin() + static_cast<std::ptrdiff_t>(pos + 4 + slen));
             while (!text.empty() && text.back() == '\0') text.pop_back();
             const std::string lower = lower_copy(text);
-            const std::string prefix = "itemicon_prefab_";
-            if (starts_with(lower, prefix)) {
+            std::string prefix;
+            for (const char* candidate : {"itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_"}) {
+                if (starts_with(lower, candidate)) {
+                    prefix = candidate;
+                    break;
+                }
+            }
+            if (!prefix.empty()) {
                 std::string model_stem = normalize_icon_model_stem(text.substr(prefix.size()));
                 if (starts_with(model_stem, "cd_")) {
                     const std::uint32_t stored_hash = read_u32(data, pos + 4 + slen);
@@ -958,20 +964,105 @@ std::map<std::uint32_t, std::string> parse_stringinfo_hashes(const std::vector<c
     return hashes;
 }
 
-bool item_icon_model_reference_is_compatible(const std::string& internal_name, const std::string& model_stem) {
-    const std::string a = lower_copy(internal_name);
+std::set<std::string> item_model_semantic_tokens(const std::string& value) {
+    static const std::set<std::string> generic = {
+        "abyss", "armor", "armour", "character", "common", "customize", "default", "equip", "equipment",
+        "hand", "icon", "index", "item", "material", "model", "mysterm", "normal", "prefab", "related",
+        "reward", "standard", "sub", "texture", "weapon"
+    };
+    std::set<std::string> tokens;
+    std::string current;
+    auto flush = [&]() {
+        if (current.size() >= 4 && !std::all_of(current.begin(), current.end(), [](unsigned char ch) { return std::isdigit(ch); })) {
+            const std::string token = lower_copy(current);
+            if (!generic.count(token)) tokens.insert(token);
+        }
+        current.clear();
+    };
+    unsigned char previous = 0;
+    for (unsigned char ch : value) {
+        if (!std::isalnum(ch)) {
+            flush();
+            previous = 0;
+            continue;
+        }
+        if (!current.empty() && std::isupper(ch) && (std::islower(previous) || std::isdigit(previous))) flush();
+        current.push_back(static_cast<char>(std::tolower(ch)));
+        previous = ch;
+    }
+    flush();
+    return tokens;
+}
+
+bool item_icon_model_reference_is_compatible(
+    const std::string& internal_name,
+    const std::string& display_name,
+    const std::string& model_stem
+) {
+    const std::string a = lower_copy(internal_name + " " + display_name);
     const std::string b = lower_copy(model_stem);
     static const std::vector<std::pair<std::string, std::string>> pairs = {
         {"onehandsword", "01_sword"}, {"twohandsword", "02_sword"}, {"twohandspear", "02_spear"},
         {"halberd", "02_alebard"}, {"alebard", "02_alebard"}, {"hammer", "02_hammer"},
         {"spear", "spear"}, {"shield", "03_shield"}, {"backpack", "bag"}, {"ring", "ring"},
         {"earring", "earring"}, {"necklace", "necklace"}, {"helm", "hel"}, {"helmet", "hel"},
-        {"armor", "ub"}, {"cloak", "cloak"}, {"glove", "hand"}, {"boots", "foot"}, {"saddle", "horse_ub"}
+        {"armor", "ub"}, {"cloak", "cloak"}, {"glove", "hand"}, {"boots", "foot"}, {"saddle", "horse_ub"},
+        {"horsearmor", "horse_ub"}, {"barding", "horse_ub"}, {"dagger", "dagger"}, {"rapier", "rapier"},
+        {"axe", "axe"}, {"mace", "mace"}, {"bow", "bow"}, {"crossbow", "crossbow"},
+        {"pistol", "pistol"}, {"musket", "musket"}, {"cannon", "cannon"}, {"wand", "wand"},
+        {"gauntlet", "hand"}, {"bracer", "hand"}, {"shoe", "foot"}, {"sandal", "foot"},
+        {"greave", "foot"}, {"pants", "lb"}, {"trouser", "lb"}, {"skirt", "lb"},
+        {"cape", "cloak"}, {"veil", "mask"}, {"pendant", "necklace"}, {"amulet", "necklace"}
     };
     for (const auto& pair : pairs) {
         if (a.find(pair.first) != std::string::npos && b.find(pair.second) != std::string::npos) return true;
     }
+    const auto item_tokens = item_model_semantic_tokens(internal_name + " " + display_name);
+    const auto model_tokens = item_model_semantic_tokens(model_stem);
+    for (const std::string& item_token : item_tokens) {
+        if (model_tokens.count(item_token)) return true;
+        for (const std::string& model_token : model_tokens) {
+            if (
+                std::min(item_token.size(), model_token.size()) >= 6
+                && (item_token.find(model_token) != std::string::npos || model_token.find(item_token) != std::string::npos)
+            ) return true;
+        }
+    }
     return false;
+}
+
+std::vector<std::string> iteminfo_localization_id_candidates(
+    const std::vector<char>& data,
+    size_t marker_offset,
+    size_t marker_size,
+    size_t record_end
+) {
+    const size_t expected = marker_offset + 18;
+    const size_t scan_start = marker_offset + marker_size;
+    const size_t scan_end = std::min(record_end, marker_offset + 160);
+    std::vector<std::string> candidates;
+    std::set<std::string> seen;
+    auto add_at = [&](size_t offset) {
+        if (offset < scan_start || offset + 4 > scan_end) return;
+        const std::uint32_t length = read_u32(data, offset);
+        if (length <= 5 || length >= 25 || offset + 4 + length > scan_end) return;
+        std::string value(
+            data.begin() + static_cast<std::ptrdiff_t>(offset + 4),
+            data.begin() + static_cast<std::ptrdiff_t>(offset + 4 + length)
+        );
+        if (
+            std::all_of(value.begin(), value.end(), [](unsigned char ch) { return std::isdigit(ch); })
+            && seen.insert(value).second
+        ) candidates.push_back(value);
+    };
+    add_at(expected);
+    const size_t before = expected > scan_start ? expected - scan_start : 0;
+    const size_t after = scan_end > expected ? scan_end - expected : 0;
+    for (size_t distance = 1; distance <= std::max(before, after); ++distance) {
+        if (distance <= before) add_at(expected - distance);
+        if (distance < after) add_at(expected + distance);
+    }
+    return candidates;
 }
 
 std::vector<NativeItemRecord> parse_iteminfo_bin(
@@ -1002,43 +1093,24 @@ std::vector<NativeItemRecord> parse_iteminfo_bin(
         if (!(name_len == name.size() || name_len == name.size() + 1)) continue;
         if (item_id < 100 || item_id > 100000000 || seen_ids.count(static_cast<int>(item_id))) continue;
         seen_ids.insert(static_cast<int>(item_id));
+        const auto next_it = std::search(data.begin() + static_cast<std::ptrdiff_t>(idx), data.end(), std::begin(marker), std::end(marker));
+        const size_t next_pos = next_it == data.end() ? data.size() : static_cast<size_t>(std::distance(data.begin(), next_it));
+        const auto localization_ids = iteminfo_localization_id_candidates(data, pos, sizeof(marker), next_pos);
         std::string loc_id;
-        const size_t loc_off = pos + 18;
-        if (loc_off + 4 < data.size()) {
-            const std::uint32_t loc_len = read_u32(data, loc_off);
-            if (loc_len > 5 && loc_len < 25 && loc_off + 4 + loc_len <= data.size()) {
-                std::string candidate(data.begin() + static_cast<std::ptrdiff_t>(loc_off + 4), data.begin() + static_cast<std::ptrdiff_t>(loc_off + 4 + loc_len));
-                if (std::all_of(candidate.begin(), candidate.end(), [](unsigned char ch) { return std::isdigit(ch); })) loc_id = candidate;
+        for (const std::string& candidate : localization_ids) {
+            const bool has_name = std::any_of(loc_tables.begin(), loc_tables.end(), [&](const auto& table) {
+                auto found = table.second.find(candidate);
+                return found != table.second.end() && !found->second.empty();
+            });
+            if (has_name) {
+                loc_id = candidate;
+                break;
             }
         }
+        if (loc_id.empty() && !localization_ids.empty()) loc_id = localization_ids.front();
         NativeItemRecord record;
         record.item_id = static_cast<int>(item_id);
         record.internal_name = name;
-        const size_t search_end = std::min(data.size(), pos + 800);
-        for (size_t scan = pos + 14; scan + 15 < search_end; ++scan) {
-            const unsigned char marker = static_cast<unsigned char>(data[scan]);
-            if (marker != 0x0E && marker != 0x0F && marker != 0x10) continue;
-            const std::uint32_t count1 = read_u32(data, scan + 3);
-            const std::uint32_t count2 = read_u32(data, scan + 7);
-            if (!(count1 > 0 && count1 <= 5 && count2 > 0 && count2 <= 5)) continue;
-            for (std::uint32_t hash_index = 0; hash_index < count2; ++hash_index) {
-                const std::uint32_t value = read_u32(data, scan + 11 + hash_index * 4);
-                if (value) record.prefab_hashes.push_back(value);
-            }
-            if (!record.prefab_hashes.empty()) break;
-        }
-        if (!icon_hashes.empty()) {
-            const auto next_it = std::search(data.begin() + static_cast<std::ptrdiff_t>(idx), data.end(), std::begin(marker), std::end(marker));
-            const size_t next_pos = next_it == data.end() ? pos + 2500 : static_cast<size_t>(std::distance(data.begin(), next_it));
-            const size_t icon_end = std::min({data.size(), next_pos, pos + 2500});
-            for (size_t scan = pos; scan + 4 <= icon_end; ++scan) {
-                const std::uint32_t value = read_u32(data, scan);
-                auto found = icon_hashes.find(value);
-                if (found != icon_hashes.end() && item_icon_model_reference_is_compatible(name, found->second)) {
-                    add_unique(record.model_stems, found->second);
-                }
-            }
-        }
         std::set<std::string> seen_names;
         if (!loc_id.empty()) {
             for (const auto& table : loc_tables) {
@@ -1057,6 +1129,43 @@ std::vector<NativeItemRecord> parse_iteminfo_bin(
                 if (found != eng_table->second.end()) record.display_name = found->second;
             }
             if (record.display_name.empty() && !record.localized_names.empty()) record.display_name = record.localized_names.front();
+        }
+
+        const size_t search_end = std::min(next_pos, pos + 800);
+        std::set<std::uint32_t> seen_prefab_hashes;
+        size_t scan = pos + sizeof(marker);
+        while (scan + 15 < search_end && record.prefab_hashes.size() < 128) {
+            const unsigned char list_marker = static_cast<unsigned char>(data[scan]);
+            if (list_marker != 0x0E && list_marker != 0x0F && list_marker != 0x10) {
+                ++scan;
+                continue;
+            }
+            const std::uint32_t count1 = read_u32(data, scan + 3);
+            const std::uint32_t count2 = read_u32(data, scan + 7);
+            if (!(count1 > 0 && count1 <= 32 && count2 > 0 && count2 <= 32)) {
+                ++scan;
+                continue;
+            }
+            const size_t list_end = scan + 11 + static_cast<size_t>(count2) * 4;
+            if (list_end > search_end) {
+                ++scan;
+                continue;
+            }
+            for (std::uint32_t hash_index = 0; hash_index < count2; ++hash_index) {
+                const std::uint32_t value = read_u32(data, scan + 11 + hash_index * 4);
+                if (value && seen_prefab_hashes.insert(value).second) record.prefab_hashes.push_back(value);
+            }
+            scan = list_end;
+        }
+        if (!icon_hashes.empty()) {
+            const size_t icon_end = std::min({data.size(), next_pos, pos + 2500});
+            for (size_t scan = pos; scan + 4 <= icon_end; ++scan) {
+                const std::uint32_t value = read_u32(data, scan);
+                auto found = icon_hashes.find(value);
+                if (found != icon_hashes.end() && item_icon_model_reference_is_compatible(name, record.display_name, found->second)) {
+                    add_unique(record.model_stems, found->second);
+                }
+            }
         }
         items.push_back(std::move(record));
     }
@@ -1153,7 +1262,7 @@ std::map<std::string, std::vector<std::string>> parse_material_index(const std::
 std::map<std::uint32_t, std::string> build_model_hash_table(const std::vector<Entry>& entries) {
     std::map<std::uint32_t, std::string> table;
     static const std::vector<std::string> suffixes = {
-        "", "_l", "_r", "_u", "_s", "_t", "_c", "_d", "_index01", "_index02", "_index03",
+        "", "_in", "_l", "_r", "_u", "_s", "_t", "_c", "_d", "_index01", "_index02", "_index03",
         "_index01_l", "_index01_r", "_index02_l", "_index02_r", "_index03_l", "_index03_r", "_sub01", "_sub02", "_sub03"
     };
     for (const Entry& entry : entries) {

@@ -602,8 +602,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn('"Physics / HKX"', source)
         self.assertIn('"MeshInfo"', source)
         self.assertIn('"Prefab / Metadata"', source)
-        self.assertIn('"Exact localization"', source)
-        self.assertIn('"Name hint: {first_related_name}"', source)
+        self.assertIn("archive_entry_item_name_match(", source)
+        self.assertNotIn('"Name hint: {first_related_name}"', source)
         self.assertIn("variant_count", source)
 
     def test_large_category_view_population_is_batched(self) -> None:

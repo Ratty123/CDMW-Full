@@ -71,6 +71,11 @@ _add("cdmw.core.prefab_json", "apply_prefab_edit_json", "dumps_prefab_edit_json"
 _add("cdmw.core.weapon_swap_templates", "weapon_swap_template_socket_rows")
 _add("cdmw.core.archive_name_search", "ArchiveNameSearchIndex")
 _add("cdmw.core.archive_compact_index", "ArchiveRowIndex")
+_add(
+    "cdmw.core.archive_filtering",
+    "archive_entry_item_name_match",
+    "archive_entry_model_base_key_matches",
+)
 
 
 __all__ = ["ARCHIVE_WORKFLOW_EXPORTS"]

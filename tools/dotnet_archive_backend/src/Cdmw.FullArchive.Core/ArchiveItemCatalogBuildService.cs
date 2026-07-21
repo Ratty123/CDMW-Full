@@ -10,7 +10,7 @@ public sealed class ArchiveItemCatalogBuildService(
     ArchiveSessionManager sessions,
     NativeArchiveCore native)
 {
-    private const int CacheSchemaVersion = 2;
+    private const int CacheSchemaVersion = 3;
     private const int NativeCatalogSchemaVersion = 1;
     private const int MaximumDiagnosticCharacters = 64 * 1024;
     private static readonly TimeSpan IndexerTimeout = TimeSpan.FromMinutes(3);
@@ -50,7 +50,7 @@ public sealed class ArchiveItemCatalogBuildService(
             {
                 return Result(session, active, usedCache: true);
             }
-            var cachePath = Path.Combine(session.GenerationPath, "item-catalog-v2.json");
+            var cachePath = Path.Combine(session.GenerationPath, "item-catalog-v3.json");
             var cached = await TryLoadCacheAsync(cachePath, cancellationToken).ConfigureAwait(false);
             if (cached is not null)
             {

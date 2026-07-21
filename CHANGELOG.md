@@ -13,6 +13,7 @@ The format is intentionally simple:
 
 ### Changed
 - Removed the standalone Material Finder from CDMW Full while retaining Item Finder, including its material-tag search and filtering.
+- Broadened Archive Browser item-name recovery across shifted ItemInfo layouts, larger prefab-reference lists, semantic StringInfo icon links, and derived icon/texture/sidecar filenames; related Name Evidence cells now show the recovered item name without a redundant `Name hint:` prefix.
 
 ## [0.10.0-alpha.2] - 2026-06-06
 

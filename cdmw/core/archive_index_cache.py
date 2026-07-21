@@ -67,7 +67,7 @@ def format_byte_size(value: int) -> str:
     return owner(value)
 
 
-_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {10, 11}
+_ARCHIVE_DERIVED_INDEX_CACHE_SUPPORTED_VERSIONS = {12}
 
 def _row_ids_as_tuple(value: object) -> Tuple[int, ...]:
     compacted = compact_archive_row_ids(value)

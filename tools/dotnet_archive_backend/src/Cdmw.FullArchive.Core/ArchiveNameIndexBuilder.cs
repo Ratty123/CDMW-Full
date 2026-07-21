@@ -8,6 +8,11 @@ internal static class ArchiveNameIndexBuilder
 {
     private const uint NameHashSeed = 0xC5EDE;
     private const int MaximumSourceBytes = 1024 * 1024 * 1024;
+    private const int LocalizationScanBytes = 160;
+    private const int PrefabScanBytes = 800;
+    private const int MaximumPrefabListCount = 32;
+    private const int MaximumPrefabHashes = 128;
+    private const int MaximumRelatedModelCandidates = 64;
     private static readonly byte[] ItemInfoMarker =
     [
         0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -34,7 +39,7 @@ internal static class ArchiveNameIndexBuilder
 
     private static readonly string[] ModelHashSuffixes =
     [
-        "", "_l", "_r", "_u", "_s", "_t", "_c", "_d",
+        "", "_in", "_l", "_r", "_u", "_s", "_t", "_c", "_d",
         "_index01", "_index02", "_index03",
         "_index01_l", "_index01_r", "_index02_l", "_index02_r",
         "_index03_l", "_index03_r", "_sub01", "_sub02", "_sub03",
@@ -44,7 +49,7 @@ internal static class ArchiveNameIndexBuilder
     [
         "_index01_l", "_index01_r", "_index02_l", "_index02_r", "_index03_l", "_index03_r",
         "_index01", "_index02", "_index03", "_sub01", "_sub02", "_sub03",
-        "_l", "_r", "_u", "_s", "_t", "_c", "_d",
+        "_in", "_l", "_r", "_u", "_s", "_t", "_c", "_d",
     ];
 
     private static readonly (string Internal, string Model)[] CompatibleItemModelTokens =
@@ -56,8 +61,24 @@ internal static class ArchiveNameIndexBuilder
         ("ring", "ring"), ("earring", "earring"), ("necklace", "necklace"),
         ("helm", "hel"), ("helmet", "hel"), ("armor", "ub"),
         ("cloak", "cloak"), ("glove", "hand"), ("boots", "foot"),
-        ("saddle", "horse_ub"),
+        ("saddle", "horse_ub"), ("horsearmor", "horse_ub"), ("barding", "horse_ub"),
+        ("dagger", "dagger"), ("rapier", "rapier"), ("axe", "axe"), ("mace", "mace"),
+        ("bow", "bow"), ("crossbow", "crossbow"), ("pistol", "pistol"), ("musket", "musket"),
+        ("cannon", "cannon"), ("wand", "wand"), ("gauntlet", "hand"), ("bracer", "hand"),
+        ("shoe", "foot"), ("sandal", "foot"), ("greave", "foot"), ("pants", "lb"),
+        ("trouser", "lb"), ("skirt", "lb"), ("cape", "cloak"), ("veil", "mask"),
+        ("pendant", "necklace"), ("amulet", "necklace"),
     ];
+    private static readonly string[] ItemIconPrefixes =
+    [
+        "itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_",
+    ];
+    private static readonly HashSet<string> GenericItemModelTokens = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "abyss", "armor", "armour", "character", "common", "customize", "default", "equip", "equipment",
+        "hand", "icon", "index", "item", "material", "model", "mysterm", "normal", "prefab", "related",
+        "reward", "standard", "sub", "texture", "weapon",
+    };
 
     public static ArchiveNameIndex Build(
         ArchiveSession session,
@@ -86,7 +107,7 @@ internal static class ArchiveNameIndexBuilder
         }
 
         var wantedLocalizationIds = records
-            .Select(static record => record.LocalizationId)
+            .SelectMany(static record => record.LocalizationIds)
             .Where(static value => value.Length > 0)
             .ToHashSet(StringComparer.Ordinal);
         if (wantedLocalizationIds.Count == 0 || sources.Localization.Count == 0)
@@ -112,7 +133,9 @@ internal static class ArchiveNameIndexBuilder
 
         foreach (var record in records)
         {
-            record.DisplayName = ResolveDisplayName(record.LocalizationId, localized);
+            record.DisplayName = ResolveDisplayName(record.LocalizationIds, localized);
+            record.RelatedModelStems.RemoveAll(
+                model => !ItemModelReferenceIsCompatible(record.InternalName, record.DisplayName, model));
         }
 
         var wantedModelHashes = records
@@ -267,8 +290,9 @@ internal static class ArchiveNameIndexBuilder
                 position + 8L + stringLength <= data.Length)
             {
                 var text = Encoding.UTF8.GetString(data, position + 4, (int)stringLength).TrimEnd('\0');
-                const string prefix = "itemicon_prefab_";
-                if (text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                var prefix = ItemIconPrefixes.FirstOrDefault(
+                    value => text.StartsWith(value, StringComparison.OrdinalIgnoreCase));
+                if (prefix is not null)
                 {
                     var modelStem = NormalizeModelStem(text[prefix.Length..]);
                     if (modelStem.StartsWith("cd_", StringComparison.OrdinalIgnoreCase))
@@ -331,69 +355,56 @@ internal static class ArchiveNameIndexBuilder
             }
 
             var internalName = Encoding.ASCII.GetString(nameBytes);
-            var localizationId = string.Empty;
-            var localizationOffset = position + 18;
-            if (localizationOffset + 4 < data.Length)
-            {
-                var localizationLength = ReadUInt32(data, localizationOffset);
-                if (localizationLength is > 5 and < 25 && localizationLength <= int.MaxValue &&
-                    localizationOffset + 4L + localizationLength <= data.Length)
-                {
-                    var localizationBytes = data.AsSpan(localizationOffset + 4, (int)localizationLength);
-                    if (IsAsciiDigits(localizationBytes))
-                    {
-                        localizationId = Encoding.ASCII.GetString(localizationBytes);
-                    }
-                }
-            }
+            var nextRelative = data.AsSpan(searchStart).IndexOf(ItemInfoMarker);
+            var nextPosition = nextRelative < 0 ? data.Length : searchStart + nextRelative;
+            var localizationIds = LocalizationIdCandidates(data, position, nextPosition);
 
             var prefabHashes = new List<uint>();
-            var hashSearchEnd = Math.Min(data.Length, position + 800);
-            for (var scan = position + 14; scan + 15 < hashSearchEnd; scan++)
+            var seenPrefabHashes = new HashSet<uint>();
+            var hashSearchEnd = Math.Min(nextPosition, position + PrefabScanBytes);
+            var hashScan = position + ItemInfoMarker.Length;
+            while (hashScan + 15 < hashSearchEnd && prefabHashes.Count < MaximumPrefabHashes)
             {
-                if (data[scan] is not (0x0E or 0x0F or 0x10))
+                if (data[hashScan] is not (0x0E or 0x0F or 0x10))
                 {
+                    hashScan++;
                     continue;
                 }
-                var firstCount = ReadUInt32(data, scan + 3);
-                var secondCount = ReadUInt32(data, scan + 7);
-                if (firstCount is not (> 0 and <= 5) || secondCount is not (> 0 and <= 5) ||
-                    scan + 11L + secondCount * 4L > data.Length)
+                var firstCount = ReadUInt32(data, hashScan + 3);
+                var secondCount = ReadUInt32(data, hashScan + 7);
+                var listEnd = hashScan + 11L + secondCount * 4L;
+                if (firstCount is not (> 0 and <= MaximumPrefabListCount) ||
+                    secondCount is not (> 0 and <= MaximumPrefabListCount) || listEnd > hashSearchEnd)
                 {
+                    hashScan++;
                     continue;
                 }
                 for (var hashIndex = 0; hashIndex < secondCount; hashIndex++)
                 {
-                    var value = ReadUInt32(data, checked(scan + 11 + (int)hashIndex * 4));
-                    if (value != 0)
+                    var value = ReadUInt32(data, checked(hashScan + 11 + (int)hashIndex * 4));
+                    if (value != 0 && seenPrefabHashes.Add(value))
                     {
                         prefabHashes.Add(value);
                     }
                 }
-                if (prefabHashes.Count > 0)
-                {
-                    break;
-                }
+                hashScan = checked((int)listEnd);
             }
 
             var relatedModels = new List<string>();
             if (stringInfoHashes.Count > 0)
             {
-                var nextRelative = data.AsSpan(searchStart).IndexOf(ItemInfoMarker);
-                var nextPosition = nextRelative < 0 ? position + 2500 : searchStart + nextRelative;
                 var iconSearchEnd = Math.Min(data.Length, Math.Min(nextPosition, position + 2500));
-                for (var scan = position; scan + 4 <= iconSearchEnd; scan++)
+                for (var scan = position; scan + 4 <= iconSearchEnd && relatedModels.Count < MaximumRelatedModelCandidates; scan++)
                 {
                     var value = ReadUInt32(data, scan);
                     if (stringInfoHashes.TryGetValue(value, out var modelStem) &&
-                        ItemModelReferenceIsCompatible(internalName, modelStem) &&
                         !relatedModels.Contains(modelStem, StringComparer.OrdinalIgnoreCase))
                     {
                         relatedModels.Add(modelStem);
                     }
                 }
             }
-            records.Add(new ItemRecord(localizationId, internalName, prefabHashes, relatedModels));
+            records.Add(new ItemRecord(localizationIds, internalName, prefabHashes, relatedModels));
         }
         return records;
     }
@@ -441,27 +452,66 @@ internal static class ArchiveNameIndexBuilder
         return resolved;
     }
 
+    private static List<string> LocalizationIdCandidates(byte[] data, int markerOffset, int recordEnd)
+    {
+        var expected = markerOffset + 18;
+        var scanStart = markerOffset + ItemInfoMarker.Length;
+        var scanEnd = Math.Min(recordEnd, markerOffset + LocalizationScanBytes);
+        var candidates = new List<string>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        void AddAt(int offset)
+        {
+            if (offset < scanStart || offset + 4 > scanEnd)
+            {
+                return;
+            }
+            var length = ReadUInt32(data, offset);
+            if (length is not (> 5 and < 25) || length > int.MaxValue || offset + 4L + length > scanEnd)
+            {
+                return;
+            }
+            var value = data.AsSpan(offset + 4, (int)length);
+            if (IsAsciiDigits(value))
+            {
+                var text = Encoding.ASCII.GetString(value);
+                if (seen.Add(text))
+                {
+                    candidates.Add(text);
+                }
+            }
+        }
+
+        AddAt(expected);
+        var maximumDistance = Math.Max(expected - scanStart, scanEnd - expected);
+        for (var distance = 1; distance <= maximumDistance; distance++)
+        {
+            AddAt(expected - distance);
+            AddAt(expected + distance);
+        }
+        return candidates;
+    }
+
     private static string ResolveDisplayName(
-        string localizationId,
+        IReadOnlyList<string> localizationIds,
         IReadOnlyDictionary<string, Dictionary<string, string>> localized)
     {
-        if (localizationId.Length == 0)
+        foreach (var localizationId in localizationIds)
         {
-            return string.Empty;
-        }
-        if (localized.TryGetValue("eng", out var english) &&
-            english.TryGetValue(localizationId, out var englishName) &&
-            !string.IsNullOrWhiteSpace(englishName))
-        {
-            return englishName.Trim();
-        }
-        foreach (var (language, _) in LocalizationTables)
-        {
-            if (localized.TryGetValue(language, out var table) &&
-                table.TryGetValue(localizationId, out var name) &&
-                !string.IsNullOrWhiteSpace(name))
+            if (localized.TryGetValue("eng", out var english) &&
+                english.TryGetValue(localizationId, out var englishName) &&
+                !string.IsNullOrWhiteSpace(englishName))
             {
-                return name.Trim();
+                return englishName.Trim();
+            }
+            foreach (var (language, _) in LocalizationTables)
+            {
+                if (localized.TryGetValue(language, out var table) &&
+                    table.TryGetValue(localizationId, out var name) &&
+                    !string.IsNullOrWhiteSpace(name))
+                {
+                    return name.Trim();
+                }
             }
         }
         return string.Empty;
@@ -532,10 +582,65 @@ internal static class ArchiveNameIndexBuilder
         return normalized;
     }
 
-    private static bool ItemModelReferenceIsCompatible(string internalName, string modelStem) =>
-        CompatibleItemModelTokens.Any(pair =>
-            internalName.Contains(pair.Internal, StringComparison.OrdinalIgnoreCase) &&
-            modelStem.Contains(pair.Model, StringComparison.OrdinalIgnoreCase));
+    private static bool ItemModelReferenceIsCompatible(string internalName, string displayName, string modelStem)
+    {
+        var itemText = $"{internalName} {displayName}";
+        if (CompatibleItemModelTokens.Any(pair =>
+            itemText.Contains(pair.Internal, StringComparison.OrdinalIgnoreCase) &&
+            modelStem.Contains(pair.Model, StringComparison.OrdinalIgnoreCase)))
+        {
+            return true;
+        }
+        var itemTokens = ItemModelSemanticTokens(itemText);
+        var modelTokens = ItemModelSemanticTokens(modelStem);
+        if (itemTokens.Overlaps(modelTokens))
+        {
+            return true;
+        }
+        return itemTokens.Any(itemToken => modelTokens.Any(modelToken =>
+            Math.Min(itemToken.Length, modelToken.Length) >= 6 &&
+            (itemToken.Contains(modelToken, StringComparison.Ordinal) ||
+             modelToken.Contains(itemToken, StringComparison.Ordinal))));
+    }
+
+    private static HashSet<string> ItemModelSemanticTokens(string value)
+    {
+        var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var current = new StringBuilder();
+
+        void Flush()
+        {
+            if (current.Length >= 4)
+            {
+                var token = current.ToString().ToLowerInvariant();
+                if (!token.All(char.IsAsciiDigit) && !GenericItemModelTokens.Contains(token))
+                {
+                    tokens.Add(token);
+                }
+            }
+            current.Clear();
+        }
+
+        char previous = '\0';
+        foreach (var character in value)
+        {
+            if (!char.IsAsciiLetterOrDigit(character))
+            {
+                Flush();
+                previous = '\0';
+                continue;
+            }
+            if (current.Length > 0 && character >= 'A' && character <= 'Z' &&
+                ((previous >= 'a' && previous <= 'z') || char.IsAsciiDigit(previous)))
+            {
+                Flush();
+            }
+            current.Append(char.ToLowerInvariant(character));
+            previous = character;
+        }
+        Flush();
+        return tokens;
+    }
 
     private static bool IsInternalItemName(ReadOnlySpan<byte> value)
     {
@@ -648,12 +753,12 @@ internal static class ArchiveNameIndexBuilder
     }
 
     private sealed class ItemRecord(
-        string localizationId,
+        List<string> localizationIds,
         string internalName,
         List<uint> prefabHashes,
         List<string> relatedModelStems)
     {
-        public string LocalizationId { get; } = localizationId;
+        public List<string> LocalizationIds { get; } = localizationIds;
         public string InternalName { get; } = internalName;
         public List<uint> PrefabHashes { get; } = prefabHashes;
         public List<string> RelatedModelStems { get; } = relatedModelStems;

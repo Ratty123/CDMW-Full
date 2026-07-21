@@ -917,7 +917,7 @@ internal static class FullArchiveTestRunner
                 index.ExactNames.TryGetValue("cd_test_01_sword", out var exactName) && exactName == "Synthetic Blade",
                 "exact prefab-hash localization mapping changed");
             Require(
-                index.RelatedNames.TryGetValue("cd_related_01_sword", out var relatedName) && relatedName == "Synthetic Blade",
+                index.RelatedNames.TryGetValue("cd_marni_laser_hel_0001", out var relatedName) && relatedName == "Synthetic Blade",
                 "StringInfo related-name mapping changed");
 
             var session = sessions.GetRequired(handle.SessionId);
@@ -928,12 +928,17 @@ internal static class FullArchiveTestRunner
                 enrichedExact.ExactName == "Synthetic Blade" &&
                 enrichedExact.NameEvidence == "Exact localization",
                 "exact archive name evidence changed");
-            var relatedEntry = session.Index.FindEntriesByPath("character/model/cd_related_01_sword_index01.pac").Single();
+            var relatedEntry = session.Index.FindEntriesByPath("character/model/cd_marni_laser_hel_0001_index01.pac").Single();
             var enrichedRelated = session.ReadEntry(relatedEntry.EntryId);
             Require(
                 enrichedRelated.KnownName.Length == 0 &&
-                enrichedRelated.NameEvidence == "Name hint: Synthetic Blade",
+                enrichedRelated.NameEvidence == "Synthetic Blade",
                 "related archive name evidence changed");
+            var iconEntry = session.Index.FindEntriesByPath("ui/itemicon/itemicon_prefab_cd_marni_laser_hel_0001_n.dds").Single();
+            var enrichedIcon = session.ReadEntry(iconEntry.EntryId);
+            Require(
+                enrichedIcon.ExactName.Length == 0 && enrichedIcon.NameEvidence == "Synthetic Blade",
+                "derived item-icon texture name evidence changed");
 
             var persistedPath = Path.Combine(session.GenerationPath, "names.bin");
             Require(File.Exists(persistedPath), "available archive name index was not persisted");

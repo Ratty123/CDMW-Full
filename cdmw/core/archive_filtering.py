@@ -53,6 +53,17 @@ from cdmw.models import ArchiveEntry
 
 
 _COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS = COMMON_TECHNICAL_DDS_EXCLUDE_PATTERNS
+_ARCHIVE_ITEM_ICON_NAME_PREFIXES = ("itemicon_prefab_", "itemicon_", "icon_prefab_", "icon_")
+_ARCHIVE_NAME_SIDECAR_QUALIFIERS = (
+    ".app",
+    ".material",
+    ".pac",
+    ".pam",
+    ".pamlod",
+    ".prefab",
+    ".prefabdata",
+    ".sockets",
+)
 
 
 def _strip_archive_model_family_variant_suffix(stem: str) -> str:
@@ -262,16 +273,38 @@ def archive_entry_model_base_key_matches(entry: ArchiveEntry) -> Tuple[Tuple[str
             seen.add(normalized_key)
 
     add(stem, "exact")
-    grouped_stem = derive_texture_group_key(entry.basename).strip().lower()
-    if grouped_stem:
-        add(grouped_stem, "related")
-    family_stem = _strip_archive_model_family_variant_suffix(stem)
-    if family_stem:
-        add(family_stem, "related")
-    for alias_stem in iter_archive_character_equipment_root_alias_stems(stem):
-        add(alias_stem, "related")
-    for alias_stem in iter_archive_equipment_model_alias_stems(stem):
-        add(alias_stem, "related")
+    candidates: List[str] = [stem]
+    processed: set[str] = set()
+    while candidates:
+        candidate = candidates.pop(0)
+        if candidate in processed:
+            continue
+        processed.add(candidate)
+
+        derived: List[str] = []
+        grouped_stem = derive_texture_group_key(candidate).strip().lower()
+        if grouped_stem and grouped_stem != candidate:
+            derived.append(grouped_stem)
+        family_stem = _strip_archive_model_family_variant_suffix(candidate)
+        if family_stem and family_stem != candidate:
+            derived.append(family_stem)
+        for prefix in _ARCHIVE_ITEM_ICON_NAME_PREFIXES:
+            if candidate.startswith(prefix) and len(candidate) > len(prefix):
+                derived.append(candidate[len(prefix) :])
+                break
+        for qualifier in _ARCHIVE_NAME_SIDECAR_QUALIFIERS:
+            if candidate.endswith(qualifier) and len(candidate) > len(qualifier):
+                derived.append(candidate[: -len(qualifier)])
+                break
+        derived.extend(iter_archive_character_equipment_root_alias_stems(candidate))
+        derived.extend(iter_archive_equipment_model_alias_stems(candidate))
+
+        for value in derived:
+            normalized = str(value or "").strip().lower()
+            if not normalized or normalized in seen:
+                continue
+            add(normalized, "related")
+            candidates.append(normalized)
     return tuple(matches)
 
 
@@ -308,7 +341,7 @@ def archive_entry_item_name_match(
                 "equipment alias, icon reference, or related asset expansion; it is not proof that this file is that item."
             )
     if first_related_name:
-        return "", f"Name hint: {first_related_name}", first_related_reason
+        return "", first_related_name, first_related_reason
     return "", "", ""
 
 
