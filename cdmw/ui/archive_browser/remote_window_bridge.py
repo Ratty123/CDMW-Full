@@ -223,8 +223,18 @@ class ArchiveRemoteWindowBridge(QObject):
         window._update_archive_filter_button_state()
         if self.current_session is None:
             message = "Archive catalogue loading cancelled."
+            window._set_archive_cache_health(
+                "unknown",
+                "Cache Status: Unknown. Standalone archive catalogue loading was cancelled.",
+                package_root=self._last_open_root,
+            )
         else:
             message = "Archive refresh cancelled. The previous catalogue remains available."
+            window._set_archive_cache_health(
+                "healthy",
+                "Cache Status: Healthy. The previous standalone archive catalogue remains active.",
+                package_root=self.current_session.package_root,
+            )
         window._set_archive_load_progress(message, phase="Ready", percent=100)
         window.set_status_message(message)
         window.append_archive_log(message)
@@ -587,6 +597,17 @@ class ArchiveRemoteWindowBridge(QObject):
         window.archive_tree.setEnabled(True)
         window._update_archive_filter_button_state()
         completion = f"Archive catalogue ready. Showing {handle.total_matches:,} entries."
+        if current_session is not None:
+            cache_detail = (
+                "Cache Status: Healthy. Loaded the reusable standalone archive catalogue."
+                if current_session.cache_hit
+                else "Cache Status: Healthy. Built the standalone archive catalogue."
+            )
+            window._set_archive_cache_health(
+                "healthy",
+                cache_detail,
+                package_root=current_session.package_root,
+            )
         window._set_archive_list_status(completion)
         window._set_archive_warmup_overlay(False)
         window._set_archive_load_progress(completion, phase="Ready", percent=100)
@@ -706,6 +727,20 @@ class ArchiveRemoteWindowBridge(QObject):
         window._set_archive_warmup_overlay(False)
         self._set_remote_operation_busy(False)
         message = f"Archive backend v2 failed during {kind}: {detail}"
+        if kind in _SESSION_RECOVERY_FAILURES:
+            current_session = self.current_session
+            if current_session is not None:
+                window._set_archive_cache_health(
+                    "healthy",
+                    "Cache Status: Healthy. The previous standalone archive catalogue remains active.",
+                    package_root=current_session.package_root,
+                )
+            else:
+                window._set_archive_cache_health(
+                    "unhealthy",
+                    f"Cache Status: Unhealthy. Standalone archive catalogue failed: {detail}",
+                    package_root=self._last_open_root,
+                )
         window.set_status_message(message)
         window.append_archive_log(message)
         self._record_runtime("archive_backend_v2_failed", operation=kind, error=detail)

@@ -97,7 +97,12 @@ public sealed class ArchiveCacheStore
             }
 
             var generationPath = GenerationDirectory(rootId, pointer.GenerationId);
-            using var index = ValidateGeneration(generationPath, pointer, canonicalRoot, fingerprint.Value);
+            using var index = ValidateGeneration(
+                generationPath,
+                pointer,
+                canonicalRoot,
+                fingerprint.Value,
+                out _);
             return new CacheHealthResult(
                 canonicalRoot,
                 rootId,
@@ -172,7 +177,8 @@ public sealed class ArchiveCacheStore
                     stagingPath,
                     new ArchiveCurrentPointer(rootId, generationId, fingerprint.Value, DateTimeOffset.UtcNow),
                     canonicalRoot,
-                    fingerprint.Value))
+                    fingerprint.Value,
+                    out _))
                 {
                     if (validation.EntryCount != entryCount)
                     {
@@ -232,10 +238,13 @@ public sealed class ArchiveCacheStore
                 return null;
             }
             generationPath = GenerationDirectory(rootId, pointer.GenerationId);
-            validatedIndex = ValidateGeneration(generationPath, pointer, packageRoot, fingerprint.Value);
-            manifest = await ReadJsonAsync<ArchiveGenerationManifest>(
-                Path.Combine(generationPath, "manifest.json"),
-                cancellationToken).ConfigureAwait(false);
+            validatedIndex = ValidateGeneration(
+                generationPath,
+                pointer,
+                packageRoot,
+                fingerprint.Value,
+                out var validatedManifest);
+            manifest = validatedManifest;
         }
         catch (Exception exception) when (exception is IOException or JsonException or InvalidDataException or UnauthorizedAccessException)
         {
@@ -326,7 +335,8 @@ public sealed class ArchiveCacheStore
         string generationPath,
         ArchiveCurrentPointer pointer,
         string packageRoot,
-        string fingerprint)
+        string fingerprint,
+        out ArchiveGenerationManifest manifest)
     {
         var manifestPath = Path.Combine(generationPath, "manifest.json");
         var indexPath = Path.Combine(generationPath, "archive.ali");
@@ -334,7 +344,7 @@ public sealed class ArchiveCacheStore
         {
             throw new InvalidDataException("The archive generation is incomplete.");
         }
-        var manifest = JsonSerializer.Deserialize<ArchiveGenerationManifest>(
+        manifest = JsonSerializer.Deserialize<ArchiveGenerationManifest>(
             File.ReadAllText(manifestPath),
             WorkerProtocol.JsonOptions) ?? throw new InvalidDataException("The archive generation manifest is empty.");
         if (!StringComparer.Ordinal.Equals(manifest.RootId, pointer.RootId) ||

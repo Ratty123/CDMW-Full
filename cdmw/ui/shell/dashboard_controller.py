@@ -94,6 +94,30 @@ class DashboardControllerMixin:
                 package_root=root_text,
             )
             return {"status": "unhealthy", "reason": self._archive_cache_health_reason}
+        remote_bridge = getattr(self, "archive_remote_bridge", None)
+        if remote_bridge is not None and bool(getattr(remote_bridge, "displays_v2", False)):
+            session = getattr(remote_bridge, "current_session", None)
+            session_root = str(getattr(session, "package_root", "") or "").strip()
+            same_root = bool(
+                session_root
+                and Path(session_root).expanduser().resolve(strict=False)
+                == package_root.resolve(strict=False)
+            )
+            if same_root:
+                cache_hit = bool(getattr(session, "cache_hit", False))
+                reason = (
+                    "Cache Status: Healthy. Loaded the reusable standalone archive catalogue."
+                    if cache_hit
+                    else "Cache Status: Healthy. Built the standalone archive catalogue."
+                )
+                self._set_archive_cache_health("healthy", reason, package_root=root_text)
+                return {"status": "healthy", "reason": reason}
+            reason = (
+                "Cache Status: Unknown. The standalone archive worker will validate the cache "
+                "when Archive Browser opens."
+            )
+            self._set_archive_cache_health("unknown", reason, package_root=root_text)
+            return {"status": "unknown", "reason": reason}
         try:
             report = archive_scan_shard_cache_health(package_root, self.archive_cache_root)
         except Exception as exc:

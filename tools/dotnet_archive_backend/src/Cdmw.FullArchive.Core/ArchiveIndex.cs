@@ -189,6 +189,21 @@ public sealed class ArchiveIndex : IDisposable
         return _view.ReadArray(checked(_stringsOffset + pathOffset), destination, 0, length);
     }
 
+    internal ArchiveIndexStringRange GetPamtPathRange(long entryId)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (entryId < 0 || entryId >= EntryCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(entryId));
+        }
+        var record = checked(_recordsOffset + entryId * RecordSize);
+        return new ArchiveIndexStringRange(
+            checked((long)_view.ReadUInt64(record + 8)),
+            checked((int)_view.ReadUInt32(record + 52)));
+    }
+
+    internal string ReadString(ArchiveIndexStringRange range) => ReadString(range.Offset, range.Length);
+
     private static bool IsModPackage(string pamtPath)
     {
         var package = (System.IO.Path.GetFileName(System.IO.Path.GetDirectoryName(pamtPath)) ?? string.Empty).Trim();
@@ -266,3 +281,5 @@ public sealed class ArchiveIndex : IDisposable
         return Encoding.UTF8.GetString(bytes);
     }
 }
+
+internal readonly record struct ArchiveIndexStringRange(long Offset, int Length);

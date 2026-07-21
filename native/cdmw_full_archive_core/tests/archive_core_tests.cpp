@@ -80,6 +80,38 @@ std::vector<std::uint8_t> make_pamt(
     return data;
 }
 
+std::vector<std::uint8_t> make_multi_entry_pamt(const std::vector<std::string>& filenames) {
+    std::vector<std::uint8_t> names;
+    std::vector<std::uint32_t> name_offsets;
+    for (const auto& filename : filenames) {
+        name_offsets.push_back(static_cast<std::uint32_t>(names.size()));
+        cdmw::full_archive::append_u32(names, 0xFFFFFFFFu);
+        require(filename.size() <= std::numeric_limits<std::uint8_t>::max(), "test filename is too long");
+        names.push_back(static_cast<std::uint8_t>(filename.size()));
+        names.insert(names.end(), filename.begin(), filename.end());
+    }
+
+    std::vector<std::uint8_t> data;
+    cdmw::full_archive::append_u32(data, 0);
+    cdmw::full_archive::append_u32(data, 1);
+    cdmw::full_archive::append_u32(data, 0);
+    for (int index = 0; index < 3; ++index) cdmw::full_archive::append_u32(data, 0);
+    cdmw::full_archive::append_u32(data, 0);
+    cdmw::full_archive::append_u32(data, static_cast<std::uint32_t>(names.size()));
+    data.insert(data.end(), names.begin(), names.end());
+    cdmw::full_archive::append_u32(data, 0);
+    cdmw::full_archive::append_u32(data, static_cast<std::uint32_t>(filenames.size()));
+    for (size_t index = 0; index < filenames.size(); ++index) {
+        cdmw::full_archive::append_u32(data, name_offsets[index]);
+        cdmw::full_archive::append_u32(data, static_cast<std::uint32_t>(index));
+        cdmw::full_archive::append_u32(data, 1);
+        cdmw::full_archive::append_u32(data, 1);
+        append_u16(data, 0);
+        append_u16(data, 0);
+    }
+    return data;
+}
+
 void test_index_and_raw_decode(const fs::path& root) {
     const std::vector<std::uint8_t> payload = {'h', 'e', 'l', 'l', 'o'};
     write_bytes(root / "0.paz", payload);
@@ -184,6 +216,36 @@ void test_duplicate_override_metadata(const fs::path& root) {
     require(named_pamt_metadata == 0x2u, "named PAMT duplicate metadata changed");
 }
 
+void test_index_deduplicates_source_paths(const fs::path& root) {
+    write_bytes(root / "0009" / "0.paz", {'a', 'b'});
+    write_bytes(
+        root / "0009" / "0.pamt",
+        make_multi_entry_pamt({"character/model/first.pac", "character/model/second.pac"}));
+    const auto index = root / "deduplicated.ali";
+    std::uint64_t count = 0;
+    std::array<char, 512> error{};
+    require(cdmw_full_archive_build_index_utf8(
+        root.u8string().c_str(),
+        index.u8string().c_str(),
+        &count,
+        error.data(),
+        error.size()) == CDMW_FULL_ARCHIVE_OK,
+        std::string("deduplicated index build failed: ") + error.data());
+    require(count == 2, "deduplicated index count changed");
+    const auto bytes = cdmw::full_archive::read_binary(index, 1024 * 1024);
+    const auto records_offset = static_cast<size_t>(read_u64_at(bytes, 24));
+    const auto second_record = records_offset + cdmw::full_archive::kIndexRecordSize;
+    require(
+        read_u64_at(bytes, records_offset + 8) == read_u64_at(bytes, second_record + 8),
+        "repeated PAMT paths were duplicated in the index string table");
+    require(
+        read_u64_at(bytes, records_offset + 16) == read_u64_at(bytes, second_record + 16),
+        "repeated PAZ paths were duplicated in the index string table");
+    require(
+        read_u64_at(bytes, records_offset) != read_u64_at(bytes, second_record),
+        "distinct virtual paths unexpectedly shared one index string range");
+}
+
 void test_lz4_and_chacha(const fs::path& root) {
     const std::vector<std::uint8_t> plain = {'h', 'e', 'l', 'l', 'o'};
     const std::vector<std::uint8_t> compressed = {0x50, 'h', 'e', 'l', 'l', 'o'};
@@ -278,6 +340,7 @@ int main() {
         require(cdmw_full_archive_core_abi_version() == CDMW_FULL_ARCHIVE_CORE_ABI_VERSION, "ABI version is wrong");
         test_index_and_raw_decode(root / "raw");
         test_duplicate_override_metadata(root / "duplicates");
+        test_index_deduplicates_source_paths(root / "deduplicated-source-paths");
         test_lz4_and_chacha(root / "codec");
         test_partial_dds_pathc(root / "partial-dds");
         fs::remove_all(root);

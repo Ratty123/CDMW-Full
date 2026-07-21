@@ -69,9 +69,13 @@ class _ShadowWindow(QObject):
         self.worker_thread = None
         self._shutting_down = False
         self.logs: list[str] = []
+        self.cache_health: list[tuple[str, str, str]] = []
 
     def append_archive_log(self, message: str, **_kwargs: object) -> None:
         self.logs.append(message)
+
+    def _set_archive_cache_health(self, state: str, reason: str, *, package_root: str = "") -> None:
+        self.cache_health.append((state, reason, package_root))
 
 
 class _RemoteExportWindow(_ShadowWindow):
@@ -205,6 +209,8 @@ def test_v2_bridge_only_offers_session_recovery_for_catalogue_failures() -> None
     bridge._handle_failure("open", RuntimeError("worker unavailable"))
 
     assert failures == [("open", "worker unavailable")]
+    assert len(window.cache_health) == 1
+    assert window.cache_health[0][0] == "unhealthy"
 
 
 def test_v2_bridge_maps_real_progress_contract_fields() -> None:
@@ -245,6 +251,7 @@ def test_v2_bridge_scopes_busy_state_and_cancel_keeps_existing_view() -> None:
     assert bridge.cancel_pending_update()
     assert window.archive_refresh_scan_button.text() == "Refresh"
     assert progress[-1] == ("Archive catalogue loading cancelled.", "Ready", 100)
+    assert window.cache_health[-1][0] == "unknown"
 
 
 def test_remote_export_selection_uses_session_ids_without_materializing_global_entries() -> None:

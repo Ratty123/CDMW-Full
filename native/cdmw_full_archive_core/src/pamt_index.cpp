@@ -183,6 +183,41 @@ void append_string(std::vector<std::uint8_t>& strings, const std::string& value,
     strings.insert(strings.end(), value.begin(), value.end());
 }
 
+struct SharedStringRange {
+    std::uint64_t offset = 0;
+    std::uint32_t length = 0;
+};
+
+void append_shared_string(
+    std::vector<std::uint8_t>& strings,
+    std::unordered_map<std::string, SharedStringRange>& shared,
+    const std::string& value,
+    std::uint64_t& offset,
+    std::uint32_t& length) {
+    if (const auto found = shared.find(value); found != shared.end()) {
+        offset = found->second.offset;
+        length = found->second.length;
+        return;
+    }
+    append_string(strings, value, offset, length);
+    shared.emplace(value, SharedStringRange{offset, length});
+}
+
+int compare_case_insensitive(const std::string& left, const std::string& right) {
+    const auto common = std::min(left.size(), right.size());
+    for (size_t index = 0; index < common; ++index) {
+        const auto left_value = static_cast<unsigned char>(
+            std::tolower(static_cast<unsigned char>(left[index])));
+        const auto right_value = static_cast<unsigned char>(
+            std::tolower(static_cast<unsigned char>(right[index])));
+        if (left_value < right_value) return -1;
+        if (left_value > right_value) return 1;
+    }
+    if (left.size() < right.size()) return -1;
+    if (left.size() > right.size()) return 1;
+    return 0;
+}
+
 void publish_file(const fs::path& staging, const fs::path& destination) {
 #if defined(_WIN32)
     if (!MoveFileExW(
@@ -241,9 +276,8 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
     if (progress) progress(pamt_files.size(), pamt_files.size(), "index_parse", "complete");
     if (progress) progress(0, entries.size(), "index_sort", "");
     std::stable_sort(entries.begin(), entries.end(), [](const Entry& left, const Entry& right) {
-        const auto left_path = lower_copy(left.path);
-        const auto right_path = lower_copy(right.path);
-        if (left_path != right_path) return left_path < right_path;
+        const auto path_order = compare_case_insensitive(left.path, right.path);
+        if (path_order != 0) return path_order < 0;
         if (left.pamt_path != right.pamt_path) return left.pamt_path < right.pamt_path;
         return left.archive_offset < right.archive_offset;
     });
@@ -261,9 +295,11 @@ void write_index_atomic(
     std::vector<std::uint8_t> strings;
     std::vector<std::uint32_t> override_metadata(entries.size(), 0);
     for (size_t group_start = 0; group_start < entries.size();) {
-        const auto normalized_path = lower_copy(entries[group_start].path);
         auto group_end = group_start + 1;
-        while (group_end < entries.size() && lower_copy(entries[group_end].path) == normalized_path) group_end++;
+        while (group_end < entries.size() &&
+               compare_case_insensitive(entries[group_start].path, entries[group_end].path) == 0) {
+            group_end++;
+        }
         if (group_end - group_start > 1) {
             auto active_index = group_start;
             auto active_priority = load_priority(entries[active_index]);
@@ -279,6 +315,18 @@ void write_index_atomic(
         }
         group_start = group_end;
     }
+    const auto path_bytes = std::accumulate(
+        entries.begin(),
+        entries.end(),
+        size_t{0},
+        [](size_t total, const Entry& entry) {
+            if (entry.path.size() > std::numeric_limits<size_t>::max() - total) {
+                throw std::runtime_error("archive index string size overflow");
+            }
+            return total + entry.path.size();
+        });
+    strings.reserve(path_bytes);
+    std::unordered_map<std::string, SharedStringRange> shared_source_paths;
     records.reserve(entries.size() * kIndexRecordSize);
     for (size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
         const auto& entry = entries[entry_index];
@@ -288,8 +336,18 @@ void write_index_atomic(
         std::uint64_t path_offset = 0, pamt_offset = 0, paz_offset = 0;
         std::uint32_t path_length = 0, pamt_length = 0, paz_length = 0;
         append_string(strings, entry.path, path_offset, path_length);
-        append_string(strings, entry.pamt_path.u8string(), pamt_offset, pamt_length);
-        append_string(strings, entry.paz_path.u8string(), paz_offset, paz_length);
+        append_shared_string(
+            strings,
+            shared_source_paths,
+            entry.pamt_path.u8string(),
+            pamt_offset,
+            pamt_length);
+        append_shared_string(
+            strings,
+            shared_source_paths,
+            entry.paz_path.u8string(),
+            paz_offset,
+            paz_length);
         append_u64(records, path_offset);
         append_u64(records, pamt_offset);
         append_u64(records, paz_offset);

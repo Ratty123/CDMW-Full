@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
+
+import cdmw.ui.shell.dashboard_controller as dashboard_controller
 from cdmw.ui.archive_browser.progress import ArchiveProgressMixin
 from cdmw.ui.shell.dashboard_controller import DashboardControllerMixin
 
@@ -73,3 +76,51 @@ def test_stale_filter_result_does_not_replace_healthy_cache_state() -> None:
 
     assert owner.archive_cache_status_chip.text == "Cache: Healthy"
     assert owner.archive_cache_status_chip.property("healthState") == "healthy"
+
+
+class _RootEdit:
+    def __init__(self, value: str) -> None:
+        self._value = value
+
+    def text(self) -> str:
+        return self._value
+
+
+class _HealthOwner:
+    def __init__(self, root: str, session: object | None = None) -> None:
+        self.archive_package_root_edit = _RootEdit(root)
+        self.archive_remote_bridge = SimpleNamespace(displays_v2=True, current_session=session)
+        self._archive_cache_health_reason = ""
+        self.updates: list[tuple[str, str, str]] = []
+
+    def _set_archive_cache_health(self, state: str, reason: str, *, package_root: str = "") -> None:
+        self._archive_cache_health_reason = reason
+        self.updates.append((state, reason, package_root))
+
+
+def test_v2_cache_health_does_not_run_legacy_shard_scan(tmp_path, monkeypatch) -> None:
+    def fail_legacy_scan(*_args, **_kwargs):
+        raise AssertionError("v2 cache health must not scan the legacy cache")
+
+    monkeypatch.setattr(dashboard_controller, "archive_scan_shard_cache_health", fail_legacy_scan)
+    owner = _HealthOwner(str(tmp_path))
+
+    report = DashboardControllerMixin._check_archive_cache_health(owner, str(tmp_path))
+
+    assert report["status"] == "unknown"
+    assert owner.updates[-1][0] == "unknown"
+
+
+def test_v2_cache_health_reuses_published_session_state(tmp_path, monkeypatch) -> None:
+    def fail_legacy_scan(*_args, **_kwargs):
+        raise AssertionError("a published v2 session must remain the cache-health authority")
+
+    monkeypatch.setattr(dashboard_controller, "archive_scan_shard_cache_health", fail_legacy_scan)
+    session = SimpleNamespace(package_root=str(tmp_path), cache_hit=True)
+    owner = _HealthOwner(str(tmp_path), session)
+
+    report = DashboardControllerMixin._check_archive_cache_health(owner, str(tmp_path))
+
+    assert report["status"] == "healthy"
+    assert "Loaded the reusable" in report["reason"]
+    assert owner.updates[-1][0] == "healthy"

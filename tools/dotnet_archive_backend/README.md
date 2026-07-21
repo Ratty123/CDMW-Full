@@ -116,6 +116,14 @@ Regenerate a three-cycle synthetic timing report outside the repository with:
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj -c Release --no-build -- --baseline-report "$env:TEMP/cdmw-full-archive-synthetic-v2.json"
 ```
 
+For cache-performance work, run the three-cycle 200,000-entry synthetic scale
+probe with the same Release binaries:
+
+```powershell
+dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj -c Release --no-build -- --cache-scale-report "$env:TEMP/cdmw-full-archive-cache-scale.json"
+```
+
 The committed baseline and packaged probe are synthetic regression evidence
-only. Real-game corpus and visible UI gates require separate explicit
-authorization.
+only. The scale probe measures cold build, warm open, forced refresh, and cache
+bytes without licensed files. Real-game corpus and visible UI gates require
+separate explicit authorization.

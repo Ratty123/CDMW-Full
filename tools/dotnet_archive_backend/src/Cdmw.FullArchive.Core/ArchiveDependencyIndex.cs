@@ -275,6 +275,7 @@ internal sealed class ArchiveDependencyIndex : IDisposable
         var packages = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var roles = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var categories = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
+        var packageLabels = new Dictionary<ArchiveIndexStringRange, string>();
         var pathBuffer = new byte[1024];
         for (long entryId = 0; entryId < source.EntryCount; entryId++)
         {
@@ -302,11 +303,23 @@ internal sealed class ArchiveDependencyIndex : IDisposable
             basenameRecords[checked((int)entryId)] = new LookupRecord(HashBasename(path), entryId);
             stemRecords[checked((int)entryId)] = new LookupRecord(HashStem(path), entryId);
 
-            var entry = source.ReadEntry(entryId);
-            Increment(extensions, entry.Extension);
-            Increment(packages, entry.Package);
-            Increment(roles, entry.Role.ToString());
-            Increment(categories, entry.Category);
+            var virtualPath = Encoding.UTF8.GetString(path).Replace('\\', '/').Trim('/');
+            var extension = System.IO.Path.GetExtension(virtualPath).ToLowerInvariant();
+            var role = ArchiveEntryClassifier.Classify(virtualPath, extension);
+            var category = ArchiveEntryClassifier.ClassifyExtensionCategory(extension);
+            var pamtRange = source.GetPamtPathRange(entryId);
+            if (!packageLabels.TryGetValue(pamtRange, out var package))
+            {
+                package = ArchiveEntryClassifier.PackageLabel(source.ReadString(pamtRange));
+                if (packageLabels.Count < 8_192)
+                {
+                    packageLabels[pamtRange] = package;
+                }
+            }
+            Increment(extensions, extension);
+            Increment(packages, package);
+            Increment(roles, role.ToString());
+            Increment(categories, category.ToString());
         }
         cancellationToken.ThrowIfCancellationRequested();
         publishProgress?.Invoke(new ProgressUpdate(
@@ -315,9 +328,10 @@ internal sealed class ArchiveDependencyIndex : IDisposable
             "dependency_index_build",
             "sorting")).GetAwaiter().GetResult();
         cancellationToken.ThrowIfCancellationRequested();
-        Array.Sort(basenameRecords, LookupRecordComparer.Instance);
-        cancellationToken.ThrowIfCancellationRequested();
-        Array.Sort(stemRecords, LookupRecordComparer.Instance);
+        Parallel.Invoke(
+            new ParallelOptions { MaxDegreeOfParallelism = 2 },
+            () => Array.Sort(basenameRecords, LookupRecordComparer.Instance),
+            () => Array.Sort(stemRecords, LookupRecordComparer.Instance));
         cancellationToken.ThrowIfCancellationRequested();
         publishProgress?.Invoke(new ProgressUpdate(
             source.EntryCount,
@@ -369,7 +383,7 @@ internal sealed class ArchiveDependencyIndex : IDisposable
                 FileAccess.Write,
                 FileShare.None,
                 WriteBufferSize,
-                FileOptions.Asynchronous | FileOptions.WriteThrough))
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
             {
                 await stream.WriteAsync(header, cancellationToken).ConfigureAwait(false);
                 await WriteRecordsAsync(stream, build.BasenameRecords, cancellationToken).ConfigureAwait(false);
