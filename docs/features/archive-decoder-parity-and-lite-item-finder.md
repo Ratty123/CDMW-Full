@@ -4,19 +4,28 @@ Updated: 2026-07-21
 
 Status: IMPLEMENTED - SYNTHETIC FULL/LITE GATES PASS; REAL-CORPUS, VISIBLE, AND RELEASE GATES DEFERRED
 
-Repository: `D:\Byggverkstaden\app_restructuring`
+Repositories: this full-workbench repository and the independent sibling
+`D:\Byggverkstaden\CDMW Lite` repository.
+
+Relocation note (2026-07-21): Archive Lite, its tests, and its complete build
+dependency closure moved to the independent repository. The Lite repository
+owns committed snapshots of the semantic library, schema, native helpers, and
+.NET/Vortice renderer and rejects references back to this checkout. The two
+products no longer share a worktree or source reference; future parity changes
+must update both versioned contracts deliberately.
 
 ## Implementation outcome
 
 The source audit below records the pre-implementation gaps. The implemented
-state resolves them through one Python-free capability/document owner rather
-than a second independent Lite decoder stack:
+state resolved them through a Python-free capability/document contract. Since
+the repository split, each product owns its implementation snapshot rather
+than importing the other product's source:
 
-- `schemas/archive_content_capabilities.v1.json` declares the role, group,
+- Each repository's `schemas/archive_content_capabilities.v1.json` declares the role, group,
   analyzer, maturity, readable/structured/reference/visual/playback flags, and
-  export capabilities for all 107 audited extensions. Full and Lite registry
-  tests enforce the same manifest.
-- `Cdmw.Archive.Content` owns bounded normalized documents for text/XML,
+  export capabilities for all 107 audited extensions. The split began from the
+  same manifest; coordinated version changes are now required to retain parity.
+- Each repository's `Cdmw.Archive.Content` project owns bounded normalized documents for text/XML,
   generic binary, MeshInfo, effect metadata (`.pae`/`.paem`), BNK, PATHC, PAB,
   HKX/HKT, and the audited structured sidecar families. Full and Lite adapters
   publish those documents without changing the archive source bytes.
@@ -24,8 +33,8 @@ than a second independent Lite decoder stack:
   bounds, quantized vertices/normals/UVs, 16-bit indices, draw ranges, and
   material candidates. Unknown layouts remain explicit instead of being
   mislabeled as decoded geometry.
-- The native item indexer emits one schema-versioned raw catalog used by the
-  existing full-CDMW path and Lite. Lite atomically caches the catalog beside
+- The native item indexers emit the same schema-versioned raw catalog contract
+  in both repositories. Lite atomically caches the catalog beside
   its name maps and provides paged search, category/material facets, variant
   grouping, localized and secondary IDs, exact/related Archive Browser scopes,
   scope-specific extension facets, deterministic common-extension shortcuts,
@@ -70,6 +79,14 @@ Focused validation for the Item Finder/classification follow-up on 2026-07-21:
   independence and worker ping compatibility); those unrelated owners were not
   changed by this follow-up.
 
+Standalone-repository extraction validation on 2026-07-21:
+
+- Independent Git root and source-containment guard: PASS.
+- Archive Lite Debug gate from `D:\Byggverkstaden\CDMW Lite`: PASS, all 33
+  managed scenarios plus fresh native/helper builds.
+- Pinned vgmstream bootstrap: PASS for both cold installation and verified
+  warm reuse.
+
 The deferred gates remain intentionally outside this implementation: licensed
 real-PAMT/PAC semantic coverage, real-corpus Item Finder completeness and
 latency, visible renderer/game/Blender fidelity, and the Archive Lite Release
@@ -96,12 +113,12 @@ editing tools.
 
 - Keep PAMT, PAZ, and PATHC sources read-only. Derived JSON, images, thumbnails,
   model packages, and exports must publish outside the source archives.
-- Do not port each Python decoder independently into Archive Lite. Put common
-  rules in one Python-free owner and make both products consume its versioned
-  result.
+- Do not port Python decoders into Archive Lite. Keep its repository-owned
+  Python-free rules aligned through explicit schema/contract versions and
+  coordinated compatibility tests in both repositories.
 - Preserve uncertainty. Existing full-CDMW sidecar decoders recover candidate
   fields and relationships; they do not prove complete proprietary schemas.
-  The shared result must retain offsets, evidence, confidence, truncation, and
+  The versioned result contract must retain offsets, evidence, confidence, truncation, and
   `candidate` versus `proven` labels.
 - Do not invent particle playback for PAE/PAEM or geometry for HKX/HKT when the
   source does not yield it. Unsupported views must fail closed with the same
@@ -337,12 +354,12 @@ about WPF, Qt, archive sessions, paths on disk, or UI state.
 - Extend the full .NET archive backend preview preparation contract so it can
   publish the normalized document beside the decoded artifact. The Python
   Archive Browser renders that document through a thin adapter.
-- Archive Lite's worker invokes the same library and publishes large text/JSON
-  documents as bounded cache artifacts rather than oversized named-pipe
-  messages.
+- Archive Lite's worker invokes its repository-owned build of the same
+  versioned document contract and publishes large text/JSON documents as
+  bounded cache artifacts rather than oversized named-pipe messages.
 - Keep current Python structured decoders temporarily as a golden oracle and
   compatibility fallback. Every migrated analyzer needs normalized fixture
-  equality before the shared result becomes authoritative.
+  equality before the versioned result becomes authoritative.
 - A fallback must identify itself in diagnostics. Never silently show two
   different interpretations under the same feature name.
 
@@ -583,11 +600,11 @@ both products preserve archive bytes.
 | Capability/document schema | `schemas/archive_content_capabilities.v1.json`, new `tools/dotnet_archive_backend/src/Cdmw.Archive.Content/` |
 | Full backend transport | `tools/dotnet_archive_backend/src/Cdmw.FullArchive.Contracts/`, `Cdmw.FullArchive.Core/`, `Cdmw.FullArchive.Worker/` |
 | Full Python adapters/oracles | `cdmw/core/archive_preview_result_builder.py`, `cdmw/core/archive_structured_preview.py`, binary preview helpers, `cdmw/core/pat_decoder.py` |
-| Lite semantic worker | `apps/Cdmw.ArchiveLite/src/Cdmw.ArchiveLite.Contracts/`, `Cdmw.ArchiveLite.Core/`, `Cdmw.ArchiveLite.Worker/` |
-| Shared model/HKX helpers | `native/cdmw_preview_core/`, `native/cd_hkx/`, DirectXTex and vgmstream integrations |
-| Shared item catalog | `native/cdmw_archive_accelerator/`, `cdmw/core/item_index.py`, Lite `ArchiveItemNameIndexService` |
+| Lite semantic worker | Independent `CDMW Lite` repository: `src/Cdmw.ArchiveLite.Contracts/`, `src/Cdmw.ArchiveLite.Core/`, `src/Cdmw.ArchiveLite.Worker/`, and `src/Cdmw.Archive.Content/` |
+| Full model/HKX helpers | This repository's `native/cdmw_preview_core/`, `native/cd_hkx/`, DirectXTex and vgmstream integrations |
+| Versioned item-catalog contract | This repository's `native/cdmw_archive_accelerator/` and `cdmw/core/item_index.py`; independent Lite copies under its `native/` and `src/` trees |
 | Full Item Finder parity oracle | `cdmw/ui/archive_browser/asset_catalog_dialog.py`, `icon_pipeline.py`, `cdmw/workers/archive_workers.py`, `cdmw/core/archive_scan_cache.py` |
-| Lite Item Finder UI | new focused files under `apps/Cdmw.ArchiveLite/src/Cdmw.ArchiveLite.App/Dialogs/`, `ViewModels/`, and `Services/`; thin launch wiring only in the main shell |
+| Lite Item Finder UI | Independent `CDMW Lite` repository under `src/Cdmw.ArchiveLite.App/Dialogs/`, `ViewModels/`, and `Services/`; thin launch wiring only in its main shell |
 
 ## Validation record and remaining gates
 
@@ -634,8 +651,13 @@ transition, rapid changes, session invalidation, and dialog close.
 
 ```powershell
 .\tools\dotnet_archive_backend\scripts\test_full_archive_backend.ps1 -Configuration Release
-.\apps\Cdmw.ArchiveLite\scripts\test_archive_lite.ps1 -Configuration Debug
 .\scripts\codex_check.ps1 -Area archive
+```
+
+Run the independent Lite product gate from `D:\Byggverkstaden\CDMW Lite`:
+
+```powershell
+.\scripts\test_archive_lite.ps1 -Configuration Debug
 ```
 
 When `cdmw_preview_core` changes, also run its focused native build/self-test
@@ -645,7 +667,8 @@ from `docs/test-matrix.md` before the product gates.
 
 Do not run these merely to implement a phase:
 
-- `apps/Cdmw.ArchiveLite/scripts/build_archive_lite.ps1` and final standalone
+- the independent `CDMW Lite` repository's `scripts/build_archive_lite.ps1`
+  and final standalone
   artifact verification;
 - licensed real-PAMT/PAC extension coverage and semantic parity;
 - real-corpus Item Finder cold/warm p50 and p95 measurements;
