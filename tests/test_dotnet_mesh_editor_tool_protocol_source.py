@@ -701,22 +701,20 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     split_view_source = _source("MeshViewport.SplitView.cs")
     topology_source = _source("MeshViewport.Topology.cs")
 
-    assert 'Name = "DotNetMeshEditorLayout"' in program_source
-    assert "_editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : LeftToolPanelWidth));" in program_source
-    assert "_editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : RightToolPanelWidth));" in program_source
-    assert "_leftToolPanel.Visible = !_options.Embedded;" in program_source
-    assert "_rightToolPanel.Visible = !_options.Embedded;" in program_source
+    assert '"DotNetMeshEditorLeftViewportSplit"' in program_source
+    assert '"DotNetMeshEditorViewportRightSplit"' in program_source
     assert "_leftToolPanel.Margin = new Padding(0);" in program_source
     assert "_rightToolPanel.Margin = new Padding(0);" in program_source
     assert "_viewport.Margin = new Padding(0);" in program_source
-    assert "_editorLayout.Controls.Add(_leftToolPanel, 0, 0);" in program_source
-    assert "_editorLayout.Controls.Add(BuildPresentationViewportRegion(), 1, 0);" in program_source
-    assert "_editorLayout.Controls.Add(_rightToolPanel, 2, 0);" in program_source
-    assert "ApplyEmbeddedToolPanelVisibility(meshEdit);" in controls_source
-    assert "_editorLayout.ColumnStyles[0].Width = meshEdit ? LeftToolPanelWidth : 0;" in controls_source
-    assert "_editorLayout.ColumnStyles[2].Width = meshEdit ? RightToolPanelWidth : 0;" in controls_source
-    assert "_leftToolPanel.Visible = meshEdit;" in controls_source
-    assert "_rightToolPanel.Visible = meshEdit;" in controls_source
+    assert "_leftToolSplit.Panel1.Controls.Add(_leftToolPanel);" in program_source
+    assert "_rightToolSplit.Panel1.Controls.Add(BuildPresentationViewportRegion());" in program_source
+    assert "_rightToolSplit.Panel2.Controls.Add(_rightToolPanel);" in program_source
+    assert "ApplyEmbeddedToolPanelVisibility(meshEdit: false);" in controls_source
+    assert "ApplyEmbeddedToolPanelVisibility(meshEdit: true);" in controls_source
+    assert "_leftToolSplit.Panel1Collapsed = true;" in controls_source
+    assert "_rightToolSplit.Panel2Collapsed = true;" in controls_source
+    assert "_leftToolSplit.Panel1Collapsed = false;" in controls_source
+    assert "_rightToolSplit.Panel2Collapsed = false;" in controls_source
     assert "if (!options.Embedded)" not in program_source
     assert '"DotNetMeshEditorLeftToolScroll"' in program_source
     assert '"DotNetMeshEditorRightToolScroll"' in program_source

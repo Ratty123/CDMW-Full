@@ -338,6 +338,7 @@ internal sealed partial class ExperimentForm
             Margin = new Padding(0, 0, 0, 2)
         };
         control.Margin = new Padding(0);
+        control.Dock = DockStyle.Fill;
         panel.Controls.Add(text, 0, 0);
         panel.Controls.Add(control, 0, 1);
         return panel;
@@ -355,14 +356,21 @@ internal sealed partial class ExperimentForm
             Margin = new Padding(0, 0, 0, 6),
             Padding = new Padding(0)
         };
+        var minimumRowWidth = 0;
         for (var index = 0; index < controls.Length; index++)
         {
             panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100.0f / controls.Length));
             var control = controls[index];
             control.Margin = new Padding(index == 0 ? 0 : 3, 0, index == controls.Length - 1 ? 0 : 3, 0);
+            var preferredWidth = Math.Max(64, control.GetPreferredSize(Size.Empty).Width);
+            control.MinimumSize = new Size(
+                Math.Max(control.MinimumSize.Width, preferredWidth),
+                control.MinimumSize.Height);
+            minimumRowWidth += control.MinimumSize.Width + control.Margin.Horizontal;
             control.Dock = DockStyle.Fill;
             panel.Controls.Add(control, index, 0);
         }
+        panel.MinimumSize = new Size(minimumRowWidth, 0);
         return panel;
     }
 
@@ -458,6 +466,171 @@ internal sealed partial class ExperimentForm
         _helpToolTip.SetToolTip(marker, helpText);
     }
 
+    private static SplitContainer CreateToolPanelSplit(string name, FixedPanel fixedPanel)
+    {
+        var split = new MeshEditorBufferedSplitContainer
+        {
+            Name = name,
+            AccessibleName = name.Contains("Left", StringComparison.Ordinal)
+                ? "Resize left Edit Mesh tools"
+                : "Resize right Edit Mesh tools",
+            Dock = DockStyle.Fill,
+            Orientation = Orientation.Vertical,
+            FixedPanel = fixedPanel,
+            IsSplitterFixed = false,
+            SplitterIncrement = 8,
+            SplitterWidth = ToolPanelSplitterWidth,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = ThemeBorder,
+            TabStop = false,
+        };
+        split.Panel1.BackColor = ThemeWindowBackground;
+        split.Panel2.BackColor = ThemeWindowBackground;
+        return split;
+    }
+
+    private void ConfigureToolPanelSplitters()
+    {
+        if (_leftToolSplit is null || _rightToolSplit is null)
+        {
+            return;
+        }
+        _leftToolSplit.SplitterMoved += (_, _) => CaptureToolPanelLayout(persist: true);
+        _rightToolSplit.SplitterMoved += (_, _) => CaptureToolPanelLayout(persist: true);
+    }
+
+    private void ApplySavedToolPanelLayout()
+    {
+        if (_leftToolSplit is null || _rightToolSplit is null)
+        {
+            return;
+        }
+        if (_leftToolSplit.Panel1Collapsed || _rightToolSplit.Panel2Collapsed)
+        {
+            return;
+        }
+        var wasApplying = _applyingToolPanelLayout;
+        _applyingToolPanelLayout = true;
+        try
+        {
+            var normalized = _toolPanelLayout.Normalized();
+            var splitterWidth = ScaleToolPanelWidth(ToolPanelSplitterWidth);
+            _leftToolSplit.SplitterWidth = splitterWidth;
+            _rightToolSplit.SplitterWidth = splitterWidth;
+            ApplySplitterDistance(
+                _leftToolSplit,
+                ScaleToolPanelWidth(normalized.LeftWidth),
+                ScaleToolPanelWidth(MeshToolPanelLayout.MinimumLeftWidth),
+                ScaleToolPanelWidth(MinimumViewportWidth + MeshToolPanelLayout.MinimumRightWidth)
+                    + splitterWidth,
+                prioritizePanelOne: true);
+            _leftToolSplit.PerformLayout();
+            var rightPanelWidth = ScaleToolPanelWidth(normalized.RightWidth);
+            var rightAvailable = Math.Max(
+                0,
+                _rightToolSplit.ClientSize.Width - _rightToolSplit.SplitterWidth);
+            ApplySplitterDistance(
+                _rightToolSplit,
+                Math.Max(0, rightAvailable - rightPanelWidth),
+                ScaleToolPanelWidth(MinimumViewportWidth),
+                ScaleToolPanelWidth(MeshToolPanelLayout.MinimumRightWidth),
+                prioritizePanelOne: false);
+        }
+        finally
+        {
+            _applyingToolPanelLayout = wasApplying;
+        }
+    }
+
+    private static void ApplySplitterDistance(
+        SplitContainer split,
+        int desiredDistance,
+        int requestedPanelOneMinimum,
+        int requestedPanelTwoMinimum,
+        bool prioritizePanelOne)
+    {
+        var available = Math.Max(0, split.ClientSize.Width - split.SplitterWidth);
+        if (available <= 0)
+        {
+            return;
+        }
+        split.Panel1MinSize = 0;
+        split.Panel2MinSize = 0;
+        int panelOneMinimum;
+        int panelTwoMinimum;
+        if (prioritizePanelOne)
+        {
+            panelOneMinimum = Math.Min(requestedPanelOneMinimum, available);
+            panelTwoMinimum = Math.Min(requestedPanelTwoMinimum, available - panelOneMinimum);
+        }
+        else
+        {
+            panelTwoMinimum = Math.Min(requestedPanelTwoMinimum, available);
+            panelOneMinimum = Math.Min(requestedPanelOneMinimum, available - panelTwoMinimum);
+        }
+        var maximumDistance = Math.Max(panelOneMinimum, available - panelTwoMinimum);
+        split.SplitterDistance = Math.Clamp(desiredDistance, panelOneMinimum, maximumDistance);
+        split.Panel1MinSize = panelOneMinimum;
+        split.Panel2MinSize = panelTwoMinimum;
+    }
+
+    private int ScaleToolPanelWidth(int logicalWidth)
+    {
+        return Math.Max(1, (int)Math.Round(logicalWidth * DeviceDpi / 96.0));
+    }
+
+    private int LogicalToolPanelWidth(int deviceWidth)
+    {
+        return Math.Max(1, (int)Math.Round(deviceWidth * 96.0 / Math.Max(1, DeviceDpi)));
+    }
+
+    private void CaptureToolPanelLayout(bool persist)
+    {
+        if (_applyingToolPanelLayout
+            || _leftToolSplit is null
+            || _rightToolSplit is null
+            || _leftToolSplit.Panel1Collapsed
+            || _rightToolSplit.Panel2Collapsed)
+        {
+            return;
+        }
+        var rightWidth = Math.Max(
+            0,
+            _rightToolSplit.ClientSize.Width
+                - _rightToolSplit.SplitterWidth
+                - _rightToolSplit.SplitterDistance);
+        _toolPanelLayout = new MeshToolPanelLayout(
+            LogicalToolPanelWidth(_leftToolSplit.SplitterDistance),
+            LogicalToolPanelWidth(rightWidth)).Normalized();
+        if (persist)
+        {
+            _ = MeshToolPanelLayoutPreferences.TrySave(_toolPanelLayout, out _);
+        }
+    }
+
+    private void SaveToolPanelLayout()
+    {
+        CaptureToolPanelLayout(persist: false);
+        _ = MeshToolPanelLayoutPreferences.TrySave(_toolPanelLayout, out _);
+    }
+
+    private void SuspendToolPanelLayout()
+    {
+        _leftToolPanel?.SuspendLayout();
+        _rightToolPanel?.SuspendLayout();
+        _leftToolStack?.SuspendLayout();
+        _rightToolStack?.SuspendLayout();
+    }
+
+    private void ResumeToolPanelLayout()
+    {
+        _rightToolStack?.ResumeLayout(performLayout: false);
+        _leftToolStack?.ResumeLayout(performLayout: false);
+        _rightToolPanel?.ResumeLayout(performLayout: true);
+        _leftToolPanel?.ResumeLayout(performLayout: true);
+    }
+
     private static void AddStackRow(TableLayoutPanel stack, Control control)
     {
         var row = stack.RowCount;
@@ -465,20 +638,6 @@ internal sealed partial class ExperimentForm
         stack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         control.Dock = DockStyle.Top;
         stack.Controls.Add(control, 0, row);
-    }
-
-    private static void ResizeToolStack(ScrollableControl scroll, TableLayoutPanel stack)
-    {
-        var width = Math.Max(180, scroll.ClientSize.Width - scroll.Padding.Horizontal - SystemInformation.VerticalScrollBarWidth - 2);
-        stack.Width = width;
-        foreach (Control control in stack.Controls)
-        {
-            control.Width = width;
-            foreach (Control child in control.Controls)
-            {
-                child.Width = Math.Max(120, width - 20);
-            }
-        }
     }
 
     private Button ToolButton(string text, string tool)
@@ -618,17 +777,32 @@ internal sealed partial class ExperimentForm
         var enteringMeshEdit = meshEdit && !_meshEditInteractionActive;
         var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;
         _meshEditInteractionActive = meshEdit;
-        foreach (var section in _meshEditOnlySections)
+        SuspendToolPanelLayout();
+        try
         {
-            section.Visible = meshEdit;
-            section.Enabled = meshEdit;
+            if (!meshEdit)
+            {
+                ApplyEmbeddedToolPanelVisibility(meshEdit: false);
+            }
+            foreach (var section in _meshEditOnlySections)
+            {
+                section.Visible = meshEdit;
+                section.Enabled = meshEdit;
+            }
+            foreach (var section in _placementOnlySections)
+            {
+                section.Visible = !meshEdit;
+                section.Enabled = !meshEdit;
+            }
+            if (meshEdit)
+            {
+                ApplyEmbeddedToolPanelVisibility(meshEdit: true);
+            }
         }
-        foreach (var section in _placementOnlySections)
+        finally
         {
-            section.Visible = !meshEdit;
-            section.Enabled = !meshEdit;
+            ResumeToolPanelLayout();
         }
-        ApplyEmbeddedToolPanelVisibility(meshEdit);
         if (meshEdit)
         {
             _viewport.ActivatePresentationView("editable");
@@ -678,15 +852,39 @@ internal sealed partial class ExperimentForm
 
     private void ApplyEmbeddedToolPanelVisibility(bool meshEdit)
     {
-        if (!_options.Embedded || _leftToolPanel is null || _rightToolPanel is null || _editorLayout is null)
+        if (!_options.Embedded || _leftToolSplit is null || _rightToolSplit is null)
         {
             return;
         }
-        _editorLayout.ColumnStyles[0].Width = meshEdit ? LeftToolPanelWidth : 0;
-        _editorLayout.ColumnStyles[2].Width = meshEdit ? RightToolPanelWidth : 0;
-        _leftToolPanel.Visible = meshEdit;
-        _rightToolPanel.Visible = meshEdit;
-        _editorLayout.PerformLayout();
+        if (!meshEdit)
+        {
+            CaptureToolPanelLayout(persist: false);
+            var wasApplying = _applyingToolPanelLayout;
+            _applyingToolPanelLayout = true;
+            try
+            {
+                _rightToolSplit.Panel2Collapsed = true;
+                _leftToolSplit.Panel1Collapsed = true;
+            }
+            finally
+            {
+                _applyingToolPanelLayout = wasApplying;
+            }
+            SaveToolPanelLayout();
+            return;
+        }
+        var applyingBeforeExpand = _applyingToolPanelLayout;
+        _applyingToolPanelLayout = true;
+        try
+        {
+            _leftToolSplit.Panel1Collapsed = false;
+            _rightToolSplit.Panel2Collapsed = false;
+            ApplySavedToolPanelLayout();
+        }
+        finally
+        {
+            _applyingToolPanelLayout = applyingBeforeExpand;
+        }
     }
 
     private Control SceneComparisonControl()
@@ -731,6 +929,33 @@ internal sealed partial class ExperimentForm
             _helpToolTip.Dispose();
         }
         base.Dispose(disposing);
+    }
+
+    private sealed class MeshEditorBufferedPanel : Panel
+    {
+        public MeshEditorBufferedPanel()
+        {
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+    }
+
+    private sealed class MeshEditorBufferedTableLayoutPanel : TableLayoutPanel
+    {
+        public MeshEditorBufferedTableLayoutPanel()
+        {
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+    }
+
+    private sealed class MeshEditorBufferedSplitContainer : SplitContainer
+    {
+        public MeshEditorBufferedSplitContainer()
+        {
+            DoubleBuffered = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
     }
 
     private sealed class MeshEditorDepthButton : Button

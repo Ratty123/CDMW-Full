@@ -12,8 +12,8 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm : Form
 {
-    private const int LeftToolPanelWidth = 340;
-    private const int RightToolPanelWidth = 324;
+    private const int ToolPanelSplitterWidth = 6;
+    private const int MinimumViewportWidth = 240;
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly Color ThemeWindowBackground = Color.FromArgb(15, 20, 26);
     private static readonly Color ThemePanelBackground = Color.FromArgb(21, 27, 35);
@@ -65,8 +65,11 @@ internal sealed partial class ExperimentForm : Form
     private readonly List<Control> _placementOnlySections = new();
     private Panel? _leftToolPanel;
     private Panel? _rightToolPanel;
+    private TableLayoutPanel? _leftToolStack;
+    private TableLayoutPanel? _rightToolStack;
     private Control? _viewportHelpMarker;
-    private TableLayoutPanel? _editorLayout;
+    private SplitContainer? _leftToolSplit;
+    private SplitContainer? _rightToolSplit;
     private Button? _undoButton;
     private Button? _redoButton;
     private NetMaterialSet _materials;
@@ -95,7 +98,9 @@ internal sealed partial class ExperimentForm : Form
     private string _lastMetricsUiText = string.Empty;
     private bool _meshEditInteractionActive;
     private bool _syncingOverlayAppearanceControls;
+    private bool _applyingToolPanelLayout;
     private MeshOverlaySettings _overlaySettings = MeshOverlayPreferences.Load();
+    private MeshToolPanelLayout _toolPanelLayout = MeshToolPanelLayoutPreferences.Load();
 
     public ExperimentForm(LaunchOptions options, ObjDocument document, long sourceParseCount)
     {
@@ -116,6 +121,8 @@ internal sealed partial class ExperimentForm : Form
         Height = 760;
         BackColor = ThemeWindowBackground;
         ForeColor = ThemeText;
+        DoubleBuffered = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
         StartPosition = options.Embedded ? FormStartPosition.Manual : FormStartPosition.CenterScreen;
         if (options.Embedded)
         {
@@ -148,6 +155,7 @@ internal sealed partial class ExperimentForm : Form
         _viewport.SubmeshSelectedRequested += _ => SyncSubmeshListSelection();
         _submeshList.Dock = DockStyle.Fill;
         _submeshList.IntegralHeight = false;
+        _submeshList.HorizontalScrollbar = true;
         _submeshList.SelectionMode = SelectionMode.MultiExtended;
         RefreshSubmeshList();
         _submeshList.SelectedIndexChanged += (_, _) =>
@@ -211,25 +219,15 @@ internal sealed partial class ExperimentForm : Form
         _rightToolPanel.Dock = DockStyle.Fill;
         _rightToolPanel.Margin = new Padding(0);
         _viewport.Margin = new Padding(0);
-        _editorLayout = new TableLayoutPanel
-        {
-            Name = "DotNetMeshEditorLayout",
-            Dock = DockStyle.Fill,
-            ColumnCount = 3,
-            RowCount = 1,
-            Margin = new Padding(0),
-            Padding = new Padding(0),
-        };
-        _editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : LeftToolPanelWidth));
-        _editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        _editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : RightToolPanelWidth));
-        _editorLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _leftToolPanel.Visible = !_options.Embedded;
-        _rightToolPanel.Visible = !_options.Embedded;
-        _editorLayout.Controls.Add(_leftToolPanel, 0, 0);
-        _editorLayout.Controls.Add(BuildPresentationViewportRegion(), 1, 0);
-        _editorLayout.Controls.Add(_rightToolPanel, 2, 0);
-        Controls.Add(_editorLayout);
+        _rightToolSplit = CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2);
+        _rightToolSplit.Panel1.Controls.Add(BuildPresentationViewportRegion());
+        _rightToolSplit.Panel2.Controls.Add(_rightToolPanel);
+        _leftToolSplit = CreateToolPanelSplit("DotNetMeshEditorLeftViewportSplit", FixedPanel.Panel1);
+        _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
+        _leftToolSplit.Panel2.Controls.Add(_rightToolSplit);
+        Controls.Add(_leftToolSplit);
+        ConfigureToolPanelSplitters();
+        ApplySavedToolPanelLayout();
         ApplyInteractionModeControls();
 
         StartFrameTimer();
@@ -334,6 +332,7 @@ internal sealed partial class ExperimentForm : Form
         {
             return;
         }
+        ApplySavedToolPanelLayout();
         StartTextureLoad();
     }
 
@@ -394,6 +393,7 @@ internal sealed partial class ExperimentForm : Form
 
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
+        SaveToolPanelLayout();
         CancelResidentPackageLoad();
         CancelPerformanceCaptureForShutdown();
         FlushPendingPlacementTransform(force: true);
@@ -475,16 +475,16 @@ internal sealed partial class ExperimentForm : Form
             "DotNetMeshEditorLeftToolPanel",
             "DotNetMeshEditorLeftToolScroll",
             "DotNetMeshEditorLeftToolStack",
-            LeftToolPanelWidth,
-            out var leftScroll,
+            _toolPanelLayout.LeftWidth,
             out var leftStack);
         var right = CreateToolPanel(
             "DotNetMeshEditorRightToolPanel",
             "DotNetMeshEditorRightToolScroll",
             "DotNetMeshEditorRightToolStack",
-            RightToolPanelWidth,
-            out var rightScroll,
+            _toolPanelLayout.RightWidth,
             out var rightStack);
+        _leftToolStack = leftStack;
+        _rightToolStack = rightStack;
         left.Controls.Add(statusFooter);
 
         var undoButton = CommandButton("Undo", "undo");
@@ -550,8 +550,6 @@ internal sealed partial class ExperimentForm : Form
             ToolButton("Orbit", "orbit"));
         _viewportHelpMarker = viewportHelpMarker;
 
-        ResizeToolStack(leftScroll, leftStack);
-        ResizeToolStack(rightScroll, rightStack);
         return (left, right);
     }
 
@@ -560,10 +558,9 @@ internal sealed partial class ExperimentForm : Form
         string scrollName,
         string stackName,
         int width,
-        out Panel scroll,
         out TableLayoutPanel stack)
     {
-        var panel = new Panel
+        var panel = new MeshEditorBufferedPanel
         {
             Name = panelName,
             Dock = DockStyle.Fill,
@@ -573,7 +570,7 @@ internal sealed partial class ExperimentForm : Form
             BackColor = ThemePanelBackground,
         };
         panel.MouseDown += (_, _) => panel.Focus();
-        var scrollPanel = new Panel
+        var scrollPanel = new MeshEditorBufferedPanel
         {
             Name = scrollName,
             Dock = DockStyle.Fill,
@@ -582,7 +579,7 @@ internal sealed partial class ExperimentForm : Form
             BackColor = ThemePanelBackground,
         };
         ApplyDarkScrollbars(scrollPanel);
-        var stackPanel = new TableLayoutPanel
+        var stackPanel = new MeshEditorBufferedTableLayoutPanel
         {
             Name = stackName,
             ColumnCount = 1,
@@ -596,9 +593,7 @@ internal sealed partial class ExperimentForm : Form
         };
         stackPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         scrollPanel.Controls.Add(stackPanel);
-        scrollPanel.Resize += (_, _) => ResizeToolStack(scrollPanel, stackPanel);
         panel.Controls.Add(scrollPanel);
-        scroll = scrollPanel;
         stack = stackPanel;
         return panel;
     }

@@ -345,7 +345,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   rejects geometry commands. Entering `Edit Mesh` hides the Builder controls
   and exposes the embedded child's dark scrollable WinForms controls around the
   viewport. The wider primary tool panel remains on the left; Action History,
-  Parts, and Viewport controls are on the right. Long guidance for Action
+  Parts, and Viewport controls are on the right. Both boundaries are draggable;
+  their DPI-normalized widths persist across Edit Mesh transitions and helper
+  sessions, with minimum content widths and horizontal overflow preventing
+  controls from being compressed into one another. Long guidance for Action
   History, Selection, Brush Tools, and Viewport is available from each section's
   `?` hover help instead of consuming panel space. Controls and section titles
   size from the active Windows font so larger text does not clip. The editable
@@ -496,7 +499,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   same background command path. Select and brush tools retain camera access
   through Ctrl+left-drag orbit, Shift+left-drag or middle/right-drag pan, and
   wheel zoom. Active bindings are exposed by the Viewport section's `?` hover
-  help rather than a persistent footer below the editing viewport.
+  help rather than a persistent footer below the editing viewport. Entering or
+  leaving Edit Mesh collapses or restores both tool panels as one suspended,
+  buffered layout update; it does not resize each section recursively or restart
+  the resident helper.
   Grow, Shrink, and Invert operate only on the active vertex/edge/face domain;
   a retained part highlight cannot expand a vertex selection to the whole mesh.
   Visible-surface selection and brushes rasterize only their screen-space
