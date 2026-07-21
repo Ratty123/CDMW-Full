@@ -12,7 +12,8 @@ internal sealed partial class ExperimentForm
         control.Maximum = maximum;
         control.Value = value;
         control.Increment = increment;
-        control.Height = 24;
+        control.AutoSize = true;
+        control.MinimumSize = new Size(0, SingleLineControlHeight(control));
         control.BorderStyle = BorderStyle.FixedSingle;
         ApplyCommonControlStyle(control);
     }
@@ -24,7 +25,8 @@ internal sealed partial class ExperimentForm
         combo.SelectedIndex = Math.Clamp(selectedIndex, 0, Math.Max(0, combo.Items.Count - 1));
         combo.DropDownStyle = ComboBoxStyle.DropDownList;
         combo.FlatStyle = FlatStyle.Flat;
-        combo.Height = 24;
+        combo.ItemHeight = Math.Max(combo.ItemHeight, combo.Font.Height + 4);
+        combo.MinimumSize = new Size(0, SingleLineControlHeight(combo));
         ApplyCommonControlStyle(combo);
     }
 
@@ -32,8 +34,8 @@ internal sealed partial class ExperimentForm
     {
         checkBox.Text = text;
         checkBox.Checked = isChecked;
-        checkBox.AutoSize = false;
-        checkBox.Height = 24;
+        checkBox.AutoSize = true;
+        checkBox.MinimumSize = new Size(0, SingleLineControlHeight(checkBox));
         checkBox.ForeColor = ThemeText;
         checkBox.BackColor = ThemeSectionBackground;
         checkBox.FlatStyle = FlatStyle.Flat;
@@ -54,13 +56,22 @@ internal sealed partial class ExperimentForm
         control.Margin = new Padding(0, 0, 0, 6);
     }
 
-    private static Button StyledButton(string text, int height = 26)
+    private static int SingleLineControlHeight(Control control, int minimum = 28)
     {
+        return Math.Max(minimum, TextRenderer.MeasureText("Ag", control.Font).Height + 10);
+    }
+
+    private static Button StyledButton(string text, int height = 30)
+    {
+        var buttonHeight = Math.Max(height, TextRenderer.MeasureText(text, SystemFonts.MessageBoxFont).Height + 10);
         var button = new MeshEditorDepthButton
         {
             Text = text,
-            Height = height,
-            MinimumSize = new Size(0, height),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Height = buttonHeight,
+            MinimumSize = new Size(0, buttonHeight),
+            Padding = new Padding(6, 3, 6, 3),
             FlatStyle = FlatStyle.Flat,
             ForeColor = ThemeText,
             BackColor = ThemeButtonBackground,
@@ -157,24 +168,13 @@ internal sealed partial class ExperimentForm
         _vertexMarkerSize.ValueChanged += (_, _) => ApplyOverlaySizing(
             $"Vertex size set to {_vertexMarkerSize.Value:0.#} px.");
         var reset = StyledActionButton("Reset", ResetOverlayAppearance);
-        var note = new Label
-        {
-            Name = "OverlayAppearanceXRayHint",
-            Text = "Colors and sizes are saved. X-Ray uses white wire and magenta vertices while keeping your chosen sizes.",
-            AutoSize = true,
-            MaximumSize = new Size(248, 0),
-            ForeColor = ThemeMutedText,
-            BackColor = ThemeSectionBackground,
-            Margin = new Padding(0, 0, 0, 6),
-        };
         return LabeledControl(
             "Topology appearance",
             StackControls(
                 ButtonRow(_wireColorButton, _vertexColorButton, reset),
                 ButtonRow(
                     LabeledControl("Wire width (px)", _wireOverlayWidth),
-                    LabeledControl("Vertex size (px)", _vertexMarkerSize)),
-                note));
+                    LabeledControl("Vertex size (px)", _vertexMarkerSize))));
     }
 
     private Button OverlayColorButton(string label, bool wire)
@@ -331,8 +331,8 @@ internal sealed partial class ExperimentForm
         var text = new Label
         {
             Text = label,
-            AutoSize = false,
-            Height = 18,
+            AutoSize = true,
+            MinimumSize = new Size(0, 20),
             ForeColor = ThemeMutedText,
             BackColor = ThemeSectionBackground,
             Margin = new Padding(0, 0, 0, 2)
@@ -373,11 +373,18 @@ internal sealed partial class ExperimentForm
             Text = title,
             ForeColor = ThemeText,
             BackColor = ThemeSectionBackground,
-            Padding = new Padding(8, 18, 8, 8),
-            Margin = new Padding(0, 0, 0, 8),
+            Padding = new Padding(10, 24, 10, 10),
+            Margin = new Padding(0, 0, 0, 10),
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink
         };
+        void FitTitleHeight() => group.Padding = new Padding(
+            group.Padding.Left,
+            Math.Max(24, group.Font.Height + 9),
+            group.Padding.Right,
+            group.Padding.Bottom);
+        group.FontChanged += (_, _) => FitTitleHeight();
+        FitTitleHeight();
         var body = new TableLayoutPanel
         {
             ColumnCount = 1,
@@ -397,6 +404,58 @@ internal sealed partial class ExperimentForm
         group.Controls.Add(body);
         AddStackRow(stack, group);
         return group;
+    }
+
+    private GroupBox AddHelpSection(
+        TableLayoutPanel stack,
+        string title,
+        string helpText,
+        out Control helpMarker,
+        params Control[] controls)
+    {
+        var group = AddSection(stack, title, controls);
+        var marker = new Label
+        {
+            Name = $"DotNetMeshEditor{title.Replace(" ", string.Empty)}Help",
+            Text = "?",
+            AutoSize = true,
+            ForeColor = ThemeAccent,
+            BackColor = ThemeSectionBackground,
+            Cursor = Cursors.Help,
+            TabStop = false,
+            TextAlign = ContentAlignment.MiddleCenter,
+            AccessibleName = $"{title} help",
+            AccessibleDescription = helpText,
+            Margin = new Padding(0),
+            Padding = new Padding(3, 0, 3, 0),
+        };
+        _helpToolTip.SetToolTip(marker, helpText);
+        marker.Click += (_, _) => _helpToolTip.Show(
+            marker.AccessibleDescription ?? helpText,
+            marker,
+            0,
+            marker.Height,
+            12000);
+        group.Controls.Add(marker);
+        marker.BringToFront();
+        void PlaceMarker() => marker.Location = new Point(
+            Math.Max(group.Padding.Left, group.ClientSize.Width - group.Padding.Right - marker.Width),
+            1);
+        group.SizeChanged += (_, _) => PlaceMarker();
+        marker.SizeChanged += (_, _) => PlaceMarker();
+        PlaceMarker();
+        helpMarker = marker;
+        return group;
+    }
+
+    private void SetHelpText(Control? marker, string helpText)
+    {
+        if (marker is null)
+        {
+            return;
+        }
+        marker.AccessibleDescription = helpText;
+        _helpToolTip.SetToolTip(marker, helpText);
     }
 
     private static void AddStackRow(TableLayoutPanel stack, Control control)
@@ -499,24 +558,31 @@ internal sealed partial class ExperimentForm
 
     private void UpdateViewportControlsHint()
     {
+        string hint;
         if (!string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase))
         {
-            _controlsHintLabel.Text = "Orbit: LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel";
-            return;
+            hint = "Orbit: LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel";
         }
-        var tool = (_viewport.ActiveTool ?? string.Empty).Trim().ToLowerInvariant();
-        var primary = tool switch
+        else
         {
-            "select" => $"Select {_selectionTarget.SelectedItem ?? "mesh"}: LMB click/drag",
-            "orbit" => "Orbit: LMB drag",
-            "move" => "Move selection: LMB drag",
-            "grab" => "Grab: LMB drag",
-            "smooth" => "Smooth: LMB drag",
-            "inflate" => "Inflate: LMB drag",
-            "pinch" => "Pinch: LMB drag",
-            _ => "Apply tool: LMB drag",
-        };
-        _controlsHintLabel.Text = $"{primary}  |  Orbit override: Ctrl+LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel  |  Undo: Ctrl+Z  |  Redo: Ctrl+Y / Ctrl+Shift+Z";
+            var tool = (_viewport.ActiveTool ?? string.Empty).Trim().ToLowerInvariant();
+            var primary = tool switch
+            {
+                "select" => $"Select {_selectionTarget.SelectedItem ?? "mesh"}: LMB click/drag",
+                "orbit" => "Orbit: LMB drag",
+                "move" => "Move selection: LMB drag",
+                "grab" => "Grab: LMB drag",
+                "smooth" => "Smooth: LMB drag",
+                "inflate" => "Inflate: LMB drag",
+                "pinch" => "Pinch: LMB drag",
+                _ => "Apply tool: LMB drag",
+            };
+            hint = $"{primary}  |  Orbit override: Ctrl+LMB drag  |  Pan: Shift+LMB / MMB / RMB  |  Zoom: Wheel  |  Undo: Ctrl+Z  |  Redo: Ctrl+Y / Ctrl+Shift+Z";
+        }
+        _controlsHintLabel.Text = hint;
+        SetHelpText(
+            _viewportHelpMarker,
+            $"{hint}\r\n\r\nChoose the preview mode, topology appearance, or a camera preset. Colors and sizes are saved; X-Ray uses white wire and magenta vertices while preserving those sizes.");
     }
 
     protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
@@ -612,12 +678,14 @@ internal sealed partial class ExperimentForm
 
     private void ApplyEmbeddedToolPanelVisibility(bool meshEdit)
     {
-        if (!_options.Embedded || _toolPanel is null || _editorLayout is null)
+        if (!_options.Embedded || _leftToolPanel is null || _rightToolPanel is null || _editorLayout is null)
         {
             return;
         }
-        _editorLayout.ColumnStyles[0].Width = meshEdit ? ToolPanelWidth : 0;
-        _toolPanel.Visible = meshEdit;
+        _editorLayout.ColumnStyles[0].Width = meshEdit ? LeftToolPanelWidth : 0;
+        _editorLayout.ColumnStyles[2].Width = meshEdit ? RightToolPanelWidth : 0;
+        _leftToolPanel.Visible = meshEdit;
+        _rightToolPanel.Visible = meshEdit;
         _editorLayout.PerformLayout();
     }
 
@@ -654,6 +722,15 @@ internal sealed partial class ExperimentForm
             _statusLabel.Text = $"View layout: {combo.SelectedItem}.";
         };
         return LabeledControl("Comparison", combo);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing)
+        {
+            _helpToolTip.Dispose();
+        }
+        base.Dispose(disposing);
     }
 
     private sealed class MeshEditorDepthButton : Button

@@ -12,7 +12,8 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm : Form
 {
-    private const int ToolPanelWidth = 286;
+    private const int LeftToolPanelWidth = 340;
+    private const int RightToolPanelWidth = 324;
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static readonly Color ThemeWindowBackground = Color.FromArgb(15, 20, 26);
     private static readonly Color ThemePanelBackground = Color.FromArgb(21, 27, 35);
@@ -51,11 +52,20 @@ internal sealed partial class ExperimentForm : Form
     private readonly Label _statusLabel = new();
     private readonly Label _fpsLabel = new();
     private readonly Label _controlsHintLabel = new();
+    private readonly ToolTip _helpToolTip = new()
+    {
+        AutoPopDelay = 20000,
+        InitialDelay = 350,
+        ReshowDelay = 100,
+        ShowAlways = true,
+    };
     private readonly Dictionary<string, Button> _toolButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Button> _gizmoButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<Control> _meshEditOnlySections = new();
     private readonly List<Control> _placementOnlySections = new();
-    private Panel? _toolPanel;
+    private Panel? _leftToolPanel;
+    private Panel? _rightToolPanel;
+    private Control? _viewportHelpMarker;
     private TableLayoutPanel? _editorLayout;
     private Button? _undoButton;
     private Button? _redoButton;
@@ -182,38 +192,43 @@ internal sealed partial class ExperimentForm : Form
         ConfigureCombo(_falloff, new object[] { "Smooth", "Linear", "Constant" }, selectedIndex: 0);
 
         _fpsLabel.AutoSize = false;
-        _fpsLabel.Height = 22;
+        _fpsLabel.Height = Math.Max(24, Font.Height + 8);
         _fpsLabel.ForeColor = ThemeMutedText;
         _fpsLabel.BackColor = ThemeStatusBackground;
         _fpsLabel.Dock = DockStyle.Top;
         _fpsLabel.TextAlign = ContentAlignment.MiddleRight;
         _fpsLabel.Text = "FPS -- | Frame -- ms";
         _statusLabel.AutoSize = false;
-        _statusLabel.Height = 48;
+        _statusLabel.Height = Math.Max(52, (Font.Height * 2) + 12);
         _statusLabel.ForeColor = ThemeText;
         _statusLabel.BackColor = ThemeStatusBackground;
         _statusLabel.Dock = DockStyle.Fill;
         _statusLabel.Text = $"Loaded package. materials={_materials.SlotCount} textureRefs={_materials.TextureReferenceCount} resolved={_materials.ExistingTextureFileCount}/{_materials.ResolvedTextureReferenceCount} decodable={_textureSet.DecodedCount}/{_materials.DecodableTextureFileCount}. Solid view is on; wire overlay is optional.";
 
-        _toolPanel = BuildToolPanel();
-        _toolPanel.Dock = DockStyle.Fill;
-        _toolPanel.Margin = new Padding(0);
+        (_leftToolPanel, _rightToolPanel) = BuildToolPanels();
+        _leftToolPanel.Dock = DockStyle.Fill;
+        _leftToolPanel.Margin = new Padding(0);
+        _rightToolPanel.Dock = DockStyle.Fill;
+        _rightToolPanel.Margin = new Padding(0);
         _viewport.Margin = new Padding(0);
         _editorLayout = new TableLayoutPanel
         {
             Name = "DotNetMeshEditorLayout",
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
+            ColumnCount = 3,
             RowCount = 1,
             Margin = new Padding(0),
             Padding = new Padding(0),
         };
-        _editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : ToolPanelWidth));
+        _editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : LeftToolPanelWidth));
         _editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : RightToolPanelWidth));
         _editorLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _toolPanel.Visible = !_options.Embedded;
-        _editorLayout.Controls.Add(_toolPanel, 0, 0);
+        _leftToolPanel.Visible = !_options.Embedded;
+        _rightToolPanel.Visible = !_options.Embedded;
+        _editorLayout.Controls.Add(_leftToolPanel, 0, 0);
         _editorLayout.Controls.Add(BuildPresentationViewportRegion(), 1, 0);
+        _editorLayout.Controls.Add(_rightToolPanel, 2, 0);
         Controls.Add(_editorLayout);
         ApplyInteractionModeControls();
 
@@ -399,12 +414,12 @@ internal sealed partial class ExperimentForm : Form
         base.OnFormClosing(e);
     }
 
-    private Panel BuildToolPanel()
+    private (Panel Left, Panel Right) BuildToolPanels()
     {
         _submeshList.BackColor = ThemeInputBackground;
         _submeshList.ForeColor = ThemeText;
         _submeshList.BorderStyle = BorderStyle.FixedSingle;
-        _submeshList.Height = 104;
+        _submeshList.Height = 112;
         _submeshList.Font = new Font(Font.FontFamily, 8.5f);
         ApplyDarkScrollbars(_submeshList);
         _actionHistoryList.Name = "ResidentActionHistoryList";
@@ -413,7 +428,7 @@ internal sealed partial class ExperimentForm : Form
         _actionHistoryList.BorderStyle = BorderStyle.FixedSingle;
         _actionHistoryList.IntegralHeight = false;
         _actionHistoryList.SelectionMode = SelectionMode.None;
-        _actionHistoryList.Height = 112;
+        _actionHistoryList.Height = 124;
         _actionHistoryList.Font = new Font(Font.FontFamily, 8.5f);
         _actionHistoryList.Items.Add("No edit actions yet");
         ApplyDarkScrollbars(_actionHistoryList);
@@ -446,50 +461,31 @@ internal sealed partial class ExperimentForm : Form
                 WriteCommandRequest("clear_selection");
             }
         };
-        var left = new Panel
-        {
-            Name = "DotNetMeshEditorToolPanel",
-            Dock = DockStyle.Left,
-            Width = ToolPanelWidth,
-            Padding = new Padding(0),
-            TabStop = true,
-            BackColor = ThemePanelBackground
-        };
-        left.MouseDown += (_, _) => left.Focus();
         var statusFooter = new Panel
         {
             Dock = DockStyle.Bottom,
-            Height = 82,
+            Height = _fpsLabel.Height + _statusLabel.Height + 14,
             Padding = new Padding(10, 6, 10, 8),
             BackColor = ThemeStatusBackground
         };
         statusFooter.Controls.Add(_statusLabel);
         statusFooter.Controls.Add(_fpsLabel);
 
-        var scroll = new Panel
-        {
-            Name = "DotNetMeshEditorToolScroll",
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
-            Padding = new Padding(8),
-            BackColor = ThemePanelBackground
-        };
-        ApplyDarkScrollbars(scroll);
-        var stack = new TableLayoutPanel
-        {
-            Name = "DotNetMeshEditorToolStack",
-            ColumnCount = 1,
-            RowCount = 0,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            Dock = DockStyle.Top,
-            BackColor = ThemePanelBackground,
-            Margin = new Padding(0),
-            Padding = new Padding(0)
-        };
-        stack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        scroll.Controls.Add(stack);
-        scroll.Resize += (_, _) => ResizeToolStack(scroll, stack);
+        var left = CreateToolPanel(
+            "DotNetMeshEditorLeftToolPanel",
+            "DotNetMeshEditorLeftToolScroll",
+            "DotNetMeshEditorLeftToolStack",
+            LeftToolPanelWidth,
+            out var leftScroll,
+            out var leftStack);
+        var right = CreateToolPanel(
+            "DotNetMeshEditorRightToolPanel",
+            "DotNetMeshEditorRightToolScroll",
+            "DotNetMeshEditorRightToolStack",
+            RightToolPanelWidth,
+            out var rightScroll,
+            out var rightStack);
+        left.Controls.Add(statusFooter);
 
         var undoButton = CommandButton("Undo", "undo");
         var redoButton = CommandButton("Redo", "redo");
@@ -497,78 +493,114 @@ internal sealed partial class ExperimentForm : Form
         _redoButton = redoButton;
         undoButton.Enabled = false;
         redoButton.Enabled = false;
-        _meshEditOnlySections.Add(AddSection(stack, "Mesh Edit Session",
+        _meshEditOnlySections.Add(AddSection(leftStack, "Mesh Edit Session",
             finish,
             ButtonRow(CommandButton("Clear Selection", "clear_selection"), CommandButton("Select All", "select_all")),
             ButtonRow(CommandButton("Invert", "invert"), undoButton, redoButton)));
-        _meshEditOnlySections.Add(AddSection(stack, "Action History",
-            new Label
-            {
-                Text = "Every applied mesh edit and selection change appears here. Undone actions remain visible for Redo.",
-                AutoSize = true,
-                MaximumSize = new Size(248, 0),
-                ForeColor = ThemeMutedText,
-                BackColor = ThemeSectionBackground,
-                Margin = new Padding(0, 0, 0, 6)
-            },
+        _meshEditOnlySections.Add(AddHelpSection(
+            rightStack,
+            "Action History",
+            "Every applied mesh edit and selection change appears here. Undone actions remain visible for Redo.",
+            out _,
             _actionHistoryList));
-        AddSection(stack, "Part Pick", _partPick);
-        _meshEditOnlySections.Add(AddSection(stack, "Parts",
+        AddSection(leftStack, "Part Pick", _partPick);
+        _meshEditOnlySections.Add(AddSection(rightStack, "Parts",
             _submeshList,
             ButtonRow(
                 CommandButton("Show / Hide", "toggle_visibility"),
                 CommandButton("Duplicate", "duplicate"),
                 CommandButton("Delete", "delete"))));
-        _meshEditOnlySections.Add(AddSection(stack, "Selection",
-            new Label
-            {
-                Text = "Choose Vertex, Edge, Face, or Part; then click the mesh or drag a selection box. X-Ray selects through the mesh.",
-                AutoSize = true,
-                MaximumSize = new Size(248, 0),
-                ForeColor = ThemeMutedText,
-                BackColor = ThemeSectionBackground,
-                Margin = new Padding(0, 0, 0, 6)
-            },
+        _meshEditOnlySections.Add(AddHelpSection(
+            leftStack,
+            "Selection",
+            "Choose Vertex, Edge, Face, or Part; then click the mesh or drag a selection box. X-Ray selects through the mesh.",
+            out _,
             LabeledControl("Selection target", _selectionTarget),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
             ButtonRow(ToolButton("Select", "select"), CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink"))));
-        _placementOnlySections.Add(AddSection(stack, "Placement",
+        _placementOnlySections.Add(AddSection(leftStack, "Placement",
             SceneComparisonControl(),
             ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale"))));
-        _meshEditOnlySections.Add(AddSection(stack, "Transform",
+        _meshEditOnlySections.Add(AddSection(leftStack, "Transform",
             LabeledControl("Translate step", _translateStep),
             ButtonRow(StyledActionButton("Move +X", () => RequestTransformMove((float)_translateStep.Value)), StyledActionButton("Move -X", () => RequestTransformMove(-(float)_translateStep.Value))),
             ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab"))));
-        _meshEditOnlySections.Add(AddSection(stack, "Brush Tools",
-            new Label
-            {
-                Text = "Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms.",
-                AutoSize = true,
-                MaximumSize = new Size(248, 0),
-                ForeColor = ThemeMutedText,
-                BackColor = ThemeSectionBackground,
-                Margin = new Padding(0, 0, 0, 6)
-            },
+        _meshEditOnlySections.Add(AddHelpSection(
+            leftStack,
+            "Brush Tools",
+            "Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms.",
+            out _,
             LabeledControl("Radius", _radius),
             LabeledControl("Strength", _strength),
             LabeledControl("Falloff", _falloff),
             ButtonRow(ToolButton("Smooth", "smooth"), ToolButton("Inflate", "inflate"), ToolButton("Pinch", "pinch"))));
-        _meshEditOnlySections.Add(AddSection(stack, "Topology",
+        _meshEditOnlySections.Add(AddSection(leftStack, "Topology",
             ButtonRow(CommandButton("Subdivide", "subdivide"), CommandButton("Refine Smooth", "refine_smooth"))));
-        AddSection(stack, "Viewport",
+        AddHelpSection(
+            rightStack,
+            "Viewport",
+            "Choose the preview mode, topology appearance, or a camera preset. Mouse and keyboard bindings update with the active tool.",
+            out var viewportHelpMarker,
             PreviewModeControl(),
             OverlayAppearanceControls(),
             ButtonRow(CameraButton("Front", "front"), CameraButton("Left", "left"), CameraButton("Right", "right")),
             ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
             ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Reset/Fit", _viewport.FrameMesh)),
             ToolButton("Orbit", "orbit"));
+        _viewportHelpMarker = viewportHelpMarker;
 
-        left.Controls.Add(scroll);
-        left.Controls.Add(statusFooter);
-        ApplyInteractionModeControls();
-        ResizeToolStack(scroll, stack);
-        return left;
+        ResizeToolStack(leftScroll, leftStack);
+        ResizeToolStack(rightScroll, rightStack);
+        return (left, right);
+    }
+
+    private static Panel CreateToolPanel(
+        string panelName,
+        string scrollName,
+        string stackName,
+        int width,
+        out Panel scroll,
+        out TableLayoutPanel stack)
+    {
+        var panel = new Panel
+        {
+            Name = panelName,
+            Dock = DockStyle.Fill,
+            Width = width,
+            Padding = new Padding(0),
+            TabStop = true,
+            BackColor = ThemePanelBackground,
+        };
+        panel.MouseDown += (_, _) => panel.Focus();
+        var scrollPanel = new Panel
+        {
+            Name = scrollName,
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            Padding = new Padding(10, 8, 10, 8),
+            BackColor = ThemePanelBackground,
+        };
+        ApplyDarkScrollbars(scrollPanel);
+        var stackPanel = new TableLayoutPanel
+        {
+            Name = stackName,
+            ColumnCount = 1,
+            RowCount = 0,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Top,
+            BackColor = ThemePanelBackground,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+        };
+        stackPanel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        scrollPanel.Controls.Add(stackPanel);
+        scrollPanel.Resize += (_, _) => ResizeToolStack(scrollPanel, stackPanel);
+        panel.Controls.Add(scrollPanel);
+        scroll = scrollPanel;
+        stack = stackPanel;
+        return panel;
     }
 
     private Button GizmoButton(string text, string tool)

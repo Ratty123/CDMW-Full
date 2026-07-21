@@ -142,7 +142,7 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert "if (_overlayShowVertices)" in d3d_source
     assert "PrimitiveTopology.PointList" in d3d_source
     assert "MaterialDebugMode > 6.5f" in shader_source
-    assert 'Text = "Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms."' in program_source
+    assert '"Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms."' in program_source
     assert 'ActiveTool is "grab" or "smooth" or "inflate" or "pinch"' in all_source
     assert "DrawBrushCursorOverlay();" in d3d_source
     assert '_statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"' in _source("ExperimentForm.Controls.cs")
@@ -166,7 +166,7 @@ def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_short
     protocol_source = _source("ExperimentForm.Protocol.cs")
     history_source = _source("ExperimentForm.History.cs")
 
-    assert 'AddSection(stack, "Action History"' in program_source
+    assert 'AddHelpSection(\n            rightStack,\n            "Action History"' in program_source
     assert 'Name = "ResidentActionHistoryList"' in program_source
     assert "ApplyHistoryState(root);" in protocol_source
     assert 'root.TryGetProperty("history_entries"' in history_source
@@ -336,7 +336,7 @@ def test_dotnet_resident_scene_owns_reference_grid_modes_and_gizmo() -> None:
     assert 'GizmoTool == "rotate"' in gizmo_render_source
     assert 'GizmoTool == "scale"' in gizmo_render_source
     assert "scene.EditableSubmeshCount" in output_source
-    assert 'AddSection(stack, "Placement"' in program_source
+    assert 'AddSection(leftStack, "Placement"' in program_source
     assert 'GizmoButton("Move", "move")' in program_source
     assert 'GizmoButton("Rotate", "rotate")' in program_source
     assert 'GizmoButton("Scale", "scale")' in program_source
@@ -692,7 +692,7 @@ def test_dotnet_tool_panel_has_no_disabled_gizmo_placeholder() -> None:
     assert 'DisabledButton("Gizmo"' not in program_source
 
 
-def test_embedded_dotnet_exposes_its_tool_panel_in_mesh_edit_mode() -> None:
+def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     program_source = _source("Program.cs")
     controls_source = _source("ExperimentForm.Controls.cs")
     protocol_source = _source("ExperimentForm.Protocol.cs")
@@ -702,17 +702,24 @@ def test_embedded_dotnet_exposes_its_tool_panel_in_mesh_edit_mode() -> None:
     topology_source = _source("MeshViewport.Topology.cs")
 
     assert 'Name = "DotNetMeshEditorLayout"' in program_source
-    assert "_editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : ToolPanelWidth));" in program_source
-    assert "_toolPanel.Visible = !_options.Embedded;" in program_source
-    assert "_toolPanel.Margin = new Padding(0);" in program_source
+    assert "_editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : LeftToolPanelWidth));" in program_source
+    assert "_editorLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, _options.Embedded ? 0 : RightToolPanelWidth));" in program_source
+    assert "_leftToolPanel.Visible = !_options.Embedded;" in program_source
+    assert "_rightToolPanel.Visible = !_options.Embedded;" in program_source
+    assert "_leftToolPanel.Margin = new Padding(0);" in program_source
+    assert "_rightToolPanel.Margin = new Padding(0);" in program_source
     assert "_viewport.Margin = new Padding(0);" in program_source
-    assert "_editorLayout.Controls.Add(_toolPanel, 0, 0);" in program_source
+    assert "_editorLayout.Controls.Add(_leftToolPanel, 0, 0);" in program_source
     assert "_editorLayout.Controls.Add(BuildPresentationViewportRegion(), 1, 0);" in program_source
+    assert "_editorLayout.Controls.Add(_rightToolPanel, 2, 0);" in program_source
     assert "ApplyEmbeddedToolPanelVisibility(meshEdit);" in controls_source
-    assert "_editorLayout.ColumnStyles[0].Width = meshEdit ? ToolPanelWidth : 0;" in controls_source
-    assert "_toolPanel.Visible = meshEdit;" in controls_source
+    assert "_editorLayout.ColumnStyles[0].Width = meshEdit ? LeftToolPanelWidth : 0;" in controls_source
+    assert "_editorLayout.ColumnStyles[2].Width = meshEdit ? RightToolPanelWidth : 0;" in controls_source
+    assert "_leftToolPanel.Visible = meshEdit;" in controls_source
+    assert "_rightToolPanel.Visible = meshEdit;" in controls_source
     assert "if (!options.Embedded)" not in program_source
-    assert 'Name = "DotNetMeshEditorToolScroll"' in program_source
+    assert '"DotNetMeshEditorLeftToolScroll"' in program_source
+    assert '"DotNetMeshEditorRightToolScroll"' in program_source
     assert 'SetWindowTheme(control.Handle, "DarkMode_Explorer", null)' in program_source
     assert "ApplyDarkScrollbars(_submeshList);" in program_source
     assert 'CommandButton("Show / Hide", "toggle_visibility")' in program_source

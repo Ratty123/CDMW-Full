@@ -18,7 +18,7 @@ internal sealed partial class ExperimentForm
             Name = "ResidentRoleViewRegion",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = simplePreview ? 2 : 3,
+            RowCount = 2,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemeWindowBackground,
@@ -33,7 +33,6 @@ internal sealed partial class ExperimentForm
         {
             region.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             region.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            region.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
         }
         var selector = new TableLayoutPanel
         {
@@ -102,7 +101,10 @@ internal sealed partial class ExperimentForm
         _controlsHintLabel.ForeColor = ThemeMutedText;
         _controlsHintLabel.TextAlign = ContentAlignment.MiddleLeft;
         _controlsHintLabel.AutoEllipsis = true;
-        region.Controls.Add(_controlsHintLabel, 0, simplePreview ? 1 : 2);
+        if (simplePreview)
+        {
+            region.Controls.Add(_controlsHintLabel, 0, 1);
+        }
         UpdateViewportControlsHint();
         if (!simplePreview)
         {

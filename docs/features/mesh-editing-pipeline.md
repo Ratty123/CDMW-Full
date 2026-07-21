@@ -343,9 +343,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   restores the placement preview mode selected in the Builder. Placement keeps
   the Builder setup controls visible, keeps the child's tool panel collapsed, and
   rejects geometry commands. Entering `Edit Mesh` hides the Builder controls
-  and exposes the embedded child's dark scrollable WinForms controls on the left.
-  Its editable viewport defaults to Wire + Vertices, with round vertex markers;
-  the inert Material Debug control is not shown in the Viewport section.
+  and exposes the embedded child's dark scrollable WinForms controls around the
+  viewport. The wider primary tool panel remains on the left; Action History,
+  Parts, and Viewport controls are on the right. Long guidance for Action
+  History, Selection, Brush Tools, and Viewport is available from each section's
+  `?` hover help instead of consuming panel space. Controls and section titles
+  size from the active Windows font so larger text does not clip. The editable
+  viewport defaults to Wire + Vertices, with round vertex markers; the inert
+  Material Debug control is not shown in the Viewport section.
   Its Original role selector is disabled during editing; Imported/Modify remains
   active with move/rotate/scale gizmo selection. In placement, the scene toolbar
   provides two-pane, overlay, focus-Imported/Modify, and focus-Original choices.
@@ -486,11 +491,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   `MeshEditCommandWorker` so native picking never blocks the Qt UI thread.
   Turning Part Pick off clears Builder highlights and the resident selection;
   Clear Selection uses the same authoritative selection bridge.
-  The embedded tool panel shows the live authoritative action timeline and
-  enables Undo/Redo from its cursor; Ctrl+Z, Ctrl+Y, and Ctrl+Shift+Z use the
+  The embedded right tool panel shows the live authoritative action timeline
+  and enables Undo/Redo from its cursor; Ctrl+Z, Ctrl+Y, and Ctrl+Shift+Z use the
   same background command path. Select and brush tools retain camera access
   through Ctrl+left-drag orbit, Shift+left-drag or middle/right-drag pan, and
-  wheel zoom, with the active bindings displayed below the viewport.
+  wheel zoom. Active bindings are exposed by the Viewport section's `?` hover
+  help rather than a persistent footer below the editing viewport.
   Grow, Shrink, and Invert operate only on the active vertex/edge/face domain;
   a retained part highlight cannot expand a vertex selection to the whole mesh.
   Visible-surface selection and brushes rasterize only their screen-space
