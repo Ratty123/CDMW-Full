@@ -51,6 +51,14 @@ than importing the other product's source:
   the same resizable `WindowChrome` and DWM theme owner as the main window. The
   view model owns one 220 ms latest-wins debounce; immutable facet replacement
   is suppressed from scheduling feedback searches.
+- Full CDMW's remote-backend Item Finder now uses the same 72-row visual
+  workflow: fallback-first icon cards, category and material facets, a
+  selected-item evidence/detail pane, exact and related Archive Browser scope
+  actions, and persisted query/filter/geometry state. It requests prepared
+  icons in visible-first batches of at most 24, rejects stale conversion
+  generations, and cancels outstanding requests and conversions on a newer
+  search or dialog close. Material-specific browsing remains outside this Item
+  Finder surface.
 - `Cdmw.Archive.Content` owns the path-only terminal-suffix DDS usage rule.
   Lite presents `.dds` as File type **Texture** plus Color, Normal map,
   Material map, or explicit Unknown usage; a material-like word elsewhere in
