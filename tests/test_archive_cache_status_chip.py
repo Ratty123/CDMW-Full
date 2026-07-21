@@ -78,6 +78,35 @@ def test_stale_filter_result_does_not_replace_healthy_cache_state() -> None:
     assert owner.archive_cache_status_chip.property("healthState") == "healthy"
 
 
+def test_full_archive_worker_phases_use_bounded_operation_ranges() -> None:
+    owner = _Owner("building", "Archive cache build is running.")
+    cases = (
+        ("Fingerprint: complete", 1, 1, ("Checking", 10)),
+        ("Index parse: 0012/0.pamt", 1, 2, ("Scanning", 24)),
+        ("Dependency index records", 1, 2, ("Indexing", 70)),
+        ("Dependency index sort", 0, 1, ("Indexing", 78)),
+        ("Dependency index write", 1, 1, ("Cache", 89)),
+        ("Query scan", 1, 2, ("List", 94)),
+        ("Query direct", 1, 1, ("List", 98)),
+        ("Filter query scan", 1, 2, ("Filtering", 50)),
+    )
+
+    for detail, current, total, expected in cases:
+        owner._reset_archive_load_progress()
+        phase = owner._archive_progress_phase_for_detail(detail)[0]
+        percent = owner._archive_progress_percent_for_detail(current, total, detail)
+        assert (phase, percent) == expected
+
+
+def test_completed_fingerprint_is_not_reported_as_nearly_complete() -> None:
+    owner = _Owner("building", "Archive cache build is running.")
+    owner._reset_archive_load_progress()
+
+    percent = owner._archive_progress_percent_for_detail(40, 40, "Fingerprint scan: complete")
+
+    assert percent == 10
+
+
 class _RootEdit:
     def __init__(self, value: str) -> None:
         self._value = value

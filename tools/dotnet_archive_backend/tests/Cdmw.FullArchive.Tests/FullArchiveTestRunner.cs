@@ -123,13 +123,24 @@ internal static class FullArchiveTestRunner
                 page.TotalMatches == 2
                 && page.Rows.Select(static row => row.EntryId).SequenceEqual([3L, 1L]),
                 "bounded entry-id query did not preserve a unique server-owned scope");
+            var unboundedProgress = new List<ProgressUpdate>();
             var unboundedQuery = await queries.CreateAsync(
                 new ArchiveQuery(session.SessionId, EntryIds: []),
                 18,
-                CancellationToken.None).ConfigureAwait(false);
+                CancellationToken.None,
+                update =>
+                {
+                    unboundedProgress.Add(update);
+                    return Task.CompletedTask;
+                }).ConfigureAwait(false);
+            var unboundedPage = queries.FetchPage(
+                session.SessionId,
+                new FetchPageRequest(unboundedQuery.QueryId, PageSize: 2));
             Require(
-                unboundedQuery.TotalMatches == session.EntryCount,
-                "an empty wire entry-id list must retain unbounded query semantics");
+                unboundedQuery.TotalMatches == session.EntryCount
+                && unboundedPage.Rows.Select(static row => row.EntryId).SequenceEqual([0L, 1L])
+                && unboundedProgress.Select(static update => update.Phase).SequenceEqual(["query_direct"]),
+                "an unfiltered query must retain native index order without rescanning every entry");
         }
         finally
         {
@@ -209,9 +220,22 @@ internal static class FullArchiveTestRunner
             string dependencyIndexPath;
             using (var sessions = new ArchiveSessionManager(native, cache))
             {
+                var dependencyProgress = new List<ProgressUpdate>();
                 var handle = await sessions.OpenAsync(
                     new OpenArchiveRequest(fixture.Root),
-                    CancellationToken.None).ConfigureAwait(false);
+                    CancellationToken.None,
+                    update =>
+                    {
+                        if (update.Phase.StartsWith("dependency_index_", StringComparison.Ordinal))
+                        {
+                            dependencyProgress.Add(update);
+                        }
+                        return Task.CompletedTask;
+                    }).ConfigureAwait(false);
+                Require(
+                    dependencyProgress.Select(static update => update.Phase).Distinct().SequenceEqual(
+                        ["dependency_index_records", "dependency_index_sort", "dependency_index_write", "dependency_index_ready"]),
+                    "cold dependency-index progress did not expose records, sort, write, and ready phases");
                 var session = sessions.GetRequired(handle.SessionId);
                 dependencyIndexPath = Path.Combine(session.GenerationPath, "archive.adi");
                 Require(File.Exists(dependencyIndexPath), "compact dependency index was not published on cold open");
@@ -258,7 +282,7 @@ internal static class FullArchiveTestRunner
                     cancelled.Token,
                     update =>
                     {
-                        if (update.Phase == "dependency_index_build")
+                        if (update.Phase == "dependency_index_records")
                         {
                             cancelled.Cancel();
                         }

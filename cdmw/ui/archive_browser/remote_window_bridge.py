@@ -106,6 +106,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._structure_loaded: set[str] = set()
         self._structure_requests_enabled = False
         self._export_selection_error = ""
+        self._progress_operation = ""
         self._model = RemoteArchiveBrowserModel(parent=self)
         self._controller = ArchiveRemoteCatalogueController(
             window.archive_catalogue_service,
@@ -194,7 +195,10 @@ class ArchiveRemoteWindowBridge(QObject):
             self._window._rebuild_archive_structure_filter_controls(defer_missing_children=True)
         state = self._window._capture_archive_filter_state()
         query = archive_query_from_browser_state("", state)
-        self._begin_pending("Refreshing archive catalogue..." if force_refresh else "Loading archive catalogue...")
+        self._begin_pending(
+            "Refreshing archive catalogue..." if force_refresh else "Loading archive catalogue...",
+            operation="open",
+        )
         self._controller.open_archive(
             package_root,
             query=query,
@@ -216,6 +220,8 @@ class ArchiveRemoteWindowBridge(QObject):
         if self._shadow or not bool(getattr(self._window, "archive_remote_query_pending", False)):
             return False
         self._controller.cancel_pending()
+        self._clear_pending_progress()
+        self._progress_operation = ""
         window = self._window
         window.archive_remote_query_pending = False
         self._set_remote_operation_busy(False)
@@ -246,6 +252,8 @@ class ArchiveRemoteWindowBridge(QObject):
         if not self._active:
             return
         self._active = False
+        self._clear_pending_progress()
+        self._progress_operation = ""
         self.cancel_preview_dependencies(clear_snapshot=True)
         self._controller.cancel_pending()
 
@@ -315,7 +323,7 @@ class ArchiveRemoteWindowBridge(QObject):
             return
         state = self._window._capture_archive_filter_state()
         query = archive_query_from_browser_state(session.session_id, state)
-        self._begin_pending("Applying archive filters...")
+        self._begin_pending("Applying archive filters...", operation="query")
         self._controller.apply_query(
             query,
             selection_identity=self.current_selection_identity(),
@@ -340,7 +348,7 @@ class ArchiveRemoteWindowBridge(QObject):
             entry_ids=bounded_ids,
             view_mode=ArchiveViewMode.FLAT,
         )
-        self._begin_pending(f"Applying {label} scope...")
+        self._begin_pending(f"Applying {label} scope...", operation="query")
         self._controller.apply_query(query, selection_identity=None)
         return True
 
@@ -514,13 +522,23 @@ class ArchiveRemoteWindowBridge(QObject):
         self._window.archive_structure_filter_state = "warming"
         self._controller.request_structure_children(parent)
 
-    def _begin_pending(self, text: str) -> None:
+    def _begin_pending(self, text: str, *, operation: str) -> None:
         if self._shadow:
             return
         window = self._window
+        self._clear_pending_progress()
+        reset_progress = getattr(window, "_reset_archive_load_progress", None)
+        if callable(reset_progress):
+            reset_progress()
+        self._progress_operation = str(operation or "").strip().lower()
         window.archive_remote_query_pending = True
         window._update_archive_filter_button_state()
-        window._set_archive_load_progress(text, phase="Catalogue")
+        window._set_archive_load_progress(
+            text,
+            phase="Filtering" if self._progress_operation == "query" else "Preparing",
+            percent=1,
+            allow_decrease=True,
+        )
         window._set_archive_warmup_overlay(
             True,
             "Preparing Archive Browser",
@@ -529,6 +547,14 @@ class ArchiveRemoteWindowBridge(QObject):
         window.set_status_message(text)
         window.append_archive_log(text)
         self._set_remote_operation_busy(True)
+
+    def _clear_pending_progress(self) -> None:
+        timer = getattr(self._window, "_archive_scan_progress_timer", None)
+        stop = getattr(timer, "stop", None)
+        if callable(stop):
+            stop()
+        if hasattr(self._window, "_archive_scan_progress_pending"):
+            self._window._archive_scan_progress_pending = None
 
     def _set_remote_operation_busy(self, busy: bool) -> None:
         """Gate only controls that can start a conflicting catalogue generation."""
@@ -571,6 +597,8 @@ class ArchiveRemoteWindowBridge(QObject):
         phase = str(getattr(update, "phase", kind) or kind).strip()
         current_item = str(getattr(update, "current_item", "") or "").strip()
         detail = phase.replace("_", " ").strip().capitalize() or str(kind or "Working")
+        if self._progress_operation == "query" and phase.casefold().startswith("query_"):
+            detail = f"Filter {detail.casefold()}"
         if current_item:
             detail = f"{detail}: {current_item}"
         self._window._handle_archive_scan_progress(current, total, detail)
@@ -579,6 +607,8 @@ class ArchiveRemoteWindowBridge(QObject):
         if self._shadow:
             self._record_shadow_comparison(handle)
             return
+        self._clear_pending_progress()
+        self._progress_operation = ""
         window = self._window
         publish_consumers = getattr(window, "_publish_archive_catalogue_session_to_consumers", None)
         if callable(publish_consumers) and self._controller.current_session is not None:
@@ -721,6 +751,8 @@ class ArchiveRemoteWindowBridge(QObject):
             )
             self._record_runtime("archive_backend_shadow_failed", operation=kind, error=detail)
             return
+        self._clear_pending_progress()
+        self._progress_operation = ""
         window = self._window
         window.archive_remote_query_pending = False
         window._update_archive_filter_button_state()

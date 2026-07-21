@@ -3,11 +3,12 @@ from __future__ import annotations
 from dataclasses import replace
 import os
 from pathlib import Path
+from time import perf_counter
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QModelIndex, Qt
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QTreeView
 
 from cdmw.domain.archives.catalogue import (
     ArchiveChildNode,
@@ -268,3 +269,29 @@ def test_archive_tree_view_switches_between_owned_remote_and_legacy_models() -> 
     assert not view.remote_model_active()
     assert view.archive_model() is view.legacy_archive_model()
     assert view.topLevelItemCount() == 1
+
+
+def test_archive_tree_virtualizes_a_full_scale_flat_remote_result() -> None:
+    app = _app()
+    view = ArchiveBrowserTreeView()
+    view.resize(1200, 700)
+    view.show()
+    remote = RemoteArchiveBrowserModel(page_size=256, parent=view)
+    view.use_remote_model(remote)
+
+    started = perf_counter()
+    remote.publish_query(_handle(total=1_670_000), view_mode=ArchiveViewMode.FLAT, prime=False)
+    app.processEvents()
+    elapsed = perf_counter() - started
+
+    assert elapsed < 1.0
+    assert view.remote_flat_view_active
+    assert QTreeView.model(view).rowCount() == 0
+    assert view.archive_model() is remote
+    assert view.topLevelItemCount() == 1_670_000
+
+    remote.publish_query(_handle(query="folders", total=1_670_000), view_mode=ArchiveViewMode.FOLDERS, prime=False)
+    app.processEvents()
+
+    assert not view.remote_flat_view_active
+    assert QTreeView.model(view) is remote

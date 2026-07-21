@@ -58,22 +58,60 @@ internal sealed class ArchiveDependencyIndex : IDisposable
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        ArchiveDependencyIndex? existing = null;
         try
         {
-            return Open(path, source);
+            existing = Open(path, source);
         }
         catch (Exception exception) when (
             exception is FileNotFoundException or InvalidDataException or IOException or OverflowException or FormatException)
         {
             // Missing, stale, and damaged derived indexes are safe to rebuild.
         }
+        if (existing is not null)
+        {
+            try
+            {
+                await PublishProgressAsync(
+                    publishProgress,
+                    new ProgressUpdate(1, 1, "dependency_index_ready")).ConfigureAwait(false);
+                cancellationToken.ThrowIfCancellationRequested();
+                return existing;
+            }
+            catch
+            {
+                existing.Dispose();
+                throw;
+            }
+        }
 
         var build = await Task.Run(
             () => Build(source, publishProgress, cancellationToken),
             CancellationToken.None).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
+        await PublishProgressAsync(
+            publishProgress,
+            new ProgressUpdate(0, 1, "dependency_index_write")).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
         await WriteAsync(path, source, build, cancellationToken).ConfigureAwait(false);
-        return Open(path, source);
+        await PublishProgressAsync(
+            publishProgress,
+            new ProgressUpdate(1, 1, "dependency_index_write")).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
+        var rebuilt = Open(path, source);
+        try
+        {
+            await PublishProgressAsync(
+                publishProgress,
+                new ProgressUpdate(1, 1, "dependency_index_ready")).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+            return rebuilt;
+        }
+        catch
+        {
+            rebuilt.Dispose();
+            throw;
+        }
     }
 
     public ArchiveDependencyLookupResult FindEntryIdsByBasename(
@@ -277,16 +315,20 @@ internal sealed class ArchiveDependencyIndex : IDisposable
         var categories = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var packageLabels = new Dictionary<ArchiveIndexStringRange, string>();
         var pathBuffer = new byte[1024];
+        publishProgress?.Invoke(new ProgressUpdate(
+            0,
+            source.EntryCount,
+            "dependency_index_records")).GetAwaiter().GetResult();
+        cancellationToken.ThrowIfCancellationRequested();
         for (long entryId = 0; entryId < source.EntryCount; entryId++)
         {
-            if ((entryId & 0x1FFF) == 0)
+            if (entryId > 0 && (entryId & 0x1FFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 publishProgress?.Invoke(new ProgressUpdate(
                     entryId,
                     source.EntryCount,
-                    "dependency_index_build",
-                    "records")).GetAwaiter().GetResult();
+                    "dependency_index_records")).GetAwaiter().GetResult();
                 cancellationToken.ThrowIfCancellationRequested();
             }
             var length = source.GetPathByteLength(entryId);
@@ -325,8 +367,11 @@ internal sealed class ArchiveDependencyIndex : IDisposable
         publishProgress?.Invoke(new ProgressUpdate(
             source.EntryCount,
             source.EntryCount,
-            "dependency_index_build",
-            "sorting")).GetAwaiter().GetResult();
+            "dependency_index_records")).GetAwaiter().GetResult();
+        publishProgress?.Invoke(new ProgressUpdate(
+            0,
+            1,
+            "dependency_index_sort")).GetAwaiter().GetResult();
         cancellationToken.ThrowIfCancellationRequested();
         Parallel.Invoke(
             new ParallelOptions { MaxDegreeOfParallelism = 2 },
@@ -334,10 +379,9 @@ internal sealed class ArchiveDependencyIndex : IDisposable
             () => Array.Sort(stemRecords, LookupRecordComparer.Instance));
         cancellationToken.ThrowIfCancellationRequested();
         publishProgress?.Invoke(new ProgressUpdate(
-            source.EntryCount,
-            source.EntryCount,
-            "dependency_index_build",
-            "complete")).GetAwaiter().GetResult();
+            1,
+            1,
+            "dependency_index_sort")).GetAwaiter().GetResult();
         return new DependencyIndexBuild(
             basenameRecords,
             stemRecords,
@@ -400,6 +444,10 @@ internal sealed class ArchiveDependencyIndex : IDisposable
             TryDelete(staging);
         }
     }
+
+    private static Task PublishProgressAsync(
+        Func<ProgressUpdate, Task>? publishProgress,
+        ProgressUpdate update) => publishProgress is null ? Task.CompletedTask : publishProgress(update);
 
     private static async Task WriteRecordsAsync(
         Stream stream,

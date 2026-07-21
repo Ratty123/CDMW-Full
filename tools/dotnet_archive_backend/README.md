@@ -34,6 +34,12 @@ association therefore resolves only requested names without reconstructing the
 general `lookups.bin` dictionaries. `lookups.bin` remains a lazy compatibility
 index for explicit general lookup operations.
 
+An unfiltered, unsorted query pages `archive.ali` in native entry order without
+rescanning every row or materializing a second ID array. The PySide shell keeps
+only remote pages and bounded compatibility snapshots; its flat presentation
+uses a virtual table so publishing a million-row result does not trigger
+`QTreeView`'s all-row layout pass.
+
 Item Finder uses the fingerprint-owned native item catalogue on first open.
 Search, category/material facets, paging, visible icon batches, and exact/related
 scope resolution stay worker-side; bounded entry IDs are then applied through
@@ -125,5 +131,5 @@ dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/C
 
 The committed baseline and packaged probe are synthetic regression evidence
 only. The scale probe measures cold build, warm open, forced refresh, and cache
-bytes without licensed files. Real-game corpus and visible UI gates require
-separate explicit authorization.
+bytes plus time to the first usable 64-row page without licensed files.
+Real-game corpus and visible UI gates require separate explicit authorization.

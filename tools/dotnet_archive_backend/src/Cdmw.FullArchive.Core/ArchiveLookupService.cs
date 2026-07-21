@@ -106,14 +106,28 @@ public sealed class ArchiveLookupService(
         if (!string.IsNullOrWhiteSpace(request.QueryId))
         {
             var compiled = session.GetRequiredQuery(request.QueryId);
+            if (compiled.UsesIdentityOrder)
+            {
+                var directMatches = ids
+                    .Where(entryId => entryId >= 0 && entryId < compiled.EntryCount)
+                    .Order()
+                    .ToArray();
+                var directSelected = directMatches.Take(limit).ToArray();
+                return new ArchiveLookupResult(
+                    session.Id,
+                    directSelected.Select(session.ReadEntry).ToArray(),
+                    directMatches.LongLength,
+                    incomplete || directMatches.LongLength > limit,
+                    directSelected);
+            }
             var matches = new List<(long Row, long EntryId)>();
-            for (var row = 0; row < compiled.EntryIds.LongLength; row++)
+            for (var row = 0L; row < compiled.EntryCount; row++)
             {
                 if ((row & 0x1FFF) == 0)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
                 }
-                var entryId = compiled.EntryIds[row];
+                var entryId = compiled.EntryIdAt(row);
                 if (ids.Contains(entryId))
                 {
                     matches.Add((row, entryId));

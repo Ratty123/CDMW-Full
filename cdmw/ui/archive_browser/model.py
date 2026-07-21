@@ -9,6 +9,7 @@ from PySide6.QtCore import QAbstractItemModel, QItemSelectionModel, QModelIndex,
 from PySide6.QtWidgets import QAbstractItemView, QTreeView
 
 from cdmw.models import ArchiveEntry
+from cdmw.ui.archive_browser.remote_flat_view import RemoteArchiveFlatTableView
 
 
 ARCHIVE_BROWSER_COLUMNS = (
@@ -480,6 +481,35 @@ class _ArchiveBrowserHeaderItem:
         return ARCHIVE_BROWSER_COLUMNS[column] if 0 <= column < len(ARCHIVE_BROWSER_COLUMNS) else ""
 
 
+class _ArchiveBrowserFlatPlaceholderModel(QAbstractItemModel):
+    """Keep the tree header alive while the flat table owns remote rows."""
+
+    def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        del parent
+        return 0
+
+    def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
+        del parent
+        return len(ARCHIVE_BROWSER_COLUMNS)
+
+    def index(self, row: int, column: int, parent: QModelIndex = QModelIndex()) -> QModelIndex:
+        del row, column, parent
+        return QModelIndex()
+
+    def parent(self, index: QModelIndex) -> QModelIndex:
+        del index
+        return QModelIndex()
+
+    def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> object:
+        del index, role
+        return None
+
+    def headerData(self, section: int, orientation: Qt.Orientation, role: int = Qt.DisplayRole) -> object:
+        if orientation == Qt.Horizontal and role == Qt.DisplayRole and 0 <= section < len(ARCHIVE_BROWSER_COLUMNS):
+            return ARCHIVE_BROWSER_COLUMNS[section]
+        return None
+
+
 class ArchiveBrowserTreeView(QTreeView):
     currentItemChanged = Signal(object, object)
     itemSelectionChanged = Signal()
@@ -491,32 +521,52 @@ class ArchiveBrowserTreeView(QTreeView):
         self.empty_title = title
         self.empty_detail = detail
         self._archive_model = ArchiveBrowserModel(self)
+        self._flat_placeholder_model = _ArchiveBrowserFlatPlaceholderModel(self)
         self._active_archive_model: QAbstractItemModel = self._archive_model
         self._remote_archive_model: QAbstractItemModel | None = None
+        self._flat_remote_active = False
+        self._connected_selection_model: QItemSelectionModel | None = None
         super().setModel(self._archive_model)
+        self._flat_table = RemoteArchiveFlatTableView(self.viewport())
+        self._flat_table.hide()
         self.setUniformRowHeights(True)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerPixel)
         self.setAnimated(False)
         self.setExpandsOnDoubleClick(True)
         self.expanded.connect(self._handle_expanded_index)
+        self._flat_table.uiActivity.connect(self.uiActivity.emit)
+        self._flat_table.customContextMenuRequested.connect(self.customContextMenuRequested.emit)
+        self._flat_table.horizontalScrollBar().valueChanged.connect(self._sync_flat_header_offset)
+        self.header().sectionResized.connect(self._sync_flat_section_width)
+        self.header().sectionMoved.connect(lambda *_args: self._sync_flat_columns())
+        self.header().geometriesChanged.connect(self._sync_flat_columns)
         self._connect_selection_model()
 
     def _connect_selection_model(self) -> None:
         selection_model = self.selectionModel()
-        if selection_model is None:
+        if selection_model is None or selection_model is self._connected_selection_model:
             return
+        if self._connected_selection_model is not None:
+            try:
+                self._connected_selection_model.currentChanged.disconnect(self._emit_current_item_changed)
+                self._connected_selection_model.selectionChanged.disconnect(self._emit_selection_changed)
+            except (RuntimeError, TypeError):
+                pass
         selection_model.currentChanged.connect(self._emit_current_item_changed)
-        selection_model.selectionChanged.connect(lambda *_args: self.itemSelectionChanged.emit())
+        selection_model.selectionChanged.connect(self._emit_selection_changed)
+        self._connected_selection_model = selection_model
 
     def setModel(self, model) -> None:  # type: ignore[override]
         if model not in {self._archive_model, self._remote_archive_model}:
             raise RuntimeError("ArchiveBrowserTreeView owns its archive models.")
-        if model is self._active_archive_model:
-            return
         self._active_archive_model = model
-        super().setModel(model)
-        self._connect_selection_model()
+        if model is self._archive_model:
+            self._activate_tree_model(self._archive_model)
+        elif self._remote_view_is_flat():
+            self._activate_remote_flat_view()
+        else:
+            self._activate_tree_model(model)
 
     def archive_model(self) -> QAbstractItemModel:
         return self._active_archive_model
@@ -528,12 +578,187 @@ class ArchiveBrowserTreeView(QTreeView):
         required = ("node_from_index", "top_level_node", "entry_for_index", "request_visible_rows")
         if any(not callable(getattr(model, name, None)) for name in required):
             raise TypeError("Remote archive model does not provide the browser model contract.")
-        self._remote_archive_model = model
+        if model is not self._remote_archive_model:
+            previous_model = self._remote_archive_model
+            if previous_model is not None:
+                previous_changing = getattr(previous_model, "viewModeChanging", None)
+                if previous_changing is not None:
+                    try:
+                        previous_changing.disconnect(self._handle_remote_view_mode_changing)
+                    except (RuntimeError, TypeError):
+                        pass
+                try:
+                    previous_model.modelReset.disconnect(self._handle_remote_model_reset)
+                except (RuntimeError, TypeError):
+                    pass
+            self._remote_archive_model = model
+            self._flat_table.setModel(model)
+            changing = getattr(model, "viewModeChanging", None)
+            if changing is not None:
+                changing.connect(self._handle_remote_view_mode_changing)
+            model.modelReset.connect(self._handle_remote_model_reset)
         self.setModel(model)
         QTimer.singleShot(0, self._prefetch_visible_remote_rows)
 
     def use_legacy_model(self) -> None:
         self.setModel(self._archive_model)
+
+    @staticmethod
+    def _is_flat_view_mode(view_mode: object) -> bool:
+        return str(getattr(view_mode, "value", view_mode) or "").strip().lower() == "flat"
+
+    def _remote_view_is_flat(self) -> bool:
+        return self._is_flat_view_mode(getattr(self._remote_archive_model, "view_mode", ""))
+
+    def _handle_remote_view_mode_changing(self, view_mode: object) -> None:
+        if not self.remote_model_active():
+            return
+        QTreeView.setModel(self, self._flat_placeholder_model)
+        if self._is_flat_view_mode(view_mode):
+            self._activate_remote_flat_view()
+        else:
+            self._flat_remote_active = False
+            self._flat_table.hide()
+
+    def _handle_remote_model_reset(self) -> None:
+        if not self.remote_model_active():
+            return
+        if self._remote_view_is_flat():
+            self._activate_remote_flat_view()
+        elif self._remote_archive_model is not None:
+            self._activate_tree_model(self._remote_archive_model)
+
+    def _activate_remote_flat_view(self) -> None:
+        if self._remote_archive_model is None:
+            return
+        if self._flat_table.model() is not self._remote_archive_model:
+            self._flat_table.setModel(self._remote_archive_model)
+        if QTreeView.model(self) is not self._flat_placeholder_model:
+            QTreeView.setModel(self, self._flat_placeholder_model)
+        self._flat_remote_active = True
+        QTreeView.setHorizontalScrollBarPolicy(self, Qt.ScrollBarAlwaysOff)
+        QTreeView.setVerticalScrollBarPolicy(self, Qt.ScrollBarAlwaysOff)
+        self._sync_flat_columns()
+        self._flat_table.setGeometry(self.viewport().rect())
+        self._flat_table.show()
+        self._flat_table.raise_()
+        self.setFocusProxy(self._flat_table)
+        self._connect_selection_model()
+
+    def _activate_tree_model(self, model: QAbstractItemModel) -> None:
+        self._flat_remote_active = False
+        self._flat_table.hide()
+        QTreeView.setHorizontalScrollBarPolicy(self, Qt.ScrollBarAsNeeded)
+        QTreeView.setVerticalScrollBarPolicy(self, Qt.ScrollBarAsNeeded)
+        if QTreeView.model(self) is not model:
+            QTreeView.setModel(self, model)
+        self.header().setOffset(self.horizontalScrollBar().value())
+        self.setFocusProxy(None)
+        self._connect_selection_model()
+
+    @property
+    def remote_flat_view_active(self) -> bool:
+        return self._flat_remote_active
+
+    def _sync_flat_section_width(self, logical_index: int, _old_size: int, new_size: int) -> None:
+        model = self._flat_table.model()
+        if model is not None and 0 <= logical_index < model.columnCount():
+            self._flat_table.setColumnWidth(logical_index, new_size)
+
+    def _sync_flat_columns(self) -> None:
+        model = self._flat_table.model()
+        if model is None:
+            return
+        outer_header = self.header()
+        flat_header = self._flat_table.horizontalHeader()
+        column_count = min(outer_header.count(), model.columnCount())
+        for logical_index in range(column_count):
+            self._flat_table.setColumnHidden(logical_index, self.isColumnHidden(logical_index))
+            self._flat_table.setColumnWidth(logical_index, self.columnWidth(logical_index))
+        for target_visual in range(column_count):
+            logical_index = outer_header.logicalIndex(target_visual)
+            current_visual = flat_header.visualIndex(logical_index)
+            if current_visual >= 0 and current_visual != target_visual:
+                flat_header.moveSection(current_visual, target_visual)
+        self._sync_flat_header_offset(self._flat_table.horizontalScrollBar().value())
+
+    def _sync_flat_header_offset(self, value: int) -> None:
+        if self._flat_remote_active:
+            self.header().setOffset(value)
+
+    def selectionModel(self):  # type: ignore[override]
+        flat_table = getattr(self, "_flat_table", None)
+        if getattr(self, "_flat_remote_active", False) and flat_table is not None:
+            return flat_table.selectionModel()
+        return QTreeView.selectionModel(self)
+
+    def currentIndex(self) -> QModelIndex:  # type: ignore[override]
+        if getattr(self, "_flat_remote_active", False):
+            return self._flat_table.currentIndex()
+        return QTreeView.currentIndex(self)
+
+    def setCurrentIndex(self, index: QModelIndex) -> None:  # type: ignore[override]
+        if getattr(self, "_flat_remote_active", False):
+            self._flat_table.setCurrentIndex(index)
+            return
+        QTreeView.setCurrentIndex(self, index)
+
+    def clearSelection(self) -> None:  # type: ignore[override]
+        if getattr(self, "_flat_remote_active", False):
+            self._flat_table.clearSelection()
+            return
+        QTreeView.clearSelection(self)
+
+    def scrollTo(
+        self,
+        index: QModelIndex,
+        hint: QAbstractItemView.ScrollHint = QAbstractItemView.EnsureVisible,
+    ) -> None:  # type: ignore[override]
+        if getattr(self, "_flat_remote_active", False):
+            self._flat_table.scrollTo(index, hint)
+            return
+        QTreeView.scrollTo(self, index, hint)
+
+    def indexAt(self, point) -> QModelIndex:  # type: ignore[override]
+        if getattr(self, "_flat_remote_active", False):
+            return self._flat_table.indexAt(point)
+        return QTreeView.indexAt(self, point)
+
+    def setSelectionMode(self, mode: QAbstractItemView.SelectionMode) -> None:  # type: ignore[override]
+        QTreeView.setSelectionMode(self, mode)
+        flat_table = getattr(self, "_flat_table", None)
+        if flat_table is not None:
+            flat_table.setSelectionMode(mode)
+
+    def setSelectionBehavior(self, behavior: QAbstractItemView.SelectionBehavior) -> None:  # type: ignore[override]
+        QTreeView.setSelectionBehavior(self, behavior)
+        flat_table = getattr(self, "_flat_table", None)
+        if flat_table is not None:
+            flat_table.setSelectionBehavior(behavior)
+
+    def setAlternatingRowColors(self, enable: bool) -> None:  # type: ignore[override]
+        QTreeView.setAlternatingRowColors(self, enable)
+        flat_table = getattr(self, "_flat_table", None)
+        if flat_table is not None:
+            flat_table.setAlternatingRowColors(enable)
+
+    def setContextMenuPolicy(self, policy: Qt.ContextMenuPolicy) -> None:  # type: ignore[override]
+        QTreeView.setContextMenuPolicy(self, policy)
+        flat_table = getattr(self, "_flat_table", None)
+        if flat_table is not None:
+            flat_table.setContextMenuPolicy(policy)
+
+    def setColumnHidden(self, column: int, hide: bool) -> None:  # type: ignore[override]
+        QTreeView.setColumnHidden(self, column, hide)
+        flat_table = getattr(self, "_flat_table", None)
+        if flat_table is not None:
+            flat_table.setColumnHidden(column, hide)
+
+    def setUpdatesEnabled(self, enable: bool) -> None:  # type: ignore[override]
+        QTreeView.setUpdatesEnabled(self, enable)
+        flat_table = getattr(self, "_flat_table", None)
+        if flat_table is not None:
+            flat_table.setUpdatesEnabled(enable)
 
     def remote_model_active(self) -> bool:
         return self._remote_archive_model is not None and self._active_archive_model is self._remote_archive_model
@@ -662,6 +887,9 @@ class ArchiveBrowserTreeView(QTreeView):
             provider(previous) if callable(provider) else None,
         )
 
+    def _emit_selection_changed(self, *_args) -> None:
+        self.itemSelectionChanged.emit()
+
     def _handle_expanded_index(self, index: QModelIndex) -> None:
         self.uiActivity.emit()
         if self._active_archive_model.canFetchMore(index):
@@ -682,6 +910,8 @@ class ArchiveBrowserTreeView(QTreeView):
     def resizeEvent(self, event) -> None:  # type: ignore[override]
         self.uiActivity.emit()
         super().resizeEvent(event)
+        if self._flat_remote_active:
+            self._flat_table.setGeometry(self.viewport().rect())
         self._prefetch_visible_remote_rows()
 
     def scrollContentsBy(self, dx: int, dy: int) -> None:  # type: ignore[override]

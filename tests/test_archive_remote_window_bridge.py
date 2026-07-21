@@ -228,6 +228,33 @@ def test_v2_bridge_maps_real_progress_contract_fields() -> None:
     assert updates == [(17, 40, "Fingerprint scan: 0009/0.pamt")]
 
 
+def test_v2_bridge_resets_each_operation_and_scales_query_progress_separately() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    resets: list[bool] = []
+    displayed: list[tuple[str, dict[str, object]]] = []
+    updates: list[tuple[int, int, str]] = []
+    window._reset_archive_load_progress = lambda: resets.append(True)
+    window._update_archive_filter_button_state = lambda: None
+    window._set_archive_load_progress = lambda text, **kwargs: displayed.append((text, kwargs))
+    window._set_archive_warmup_overlay = lambda *_args, **_kwargs: None
+    window.set_status_message = lambda _message: None
+    window._handle_archive_scan_progress = lambda current, total, detail: updates.append((current, total, detail))
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+
+    bridge._begin_pending("Applying archive filters...", operation="query")
+    bridge._handle_progress("query", ProgressUpdate(25, 100, "query_scan"))
+
+    assert resets == [True]
+    assert displayed == [
+        (
+            "Applying archive filters...",
+            {"phase": "Filtering", "percent": 1, "allow_decrease": True},
+        )
+    ]
+    assert updates == [(25, 100, "Filter query scan")]
+
+
 def test_v2_bridge_scopes_busy_state_and_cancel_keeps_existing_view() -> None:
     _app()
     window = _RemoteExportWindow()

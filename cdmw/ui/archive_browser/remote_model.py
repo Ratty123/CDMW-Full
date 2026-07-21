@@ -123,6 +123,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
     pageRequested = Signal(object)
     childrenRequested = Signal(object)
     stalePayloadRejected = Signal(str)
+    viewModeChanging = Signal(object)
 
     def __init__(
         self,
@@ -182,6 +183,7 @@ class RemoteArchiveBrowserModel(QAbstractItemModel):
         view_mode: ArchiveViewMode,
         prime: bool = True,
     ) -> None:
+        self.viewModeChanging.emit(view_mode)
         self.beginResetModel()
         self._handle = handle
         self._view_mode = view_mode

@@ -9,6 +9,7 @@ internal static class SyntheticCacheScaleProbe
 {
     private const int Cycles = 3;
     private const int EntryCount = 200_000;
+    private const int FirstPageSize = 64;
 
     public static async Task<int> RunAsync(string reportPath)
     {
@@ -23,7 +24,9 @@ internal static class SyntheticCacheScaleProbe
                 var native = new NativeArchiveCore();
                 var cache = new ArchiveCacheStore(cacheRoot);
                 using var sessions = new ArchiveSessionManager(native, cache);
+                var queries = new ArchiveQueryService(sessions);
 
+                var coldReady = Stopwatch.StartNew();
                 var cold = Stopwatch.StartNew();
                 var coldHandle = await sessions.OpenAsync(
                     new OpenArchiveRequest(fixture.Root),
@@ -33,7 +36,10 @@ internal static class SyntheticCacheScaleProbe
                 {
                     throw new InvalidDataException("Scaled cold cache build did not produce the expected generation.");
                 }
+                await ValidateFirstPageAsync(queries, coldHandle, cycle * 10 + 1).ConfigureAwait(false);
+                coldReady.Stop();
 
+                var warmReady = Stopwatch.StartNew();
                 var warm = Stopwatch.StartNew();
                 var warmHandle = await sessions.OpenAsync(
                     new OpenArchiveRequest(fixture.Root),
@@ -43,7 +49,10 @@ internal static class SyntheticCacheScaleProbe
                 {
                     throw new InvalidDataException("Scaled warm cache open did not reuse the expected generation.");
                 }
+                await ValidateFirstPageAsync(queries, warmHandle, cycle * 10 + 2).ConfigureAwait(false);
+                warmReady.Stop();
 
+                var refreshReady = Stopwatch.StartNew();
                 var refresh = Stopwatch.StartNew();
                 var refreshHandle = await sessions.RefreshAsync(
                     new OpenArchiveRequest(fixture.Root),
@@ -53,12 +62,17 @@ internal static class SyntheticCacheScaleProbe
                 {
                     throw new InvalidDataException("Scaled forced refresh did not replace the expected generation.");
                 }
+                await ValidateFirstPageAsync(queries, refreshHandle, cycle * 10 + 3).ConfigureAwait(false);
+                refreshReady.Stop();
 
                 rows.Add(new SyntheticCacheScaleTiming(
                     cycle,
                     cold.Elapsed.TotalMilliseconds,
+                    coldReady.Elapsed.TotalMilliseconds,
                     warm.Elapsed.TotalMilliseconds,
+                    warmReady.Elapsed.TotalMilliseconds,
                     refresh.Elapsed.TotalMilliseconds,
+                    refreshReady.Elapsed.TotalMilliseconds,
                     DirectorySize(cacheRoot)));
             }
             finally
@@ -68,14 +82,17 @@ internal static class SyntheticCacheScaleProbe
         }
 
         var report = new SyntheticCacheScaleReport(
-            "cdmw_full_archive_cache_scale_v1",
+            "cdmw_full_archive_cache_scale_v2",
             DateTimeOffset.UtcNow,
             EntryCount,
             rows,
             new SyntheticCacheScaleSummary(
                 Median(rows.Select(static row => row.ColdBuildMilliseconds)),
+                Median(rows.Select(static row => row.ColdReadyMilliseconds)),
                 Median(rows.Select(static row => row.WarmOpenMilliseconds)),
+                Median(rows.Select(static row => row.WarmReadyMilliseconds)),
                 Median(rows.Select(static row => row.ForcedRefreshMilliseconds)),
+                Median(rows.Select(static row => row.RefreshReadyMilliseconds)),
                 (long)Median(rows.Select(static row => (double)row.CacheBytes))));
         var fullPath = Path.GetFullPath(reportPath);
         Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
@@ -84,6 +101,24 @@ internal static class SyntheticCacheScaleProbe
             JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true })).ConfigureAwait(false);
         Console.WriteLine(fullPath);
         return 0;
+    }
+
+    private static async Task ValidateFirstPageAsync(
+        ArchiveQueryService queries,
+        ArchiveSessionHandle session,
+        long generation)
+    {
+        var query = await queries.CreateAsync(
+            new ArchiveQuery(session.SessionId),
+            generation,
+            CancellationToken.None).ConfigureAwait(false);
+        var page = queries.FetchPage(
+            session.SessionId,
+            new FetchPageRequest(query.QueryId, 0, FirstPageSize));
+        if (query.TotalMatches != EntryCount || page.Rows.Count != FirstPageSize)
+        {
+            throw new InvalidDataException("Scaled cache open did not produce the expected first usable page.");
+        }
     }
 
     private static double Median(IEnumerable<double> values)
@@ -121,14 +156,20 @@ internal sealed record SyntheticCacheScaleReport(
 internal sealed record SyntheticCacheScaleTiming(
     int Cycle,
     double ColdBuildMilliseconds,
+    double ColdReadyMilliseconds,
     double WarmOpenMilliseconds,
+    double WarmReadyMilliseconds,
     double ForcedRefreshMilliseconds,
+    double RefreshReadyMilliseconds,
     long CacheBytes);
 
 internal sealed record SyntheticCacheScaleSummary(
     double ColdBuildMilliseconds,
+    double ColdReadyMilliseconds,
     double WarmOpenMilliseconds,
+    double WarmReadyMilliseconds,
     double ForcedRefreshMilliseconds,
+    double RefreshReadyMilliseconds,
     long CacheBytes);
 
 internal sealed class SyntheticCacheScaleFixture : IAsyncDisposable

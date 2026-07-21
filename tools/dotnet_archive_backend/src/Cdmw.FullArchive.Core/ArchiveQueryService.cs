@@ -26,18 +26,18 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         var compiled = session.GetRequiredQuery(request.QueryId);
         var pageStart = Math.Max(0, request.PageStart);
         var pageSize = Math.Clamp(request.PageSize, 1, WorkerProtocol.MaximumPageSize);
-        var available = Math.Max(0L, compiled.EntryIds.LongLength - pageStart);
+        var available = Math.Max(0L, compiled.EntryCount - pageStart);
         var count = (int)Math.Min(pageSize, available);
         var rows = new ArchiveEntryDto[count];
         for (var index = 0; index < count; index++)
         {
-            rows[index] = session.ReadEntry(compiled.EntryIds[pageStart + index]);
+            rows[index] = session.ReadEntry(compiled.EntryIdAt(pageStart + index));
         }
         return new ArchivePage(
             session.Id,
             compiled.QueryId,
             compiled.Generation,
-            compiled.EntryIds.LongLength,
+            compiled.EntryCount,
             pageStart,
             rows);
     }
@@ -57,14 +57,14 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         var parent = NormalizeFolder(request.ParentPath);
         var folders = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase);
         var entries = new List<(string Path, long EntryId)>();
-        var entryCount = compiled?.EntryIds.LongLength ?? session.Index.EntryCount;
+        var entryCount = compiled?.EntryCount ?? session.Index.EntryCount;
         for (long entryIndex = 0; entryIndex < entryCount; entryIndex++)
         {
             if ((entryIndex & 0xFFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
-            var entryId = compiled is null ? entryIndex : compiled.EntryIds[entryIndex];
+            var entryId = compiled is null ? entryIndex : compiled.EntryIdAt(entryIndex);
             var entry = session.ReadEntry(entryId);
             if (!string.IsNullOrWhiteSpace(request.Category) &&
                 !entry.Category.Equals(request.Category, StringComparison.OrdinalIgnoreCase) &&
@@ -140,7 +140,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
     public IReadOnlyList<long> GetEntryIds(string sessionId, string queryId)
     {
         var session = sessions.GetRequired(sessionId);
-        return session.GetRequiredQuery(queryId).EntryIds;
+        return session.GetRequiredQuery(queryId).MaterializeEntryIds();
     }
 
     private static ArchiveQueryHandle Compile(
@@ -156,6 +156,23 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
         if (requestedIds is { Length: > MaximumBoundedEntryIds })
         {
             throw new InvalidDataException($"Archive queries may contain at most {MaximumBoundedEntryIds} bounded entry ids.");
+        }
+        if (CanUseIdentityOrder(query))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var directQueryId = Guid.NewGuid().ToString("N");
+            var direct = CompiledArchiveQuery.Identity(
+                directQueryId,
+                generation,
+                query,
+                session.Index.EntryCount);
+            session.StoreQuery(direct);
+            Publish(progress, new ProgressUpdate(direct.EntryCount, direct.EntryCount, "query_direct"));
+            return new ArchiveQueryHandle(
+                session.Id,
+                directQueryId,
+                generation,
+                direct.EntryCount);
         }
         var candidates = query.SortActive ? new List<QueryCandidate>() : null;
         var unsortedIds = query.SortActive ? null : new List<long>();
@@ -200,10 +217,24 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             ids = unsortedIds!.ToArray();
         }
         var queryId = Guid.NewGuid().ToString("N");
-        session.StoreQuery(new CompiledArchiveQuery(queryId, generation, query, ids));
+        session.StoreQuery(CompiledArchiveQuery.Materialized(queryId, generation, query, ids));
         Publish(progress, new ProgressUpdate(total, total, "query_complete"));
         return new ArchiveQueryHandle(session.Id, queryId, generation, ids.LongLength);
     }
+
+    private static bool CanUseIdentityOrder(ArchiveQuery query) =>
+        query.EntryIds is not { Count: > 0 }
+        && !query.SortActive
+        && string.IsNullOrWhiteSpace(query.IncludeText)
+        && string.IsNullOrWhiteSpace(query.ExcludeText)
+        && query.Extensions is not { Count: > 0 }
+        && query.Packages is not { Count: > 0 }
+        && string.IsNullOrWhiteSpace(query.Folder)
+        && query.Roles is not { Count: > 0 }
+        && query.TechnicalSuffixes is not { Count: > 0 }
+        && query.MinimumSize is not > 0
+        && !query.PreviewableOnly
+        && !query.ActiveOverridesOnly;
 
     private static bool Matches(ArchiveEntryDto entry, ArchiveQuery query)
     {

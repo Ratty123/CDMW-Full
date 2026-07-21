@@ -157,8 +157,68 @@ internal static class ArchiveDiscoveryWarnings
         value.Length == 4 && value.All(static character => character is >= '0' and <= '9');
 }
 
-internal sealed record CompiledArchiveQuery(
-    string QueryId,
-    long Generation,
-    ArchiveQuery Query,
-    long[] EntryIds);
+internal sealed class CompiledArchiveQuery
+{
+    private readonly long[]? _entryIds;
+
+    private CompiledArchiveQuery(
+        string queryId,
+        long generation,
+        ArchiveQuery query,
+        long[]? entryIds,
+        long identityEntryCount)
+    {
+        QueryId = queryId;
+        Generation = generation;
+        Query = query;
+        _entryIds = entryIds;
+        EntryCount = entryIds?.LongLength ?? identityEntryCount;
+    }
+
+    public string QueryId { get; }
+    public long Generation { get; }
+    public ArchiveQuery Query { get; }
+    public long EntryCount { get; }
+    public bool UsesIdentityOrder => _entryIds is null;
+
+    public static CompiledArchiveQuery Identity(
+        string queryId,
+        long generation,
+        ArchiveQuery query,
+        long entryCount) =>
+        new(queryId, generation, query, null, entryCount);
+
+    public static CompiledArchiveQuery Materialized(
+        string queryId,
+        long generation,
+        ArchiveQuery query,
+        long[] entryIds) =>
+        new(queryId, generation, query, entryIds, 0);
+
+    public long EntryIdAt(long row)
+    {
+        if (row < 0 || row >= EntryCount)
+        {
+            throw new ArgumentOutOfRangeException(nameof(row));
+        }
+        return _entryIds is null ? row : _entryIds[row];
+    }
+
+    public long[] MaterializeEntryIds()
+    {
+        if (_entryIds is not null)
+        {
+            return _entryIds;
+        }
+        if (EntryCount > Array.MaxLength)
+        {
+            throw new InvalidDataException("The archive query is too large to materialize.");
+        }
+        var entryIds = new long[checked((int)EntryCount)];
+        for (var index = 0; index < entryIds.Length; index++)
+        {
+            entryIds[index] = index;
+        }
+        return entryIds;
+    }
+}

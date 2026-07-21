@@ -41,6 +41,34 @@ class ArchiveProgressMixin:
             or "loaded " in lowered and "archive entries" in lowered and "background" not in lowered
         ):
             return "Ready", 100, 100
+        if "filter query direct" in lowered or "filter query complete" in lowered:
+            return "Filtering", 98, 98
+        if "filter query scan" in lowered:
+            return "Filtering", 4, 96
+        if "fingerprint" in lowered:
+            return "Checking", 2, 10
+        if "dependency index records" in lowered:
+            return "Indexing", 62, 78
+        if "dependency index sort" in lowered:
+            return "Indexing", 78, 85
+        if "dependency index write" in lowered:
+            return "Cache", 85, 89
+        if "dependency index ready" in lowered:
+            return "Indexing", 90, 90
+        if "index parse" in lowered:
+            return "Scanning", 14, 35
+        if "index sort" in lowered:
+            return "Sorting", 35, 45
+        if "index write" in lowered:
+            return "Cache", 45, 60
+        if "index publish" in lowered:
+            return "Cache", 60, 62
+        if lowered.startswith("discover"):
+            return "Finding", 11, 14
+        if "query direct" in lowered or "query complete" in lowered:
+            return "List", 98, 98
+        if "query scan" in lowered:
+            return "List", 90, 98
         if "render" in lowered or "browser view" in lowered or "browser items" in lowered:
             return "Rendering", 90, 99
         if "opening archive list" in lowered or "preparing archive list" in lowered:
