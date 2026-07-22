@@ -16,8 +16,13 @@ owner, every declared parameter, or authoritative DDS bindings. The active
 PAC-source follow-up therefore treats wrapper/owner/parameter conservation,
 cross-owner and layer-as-base rejection, initial/resident equivalence, source
 boards, and direct full-model/every-submesh review as separate required lanes.
-Its fresh capture and region verdicts are still pending and are not replaced by
-the historical results below.
+Its verdict v2 template separately records inspection/observations for every
+individual angle, contact sheet, source board, and submesh review sheet. Each
+rendered image has a verdict and the asset result is fixed to the worst rendered
+image; source evidence alone cannot issue visual PASS. It binds hashes back to
+the frozen corpus, recomputes capture integrity, and validates the prepared
+package seal before global acceptance. Its fresh capture and region verdicts
+remain incomplete and are not replaced by the historical results below.
 
 ## Current verdict
 
@@ -118,6 +123,65 @@ the historical results below.
   projection for the capture dimensions.
 
 ## Current evidence
+
+### PAC-source final acceptance sweep (in progress)
+
+The current final-acceptance sweep is intentionally stricter than the
+historical renderer-to-renderer audits below. It freezes 120 real PACs and
+requires a separate original-detail decision for every rendered comparison,
+contact sheet, PAC/DDS source-authority board, and isolated material-region
+sheet. Every accepted ledger row records the relative path, SHA-256, inspection
+mode, status, and a concrete observation; source evidence alone cannot issue a
+visual PASS.
+
+Checkpoint on 2026-07-22:
+
+| Evidence class | Reviewed | Total | Remaining |
+|---|---:|---:|---:|
+| Six comparison angles | 720 | 720 | 0 |
+| Full-model contact sheets | 120 | 120 | 0 |
+| PAC/DDS source boards | 1,208 | 1,359 | 151 |
+| Material-region sheets | 1,158 | 1,359 | 201 |
+| **Total** | **3,206** | **3,558** | **352** |
+
+All 120 full-model sets are complete, accounting for 840 directly reviewed
+images. The latest sealed partial asset is
+`072-armor_body-cd-r0002-02-horse-ub-0002`: all 17 source boards and region
+sheets 0 through 13 were opened successfully, logged, and rechecked with zero
+duplicate paths or path/hash mismatches. Its region sheets 14 through 16 are
+the next three images. Fifteen assets retain outstanding source or region
+work; the local direct-review ledgers are authoritative for the exact paths.
+
+The frozen selection manifest hashes to
+`c70e8905f3d4c12edf263c16792040716f5c52fbbdb5036f87ce6fe757b9c2ba`;
+the fresh `corpus.json` hashes to
+`cb9f3af1a979a054c194cdb506dae9010e11cf73db62a4005b2402081da94fc7`;
+and the prepared-package aggregate remained
+`10e4d05c267e716f8730a293087af641bf9efc59f4d241e8165928ef3b400eca`
+before and after capture. The local evidence root is
+`C:\Users\Ratrider\AppData\Local\Temp\cdmw-material-parity-final-120-20260720-111535`.
+Generated images, licensed asset data, and the temporary JSONL ledgers are not
+versioned.
+
+Forty-one visual concerns across 34 assets are parked for one grouped
+adjudication after the broad sweep; none is prematurely cleared or promoted to
+a global defect. The set includes renderer divergences, sparse or ambiguous
+emissive intent, guessed-mask response, and cross-domain material-source
+context. In particular, helmets 090 and 091 retain the user's possible
+glowing-eye hint as an unresolved emissive question.
+
+Several Codex image-transport failures occurred while returning large PNGs.
+They are not Mesh Editor failures and never count as reviewed images. The safe
+continuation protocol is one fresh original-detail image call at a time, with
+an immediate retry after any transport failure; batching or reusing prior
+image payloads is prohibited. A fresh Codex task can clear corrupted or
+oversized image history without losing audit state because the frozen corpus,
+ledgers, and handover checkpoint remain on disk.
+
+This checkpoint is progress evidence only. Global acceptance remains unproven
+until all 3,558 images are reviewed, all parked concerns are adjudicated, the
+strict reviewed-v2 verifier passes, and the authorized non-visible validation
+gates complete. No visible licensed-game gate has been authorized.
 
 ### Fifth 120-PAC material-first expansion
 
