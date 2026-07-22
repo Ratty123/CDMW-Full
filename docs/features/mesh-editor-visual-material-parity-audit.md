@@ -526,7 +526,7 @@ fourth 120-PAC roots, the 50-PAC post-fix root, and the two 162-PAC discovery
 roots remain historical coverage. Do not use mirrored or
 capture-resized-with-a-recreated-basis camera evidence.
 
-### Expanded sixth 120-PAC selection (manifest frozen; capture pending)
+### Expanded sixth 500-PAC selection (manifest frozen; capture pending)
 
 The coverage-aware generator is
 `tools/mesh_editor_visual_audit_manifest.py`. It loads the frozen baseline
@@ -538,34 +538,41 @@ any other historical overlap, missing category, or graph-coverage shortage
 fails rather than weakening the v2 contract.
 
 The frozen generated manifest is
-`workspace/mesh-editor-visual-audit/manifest-expanded-sixth-120.json`; its
+`workspace/mesh-editor-visual-audit/manifest-expanded-sixth-500.json`; its
 exact file SHA-256 is
-`7bce055b9c215fd5c80d230685e60f7b7b65b28184e8bae42ba26a947f5a710d`
+`15be2c4ebda3f57bd56509d85f11abc224e7eca47939ed971d81377c8375c4f7`
 and the adjacent `.sha256` sidecar records the same value. Two independent
 generations produced identical bytes. Its selection provenance records:
 
 - 523 unique historical PAC paths and 521 effective exclusions after the two
   allowed regression repeats;
-- exactly 118 new PACs plus only `cd_phm_02_sword_0014.pac` and
+- exactly 498 new PACs plus only `cd_phm_02_sword_0014.pac` and
   `cd_phm_01_sword_0059.pac` as repeats;
-- exact v2 category counts and graph coverage of 113 layered dye/grime, 34
-  mixed hard/soft, 79 true-metal, and 70 soft-material candidates;
+- exact 500-scale category counts and graph coverage of 466 layered dye/grime,
+  112 mixed hard/soft, 312 true-metal, and 293 soft-material candidates;
 - readable, hashed PAC XML sidecars, nonzero graph metadata, and recovered
-  shader-family evidence for all 120 rows; and
+  shader-family evidence for all 500 rows; and
 - byte-identical before/after SHA-256 fingerprints for the 17 PAMT/PAZ files
   read during selection.
 
+The strict selection and finalization contract remains compatible with 120-row
+corpora and now recognizes this exact 500-row contract. Its full synthetic
+finalizer proof covers 500 assets, 3,000 angle verdicts, 500 contact sheets,
+500 source boards, and 500 material-region sheets.
+
 The accepted baseline was rechecked before generation: its strict summary is
 120 PASS, 0 CONCERN, 0 FAIL with `acceptance_ok=true`; the documented
-`corpus.json` and prepared-package aggregate hashes still match. No prepare,
-seal, capture, direct visual review, renderer repair, or visible/licensed
-real-game gate has been run for the expanded selection yet.
+`corpus.json` and prepared-package aggregate hashes still match. Read-only
+real-PAC preparation and hidden resident capture are authorized for the 500-PAC
+selection. No prepare, seal, capture, direct visual review, renderer repair, or
+visible/licensed real-game gate has been completed for it yet.
 
 ```powershell
 .\.venv\Scripts\python.exe tools\mesh_editor_visual_audit_manifest.py `
   --game-root "C:\games\Steam\steamapps\common\Crimson Desert" `
   --baseline-corpus "$env:TEMP\cdmw-material-parity-final-120-20260720-111535\corpus.json" `
-  --output "workspace\mesh-editor-visual-audit\manifest-expanded-sixth-120.json"
+  --output "workspace\mesh-editor-visual-audit\manifest-expanded-sixth-500.json" `
+  --asset-count 500
 ```
 
 Highest-value remaining work:
