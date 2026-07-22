@@ -188,8 +188,12 @@ def _hydrate_real_archive_mesh_materials(
             if not resolution.ok or resolution.archive_entry is None:
                 continue
             source_path = Path(resolution.source_path).resolve()
-            material_input.source_texture_path = str(source_path)
-            material_input.source_dds_path = str(source_path)
+            _apply_resolved_material_transport(
+                material_input,
+                virtual_source=virtual_source,
+                archive_path=str(resolution.archive_path or ""),
+                source_path=source_path,
+            )
             semantic = str(
                 getattr(material_input, "semantic_type", "")
                 or getattr(material_input, "slot_kind", "")
@@ -286,3 +290,22 @@ def _hydrate_real_archive_mesh_materials(
             seen_rows.add(row_key)
             rows.append({**row, "material_authority": "parser_slot_fallback"})
     return tuple(rows), tuple(diagnostics)
+
+
+def _apply_resolved_material_transport(
+    material_input: object,
+    *,
+    virtual_source: str,
+    archive_path: str,
+    source_path: Path,
+) -> None:
+    """Keep PAC semantics separate from the extracted DDS transport path."""
+
+    canonical_reference = str(
+        getattr(material_input, "source_texture_path", "")
+        or archive_path
+        or virtual_source
+        or ""
+    ).replace("\\", "/").strip()
+    material_input.source_texture_path = canonical_reference
+    material_input.source_dds_path = str(Path(source_path).resolve())

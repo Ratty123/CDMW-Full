@@ -3,6 +3,7 @@ from __future__ import annotations
 from argparse import Namespace
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from PIL import Image
@@ -12,6 +13,7 @@ from tools.mesh_editor_visual_audit_refresh_dotnet import (
     _matching_source_assets,
     _reused_runtime_assets,
 )
+from tools.mesh_harness.archive_provenance import _apply_resolved_material_transport
 from tools.mesh_harness.visual_audit_corpus import (
     VISUAL_AUDIT_VIEWS,
     VisualAuditAssetSpec,
@@ -65,6 +67,27 @@ def test_visual_audit_rejects_dotnet_apphost_as_an_assembly(tmp_path: Path) -> N
         _dotnet_assembly_path(
             Namespace(dotnet_assembly=tmp_path / "cdmw-mesh-dotnet-editor.exe")
         )
+
+
+def test_visual_audit_hydration_preserves_pac_reference_and_rebases_only_transport(
+    tmp_path: Path,
+) -> None:
+    declared = "tree/texture/branch_broad_cotton_01_color.dds"
+    extracted = tmp_path / "branch_broad_cotton_01.dds"
+    material_input = SimpleNamespace(
+        source_texture_path=declared,
+        source_dds_path="character/texture/branch_broad_cotton_01.dds",
+    )
+
+    _apply_resolved_material_transport(
+        material_input,
+        virtual_source=material_input.source_dds_path,
+        archive_path="character/texture/branch_broad_cotton_01.dds",
+        source_path=extracted,
+    )
+
+    assert material_input.source_texture_path == declared
+    assert material_input.source_dds_path == str(extracted.resolve())
 
 
 def test_visual_audit_resume_preserves_a_bounded_manifest_selection() -> None:
