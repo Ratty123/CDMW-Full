@@ -24,7 +24,11 @@ from cdmw.core.dds_resource_limits import (
     DDS_MAX_PAYLOAD_BYTES,
     checked_dds_mip_byte_counts,
 )
-from cdmw.core.temp_cache import app_temp_cache_path, request_app_temp_cache_prune
+from cdmw.core.temp_cache import (
+    DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
+    app_temp_cache_path,
+    request_app_temp_cache_prune,
+)
 from cdmw.core.texture_decode_cache import (
     preview_cache_locks,
     preview_pair_is_valid,
@@ -319,6 +323,7 @@ def inspect_dds_with_directxtex(
 def _directxtex_preview_cache_path(
     dds_path: Path,
     *,
+    cache_dirname: str = DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
     max_dimension: int,
     slot_kind: str,
     srgb: str,
@@ -337,7 +342,7 @@ def _directxtex_preview_cache_path(
         output_pixel_type=output_pixel_type,
         binary=binary,
     )
-    cache_dir = app_temp_cache_path("directxtex_texture_preview", cache_key)
+    cache_dir = app_temp_cache_path(cache_dirname, cache_key)
     return cache_dir / f"{dds_path.stem}.png"
 
 
@@ -441,6 +446,7 @@ def _decode_staging_parent(preview_path: Path, temp_root: Optional[Path]) -> Pat
 def ensure_directxtex_dds_preview_png(
     dds_path: Path,
     *,
+    cache_dirname: str = DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
     max_dimension: int,
     slot_kind: str = "base",
     srgb: str = "auto",
@@ -463,6 +469,7 @@ def ensure_directxtex_dds_preview_png(
                 "output_pixel_type": output_pixel_type,
             },
         ),
+        cache_dirname=cache_dirname,
         timeout_seconds=timeout_seconds,
         on_log=on_log,
         stop_event=stop_event,
@@ -473,6 +480,7 @@ def ensure_directxtex_dds_preview_png(
 def ensure_directxtex_dds_preview_pngs(
     jobs: Sequence[Mapping[str, object]],
     *,
+    cache_dirname: str = DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
     timeout_seconds: Optional[float] = None,
     include_job_keys: bool = False,
     on_log: Optional[Any] = None,
@@ -546,6 +554,7 @@ def ensure_directxtex_dds_preview_pngs(
         )
         preview_path = _directxtex_preview_cache_path(
             dds_path,
+            cache_dirname=cache_dirname,
             max_dimension=max_dimension,
             slot_kind=slot_kind,
             srgb=srgb,

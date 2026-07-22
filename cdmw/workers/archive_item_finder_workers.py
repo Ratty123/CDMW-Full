@@ -74,10 +74,12 @@ class ArchiveItemThumbnailWorker(QObject):
         if not jobs or self.stop_event.is_set():
             return {}
         try:
+            from cdmw.core.temp_cache import ITEM_ICON_PREVIEW_CACHE_DIRNAME
             from cdmw.core.texture_native import ensure_directxtex_dds_preview_pngs
 
             return ensure_directxtex_dds_preview_pngs(
                 jobs,
+                cache_dirname=ITEM_ICON_PREVIEW_CACHE_DIRNAME,
                 stop_event=self.stop_event,
             )
         except Exception:

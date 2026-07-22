@@ -8,6 +8,7 @@ from typing import Callable
 
 from cdmw.constants import APP_TITLE, DEFAULT_UI_THEME
 from cdmw.models import clamp_archive_performance_settings, clamp_model_preview_render_settings
+from cdmw.services.cache_layout import migrate_runtime_cache_layout
 from cdmw.services.settings_service import create_settings
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.localization import UiLocalizer
@@ -56,6 +57,16 @@ class ShellWindowBootstrapStateMixin:
         )
         if archive_cache_root_override:
             os.environ["CDMW_TEMP_CACHE_ROOT"] = str(self.archive_cache_root)
+        cache_migration = migrate_runtime_cache_layout(self.archive_cache_root)
+        if cache_migration.moved or cache_migration.skipped:
+            try:
+                record_runtime_event(
+                    "runtime_cache_layout_migration",
+                    moved_count=len(cache_migration.moved),
+                    skipped_count=len(cache_migration.skipped),
+                )
+            except Exception:
+                pass
 
         self.language_dir = self.settings_file_path.parent / "languages"
         self.ui_localizer = UiLocalizer(

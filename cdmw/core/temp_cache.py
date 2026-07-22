@@ -15,16 +15,22 @@ from typing import Iterator, Optional, Sequence
 from cdmw.constants import APP_NAME
 
 
+DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME = "preview/textures/directxtex"
+ITEM_ICON_PREVIEW_CACHE_DIRNAME = "preview/item-icons"
+LEGACY_DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME = "directxtex_texture_preview"
+
 APP_TEMP_CACHE_DIRNAMES: tuple[str, ...] = (
     "archive_preview_cache",
-    "directxtex_texture_preview",
+    DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
+    ITEM_ICON_PREVIEW_CACHE_DIRNAME,
+    LEGACY_DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
     "native_texture_preview",
     "static_mesh_texture_previews",
     "final_package_preview",
     "preview_cache",
     "preview_cache_display",
 )
-_APP_TEMP_CACHE_DIRNAME_KEYS = frozenset(name.casefold() for name in APP_TEMP_CACHE_DIRNAMES)
+_APP_TEMP_CACHE_DIRNAME_KEYS = frozenset(Path(name).name.casefold() for name in APP_TEMP_CACHE_DIRNAMES)
 DEFAULT_APP_TEMP_CACHE_MAX_BYTES = 512 * 1024 * 1024
 DEFAULT_APP_TEMP_CACHE_TARGET_BYTES = 384 * 1024 * 1024
 DEFAULT_APP_TEMP_CACHE_PRUNE_INTERVAL_SECONDS = 60.0

@@ -60,6 +60,51 @@ def _raw_cache_entry(cache_root: Path, key: str) -> Path:
 
 
 class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
+    def test_foreground_build_separates_native_scratch_from_model_packages(self) -> None:
+        class Harness(ArchivePreviewNativeMixin):
+            pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            native_root = cache_root / "preview" / "native"
+            package_root = cache_root / "preview" / "models"
+            harness = Harness()
+            harness.native_preview_core_enabled = True
+            harness.entry = _entry()
+            harness.native_preview_core_cache_root = native_root
+            harness.native_preview_package_cache_root = package_root
+            harness.native_preview_package_cache_mode = "balanced"
+            harness.native_preview_package_cache_key = "separated"
+            harness.native_preview_package_cache_max_bytes = 1024 * 1024
+            harness.native_preview_package_cache_target_bytes = 512 * 1024
+            harness.render_settings = None
+            harness.companion_entry = None
+            harness.native_preview_core_package_root = None
+            harness.native_preview_dependency_entries = ()
+            harness.native_preview_dependency_entries_complete = False
+            harness.enabled_prefab_component_paths = ()
+            harness.stop_event = threading.Event()
+            observed_native_roots: list[Path] = []
+
+            def fake_build(_entry, **kwargs):
+                observed_native_roots.append(Path(kwargs["cache_root"]))
+                output_root = Path(kwargs["output_root"])
+                output_root.mkdir(parents=True)
+                (output_root / "manifest.json").write_text("{}", encoding="utf-8")
+                return NativePreviewCoreAttempt(status="ok", package_path=str(output_root))
+
+            with patch(
+                "cdmw.workers.archive_preview_native.run_native_preview_core_preview_job",
+                side_effect=fake_build,
+            ):
+                attempt = harness._try_native_preview_core()
+
+            self.assertIsNotNone(attempt)
+            self.assertTrue(attempt.succeeded)  # type: ignore[union-attr]
+            self.assertEqual([native_root], observed_native_roots)
+            self.assertTrue(Path(attempt.package_path).is_relative_to(package_root))  # type: ignore[union-attr]
+            self.assertFalse((native_root / "packages").exists())
+
     def _retired_test_same_key_prefetch_builds_once_across_threads(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_root = Path(temp_dir) / "cache"

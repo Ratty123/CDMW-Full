@@ -92,6 +92,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         attach_preview_images: bool = True,
         native_preview_core_enabled: bool = False,
         native_preview_core_cache_root: Optional[Path] = None,
+        native_preview_package_cache_root: Optional[Path] = None,
         native_preview_core_package_root: Optional[Path] = None,
         native_preview_dependency_entries: Sequence[ArchiveEntry] = (),
         native_preview_dependency_entries_complete: bool = False,
@@ -133,6 +134,9 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         self.attach_preview_images = bool(attach_preview_images)
         self.native_preview_core_enabled = bool(native_preview_core_enabled)
         self.native_preview_core_cache_root = native_preview_core_cache_root
+        self.native_preview_package_cache_root = (
+            native_preview_package_cache_root or native_preview_core_cache_root
+        )
         self.native_preview_core_package_root = native_preview_core_package_root
         self.native_preview_dependency_entries = tuple(native_preview_dependency_entries)
         self.native_preview_dependency_entries_complete = bool(native_preview_dependency_entries_complete)
@@ -306,7 +310,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             return None
         if str(getattr(self.entry, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
             return None
-        cache_root = self.native_preview_core_cache_root
+        cache_root = self.native_preview_package_cache_root
         cache_key = str(self.native_preview_package_cache_key or "").strip()
         cache_mode = str(self.native_preview_package_cache_mode or "off").strip().lower()
         if cache_root is None or cache_mode == "off" or not cache_key:
@@ -540,7 +544,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                 prepared_preview_model=prepared_preview_model,
             )
             if str(quality_tier or "").strip().lower() == "full":
-                cache_root = self.native_preview_core_cache_root
+                cache_root = self.native_preview_package_cache_root
                 if cache_root is None:
                     payload = dataclasses.replace(
                         payload,

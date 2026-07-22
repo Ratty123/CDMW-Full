@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtGui import QImageReader
 
 from cdmw.services.archive_query_service import resolve_archive_pathc_path
+from cdmw.services.cache_layout import runtime_cache_layout
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData, ModelPreviewMesh
 from cdmw.services.preview_rendering_service import PreparedModelPreviewData
 from cdmw.services.preview_rendering_service import (
@@ -169,7 +170,10 @@ class ArchivePreviewCacheMixin:
         return "::".join(key_parts)
 
     def _native_preview_package_cache_root(self) -> Path:
-        return self.archive_cache_root / "native_preview_core"
+        return runtime_cache_layout(self.archive_cache_root).model_preview_root
+
+    def _native_preview_core_cache_root(self) -> Path:
+        return runtime_cache_layout(self.archive_cache_root).native_preview_root
 
     def _native_preview_package_cache_mode(self) -> str:
         return str(

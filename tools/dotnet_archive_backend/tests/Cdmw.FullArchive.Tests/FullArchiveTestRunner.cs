@@ -14,6 +14,7 @@ internal static class FullArchiveTestRunner
     {
         var tests = new (string Name, Func<Task> Run)[]
         {
+            ("cache_layout_migration", CacheLayoutMigrationAsync),
             ("native_and_generation_cache", NativeAndGenerationCacheAsync),
             ("compact_dependency_index", CompactDependencyIndexAsync),
             ("query_lookup_search_prepare_export", QueryLookupSearchPrepareExportAsync),
@@ -48,6 +49,32 @@ internal static class FullArchiveTestRunner
         }
         Console.Error.WriteLine(string.Join(Environment.NewLine + Environment.NewLine, failures));
         return 1;
+    }
+
+    private static Task CacheLayoutMigrationAsync()
+    {
+        var cacheRoot = TempDirectory("cache-layout");
+        try
+        {
+            var legacyRoot = Path.Combine(cacheRoot, "catalogue_v2");
+            Directory.CreateDirectory(legacyRoot);
+            var markerPath = Path.Combine(legacyRoot, "legacy-marker.txt");
+            File.WriteAllText(markerPath, "existing cache");
+
+            var cache = new ArchiveCacheStore(cacheRoot);
+            var expectedRoot = Path.Combine(cacheRoot, "index", "catalogue_v2");
+            Require(
+                StringComparer.OrdinalIgnoreCase.Equals(cache.CatalogueRoot, expectedRoot),
+                "the archive catalogue did not use the structured index cache lane");
+            Require(
+                File.Exists(Path.Combine(expectedRoot, "legacy-marker.txt")) && !Directory.Exists(legacyRoot),
+                "the legacy catalogue cache was not preserved during migration");
+        }
+        finally
+        {
+            DeleteDirectory(cacheRoot);
+        }
+        return Task.CompletedTask;
     }
 
     private static Task TextureUsageClassificationAsync()
@@ -175,7 +202,7 @@ internal static class FullArchiveTestRunner
                 "deterministic path and identity ordering changed");
 
             var rootId = ArchiveCacheStore.DeriveRootId(fixture.Root);
-            var family = Path.Combine(cacheRoot, "catalogue_v2", rootId);
+            var family = Path.Combine(cacheRoot, "index", "catalogue_v2", rootId);
             Require(File.Exists(Path.Combine(family, "current.json")), "current pointer was not published");
             var firstGeneration = Directory.GetDirectories(Path.Combine(family, "generations"))
                 .Single(path => !Path.GetFileName(path).StartsWith(".", StringComparison.Ordinal));

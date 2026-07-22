@@ -237,6 +237,78 @@ def test_startup_icon_warmup_decodes_off_thread_and_serves_memory_hit(tmp_path) 
     _wait_until(lambda: not tuple(controller.iter_shutdown_workers()))
 
 
+def test_background_warmup_scans_every_catalogue_page_and_queues_all_icons(monkeypatch) -> None:
+    _app()
+    service = _Service()
+    controller = RemoteItemFinderWarmupController(service, _Settings())
+    decoded_batches: list[tuple[int, ...]] = []
+
+    def complete_decode(_sources: object, *, requested_ids: tuple[int, ...]) -> None:
+        decoded_batches.append(requested_ids)
+        controller._inflight_icon_ids.difference_update(requested_ids)
+        controller._processed_icon_ids.update(requested_ids)
+        controller._schedule_continue(0)
+
+    monkeypatch.setattr(controller, "_start_decode_worker", complete_decode)
+    controller.start(_session(), ui_generation=8)
+    _drain()
+    service.result_ready.emit(
+        "build-1",
+        "build_name_index",
+        BuildNameIndexResult("session-a", True, False, 4, 4, item_count=4),
+    )
+    service.result_ready.emit(
+        "search-1",
+        "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 0, 0, 72, (), (), (), True),
+    )
+    _wait_until(lambda: len(service.searches) == 2)
+
+    first_rows = (_row(101, with_icon=True), _row(102, with_icon=True))
+    service.result_ready.emit(
+        "search-2",
+        "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 4, 0, 256, first_rows, (), (), True),
+    )
+    _wait_until(lambda: len(service.icons) == 1)
+    service.result_ready.emit(
+        "icons-1",
+        "load_item_icons",
+        ItemIconBatchResult(
+            "session-a",
+            tuple(ItemIconResult(item_id, None, f"C:/icons/{item_id}.dds") for item_id in (101, 102)),
+        ),
+    )
+    _wait_until(lambda: len(service.searches) == 3)
+    assert service.searches[2][0].page_start == 2
+
+    second_rows = (_row(103, with_icon=True), _row(104, with_icon=True))
+    service.result_ready.emit(
+        "search-3",
+        "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 4, 2, 256, second_rows, (), (), True),
+    )
+    _wait_until(lambda: len(service.icons) == 2)
+    service.result_ready.emit(
+        "icons-2",
+        "load_item_icons",
+        ItemIconBatchResult(
+            "session-a",
+            tuple(ItemIconResult(item_id, None, f"C:/icons/{item_id}.dds") for item_id in (103, 104)),
+        ),
+    )
+    _wait_until(lambda: controller._state == "ready")
+
+    assert decoded_batches == [(101, 102), (103, 104)]
+    assert tuple(item_id for request, _generation in service.icons for item_id in request.item_ids) == (
+        101,
+        102,
+        103,
+        104,
+    )
+    controller.request_shutdown()
+
+
 def test_thumbnail_worker_converts_one_dds_batch_instead_of_one_process_per_icon(
     tmp_path,
     monkeypatch,
@@ -250,10 +322,12 @@ def test_thumbnail_worker_converts_one_dds_batch_instead_of_one_process_per_icon
     image.fill(0xFF00FF00)
     assert image.save(str(png_path))
     batches: list[tuple[dict[str, object], ...]] = []
+    cache_dirnames: list[str] = []
 
-    def fake_batch(jobs: object, **_kwargs: object) -> dict[str, object]:
+    def fake_batch(jobs: object, **kwargs: object) -> dict[str, object]:
         frozen = tuple(dict(job) for job in jobs)
         batches.append(frozen)
+        cache_dirnames.append(str(kwargs.get("cache_dirname") or ""))
         return {
             str(path.resolve()): png_path
             for path in dds_paths
@@ -275,4 +349,5 @@ def test_thumbnail_worker_converts_one_dds_batch_instead_of_one_process_per_icon
 
     assert len(batches) == 1
     assert len(batches[0]) == 2
+    assert cache_dirnames == ["preview/item-icons"]
     assert ready == [1, 2]

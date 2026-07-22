@@ -75,7 +75,7 @@ The Python-free CDMW Lite product is maintained in its own repository and is no 
 | Localization files | `cdmw/services/localization_file_service.py`, `cdmw/workers/localization_workers.py` | `cdmw/ui/localization.py`, `cdmw/ui/shell/language_controller.py` | `tests/test_localization_async_io.py`, `tests/test_localization_translations.py` | `docs/architecture.md` |
 | Utility tools | `cdmw/ui/tools/` | `cdmw/core/mod_package_retrofit.py`, `cdmw/core/mod_package.py`; lazy `tools/headless_feature_stress.py` facade over `tools/headless_stress/` | `tests/test_mod_package_retrofit.py`, `tests/test_restructure_runtime_regression_smoke.py`, `tests/test_headless_feature_stress.py` | `cdmw/ui/tools/README.md`, `docs/test-matrix.md` |
 | Services/domain/workers | `cdmw/services/`, `cdmw/domain/`, `cdmw/workers/` | feature callers | `tests/test_services.py`, `tests/test_workers.py`, architecture tests | `docs/runbooks/worker-lifecycle.md` |
-| App-managed workspace folders | `cdmw/services/workspace_layout.py` | `cdmw/core/texture_pipeline/workspace.py`, shell settings/startup | `tests/test_services.py`, startup/crash guards | `docs/architecture.md` |
+| App-managed workspace and cache folders | `cdmw/services/workspace_layout.py`, `cdmw/services/cache_layout.py` | `cdmw/core/texture_pipeline/workspace.py`, shell settings/startup, archive preview cache owners | `tests/test_services.py`, `tests/test_cache_layout.py`, `tests/test_temp_cache.py`, startup/crash guards | `docs/architecture.md` |
 
 ## Boundary Rules
 

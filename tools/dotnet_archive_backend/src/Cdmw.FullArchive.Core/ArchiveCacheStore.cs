@@ -18,12 +18,32 @@ public sealed class ArchiveCacheStore
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(archiveCacheRoot);
         ArchiveCacheRoot = Path.GetFullPath(archiveCacheRoot);
-        CatalogueRoot = Path.Combine(ArchiveCacheRoot, "catalogue_v2");
+        CatalogueRoot = ResolveCatalogueRoot(ArchiveCacheRoot);
         Directory.CreateDirectory(CatalogueRoot);
     }
 
     public string ArchiveCacheRoot { get; }
     public string CatalogueRoot { get; }
+
+    private static string ResolveCatalogueRoot(string archiveCacheRoot)
+    {
+        var indexRoot = Path.Combine(archiveCacheRoot, "index");
+        var preferredRoot = Path.Combine(indexRoot, "catalogue_v2");
+        var legacyRoot = Path.Combine(archiveCacheRoot, "catalogue_v2");
+        Directory.CreateDirectory(indexRoot);
+        if (!Directory.Exists(preferredRoot) && Directory.Exists(legacyRoot))
+        {
+            try
+            {
+                Directory.Move(legacyRoot, preferredRoot);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                return legacyRoot;
+            }
+        }
+        return preferredRoot;
+    }
 
     public static string DeriveRootId(string packageRoot)
     {

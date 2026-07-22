@@ -15,6 +15,7 @@ from cdmw.core.temp_cache import (
     AppTempCachePruneReport,
     DEFAULT_APP_TEMP_CACHE_MAX_BYTES,
     DEFAULT_APP_TEMP_CACHE_TARGET_BYTES,
+    DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME,
     app_temp_cache_build,
     app_temp_cache_path,
     app_temp_root,
@@ -41,15 +42,15 @@ class AppTempCacheTests(unittest.TestCase):
         with mock.patch.dict(os.environ, {APP_TEMP_CACHE_ROOT_ENV: str(configured_root)}):
             self.assertEqual(app_temp_root(), configured_root)
             self.assertEqual(
-                app_temp_cache_path("directxtex_texture_preview", "abc"),
-                configured_root / "directxtex_texture_preview" / "abc",
+                app_temp_cache_path(DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME, "abc"),
+                configured_root / "preview" / "textures" / "directxtex" / "abc",
             )
 
     def test_prune_removes_oldest_managed_units_to_target(self) -> None:
         with tempfile.TemporaryDirectory() as temp_text:
             app_root = Path(temp_text) / "CrimsonDesertModWorkbench"
             old_unit = app_root / "archive_preview_cache" / "old"
-            new_unit = app_root / "directxtex_texture_preview" / "new"
+            new_unit = app_root / DIRECTXTEX_TEXTURE_PREVIEW_CACHE_DIRNAME / "new"
             foreign_unit = app_root / "not_a_managed_cache" / "foreign"
             old_unit.mkdir(parents=True)
             new_unit.mkdir(parents=True)

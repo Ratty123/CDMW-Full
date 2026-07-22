@@ -12,15 +12,20 @@ decode.
 Persistent data lives beneath the cache root passed with `--cache-root`:
 
 ```text
-catalogue_v2/<root-id>/
-  current.json
-  generations/<generation-id>/
-    manifest.json
-    archive.ali
-    archive.adi
-    lookups.bin
-    names.bin
+index/
+  catalogue_v2/<root-id>/
+    current.json
+    generations/<generation-id>/
+      manifest.json
+      archive.ali
+      archive.adi
+      lookups.bin
+      names.bin
 ```
+
+An existing top-level `catalogue_v2/` family is moved into `index/` on first
+use when the destination is free. If migration cannot complete, the worker
+continues from the legacy location instead of discarding or replacing it.
 
 The base generation is staged and validated before `current.json` is replaced.
 Mapped generations remain protected while a session owns them. Corrupt base
@@ -43,7 +48,10 @@ uses a virtual table so publishing a million-row result does not trigger
 Item Finder uses the fingerprint-owned native item catalogue on first open.
 Search, category/material facets, paging, visible icon batches, and exact/related
 scope resolution stay worker-side; bounded entry IDs are then applied through
-the normal remote archive query. Failed catalogue loads remain retryable.
+the normal remote archive query. After catalogue publication, Full restores the
+saved first page and then walks every catalogue page to warm durable icon PNGs
+under `cache/preview/item-icons/` in small low-priority batches. Only a bounded
+recent image window remains in memory. Failed catalogue loads remain retryable.
 
 Raw export accepts bounded entry IDs, a server-side query token, a query-scoped
 folder, or a worker-side family seed. The worker decodes into a sibling staging

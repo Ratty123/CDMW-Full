@@ -106,12 +106,15 @@ class ArchivePreviewNativeMixin:
             return None
         if str(getattr(self.entry, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
             return None
-        cache_root = self.native_preview_core_cache_root
-        if cache_root is None:
+        native_cache_root = self.native_preview_core_cache_root
+        if native_cache_root is None:
             return NativePreviewCoreAttempt(
                 status="error",
                 fallback_reason="native preview-core cache root unavailable",
             )
+        package_cache_root = (
+            getattr(self, "native_preview_package_cache_root", None) or native_cache_root
+        )
         cache_mode = str(self.native_preview_package_cache_mode or "off").strip().lower()
         durable_cache_enabled = (
             cache_mode in {"balanced", "aggressive"}
@@ -126,14 +129,14 @@ class ArchivePreviewNativeMixin:
         try:
             if durable_cache_enabled:
                 build_lock = dotnet_preview_package_cache_build_lock(
-                    cache_root,
+                    package_cache_root,
                     self.native_preview_package_cache_key,
                 )
                 build_lock.acquire()
                 if self.stop_event.is_set():
                     raise RunCancelled("Native preview-core job cancelled.")
                 hit = lookup_dotnet_preview_package_cache(
-                    cache_root,
+                    package_cache_root,
                     self.native_preview_package_cache_key,
                     validate_package=self._validate_native_preview_core_package_basic,
                 )
@@ -155,14 +158,17 @@ class ArchivePreviewNativeMixin:
                 dds_cache_max_bytes = 512 * 1024 * 1024 if cache_mode == "aggressive" else 192 * 1024 * 1024
                 dds_cache_target_bytes = 384 * 1024 * 1024 if cache_mode == "aggressive" else 128 * 1024 * 1024
                 try:
-                    staging_entry_dir = create_dotnet_preview_package_staging_dir(cache_root, leased=True)
+                    staging_entry_dir = create_dotnet_preview_package_staging_dir(
+                        package_cache_root,
+                        leased=True,
+                    )
                     output_root = staging_entry_dir / "package"
                 except OSError:
                     staging_entry_dir = None
                     output_root = None
             native_attempt = run_native_preview_core_preview_job(
                 self.entry,
-                cache_root=cache_root,
+                cache_root=native_cache_root,
                 render_settings=self.render_settings,
                 companion_entry=self.companion_entry,
                 dependency_entries=getattr(self, "native_preview_dependency_entries", ()),
@@ -190,7 +196,7 @@ class ArchivePreviewNativeMixin:
                     "diagnostics": dict(native_attempt.diagnostics),
                 }
                 hit = store_dotnet_preview_package_cache(
-                    cache_root,
+                    package_cache_root,
                     self.native_preview_package_cache_key,
                     staging_entry_dir,
                     metadata,
@@ -213,7 +219,10 @@ class ArchivePreviewNativeMixin:
                     staging_package_dir
                 )
                 fallback_package_dir = (
-                    _preserve_native_preview_core_staging_package(cache_root, staging_entry_dir)
+                    _preserve_native_preview_core_staging_package(
+                        package_cache_root,
+                        staging_entry_dir,
+                    )
                     if valid_staging
                     else None
                 )
@@ -477,7 +486,10 @@ class ArchivePreviewNativeMixin:
     ) -> ArchivePreviewResult:
         entry = self.entry
         metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
-        cache_root = self.native_preview_core_cache_root
+        cache_root = (
+            getattr(self, "native_preview_package_cache_root", None)
+            or self.native_preview_core_cache_root
+        )
         if cache_root is None:
             return self._native_preview_core_failure_result(
                 NativePreviewCoreAttempt(

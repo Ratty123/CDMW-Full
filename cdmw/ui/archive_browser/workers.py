@@ -441,7 +441,8 @@ class ArchivePreviewWorkerMixin:
             include_loose_preview_assets=include_loose_preview_assets,
             sidecar_generation=self.archive_sidecar_generation,
             native_preview_core_enabled=(self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11),
-            native_preview_core_cache_root=self.archive_cache_root / "native_preview_core",
+            native_preview_core_cache_root=self._native_preview_core_cache_root(),
+            native_preview_package_cache_root=self._native_preview_package_cache_root(),
             native_preview_core_package_root=(
                 Path(self.archive_package_root_edit.text().strip()).expanduser()
                 if self.archive_package_root_edit.text().strip()

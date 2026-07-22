@@ -590,7 +590,8 @@ class ArchiveReferencePreviewMixin:
             ),
         )
         preview_settings = self._current_model_preview_render_settings()
-        preview_cache_root = self.archive_cache_root / "native_preview_core"
+        native_preview_cache_root = self._native_preview_core_cache_root()
+        model_preview_cache_root = self._native_preview_package_cache_root()
         preview_cache_mode = self._native_preview_package_cache_mode()
         preview_cache_max_bytes, preview_cache_target_bytes = self._native_preview_package_cache_budget()
         preview_package_root_text = self.archive_package_root_edit.text().strip()
@@ -617,7 +618,7 @@ class ArchiveReferencePreviewMixin:
                 try:
                     native_attempt = run_native_preview_core_preview_job(
                         resolved_entry,
-                        cache_root=preview_cache_root,
+                        cache_root=native_preview_cache_root,
                         render_settings=preview_settings,
                         companion_entry=companion_entry,
                         dependency_entries=dependency_entries,
@@ -634,7 +635,7 @@ class ArchiveReferencePreviewMixin:
                 if native_attempt.succeeded:
                     dotnet_package = build_or_lookup_dotnet_preview_package(
                         native_attempt.package_path,
-                        cache_root=preview_cache_root,
+                        cache_root=model_preview_cache_root,
                         archive_identity=preview_archive_identity,
                         sidecar_generation=preview_sidecar_generation,
                         cache_mode=preview_cache_mode,

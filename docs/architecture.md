@@ -288,6 +288,13 @@ developer-only process override. The transition release retains legacy code and
 caches, but fallback is never automatic: a publication failure may offer a
 process-local legacy choice that cancels v2 requests and shuts down the worker.
 
+The runtime cache has two stable top-level lanes: `cache/index/catalogue_v2/`
+owns Full archive generations, while `cache/preview/` groups `item-icons/`,
+`models/`, `native/`, and `textures/directxtex/`. Startup conservatively moves known
+legacy top-level cache directories into this shape only when each destination
+is absent; conflicts remain untouched. Native DDS/PAMT/material-graph scratch
+data stays separate from durable decoded and .NET/Vortice model packages.
+
 `ResearchService` composes explicit archive-analysis, reference-query,
 texture-analysis/report, preview, and note-persistence surfaces. UI handlers
 snapshot inputs and dispatch archive reads, preview preparation, and report
