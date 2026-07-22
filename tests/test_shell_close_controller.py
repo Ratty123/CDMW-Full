@@ -5,7 +5,7 @@ import os
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QObject, QThread
+from PySide6.QtCore import QObject, QThread, QTimer
 from PySide6.QtWidgets import QApplication, QDialog, QMainWindow
 
 from cdmw.ui.shell import close_controller as close_controller_module
@@ -243,3 +243,27 @@ def test_force_stop_after_grace_targets_only_owned_external_processes(monkeypatc
 
     assert (42, False) in calls
     assert "kill" in calls
+
+
+def test_deferred_close_quits_application_after_hidden_window_is_finalized() -> None:
+    app = QApplication.instance() or QApplication([])
+    window = _ShutdownCoordinatorWindow()
+
+    def stop_backend() -> None:
+        window.archive_backend_client.shutdown_calls += 1
+        window.archive_backend_client.state.value = "stopped"
+
+    window.archive_backend_client.shutdown = stop_backend  # type: ignore[method-assign]
+    fallback_exit = QTimer()
+    fallback_exit.setSingleShot(True)
+    fallback_exit.timeout.connect(lambda: app.exit(17))
+
+    window.show()
+    QTimer.singleShot(0, window.close)
+    fallback_exit.start(600)
+    exit_code = app.exec()
+    fallback_exit.stop()
+
+    assert exit_code == 0
+    assert window._close_finalized
+    assert not window.isVisible()

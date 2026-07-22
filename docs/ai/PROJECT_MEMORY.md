@@ -37,6 +37,7 @@ Last updated: 2026-07-19
 - File/package/report writes use a sibling temporary file or staging directory, flush as appropriate, then atomic replacement/publication. Cancellation must leave no partially published output.
 - ZIP/model ingestion is streaming and cancellable, validates member count, expanded size, ratio, traversal, duplicate targets, free space, and time/byte ceilings, then atomically publishes a content-fingerprinted fresh extraction.
 - Worker-owning UI follows one contract: immutable snapshot, cancellation token, monotonic request ID, queued delivery, stale-result rejection, bounded progress, `request_shutdown()`, and `iter_shutdown_workers()`.
+- Deferred shell close hides the main window while owned work drains, so the final accepted close must explicitly quit `QApplication`; relying on last-visible-window close leaves the packaged process and single-instance guard resident.
 - Source-checkout workspace migration must never move the repository's `tools/` tree into `workspace/`; `.git` plus `cdmw/` identifies a source checkout.
 - App-owned subprocesses get cooperative grace, then process-tree termination. User-launched game and third-party applications remain user-owned.
 

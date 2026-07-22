@@ -516,6 +516,9 @@ class CloseControllerMixin:
         if bool(getattr(self, "_close_force_accept", False)):
             self._finalize_close()
             QMainWindow.closeEvent(self, event)  # type: ignore[arg-type]
+            application = QApplication.instance()
+            if application is not None:
+                application.quit()
             return
         if bool(getattr(self, "_close_after_workers_requested", False)):
             try:
