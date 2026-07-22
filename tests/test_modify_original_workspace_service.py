@@ -120,4 +120,3 @@ def test_modify_original_preparation_service_honors_prestart_cancellation(
     with pytest.raises(RunCancelled, match="Modify Original preparation cancelled"):
         prepare_modify_original_workspace(_request(tmp_path), stop_event=stop)
     assert called is False
-
