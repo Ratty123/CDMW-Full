@@ -69,8 +69,12 @@ progress maps `completed`, `total`, `phase`, and `current_item`; unknown totals
 are indeterminate and successful publication ends at `Archive ready 100%`.
 Preview readiness stays inside the preview pane. Refresh keeps the published
 session usable and atomically replaces it only after the next session/query is
-ready. The Item Finder catalogue builds lazily on first open and reuses the
-archive-fingerprint cache.
+ready. After a Full archive session is published, the Item Finder builds or
+loads its archive-fingerprint catalogue in the resident backend, caches the
+restored first page, and prepares that page's icons before continuing the
+durable all-icon thumbnail warmup at low priority. None of this work blocks the
+splash or main-window first paint, and opening Item Finder consumes any ready
+page/images instead of starting the pipeline.
 
 The initial archive-path dialog runs package-root discovery and path validation
 through `startup_path_task_controller.py`. Requests are cancellable and

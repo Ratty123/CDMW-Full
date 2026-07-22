@@ -87,10 +87,15 @@ already-computed immutable report, then the worker stages, flushes, and
 atomically publishes it; cancellation before publication preserves the prior
 destination.
 
-Archive Item Finder warmup owns persistent-cache lookup and image decode. It
-returns `QImage`; the UI only creates `QPixmap` and scales an in-memory cache
-entry. Static-replacement icon capture likewise detaches a `QImage`, then uses
-the shell output worker for formatting and atomic PNG publication.
+Archive Item Finder warmup starts after the remote archive session is published.
+Its controller owns catalogue/page/icon requests, session generations, visible
+priority, and bounded image caches. Batches use a low-priority `QThread` for
+persistent-cache lookup, batched DDS conversion, and detached `QImage` decode;
+the dialog only creates `QPixmap`. Refresh and shutdown cancel backend requests,
+stop conversion cooperatively, reject stale results, and retain each thread
+until `wait(0)` confirms teardown. Static-replacement icon capture likewise
+detaches a `QImage`, then uses the shell output worker for formatting and atomic
+PNG publication.
 
 Material-sidecar live-preview package validation, manifest cloning, override
 application, and staging writes run inside the cancellable preview task.

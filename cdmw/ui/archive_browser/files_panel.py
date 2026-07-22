@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.ui.archive_browser.model import ArchiveBrowserTreeView
+from cdmw.ui.archive_browser.remote_finder_warmup import RemoteItemFinderWarmupController
 from cdmw.ui.archive_browser.remote_window_bridge import ArchiveRemoteWindowBridge
 from cdmw.ui.widgets import FlatSectionPanel, responsive_sidebar_bounds
 
@@ -71,6 +72,12 @@ class ArchiveFilesPanelMixin:
                 shadow=selection.runs_shadow,
             )
             if selection.displays_v2:
+                self.archive_item_finder_warmup_controller = RemoteItemFinderWarmupController(
+                    self.archive_catalogue_service,
+                    self.settings,
+                    background_allowed=self._archive_browser_background_work_allowed,
+                    parent=self,
+                )
                 self.archive_remote_bridge.backendFailed.connect(
                     self._handle_archive_backend_v2_failure
                 )

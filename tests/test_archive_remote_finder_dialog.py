@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QImage
 from PySide6.QtWidgets import QApplication, QWidget
 
 from cdmw.domain.archives.catalogue import ArchiveSessionHandle
@@ -84,6 +86,29 @@ class _Window(QWidget):
         self.archive_remote_bridge = _Bridge()
 
 
+class _Warmup(QObject):
+    iconsReady = Signal(str, object)
+    iconsFailed = Signal(str, object)
+
+    def __init__(self, result: ItemCatalogSearchResult, image: QImage) -> None:
+        super().__init__()
+        self.result = result
+        self.image = image
+
+    def cached_search(self, _request: object) -> ItemCatalogSearchResult:
+        return self.result
+
+    def cached_icons(self, _session_id: str, item_ids: object) -> dict[int, tuple[str, QImage]]:
+        return {
+            int(item_id): ("C:/cache/item.png", self.image)
+            for item_id in item_ids
+            if int(item_id) == 5
+        }
+
+    def prioritize_icons(self, _session_id: str, item_ids: object) -> tuple[int, ...]:
+        return tuple(int(item_id) for item_id in item_ids)
+
+
 def _row(item_id: int, *, materials: tuple[str, ...] = ()) -> ItemCatalogRow:
     return ItemCatalogRow(
         item_id,
@@ -130,6 +155,26 @@ def test_full_item_finder_loads_immediately_and_pages_server_side() -> None:
     assert dialog._tree.topLevelItemCount() == 2
     assert dialog._next_button.isEnabled()
     assert "of 80" in dialog._status.text()
+    dialog.close()
+
+
+def test_full_item_finder_uses_startup_page_and_icon_cache_without_first_open_requests() -> None:
+    _app()
+    window = _Window()
+    row = replace(_row(5), icon_paths=("ui/icon/item_5.dds",))
+    result = ItemCatalogSearchResult("session-a", 1, 0, 72, (row,), (), (), False)
+    image = QImage(16, 16, QImage.Format_ARGB32)
+    image.fill(0xFFFF0000)
+    window.archive_item_finder_warmup_controller = _Warmup(result, image)
+
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+
+    assert window.archive_catalogue_service.searches == []
+    assert window.archive_catalogue_service.icons == []
+    assert dialog._item_grid.count() == 1
+    assert not dialog._item_grid.item(0).icon().isNull()
+    assert "of 1" in dialog._status.text()
     dialog.close()
 
 def test_full_finder_search_is_latest_wins_and_scope_uses_entry_ids() -> None:

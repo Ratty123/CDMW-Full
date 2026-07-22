@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-import threading
-from pathlib import Path
-
-from PySide6.QtCore import QObject, QSize, QThread, QTimer, Qt, Signal, Slot
-from PySide6.QtGui import QIcon, QPainter, QPalette, QPixmap
+from PySide6.QtCore import QSize, QThread, QTimer, Qt
+from PySide6.QtGui import QIcon, QImage, QPainter, QPalette, QPixmap
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -35,49 +32,7 @@ from cdmw.domain.archives.item_catalogue import (
     ItemIconBatchRequest,
     ItemIconBatchResult,
 )
-from cdmw.services.preview_workflow_service import ensure_dds_display_preview_png
-
-
-class _IconConversionWorker(QObject):
-    finished = Signal(object)
-
-    def __init__(
-        self,
-        sources: dict[int, str],
-        stop_event: threading.Event,
-        generation: int,
-        owner_thread: QThread,
-    ) -> None:
-        super().__init__()
-        self._sources = dict(sources)
-        self._stop_event = stop_event
-        self._generation = int(generation)
-        self._owner_thread = owner_thread
-
-    @Slot()
-    def run(self) -> None:
-        results: dict[int, str] = {}
-        for item_id, source in self._sources.items():
-            if self._stop_event.is_set():
-                break
-            try:
-                path = Path(source)
-                preview = (
-                    ensure_dds_display_preview_png(
-                        path,
-                        max_dimension=120,
-                        slot_kind="base",
-                        stop_event=self._stop_event,
-                    )
-                    if path.suffix.casefold() == ".dds"
-                    else path
-                )
-                if preview.is_file():
-                    results[item_id] = str(preview)
-            except Exception:
-                continue
-        self.moveToThread(self._owner_thread)
-        self.finished.emit((self._generation, results))
+from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
 
 
 class _ItemFinderGrid(QListWidget):
@@ -113,12 +68,12 @@ class RemoteArchiveFinderDialog(QDialog):
         self._tree_items: dict[int, QListWidgetItem] = {}
         self._icon_requested: set[int] = set()
         self._icon_threads: set[QThread] = set()
-        self._icon_workers: dict[QThread, _IconConversionWorker] = {}
-        self._icon_stop_events: set[threading.Event] = set()
+        self._icon_workers: dict[QThread, ArchiveItemThumbnailWorker] = {}
         self._icon_generation = 0
         self._closing = False
         self._facets_ready = False
         self._settings = getattr(window, "settings", None)
+        self._warmup = getattr(window, "archive_item_finder_warmup_controller", None)
         self._preferred_category = self._read_setting("ui/item_finder_category")
         self._preferred_group = self._read_setting("ui/item_finder_group")
         self._preferred_material = self._read_setting("ui/item_finder_material_tag")
@@ -368,6 +323,9 @@ class RemoteArchiveFinderDialog(QDialog):
         self._service.request_failed.connect(self._handle_failure)
         self._service.request_cancelled.connect(self._handle_cancelled)
         self._service.progress.connect(self._handle_progress)
+        if self._warmup is not None:
+            self._warmup.iconsReady.connect(self._handle_warmup_icons_ready)
+            self._warmup.iconsFailed.connect(self._handle_warmup_icons_failed)
 
     def _disconnect_service(self) -> None:
         for signal, slot in (
@@ -380,6 +338,15 @@ class RemoteArchiveFinderDialog(QDialog):
                 signal.disconnect(slot)
             except (RuntimeError, TypeError):
                 pass
+        if self._warmup is not None:
+            for signal, slot in (
+                (self._warmup.iconsReady, self._handle_warmup_icons_ready),
+                (self._warmup.iconsFailed, self._handle_warmup_icons_failed),
+            ):
+                try:
+                    signal.disconnect(slot)
+                except (RuntimeError, TypeError):
+                    pass
 
     def _session_is_current(self) -> bool:
         session = self._bridge.current_session
@@ -425,21 +392,26 @@ class RemoteArchiveFinderDialog(QDialog):
         self._cancel_request("_search_request_id")
         self._cancel_icon_loading()
         category, group, material = self._selected_filters()
+        request = ItemCatalogSearchRequest(
+            self._session_id,
+            query=self._search_edit.text().strip(),
+            category=category,
+            group=group,
+            material_tag=material,
+            page_start=self._page_start,
+            page_size=self._page_size,
+        )
         self._status.setText("Loading catalogue..." if not self._facets_ready else "Searching catalogue...")
         self._retry_button.setVisible(False)
         self._cancel_button.setVisible(True)
         self._item_grid.setEnabled(False)
+        cached = self._warmup.cached_search(request) if self._warmup is not None else None
+        if isinstance(cached, ItemCatalogSearchResult):
+            self._publish_search(cached)
+            return
         try:
             self._search_request_id = self._service.search_item_catalog(
-                ItemCatalogSearchRequest(
-                    self._session_id,
-                    query=self._search_edit.text().strip(),
-                    category=category,
-                    group=group,
-                    material_tag=material,
-                    page_start=self._page_start,
-                    page_size=self._page_size,
-                ),
+                request,
                 ui_generation=self._bridge.controller.generation,
             )
         except Exception as exc:
@@ -467,8 +439,8 @@ class RemoteArchiveFinderDialog(QDialog):
         self._icon_generation += 1
         self._cancel_request("_icon_request_id")
         self._icon_requested.clear()
-        for stop_event in tuple(self._icon_stop_events):
-            stop_event.set()
+        for worker in tuple(self._icon_workers.values()):
+            worker.stop()
 
     def _handle_progress(self, request_id: str, update: object) -> None:
         if request_id != self._search_request_id:
@@ -559,6 +531,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._retry_button.setVisible(bool(result.warning))
         self._item_grid.setEnabled(True)
         self._update_buttons()
+        self._apply_cached_warmup_icons(tuple(self._tree_items))
         QTimer.singleShot(0, self._request_visible_icons)
 
     def _fallback_icon(self, row: ItemCatalogRow) -> QIcon:
@@ -738,6 +711,7 @@ class RemoteArchiveFinderDialog(QDialog):
     def _request_visible_icons(self) -> None:
         if self._icon_request_id or not self._tree_items or self._closing:
             return
+        self._apply_cached_warmup_icons(tuple(self._tree_items))
         viewport = self._item_grid.viewport()
         active_rect = viewport.rect().adjusted(-176, -184, 176, 368)
         visible_ids: list[int] = []
@@ -753,14 +727,54 @@ class RemoteArchiveFinderDialog(QDialog):
         ids = (visible_ids + deferred_ids)[:24]
         if not ids:
             return
-        self._icon_requested.update(ids)
+        accepted: set[int] = set()
+        if self._warmup is not None:
+            try:
+                accepted.update(self._warmup.prioritize_icons(self._session_id, ids))
+            except Exception:
+                accepted.clear()
+        if accepted:
+            self._icon_requested.update(accepted)
+            self._apply_cached_warmup_icons(tuple(accepted))
+        fallback_ids = tuple(item_id for item_id in ids if item_id not in accepted)
+        if not fallback_ids:
+            return
+        self._icon_requested.update(fallback_ids)
         try:
             self._icon_request_id = self._service.load_item_icons(
-                ItemIconBatchRequest(self._session_id, tuple(ids), thumbnail_size=120),
+                ItemIconBatchRequest(self._session_id, fallback_ids, thumbnail_size=120),
                 ui_generation=self._bridge.controller.generation,
             )
         except Exception:
             self._icon_request_id = None
+
+    def _apply_cached_warmup_icons(self, item_ids: tuple[int, ...]) -> set[int]:
+        if self._warmup is None or not item_ids:
+            return set()
+        try:
+            cached = self._warmup.cached_icons(self._session_id, item_ids)
+        except Exception:
+            return set()
+        if not isinstance(cached, dict) or not cached:
+            return set()
+        self._apply_icons((self._icon_generation, cached))
+        ready = {int(item_id) for item_id in cached}
+        self._icon_requested.update(ready)
+        return ready
+
+    def _handle_warmup_icons_ready(self, session_id: str, item_ids: object) -> None:
+        if self._closing or session_id != self._session_id or not isinstance(item_ids, (tuple, list)):
+            return
+        ready_ids = tuple(int(item_id) for item_id in item_ids)
+        self._apply_cached_warmup_icons(ready_ids)
+        self._visible_icon_timer.start()
+
+    def _handle_warmup_icons_failed(self, session_id: str, item_ids: object) -> None:
+        if self._closing or session_id != self._session_id or not isinstance(item_ids, (tuple, list)):
+            return
+        for item_id in item_ids:
+            self._icon_requested.discard(int(item_id))
+        self._visible_icon_timer.start()
 
     def _publish_icon_sources(self, result: ItemIconBatchResult) -> None:
         if self._closing or result.session_id != self._session_id or not self._session_is_current():
@@ -777,21 +791,19 @@ class RemoteArchiveFinderDialog(QDialog):
         if not sources:
             self._visible_icon_timer.start()
             return
-        stop_event = threading.Event()
         thread = QThread(self)
-        worker = _IconConversionWorker(sources, stop_event, generation, self.thread())
+        thread.setObjectName("remote_item_finder_visible_icons")
+        worker = ArchiveItemThumbnailWorker(generation, sources, self.thread(), max_dimension=120)
         worker.moveToThread(thread)
         self._icon_threads.add(thread)
         self._icon_workers[thread] = worker
-        self._icon_stop_events.add(stop_event)
         thread.started.connect(worker.run)
-        worker.finished.connect(self._apply_icons)
+        worker.icon_ready.connect(self._handle_decoded_icon)
         worker.finished.connect(thread.quit)
         worker.finished.connect(worker.deleteLater)
-        thread.finished.connect(lambda thread=thread, stop_event=stop_event: self._icon_thread_finished(thread, stop_event))
+        thread.finished.connect(self._handle_icon_thread_finished_signal, Qt.QueuedConnection)
         thread.start()
 
-    @Slot(object)
     def _apply_icons(self, payload: object) -> None:
         if (
             not isinstance(payload, tuple)
@@ -803,24 +815,40 @@ class RemoteArchiveFinderDialog(QDialog):
         ):
             return
         paths = payload[1]
-        for item_id, path in paths.items():
+        for item_id, prepared in paths.items():
             tree_item = self._tree_items.get(int(item_id))
             if not isinstance(tree_item, QListWidgetItem):
                 continue
-            pixmap = QPixmap(str(path))
+            if (
+                isinstance(prepared, tuple)
+                and len(prepared) == 2
+                and isinstance(prepared[1], QImage)
+            ):
+                pixmap = QPixmap.fromImage(prepared[1])
+            else:
+                pixmap = QPixmap(str(prepared))
             if pixmap.isNull():
                 continue
             tree_item.setIcon(QIcon(pixmap.scaled(112, 112, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
         if self._selected_row() is not None:
             self._update_selected_item_detail()
 
-    def _icon_thread_finished(self, thread: QThread, stop_event: threading.Event) -> None:
+    def _handle_decoded_icon(self, generation: int, item_id: int, path: str, image: object) -> None:
+        if not isinstance(image, QImage) or image.isNull():
+            return
+        self._apply_icons((int(generation), {int(item_id): (str(path), image)}))
+
+    def _handle_icon_thread_finished_signal(self) -> None:
+        thread = self.sender()
+        if isinstance(thread, QThread):
+            self._icon_thread_finished(thread)
+
+    def _icon_thread_finished(self, thread: QThread) -> None:
         if not thread.wait(0):
-            QTimer.singleShot(0, lambda: self._icon_thread_finished(thread, stop_event))
+            QTimer.singleShot(1, lambda: self._icon_thread_finished(thread))
             return
         self._icon_threads.discard(thread)
         self._icon_workers.pop(thread, None)
-        self._icon_stop_events.discard(stop_event)
         thread.deleteLater()
         if not self._closing:
             self._visible_icon_timer.start()

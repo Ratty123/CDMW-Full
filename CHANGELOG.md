@@ -12,6 +12,7 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Changed
+- Changed Full CDMW Item Finder startup so its catalogue, restored first page, and icon thumbnails warm after archive publication instead of waiting for the first Item Finder click; visible icons preempt the bounded low-priority background queue.
 - Removed the standalone Material Finder from CDMW Full while retaining Item Finder, including its material-tag search and filtering.
 - Broadened Archive Browser item-name recovery across shifted ItemInfo layouts, larger prefab-reference lists, semantic StringInfo icon links, and derived icon/texture/sidecar filenames; related Name Evidence cells now show the recovered item name without a redundant `Name hint:` prefix.
 - Merged Archive Browser's Exact Name and Name Evidence columns into one Item Name column. Direct names take priority, inferred names fill the same column, and the tooltip retains the exact-versus-related confidence distinction.

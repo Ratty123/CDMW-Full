@@ -59,6 +59,12 @@ than importing the other product's source:
   generations, and cancels outstanding requests and conversions on a newer
   search or dialog close. Material-specific browsing remains outside this Item
   Finder surface.
+- Full now starts the catalogue and icon warmup immediately after archive
+  publication instead of on the first Item Finder click. The restored 72-row
+  page is cached for immediate open, selected/visible requests preempt the
+  low-priority all-icon queue, DDS conversions are batched, and only 96 recent
+  non-startup `QImage` values remain in the general memory LRU; durable PNGs
+  remain the cross-session cache.
 - `Cdmw.Archive.Content` owns the path-only terminal-suffix DDS usage rule.
   Lite presents `.dds` as File type **Texture** plus Color, Normal map,
   Material map, or explicit Unknown usage; a material-like word elsewhere in

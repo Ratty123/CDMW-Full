@@ -141,6 +141,16 @@ class CloseControllerMixin:
             ("archive_isolated_package_thread", self.archive_isolated_package_thread, self.archive_isolated_package_worker),
             ("archive_native_prefetch_thread", self.archive_native_prefetch_thread, self.archive_native_prefetch_worker),
         ]
+        item_finder_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        iter_item_finder_workers = getattr(item_finder_warmup, "iter_shutdown_workers", None)
+        if callable(iter_item_finder_workers):
+            try:
+                tracked.extend(
+                    (f"item_finder.{name}", thread, worker)
+                    for name, thread, worker in tuple(iter_item_finder_workers())
+                )
+            except RuntimeError:
+                pass
 
         def _record_tab_worker_error(tab_name: str, message: str) -> None:
             self._record_close_event(
@@ -229,6 +239,13 @@ class CloseControllerMixin:
         request_transient_shutdowns(self, on_error=_record_tab_shutdown_error)
 
     def _request_tracked_workers_to_stop(self) -> None:
+        item_finder_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        request_item_finder_shutdown = getattr(item_finder_warmup, "request_shutdown", None)
+        if callable(request_item_finder_shutdown):
+            try:
+                request_item_finder_shutdown()
+            except (AttributeError, RuntimeError):
+                pass
         catalogue = getattr(self, "archive_catalogue_service", None)
         request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
         if callable(request_catalogue_shutdown):
@@ -461,6 +478,13 @@ class CloseControllerMixin:
         self._close_finalized = True
         self._record_close_event("close_finalize", close_phase="finalize")
         self._request_tab_shutdowns()
+        item_finder_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
+        request_item_finder_shutdown = getattr(item_finder_warmup, "request_shutdown", None)
+        if callable(request_item_finder_shutdown):
+            try:
+                request_item_finder_shutdown()
+            except (AttributeError, RuntimeError):
+                pass
         catalogue = getattr(self, "archive_catalogue_service", None)
         request_catalogue_shutdown = getattr(catalogue, "request_shutdown", None)
         if callable(request_catalogue_shutdown):

@@ -148,6 +148,7 @@ class ShellWindowRuntimeStateMixin:
         self.archive_backend_mode_warning_logged = False
         self.archive_backend_failure_dialog_open = False
         self.archive_remote_bridge = None
+        self.archive_item_finder_warmup_controller = None
         self.archive_remote_query_pending = False
         self.archive_remote_actions_safe = True
         self.archive_remote_total_matches = 0

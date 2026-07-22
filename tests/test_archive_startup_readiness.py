@@ -80,7 +80,10 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
         release = render_source[render_source.index("    def _maybe_release_startup_after_archive_ready(self) -> None:") : render_source.index("    def _try_apply_startup_saved_filters")]
         first_paint = render_source[render_source.index("    def _handle_archive_browser_first_visible_paint") : render_source.index("\n\n__all__")]
 
-        self.assertIn("self.archive_startup_index_warmup_required = True", autoload)
+        self.assertIn(
+            "self.archive_startup_index_warmup_required = not use_remote_backend",
+            autoload,
+        )
         self.assertNotIn("self._release_startup_splash()", autoload[autoload.index("        self.scan_archives(") :])
         self.assertIn("startup_index_warmup = bool(", scan)
         self.assertIn("startup_index_warmup\n                or self.archive_startup_saved_filter_apply_pending", scan)
@@ -169,6 +172,27 @@ class ArchiveStartupReadinessTests(unittest.TestCase):
         self.assertTrue(harness.ensured)
         self.assertIsNotNone(harness.scheduled_archive_preview_request)
         self.assertIn("material and texture lookup", harness.detail)
+
+    def test_remote_item_finder_warmup_starts_after_publish_and_is_shutdown_owned(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        files_source = (root / "cdmw/ui/archive_browser/files_panel.py").read_text(encoding="utf-8")
+        bridge_source = (root / "cdmw/ui/archive_browser/remote_window_bridge.py").read_text(encoding="utf-8")
+        close_source = (root / "cdmw/ui/shell/close_controller.py").read_text(encoding="utf-8")
+        publish = bridge_source[
+            bridge_source.index("    def _handle_query_published") : bridge_source.index(
+                "    def _handle_facets",
+                bridge_source.index("    def _handle_query_published"),
+            )
+        ]
+
+        self.assertIn("RemoteItemFinderWarmupController(", files_source)
+        self.assertIn("start_item_finder_warmup(", publish)
+        self.assertIn("ui_generation=self._controller.generation", publish)
+        self.assertIn("request_item_finder_shutdown()", close_source)
+        self.assertLess(
+            close_source.index("request_item_finder_shutdown()"),
+            close_source.index("request_catalogue_shutdown()"),
+        )
 
 
 if __name__ == "__main__":

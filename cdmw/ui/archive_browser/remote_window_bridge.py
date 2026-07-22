@@ -176,6 +176,14 @@ class ArchiveRemoteWindowBridge(QObject):
         force_refresh: bool,
         activate_tab: bool,
     ) -> None:
+        item_finder_warmup = getattr(
+            self._window,
+            "archive_item_finder_warmup_controller",
+            None,
+        )
+        invalidate_item_finder = getattr(item_finder_warmup, "invalidate", None)
+        if callable(invalidate_item_finder):
+            invalidate_item_finder()
         current_session = self.current_session
         self._superseded_session_id = (
             current_session.session_id
@@ -615,6 +623,17 @@ class ArchiveRemoteWindowBridge(QObject):
             publish_consumers(self._controller.current_session, handle)
         current_session = self._controller.current_session
         if current_session is not None:
+            item_finder_warmup = getattr(
+                window,
+                "archive_item_finder_warmup_controller",
+                None,
+            )
+            start_item_finder_warmup = getattr(item_finder_warmup, "start", None)
+            if callable(start_item_finder_warmup):
+                start_item_finder_warmup(
+                    current_session,
+                    ui_generation=self._controller.generation,
+                )
             for warning in current_session.discovery_warnings:
                 window.append_archive_log(f"Warning: {warning}")
         window.archive_remote_query_pending = False
