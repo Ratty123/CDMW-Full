@@ -37,7 +37,7 @@ from tools.mesh_harness.native_projection import (
     _projected_face_cluster_for_drag,
     _timing_summary,
 )
-from tools.mesh_harness.native_protocol import _host_window_rect, _send_mouse_message
+from tools.mesh_harness.win32_input import _host_window_rect, _send_mouse_message
 from tools.mesh_harness.png_evidence import _write_real_archive_visual_edit_proof
 from tools.mesh_harness.performance_contract import (
     PERFORMANCE_HARNESS_EVIDENCE_SCHEMA,
@@ -722,7 +722,7 @@ def _start_embedded_editor(
     layout = QVBoxLayout(state.builder)
     layout.setContentsMargins(0, 0, 0, 0)
     state.host = QFrame(state.builder)
-    state.host.setObjectName("AlignmentNativeD3D11PreviewHost")
+    state.host.setObjectName("AlignmentDotNetVorticePreviewHost")
     state.host.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
     layout.addWidget(state.host)
     state.dotnet_ready_callback = False

@@ -302,7 +302,7 @@ def _d3d11_package_lifecycle_step_014(_state):
     def _active_mesh_edit_d3d11_static_preview_queue_blocked(kind: str, event: str) -> bool:
         if not _state._mesh_edit_raw_preview_active_value():
             return False
-        message = f'Active Mesh Editor static preview {kind} is disabled; native D3D11 preview payloads are required.'
+        message = f'Active Mesh Editor static preview {kind} is disabled; .NET/Vortice preview payloads are required.'
         if callable(_state._record_runtime_event):
             _state._record_runtime_event(event, path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
         set_status_message = getattr(_state.self, 'set_status_message', None)
@@ -426,12 +426,17 @@ def _d3d11_package_lifecycle_step_025(_state):
             package_path = _state.Path(package_dir)
         except TypeError:
             return
+        cleanup_path = (
+            package_path.parent
+            if package_path.name == 'package' and package_path.parent.name.startswith('cdmw_dotnet_preview_')
+            else package_path
+        )
 
         def _remove() -> None:
             if not force and _state._alignment_d3d11_package_is_cached_helper(package_path, _state.alignment_d3d11_state.get('package_cache')):
                 return
             try:
-                _state.shutil.rmtree(package_path, ignore_errors=True)
+                _state.shutil.rmtree(cleanup_path, ignore_errors=True)
             except OSError:
                 pass
         if delay_ms > 0:
@@ -505,32 +510,19 @@ def _d3d11_package_lifecycle_step_034(_state):
 def _d3d11_package_lifecycle_step_035(_state):
 
     def _alignment_d3d11_stop_process() -> None:
-        process = _state.alignment_d3d11_state.get('process')
         package_dir = _state._alignment_d3d11_clear_active_package_helper(_state.alignment_d3d11_state, clear_process=True, clear_request_id=False, clear_status=True)
         _state._safe_stop_alignment_timer(_state.alignment_d3d11_status_timer)
-        if not isinstance(process, _state.QProcess):
-            _state._cleanup_alignment_d3d11_package(package_dir)
-            return
         try:
-            process.disconnect()
-        except (RuntimeError, TypeError):
-            pass
-        try:
-            if process.state() != _state.QProcess.NotRunning:
-                process.terminate()
-                _state.QTimer.singleShot(1200, lambda process=process: _state.self._kill_archive_isolated_renderer_process_if_running(process))
-                _state._cleanup_alignment_d3d11_package(package_dir, delay_ms=5000)
-            else:
-                _state._cleanup_alignment_d3d11_package(package_dir)
-            process.deleteLater()
+            _state.alignment_d3d11_preview_host.controller.shutdown()
         except RuntimeError:
-            _state._cleanup_alignment_d3d11_package(package_dir)
+            pass
+        _state._cleanup_alignment_d3d11_package(package_dir, delay_ms=1000)
     _state._alignment_d3d11_stop_process = _alignment_d3d11_stop_process
 
 def _d3d11_package_lifecycle_step_036(_state):
     if _state.dialog is not None:
         try:
-            setattr(_state.dialog, '_mesh_editor_embedded_stop_native_d3d11_preview', _state._alignment_d3d11_stop_process)
+            setattr(_state.dialog, '_mesh_editor_embedded_stop_dotnet_preview', _state._alignment_d3d11_stop_process)
         except (AttributeError, TypeError):
             pass
 

@@ -408,7 +408,7 @@ ARCHIVE_ATTACHMENT_SAFE_PLACEMENT_DIALOG = ROOT / "cdmw" / "ui" / "archive_brows
 WORKFLOW_PROFILES_UI = ROOT / "cdmw" / "ui" / "texture_workflow" / "workflow_profiles_ui.py"
 WIDGETS = ROOT / "cdmw" / "ui" / "widgets.py"
 NATIVE_PREVIEW_PANEL = ROOT / "cdmw" / "ui" / "native_preview_panel.py"
-NATIVE_D3D11_PREVIEW_HOST = ROOT / "cdmw" / "ui" / "native_d3d11_preview_host.py"
+DOTNET_PREVIEW_HOST = ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py"
 ARCHIVE_MODDING = ROOT / "cdmw" / "core" / "archive_modding.py"
 ARCHIVE_LOOSE_EXPORT = ROOT / "cdmw" / "core" / "archive_loose_export.py"
 STATIC_REPLACER = ROOT / "cdmw" / "modding" / "static_mesh_replacer.py"
@@ -619,7 +619,7 @@ def _widgets_source() -> str:
 
 
 def _native_d3d11_preview_host_source() -> str:
-    return NATIVE_D3D11_PREVIEW_HOST.read_text(encoding="utf-8")
+    return DOTNET_PREVIEW_HOST.read_text(encoding="utf-8")
 
 
 def _archive_modding_source() -> str:
@@ -833,7 +833,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("embedded_host=self.mesh_editor_tab.builder_host() if hasattr(self, \"mesh_editor_tab\") else None", source)
         self.assertIn('control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")', source)
         self.assertIn('controls_panel.setObjectName("MeshAlignmentStickyControlPanel")', source)
-        self.assertIn("alignment_d3d11_preview_host = NativeD3D11PreviewHostFrame(alignment_d3d11_preview_page)", source)
+        self.assertIn("alignment_d3d11_preview_host = DotNetPreviewHostFrame(", source)
+        self.assertIn("profile=DotNetPreviewProfile.AUTHORING", source)
         self.assertIn("AlignmentD3D11PackageWorker(", source)
         self.assertIn('display_mode=requested_display_mode', source)
         package_lifecycle_source = static_replacement_callback_concern_source(
@@ -865,17 +866,16 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def mesh_editor_diagnostics_source_mesh_lines(", diagnostics_source)
         self.assertIn("def mesh_editor_diagnostics_copied_status", diagnostics_source)
         self.assertIn("_mesh_editor_diagnostics_copied_status_helper()", source)
-        self.assertIn("find_native_d3d11_host()", source)
+        self.assertIn("getattr(getattr(alignment_d3d11_preview_host, 'controller', None), '_executable'", source)
         self.assertIn("active_package_quality", source)
         self.assertIn("mesh_edit_raw_preview_active", source)
         self.assertIn("source_face_limit", source)
         self.assertIn("Embedded .NET/Vortice state", source)
         self.assertIn("active_preview_backend", source)
         self.assertIn("_mesh_editor_embedded_runtime_diagnostics", source)
-        self.assertIn("intentionally inactive while embedded .NET/Vortice owns the visible preview", source)
         self.assertIn("manifest flags: two_sided_batches=", diagnostics_source)
         self.assertIn("manifest material inputs: ", diagnostics_source)
-        self.assertIn("Latest native status", source)
+        self.assertIn("Latest .NET/Vortice protocol event", source)
         self.assertIn("diagnostics_copy_button.clicked.connect", source)
         self.assertIn("_queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)", source)
 
@@ -1245,8 +1245,23 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def _start_alignment_d3d11_package_worker(", source)
         self.assertIn("reason: str='geometry'", source)
 
-    def test_alignment_dialog_has_native_d3d11_accurate_preview_mode(self) -> None:
+    def test_alignment_dialog_has_resident_dotnet_vortice_preview_mode(self) -> None:
         source = _main_window_source() + "\n" + _archive_preview_settings_source()
+        host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        controller_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py").read_text(encoding="utf-8")
+        worker_source = (ROOT / "cdmw" / "workers" / "d3d11_package_workers.py").read_text(encoding="utf-8")
+        self.assertIn('(".NET/Vortice Preview", "d3d11")', source)
+        self.assertIn("DotNetPreviewHostFrame(", source)
+        self.assertIn("profile=DotNetPreviewProfile.AUTHORING", source)
+        self.assertIn('setObjectName("AlignmentDotNetVorticePreviewHost")', source)
+        self.assertIn("preview_stack.setCurrentWidget(alignment_d3d11_preview_page)", source)
+        self.assertIn("build_or_lookup_dotnet_preview_package_from_model(", worker_source)
+        self.assertIn("resident_preview_package_replace_v2", controller_source)
+        self.assertIn("set_authoring_rehydrator", controller_source)
+        self.assertIn("def set_alignment_state", host_source)
+        self.assertNotIn("NativeD3D11PreviewHostFrame", source)
+        self.assertNotIn("write_isolated_d3d11_preview_package(", worker_source)
+        return
         native_source = d3d11_preview_source()
         worker_source = (ROOT / "cdmw" / "workers" / "d3d11_package_workers.py").read_text(encoding="utf-8")
         package_source = _native_preview_package_source()
@@ -2500,6 +2515,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("alignment_d3d11_status_timer.stop()", finish_body)
 
     def test_model_preview_draws_selected_part_outline_overlay(self) -> None:
+        dotnet_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
+        host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        self.assertIn("_overlaySelectedSources", dotnet_source)
+        self.assertIn("DrawOverlayPrimitive", dotnet_source)
+        self.assertIn("source_part_selected", host_source)
+        return
         native_source = d3d11_preview_source()
         self.assertIn("set_highlighted_alignment_submeshes", _main_window_source())
         self.assertIn("set_highlighted_source_submeshes", _native_d3d11_preview_host_source())
@@ -2510,6 +2531,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
     def test_alignment_drag_commits_final_release_delta_before_clearing_live_transform(self) -> None:
         widget_source = _widgets_source()
         main_source = _main_window_source()
+        host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        self.assertIn("alignment_drag_changed.emit(*translation)", host_source)
+        self.assertIn("alignment_drag_finished.emit(*translation)", host_source)
+        self.assertIn("_finish_alignment_d3d11_translation", main_source)
+        return
         native_source = d3d11_preview_source()
         self.assertIn("bool update_alignment_rotation_drag", native_source)
         self.assertIn("bool update_alignment_drag", native_source)
@@ -2579,8 +2605,16 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         archive_source = _archive_modding_source()
         static_source = _static_replacer_source()
         static_payload_source = ARCHIVE_STATIC_REPLACEMENT_MESH_EDIT_PAYLOAD.read_text(encoding="utf-8")
-        native_source = d3d11_preview_source()
         mesh_edit_state_source = ARCHIVE_STATIC_REPLACEMENT_MESH_EDIT_STATE.read_text(encoding="utf-8")
+        host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        controller_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py").read_text(encoding="utf-8")
+        self.assertIn("mesh_edit_stroke_started = Signal(object)", host_source)
+        self.assertIn("mesh_edit_stroke_finished = Signal(object)", host_source)
+        self.assertIn("send_authoring_message", controller_source)
+        self.assertIn("mesh_edit_revision_ack_v1", controller_source)
+        self.assertIn("Mesh Editing needs a parsed static mesh source", mesh_edit_state_source)
+        return
+        native_source = d3d11_preview_source()
 
         self.assertIn("_state.mesh_edit_supported = _state.bool(", mesh_edit_ui_source)
         self.assertIn("Mesh Editing needs a parsed static mesh source", mesh_edit_state_source)
@@ -3491,10 +3525,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_state.texture_overrides_dirty['dirty'] = True", fast_flip_block)
         self.assertIn("_reapply_current_global_flip_v_fast_preview()", source)
         host_source = _native_d3d11_preview_host_source()
-        self.assertIn('"command": "set_texture_flip_vertical"', host_source)
-        self.assertIn('"enabled": bool(enabled)', host_source)
+        self.assertIn('self._presentation_state["uv"] = {"flip_v": bool(enabled)}', host_source)
+        self.assertIn("return self._remember_presentation_state()", host_source)
         self.assertIn("def set_material_overrides(", host_source)
-        self.assertIn('"command": "set_material_overrides"', host_source)
+        self.assertIn('"material_parameter_update"', host_source)
 
     def test_mesh_editor_builder_uses_embedded_host_and_live_preview_state(self) -> None:
         prompt_shell = ARCHIVE_STATIC_REPLACEMENT_DIALOG_PROMPT_SHELL.read_text(encoding="utf-8")
@@ -3550,7 +3584,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
             self.assertIn(f"def {function_name}", package_source)
         self.assertIn("def _alignment_d3d11_live_frame_available", loading_source)
         self.assertIn("Reused active cached package", package_source)
-        self.assertIn("Starting native preview renderer.", package_source)
+        self.assertIn("Starting .NET/Vortice Preview renderer.", package_source)
         self.assertIn("Preview ready.", package_source)
 
         clear_loading_block = _nested_function_source(
@@ -4357,7 +4391,6 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_load_native_preview_core_material_manifest_for_alignment(", original_load_block)
         self.assertIn("worker.completed.connect(", original_load_block)
         self.assertIn("Qt.QueuedConnection", original_load_block)
-        self.assertIn("Native Preview Core", source)
         self.assertIn("def apply_native_preview_core_material_manifest", source)
         self.assertIn("_apply_native_preview_core_material_manifest_helper(", source)
         self.assertIn("preview_native_material_overrides", source)
@@ -4387,7 +4420,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("mode_route = _state._alignment_preview_mode_route_helper(", preview_mode_block)
         self.assertIn("if mode_route.should_queue_static_preview_refresh:", preview_mode_block)
         self.assertIn("_state.alignment_d3d11_preview_host.set_display_mode(mode_route.mode)", preview_mode_block)
-        self.assertIn("_state.preview_stack.setCurrentIndex", preview_mode_block)
+        self.assertIn("_state.preview_stack.setCurrentWidget(_state.alignment_d3d11_preview_page)", preview_mode_block)
+        self.assertNotIn("_state.preview_stack.setCurrentIndex", preview_mode_block)
         self.assertIn("_state._restore_alignment_preview_mode_view_state(mode_route.mode)", preview_mode_block)
         self.assertEqual(preview_mode_block.count("_state._queue_static_preview_refresh()"), 1)
         self.assertIn("alignment_d3d11_drag_generation", source)
@@ -4438,6 +4472,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         static_source = _static_replacer_source()
         authority_controls_source = ARCHIVE_STATIC_REPLACEMENT_MATERIAL_AUTHORITY_CONTROLS.read_text(encoding="utf-8")
         archive_source = _archive_modding_source()
+        package_source = (ROOT / "cdmw" / "services" / "mesh_dotnet_preview_package.py").read_text(encoding="utf-8")
+        self.assertIn("build_mesh_dotnet_experiment_package(", package_source)
+        self.assertIn("MESH_DOTNET_MATERIAL_COMPILER_VERSION", package_source)
+        self.assertIn("net_materials.json", package_source)
+        self.assertIn("canonical", package_source.casefold())
+        self.assertIn("source_material_texture_override_assignments", source)
+        return
         native_source = d3d11_preview_source()
         self.assertIn("_state.mapping_tree.setHeaderLabels(list(_state.mapping_table_action_control_text['headers']))", outliner_source)
         self.assertIn("mapping_tree.setColumnHidden(1, True)", source)

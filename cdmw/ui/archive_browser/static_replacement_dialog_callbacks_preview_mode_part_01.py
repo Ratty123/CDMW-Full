@@ -122,31 +122,20 @@ def _preview_mode_step_008(_state):
         renderer_route = _state._alignment_preview_renderer_route_helper(_state.preview_renderer_combo.currentData(), d3d11_available=_state.alignment_d3d11_available, d3d11_active=_state._d3d11_preview_active())
         if renderer_route.should_report_unavailable:
             _state._set_alignment_d3d11_loading(False, _state.alignment_preview_control_text['d3d11_unavailable_status'])
-        if renderer_route.should_show_d3d11_preview:
-            d3d11_preview_help = _state._alignment_preview_help_presentation_helper(d3d11_active=True)
-            _state.preview_stack.setCurrentWidget(_state.alignment_d3d11_preview_page)
-            _state.preview_help.setText(d3d11_preview_help.text)
-            _state.preview_help.setToolTip(d3d11_preview_help.tooltip)
-            _state.alignment_preview_settings_button.setToolTip(d3d11_preview_help.settings_tooltip)
-            if renderer_route.should_sync_highlights:
-                _state._sync_highlight_sets()
-            if renderer_route.should_queue_selection_preview_refresh:
-                _state._queue_selection_preview_refresh()
-            return
-        if renderer_route.should_reset_d3d11_state:
-            _state._alignment_d3d11_reset_request_state_helper(_state.alignment_d3d11_state, clear_active_metadata=True)
-        if renderer_route.should_stop_d3d11_worker:
-            _state._alignment_d3d11_stop_worker()
-        if renderer_route.should_invalidate_d3d11_cache:
-            _state._alignment_d3d11_invalidate_package_cache('renderer')
-        if renderer_route.should_stop_d3d11_process:
-            _state._alignment_d3d11_stop_process()
-        static_preview_help = _state._alignment_preview_help_presentation_helper(d3d11_active=False)
-        _state.preview_help.setText(static_preview_help.text)
-        _state.preview_help.setToolTip(static_preview_help.tooltip)
-        _state.alignment_preview_settings_button.setToolTip(static_preview_help.settings_tooltip)
-        if renderer_route.should_apply_static_preview_mode:
-            _state._set_preview_mode()
+        d3d11_preview_help = _state._alignment_preview_help_presentation_helper(d3d11_active=True)
+        _state.preview_stack.setCurrentWidget(_state.alignment_d3d11_preview_page)
+        _state.preview_help.setText(d3d11_preview_help.text)
+        _state.preview_help.setToolTip(d3d11_preview_help.tooltip)
+        _state.alignment_preview_settings_button.setToolTip(d3d11_preview_help.settings_tooltip)
+        if renderer_route.should_sync_highlights:
+            _state._sync_highlight_sets()
+        if renderer_route.should_queue_selection_preview_refresh:
+            _state._queue_selection_preview_refresh()
+        if renderer_route.should_report_unavailable:
+            controller = getattr(_state.alignment_d3d11_preview_host, 'controller', None)
+            retry_now = getattr(controller, 'retry_now', None)
+            if callable(retry_now):
+                retry_now()
     _state._set_preview_renderer = _set_preview_renderer
 
 def _preview_mode_step_009(_state):
@@ -253,7 +242,7 @@ def _preview_mode_step_012(_state):
         if presentation_sent:
             return
         needs_static_refresh = _state._preview_mode_needs_static_refresh(mode)
-        mode_route = _state._alignment_preview_mode_route_helper(mode, d3d11_active=_state._d3d11_preview_active(), needs_static_refresh=needs_static_refresh)
+        mode_route = _state._alignment_preview_mode_route_helper(mode, d3d11_active=True, needs_static_refresh=needs_static_refresh)
         if mode_route.d3d11_active:
             if mode_route.should_set_live_d3d11_mode:
                 _state.alignment_d3d11_preview_host.set_display_mode(mode_route.mode)
@@ -267,10 +256,6 @@ def _preview_mode_step_012(_state):
             if mode_route.should_replay_fast_transform:
                 if callable(_state._replay_alignment_d3d11_fast_transform):
                     _state._replay_alignment_d3d11_fast_transform()
-        else:
-            _state.preview_stack.setCurrentIndex(mode_route.static_stack_index)
-            if mode_route.should_restore_view_state:
-                _state._restore_alignment_preview_mode_view_state(mode_route.mode)
         _state.overlay_original_locked_checkbox.blockSignals(True)
         _state.overlay_original_locked_checkbox.setChecked(True)
         _state.overlay_original_locked_checkbox.blockSignals(False)

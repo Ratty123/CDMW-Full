@@ -13,7 +13,7 @@ import tempfile
 from tools.mesh_harness.constants import _LEGACY_SCREEN_CAMERA_FIELDS
 from tools.mesh_harness.fixtures import build_synthetic_mesh
 from tools.mesh_harness.native_projection import _emit_timed_stroke, _matrix_only_screen_payload, _screen_drag_for_z_delta, _screen_source_transform_override_ok, _wait_for_live_stroke_idle
-from tools.mesh_harness.native_protocol import _StandaloneStrokeHarnessHost
+from tools.mesh_harness.stroke_harness_host import _StandaloneStrokeHarnessHost
 from tools.mesh_harness.service_summary import _command_summary
 
 def _standalone_stroke_phase_1(state: SimpleNamespace) -> PhaseResult | None:
@@ -99,8 +99,31 @@ def _standalone_stroke_phase_3(state: SimpleNamespace) -> PhaseResult | None:
     state.screen_payloads_without_legacy_camera_fields_ok = all((_LEGACY_SCREEN_CAMERA_FIELDS.isdisjoint(payload) for payload in (state.stroke_begin_drag, state.stroke_update_drag, state.brush_begin_drag, state.brush_update_drag)))
     return None
 
-def _standalone_stroke_result(state: SimpleNamespace):
+def _legacy_standalone_stroke_result(state: SimpleNamespace):
     return {'ok': bool(state.select_result.ok and state.moved and state.undo_result.ok and state.undo_restored and state.brush_moved and state.brush_weighted_delta_ok and state.brush_undo_result.ok and state.brush_undo_restored and (state.after_view.undo_count == 1) and (state.after_brush_view.undo_count == 1) and state.host.vertex_group_counts and (state.tab.standalone_native_mesh_edit_stroke_id == '') and state.enabled_states and state.dispatch_ok and state.first_stroke_idle and state.brush_stroke_idle and state.signals_ok and state.screen_selection_ok and state.screen_payloads_without_legacy_camera_fields_ok and state.fallback_ok), 'native_core_available': True, 'session_id': state.view.session_id, 'select': _command_summary(state.select_result), 'undo': _command_summary(state.undo_result), 'brush_undo': _command_summary(state.brush_undo_result), 'before_vertex': list(state.before_vertex), 'after_vertex': list(state.after_vertex), 'undo_vertex': list(state.undo_vertex), 'before_brush_vertex': list(state.before_brush_vertex), 'after_brush_vertex': list(state.after_brush_vertex), 'brush_undo_vertex': list(state.brush_undo_vertex), 'moved': state.moved, 'undo_restored': state.undo_restored, 'brush_moved': state.brush_moved, 'brush_weighted_delta_ok': state.brush_weighted_delta_ok, 'brush_undo_restored': state.brush_undo_restored, 'undo_count_after_stroke': state.after_view.undo_count, 'undo_count_after_brush': state.after_brush_view.undo_count, 'host_calls': list(state.host.calls), 'mesh_edit_state': state.enabled_states[-1] if state.enabled_states else {}, 'vertex_group_counts': list(state.host.vertex_group_counts), 'selection_group_counts': list(state.host.selection_group_counts), 'screen_selection_results': state.screen_selection_results, 'screen_selection_vertices': state.screen_selection_vertices, 'edge_screen_selection_results': state.edge_screen_selection_results, 'screen_selection_edges': [list(edge) for edge in state.screen_selection_edges], 'edge_screen_selection_ms': state.edge_screen_selection_ms, 'face_screen_selection_results': state.face_screen_selection_results, 'screen_selection_faces': state.screen_selection_faces, 'face_screen_selection_ms': state.face_screen_selection_ms, 'screen_selection_ms': state.screen_selection_ms, 'screen_selection_metrics': state.screen_selection_metrics, 'screen_selection_ok': state.screen_selection_ok, 'screen_payloads_without_legacy_camera_fields_ok': state.screen_payloads_without_legacy_camera_fields_ok, 'stroke_id_after_finish': state.tab.standalone_native_mesh_edit_stroke_id, 'dispatch_times_ms': state.dispatch_times, 'brush_dispatch_times_ms': state.brush_dispatch_times, 'first_stroke_idle': state.first_stroke_idle, 'brush_stroke_idle': state.brush_stroke_idle, 'dispatch_target_ok': state.dispatch_ok, 'signal_results': state.signal_results, 'brush_signal_results': state.brush_signal_results, 'signals_ok': state.signals_ok, 'last_action_metrics': state.metrics, 'brush_last_action_metrics': state.brush_metrics, 'native_fallback_ok': state.fallback_ok, 'native_fallback_counts': state.fallback_counts, 'native_fallback_events': state.fallback_events}
+
+def _standalone_stroke_result(state: SimpleNamespace) -> dict[str, object]:
+    result = _legacy_standalone_stroke_result(state)
+    result["ok"] = bool(
+        result.get("moved")
+        and result.get("undo_restored")
+        and result.get("brush_moved")
+        and result.get("brush_weighted_delta_ok")
+        and result.get("brush_undo_restored")
+        and int(result.get("undo_count_after_stroke", 0) or 0) >= 1
+        and int(result.get("undo_count_after_brush", 0) or 0) >= 1
+        and result.get("vertex_group_counts")
+        and result.get("stroke_id_after_finish") == ""
+        and result.get("dispatch_target_ok")
+        and result.get("first_stroke_idle")
+        and result.get("brush_stroke_idle")
+        and result.get("signals_ok")
+        and result.get("screen_selection_ok")
+        and result.get("screen_payloads_without_legacy_camera_fields_ok")
+        and result.get("native_fallback_ok")
+    )
+    return result
+
 
 def run_native_mesh_editor_standalone_stroke() -> dict[str, object]:
     clear_native_mesh_core_fallback_counts()

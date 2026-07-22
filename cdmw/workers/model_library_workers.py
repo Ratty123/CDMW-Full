@@ -310,7 +310,9 @@ def remove_model_library_preview_package_dir(package_dir: Path | str | None) -> 
     if package_dir is None:
         return None
     path = Path(package_dir)
-    if not path.name.startswith("cdmw_isolated_d3d11_"):
+    if path.name == "package" and path.parent.name.startswith("cdmw_dotnet_preview_"):
+        path = path.parent
+    if not path.name.startswith("cdmw_dotnet_preview_"):
         return None
     thread = threading.Thread(
         target=_remove_model_library_preview_package_dir,

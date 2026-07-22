@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 import sys
 from typing import Mapping, Sequence
@@ -195,16 +194,11 @@ class MeshEditorDotNetResourceProtocolMixin(
         return self._send_dotnet_protocol_message(correlated)
 
     def _send_dotnet_protocol_message(self, payload: Mapping[str, object]) -> bool:
-        process = self.standalone_dotnet_editor_process
-        if process is None:
+        controller = self._active_shared_dotnet_controller()
+        if controller is None:
             return False
         try:
-            if process.state() == _tab.QProcess.NotRunning:
-                return False
-            data = (json.dumps(dict(payload), separators=(",", ":"), default=str) + "\n").encode(
-                "utf-8"
-            )
-            return int(process.write(data)) == len(data)
+            return bool(controller.send_authoring_message(payload))
         except (AttributeError, RuntimeError, TypeError, ValueError):
             return False
 

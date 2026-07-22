@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.workers.cancellation import CancellationToken
-from cdmw.workers.d3d11_package_workers import ArchiveNativePreviewPrefetchWorker
 from cdmw.workers.preview_workers import AlignmentOriginalTexturePreviewWorker, VisualPlacementPreviewWorker
 from cdmw.workers.qt_worker_runner import run_worker_task
 from cdmw.workers.results import WorkerFailure, WorkerSuccess
@@ -91,29 +89,6 @@ class WorkerFoundationTests(unittest.TestCase):
         self.assertEqual((request_id, model, batches), (7, "model", 3))
         self.assertGreaterEqual(elapsed_ms, 0.0)
         self.assertEqual(finished, [True])
-
-    def test_archive_native_prefetch_worker_is_noop_when_cache_mode_off(self) -> None:
-        finished: list[bool] = []
-
-        def validate_package(_path):
-            raise AssertionError("off-mode prefetch should not validate packages")
-
-        worker = ArchiveNativePreviewPrefetchWorker(
-            (),
-            None,
-            Path("cache"),
-            None,
-            "off",
-            0,
-            0,
-            validate_package=validate_package,
-        )
-        worker.finished.connect(lambda: finished.append(True))
-
-        worker.run()
-
-        self.assertEqual(finished, [True])
-
 
 if __name__ == "__main__":
     unittest.main()

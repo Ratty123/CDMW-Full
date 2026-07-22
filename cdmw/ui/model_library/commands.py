@@ -357,7 +357,8 @@ class ModelLibraryCommandsMixin:
         if deleted:
             self._texture_status_cache.clear()
             self.inline_preview_widget.clear_model("Select a downloaded or local model to preview it here.")
-            self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
+            self.inline_d3d11_preview_host.clear_preview()
+            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
             self._inline_preview_loaded_import_path = None
             self._inline_preview_loaded_payload = None
             self._inline_preview_loaded_texture_count = 0
@@ -487,7 +488,7 @@ class ModelLibraryCommandsMixin:
                     preview_after=False,
                 )
             )
-            preview_action = menu.addAction("D3D11 Preview This")
+            preview_action = menu.addAction(".NET/Vortice Preview This")
             preview_action.setEnabled(mirror_url_ready or bool(payload.get("import_path")))
             preview_action.triggered.connect(self.preview_selected_model)
             urls_action = menu.addAction("Show File URLs for This")

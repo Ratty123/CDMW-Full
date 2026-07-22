@@ -17,7 +17,6 @@ from PySide6.QtWidgets import (
     QListWidget,
     QMenu,
     QPushButton,
-    QSizePolicy,
     QSplitter,
     QSlider,
     QStackedWidget,
@@ -44,7 +43,7 @@ from cdmw.ui.mesh_editor.actions import (
     mesh_editor_actions_by_key,
 )
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.native_preview_panel import NativePreviewPanel
 
 
@@ -322,21 +321,26 @@ class WorkspaceShellBuilderMixin:
         layout.setSpacing(4)
         self.preview_stack = QStackedWidget(frame)
         self.preview_stack.setObjectName("MeshEditorStandalonePreviewStack")
-        self.native_host_frame = NativeD3D11PreviewHostFrame(frame)
-        self.native_host_frame.setObjectName("MeshEditorStandaloneNativeD3D11Host")
+        self.native_host_frame = DotNetPreviewHostFrame(
+            frame,
+            profile=DotNetPreviewProfile.AUTHORING,
+        )
+        self.native_host_frame.setObjectName("MeshEditorStandaloneDotNetVorticeHost")
+        # Retained off-stack as a data/settings compatibility adapter.  The
+        # resident Vortice host is the only visible model-preview widget.
         self.preview = NativePreviewPanel("Mesh Editor preview.", theme_key=theme_key)
-        self.preview.setObjectName("MeshEditorStandalonePreview")
-        self.preview.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.preview.setObjectName("MeshEditorStandalonePreviewCompatibilityAdapter")
+        self.preview.setParent(frame)
+        self.preview.setVisible(False)
         self.preview_stack.addWidget(self.native_host_frame)
-        self.preview_stack.addWidget(self.preview)
-        self.preview_stack.setCurrentWidget(self.preview)
+        self.preview_stack.setCurrentWidget(self.native_host_frame)
         layout.addWidget(self.preview_stack, 1)
 
         controls = QHBoxLayout()
         controls.setSpacing(6)
-        self.native_preview_button = QPushButton("D3D11", frame)
+        self.native_preview_button = QPushButton(".NET/Vortice", frame)
         self.native_preview_button.setObjectName("MeshEditorStandaloneNativePreviewButton")
-        self.native_preview_button.setToolTip("Start native D3D11 preview.")
+        self.native_preview_button.setToolTip("Reload the resident .NET/Vortice preview.")
         self.native_preview_button.setMinimumHeight(28)
         self.native_preview_button.setVisible(False)
         self.native_preview_button.setEnabled(False)

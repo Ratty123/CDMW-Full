@@ -1,6 +1,5 @@
 import json
 import os
-import shutil
 import struct
 import tempfile
 import threading
@@ -12,11 +11,11 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QEventLoop, QObject, QProcess, QThread, QTimer, Qt, Signal, Slot
+from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
 from cdmw.models import RunCancelled
-from cdmw.rendering.native_d3d11_host import find_native_d3d11_host
+from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
 from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
     prepare_model_library_inline_preview_in_subprocess,
@@ -91,34 +90,26 @@ def _write_triangle_gltf(root: Path, *, triangle_count: int = 1, with_texture: b
 
 
 class ModelLibraryPreviewServiceTests(unittest.TestCase):
-    def test_native_status_publication_replaces_atomically(self) -> None:
-        source = Path("native/cdmw_d3d11_preview/src/owners/protocol_json.cpp").read_text(encoding="utf-8")
-        app_source = Path("native/cdmw_d3d11_preview/src/owners/app.cpp").read_text(encoding="utf-8")
-        self.assertIn("MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH", source)
-        self.assertIn('key == L"--hidden"', source)
-        self.assertNotIn("fs::copy_file(temp, path", source)
-        self.assertIn("args.hidden ? WS_POPUP", app_source)
-        self.assertIn("if (!args.hidden) window_style |= WS_VISIBLE", app_source)
-
-    def test_backend_prepares_d3d11_package_without_ui(self) -> None:
+    def test_backend_prepares_dotnet_package_without_ui(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp))
 
             result = prepare_model_library_inline_preview(scene_path, model_name="Triangle")
 
-            package_dir = Path(str(result["d3d11_package_dir"]))
+            package_dir = Path(str(result["dotnet_preview_package_path"]))
             self.assertEqual(result["vertices"], 3)
             self.assertEqual(result["faces"], 1)
-            self.assertTrue((package_dir / "manifest.json").is_file())
+            self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
 
     def test_backend_uses_high_quality_combined_material_package(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp))
             package_dir = Path(tmp) / "package"
 
+            package = type("Package", (), {"package_dir": package_dir})()
             with patch(
-                "cdmw.services.model_library_preview.write_isolated_d3d11_preview_package",
-                return_value=package_dir,
+                "cdmw.services.model_library_preview.build_or_lookup_dotnet_preview_package_from_model",
+                return_value=package,
             ) as writer:
                 result = prepare_model_library_inline_preview(
                     scene_path,
@@ -126,10 +117,10 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
                     high_quality_textures=True,
                 )
 
-            self.assertEqual(result["d3d11_package_dir"], str(package_dir))
+            self.assertEqual(result["dotnet_preview_package_path"], str(package_dir))
             self.assertTrue(writer.called)
-            self.assertTrue(writer.call_args.kwargs["high_quality_textures"])
-            self.assertTrue(writer.call_args.kwargs["enable_material_combiner"])
+            self.assertEqual(writer.call_args.kwargs["cache_mode"], "off")
+            self.assertEqual(writer.call_args.kwargs["metadata"]["surface"], "model_library")
 
     def test_backend_prepares_fast_d3d11_package_from_gltf_zip_with_texture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -149,24 +140,19 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
                 high_quality_textures=False,
             )
 
-            package_dir = Path(str(result["d3d11_package_dir"]))
-            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
+            package_dir = Path(str(result["dotnet_preview_package_path"]))
+            materials = json.loads((package_dir / "net_materials.json").read_text(encoding="utf-8"))
             self.assertEqual(result["vertices"], 3)
             self.assertGreaterEqual(int(result["textures"]), 1)
-            self.assertFalse(manifest["high_quality_textures"])
-            self.assertGreaterEqual(manifest["texture_manifest"]["texture_count"], 1)
+            self.assertFalse(result["high_quality_textures"])
+            self.assertGreaterEqual(len(materials["resources"]), 1)
 
-    def test_backend_prepares_qt_preview_without_d3d11_package(self) -> None:
+    def test_backend_rejects_legacy_qt_renderer(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp))
 
-            result = prepare_model_library_inline_preview(scene_path, model_name="Triangle", renderer_backend="qt")
-
-            self.assertEqual(result["vertices"], 3)
-            self.assertEqual(result["faces"], 1)
-            self.assertEqual(result["d3d11_package_dir"], "")
-            self.assertIsNotNone(result["preview_model"])
-            self.assertIsNotNone(result["prepared_preview"])
+            with self.assertRaisesRegex(ValueError, "Unsupported model preview renderer"):
+                prepare_model_library_inline_preview(scene_path, model_name="Triangle", renderer_backend="qt")
 
     def test_backend_preview_skips_external_audit(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -180,15 +166,12 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
 
             self.assertEqual(result["audit_category"], "")
 
-    def test_qt_preview_reduces_dense_mesh_for_package_speed(self) -> None:
+    def test_legacy_qt_renderer_is_not_a_dense_mesh_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
 
-            result = prepare_model_library_inline_preview(scene_path, model_name="Dense", renderer_backend="qt")
-
-            self.assertEqual(result["source_faces"], 1200)
-            self.assertLess(result["faces"], result["source_faces"])
-            self.assertIsNotNone(result["quality_reduction"])
+            with self.assertRaisesRegex(ValueError, "Unsupported model preview renderer"):
+                prepare_model_library_inline_preview(scene_path, model_name="Dense", renderer_backend="qt")
 
     def test_native_fast_texture_preview_preserves_moderate_mesh_detail(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -204,63 +187,14 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             self.assertEqual(result["faces"], result["source_faces"])
             self.assertIsNone(result["quality_reduction"])
 
-    def test_qprocess_native_host_loads_model_library_package(self) -> None:
-        host = find_native_d3d11_host()
-        if host is None:
-            self.skipTest("native D3D11 host is not built")
+    def test_dotnet_package_contains_scene_and_material_authority_payloads(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp), triangle_count=1200)
             result = prepare_model_library_inline_preview(scene_path, model_name="Dense")
-            package_dir = Path(str(result["d3d11_package_dir"]))
-            status_file = package_dir / "qprocess_host_status.json"
-            app = QApplication.instance() or QApplication([])
-            process = QProcess()
-            process.setProgram(str(host))
-            process.setArguments(
-                [
-                    "--backend",
-                    "d3d11",
-                    "--hidden",
-                    "--preview-package",
-                    str(package_dir),
-                    "--status-file",
-                    str(status_file),
-                ]
-            )
-            errors: list[str] = []
-            process.errorOccurred.connect(lambda error: errors.append(str(error)))
-            loaded_payload: dict[str, object] = {}
-            try:
-                process.start()
-                deadline = time.perf_counter() + 30.0
-                while time.perf_counter() < deadline:
-                    app.processEvents()
-                    if status_file.is_file():
-                        try:
-                            payload = json.loads(status_file.read_text(encoding="utf-8"))
-                        except (OSError, json.JSONDecodeError):
-                            time.sleep(0.01)
-                            continue
-                        event = str(payload.get("event", "") or "")
-                        if event in {"resources_loaded", "loaded"}:
-                            loaded_payload = payload
-                            break
-                        if event == "error":
-                            self.fail(str(payload.get("message", "native host reported error")))
-                    if process.state() == QProcess.NotRunning and not loaded_payload:
-                        break
-                    time.sleep(0.02)
-            finally:
-                if process.state() != QProcess.NotRunning:
-                    process.terminate()
-                    if not process.waitForFinished(2000):
-                        process.kill()
-                        process.waitForFinished(2000)
-                shutil.rmtree(package_dir, ignore_errors=True)
-
-        self.assertFalse(errors)
-        self.assertIn(loaded_payload.get("event"), {"resources_loaded", "loaded"})
-        self.assertGreater(int(loaded_payload.get("vertex_count", 0) or 0), 0)
+            package_dir = Path(str(result["dotnet_preview_package_path"]))
+            self.assertTrue((package_dir / "dotnet_scene.json").is_file())
+            self.assertTrue((package_dir / "net_materials.json").is_file())
+            self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
 
     def test_backend_preview_honors_pre_cancelled_stop_event(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -271,16 +205,16 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
             with self.assertRaises(RunCancelled):
                 prepare_model_library_inline_preview(scene_path, model_name="Triangle", stop_event=stop_event)
 
-    def test_subprocess_backend_prepares_d3d11_package(self) -> None:
+    def test_subprocess_backend_prepares_dotnet_package(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             scene_path = _write_triangle_gltf(Path(tmp))
 
             result = prepare_model_library_inline_preview_in_subprocess(scene_path, model_name="Triangle")
 
-            package_dir = Path(str(result["d3d11_package_dir"]))
+            package_dir = Path(str(result["dotnet_preview_package_path"]))
             self.assertEqual(result["vertices"], 3)
             self.assertEqual(result["faces"], 1)
-            self.assertTrue((package_dir / "manifest.json").is_file())
+            self.assertTrue(validate_dotnet_preview_package(package_dir)[0])
 
     def test_subprocess_backend_passes_cancel_event_and_timeout_progress(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

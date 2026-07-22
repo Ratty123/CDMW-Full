@@ -275,7 +275,7 @@ def alignment_d3d11_loading_status_route(
     preview_loaded: bool,
     loading_stuck: bool,
 ) -> AlignmentD3D11LoadingStatusRoute:
-    message = str(payload.get("message", "") or "Loading native D3D11 alignment preview...")
+    message = str(payload.get("message", "") or "Loading .NET/Vortice alignment preview...")
     try:
         percent = int(round(float(payload.get("percent", 0) or 0)))
     except (TypeError, ValueError, OverflowError):

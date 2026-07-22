@@ -44,7 +44,7 @@ from cdmw.ui.mesh_editor.actions import (
     mesh_editor_actions_by_key,
 )
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.native_preview_panel import NativePreviewPanel
 
 
@@ -150,6 +150,11 @@ class WorkspaceStateMixin:
             self._set_widget_font(button, ui_font)
         for widget in self._ui_font_widgets:
             self._set_widget_font(widget, ui_font)
+        preview_host = getattr(self, "native_host_frame", None)
+        self._set_widget_font(preview_host, ui_font)
+        if preview_host is not None:
+            for child in preview_host.findChildren(QWidget):
+                self._set_widget_font(child, ui_font)
         for name in (
             "outliner",
             "properties_tree",

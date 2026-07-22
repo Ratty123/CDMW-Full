@@ -171,7 +171,7 @@ def _mesh_edit_commit_working_mesh(_state, _callbacks,
         )
     elif _state._mesh_edit_tab_active():
         _callbacks._mesh_edit_mark_native_preview_stale(
-            "Active Mesh Editor commit requires native D3D11 refresh; Python preview rebuild fallback is disabled."
+            "Active Mesh Editor commit requires .NET/Vortice refresh; Python preview rebuild fallback is disabled."
         )
     else:
         _state._queue_static_preview_rebuild()

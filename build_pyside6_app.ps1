@@ -550,7 +550,6 @@ function Test-NativeOutputsPresent {
     $required = @(
         "native\cd_texture_dx\build\$Configuration\cd-texture-dx.exe",
         "native\cdmw_preview_core\build\$Configuration\cdmw-preview-core.exe",
-        "native\cdmw_d3d11_preview\build\$Configuration\cdmw-d3d11-preview.exe",
         "native\cdmw_archive_accelerator\build\$Configuration\cdmw-archive-accelerator.exe",
         "native\cdmw_mesh_core\build\$Configuration\cdmw-mesh-core.exe",
         "native\cdmw_full_archive_backend\build\$Configuration\cdmw-full-archive-worker.exe",

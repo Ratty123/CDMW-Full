@@ -92,16 +92,6 @@ _LAZY_EXPORT_GROUPS = (
         "cdmw.ui.mesh_editor.controller",
         ("MeshEditorActionExecution", "MeshEditorController", "MeshEditorNativeUpdate", "apply_native_update_to_host"),
     ),
-    (
-        "cdmw.ui.mesh_editor.native_preview_runtime",
-        (
-            "_host_widget_hwnd",
-            "mesh_editor_native_preview_command",
-            "mesh_editor_native_preview_data",
-            "mesh_editor_write_native_preview_package",
-            "mesh_editor_write_prepared_native_preview_package",
-        ),
-    ),
     ("cdmw.ui.mesh_editor.native_preview_payloads", ("mesh_pose_to_native_preview",)),
     (
         "cdmw.ui.mesh_editor.live_stroke_dispatcher",
@@ -132,7 +122,6 @@ _LAZY_EXPORT_GROUPS = (
             "MeshDotNetSceneFrameWorker",
             "MeshExportValidationWorker",
             "MeshFileSessionLoadWorker",
-            "MeshNativePreviewPackageWorker",
             "MeshRebuildReportWorker",
             "MeshReportWriteWorker",
             "MeshTextureSourceResolveWorker",

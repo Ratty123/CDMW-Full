@@ -238,41 +238,26 @@ def run_gui() -> int:
         try:
             context["archive_renderer_backend"] = window._archive_model_renderer_backend()
             context["archive_preview_request_id"] = int(getattr(window, "archive_preview_request_id", 0) or 0)
-            context["archive_isolated_package_request_id"] = int(
-                getattr(window, "archive_isolated_package_request_id", 0) or 0
-            )
             context["pending_archive_preview_request"] = str(getattr(window, "pending_archive_preview_request", None))
             context["scheduled_archive_preview_request"] = str(getattr(window, "scheduled_archive_preview_request", None))
-            context["active_d3d11_package"] = str(getattr(window, "archive_isolated_renderer_active_package", "") or "")
-            status_file = getattr(window, "archive_isolated_renderer_status_file", None)
-            context["d3d11_status_file"] = str(status_file or "")
-            if status_file is not None and Path(status_file).is_file():
-                try:
-                    status_payload = json.loads(Path(status_file).read_text(encoding="utf-8"))
-                except Exception as exc:
-                    status_payload = {"read_error": str(exc)}
-                context["d3d11_status_payload"] = status_payload
-            process = getattr(window, "archive_isolated_renderer_process", None)
+            context["active_dotnet_package"] = str(getattr(window, "archive_isolated_renderer_active_package", "") or "")
+            controller = getattr(getattr(window, "archive_d3d11_preview_host", None), "controller", None)
+            process = getattr(controller, "process", None)
             if process is not None:
                 try:
-                    context["d3d11_process_pid"] = int(process.processId())
+                    context["dotnet_preview_process_pid"] = int(process.processId())
                 except RuntimeError:
-                    context["d3d11_process_pid"] = "deleted"
-                d3d11_process_memory = _windows_process_memory_snapshot(context.get("d3d11_process_pid", 0))
-                if d3d11_process_memory:
-                    context["d3d11_process_memory"] = d3d11_process_memory
+                    context["dotnet_preview_process_pid"] = "deleted"
+                preview_process_memory = _windows_process_memory_snapshot(context.get("dotnet_preview_process_pid", 0))
+                if preview_process_memory:
+                    context["dotnet_preview_process_memory"] = preview_process_memory
                 try:
-                    context["d3d11_process_state"] = str(process.state())
+                    context["dotnet_preview_process_state"] = str(process.state())
                 except RuntimeError:
-                    context["d3d11_process_state"] = "deleted"
-            package_worker = getattr(window, "archive_isolated_package_worker", None)
-            package_thread = getattr(window, "archive_isolated_package_thread", None)
-            context["archive_isolated_package_worker_active"] = package_worker is not None
-            if package_thread is not None:
-                try:
-                    context["archive_isolated_package_thread_running"] = bool(package_thread.isRunning())
-                except RuntimeError:
-                    context["archive_isolated_package_thread_running"] = "deleted"
+                    context["dotnet_preview_process_state"] = "deleted"
+            if controller is not None:
+                context["dotnet_preview_process_generation"] = int(controller.process_generation)
+                context["dotnet_preview_package_generation"] = int(controller.package_generation)
             preview_worker = getattr(window, "archive_preview_worker", None)
             preview_thread = getattr(window, "archive_preview_thread", None)
             context["archive_preview_worker_active"] = preview_worker is not None

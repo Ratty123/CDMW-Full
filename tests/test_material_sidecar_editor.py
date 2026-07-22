@@ -764,7 +764,7 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
 
     def test_material_sidecar_native_preview_status_text(self) -> None:
         self.assertEqual(
-            "Native D3D11 material preview loaded: 2 batch(es), 1,234 vertices, first frame 16.5 ms, texture failures: none.",
+            ".NET/Vortice material preview loaded: 2 batch(es), 1,234 vertices, first frame 16.5 ms, texture failures: none.",
             material_sidecar_native_loaded_status(
                 batch_count=2,
                 vertex_count=1234,
@@ -783,31 +783,31 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
         )
         self.assertEqual("summary\nmessage", material_sidecar_preview_payload_status("summary", "message"))
         self.assertEqual("message", material_sidecar_preview_payload_status("", "message"))
-        self.assertEqual("Native D3D11 material preview failed.", material_sidecar_native_error_status())
+        self.assertEqual(".NET/Vortice material preview failed.", material_sidecar_native_error_status())
         self.assertEqual("custom", material_sidecar_native_error_status("custom"))
         self.assertEqual(
-            "Native D3D11 material preview package validation failed: a; b",
+            ".NET/Vortice material preview package validation failed: a; b",
             material_sidecar_package_validation_failed_status(("a", "b")),
         )
         self.assertEqual(
-            "summary\nReloading native D3D11 material preview...",
+            "summary\nReloading .NET/Vortice material preview...",
             material_sidecar_reloading_native_preview_status("summary"),
         )
         self.assertEqual(
-            "Native D3D11 material preview could not start: boom",
+            ".NET/Vortice material preview could not start: boom",
             material_sidecar_native_preview_start_failed_status("boom"),
         )
         self.assertEqual(
-            "Native D3D11 material preview stderr: tail",
+            ".NET/Vortice material preview stderr: tail",
             material_sidecar_native_preview_stderr_status("tail"),
         )
         self.assertEqual(
-            "Native D3D11 material preview process error: bad",
+            ".NET/Vortice material preview process error: bad",
             material_sidecar_native_preview_process_error_status("bad"),
         )
-        self.assertEqual("Native D3D11 material preview exited with code 2.", material_sidecar_native_preview_exited_status(2))
+        self.assertEqual(".NET/Vortice material preview exited with code 2.", material_sidecar_native_preview_exited_status(2))
         self.assertEqual(
-            "summary\nStarting native D3D11 material preview...",
+            "summary\nStarting .NET/Vortice material preview...",
             material_sidecar_starting_native_preview_status("summary"),
         )
 

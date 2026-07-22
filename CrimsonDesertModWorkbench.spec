@@ -22,6 +22,15 @@ if MODE not in {"onefile", "onedir"}:
 if PROFILE not in {"release", "fast", "debug"}:
     raise SystemExit(f"Unsupported CDMW_PYINSTALLER_PROFILE: {PROFILE!r}")
 
+legacy_renderer_payloads = tuple(
+    ROOT.rglob("cdmw-d3d11-preview.exe")
+)
+if legacy_renderer_payloads:
+    rendered = ", ".join(str(path) for path in legacy_renderer_payloads)
+    raise SystemExit(
+        "Retired cdmw-d3d11-preview.exe payload must not be present: " + rendered
+    )
+
 
 def _add_data_if_exists(items, source, destination):
     path = ROOT / source
@@ -66,10 +75,7 @@ binaries = []
 hiddenimports = []
 hiddenimports += collect_submodules("cdmw")
 hiddenimports += [
-    "cdmw.rendering.native_d3d11_host",
     "cdmw.rendering.ingame_capture",
-    "cdmw.rendering.native_preview_package",
-    "cdmw.rendering.native_preview_screenshot",
     "cdmw.rendering.preview_comparison",
     "cdmw.rendering.test_run_sword_tuning",
 ]
@@ -142,7 +148,6 @@ def _add_native_binary_tree(source, destination, *, required_release=False, suff
 
 _add_native_binary(f"native/cd_texture_dx/build/{NATIVE_CONFIGURATION}/cd-texture-dx.exe", "native", required_release=True)
 _add_native_binary(f"native/cdmw_preview_core/build/{NATIVE_CONFIGURATION}/cdmw-preview-core.exe", "native", required_release=True)
-_add_native_binary(f"native/cdmw_d3d11_preview/build/{NATIVE_CONFIGURATION}/cdmw-d3d11-preview.exe", "native", required_release=True)
 _add_native_binary(
     f"native/cdmw_archive_accelerator/build/{NATIVE_CONFIGURATION}/cdmw-archive-accelerator.exe",
     "native",

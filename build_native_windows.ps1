@@ -162,10 +162,6 @@ Invoke-NativeBuild `
     -ExeRelativePath ("build\$Configuration\cdmw-preview-core.exe")
 
 Invoke-NativeBuild `
-    -ProjectDir (Join-Path $scriptDir "native\cdmw_d3d11_preview") `
-    -ExeRelativePath ("build\$Configuration\cdmw-d3d11-preview.exe")
-
-Invoke-NativeBuild `
     -ProjectDir (Join-Path $scriptDir "native\cdmw_archive_accelerator") `
     -ExeRelativePath ("build\$Configuration\cdmw-archive-accelerator.exe")
 

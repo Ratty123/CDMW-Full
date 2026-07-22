@@ -1,4 +1,4 @@
-"""Part visibility controls for native D3D11 archive previews."""
+"""Part visibility controls for .NET/Vortice archive previews."""
 
 from __future__ import annotations
 
@@ -199,7 +199,7 @@ class ArchivePreviewD3D11PartsMixin:
                     if prefab_component and not source_indices
                     else model_path
                 )
-                or "Native D3D11 preview component"
+                or ".NET/Vortice preview component"
             )
             action.setStatusTip(model_path or "")
             action.setData(list(source_indices))

@@ -175,6 +175,17 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         tab_source = _read("cdmw/ui/mesh_editor/tab.py")
         worker_source, aux_worker_source = (_read("cdmw/workers/mesh_editor_workers.py"), _read("cdmw/workers/mesh_editor_aux_workers.py"))
         close_source = _read("cdmw/ui/shell/close_controller.py")
+        shell_source = _read("cdmw/ui/mesh_editor/workspace_shell_builder.py")
+
+        self.assertIn("MeshFileSessionLoadWorker", tab_source)
+        self.assertIn("class MeshFileSessionLoadWorker(QObject):", aux_worker_source)
+        self.assertIn("mesh = service.load_mesh_file(self.path, run_roundtrip=True)", aux_worker_source)
+        self.assertIn("thread.start(QThread.LowPriority)", tab_source)
+        self.assertIn('"mesh_editor_tab"', close_source)
+        self.assertIn("DotNetPreviewProfile.AUTHORING", shell_source)
+        self.assertFalse((ROOT / "cdmw/ui/native_d3d11_preview_host.py").exists())
+        self.assertFalse((ROOT / "cdmw/ui/mesh_editor/native_preview_runtime.py").exists())
+        return
         d3d11_host_source = _read("cdmw/ui/native_d3d11_preview_host.py")
         d3d11_native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         runtime_source = _read("cdmw/ui/mesh_editor/native_preview_runtime.py")
@@ -302,7 +313,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         update_start = tab_source.index("def _apply_standalone_native_update(")
         update_body = tab_source[update_start: tab_source.index("def _refresh_standalone_preview", update_start)]
         self.assertIn("if _native_update_has_payload(update) or self._standalone_native_preview_update_active():", update_body)
-        self.assertIn("Native D3D11 preview update failed; preview is stale.", update_body)
+        self.assertIn(".NET/Vortice preview update failed; preview is stale.", update_body)
         self.assertIn("self.status_message_requested.emit(message, True)", update_body)
         self.assertLess(
             update_body.index("host = self.standalone_native_host"),
@@ -1216,6 +1227,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_static_whole_source_selection_stays_range_based(self) -> None:
         state_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_state.py")
+        adapter_source = _read("cdmw/ui/mesh_editor/static_replacement_adapter.py")
+
+        helper_start = state_source.index("def mesh_edit_all_vertices_by_source(")
+        helper_body = state_source[helper_start: state_source.index("def mesh_edit_inverted_vertex_selection(", helper_start)]
+        self.assertIn("selection: dict[int, range] = {}", helper_body)
+        self.assertIn("selection[source_index] = range(vertex_count)", helper_body)
+        self.assertNotIn("set(range(vertex_count))", helper_body)
+        self.assertIn("if isinstance(indices, range) and indices.step == 1:", adapter_source)
+        return
         d3d11_source = _read("cdmw/ui/native_d3d11_preview_host.py")
         panel_source = _read("cdmw/ui/native_preview_panel.py")
 
@@ -1435,6 +1455,17 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_live_vertex_update_bridge_is_wired(self) -> None:
         main_source = _mesh_edit_source()
+        bridge_source = _read("cdmw/ui/preview/dotnet_host.py")
+        controller_source = _read("cdmw/ui/mesh_editor/controller.py")
+
+        self.assertIn('return self.controller.send_correlated(\n            "preview_vertex_update"', bridge_source)
+        self.assertIn('return self.controller.send_correlated(\n            "preview_triangle_update"', bridge_source)
+        self.assertIn('return self._reject_preview_mutation("preview_vertex_update")', bridge_source)
+        self.assertIn('return self._reject_preview_mutation("preview_triangle_update")', bridge_source)
+        self.assertIn('sender = getattr(host, "update_mesh_edit_vertices", None)', controller_source)
+        self.assertIn('sender = getattr(host, "replace_mesh_edit_triangles", None)', controller_source)
+        self.assertIn("_queue_mesh_edit_live_vertex_updates", main_source)
+        return
         bridge_source = _read("cdmw/ui/native_d3d11_preview_host.py")
         panel_source = _read("cdmw/ui/native_preview_panel.py")
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
@@ -1519,7 +1550,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         finish_body = _function_source(main_source, "_mesh_edit_finish_geometry_stroke")
         self.assertIn("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)", finish_body)
         self.assertNotIn("parsed_mesh_to_preview_model(", finish_body)
-        self.assertIn("Active Mesh Editor stroke finish requires native D3D11 refresh", finish_body)
+        self.assertIn("Active Mesh Editor stroke finish requires .NET/Vortice refresh", finish_body)
         self.assertIn("_callbacks._mesh_edit_mark_native_preview_stale(", finish_body)
         self.assertNotIn("_queue_static_preview_rebuild()", finish_body)
         self.assertIn("mesh_edit_live_update_timer.setInterval(16)", main_source)
@@ -1638,7 +1669,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("def _mesh_edit_source_indices_from_groups(_state, _callbacks, groups: _state.Iterable[_state.Mapping[str, object]]) -> tuple[int, ...]:", main_source)
         self.assertIn('"mesh_edit_live_vertex_update_failed"', main_source)
         self.assertIn("if source_indices and _callbacks._mesh_edit_replace_live_triangles(source_indices):", main_source)
-        self.assertIn("Native D3D11 mesh edit preview update failed; preview is stale.", main_source)
+        self.assertIn(".NET/Vortice mesh edit preview update failed; preview is stale.", main_source)
         triangle_replace_body = _function_source(main_source, "_mesh_edit_triangle_replace_groups")
         self.assertIn("if _callbacks._alignment_d3d11_mesh_edit_commands_active():\n        return []", triangle_replace_body)
         self.assertNotIn("allow_python_fallback=True", triangle_replace_body)
@@ -1697,6 +1728,16 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_standalone_topology_preview_update_uses_affected_sources(self) -> None:
         controller_source = _read("cdmw/ui/mesh_editor/controller.py")
+        bridge_source = _read("cdmw/ui/preview/dotnet_host.py")
+
+        topology_start = controller_source.index("if result.topology_changed:")
+        topology_body = controller_source[topology_start: controller_source.index('if result.action in {"material_assign", "material_copy"}', topology_start)]
+        self.assertIn("_topology_refresh_source_indices(mesh, result)", topology_body)
+        self.assertIn("mesh_edit_triangle_groups(", topology_body)
+        self.assertIn("refresh_sources", topology_body)
+        self.assertIn("replace_all_triangles=replace_all", topology_body)
+        self.assertIn('"source_submesh_indices": _indices(source_submesh_indices or ())', bridge_source)
+        return
         preview_native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         mesh_core_source = _read("native/cdmw_mesh_core/src/main.cpp")
         static_payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
@@ -2022,6 +2063,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("group_source_submeshes.find(batch.source_submesh_index) == group_source_submeshes.end()", preview_native_source)
 
     def test_native_visible_selection_depth_and_double_click_guards_exist(self) -> None:
+        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
+        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
+
+        self.assertIn('ShowXRay ? "xray" : "visible"', source)
+        self.assertIn("IsWorldPointOccluded(", source)
+        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
+        self.assertIn('EditorEventRequested?.Invoke("select_request", PointerPayload', input_source)
+        self.assertFalse((ROOT / "native/cdmw_d3d11_preview/CMakeLists.txt").exists())
+        return
         source = _read("native/cdmw_d3d11_preview/src/main.cpp")
 
         self.assertIn('std::string selection_depth_mode = "visible";', source)
@@ -2121,6 +2171,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("return true;", dbl_click_body)
 
     def test_rectangle_and_lasso_selection_send_native_screen_region(self) -> None:
+        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
+        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
+
+        self.assertIn('payload["screen_region"] = ScreenDragPayload(', source)
+        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
+        self.assertIn('["world_view_projection"] = camera.WorldViewProjectionRowMajorArray()', input_source)
+        self.assertIn('["selection_depth_mode"] = ShowXRay ? "xray" : "visible"', source)
+        return
         source = _read("native/cdmw_d3d11_preview/src/main.cpp")
 
         region_start = source.index("std::string mesh_edit_screen_region_json")
@@ -2158,6 +2216,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("apply_mesh_edit_region_selection(end_x, end_y);", command_body)
 
     def test_select_vertices_is_selection_only_and_uses_modifier_combine(self) -> None:
+        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
+        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
+
+        self.assertIn('string.Equals(ActiveTool, "select", StringComparison.OrdinalIgnoreCase)', input_source)
+        self.assertIn("BeginSelectionDrag(e.Location, targetMode)", input_source)
+        self.assertIn('["operation"] = CurrentSelectionOperation()', source)
+        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', source)
+        return
         source = _read("native/cdmw_d3d11_preview/src/main.cpp")
 
         begin_start = source.index("bool begin_mesh_edit_drag")
@@ -2235,6 +2301,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('if (shift_down) return "add";', source)
 
     def test_native_brush_select_command_sends_native_screen_payload(self) -> None:
+        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
+        selection_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.SelectionPicking.cs")
+
+        self.assertIn('["screen_brush"] = screenPayload', source)
+        self.assertIn('["source_submesh_world_view_projections"] = SourceProjectionOverrides(camera)', source)
+        self.assertIn('payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels)', selection_source)
+        self.assertIn('EditorEventRequested?.Invoke("select_request", payload)', selection_source)
+        return
         source = _read("native/cdmw_d3d11_preview/src/main.cpp")
 
         brush_start = source.index("void apply_mesh_edit_brush_selection")
@@ -2261,8 +2335,8 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             _read(path)
             for path in (
                 "tools/mesh_harness/constants.py",
-                "tools/mesh_harness/native_protocol.py",
-                "tools/mesh_harness/native_smoke.py",
+                "tools/mesh_harness/win32_input.py",
+                "tools/mesh_harness/real_dotnet.py",
                 "tools/mesh_harness/png_evidence.py",
             )
         )
@@ -2271,30 +2345,28 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_WM_LBUTTONDOWN = 0x0201", source)
         self.assertIn("_WM_LBUTTONUP = 0x0202", source)
         self.assertIn("def _send_mouse_message(", source)
-        self.assertIn("{'command': 'get_status'}", source)
-        self.assertIn("for step in range(1, 61)", source)
-        self.assertIn("440 + step * 4", source)
-        self.assertIn("brush_drag_elapsed_ms", source)
-        self.assertIn(
-            "state.brush_drag_event_budget = max(4, int(math.ceil(state.brush_drag_elapsed_ms / 16.0)) + 3)",
-            source,
-        )
-        self.assertIn("state.brush_drag_selection_event_delta", source)
-        self.assertIn(
-            "1 <= state.brush_drag_selection_event_delta <= state.brush_drag_event_budget",
-            source,
-        )
+        self.assertIn('interaction.name == "selection-brush-burst"', source)
+        self.assertIn("phase = ordinal % 64", source)
+        self.assertIn("_send_mouse_message(state.viewport_hwnd, _WM_MOUSEMOVE, x, y)", source)
+        self.assertIn("tab._send_dotnet_protocol_message", source)
         self.assertIn("def _write_checker_png(", source)
-        self.assertIn("use_textures=True", source)
-        self.assertIn("texture_status_before", source)
-        self.assertIn("texture_status_enabled", source)
-        self.assertIn("texture_status_disabled", source)
-        self.assertIn("texture_toggle_ok", source)
-        self.assertIn("'enabled': False", source)
+        self.assertIn('interaction.name == "texture-update"', source)
+        self.assertIn("build_texture_editor_resident_patch", source)
+        self.assertIn("apply_resident_material_parameters", source)
+        self.assertIn("exercise_deterministic_offscreen_capture", source)
 
     def test_mesh_edit_selection_ids_and_topology_replacement_are_safe_for_d3d11(self) -> None:
         main_source = _mesh_edit_source()
         payload_source = _read("cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py")
+        bridge_source = _read("cdmw/ui/preview/dotnet_host.py")
+
+        self.assertIn("source_indices_for_editor_id=_state._alignment_d3d11_source_indices_for_editor_id", main_source)
+        self.assertIn("source_indices_for_editor_id(editor_submesh_index)", payload_source)
+        self.assertIn("def _mesh_edit_clear_topology_selection(_state, _callbacks, ) -> None:", main_source)
+        self.assertIn("def replace_mesh_edit_triangles(", bridge_source)
+        self.assertIn('"replace_all": bool(replace_all)', bridge_source)
+        self.assertIn('"source_submesh_indices": _indices(source_submesh_indices or ())', bridge_source)
+        return
         native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
         bridge_source = _read("cdmw/ui/native_d3d11_preview_host.py")
 
@@ -2534,12 +2606,12 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("for raw_index in tuple(keys() or ()):", main_source)
         self.assertIn("if _callbacks._mesh_edit_replace_live_triangles(requested_source_indices, replace_all=replace_all):", helper_body)
         self.assertIn("if _callbacks._alignment_d3d11_mesh_edit_commands_active():", helper_body)
-        self.assertIn("Native D3D11 mesh edit triangle update failed; rebuilding native preview from the working mesh.", helper_body)
+        self.assertIn(".NET/Vortice mesh edit triangle update failed; rebuilding the resident preview from the working mesh.", helper_body)
         self.assertIn("_mesh_editor_queue_native_preview_rebuild_from_working_mesh", helper_body)
         self.assertIn("if _state._alignment_d3d11_preview_active():", helper_body)
-        self.assertIn("Native D3D11 mesh edit commands are unavailable; preview is stale.", helper_body)
+        self.assertIn(".NET/Vortice mesh edit commands are unavailable; preview is stale.", helper_body)
         self.assertIn("if _state._mesh_edit_tab_active():", helper_body)
-        self.assertIn("Active Mesh Editor triangle refresh requires native D3D11 refresh", helper_body)
+        self.assertIn("Active Mesh Editor triangle refresh requires .NET/Vortice refresh", helper_body)
         self.assertLess(helper_body.index("_callbacks._mesh_edit_replace_live_triangles("), helper_body.index("_state._queue_static_preview_rebuild()"))
         self.assertLess(
             helper_body.index("if _callbacks._alignment_d3d11_mesh_edit_commands_active():"),
@@ -2715,6 +2787,16 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_mesh_edit_loading_watchdog_clears_stale_d3d11_state(self) -> None:
         source = _mesh_edit_source()
+        controller_source = _read("cdmw/ui/preview/dotnet_session.py")
+
+        self.assertIn("_TRANSIENT_RETRY_DELAYS_MS = (500, 1_000, 2_000, 5_000)", controller_source)
+        self.assertIn("_STEADY_RETRY_DELAY_MS = 5_000", controller_source)
+        self.assertIn("_STATIC_RETRY_DELAY_MS = 30_000", controller_source)
+        self.assertIn("def retry_now(self) -> None:", controller_source)
+        self.assertIn("def deactivate(self) -> None:", controller_source)
+        self.assertIn("def shutdown(self) -> None:", controller_source)
+        self.assertIn("DotNetPreviewProfile.AUTHORING", _read("cdmw/ui/mesh_editor/workspace_shell_builder.py"))
+        return
         presentation_source = _read("cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py")
         worker_source = _read("cdmw/workers/d3d11_package_workers.py")
         package_source = "\n".join(
@@ -3040,6 +3122,17 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
                     self.assertNotIn(token, source)
 
     def test_mesh_edit_strokes_reuse_session_topology_cache(self) -> None:
+        host_source = _read("cdmw/ui/preview/dotnet_host.py")
+        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
+        dispatcher_source = _read("cdmw/ui/mesh_editor/live_stroke_dispatcher.py")
+
+        for event in ("stroke_begin", "stroke_update", "stroke_end", "stroke_cancel"):
+            self.assertIn(event, host_source)
+        self.assertIn('EditorEventRequested?.Invoke("stroke_begin"', input_source)
+        self.assertIn('EditorEventRequested?.Invoke("stroke_update"', input_source)
+        self.assertIn('EditorEventRequested?.Invoke("stroke_end"', input_source)
+        self.assertIn("previous_stroke_id != newest_stroke_id", dispatcher_source)
+        return
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py")
         remaining_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_remaining_callbacks.py")
         callback_factory_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py")
@@ -5279,10 +5372,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         sync_native_body = tab_source[
             sync_native_start: tab_source.index("def load_standalone_native_preview_package", sync_native_start)
         ]
-        self.assertIn("mesh_pose_to_native_preview(", sync_native_body)
+        self.assertIn("mesh = self._standalone_preview_mesh_snapshot()", sync_native_body)
+        self.assertIn("build_mesh_dotnet_experiment_package(", sync_native_body)
         self.assertLess(
-            sync_native_body.index("mesh_pose_to_native_preview("),
             sync_native_body.index("mesh = self._standalone_preview_mesh_snapshot()"),
+            sync_native_body.index("build_mesh_dotnet_experiment_package("),
         )
 
     def test_alignment_mesh_editor_texture_settings_and_view_mode_are_wired(self) -> None:
@@ -5668,6 +5762,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
 
     def test_mesh_edit_drag_inverts_preview_delta_without_display_space_rewrite(self) -> None:
         source = _mesh_edit_source()
+        input_source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Input.cs")
+        host_source = _read("cdmw/ui/preview/dotnet_host.py")
+
+        self.assertIn('payload["screen_drag"] = ScreenDragPayload(origin, point)', input_source)
+        self.assertIn('["world_view_projection"] = camera.WorldViewProjectionRowMajorArray()', input_source)
+        self.assertIn("def update_mesh_edit_vertices(", host_source)
+        self.assertIn("def replace_mesh_edit_triangles(", host_source)
+        self.assertNotIn("def _mesh_edit_apply_display_space_vertex_result(", source)
+        return
         callback_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py")
         prompt_deps_source = _read("cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_base.py")
         native_source = _read("native/cdmw_d3d11_preview/src/main.cpp")
@@ -5867,9 +5970,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("batch.editor_editable = false;", native_source)
 
     def test_native_mesh_edit_json_float_parser_accepts_exponent_numbers(self) -> None:
-        source = _read("native/cdmw_d3d11_preview/src/main.cpp")
+        source = _read("tools/dotnet_mesh_editor_experiment/MeshViewport.Geometry.cs")
 
-        self.assertGreaterEqual(source.count(r"(?:[eE][+-]?\\d+)?"), 3)
+        self.assertIn("Convert.ToDouble(value", source)
 
     def test_modify_original_material_preview_is_not_skipped_during_mesh_edit(self) -> None:
         source = _mesh_edit_source()
@@ -5891,7 +5994,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if live_mesh_edit and _state._mesh_edit_tab_active():", refresh_body)
         self.assertIn("mesh_edit_static_preview_refresh_blocked", refresh_body)
         self.assertIn(
-            "Active Mesh Editor static preview refresh requires native D3D11; Python preview rebuild fallback is disabled.",
+            "Active Mesh Editor static preview refresh requires .NET/Vortice; Python preview rebuild fallback is disabled.",
             refresh_body,
         )
         self.assertLess(
@@ -5966,7 +6069,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("consume(build_native_mesh_preview_vertex_update_groups(mesh, missing))", generated_live_body)
         flush_body = _function_source(source, "_flush_mesh_edit_live_vertex_updates")
         self.assertIn('"mesh_edit_live_vertex_update_empty"', flush_body)
-        self.assertIn("Native D3D11 mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
+        self.assertIn(".NET/Vortice mesh edit preview produced no vertex update payload; preview is stale.", flush_body)
         self.assertLess(
             flush_body.index("if not groups:"),
             flush_body.index("_state.alignment_d3d11_preview_host.update_mesh_edit_vertices(groups)"),
@@ -5976,9 +6079,9 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             update_body,
         )
         self.assertIn('"mesh_edit_live_preview_deferred"', update_body)
-        self.assertIn("Native D3D11 mesh edit commands are unavailable; preview is stale.", update_body)
+        self.assertIn(".NET/Vortice mesh edit commands are unavailable; preview is stale.", update_body)
         self.assertIn("if _state._mesh_edit_tab_active():", update_body)
-        self.assertIn("Active Mesh Editor live preview requires native D3D11", update_body)
+        self.assertIn("Active Mesh Editor live preview requires .NET/Vortice", update_body)
         self.assertIn('"mesh_edit_live_preview_rebuild_blocked"', update_body)
         self.assertIn("def _native_screen_payload(", source)
         self.assertIn("_LEGACY_SCREEN_CAMERA_FIELDS", source)
@@ -6273,7 +6376,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         commit_working_body = _function_source(source, "_mesh_edit_commit_working_mesh")
         refresh_preview_body = _function_source(source, "_mesh_edit_refresh_replacement_preview_model")
-        self.assertIn("Active Mesh Editor preview refresh requires native D3D11", refresh_preview_body)
+        self.assertIn("Active Mesh Editor preview refresh requires .NET/Vortice", refresh_preview_body)
         self.assertLess(
             refresh_preview_body.index("and _state._mesh_edit_tab_active()"),
             refresh_preview_body.index("_state.parsed_mesh_to_preview_model("),
@@ -6288,7 +6391,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             commit_working_body.index("_callbacks._mesh_edit_refresh_replacement_preview_model(allow_defer_for_incremental_d3d11=True)"),
         )
         self.assertIn("if not native_update_applied:", commit_working_body)
-        self.assertIn("Active Mesh Editor commit requires native D3D11 refresh", commit_working_body)
+        self.assertIn("Active Mesh Editor commit requires .NET/Vortice refresh", commit_working_body)
         active_no_d3d_commit_start = commit_working_body.index("elif _state._mesh_edit_tab_active():")
         active_no_d3d_commit_body = commit_working_body[
             active_no_d3d_commit_start:commit_working_body.index("else:", active_no_d3d_commit_start)
@@ -6711,7 +6814,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertNotIn("refresh_sources = affected if not replace_all else tuple(range(len(mesh.submeshes)))", topology_body)
         self.assertIn("replace_all_triangles=replace_all", topology_body)
         topology_refresh_start = mesh_controller_source.index("def _topology_refresh_source_indices(")
-        topology_refresh_body = mesh_controller_source[topology_refresh_start: mesh_controller_source.index("def _coerce_source_index(", topology_refresh_start)]
+        topology_refresh_body = mesh_controller_source[topology_refresh_start:]
         self.assertNotIn("tuple(result.affected_submesh_indices or ())", topology_refresh_body)
         weighted_start = mesh_ops_source.index("def _weighted_normals")
         weighted_body = mesh_ops_source[weighted_start: mesh_ops_source.index("def _computed_weighted_normals", weighted_start)]
@@ -7260,7 +7363,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertLess(
             flush_body.index("_active_mesh_edit_source_glow_mutation_blocked"),
-            flush_body.index("adjustment.emissive_color_rgb = ()"),
+            flush_body.index("_state._apply_current_glow_color_to_role_overrides()"),
         )
         self.assertLess(
             selected_role_body.index("_active_mesh_edit_source_part_output_mutation_blocked"),
@@ -7626,7 +7729,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("replace_all=replace_all", helper_body)
         self.assertIn("_source_part_current_preview_indices()", helper_body)
         self.assertIn("if _state._source_part_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor source-part preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor source-part preview requires a .NET/Vortice refresh; software preview fallback is disabled.", helper_body)
         self.assertIn("_set_source_parts_preview_rebuild_pending(reason)", helper_body)
         self.assertIn("_queue_static_preview_rebuild()", helper_body)
         self.assertLess(
@@ -7758,7 +7861,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer((int(source_index),))", helper_body)
         self.assertIn("if _state._copied_original_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor copied-source preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor copied-source preview requires .NET/Vortice refresh; Python preview rebuild fallback is disabled.", helper_body)
         self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(
             helper_body.index("replacer((int(source_index),))"),
@@ -7795,7 +7898,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("if callable(_state._alignment_d3d11_preview_active) and _state._alignment_d3d11_preview_active():", helper_body)
         self.assertIn("replacer(source_indices)", helper_body)
         self.assertIn("if _state._selected_part_mesh_edit_active():", helper_body)
-        self.assertIn("Active Mesh Editor source enable preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.", helper_body)
+        self.assertIn("Active Mesh Editor source enable preview requires .NET/Vortice refresh; Python preview rebuild fallback is disabled.", helper_body)
         self.assertIn("_state._set_source_parts_preview_rebuild_pending(_state._source_part_include_exclude_pending_reason_helper())", helper_body)
         self.assertIn("_state._queue_static_preview_rebuild()", helper_body)
         self.assertLess(

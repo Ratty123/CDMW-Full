@@ -18,12 +18,10 @@ from PySide6.QtCore import QObject, Signal, Slot
 from cdmw.core.atomic_file import atomic_copy_file, atomic_publish_files, atomic_write_bytes, atomic_write_text
 from cdmw.domain.mesh import MeshEditCommand
 from cdmw.models import RunCancelled
-from cdmw.models import ModelPreviewData, ModelPreviewRenderSettings, PreparedModelPreviewData
 from cdmw.modding.mesh_parser import ParsedMesh, parse_mesh
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_glb_interchange import export_glb, import_glb_with_sidecar
 from cdmw.modding.mesh_obj_importer import import_obj
-from cdmw.rendering.native_preview_package_writer import write_isolated_d3d11_preview_package
 from cdmw.services.mesh_service import MeshService
 from cdmw.services.mesh_service_state import MeshExportSnapshot, MeshExportTextureSnapshot
 from cdmw.workers.mesh_editor_aux_workers import (
@@ -461,76 +459,6 @@ class MeshEditablePackageImportWorker(QObject):
             self.finished.emit()
 
 
-class MeshNativePreviewPackageWorker(QObject):
-    completed = Signal(int, object, float)
-    error = Signal(int, str)
-    finished = Signal()
-
-    def __init__(
-        self,
-        request_id: int,
-        mesh: ParsedMesh,
-        render_settings: ModelPreviewRenderSettings,
-        *,
-        prepare_native_preview: Callable[[ParsedMesh], PreparedModelPreviewData],
-        output_root: Path | str | None = None,
-        model_preview_data: ModelPreviewData | None = None,
-        use_textures: bool = False,
-        high_quality_textures: bool = False,
-        backend: str = "d3d11",
-        display_mode: str = "replacement_only",
-    ) -> None:
-        super().__init__()
-        self.request_id = int(request_id)
-        self.mesh = mesh
-        self.prepare_native_preview = prepare_native_preview
-        self.render_settings = render_settings
-        self.output_root = Path(output_root) if output_root is not None else None
-        self.model_preview_data = model_preview_data
-        self.use_textures = bool(use_textures)
-        self.high_quality_textures = bool(high_quality_textures)
-        self.backend = str(backend or "d3d11")
-        self.display_mode = str(display_mode or "replacement_only")
-        self.stop_event = threading.Event()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-
-    @Slot()
-    def run(self) -> None:
-        package_dir: Path | None = None
-        try:
-            if self.stop_event.is_set():
-                return
-            started = time.perf_counter()
-            prepared_preview = self.prepare_native_preview(self.mesh)
-            if not isinstance(prepared_preview, PreparedModelPreviewData):
-                raise TypeError("prepare_native_preview did not return PreparedModelPreviewData")
-            if self.stop_event.is_set():
-                return
-            package_dir = write_isolated_d3d11_preview_package(
-                self.model_preview_data or ModelPreviewData(path=str(self.mesh.path or "mesh_editor.pac")),
-                prepared_preview,
-                output_root=self.output_root,
-                render_settings=self.render_settings,
-                use_textures=self.use_textures,
-                high_quality_textures=self.high_quality_textures,
-                backend=self.backend,
-                display_mode=self.display_mode,
-                stop_event=self.stop_event,
-            )
-            elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-            if not self.stop_event.is_set():
-                self.completed.emit(self.request_id, package_dir, elapsed_ms)
-            elif package_dir is not None:
-                shutil.rmtree(package_dir, ignore_errors=True)
-        except Exception as exc:
-            if not self.stop_event.is_set():
-                self.error.emit(self.request_id, f"{type(exc).__name__}: {exc}")
-        finally:
-            self.finished.emit()
-
-
 class MeshEditCommandWorker(QObject):
     progress_changed = Signal(int, int, str)
     completed = Signal(int, object)
@@ -795,7 +723,6 @@ __all__ = [
     "MeshDotNetExperimentOutputImportWorker",
     "MeshEditCommandWorker",
     "MeshExportValidationWorker",
-    "MeshNativePreviewPackageWorker",
     "MeshReportWriteWorker",
     "MeshRebuildReportWorker",
     "MeshTextureSourceResolveWorker",

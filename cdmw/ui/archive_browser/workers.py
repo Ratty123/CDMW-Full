@@ -564,11 +564,6 @@ class ArchivePreviewWorkerMixin:
                 else:
                     self._stop_archive_preview_loading_indicator(success=True)
                     self._record_archive_memory_audit("archive_preview_ready", log_if_high=True)
-                    if (
-                        self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
-                        and self._native_preview_package_cache_mode() == "aggressive"
-                    ):
-                        self.archive_native_prefetch_timer.start()
         except Exception as exc:
             self._write_crash_report(
                 "archive_preview_ready_error",

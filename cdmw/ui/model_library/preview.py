@@ -2,25 +2,21 @@
 
 from __future__ import annotations
 
-import json
-import os
 import re
+import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtCore import QProcess, Qt, QTimer
+from PySide6.QtCore import QTimer
 from PySide6.QtGui import QImage
 
-from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
 from cdmw.domain.library.models import is_importable_model_path
 from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
 )
-from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.model_library.icon_output import ModelLibraryIconOutputMixin
-from cdmw.ui.native_d3d11_preview_host import native_d3d11_renderer_command
 from cdmw.workers.model_library_workers import (
     prepare_model_library_preview_icon,
     remove_model_library_preview_package_dir,
@@ -61,43 +57,17 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         )
 
     def _inline_preview_renderer_backend(self) -> str:
-        return "native_d3d11"
-
-    def _inline_d3d11_theme_payload(self) -> dict[str, str]:
-        return {
-            "background": MODEL_PREVIEW_BACKGROUND_COLOR,
-            "text": MODEL_PREVIEW_TEXT_COLOR,
-        }
+        return "d3d11_vortice_shader"
 
     def _inline_d3d11_process_running(self) -> bool:
-        process = self._inline_d3d11_process
-        try:
-            return process is not None and process.state() != QProcess.NotRunning
-        except RuntimeError:
-            return False
+        controller = getattr(getattr(self, "inline_d3d11_preview_host", None), "controller", None)
+        return bool(controller is not None and getattr(controller, "is_running", False))
 
     def _start_inline_d3d11_status_timer(self) -> None:
-        try:
-            self._inline_d3d11_status_timer.start()
-        except RuntimeError:
-            pass
+        return None
 
     def _stop_inline_d3d11_status_timer(self) -> None:
-        try:
-            self._inline_d3d11_status_timer.stop()
-        except RuntimeError:
-            pass
-
-    def _inline_d3d11_diagnostic_paths(self) -> tuple[Path, Path]:
-        crash_dir = Path(
-            os.environ.get("CDMW_CRASH_DIR", "")
-            or workspace_paths(self.base_dir)["crash_reports_dir"]
-        )
-        diagnostic_log = Path(
-            os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG", "")
-            or crash_dir / "native_events_current.jsonl"
-        )
-        return crash_dir, diagnostic_log
+        return None
 
     def _remove_inline_d3d11_package_dir(self, package_dir: Optional[Path]) -> None:
         remove_model_library_preview_package_dir(package_dir)
@@ -108,217 +78,70 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         if include_active and self._inline_d3d11_active_package is not None:
             packages.append(Path(self._inline_d3d11_active_package))
             self._inline_d3d11_active_package = None
-            self._inline_d3d11_status_file = None
-            self._inline_d3d11_status_mtime = 0.0
-            self._inline_d3d11_status_request_id = 0
         for package_dir in packages:
             self._remove_inline_d3d11_package_dir(package_dir)
 
     def _start_inline_d3d11_process(self, package_dir: Path, *, render_settings: object) -> bool:
         package_dir = Path(package_dir)
-        status_file = package_dir / "host_status.json"
-        try:
-            status_file.unlink(missing_ok=True)
-        except OSError:
-            pass
         previous_package = self._inline_d3d11_active_package
-        reuse_process = self._inline_d3d11_process_running()
         self._record_model_library_preview_event(
-            "model_library_d3d11_start",
+            "model_library_dotnet_load",
             package_dir=str(package_dir),
-            status_file=str(status_file),
-            reuse_process=bool(reuse_process),
+            resident=bool(self._inline_d3d11_process_running()),
         )
         if previous_package is not None and Path(previous_package) != package_dir:
             self._inline_d3d11_retired_packages.append(Path(previous_package))
         self._inline_d3d11_active_package = package_dir
-        self._inline_d3d11_status_file = status_file
-        self._inline_d3d11_status_mtime = 0.0
-        self._inline_d3d11_status_request_id = int(self._inline_preview_request_id)
-        if reuse_process:
-            if self.inline_d3d11_preview_host.load_package(package_dir, status_file, reset_view=True):
-                self.inline_d3d11_preview_host.set_render_tuning(render_settings)
-                self._start_inline_d3d11_status_timer()
-                return True
-            self._stop_inline_d3d11_process(cleanup_packages=True)
-        self.inline_d3d11_preview_host.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
         self.inline_d3d11_preview_host.show()
         self.inline_d3d11_preview_host.update()
-        try:
-            crash_dir, diagnostic_log = self._inline_d3d11_diagnostic_paths()
-            program, arguments = native_d3d11_renderer_command(
-                package_dir,
-                status_file,
-                host_widget=self.inline_d3d11_preview_host,
-                theme_payload=self._inline_d3d11_theme_payload(),
-                crash_dir=crash_dir,
-                diagnostic_log=diagnostic_log,
-            )
-        except Exception as exc:
-            self._set_inline_preview_status(f"Native D3D11 preview unavailable: {exc}", error=True)
+        if not self.inline_d3d11_preview_host.load_package(
+            package_dir,
+            reset_view=previous_package is None,
+        ):
+            self._set_inline_preview_status(".NET/Vortice Preview rejected the prepared package.", error=True)
             self._cleanup_inline_d3d11_packages(include_active=True)
             return False
-        process = QProcess(self)
-        process.setProgram(program)
-        process.setArguments(arguments)
-        try:
-            process.setWorkingDirectory(str(Path(__file__).resolve().parents[3]))
-        except Exception:
-            pass
-        process.setProcessChannelMode(QProcess.SeparateChannels)
-        process.started.connect(lambda: self._record_model_library_preview_event("model_library_d3d11_process_started"))
-        process.readyReadStandardError.connect(lambda process=process: self._handle_inline_d3d11_stderr(process))
-        process.finished.connect(lambda exit_code, _exit_status, process=process: self._handle_inline_d3d11_finished(process, exit_code))
-        process.errorOccurred.connect(lambda error, process=process: self._handle_inline_d3d11_error(process, error))
-        self._inline_d3d11_process = process
-        self._start_inline_d3d11_status_timer()
+        self.inline_d3d11_preview_host.set_render_tuning(render_settings)
+        self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
         self._record_model_library_preview_event(
-            "model_library_d3d11_process_configured",
-            program=program,
-            arguments=list(arguments),
+            "model_library_dotnet_package_requested",
             package_dir=str(package_dir),
-            status_file=str(status_file),
         )
-        process.start()
-        QTimer.singleShot(10000, lambda expected_status=status_file, process=process: self._check_inline_d3d11_start_timeout(expected_status, process))
         return True
 
-    def _check_inline_d3d11_start_timeout(self, expected_status: Path, process: QProcess) -> None:
-        if self._inline_d3d11_status_file != expected_status or process is not self._inline_d3d11_process:
-            return
-        if expected_status.is_file():
-            return
-        if not self._inline_d3d11_process_running():
-            self._set_inline_preview_status("Native D3D11 renderer did not start.", error=True)
-            self._record_model_library_preview_event("model_library_d3d11_start_failed", status_file=str(expected_status))
-            self._stop_inline_d3d11_process(cleanup_packages=True)
-            return
-        self._set_inline_preview_status("Native D3D11 renderer did not start in time.", error=True)
-        self._record_model_library_preview_event("model_library_d3d11_start_timeout", status_file=str(expected_status))
-        self._stop_inline_d3d11_process(cleanup_packages=True)
-
-    def _handle_inline_d3d11_stderr(self, process: QProcess) -> None:
-        if process is not self._inline_d3d11_process:
-            return
-        try:
-            message = bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()
-        except RuntimeError:
-            return
-        if message:
-            self._set_inline_preview_status(f"Native D3D11 preview stderr: {message[-600:]}", error=True)
-
-    def _handle_inline_d3d11_error(self, process: QProcess, error: object) -> None:
-        if process is self._inline_d3d11_process:
-            self._inline_d3d11_process = None
-            self._stop_inline_d3d11_status_timer()
-            self._set_inline_preview_status(f"Native D3D11 preview process error: {error}", error=True)
-            self._record_model_library_preview_event("model_library_d3d11_error", error=str(error))
-            self._cleanup_inline_d3d11_packages(include_active=True)
-            try:
-                process.deleteLater()
-            except RuntimeError:
-                pass
-
-    def _handle_inline_d3d11_finished(self, process: QProcess, exit_code: int = 0) -> None:
-        if process is self._inline_d3d11_process:
-            self._inline_d3d11_process = None
-            self._stop_inline_d3d11_status_timer()
-            if int(exit_code) != 0:
-                self._set_inline_preview_status(f"Native D3D11 preview exited with code {int(exit_code)}.", error=True)
-            self._record_model_library_preview_event("model_library_d3d11_finished", exit_code=int(exit_code))
-            self._cleanup_inline_d3d11_packages(include_active=True)
-
     def _poll_inline_d3d11_status(self) -> None:
-        status_file = self._inline_d3d11_status_file
-        if status_file is None:
-            return
-        if int(self._inline_d3d11_status_request_id) != int(self._inline_preview_request_id):
-            return
-        try:
-            stat = status_file.stat()
-        except OSError:
-            return
-        mtime = float(getattr(stat, "st_mtime", 0.0) or 0.0)
-        if mtime <= float(self._inline_d3d11_status_mtime):
-            return
-        self._inline_d3d11_status_mtime = mtime
-        try:
-            payload = json.loads(status_file.read_text(encoding="utf-8"))
-        except Exception:
-            return
-        if not isinstance(payload, dict):
-            return
-        event = str(payload.get("event", "") or "").strip().lower()
-        if event == "resources_loaded":
-            # A reused renderer cannot draw its first frame while this host is
-            # hidden behind the preparation page. Reveal it once GPU resources
-            # are resident; the subsequent first frame publishes ``loaded``.
-            self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
-            self._set_inline_preview_status("Native D3D11 resources loaded; drawing first frame...")
-            self._record_model_library_preview_event("model_library_d3d11_resources_loaded")
-            return
-        if event == "loaded":
-            batch_count = int(payload.get("batch_count", 0) or 0)
-            vertex_count = int(payload.get("vertex_count", 0) or 0)
-            native_manifest_ms = float(payload.get("native_manifest_ms", 0.0) or 0.0)
-            native_geometry_ms = float(payload.get("native_geometry_ms", 0.0) or 0.0)
-            native_texture_ms = float(payload.get("native_texture_ms", 0.0) or 0.0)
-            first_frame_ms = float(payload.get("first_frame_ms", 0.0) or 0.0)
-            png_fallback = int(payload.get("png_fallback", 0) or 0)
-            texture_cache_hits = int(payload.get("texture_cache_hits", 0) or 0)
-            texture_failures = int(payload.get("texture_failures", 0) or 0)
+        return None
+
+    def _handle_inline_dotnet_state(self, state: str, message: str) -> None:
+        if str(state) == "ready":
             self._cleanup_inline_d3d11_packages(include_active=False)
             self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
-            self._set_inline_preview_status(
-                f"Native D3D11 Model Library preview ready: {batch_count:,} batch(es), {vertex_count:,} vertices "
-                f"| load manifest {native_manifest_ms:.1f} ms, geometry {native_geometry_ms:.1f} ms, "
-                f"textures {native_texture_ms:.1f} ms, first frame {first_frame_ms:.1f} ms, "
-                f"PNG fallback {png_fallback}, cache hits {texture_cache_hits}."
-            )
-            self._record_model_library_preview_event(
-                "model_library_d3d11_loaded",
-                batch_count=batch_count,
-                vertex_count=vertex_count,
-                native_manifest_ms=native_manifest_ms,
-                native_geometry_ms=native_geometry_ms,
-                native_texture_ms=native_texture_ms,
-                first_frame_ms=first_frame_ms,
-                png_fallback=png_fallback,
-                texture_cache_hits=texture_cache_hits,
-                texture_failures=texture_failures,
-            )
+            self._set_inline_preview_status(".NET/Vortice Model Library preview ready.")
+            self._record_model_library_preview_event("model_library_dotnet_ready")
             if int(self._pending_icon_generation_request_id) == int(self._inline_preview_request_id):
                 self._pending_icon_generation_request_id = 0
                 QTimer.singleShot(180, self._capture_inline_preview_icon)
-        elif event == "error":
-            self._set_inline_preview_status(str(payload.get("message", "Native D3D11 preview failed.") or ""), error=True)
+        elif str(state) == "error":
+            self._set_inline_preview_status(str(message or ".NET/Vortice Preview failed."), error=True)
             self._record_model_library_preview_event(
-                "model_library_d3d11_status_error",
-                message=str(payload.get("message", "") or ""),
+                "model_library_dotnet_error",
+                message=str(message or ""),
             )
-            self._stop_inline_d3d11_process(cleanup_packages=True)
+        elif str(state) not in {"empty", "inactive", "closed"}:
+            self._set_inline_preview_status(str(message or ".NET/Vortice Preview"))
 
     def _stop_inline_d3d11_process(
         self,
         *,
         cleanup_packages: bool = False,
     ) -> None:
-        process = self._inline_d3d11_process
-        active_package = self._inline_d3d11_active_package if cleanup_packages else None
-        self._inline_d3d11_process = None
-        self._stop_inline_d3d11_status_timer()
+        controller = getattr(getattr(self, "inline_d3d11_preview_host", None), "controller", None)
         if cleanup_packages:
+            if controller is not None:
+                controller.shutdown()
             self._cleanup_inline_d3d11_packages(include_active=True)
-        if process is None:
-            return
-        try:
-            if process.state() != QProcess.NotRunning:
-                process.terminate()
-                QTimer.singleShot(1200, lambda process=process: process.kill() if process.state() != QProcess.NotRunning else None)
-                if active_package is not None:
-                    QTimer.singleShot(7000, lambda package_dir=Path(active_package): self._remove_inline_d3d11_package_dir(package_dir))
-        except RuntimeError:
-            return
+        elif controller is not None:
+            controller.clear_preview()
 
     def _prepare_inline_preview_orientation_for_load(self, *, reset_orientation: bool) -> None:
         if reset_orientation:
@@ -362,7 +185,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self._sync_inline_preview_orientation_controls()
         if int(self._inline_preview_loaded_texture_count) <= 0:
             return
-        if str(self._inline_preview_loaded_renderer_backend or "").strip().lower() == "native_d3d11":
+        if str(self._inline_preview_loaded_renderer_backend or "").strip().lower() == "d3d11_vortice_shader":
             self._reload_inline_preview_for_orientation()
             return
         self._set_inline_preview_status("Flip V preview override applied." if checked else "Texture orientation preview reset.")
@@ -400,8 +223,8 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self._inline_preview_task_running = True
         self._prepare_inline_preview_orientation_for_load(reset_orientation=reset_orientation)
         self._set_inline_preview_status(f"Preparing preview for {model_name}...")
-        self.inline_preview_widget.clear_model(f"Preparing preview for {model_name}...")
-        self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
+        self.inline_d3d11_preview_host.clear_preview()
+        self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
         self._inline_preview_loaded_import_path = None
         self._inline_preview_loaded_payload = None
         preview_render_settings = self.inline_preview_widget.render_settings()
@@ -436,50 +259,34 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
                 return
             if int(result.get("request_id", -1)) != int(self._inline_preview_request_id):
                 return
-            preview_model = result.get("preview_model")
-            prepared_preview = result.get("prepared_preview")
             active_renderer = str(result.get("renderer_backend", "") or "").strip().lower()
-            renderer_note = " | renderer: Qt preview"
-            loaded_renderer_backend = active_renderer or "qt"
-            native_preview_started = False
-            if active_renderer == "native_d3d11" and str(result.get("d3d11_package_dir", "") or "").strip():
-                package_dir = Path(str(result.get("d3d11_package_dir", "") or ""))
+            renderer_note = " | renderer: .NET/Vortice Preview"
+            loaded_renderer_backend = active_renderer or "d3d11_vortice_shader"
+            dotnet_preview_started = False
+            if active_renderer == "d3d11_vortice_shader" and str(result.get("dotnet_preview_package_path", "") or "").strip():
+                package_dir = Path(str(result.get("dotnet_preview_package_path", "") or ""))
                 self._record_model_library_preview_event(
                     "model_library_preview_prepared",
                     request_id=request_id,
                     import_path=str(result.get("import_path", "") or source_path),
                     renderer_backend=active_renderer,
-                    d3d11_package_dir=str(package_dir),
+                    dotnet_preview_package_path=str(package_dir),
                     vertices=int(result.get("vertices", 0) or 0),
                     faces=int(result.get("faces", 0) or 0),
                     textures=int(result.get("textures", 0) or 0),
-                    d3d11_package_ms=float(result.get("d3d11_package_ms", 0.0) or 0.0),
+                    dotnet_package_ms=float(result.get("dotnet_package_ms", 0.0) or 0.0),
                     high_quality_textures=bool(result.get("high_quality_textures", high_quality_textures)),
                 )
                 if self._start_inline_d3d11_process(package_dir, render_settings=preview_render_settings):
-                    native_preview_started = True
-                    loaded_renderer_backend = "native_d3d11"
-                    renderer_note = f" | renderer: native D3D11 package ({float(result.get('d3d11_package_ms', 0.0) or 0.0):.1f} ms)"
+                    dotnet_preview_started = True
+                    loaded_renderer_backend = "d3d11_vortice_shader"
+                    renderer_note = f" | renderer: .NET/Vortice package ({float(result.get('dotnet_package_ms', 0.0) or 0.0):.1f} ms)"
                 else:
-                    self._set_inline_preview_status("Native D3D11 preview failed to start.", error=True)
+                    self._set_inline_preview_status(".NET/Vortice Preview failed to load.", error=True)
                     return
             else:
-                if preview_model is None:
-                    self._set_inline_preview_status("Qt preview data was not built.", error=True)
-                    return
-                self._record_model_library_preview_event(
-                    "model_library_preview_prepared",
-                    request_id=request_id,
-                    import_path=str(result.get("import_path", "") or source_path),
-                    renderer_backend=active_renderer or "qt",
-                    vertices=int(result.get("vertices", 0) or 0),
-                    faces=int(result.get("faces", 0) or 0),
-                    textures=int(result.get("textures", 0) or 0),
-                    high_quality_textures=bool(result.get("high_quality_textures", high_quality_textures)),
-                )
-                self._stop_inline_d3d11_process(cleanup_packages=True)
-                self.inline_preview_stack.setCurrentWidget(self.inline_preview_widget)
-                self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)
+                self._set_inline_preview_status("Canonical .NET/Vortice preview package was not built; no legacy fallback is available.", error=True)
+                return
             resolved_import_path = Path(str(result.get("import_path", "") or source_path))
             self._invalidate_prepared_row_source(payload)
             self._inline_preview_loaded_import_path = resolved_import_path
@@ -519,7 +326,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             self._sync_inline_preview_orientation_controls()
             self._update_selection_state()
             if int(self._pending_icon_generation_request_id) == int(request_id):
-                if not native_preview_started:
+                if not dotnet_preview_started:
                     self._pending_icon_generation_request_id = 0
                     QTimer.singleShot(180, self._capture_inline_preview_icon)
 
@@ -601,35 +408,50 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         if self._task_thread is not None and self._task_thread.isRunning():
             self._set_inline_preview_status("A model library task is already running.", error=True)
             return
-        native_capture = self.inline_preview_stack.currentWidget() is self.inline_d3d11_preview_host
-        if native_capture:
-            try:
-                image = self.inline_d3d11_preview_host.capture_replacement_icon_image()
-            except Exception as exc:
-                self._set_inline_preview_status(f"Icon capture failed: {exc}", error=True)
-                return
-            if image.isNull() or image.width() <= 0 or image.height() <= 0:
-                self._set_inline_preview_status("Icon capture failed: native D3D11 preview framebuffer is empty.", error=True)
-                return
-        else:
-            if int(getattr(self.inline_preview_widget, "_vertex_count", 0) or 0) <= 0:
-                self._set_inline_preview_status("The preview is not render-ready yet.", error=True)
-                return
-            try:
-                self.inline_preview_widget.repaint()
-                pixmap = self.inline_preview_widget.grab()
-                image = pixmap.toImage().copy() if not pixmap.isNull() else QImage()
-            except Exception as exc:
-                self._set_inline_preview_status(f"Icon capture failed: {exc}", error=True)
-                return
-            if image.isNull() or image.width() <= 0 or image.height() <= 0:
-                self._set_inline_preview_status("Icon capture failed: preview framebuffer is empty.", error=True)
-                return
+        dotnet_capture = self.inline_preview_stack.currentWidget() is self.inline_d3d11_preview_host
+        if not dotnet_capture:
+            self._set_inline_preview_status("The .NET/Vortice preview is not render-ready yet.", error=True)
+            return
+        capture_path = (
+            Path(tempfile.gettempdir())
+            / "cdmw_model_library_captures"
+            / f"capture_{self._inline_preview_request_id}_{time.time_ns()}.png"
+        )
+        self._pending_dotnet_icon_capture = (
+            dict(self._inline_preview_loaded_payload or payload),
+            Path(loaded_path),
+            capture_path,
+        )
+        if not self.inline_d3d11_preview_host.capture_replacement_icon(capture_path):
+            self._pending_dotnet_icon_capture = None
+            self._set_inline_preview_status("Icon capture failed: .NET/Vortice Preview rejected the capture request.", error=True)
+            return
+        self._set_inline_preview_status("Capturing deterministic .NET/Vortice preview icon...")
+
+    def _handle_inline_dotnet_capture_completed(self, result: object) -> None:
+        pending = self._pending_dotnet_icon_capture
+        if pending is None:
+            return
+        self._pending_dotnet_icon_capture = None
+        payload, loaded_path, capture_path = pending
+        status = str(result.get("status", "") or "") if isinstance(result, dict) else ""
+        image = QImage(str(capture_path)) if status == "captured" else QImage()
+        try:
+            capture_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        if image.isNull() or image.width() <= 0 or image.height() <= 0:
+            message = str(result.get("message", "") or "") if isinstance(result, dict) else ""
+            self._set_inline_preview_status(
+                f"Icon capture failed: {message or '.NET/Vortice preview framebuffer is empty.'}",
+                error=True,
+            )
+            return
         self._queue_inline_preview_icon_output(
             image,
-            payload=dict(self._inline_preview_loaded_payload or payload),
+            payload=payload,
             loaded_path=loaded_path,
-            native_capture=native_capture,
+            native_capture=True,
         )
 
     def closeEvent(self, event: object) -> None:  # type: ignore[override]

@@ -138,8 +138,6 @@ class CloseControllerMixin:
             ("archive_item_icon_priority_thread", self.archive_item_icon_priority_thread, self.archive_item_icon_priority_worker),
             ("compare_preview_thread", self.compare_preview_thread, self.compare_preview_worker),
             ("archive_preview_thread", self.archive_preview_thread, self.archive_preview_worker),
-            ("archive_isolated_package_thread", self.archive_isolated_package_thread, self.archive_isolated_package_worker),
-            ("archive_native_prefetch_thread", self.archive_native_prefetch_thread, self.archive_native_prefetch_worker),
         ]
         item_finder_warmup = getattr(self, "archive_item_finder_warmup_controller", None)
         iter_item_finder_workers = getattr(item_finder_warmup, "iter_shutdown_workers", None)
@@ -438,7 +436,6 @@ class CloseControllerMixin:
         self._chainner_analysis_timer.stop()
         self._compare_preview_timer.stop()
         self.archive_preview_debounce_timer.stop()
-        self.archive_native_prefetch_timer.stop()
         self.archive_preview_loading_timer.stop()
         self.archive_selection_state_timer.stop()
         self.archive_item_icon_preload_timer.stop()
@@ -505,7 +502,6 @@ class CloseControllerMixin:
         self._chainner_analysis_timer.stop()
         self._compare_preview_timer.stop()
         self.archive_preview_debounce_timer.stop()
-        self.archive_native_prefetch_timer.stop()
         self.archive_preview_loading_timer.stop()
         self.archive_selection_state_timer.stop()
         self.archive_item_icon_preload_timer.stop()

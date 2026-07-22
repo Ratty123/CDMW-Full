@@ -2,208 +2,138 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
-from PySide6.QtCore import QProcess
-
-from cdmw.ui.archive_browser.preview_d3d11_process import ArchivePreviewD3D11ProcessMixin
-from cdmw.ui.archive_browser.preview_d3d11_runtime import ArchivePreviewD3D11RuntimeMixin
+from cdmw.ui.archive_browser.preview_dotnet_lifecycle import ArchivePreviewDotNetLifecycleMixin
 
 
-class _FakeProcess:
-    def __init__(self, pid: int) -> None:
-        self.pid = pid
-        self.kill_count = 0
-        self._state = QProcess.Running
-
-    def processId(self) -> int:
-        return self.pid
-
-    def state(self) -> object:
-        return self._state
-
-    def kill(self) -> None:
-        self.kill_count += 1
-
-
-class _FakeTimer:
+class _FakeController:
     def __init__(self) -> None:
-        self.stop_count = 0
+        self.is_running = True
+        self.clear_count = 0
+        self.shutdown_count = 0
 
-    def stop(self) -> None:
-        self.stop_count += 1
+    def clear_preview(self) -> bool:
+        self.clear_count += 1
+        return True
+
+    def shutdown(self) -> None:
+        self.shutdown_count += 1
 
 
-class _FakeLabel:
+class _FakeHost:
     def __init__(self) -> None:
-        self.value = ""
+        self.controller = _FakeController()
+        self.clear_count = 0
+        self.loads: list[tuple[Path, bool]] = []
+        self.tuning: list[object] = []
+        self.accept_load = True
 
-    def setText(self, value: str) -> None:
-        self.value = value
+    def clear_preview(self) -> bool:
+        self.clear_count += 1
+        return True
+
+    def load_package(self, package: Path, *, reset_view: bool) -> bool:
+        self.loads.append((Path(package), bool(reset_view)))
+        return self.accept_load
+
+    def set_render_tuning(self, settings: object) -> bool:
+        self.tuning.append(settings)
+        return True
 
 
-class _FakeStack:
-    def __init__(self, current: object) -> None:
-        self.current = current
-
-    def currentWidget(self) -> object:
-        return self.current
-
-    def setCurrentWidget(self, value: object) -> None:
-        self.current = value
-
-
-class _LifecycleHarness(ArchivePreviewD3D11ProcessMixin, ArchivePreviewD3D11RuntimeMixin):
+class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
     def __init__(self) -> None:
-        self.archive_isolated_renderer_generation_counter = 0
-        self.archive_isolated_renderer_generations: dict[int, tuple[object, int, Path | None]] = {}
-        self.archive_isolated_renderer_expected_stops: dict[int, tuple[object, str, dict[str, object]]] = {}
-        self.archive_isolated_renderer_process: object | None = None
-        self.archive_isolated_renderer_active_process: object | None = None
-        self.archive_isolated_renderer_last_status_payload: dict[str, object] = {}
-        self.archive_isolated_renderer_status_timer = _FakeTimer()
-        self.archive_d3d11_preview_host = object()
-        self.archive_model_preview = object()
-        self.archive_preview_stack = _FakeStack(self.archive_d3d11_preview_host)
-        self.archive_d3d11_preview_status_label = _FakeLabel()
-        self.events: list[tuple[str, dict[str, object]]] = []
+        self.archive_d3d11_preview_host = _FakeHost()
+        self.archive_isolated_renderer_active_package: Path | None = Path("preview-package")
+        self.archive_isolated_renderer_package_source = "dotnet-canonical"
+        self._shutting_down = False
         self.messages: list[tuple[str, bool]] = []
-        self.hard_failures: list[str] = []
-        self.debug_messages: list[str] = []
+        self.render_requests: list[tuple[object, bool]] = []
+        self.entry = SimpleNamespace(path="character/body.pac")
+        self.settings = object()
 
-    def activate(
-        self,
-        process: _FakeProcess,
-        payload: dict[str, object] | None = None,
-        status_file: Path | None = None,
-    ) -> int:
-        generation = self._register_archive_isolated_renderer_process(  # type: ignore[arg-type]
-            process,
-            status_file,
-        )
-        self.archive_isolated_renderer_process = process
-        self.archive_isolated_renderer_active_process = process
-        self.archive_isolated_renderer_last_status_payload = dict(payload or {})
-        return generation
+    def _current_archive_entry(self) -> object:
+        return self.entry
 
-    def _record_runtime_event(self, event: str, **fields: object) -> None:
-        self.events.append((event, dict(fields)))
+    def _render_archive_preview(self, entry: object, *, force: bool = False) -> None:
+        self.render_requests.append((entry, bool(force)))
 
-    def _poll_archive_isolated_renderer_status(self) -> None:
-        return
-
-    def _discard_archive_d3d11_pending_package(self, *_args: object) -> bool:
-        return False
-
-    def _cleanup_archive_isolated_renderer_packages(self, **_kwargs: object) -> None:
-        return
-
-    def _set_archive_isolated_renderer_debug(self, message: str) -> None:
-        self.debug_messages.append(message)
-
-    def _format_archive_isolated_renderer_debug(self, payload: object) -> str:
-        return str(payload)
+    def _current_model_preview_render_settings(self) -> object:
+        return self.settings
 
     def set_status_message(self, message: str, *, error: bool = False) -> None:
-        self.messages.append((message, error))
-
-    def _show_archive_d3d11_hard_failure(self, reason: str) -> bool:
-        self.hard_failures.append(reason)
-        return False
+        self.messages.append((message, bool(error)))
 
 
-def test_expected_stop_is_bound_to_exact_process_and_generation() -> None:
+def test_archive_lifecycle_reads_shared_controller_process_state() -> None:
     harness = _LifecycleHarness()
-    expected_process = _FakeProcess(101)
-    other_process = _FakeProcess(102)
-    generation = harness.activate(expected_process)
-    harness._mark_archive_isolated_renderer_expected_stop(  # type: ignore[arg-type]
-        expected_process,
-        generation,
-        reason="shutdown",
-    )
 
-    assert harness._consume_archive_isolated_renderer_expected_stop(other_process, generation) is None  # type: ignore[arg-type]
-    assert harness._consume_archive_isolated_renderer_expected_stop(expected_process, generation) == (  # type: ignore[arg-type]
-        "shutdown",
-        {},
-    )
+    assert harness._archive_isolated_renderer_process_running() is True
+    harness.archive_d3d11_preview_host.controller.is_running = False
+    assert harness._archive_isolated_renderer_process_running() is False
 
 
-def test_old_expected_stop_cannot_suppress_new_process_failure() -> None:
+def test_clear_request_never_leaves_previous_package_visible() -> None:
     harness = _LifecycleHarness()
-    old_process = _FakeProcess(201)
-    old_generation = harness.activate(old_process)
-    harness._mark_archive_isolated_renderer_expected_stop(  # type: ignore[arg-type]
-        old_process,
-        old_generation,
-        reason="reload_fallback",
-    )
-    new_process = _FakeProcess(202)
-    new_generation = harness.activate(new_process)
 
-    harness._handle_archive_isolated_renderer_finished(  # type: ignore[arg-type]
-        new_process,
-        new_generation,
-        62097,
-        "CrashExit",
-    )
+    harness._clear_archive_isolated_renderer_surface_for_request()
 
-    assert harness.hard_failures == ["Native D3D11 preview failed to load (exit 62097)."]
+    assert harness.archive_d3d11_preview_host.clear_count == 1
+    assert harness.archive_isolated_renderer_active_package is None
+    assert harness.archive_isolated_renderer_package_source == ""
 
 
-def test_expected_stop_suppresses_only_matching_nonzero_exit() -> None:
+def test_long_lived_archive_host_clears_normally_and_shuts_down_with_app() -> None:
     harness = _LifecycleHarness()
-    process = _FakeProcess(301)
-    generation = harness.activate(process)
-    harness._mark_archive_isolated_renderer_expected_stop(process, generation, reason="shutdown")  # type: ignore[arg-type]
-    harness.archive_isolated_renderer_process = None
 
-    harness._handle_archive_isolated_renderer_finished(process, generation, 62097, "CrashExit")  # type: ignore[arg-type]
+    harness._shutdown_archive_isolated_renderer_host()
+    assert harness.archive_d3d11_preview_host.controller.clear_count == 1
+    assert harness.archive_d3d11_preview_host.controller.shutdown_count == 0
 
-    assert harness.hard_failures == []
-    assert any(event == "d3d11_process_expected_stop_finished" for event, _fields in harness.events)
+    harness.archive_isolated_renderer_active_package = Path("preview-package")
+    harness._shutting_down = True
+    harness._shutdown_archive_isolated_renderer_host()
+    assert harness.archive_d3d11_preview_host.controller.shutdown_count == 1
 
 
-def test_genuine_62097_without_expected_stop_remains_failure() -> None:
+def test_compatibility_reload_uses_resident_vortice_package() -> None:
     harness = _LifecycleHarness()
-    process = _FakeProcess(401)
-    generation = harness.activate(process)
 
-    harness._handle_archive_isolated_renderer_finished(process, generation, 62097, "CrashExit")  # type: ignore[arg-type]
+    harness._open_archive_isolated_d3d11_preview()
 
-    assert harness.hard_failures == ["Native D3D11 preview failed to load (exit 62097)."]
+    assert harness.archive_d3d11_preview_host.loads == [(Path("preview-package"), False)]
+    assert harness.archive_d3d11_preview_host.tuning == [harness.settings]
+    assert harness.messages[-1] == ("Reloaded .NET/Vortice Preview.", False)
 
 
-def test_device_loss_is_not_suppressed_by_expected_stop(tmp_path: Path) -> None:
+def test_reload_without_package_requests_canonical_preparation() -> None:
     harness = _LifecycleHarness()
-    process = _FakeProcess(501)
-    status_file = tmp_path / "host_status.json"
-    generation = harness.activate(process, status_file=status_file)
-    harness._mark_archive_isolated_renderer_expected_stop(process, generation, reason="shutdown")  # type: ignore[arg-type]
-    status_file.write_text(
-        json.dumps({"event": "device_lost", "device_loss_stage": "present"}),
+    harness.archive_isolated_renderer_active_package = None
+
+    harness._open_archive_isolated_d3d11_preview()
+
+    assert harness.render_requests == [(harness.entry, True)]
+
+
+def test_material_debug_reads_canonical_net_materials(tmp_path: Path) -> None:
+    package = tmp_path / "package"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps(
+            {
+                "submeshes": [
+                    {
+                        "material_name": "Armor",
+                        "packaged_channels": {"base_color": "armor.dds", "normal": ""},
+                    }
+                ]
+            }
+        ),
         encoding="utf-8",
     )
-    harness.archive_isolated_renderer_process = None
-
-    harness._handle_archive_isolated_renderer_finished(process, generation, 62097, "CrashExit")  # type: ignore[arg-type]
-
-    assert harness.hard_failures == ["Native D3D11 preview stopped after device loss during present (exit 62097)."]
-
-
-def test_forced_kill_records_expected_stop_before_killing() -> None:
     harness = _LifecycleHarness()
-    process = _FakeProcess(601)
-    generation = harness.activate(process)
 
-    harness._kill_archive_isolated_renderer_process_if_running(  # type: ignore[arg-type]
-        process,
-        generation=generation,
-        reason="startup_timeout",
-    )
+    detail = harness._archive_material_channel_debug_from_package(package)
 
-    assert process.kill_count == 1
-    assert harness._consume_archive_isolated_renderer_expected_stop(process, generation) == (  # type: ignore[arg-type]
-        "startup_timeout",
-        {},
-    )
+    assert detail == "Material Authority: part 0 Armor: base_color"

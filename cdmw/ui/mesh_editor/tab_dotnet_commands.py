@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Mapping
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QWidget
 
 from cdmw.ui.shell.settings_bridge import read_bool_setting
@@ -10,6 +11,21 @@ from cdmw.ui.mesh_editor.actions import mesh_editor_actions_by_key
 
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+
+
+def _host_widget_hwnd(host_widget: object | None) -> int:
+    if host_widget is None:
+        return 0
+    try:
+        set_attribute = getattr(host_widget, "setAttribute")
+        win_id = getattr(host_widget, "winId")
+    except AttributeError:
+        return 0
+    try:
+        set_attribute(Qt.WidgetAttribute.WA_NativeWindow, True)
+        return int(win_id())
+    except (RuntimeError, TypeError, ValueError):
+        return 0
 
 
 class MeshEditorDotNetCommandMixin:
@@ -509,18 +525,18 @@ class MeshEditorDotNetCommandMixin:
         if not self.standalone_dotnet_target_embedded:
             if str(_tab.QApplication.platformName() or "").strip().lower() == "offscreen":
                 return 0
-            hwnd = _tab._host_widget_hwnd(getattr(self, "standalone_native_host_frame", None))
+            hwnd = _host_widget_hwnd(getattr(self, "standalone_native_host_frame", None))
             return hwnd if hwnd > 0 else 0
         builder = self.active_builder()
         if isinstance(builder, QWidget):
-            host = builder.findChild(QWidget, "AlignmentNativeD3D11PreviewHost")
-            hwnd = _tab._host_widget_hwnd(host)
+            host = builder.findChild(QWidget, "AlignmentDotNetVorticePreviewHost")
+            hwnd = _host_widget_hwnd(host)
             if hwnd > 0:
                 return hwnd
-            hwnd = _tab._host_widget_hwnd(builder)
+            hwnd = _host_widget_hwnd(builder)
             if hwnd > 0:
                 return hwnd
-        hwnd = _tab._host_widget_hwnd(self.standalone_native_host)
+        hwnd = _host_widget_hwnd(self.standalone_native_host)
         return hwnd if hwnd > 0 else 0
     def _dotnet_process_stream_tails(self, process: _tab.QProcess) -> tuple[str, str]:
         stdout = self.standalone_dotnet_stdout_tail

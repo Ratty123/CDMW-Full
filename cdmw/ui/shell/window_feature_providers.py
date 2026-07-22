@@ -60,15 +60,12 @@ from cdmw.ui.archive_browser.patch_actions import ArchivePatchActionsMixin
 from cdmw.ui.archive_browser.prefab_json_actions import ArchivePrefabJsonActionsMixin
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
 from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
-from cdmw.ui.archive_browser.preview_d3d11_process import ArchivePreviewD3D11ProcessMixin
-from cdmw.ui.archive_browser.preview_d3d11_runtime import ArchivePreviewD3D11RuntimeMixin
-from cdmw.ui.archive_browser.preview_d3d11_worker import ArchivePreviewD3D11WorkerMixin
+from cdmw.ui.archive_browser.preview_dotnet_lifecycle import ArchivePreviewDotNetLifecycleMixin
 from cdmw.ui.archive_browser.preview_details import ArchivePreviewDetailsMixin
 from cdmw.ui.archive_browser.preview_layout import ArchivePreviewLayoutMixin
 from cdmw.ui.archive_browser.preview_loading import ArchivePreviewLoadingMixin
 from cdmw.ui.archive_browser.preview_memory import ArchivePreviewMemoryAuditMixin
 from cdmw.ui.archive_browser.preview_native_core import ArchivePreviewNativeCoreLifecycleMixin
-from cdmw.ui.archive_browser.preview_native_prefetch import ArchivePreviewNativePrefetchMixin
 from cdmw.ui.archive_browser.preview_panel import ArchivePreviewTextToolsMixin
 from cdmw.ui.archive_browser.preview_renderer_controls import ArchivePreviewRendererControlsMixin
 from cdmw.ui.archive_browser.preview_result import ArchivePreviewResultMixin
@@ -173,14 +170,11 @@ ARCHIVE_FEATURE_PROVIDERS = (
     ArchivePreviewLoadingMixin,
     ArchivePreviewMemoryAuditMixin,
     ArchivePreviewNativeCoreLifecycleMixin,
-    ArchivePreviewNativePrefetchMixin,
     ArchivePreviewRendererControlsMixin,
     ArchivePreviewResultMixin,
     ArchivePreviewSettingsMixin,
     ArchivePreviewD3D11PartsMixin,
-    ArchivePreviewD3D11ProcessMixin,
-    ArchivePreviewD3D11RuntimeMixin,
-    ArchivePreviewD3D11WorkerMixin,
+    ArchivePreviewDotNetLifecycleMixin,
     ArchivePreviewStateMixin,
     ArchivePreviewTimingMixin,
     ArchivePreviewZoomMixin,

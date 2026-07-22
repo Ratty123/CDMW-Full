@@ -244,7 +244,7 @@ def _mesh_edit_finish_geometry_stroke(
         )
     else:
         _callbacks._mesh_edit_mark_native_preview_stale(
-            "Active Mesh Editor stroke finish requires native D3D11 refresh; Python preview rebuild fallback is disabled."
+            "Active Mesh Editor stroke finish requires .NET/Vortice refresh; Python preview rebuild fallback is disabled."
         )
 
 

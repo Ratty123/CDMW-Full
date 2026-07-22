@@ -14,7 +14,7 @@ def alignment_d3d11_resources_waiting_detail(
     active_package: object,
 ) -> str:
     return (
-        "Native D3D11 uploaded package resources but the preview panel is not renderable yet.\n"
+        ".NET/Vortice uploaded package resources but the preview panel is not renderable yet.\n"
         f"elapsed={max(0.0, float(elapsed_s or 0.0)):.1f}s\n"
         f"last_progress={int(last_percent or 0)}%\n"
         f"last_stage={str(last_stage or 'unknown')}\n"
@@ -53,7 +53,7 @@ def alignment_d3d11_stale_loading_detail(
     active_package: object,
 ) -> str:
     return (
-        "Native D3D11 stayed alive but did not report a fresh rendered frame.\n"
+        ".NET/Vortice stayed alive but did not report a fresh rendered frame.\n"
         f"elapsed={max(0.0, float(elapsed_s or 0.0)):.1f}s\n"
         f"last_progress={int(last_percent or 0)}%\n"
         f"last_stage={str(last_stage or 'unknown')}\n"

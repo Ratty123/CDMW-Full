@@ -369,16 +369,16 @@ def alignment_d3d11_renderer_host_restart_performance(
     host_detail: str,
 ) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 renderer host not reusable; restarting.",
+        summary=".NET/Vortice host not reusable; restarting.",
         details=f"reason={str(rebuild_reason or 'geometry')}\nhost={str(host_detail or '')}",
     )
 
 
 def alignment_d3d11_unavailable_performance() -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="Native D3D11 unavailable.",
+        summary=".NET/Vortice Preview unavailable.",
         details=(
-            "Native D3D11 is required for live alignment preview. "
+            ".NET/Vortice Preview is required for live alignment preview. "
             f"{ALIGNMENT_D3D11_DEFENDER_HINT}"
         ),
     )
@@ -386,9 +386,9 @@ def alignment_d3d11_unavailable_performance() -> AlignmentD3D11StatusPresentatio
 
 def alignment_d3d11_startup_timeout_performance() -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 startup timeout.",
+        summary=".NET/Vortice startup timeout.",
         details=(
-            "Native D3D11 startup timeout waiting for status. "
+            ".NET/Vortice startup timeout waiting for status. "
             f"{ALIGNMENT_D3D11_DEFENDER_HINT}"
         ),
     )
@@ -468,7 +468,7 @@ def alignment_d3d11_stale_package_dropped_performance(
 
 def alignment_d3d11_renderer_error_performance(message: str) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 renderer error.",
+        summary=".NET/Vortice renderer error.",
         details=str(message),
     )
 

@@ -325,7 +325,7 @@ def _mesh_edit_selection_changed(_state, _callbacks, payload: object) -> None:
         screen_payload = _callbacks._mesh_edit_native_screen_selection_payload(payload)
         if screen_payload:
             if not _callbacks._mesh_edit_apply_native_screen_selection(payload, screen_payload):
-                _state.mesh_edit_status_label.setText("Native D3D11 mesh selection failed.")
+                _state.mesh_edit_status_label.setText(".NET/Vortice mesh selection failed.")
                 _callbacks._refresh_mesh_edit_controls()
                 return
             native_screen_selection = True

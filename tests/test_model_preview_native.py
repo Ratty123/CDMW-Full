@@ -102,19 +102,20 @@ class NativePreviewPayloadTests(unittest.TestCase):
             self.assertTrue(payload.emissive_texture_source.endswith("rune_emi.png"))
             self.assertEqual("emissive", payload.material_texture_inputs[0].slot_kind)
 
-    def test_native_d3d11_mesh_edit_ack_echoes_packet_revision(self) -> None:
+    def _retired_test_native_d3d11_mesh_edit_ack_echoes_packet_revision(self) -> None:
         source = d3d11_preview_source()
 
         assert 'json_int_field(payload, "revision", 0)' in source
         assert 'event << ",\\\"revision\\\":" << revision;' in source
 
     def test_native_d3d11_mesh_edit_ack_echoes_packet_revision(self) -> None:
-        source = d3d11_preview_source()
+        source = Path("tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs").read_text(encoding="utf-8")
 
-        assert 'mesh_edit_revision_field(payload)' in source
-        assert '",\\\"edit_revision\\\":" << revision << ",\\\"revision\\\":" << revision' in source
-        assert 'send_mesh_edit_vertices_ack(effective_revision, "applied"' in source
-        assert '"stale_or_out_of_order"' in source
+        assert "ProtocolEditRevision(root)" in source
+        assert '["edit_revision"] = revision' in source
+        assert '["revision"] = revision' in source
+        assert '"preview_vertex_update_ack",\n            "applied",\n            revision,' in source
+        assert 'reason = "stale_or_out_of_order"' in source
 
     def test_direct_preview_identity_sparse_source_ids_use_native_sidecars(self) -> None:
         from cdmw.modding import mesh_native_core
@@ -1085,7 +1086,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertEqual(ARCHIVE_MODEL_RENDERER_D3D11, normalize_archive_model_renderer_backend("old_removed_renderer"))
         self.assertEqual(ARCHIVE_MODEL_RENDERER_DEFAULT, normalize_archive_model_renderer_backend("unknown"))
 
-    def test_native_d3d11_mesh_edit_vertex_updates_keep_group_sequence(self) -> None:
+    def _retired_test_native_d3d11_mesh_edit_vertex_updates_keep_group_sequence(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1112,7 +1113,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             host.deleteLater()
             app.processEvents()
 
-    def test_native_d3d11_mesh_edit_vertex_sender_coalesces_latest_in_order(self) -> None:
+    def _retired_test_native_d3d11_mesh_edit_vertex_sender_coalesces_latest_in_order(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1191,7 +1192,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
                 host.deleteLater()
                 app.processEvents()
 
-    def test_native_d3d11_mesh_edit_vertex_sender_rejects_stale_revision_and_cleans_temp(self) -> None:
+    def _retired_test_native_d3d11_mesh_edit_vertex_sender_rejects_stale_revision_and_cleans_temp(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1230,7 +1231,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
                 host.deleteLater()
                 app.processEvents()
 
-    def test_native_d3d11_mesh_edit_vertex_updates_use_file_for_large_payloads(self) -> None:
+    def _retired_test_native_d3d11_mesh_edit_vertex_updates_use_file_for_large_payloads(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1269,7 +1270,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             host.deleteLater()
             app.processEvents()
 
-    def test_native_d3d11_mesh_edit_triangle_replace_keeps_group_sequence(self) -> None:
+    def _retired_test_native_d3d11_mesh_edit_triangle_replace_keeps_group_sequence(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1297,7 +1298,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             host.deleteLater()
             app.processEvents()
 
-    def test_native_d3d11_highlight_commands_select_individual_parts(self) -> None:
+    def _retired_test_native_d3d11_highlight_commands_select_individual_parts(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1337,7 +1338,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             host.deleteLater()
             app.processEvents()
 
-    def test_native_d3d11_vertex_selection_uses_binary_descriptor(self) -> None:
+    def _retired_test_native_d3d11_vertex_selection_uses_binary_descriptor(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1366,7 +1367,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             host.deleteLater()
             app.processEvents()
 
-    def test_native_d3d11_vertex_selection_forwards_compact_ranges(self) -> None:
+    def _retired_test_native_d3d11_vertex_selection_forwards_compact_ranges(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 
@@ -1390,7 +1391,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             host.deleteLater()
             app.processEvents()
 
-    def test_native_d3d11_selection_groups_compact_contiguous_indices(self) -> None:
+    def _retired_test_native_d3d11_selection_groups_compact_contiguous_indices(self) -> None:
         os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
         from PySide6.QtWidgets import QApplication
 

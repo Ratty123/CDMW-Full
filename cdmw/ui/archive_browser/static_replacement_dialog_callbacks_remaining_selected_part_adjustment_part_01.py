@@ -84,12 +84,12 @@ def _remaining_selected_part_adjustment_step_004(_state):
                 return
             set_status_message = getattr(_state.self, 'set_status_message', None)
             if callable(set_status_message):
-                set_status_message('Native D3D11 source enable preview commands are unavailable; preview is stale. Reload D3D11 preview to resync.', error=True)
+                set_status_message('.NET/Vortice source enable preview commands are unavailable; preview is stale. Retry .NET/Vortice Preview to resync.', error=True)
             return
         if _state._selected_part_mesh_edit_active():
             set_status_message = getattr(_state.self, 'set_status_message', None)
             if callable(set_status_message):
-                set_status_message('Active Mesh Editor source enable preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.', error=True)
+                set_status_message('Active Mesh Editor source enable preview requires .NET/Vortice refresh; Python preview rebuild fallback is disabled.', error=True)
             return
         _state._set_source_parts_preview_rebuild_pending(_state._source_part_include_exclude_pending_reason_helper())
         _state._queue_static_preview_rebuild()

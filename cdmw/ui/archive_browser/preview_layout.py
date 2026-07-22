@@ -621,6 +621,7 @@ class ArchivePreviewLayoutMixin:
         )
         self.archive_model_preview.view_state_changed.connect(self._handle_archive_model_view_state_changed)
         self.archive_model_preview.debug_details_changed.connect(self._refresh_archive_preview_details_text)
+        self.archive_model_preview.setVisible(False)
         self.archive_d3d11_preview_host = DotNetPreviewHostFrame(
             profile=DotNetPreviewProfile.PREVIEW,
             terminate_on_close=False,
@@ -646,7 +647,6 @@ class ArchivePreviewLayoutMixin:
         self.archive_preview_text_tools = self._build_archive_text_tools(self.archive_preview_text_edit)
         self.archive_preview_info_tools = self._build_archive_text_tools(self.archive_preview_info_edit)
         self.archive_preview_stack.addWidget(self.archive_preview_scroll)
-        self.archive_preview_stack.addWidget(self.archive_model_preview)
         self.archive_preview_stack.addWidget(self.archive_d3d11_preview_host)
         self.archive_preview_stack.addWidget(self.archive_media_preview)
         self.archive_preview_stack.addWidget(self.archive_preview_text_edit)

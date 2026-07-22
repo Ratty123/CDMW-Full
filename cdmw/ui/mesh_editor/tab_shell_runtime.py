@@ -43,9 +43,6 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_native_process: _tab.QProcess | None = None
         self.standalone_native_stdout_tail = ""
         self.standalone_native_stderr_tail = ""
-        self.standalone_native_package_thread: _tab.QThread | None = None
-        self.standalone_native_package_worker: _tab.MeshNativePreviewPackageWorker | None = None
-        self.standalone_native_package_request_id = 0
         self.standalone_action_thread: _tab.QThread | None = None
         self.standalone_action_worker: _tab.MeshEditCommandWorker | None = None
         self.standalone_action_progress: _tab.QProgressDialog | None = None
@@ -206,3 +203,4 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_animation_timer.timeout.connect(self._tick_standalone_animation_playback)
         self.standalone_animation_last_tick = 0.0
         self._wired_standalone_native_host_ids: set[int] = set()
+        self._wired_shared_dotnet_controller_ids: set[int] = set()

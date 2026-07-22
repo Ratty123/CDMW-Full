@@ -17,7 +17,7 @@ class MeshEditorDotNetProcessMixin:
     def _launch_standalone_dotnet_editor_package(self, package: _tab.MeshDotNetExperimentPackage) -> bool:
         executable = self._dotnet_editor_executable_path()
         if executable is None or not executable.is_file():
-            message = "Mesh .NET editor experiment executable is missing."
+            message = "Mesh .NET/Vortice helper executable is missing."
             self._record_mesh_dotnet_event(
                 "mesh_dotnet_process_start_failed",
                 embedded=bool(self.standalone_dotnet_target_embedded),
@@ -25,88 +25,34 @@ class MeshEditorDotNetProcessMixin:
                 qprocess_error="missing_executable",
                 qprocess_error_string=message,
                 package_dir=str(package.package_dir),
-                status_path=str(package.status_path),
             )
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
                 self._notify_embedded_dotnet_launch_failed("mesh_dotnet_missing_executable", diagnostics=message)
             self._set_dotnet_status(message, error=True)
             return False
-        embedded_parent_hwnd = self._dotnet_embedded_parent_hwnd()
-        if self.standalone_dotnet_target_embedded and embedded_parent_hwnd <= 0:
-            message = "Mesh .NET embedded launch failed: no native parent window handle is available."
-            self._record_mesh_dotnet_event(
-                "mesh_dotnet_embedded_parent_hwnd_unavailable",
-                embedded=True,
-                parent_hwnd=embedded_parent_hwnd,
-                package_dir=str(package.package_dir),
-                status_path=str(package.status_path),
-            )
-            self._set_embedded_dotnet_state("failed", active=False)
-            self._set_dotnet_status(message, error=True)
-            self._notify_embedded_dotnet_launch_failed("mesh_dotnet_parent_hwnd_unavailable", diagnostics=message)
+        host = (
+            self.standalone_native_host
+            if self.standalone_dotnet_target_embedded
+            else getattr(self, "standalone_native_host_frame", None)
+        )
+        controller = getattr(host, "controller", None)
+        if controller is None:
+            self._set_dotnet_status("Mesh Editor .NET/Vortice host is unavailable.", error=True)
             return False
-        try:
-            program, arguments = _tab.mesh_dotnet_experiment_command(
-                executable,
-                package,
-                embedded_parent_hwnd=embedded_parent_hwnd,
-                developer_renderer_fallback=self._dotnet_developer_renderer_fallback_allowed(),
-            )
-        except Exception as exc:
-            message = f"Mesh .NET editor experiment unavailable: {exc}"
-            self._record_mesh_dotnet_event(
-                "mesh_dotnet_process_start_failed",
-                embedded=bool(embedded_parent_hwnd > 0),
-                program=str(executable),
-                qprocess_error="command_build_failed",
-                qprocess_error_string=str(exc),
-                package_dir=str(package.package_dir),
-                status_path=str(package.status_path),
-            )
-            if self.standalone_dotnet_target_embedded:
-                self._set_embedded_dotnet_state("failed", active=False)
-                self._notify_embedded_dotnet_launch_failed("mesh_dotnet_command_error", diagnostics=str(exc))
-            self._set_dotnet_status(message, error=True)
-            return False
+        self._wire_shared_dotnet_controller(host)
+        target = self._dotnet_target_controller()
+        if target is not None:
+            try:
+                controller.set_authoritative_session_id(target.session_view().session_id)
+            except (AttributeError, RuntimeError, TypeError, ValueError):
+                pass
+        controller.set_configured_executable(executable)
         self.standalone_dotnet_stdout_tail = ""
         self.standalone_dotnet_stderr_tail = ""
-        self.standalone_dotnet_last_program = str(program)
-        self.standalone_dotnet_last_arguments = [str(argument) for argument in tuple(arguments or ())]
+        self.standalone_dotnet_last_program = str(executable)
+        self.standalone_dotnet_last_arguments = ["--profile", "authoring"]
         self.standalone_dotnet_last_working_directory = str(package.package_dir)
-        self.standalone_dotnet_last_parent_hwnd = int(embedded_parent_hwnd or 0)
-        try:
-            _tab.write_mesh_dotnet_launch_manifest(
-                package,
-                executable=program,
-                arguments=arguments,
-                embedded=bool(self.standalone_dotnet_target_embedded),
-                parent_hwnd=embedded_parent_hwnd,
-            )
-        except Exception as exc:
-            self._record_mesh_dotnet_event(
-                "mesh_dotnet_launch_manifest_write_failed",
-                package_dir=str(package.package_dir),
-                error=str(exc),
-            )
-        process = _tab.QProcess(self)
-        self.standalone_dotnet_process_generation += 1
-        self.standalone_dotnet_update_queue.set_context(
-            session_id=self.standalone_dotnet_lifecycle_session_id,
-            process_generation=self.standalone_dotnet_process_generation,
-        )
-        process.setProgram(program)
-        process.setArguments(arguments)
-        process.setWorkingDirectory(str(package.package_dir))
-        process.setProcessChannelMode(_tab.QProcess.SeparateChannels)
-        try:
-            self._connect_dotnet_protocol(process)
-            process.started.connect(lambda target=process: self._handle_dotnet_process_started(target))
-            process.finished.connect(lambda *_args, target=process, handoff=package: self._handle_standalone_dotnet_editor_finished(target, handoff))
-            process.errorOccurred.connect(lambda error, target=process: self._handle_standalone_dotnet_editor_error(target, error))
-        except (AttributeError, RuntimeError, TypeError):
-            pass
-        self.standalone_dotnet_editor_process = process
         self.standalone_dotnet_experiment_package = package
         self.standalone_dotnet_material_signature = str(package.material_signature or "")
         self.standalone_dotnet_scene_request_id = 0
@@ -120,22 +66,39 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_scene_frame = package.scene_frame
         self.standalone_dotnet_scene_queued = None
         if package.scene_frame is not None:
-            self.standalone_dotnet_scene_desired.update({
-                "comparison_mode": str(package.scene_frame.comparison_mode),
-                "interaction_mode": str(package.scene_frame.interaction_mode),
-            })
-        configured_payload = self._dotnet_process_event_payload(process, package=package)
-        self._record_mesh_dotnet_event("mesh_dotnet_process_configured", **configured_payload)
-        mode = "embedded" if embedded_parent_hwnd > 0 else "standalone"
+            self.standalone_dotnet_scene_desired.update(
+                {
+                    "comparison_mode": str(package.scene_frame.comparison_mode),
+                    "interaction_mode": str(package.scene_frame.interaction_mode),
+                }
+            )
+        try:
+            host.show()
+            if hasattr(self, "standalone_preview_stack") and not self.standalone_dotnet_target_embedded:
+                self.standalone_preview_stack.setCurrentWidget(host)
+        except (AttributeError, RuntimeError):
+            pass
+        if not host.load_package(package, reset_view=self.standalone_dotnet_editor_process is None):
+            self._set_dotnet_status("Mesh Editor .NET/Vortice host rejected the authoring package.", error=True)
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state("failed", active=False)
+            return False
+        self.standalone_dotnet_editor_process = controller.process
+        self.standalone_dotnet_process_generation = int(controller.process_generation)
+        self.standalone_dotnet_update_queue.set_context(
+            session_id=self.standalone_dotnet_lifecycle_session_id,
+            process_generation=self.standalone_dotnet_process_generation,
+        )
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_shared_host_load",
+            embedded=bool(self.standalone_dotnet_target_embedded),
+            package_dir=str(package.package_dir),
+            process_generation=self.standalone_dotnet_process_generation,
+        )
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state("launching", active=False)
-        self._set_dotnet_status(f"Mesh .NET editor experiment launching {mode}: {package.package_dir}")
+        self._set_dotnet_status("Loading Mesh Editor in the resident .NET/Vortice viewport...")
         self.update_editor_action_state(selection_empty=self.current_selection_empty)
-        self._record_mesh_dotnet_event("mesh_dotnet_process_start", **configured_payload)
-        process.start()
-        if not self._confirm_dotnet_process_started(process):
-            return False
-        self.standalone_dotnet_ready_timer.start(10_000)
         return True
     def _confirm_dotnet_process_started(self, process: _tab.QProcess) -> bool:
         try:
@@ -162,18 +125,13 @@ class MeshEditorDotNetProcessMixin:
                 pieces.append(value[:800])
         return " | ".join(pieces) if pieces else "process did not start and reported no diagnostics"
     def _standalone_dotnet_editor_process_running(self) -> bool:
-        process = self.standalone_dotnet_editor_process
-        if process is None:
-            return False
-        try:
-            return process.state() != _tab.QProcess.NotRunning
-        except RuntimeError:
-            return False
+        controller = self._active_shared_dotnet_controller()
+        return bool(controller is not None and getattr(controller, "is_running", False))
     def _stop_standalone_dotnet_editor_process(self, *, embedded_state: str = "closed") -> None:
         self._cancel_dotnet_material_compile()
         self.standalone_dotnet_ready_timer.stop()
         self.standalone_dotnet_deactivate_timer.stop()
-        process = self.standalone_dotnet_editor_process
+        controller = self._active_shared_dotnet_controller()
         if self.standalone_dotnet_target_embedded:
             self._set_embedded_dotnet_state(embedded_state, active=False)
         self.standalone_dotnet_editor_process = None
@@ -189,9 +147,8 @@ class MeshEditorDotNetProcessMixin:
         self.standalone_dotnet_pending_reference_material_model = None
         if self.standalone_dotnet_scene_worker is not None:
             self.standalone_dotnet_scene_worker.stop()
-        if process is None:
-            return
-        _tab.stop_qprocess_async(process)
+        if controller is not None:
+            controller.clear_preview()
     def _handle_standalone_dotnet_editor_finished(
         self,
         process: _tab.QProcess,

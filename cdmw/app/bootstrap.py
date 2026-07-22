@@ -39,8 +39,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         parser.error("Choose isolated renderer host without --cli or --gui.")
     if args.isolated_renderer_host:
         parser.error(
-            "Legacy QtQuick3D isolated renderer host was removed; use the native D3D11 "
-            "cdmw-d3d11-preview.exe host instead."
+            "Legacy isolated renderer hosts were removed; model previews use the resident "
+            ".NET/Vortice renderer."
         )
 
     run_gui_mode = not args.cli and not args.isolated_renderer_host

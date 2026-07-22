@@ -188,11 +188,10 @@ from cdmw.services.mesh_workflow_service import (
 )
 from cdmw.services.preview_rendering_service import (
     MeshPreviewCacheSignature,
-    find_native_d3d11_host,
     prepare_model_preview,
     run_native_preview_core_preview_job,
 )
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 
 
 def install_static_replacement_prompt_base_dependencies(namespace: dict[str, object]) -> None:

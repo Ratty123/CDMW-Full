@@ -188,7 +188,6 @@ class MeshEditorSessionMixin:
                 dispatcher.retire_controller(controller)
         self._cancel_standalone_file_load()
         self._cancel_standalone_texture_source_resolution()
-        self._cancel_standalone_native_package_worker()
         self._cancel_standalone_action_worker()
         self._cancel_standalone_export_validation_worker()
         self._cancel_standalone_rebuild_report_worker()
@@ -241,7 +240,7 @@ class MeshEditorSessionMixin:
         try:
             payload_text = Path(status_file).read_text(encoding="utf-8")
         except OSError as exc:
-            self.standalone_status_label.setText(f"Native D3D11 status read failed: {exc}")
+            self.standalone_status_label.setText(f".NET/Vortice status read failed: {exc}")
             return
         if signature == self.standalone_native_status_signature and payload_text == self.standalone_native_status_payload_text:
             return
@@ -250,7 +249,7 @@ class MeshEditorSessionMixin:
         try:
             payload = json.loads(payload_text)
         except ValueError as exc:
-            self.standalone_status_label.setText(f"Native D3D11 status parse failed: {exc}")
+            self.standalone_status_label.setText(f".NET/Vortice status parse failed: {exc}")
             return
         if not isinstance(payload, dict):
             return
@@ -269,16 +268,16 @@ class MeshEditorSessionMixin:
             vertex_count = int(payload.get("vertex_count", 0) or 0)
             self._request_standalone_native_part_picking(True, retries=2)
             self.standalone_status_label.setText(
-                f"Native D3D11 preview loaded: {batch_count:,} batches, {vertex_count:,} vertices."
+                f".NET/Vortice preview loaded: {batch_count:,} batches, {vertex_count:,} vertices."
             )
-            self.status_message_requested.emit("Native D3D11 preview loaded.", False)
+            self.status_message_requested.emit(".NET/Vortice preview loaded.", False)
         elif event == "loading":
-            message = str(payload.get("message", "") or "Loading native D3D11 preview...")
+            message = str(payload.get("message", "") or "Loading .NET/Vortice preview...")
             updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
             if callable(updater):
-                updater("Part pick: loading D3D11 host", available=False)
+                updater("Part pick: loading .NET/Vortice host", available=False)
             self.standalone_status_label.setText(message)
-            self.status_message_requested.emit(f"Native D3D11 preview: {message}", False)
+            self.status_message_requested.emit(f".NET/Vortice preview: {message}", False)
         elif event == "error":
             release_package = getattr(
                 self.standalone_native_host or getattr(self, "standalone_native_host_frame", None),
@@ -291,13 +290,13 @@ class MeshEditorSessionMixin:
             self._request_standalone_native_part_picking(False)
             updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
             if callable(updater):
-                updater("Part pick: unavailable, D3D11 renderer error", available=False)
-            self.standalone_status_label.setText(f"Native D3D11 preview error: {message}")
-            self.status_message_requested.emit(f"Native D3D11 preview error: {message}", True)
+                updater("Part pick: unavailable, .NET/Vortice renderer error", available=False)
+            self.standalone_status_label.setText(f".NET/Vortice preview error: {message}")
+            self.status_message_requested.emit(f".NET/Vortice preview error: {message}", True)
         elif event == "closed":
             self._request_standalone_native_part_picking(False)
-            self.standalone_status_label.setText("Native D3D11 preview closed.")
-            self.status_message_requested.emit("Native D3D11 preview closed.", False)
+            self.standalone_status_label.setText(".NET/Vortice preview closed.")
+            self.status_message_requested.emit(".NET/Vortice preview closed.", False)
     def _set_standalone_native_performance_status(self, payload: Mapping[str, object] | None) -> None:
         updater = getattr(self.standalone_workspace, "set_native_performance_status", None)
         if callable(updater):
@@ -472,17 +471,17 @@ class MeshEditorSessionMixin:
         if self.has_active_standalone_session():
             last_event = str(self.standalone_native_last_status_payload.get("event", "") or "").strip().lower()
             if last_event not in {"error", "closed"}:
-                message = "Native D3D11 preview stopped unexpectedly; preview is stale. Reload native preview to resync."
+                message = ".NET/Vortice preview stopped unexpectedly; retrying while this editor remains visible."
                 self.standalone_status_label.setText(message)
                 self.status_message_requested.emit(message, True)
                 return
-            self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
+            self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
     def _handle_standalone_native_preview_error(self, process: _tab.QProcess) -> None:
         if self.standalone_native_process is not process:
             return
-        self.standalone_status_label.setText("Native D3D11 preview process error.")
+        self.standalone_status_label.setText(".NET/Vortice preview process error; retry scheduled.")
         self._set_standalone_native_performance_status(None)
         self._request_standalone_native_part_picking(False)
         updater = getattr(self.standalone_workspace, "set_native_part_picking_status", None)
         if callable(updater):
-            updater("Part pick: unavailable, D3D11 process error", available=False)
+            updater("Part pick: unavailable, .NET/Vortice process error", available=False)

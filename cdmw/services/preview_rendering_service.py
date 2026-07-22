@@ -6,7 +6,6 @@ from importlib import import_module
 
 
 _EXPORTS: dict[str, tuple[str, str]] = {
-    "find_native_d3d11_host": ("cdmw.rendering.native_d3d11_host", "find_native_d3d11_host"),
     "NativePreviewPackageCacheLease": (
         "cdmw.rendering.native_preview_package_cache",
         "NativePreviewPackageCacheLease",
@@ -84,10 +83,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "shutdown_native_preview_core_service": (
         "cdmw.rendering.native_preview_core",
         "shutdown_native_preview_core_service",
-    ),
-    "write_isolated_d3d11_preview_package": (
-        "cdmw.rendering.native_preview_package_writer",
-        "write_isolated_d3d11_preview_package",
     ),
     "StaticModelThumbnailPlan": (
         "cdmw.rendering.static_model_thumbnail",

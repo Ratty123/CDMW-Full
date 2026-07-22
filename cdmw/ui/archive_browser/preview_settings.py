@@ -507,10 +507,10 @@ class ArchivePreviewSettingsMixin:
             if self.archive_d3d11_preview_host.reset_tool_pbd_cloth_preview():
                 self.set_status_message("Reset tool-side PBD physics preview.")
             return
-        self.set_status_message("Tool-side PBD physics reset is available when the native D3D11 preview is running.")
+        self.set_status_message("Tool-side PBD physics reset is available when the .NET/Vortice preview is running.")
 
     def _handle_archive_renderer_backend_changed(self, backend: str) -> None:
-        normalized = normalize_archive_model_renderer_backend(backend)
+        normalized = ARCHIVE_MODEL_RENDERER_D3D11
         if normalized == self._archive_model_renderer_backend():
             return
         self.archive_model_renderer_backend = normalized
@@ -524,31 +524,20 @@ class ArchivePreviewSettingsMixin:
             result is not None
             and not self.archive_preview_showing_loose
         ):
-            if normalized == ARCHIVE_MODEL_RENDERER_D3D11:
-                native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
-                self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
-                if getattr(result, "preview_model", None) is not None or native_package_path:
-                    if native_package_path and getattr(result, "preview_model", None) is None:
-                        self._start_archive_isolated_renderer_process(Path(native_package_path))
-                    else:
-                        self._launch_archive_isolated_preview_result(result)
+            dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
+            self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
+            if dotnet_package_path:
+                self.archive_d3d11_preview_host.load_package(Path(dotnet_package_path), reset_view=False)
+                self.archive_d3d11_preview_host.set_render_tuning(
+                    self._current_model_preview_render_settings()
+                )
             else:
-                self._shutdown_archive_isolated_renderer_host()
-                if getattr(result, "preview_model", None) is not None:
-                    self.archive_model_preview.set_prepared_model(
-                        result.preview_model,
-                        getattr(result, "prepared_preview_model", None),
-                    )
-                    self.archive_preview_stack.setCurrentWidget(self.archive_model_preview)
-                    self._refresh_archive_preview_details_text()
-                    self._apply_archive_preview_zoom()
-                else:
-                    self._refresh_current_model_preview_assets()
+                self._refresh_current_model_preview_assets()
         self._update_archive_model_action_controls(
             None if result is None else getattr(result, "preview_model", None)
         )
         self.set_status_message(
-            "Archive model renderer set to Native D3D11."
+            "Archive model renderer set to .NET/Vortice Preview."
         )
         self.schedule_settings_save()
 
@@ -639,9 +628,9 @@ class ArchivePreviewSettingsMixin:
             self._schedule_current_model_preview_asset_refresh()
         elif d3d11_backend_active and change_flags.d3d11_render_tuning_changed:
             if self.archive_d3d11_preview_host.set_render_tuning(preview_settings):
-                self.set_status_message("Updated native D3D11 render tuning.")
+                self.set_status_message("Updated .NET/Vortice render tuning.")
             else:
-                self.set_status_message("Reloading native D3D11 preview to apply render settings.")
+                self.set_status_message("Reloading .NET/Vortice preview to apply render settings.")
                 self._refresh_current_model_preview_assets()
         elif change_flags.support_slot_settings_changed:
             self._schedule_current_model_preview_asset_refresh()

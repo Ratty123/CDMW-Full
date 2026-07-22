@@ -21,8 +21,6 @@ from tests.mesh_harness_support import (
     _write_rgb_png,
     build_synthetic_mesh,
     json,
-    mesh_editor_native_preview_command,
-    mesh_editor_write_native_preview_package,
     patch,
     run_scenario,
     scenario_metadata,
@@ -39,7 +37,6 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
 
         self.assertIs(facade._DEFAULT_GAME_ROOT, constants._DEFAULT_GAME_ROOT)
         self.assertIs(facade._REAL_MESH_EDITOR_DOTNET_SCENARIO, constants._REAL_MESH_EDITOR_DOTNET_SCENARIO)
-        self.assertIs(facade._SYNTHETIC_D3D11_SCENARIOS, constants._SYNTHETIC_D3D11_SCENARIOS)
 
     def test_scenario_registry_declares_visual_real_game_process_ownership(self) -> None:
         metadata = scenario_metadata("real-archive-mesh-editor-dotnet-edit-smoke")
@@ -351,80 +348,6 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
         self.assertEqual(path, context["length_prefixed_strings"][1]["text"])
         self.assertIn((text_offset + len(path_bytes), 30), tuple((row["offset"], row["u32"]) for row in context["scalar_rows"]))
 
-    def test_mesh_editor_native_runtime_writes_preview_package(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            output_dir = Path(temp_dir) / "preview_package"
-
-            package_dir = mesh_editor_write_native_preview_package(
-                build_synthetic_mesh("pam"),
-                output_root=output_dir,
-                use_textures=False,
-            )
-            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
-
-            self.assertEqual(output_dir, package_dir)
-            self.assertEqual("pam", manifest["format"])
-            self.assertEqual(1, len(manifest["batches"]))
-            self.assertTrue((package_dir / "geometry" / "geometry.bin").is_file())
-
-    def test_mesh_editor_native_runtime_writes_overlay_compare_package(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            output_dir = Path(temp_dir) / "compare_package"
-            source_mesh = build_synthetic_mesh("pam")
-            edited_mesh = build_synthetic_mesh("pam")
-            edited_mesh.submeshes[0].vertices[0] = (0.0, 0.0, 0.5)
-
-            package_dir = mesh_editor_write_native_preview_package(
-                edited_mesh,
-                reference_mesh=source_mesh,
-                output_root=output_dir,
-                use_textures=False,
-                display_mode="overlay",
-            )
-            manifest = json.loads((package_dir / "manifest.json").read_text(encoding="utf-8"))
-
-            self.assertEqual("overlay", manifest["display_mode"])
-            self.assertEqual(2, len(manifest["batches"]))
-            self.assertEqual("original_reference", manifest["batches"][0]["editor_identity"]["role"])
-            self.assertFalse(manifest["batches"][0]["editor_identity"]["editable"])
-            self.assertEqual("replacement_preview", manifest["batches"][1]["editor_identity"]["role"])
-            self.assertTrue(manifest["batches"][1]["editor_identity"]["editable"])
-
-    def test_mesh_editor_native_runtime_builds_host_command(self) -> None:
-        package_dir = Path("C:/tmp/mesh-editor-package")
-        status_file = Path("C:/tmp/mesh-editor-status.json")
-        host = Path("C:/native/cdmw-d3d11-preview.exe")
-        held: list[Path] = []
-
-        class HostWidget:
-            def setAttribute(self, *_args: object) -> None:
-                return
-
-            def winId(self) -> int:
-                return 123
-
-            def hold_native_preview_package_cache_lease(self, path: Path) -> None:
-                held.append(path)
-
-        with patch("cdmw.ui.mesh_editor.native_preview_runtime.find_native_d3d11_host", return_value=host):
-            program, args = mesh_editor_native_preview_command(
-                package_dir,
-                status_file,
-                host_widget=HostWidget(),
-                crash_dir=Path("C:/tmp/crash"),
-                diagnostic_log=Path("C:/tmp/native.jsonl"),
-            )
-
-        self.assertEqual(str(host), program)
-        self.assertIn("--preview-package", args)
-        self.assertIn(str(package_dir), args)
-        self.assertIn("--status-file", args)
-        self.assertIn(str(status_file), args)
-        self.assertIn("--crash-dir", args)
-        self.assertIn(str(Path("C:/tmp/crash")), args)
-        self.assertEqual([package_dir], held)
-        self.assertIn("--parent-hwnd", args)
-
     def test_real_archive_playback_sampler_reports_preview_only_geometry(self) -> None:
         mesh = build_synthetic_mesh("pac")
         mesh.has_bones = True
@@ -526,19 +449,6 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
             self.assertTrue(real_archive["read_only"])
             self.assertIn("missing PAMT", real_archive["skipped"])
 
-    def test_real_archive_mesh_editor_d3d11_edit_smoke_reports_missing_game_root_without_archive_writes(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_root = Path(temp_dir)
-            output_dir = temp_root / "out"
-
-            result = run_scenario("real-archive-mesh-editor-d3d11-edit-smoke", output_dir, game_root=temp_root / "missing")
-
-            self.assertFalse(result["ok"])
-            self.assertTrue((output_dir / "result.json").is_file())
-            real_archive = result["real_archive_mesh_editor_d3d11_edit"]
-            self.assertTrue(real_archive["read_only"])
-            self.assertIn("missing PAMT", real_archive["skipped"])
-
     def test_real_archive_mesh_editor_dotnet_smoke_routes_missing_game_root_without_archive_writes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)
@@ -616,49 +526,6 @@ class MeshHarnessRealArchiveTests(unittest.TestCase):
         self.assertTrue(result["real_archive_mesh_editor_dotnet_edit"]["backend_gate_ok"])
         self.assertTrue(result["real_archive_mesh_editor_dotnet_zoom"]["backend_gate_ok"])
         self.assertTrue(evidence["real_game_proof"]["ok"])
-
-    def test_real_archive_mesh_editor_drag_smoke_uses_multistep_mouse_moves(self) -> None:
-        source = Path("tools/mesh_harness/real_d3d.py").read_text(encoding="utf-8")
-        self.assertIn("mouse_drag_points", source)
-        self.assertIn("for offset in range(1, 41)", source)
-        for token in (
-            "mouse_drag_end",
-            "edit_update_events",
-            "selected_before_capture_path",
-            "visual_proof_path",
-            "_write_real_archive_visual_edit_proof",
-            "visual_edit_proof_png",
-            "live_stroke_timings",
-            "live_stroke_timing_summary",
-            "live_stroke_frame_budget_ok",
-            "handler_ms",
-            "d3d11_send_ms",
-        ):
-            self.assertIn(token, source)
-
-    def test_real_archive_mesh_editor_side_by_side_drag_smoke_uses_replacement_viewport(self) -> None:
-        source = "\n".join(
-            Path(path).read_text(encoding="utf-8")
-            for path in (
-                "tools/mesh_harness/constants.py",
-                "tools/mesh_harness/scenario_registry.py",
-                "tools/mesh_harness/real_d3d.py",
-            )
-        )
-        for token in (
-            "real-archive-mesh-editor-d3d11-side-by-side-edit-smoke",
-            "reference_mesh",
-            "side_by_side",
-            "display_mode",
-            "projection_probe_start",
-            "replacement_viewport_offset_ok",
-            "drag_points_in_replacement_viewport",
-        ):
-            self.assertIn(token, source)
-
-        compatibility = scenario_metadata("real-archive-mesh-editor-d3d11-side-by-side-edit-smoke")
-        self.assertEqual("native_renderer_compatibility", compatibility.scenario_role)
-        self.assertEqual("legacy-cpp-d3d11", compatibility.expected_backend)
 
     def test_png_capture_summary_rejects_blank_capture(self) -> None:
         width = 64

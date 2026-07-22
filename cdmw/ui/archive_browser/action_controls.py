@@ -287,7 +287,7 @@ class ArchiveBrowserActionControlsMixin:
         self._sync_archive_model_action_menu_buttons()
         self.archive_model_preview_settings_button.setEnabled(True)
         d3d11_backend_active = self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
-        self.archive_isolated_renderer_button.setText("Reload D3D11")
+        self.archive_isolated_renderer_button.setText("Reload .NET/Vortice")
         self.archive_isolated_renderer_button.setVisible(bool(d3d11_backend_active and can_export_preview))
         self.archive_isolated_renderer_button.setEnabled(
             bool(d3d11_backend_active and can_export_preview and controls_enabled)

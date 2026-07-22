@@ -12,12 +12,7 @@ from typing import Callable, Mapping, Sequence
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.rendering.native_preview_package import (
-    read_isolated_d3d11_preview_manifest,
-    write_isolated_d3d11_preview_package,
-)
 from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
-from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
 from cdmw.services.mesh_dotnet_material_compiler import (
     MeshDotNetMaterialCompileRequest,
     compile_mesh_dotnet_material_update,
@@ -38,7 +33,6 @@ from tools.mesh_harness.real_common import (
     _archive_key,
     _read_archive_payload,
 )
-from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 from tools.mesh_harness.visual_audit_manifest_v2 import (
     VISUAL_AUDIT_V2_CATEGORY_COUNTS,
     VisualAuditV2Candidate,
@@ -242,7 +236,6 @@ def prepare_visual_audit_corpus(
         coverage=coverage,
     )
     package_root = temporary_root / "packages"
-    texture_cache = temporary_root / "archive-texture-cache"
     package_root.mkdir(parents=True, exist_ok=True)
     for offset, spec in enumerate(specs[len(rows) :], len(rows) + 1):
         if progress is not None:
@@ -264,29 +257,13 @@ def prepare_visual_audit_corpus(
         # Package writing is the single material-combiner authority for this
         # harness. Running it here as well repeats the same expensive graph
         # synthesis without changing the captured package contract.
-        prepared_model, prepared_preview = prepare_model_preview(
+        prepared_model, _prepared_preview = prepare_model_preview(
             preview_result.preview_model,
             enable_material_combiner=False,
         )
         comparison_overlays = _remove_visual_audit_overlays(prepared_model)
         copy_dotnet_preview_material_bindings(mesh, prepared_model)
         archive_prepare_ms = (time.perf_counter() - archive_started) * 1000.0
-        archive_package_dir = package_root / "archive-browser" / _archive_package_key(spec)
-        archive_package_started = time.perf_counter()
-        archive_package = write_isolated_d3d11_preview_package(
-            prepared_model,
-            prepared_preview,
-            output_root=archive_package_dir,
-            use_textures=True,
-            high_quality_textures=True,
-            backend="d3d11",
-            enable_material_combiner=True,
-            display_mode="replacement_only",
-            texture_cache_dir=texture_cache,
-        )
-        archive_package_stability = stabilize_visual_audit_archive_package(archive_package)
-        archive_manifest = read_isolated_d3d11_preview_manifest(archive_package)
-        apply_dotnet_native_material_batch_bindings(mesh, archive_manifest.get("batches", ()))
         material_state = mesh_dotnet_material_state_payload(
             mesh,
             session_id=spec.asset_id,
@@ -304,7 +281,6 @@ def prepare_visual_audit_corpus(
             else {"schema": "cdmw_mesh_visual_audit_source_board_v2", "boards": [], "textures": []}
         )
         metadata_elapsed_ms = (time.perf_counter() - started) * 1000.0
-        archive_package_ms = (time.perf_counter() - archive_package_started) * 1000.0
         dotnet_started = time.perf_counter()
         dotnet_package = build_mesh_dotnet_experiment_package(
             mesh,
@@ -343,6 +319,13 @@ def prepare_visual_audit_corpus(
                 f"{initial_resident_equivalence['mismatches']}"
             )
         dotnet_package_ms = (time.perf_counter() - dotnet_started) * 1000.0
+        archive_package_ms = dotnet_package_ms
+        archive_package_stability = {
+            "schema": "cdmw_visual_audit_shared_dotnet_package_v1",
+            "renderer_id": "d3d11_vortice_shader",
+            "same_package_for_archive_and_mesh_editor": True,
+            "package_dir": str(dotnet_package.package_dir),
+        }
         provenance = _archive_entry_provenance(entry)
         fingerprint_paths.update((Path(entry.pamt_path), Path(entry.paz_file)))
         for texture in resolved_textures:
@@ -379,7 +362,7 @@ def prepare_visual_audit_corpus(
             {
                 "id": spec.asset_id,
                 "virtual_path": spec.virtual_path,
-                "archive_package_dir": str(archive_package_dir),
+                "archive_package_dir": str(dotnet_package.package_dir),
                 "dotnet_package_dir": str(dotnet_package.package_dir),
                 "resident_material_state_path": str(resident_material_state_path),
                 "views": [dict(view) for view in VISUAL_AUDIT_VIEWS],
@@ -399,15 +382,12 @@ def prepare_visual_audit_corpus(
                 )
             )
         del (
-            archive_manifest,
-            archive_package,
             dotnet_package,
             entry,
             material_state,
             mesh,
             payload,
             prepared_model,
-            prepared_preview,
             preview_result,
             resident_material_state,
             resolved_textures,
@@ -813,11 +793,6 @@ def _validate_visual_audit_identities(specs: Sequence[VisualAuditAssetSpec]) -> 
         parts = tuple(part for part in path.split("/") if part)
         if not path.casefold().endswith(".pac") or path.startswith("/") or ".." in parts:
             raise ValueError(f"Visual-audit virtual path must be a relative PAC path: {spec.virtual_path!r}")
-
-
-def _archive_package_key(spec: VisualAuditAssetSpec) -> str:
-    asset_key = hashlib.sha256(spec.asset_id.encode("utf-8")).hexdigest()[:8]
-    return f"{int(spec.index):03d}-{asset_key}"
 
 
 def _visual_audit_material_regions(

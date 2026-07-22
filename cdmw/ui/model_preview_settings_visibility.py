@@ -141,6 +141,8 @@ def initialize_preview_settings_state(
     dialog._archive_performance_settings = clamp_archive_performance_settings(archive_performance_settings)
     dialog._archive_renderer_backend = dialog._normalize_archive_renderer_backend(archive_renderer_backend)
     normalized_target = str(preview_target or "").strip().lower()
+    # This value now selects a settings layout, not a renderer.  The historical
+    # native value preserves the full Archive Browser presentation controls.
     dialog._preview_target = (
         dialog.PREVIEW_TARGET_DOTNET_VORTICE
         if normalized_target == dialog.PREVIEW_TARGET_DOTNET_VORTICE
@@ -277,10 +279,10 @@ def sync_renderer_specific_controls(dialog: object) -> None:
             "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview. Visible texture mode controls how aggressively sidecar-visible layers are allowed to replace the mesh-derived base texture."
         )
         dialog.d3d11_hint_label.setText(
-            "Native D3D11 supports texture on/off, culling, D3D11 view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and native DDS diagnostics."
+            ".NET/Vortice Preview supports texture on/off, culling, view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and exact DDS diagnostics."
         )
         dialog.quality_hint_label.setText(
-            "Native D3D11 applies these to its shader and sampler directly. Texture resolution normally comes from direct DDS upload; generated fallback maps still use the existing preview cache pipeline."
+            ".NET/Vortice applies these to its shader and sampler directly. Texture resolution normally comes from exact DDS resources; generated fallback maps still use the existing preview cache pipeline."
         )
         dialog.controls_usage_hint_label.setText(
             "Preview controls: left-drag orbits around the model; middle-drag, right-drag, or Shift+left-drag pans; mouse wheel zooms; Fit resets the view framing. These controls only move the preview camera/view."

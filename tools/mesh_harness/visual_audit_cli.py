@@ -170,18 +170,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         if prepared_package_fingerprints_before != current_package_fingerprints:
             parser.error("Prepared package trees changed after sealing; refuse capture.")
 
-    print("Capturing Archive Browser views in one resident native renderer process...", flush=True)
-    archive_report = run_archive_browser_capture_batch(
-        runtime_assets,
-        temporary_root / "candidates" / "archive-browser",
-        run_id=run_id,
-        timeout_seconds=max(5.0, args.native_timeout),
-        progress=lambda current, total, path: print(
-            f"[{current:03d}/{total:03d}] archive capture {path}", flush=True
-        ),
-    )
-    _atomic_write_json(runtime_root / "archive-browser-capture.json", archive_report)
-
     try:
         assembly_path = _dotnet_assembly_path(args)
     except ValueError as exc:
@@ -191,6 +179,20 @@ def main(argv: Sequence[str] | None = None) -> int:
             "The Release .NET renderer is not built. Run: "
             "dotnet build tools\\dotnet_mesh_editor_experiment\\Cdmw.MeshEditorExperiment.csproj -c Release"
         )
+    print("Capturing Archive Browser views through the resident .NET/Vortice renderer...", flush=True)
+    archive_report = run_archive_browser_capture_batch(
+        runtime_assets,
+        temporary_root / "candidates" / "archive-browser",
+        runtime_root / "archive-browser",
+        run_id=run_id,
+        assembly_path=assembly_path,
+        timeout_seconds=max(30.0, args.dotnet_timeout),
+        progress=lambda current, total, path: print(
+            f"[{current:03d}/{total:03d}] archive capture {path}", flush=True
+        ),
+    )
+    _atomic_write_json(runtime_root / "archive-browser-capture.json", archive_report)
+
     print("Capturing Mesh Editor views in one resident .NET/Vortice batch process...", flush=True)
     dotnet_report = run_dotnet_capture_batch(
         runtime_assets,

@@ -303,84 +303,45 @@ def _d3d11_package_lifecycle_step_055(_state):
             return
         if not route_state.should_start:
             return
-        status_file = package_dir / 'host_status.json'
-        try:
-            status_file.unlink(missing_ok=True)
-        except OSError:
-            pass
-        package_metadata = _state._alignment_d3d11_process_request_metadata_helper(_state.alignment_d3d11_state, int(request_id or 0), display_mode_fallback=_state.preview_mode_combo.currentData() or 'side_by_side', package_quality_fallback=_state.alignment_d3d11_state.get('package_quality', 'normal') or 'normal', rebuild_reason_fallback=_state.alignment_d3d11_state.get('last_rebuild_reason', 'geometry') or 'geometry')
-        package_display_mode = package_metadata.display_mode
-        package_quality = package_metadata.package_quality
-        rebuild_reason = package_metadata.rebuild_reason
-        package_cache_key = package_metadata.cache_key
-        existing_process = _state.alignment_d3d11_state.get('process')
-        reuse_host_ready, reuse_host_detail = _state._alignment_d3d11_host_ready(require_child=True)
-        reuse_state = _state._alignment_d3d11_process_reuse_state_helper(process_active=isinstance(existing_process, _state.QProcess) and existing_process.state() != _state.QProcess.NotRunning, host_ready=reuse_host_ready, host_detail=reuse_host_detail)
-        if reuse_state.can_reuse_process:
-            previous_active_package = _state._alignment_d3d11_active_package_snapshot_helper(_state.alignment_d3d11_state)
-            previous_package = previous_active_package.get('active_package')
-            _state._alignment_d3d11_prepare_active_package_helper(_state.alignment_d3d11_state, package=package_dir, request_id=int(request_id or 0), display_mode=package_display_mode, package_quality=package_quality, cache_key=package_cache_key, status_file=status_file)
-            if _state.alignment_d3d11_preview_host.load_package(package_dir, status_file, reset_view=False):
-                _state.alignment_d3d11_preview_host.set_display_mode(str(_state.preview_mode_combo.currentData() or 'side_by_side'))
-                _state.alignment_d3d11_preview_host.set_render_tuning(_state._current_alignment_preview_render_settings_value())
-                _state._cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
-                _state.preview_stack.setCurrentWidget(_state.alignment_d3d11_preview_page)
-                _state._alignment_d3d11_mark_loading_started_helper(_state.alignment_d3d11_state, _state.time.perf_counter())
-                _state._set_alignment_d3d11_progress(82, 'Loading preview package in native renderer.', request_id=int(request_id or 0), stage='native_reload', detail=_state._alignment_d3d11_cached_renderer_reload_detail_helper(rebuild_reason))
-                channel_debug = _state.self._archive_material_channel_debug_from_package(package_dir)
-                cache_event = str(_state.alignment_d3d11_state.get('last_cache_event', 'miss') or 'miss')
-                cache_label = _state._d3d11_cache_event_user_label(cache_event)
-                reload_presentation = _state._alignment_d3d11_reload_queued_performance_helper(_state.alignment_d3d11_state, quality_label=_state._alignment_preview_quality_label_helper(_state.alignment_d3d11_state), cache_label=cache_label, package_quality=package_quality, rebuild_reason=rebuild_reason, channel_debug=channel_debug)
-                _state._set_preview_performance_status_if_ready(reload_presentation.summary, details=reload_presentation.details)
-                _state._safe_start_alignment_timer(_state.alignment_d3d11_status_timer)
-                return
-            _state._alignment_d3d11_restore_active_package_helper(_state.alignment_d3d11_state, previous_active_package)
-        elif reuse_state.should_report_restart:
-            restart_presentation = _state._alignment_d3d11_renderer_host_restart_performance_helper(rebuild_reason=rebuild_reason, host_detail=reuse_state.host_detail)
-            _state._set_preview_performance_status_if_ready(restart_presentation.summary, details=restart_presentation.details)
-        _state._alignment_d3d11_stop_process()
-        _state._alignment_d3d11_prepare_active_package_helper(_state.alignment_d3d11_state, package=package_dir, request_id=int(request_id or 0), display_mode=package_display_mode, package_quality=package_quality, cache_key=package_cache_key, status_file=status_file)
+        package_metadata = _state._alignment_d3d11_process_request_metadata_helper(
+            _state.alignment_d3d11_state,
+            int(request_id or 0),
+            display_mode_fallback=_state.preview_mode_combo.currentData() or 'side_by_side',
+            package_quality_fallback=_state.alignment_d3d11_state.get('package_quality', 'normal') or 'normal',
+            rebuild_reason_fallback=_state.alignment_d3d11_state.get('last_rebuild_reason', 'geometry') or 'geometry',
+        )
+        previous_package = _state.alignment_d3d11_state.get('active_package')
+        _state.alignment_d3d11_state['active_package'] = package_dir
+        _state.alignment_d3d11_state['active_package_request_id'] = int(request_id or 0)
+        _state.alignment_d3d11_state['display_mode'] = package_metadata.display_mode
+        _state.alignment_d3d11_state['package_quality'] = package_metadata.package_quality
         _state.preview_stack.setCurrentWidget(_state.alignment_d3d11_preview_page)
-        new_host_ready, new_host_detail = _state._alignment_d3d11_host_ready(require_child=False)
-        if not new_host_ready:
-            retry_count = _state._alignment_d3d11_record_pending_process_retry_helper(_state.alignment_d3d11_state, package=package_dir)
-            _state._set_alignment_d3d11_progress(82, 'Waiting for preview panel layout.', request_id=int(request_id or 0), stage='waiting_for_visible_preview', detail=_state._alignment_d3d11_waiting_for_preview_panel_detail_helper(rebuild_reason=rebuild_reason, host_detail=new_host_detail, retry_count=retry_count), active=False)
-            pending_host_presentation = _state._alignment_d3d11_pending_host_performance_helper(rebuild_reason=rebuild_reason, host_detail=new_host_detail)
-            _state._set_preview_performance_status_if_ready(pending_host_presentation.summary, details=pending_host_presentation.details)
-            if retry_count <= 80:
-                _state.QTimer.singleShot(75, lambda package=package_dir, expected_request=int(request_id or 0): _state._start_alignment_d3d11_process(package, request_id=expected_request))
-            else:
-                _state._set_alignment_d3d11_loading(False, 'Preview panel is not renderable yet.')
-            return
-        _state._alignment_d3d11_clear_pending_process_retry_helper(_state.alignment_d3d11_state)
-        process = _state.QProcess(_state.dialog)
-        try:
-            program, arguments = _state.self._native_d3d11_renderer_command(package_dir, status_file, host_widget=_state.alignment_d3d11_preview_host, theme_payload=_state._alignment_d3d11_theme_payload_helper(_state.MODEL_PREVIEW_BACKGROUND_COLOR, _state.MODEL_PREVIEW_TEXT_COLOR))
-        except Exception as exc:
-            _state._set_alignment_d3d11_loading(False, f'Preview unavailable: {exc}')
-            unavailable_presentation = _state._alignment_d3d11_unavailable_performance_helper()
-            _state._set_preview_performance_status_if_ready(unavailable_presentation.summary, details=unavailable_presentation.details)
+        accepted = _state.alignment_d3d11_preview_host.load_package(
+            package_dir,
+            reset_view=previous_package is None,
+        )
+        if not accepted:
+            _state.alignment_d3d11_state['active_package'] = previous_package
+            _state._set_alignment_d3d11_loading(False, '.NET/Vortice Preview rejected the prepared package.')
             _state._cleanup_alignment_d3d11_package(package_dir)
-            _state._alignment_d3d11_clear_active_package_helper(_state.alignment_d3d11_state)
             return
-        process.setProgram(program)
-        process.setArguments(arguments)
-        try:
-            process.setWorkingDirectory(str(_state.Path(_state.__file__).resolve().parents[3]))
-        except (OSError, RuntimeError):
-            pass
-        process.setProcessChannelMode(_state.QProcess.SeparateChannels)
-        process.readyReadStandardError.connect(lambda process=process: _state._handle_alignment_d3d11_stderr(process))
-        process.finished.connect(lambda exit_code, exit_status, process=process: _state._handle_alignment_d3d11_finished(process, exit_code, exit_status))
-        process.errorOccurred.connect(lambda error, process=process: _state._handle_alignment_d3d11_error(process, error))
-        _state._alignment_d3d11_record_process_ref_helper(_state.alignment_d3d11_state, process)
-        _state._alignment_d3d11_mark_loading_started_helper(_state.alignment_d3d11_state, _state.time.perf_counter())
-        _state._set_alignment_d3d11_progress(82, 'Starting native preview renderer.', request_id=int(request_id or 0), stage='native_start', detail=f'reason={rebuild_reason}')
-        starting_presentation = _state._alignment_d3d11_starting_performance_helper(_state.alignment_d3d11_state, quality_label=_state._alignment_preview_quality_label_helper(_state.alignment_d3d11_state), cache_label=_state._d3d11_cache_event_user_label(_state.alignment_d3d11_state.get('last_cache_event', 'miss')), package_quality=package_quality, rebuild_reason=rebuild_reason)
-        _state._set_preview_performance_status_if_ready(starting_presentation.summary, details=starting_presentation.details)
-        _state._safe_start_alignment_timer(_state.alignment_d3d11_status_timer)
-        process.start()
-        _state.QTimer.singleShot(10000, lambda expected_status=status_file: _state._check_alignment_d3d11_start_timeout(expected_status))
+        _state.alignment_d3d11_preview_host.set_display_mode(
+            str(_state.preview_mode_combo.currentData() or 'side_by_side')
+        )
+        _state.alignment_d3d11_preview_host.set_render_tuning(
+            _state._current_alignment_preview_render_settings_value()
+        )
+        if previous_package is not None and previous_package != package_dir:
+            _state._cleanup_alignment_d3d11_package(previous_package, delay_ms=5000)
+        _state.alignment_d3d11_state['preview_loaded'] = True
+        _state._set_alignment_d3d11_progress(
+            100,
+            '.NET/Vortice preview package accepted.',
+            request_id=int(request_id or 0),
+            stage='dotnet_resident_load',
+            detail=f'reason={package_metadata.rebuild_reason}',
+            active=False,
+        )
     _state._start_alignment_d3d11_process = _start_alignment_d3d11_process
 
 def _d3d11_package_lifecycle_step_056(_state):
@@ -390,7 +351,7 @@ def _d3d11_package_lifecycle_step_056(_state):
         timeout_route = _state._alignment_d3d11_start_timeout_route_helper(dialog_live=_state._alignment_dialog_widgets_live(), status_matches=_state.alignment_d3d11_state.get('status_file') == expected_status, process_active=isinstance(process, _state.QProcess) and process.state() != _state.QProcess.NotRunning, status_file_exists=expected_status.is_file())
         if not timeout_route.should_report_timeout:
             return
-        _state._set_alignment_d3d11_progress(82, 'Starting native preview renderer.', stage='native_start_timeout', detail='Native D3D11 startup timeout waiting for status.')
+        _state._set_alignment_d3d11_progress(82, 'Starting .NET/Vortice Preview renderer.', stage='native_start_timeout', detail='.NET/Vortice startup timeout waiting for status.')
         startup_timeout_presentation = _state._alignment_d3d11_startup_timeout_performance_helper()
         _state._set_preview_performance_status_if_ready(startup_timeout_presentation.summary, details=startup_timeout_presentation.details)
     _state._check_alignment_d3d11_start_timeout = _check_alignment_d3d11_start_timeout

@@ -199,7 +199,7 @@ class NativePreviewPanel(QWidget):
         if vertex_count <= 0 and batches:
             vertex_count = sum(int(getattr(batch, "index_count", 0) or 0) for batch in batches)
         self._vertex_count = vertex_count
-        self._set_message(f"Native D3D11 preview data ready: {mesh_count:,} mesh(es), {batch_count:,} batch(es), {vertex_count:,} vertices.")
+        self._set_message(f".NET/Vortice preview data ready: {mesh_count:,} mesh(es), {batch_count:,} batch(es), {vertex_count:,} vertices.")
         self._resume_interactive_timers_if_visible()
 
     def is_available(self) -> bool:

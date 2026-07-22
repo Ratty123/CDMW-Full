@@ -26,7 +26,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS = context.get('MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS')
     MODEL_PREVIEW_VISIBLE_TEXTURE_MODES = context.get('MODEL_PREVIEW_VISIBLE_TEXTURE_MODES')
     MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS = context.get('MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS')
-    NativeD3D11PreviewHostFrame = context.get('NativeD3D11PreviewHostFrame')
+    DotNetPreviewHostFrame = context.get('DotNetPreviewHostFrame')
+    DotNetPreviewProfile = context.get('DotNetPreviewProfile')
     NativePreviewPanel = context.get('NativePreviewPanel')
     OrderedDict = context.get('OrderedDict')
     PREVIEW_MODE_OPTIONS = context.get('PREVIEW_MODE_OPTIONS')
@@ -72,7 +73,6 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     defer_original_texture_preview = context.get('defer_original_texture_preview')
     dialog = context.get('dialog')
     embedded_alignment_builder = bool(context.get('embedded_alignment_builder'))
-    find_native_d3d11_host = context.get('find_native_d3d11_host')
     float = context.get('float')
     globals = context.get('globals')
     locals = context.get('locals')
@@ -135,7 +135,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     generate_alignment_icon_button.setMaximumWidth(128)
     preview_action_row.addWidget(generate_alignment_icon_button)
     preview_header.addLayout(preview_action_row)
-    alignment_d3d11_available = find_native_d3d11_host() is not None
+    alignment_d3d11_available = True
     preview_renderer_combo = QComboBox()
     _populate_combo_options_helper(preview_renderer_combo, PREVIEW_RENDERER_OPTIONS)
     preview_renderer_combo.setToolTip(alignment_preview_control_text["renderer_tooltip"])
@@ -409,6 +409,11 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     replacement_only_preview.set_high_quality_textures(True)
     replacement_only_preview.set_alignment_guides_visible(True)
     replacement_only_preview.set_alignment_editing_enabled(True)
+    # These panels remain as non-visible state/compatibility adapters for old
+    # callbacks.  The authoring Vortice host below is the sole visual surface.
+    preview_splitter.setVisible(False)
+    overlay_dialog_preview.setVisible(False)
+    replacement_only_preview.setVisible(False)
 
     def _get_preview_render_settings():
         return preview_render_settings
@@ -421,8 +426,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_preview_layout = QVBoxLayout(alignment_d3d11_preview_page)
     alignment_d3d11_preview_layout.setContentsMargins(0, 0, 0, 0)
     alignment_d3d11_preview_layout.setSpacing(3)
-    alignment_d3d11_preview_host = NativeD3D11PreviewHostFrame(alignment_d3d11_preview_page)
-    alignment_d3d11_preview_host.setObjectName("AlignmentNativeD3D11PreviewHost")
+    alignment_d3d11_preview_host = DotNetPreviewHostFrame(
+        alignment_d3d11_preview_page,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+    )
+    alignment_d3d11_preview_host.setObjectName("AlignmentDotNetVorticePreviewHost")
     # Let winId() create the native handle after the builder is visible; eager
     # native child creation can hard-crash when the alignment dialog is shown.
     alignment_d3d11_preview_host.setMinimumSize(300, 280)
@@ -581,6 +590,19 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _set_alignment_camera = alignment_d3d11_loading_callbacks._set_alignment_camera
     _nudge_alignment_camera = alignment_d3d11_loading_callbacks._nudge_alignment_camera
 
+    def _handle_alignment_dotnet_state(state: str, message: str) -> None:
+        alignment_d3d11_state["process"] = alignment_d3d11_preview_host.controller.process
+        alignment_d3d11_preview_status_label.setText(str(message or ".NET/Vortice Preview"))
+        if str(state) == "ready":
+            alignment_d3d11_state["preview_loaded"] = True
+            alignment_d3d11_state["resources_loaded"] = True
+            _set_alignment_d3d11_progress(100, ".NET/Vortice Preview ready.", active=False)
+        elif str(state) == "error":
+            alignment_d3d11_state["preview_loaded"] = False
+            _set_alignment_d3d11_loading(False, str(message or ".NET/Vortice Preview failed."))
+
+    alignment_d3d11_preview_host.controller.state_changed.connect(_handle_alignment_dotnet_state)
+
     camera_front_button.clicked.connect(lambda _checked=False: _set_alignment_camera(0.0, 0.0))
     camera_left_button.clicked.connect(lambda _checked=False: _set_alignment_camera(-90.0, 0.0))
     camera_right_button.clicked.connect(lambda _checked=False: _set_alignment_camera(90.0, 0.0))
@@ -600,10 +622,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
     preview_part_pick_checkbox.toggled.connect(_preview_part_pick_toggled)
     preview_stack = QStackedWidget(preview_panel)
-    preview_stack.addWidget(preview_splitter)
-    preview_stack.addWidget(overlay_dialog_preview)
-    preview_stack.addWidget(replacement_only_preview)
     preview_stack.addWidget(alignment_d3d11_preview_page)
+    preview_stack.setCurrentWidget(alignment_d3d11_preview_page)
     preview_panel_layout.addWidget(preview_stack, 1)
     preview_help = QLabel(alignment_preview_default_help.text)
     preview_help.setWordWrap(False)

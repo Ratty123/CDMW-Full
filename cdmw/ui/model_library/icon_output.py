@@ -51,7 +51,7 @@ class ModelLibraryIconOutputMixin:
             selected = self._selected_payload()
             if selected is None or not self._inline_preview_matches_payload(selected):
                 return
-            prefix = "native D3D11 " if native_capture else ""
+            prefix = ".NET/Vortice " if native_capture else ""
             self._set_inline_preview_status(f"Generated {prefix}model preview icon: {value.output_path.name}")
             self.item_icon_source_generated.emit(str(value.output_path), dict(payload))
 

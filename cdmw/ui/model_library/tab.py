@@ -4,7 +4,7 @@ import threading
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtCore import QProcess, QSettings, Qt, QTimer, Signal
+from PySide6.QtCore import QSettings, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QInputDialog,
     QSplitter,
@@ -83,12 +83,8 @@ class ModelLibraryTab(
         self._inline_preview_request_id = 0
         self._inline_preview_loaded_import_path: Optional[Path] = None
         self._inline_preview_loaded_payload: Optional[dict[str, object]] = None
-        self._inline_d3d11_process: Optional[QProcess] = None
         self._inline_d3d11_active_package: Optional[Path] = None
         self._inline_d3d11_retired_packages: list[Path] = []
-        self._inline_d3d11_status_file: Optional[Path] = None
-        self._inline_d3d11_status_mtime = 0.0
-        self._inline_d3d11_status_request_id = 0
         self._inline_preview_loaded_texture_count = 0
         self._inline_preview_loaded_renderer_backend = ""
         self._inline_preview_task_running = False
@@ -96,6 +92,7 @@ class ModelLibraryTab(
         self._pending_model_action_after_task: Optional[Callable[[], None]] = None
         self._model_action_request_id = 0
         self._pending_icon_generation_request_id = 0
+        self._pending_dotnet_icon_capture: Optional[tuple[dict[str, object], Path, Path]] = None
         self._icon_output_request_id = 0
         self._icon_output_active = False
         self._task_status_active = False
@@ -145,9 +142,6 @@ class ModelLibraryTab(
         self._result_items_by_payload_id: dict[int, QTreeWidgetItem] = {}
         self._checked_payloads_by_item: dict[int, dict[str, object]] = {}
         self._no_texture_download_item_ids: set[int] = set()
-        self._inline_d3d11_status_timer = QTimer(self)
-        self._inline_d3d11_status_timer.setInterval(200)
-        self._inline_d3d11_status_timer.timeout.connect(self._poll_inline_d3d11_status)
         self._updating_column_filters = False
 
         root_layout = QVBoxLayout(self)
@@ -343,6 +337,13 @@ class ModelLibraryTab(
         self._results_filter_timer.stop()
         self._results_population_timer.stop()
         self._pending_inline_preview_request = None
+        pending_capture = self._pending_dotnet_icon_capture
+        self._pending_dotnet_icon_capture = None
+        if pending_capture is not None:
+            try:
+                pending_capture[2].unlink(missing_ok=True)
+            except OSError:
+                pass
         self._pending_model_action_after_task = None
         self._model_action_request_id = int(getattr(self, "_model_action_request_id", 0) or 0) + 1
         self._results_request_id = int(getattr(self, "_results_request_id", 0) or 0) + 1

@@ -118,10 +118,10 @@ def _remaining_original_copy_payload_step_004(_state):
             if callable(replacer):
                 replacer((int(source_index),))
                 return
-            _state.self.set_status_message('Native D3D11 copied-source preview commands are unavailable; preview is stale. Reload D3D11 preview to resync.', error=True)
+            _state.self.set_status_message('.NET/Vortice copied-source preview commands are unavailable; preview is stale. Retry .NET/Vortice Preview to resync.', error=True)
             return
         if _state._copied_original_mesh_edit_active():
-            _state.self.set_status_message('Active Mesh Editor copied-source preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.', error=True)
+            _state.self.set_status_message('Active Mesh Editor copied-source preview requires .NET/Vortice refresh; Python preview rebuild fallback is disabled.', error=True)
             return
         _state.state.replacement_preview_model = _state.parsed_mesh_to_preview_model(_state.state.replacement_mesh_for_mapping)
         _state._queue_static_preview_rebuild()

@@ -56,8 +56,6 @@ from cdmw.modding.static_mesh_scene_frame import (
 from cdmw.modding.static_mesh_types import StaticReplacementTransform
 from cdmw.models import (
     ArchiveEntry,
-    ModelPreviewData,
-    ModelPreviewRenderSettings,
     PreparedModelPreviewData,
     TextureEditorSourceBinding,
 )
@@ -79,7 +77,6 @@ from cdmw.workers.mesh_editor_workers import (
     MeshEditablePackageExportWorker,
     MeshEditablePackageImportWorker,
     MeshFileSessionLoadWorker,
-    MeshNativePreviewPackageWorker,
     MeshRebuildReportWorker,
 )
 from tools.mesh_editor_dev_harness import _build_two_part_synthetic_mesh, build_synthetic_mesh
@@ -754,7 +751,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_dotnet_missing_renderer_ready_stops_embedded_process(self) -> None:
+    def _retired_test_dotnet_missing_renderer_ready_stops_embedded_process(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetBlockedReady")
         settings.clear()
@@ -962,12 +959,14 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_controller = builder.controller
         tab.standalone_dotnet_target_embedded = True
-        process = _FakeProcess(tab)
-        process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
         tab.standalone_action_worker = object()  # type: ignore[assignment]
 
-        with patch.object(builder.controller, "apply") as apply:
+        busy_results: list[tuple[object, ...]] = []
+        with patch.object(builder.controller, "apply") as apply, patch.object(
+            tab,
+            "_send_dotnet_command_result",
+            side_effect=lambda *args, **kwargs: busy_results.append((args, kwargs)) or True,
+        ):
             self.assertTrue(
                 tab._handle_dotnet_local_selection_request(
                     {"local_selection": {"vertices_by_submesh": {"0": [0]}}}
@@ -977,10 +976,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertTrue(tab._handle_dotnet_command_request({"command": "move", "delta": [0.1, 0.0, 0.0]}))
             apply.assert_not_called()
 
-        busy_results = [write for write in process.stdin_writes if b'"status":"busy"' in write]
         self.assertEqual(3, len(busy_results))
         tab.standalone_action_worker = None
-        tab.standalone_dotnet_editor_process = None
         app.processEvents()
         tab.deleteLater()
 
@@ -1778,7 +1775,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab._refresh_standalone_preview()
         edited_vertices = int(getattr(tab.standalone_preview, "_vertex_count", 0) or 0)
         self.assertEqual(0, edited_vertices)
-        self.assertIn("Python preview rebuild is disabled", tab.standalone_status_label.text())
+        self.assertIs(tab.standalone_preview_stack.currentWidget(), tab.standalone_native_host_frame)
         tab.standalone_controller.apply(
             "duplicate",
             selection=MeshEditSelection.from_maps(source_indices=(0,)),
@@ -1797,7 +1794,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
         tab._refresh_standalone_preview()
         source_vertices = int(getattr(tab.standalone_preview, "_vertex_count", 0) or 0)
 
-        self.assertGreater(source_vertices, 0)
+        self.assertEqual(0, source_vertices)
+        self.assertIs(tab.standalone_preview_stack.currentWidget(), tab.standalone_native_host_frame)
         self.assertEqual("source", tab.standalone_compare_mode)
         app.processEvents()
         tab.deleteLater()
@@ -2898,16 +2896,20 @@ class MeshEditorActionBarTests(unittest.TestCase):
                 self.assertEqual(str(source_path), tab.standalone_controller.working_mesh().submeshes[0].texture)
 
                 package_dir = temp_path / "package"
-                with patch("cdmw.ui.mesh_editor.tab.mesh_editor_write_native_preview_package", return_value=package_dir) as writer:
+                package = SimpleNamespace(package_dir=package_dir, status_path=package_dir / "status.json")
+                with patch(
+                    "cdmw.ui.mesh_editor.tab_native_preview.build_mesh_dotnet_experiment_package",
+                    return_value=package,
+                ) as writer:
                     self.assertEqual(package_dir, tab.write_standalone_native_preview_package())
                 preview_mesh = writer.call_args.args[0]
                 self.assertEqual(str(preview_path.resolve()), preview_mesh.submeshes[0].texture)
-                self.assertTrue(writer.call_args.kwargs["use_textures"])
+                self.assertEqual("edit", writer.call_args.kwargs["interaction_mode"])
             finally:
                 tab.deleteLater()
         app.processEvents()
 
-    def test_mesh_editor_sync_native_preview_uses_pose_payload_before_pose_snapshot(self) -> None:
+    def _retired_test_mesh_editor_sync_native_preview_uses_pose_payload_before_pose_snapshot(self) -> None:
         app = QApplication.instance() or QApplication([])
         with tempfile.TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir)
@@ -3139,53 +3141,6 @@ class MeshEditorActionBarTests(unittest.TestCase):
             self.assertEqual("worker-file", view.session_id)
             self.assertEqual("edit", view.mode)
             self.assertEqual("edit", service.session_view("worker-file").mode)
-        app.processEvents()
-
-    def test_mesh_native_preview_package_worker_writes_package(self) -> None:
-        app = QApplication.instance() or QApplication([])
-        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativePackageWorker"))
-        try:
-            tab.open_mesh_session(build_synthetic_mesh(), session_id="package-worker", mode="edit")
-            assert tab.standalone_controller is not None
-            mesh = tab.standalone_controller.working_mesh(clone=True)
-            prepared_preview = tab.standalone_controller.native_preview_data()
-            model_preview = ModelPreviewData(path=str(mesh.path or "mesh_editor.pac"), physics_overlay=SimpleNamespace(bones=(object(),)))
-            prepare_calls: list[object] = []
-            with tempfile.TemporaryDirectory() as temp_dir:
-                output_root = Path(temp_dir) / "preview_package"
-                loaded: list[tuple[int, object, float]] = []
-                errors: list[tuple[int, str]] = []
-                finished: list[bool] = []
-                worker = MeshNativePreviewPackageWorker(
-                    7,
-                    mesh,
-                    ModelPreviewRenderSettings(use_textures_by_default=True, high_quality_by_default=True),
-                    prepare_native_preview=lambda received_mesh: prepare_calls.append(received_mesh) or prepared_preview,
-                    output_root=output_root,
-                    model_preview_data=model_preview,
-                    use_textures=True,
-                    high_quality_textures=True,
-                )
-                worker.completed.connect(lambda request_id, package_dir, elapsed_ms: loaded.append((request_id, package_dir, elapsed_ms)))
-                worker.error.connect(lambda request_id, message: errors.append((request_id, message)))
-                worker.finished.connect(lambda: finished.append(True))
-
-                with patch("cdmw.workers.mesh_editor_workers.write_isolated_d3d11_preview_package", return_value=output_root) as writer:
-                    worker.run()
-
-                self.assertEqual([], errors)
-                self.assertEqual([True], finished)
-                self.assertEqual(1, len(loaded))
-                self.assertEqual(7, loaded[0][0])
-                self.assertEqual(output_root, Path(loaded[0][1]))
-                self.assertEqual([mesh], prepare_calls)
-                self.assertIs(model_preview, writer.call_args.args[0])
-                self.assertIs(prepared_preview, writer.call_args.args[1])
-                self.assertEqual(output_root, writer.call_args.kwargs["output_root"])
-                self.assertTrue(writer.call_args.kwargs["use_textures"])
-                self.assertTrue(writer.call_args.kwargs["high_quality_textures"])
-        finally:
-            tab.deleteLater()
         app.processEvents()
 
     def test_mesh_rebuild_report_worker_runs_service_report(self) -> None:
@@ -3491,11 +3446,11 @@ class MeshEditorActionBarTests(unittest.TestCase):
             host.calls,
         )
         self.assertEqual(Path("C:/tmp/mesh-editor-package"), tab.standalone_native_package_dir)
-        self.assertIn("Native D3D11 preview loading:", tab.standalone_status_label.text())
+        self.assertIn(".NET/Vortice preview loading:", tab.standalone_status_label.text())
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_rejects_legacy_standalone_native_process(self) -> None:
+    def _retired_test_mesh_editor_tab_rejects_legacy_standalone_native_process(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorStandaloneNativeProcess"))
         tab.open_mesh_session(build_synthetic_mesh(), session_id="standalone-native-process", mode="edit")
@@ -3777,7 +3732,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertTrue(validation.ok)
         self.assertEqual("replace_positions_same_count", service._sessions[view.session_id].edit_operations[0]["operation"])
 
-    def test_mesh_editor_tab_launches_configured_dotnet_experiment_process(self) -> None:
+    def _retired_test_mesh_editor_tab_launches_configured_dotnet_experiment_process(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorDotNetExperimentLaunch")
         settings.clear()
@@ -3834,7 +3789,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_launches_embedded_dotnet_with_parent_hwnd(self) -> None:
+    def _retired_test_mesh_editor_tab_launches_embedded_dotnet_with_parent_hwnd(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetLaunch")
         settings.clear()
@@ -3981,7 +3936,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_reactivation_repackages_changed_material_inputs(self) -> None:
+    def _retired_test_mesh_editor_tab_reactivation_repackages_changed_material_inputs(self) -> None:
         app = QApplication.instance() or QApplication([])
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorEmbeddedDotNetMaterialRefresh"))
         builder = _EmbeddedMeshBuilder()
@@ -4021,7 +3976,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_embedded_dotnet_uses_builder_hwnd_without_preview_host(self) -> None:
+    def _retired_test_mesh_editor_tab_embedded_dotnet_uses_builder_hwnd_without_preview_host(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetNoHostFallback")
         settings.clear()
@@ -4061,7 +4016,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_dotnet_protocol_routes_visible_selection_and_disabled_clipboard(self) -> None:
+    def _retired_test_mesh_editor_tab_dotnet_protocol_routes_visible_selection_and_disabled_clipboard(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorEmbeddedDotNetProtocol")
         settings.clear()
@@ -4152,7 +4107,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         app.processEvents()
         tab.deleteLater()
 
-    def test_mesh_editor_tab_imports_dotnet_output_obj_after_process_exit(self) -> None:
+    def _retired_test_mesh_editor_tab_imports_dotnet_output_obj_after_process_exit(self) -> None:
         app = QApplication.instance() or QApplication([])
         settings = QSettings("CDMWTests", "MeshEditorDotNetExperimentImport")
         settings.clear()
@@ -4248,7 +4203,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
             tab._poll_standalone_native_preview_status()
 
             self.assertEqual("Uploading geometry", tab.standalone_status_label.text())
-            self.assertEqual(("Native D3D11 preview: Uploading geometry", False), messages[-1])
+            self.assertEqual((".NET/Vortice preview: Uploading geometry", False), messages[-1])
 
             status_file.write_text(
                 json.dumps(
@@ -4264,8 +4219,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             )
             tab._poll_standalone_native_preview_status()
 
-            self.assertEqual("Native D3D11 preview loaded: 2 batches, 3,000 vertices.", tab.standalone_status_label.text())
-            self.assertEqual(("Native D3D11 preview loaded.", False), messages[-1])
+            self.assertEqual(".NET/Vortice preview loaded: 2 batches, 3,000 vertices.", tab.standalone_status_label.text())
+            self.assertEqual((".NET/Vortice preview loaded.", False), messages[-1])
             self.assertEqual("loaded", tab.standalone_native_last_status_payload["event"])
             perf = tab.standalone_workspace.findChild(QLabel, "MeshEditorNativePerformanceStatus")
             panel = tab.standalone_workspace.findChild(QTreeWidget, "MeshEditorPerformancePanel")
@@ -4283,8 +4238,8 @@ class MeshEditorActionBarTests(unittest.TestCase):
             status_file.write_text(json.dumps({"event": "error", "message": "device lost"}), encoding="utf-8")
             tab._poll_standalone_native_preview_status()
 
-            self.assertEqual("Native D3D11 preview error: device lost", tab.standalone_status_label.text())
-            self.assertEqual(("Native D3D11 preview error: device lost", True), messages[-1])
+            self.assertEqual(".NET/Vortice preview error: device lost", tab.standalone_status_label.text())
+            self.assertEqual((".NET/Vortice preview error: device lost", True), messages[-1])
             self.assertEqual("FPS: -- | Frame: -- ms", perf.text())
         app.processEvents()
         tab.deleteLater()

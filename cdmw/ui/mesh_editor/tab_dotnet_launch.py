@@ -558,7 +558,7 @@ class MeshEditorDotNetLaunchMixin:
             self.update_editor_session_state(view, active_selection_mode=controller.active_selection_mode)
             if self.standalone_compare_mode != "source":
                 if self._standalone_native_preview_update_active():
-                    if self.standalone_native_package_thread is None:
+                    if self.standalone_dotnet_package_thread is None:
                         self.start_standalone_native_preview_async(reset_view=False)
                 else:
                     self._refresh_standalone_preview()

@@ -156,6 +156,32 @@ class DotNetPreviewSessionController(QObject):
         return self._process
 
     @property
+    def is_running(self) -> bool:
+        return self._process is not None and qprocess_is_running(self._process)
+
+    def set_configured_executable(self, executable: Path | str | None) -> None:
+        self._configured_executable = executable
+
+    def set_authoritative_session_id(self, session_id: str) -> None:
+        if self.profile is DotNetPreviewProfile.AUTHORING and str(session_id or "").strip():
+            self._session_id = str(session_id).strip()
+
+    def set_authoring_rehydrator(
+        self,
+        callback: Callable[["DotNetPreviewSessionController"], bool] | None,
+    ) -> None:
+        self._authoring_rehydrator = callback
+
+    def send_authoring_message(self, payload: Mapping[str, object]) -> bool:
+        if self.profile is not DotNetPreviewProfile.AUTHORING or not self._can_send_protocol():
+            return False
+        message = dict(payload)
+        message.setdefault("session_id", self._session_id)
+        message.setdefault("process_generation", self._process_generation)
+        message.setdefault("protocol_version", 2)
+        return self._send_json(message)
+
+    @property
     def desired_package_path(self) -> str:
         package = self._desired_package
         return str(package.package_dir) if package is not None else ""
@@ -186,6 +212,12 @@ class DotNetPreviewSessionController(QObject):
         except (OSError, TypeError, ValueError) as exc:
             self._set_state("error", f".NET/Vortice preview package is invalid: {exc}")
             return False
+        if self.profile is DotNetPreviewProfile.AUTHORING:
+            scene_session_id = str(
+                getattr(getattr(resolved, "scene_frame", None), "scene_session_id", "") or ""
+            ).strip()
+            if scene_session_id:
+                self._session_id = scene_session_id
         previous_desired = self.desired_package_path
         self._hold_package_lease(resolved.package_dir)
         self._package_generation += 1

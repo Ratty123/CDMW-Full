@@ -6,7 +6,7 @@ from pathlib import Path
 import time
 from types import SimpleNamespace
 
-from tools.mesh_harness.native_protocol import (
+from tools.mesh_harness.win32_input import (
     _activate_window_for_input,
     _foreground_window_matches,
     _host_window_rect,

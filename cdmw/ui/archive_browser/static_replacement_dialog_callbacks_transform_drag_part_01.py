@@ -154,7 +154,7 @@ def _transform_drag_step_004(_state):
     def _active_mesh_edit_transform_preview_queue_blocked(kind: str, event: str) -> bool:
         if not (callable(_state._mesh_edit_raw_preview_active) and _state._mesh_edit_raw_preview_active()):
             return False
-        message = f'Active Mesh Editor static preview {kind} is disabled; native D3D11 preview payloads are required.'
+        message = f'Active Mesh Editor static preview {kind} is disabled; .NET/Vortice preview payloads are required.'
         if callable(_state._record_runtime_event):
             _state._record_runtime_event(event, path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
         set_status_message = getattr(_state.self, 'set_status_message', None)

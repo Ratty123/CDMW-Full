@@ -30,7 +30,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.domain.library.models import DEFAULT_MODEL_MIRROR_URL
 from cdmw.ui.model_library.settings import MODEL_LIBRARY_FILTER_COLUMNS
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.widgets import NativePreviewPanel
 
 
@@ -469,11 +469,15 @@ def build_preview_panel(tab: object) -> QWidget:
     tab.inline_preview_widget.set_use_textures(True)
     tab.inline_preview_widget.set_high_quality_textures(True)
     tab.inline_preview_widget.setMinimumHeight(280)
+    tab.inline_preview_widget.setParent(panel)
+    tab.inline_preview_widget.setVisible(False)
     tab.inline_preview_stack = QStackedWidget()
-    tab.inline_preview_stack.addWidget(tab.inline_preview_widget)
-    tab.inline_d3d11_preview_host = NativeD3D11PreviewHostFrame()
+    tab.inline_d3d11_preview_host = DotNetPreviewHostFrame(
+        profile=DotNetPreviewProfile.PREVIEW,
+    )
     tab.inline_d3d11_preview_host.setMinimumHeight(280)
     tab.inline_preview_stack.addWidget(tab.inline_d3d11_preview_host)
+    tab.inline_preview_stack.setCurrentWidget(tab.inline_d3d11_preview_host)
     preview_layout.addWidget(tab.inline_preview_stack, stretch=1)
     orientation_controls_layout = QHBoxLayout()
     orientation_controls_layout.setContentsMargins(0, 0, 0, 0)
@@ -491,7 +495,7 @@ def build_preview_panel(tab: object) -> QWidget:
     orientation_controls_layout.addStretch(1)
     preview_layout.addLayout(orientation_controls_layout)
     tab.inline_preview_status_label = QLabel(
-        "Local preview resolves glTF/GLB/OBJ/DAE textures from the model folder without launching inline D3D11."
+        "Local preview resolves glTF/GLB/OBJ/DAE textures into the shared .NET/Vortice renderer."
     )
     tab.inline_preview_status_label.setObjectName("HintLabel")
     tab.inline_preview_status_label.setWordWrap(False)
@@ -501,6 +505,8 @@ def build_preview_panel(tab: object) -> QWidget:
     preview_layout.addWidget(tab.inline_preview_status_label)
     tab.inline_preview_flip_v_checkbox.toggled.connect(tab._handle_inline_preview_flip_v_toggled)
     tab.inline_preview_reset_orientation_button.clicked.connect(tab._handle_inline_preview_orientation_reset_clicked)
+    tab.inline_d3d11_preview_host.controller.state_changed.connect(tab._handle_inline_dotnet_state)
+    tab.inline_d3d11_preview_host.controller.capture_completed.connect(tab._handle_inline_dotnet_capture_completed)
     layout.addWidget(preview_group, stretch=1)
     tab.status_label = QLabel("")
     tab.status_label.setObjectName("HintLabel")

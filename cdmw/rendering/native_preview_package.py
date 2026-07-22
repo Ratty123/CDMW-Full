@@ -1,4 +1,8 @@
-"""Compatibility facade for native D3D11 preview package writing."""
+"""Legacy isolated-package compatibility facade.
+
+These derived package helpers remain import-compatible for offline tests and
+cache migration only. Production visual surfaces do not consume them.
+"""
 
 from __future__ import annotations
 

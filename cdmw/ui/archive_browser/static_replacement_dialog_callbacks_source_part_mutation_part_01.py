@@ -258,10 +258,10 @@ def _source_part_mutation_step_006(_state):
             if callable(_state._mesh_edit_replace_live_triangles_or_queue_rebuild):
                 _state._mesh_edit_replace_live_triangles_or_queue_rebuild(source_indices if source_indices is not None else _state._source_part_current_preview_indices(), replace_all=replace_all)
                 return
-            _state.self.set_status_message('Native D3D11 source-part preview commands are unavailable; preview is stale. Reload D3D11 preview to resync.', error=True)
+            _state.self.set_status_message('.NET/Vortice source-part preview commands are unavailable; preview is stale. Retry the preview to resync.', error=True)
             return
         if _state._source_part_mesh_edit_active():
-            _state.self.set_status_message('Active Mesh Editor source-part preview requires native D3D11 refresh; Python preview rebuild fallback is disabled.', error=True)
+            _state.self.set_status_message('Active Mesh Editor source-part preview requires a .NET/Vortice refresh; software preview fallback is disabled.', error=True)
             return
         replacement_mesh_for_mapping = _state._get_replacement_mesh_for_mapping()
         _state._set_replacement_preview_model(_state.parsed_mesh_to_preview_model(replacement_mesh_for_mapping) if replacement_mesh_for_mapping is not None else None)

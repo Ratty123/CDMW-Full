@@ -54,11 +54,8 @@ class ArchivePreviewRendererControlsMixin:
     def _deactivate_archive_model_renderers_for_non_model_preview(self) -> None:
         self._pause_archive_model_preview_widgets()
         self._cancel_archive_isolated_package_worker_for_non_model_preview()
-        if (
-            self._archive_isolated_renderer_process_running()
-            or getattr(self, "archive_isolated_renderer_active_package", None) is not None
-        ):
-            self._shutdown_archive_isolated_renderer_host()
+        self.archive_d3d11_preview_host.clear_preview()
+        self.archive_isolated_renderer_active_package = None
 
     def _archive_model_renderer_status_note(self, selected_widget: Optional[object] = None) -> str:
         return ""
@@ -145,11 +142,7 @@ class ArchivePreviewRendererControlsMixin:
         for widget in self._archive_model_preview_widgets():
             if hasattr(widget, "set_dark_background_enabled"):
                 widget.set_dark_background_enabled(bool(checked))
-        if (
-            self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
-            and self.current_archive_preview_result is not None
-            and not self.archive_preview_showing_loose
-            and getattr(self.current_archive_preview_result, "preview_model", None) is not None
-        ):
-            self._launch_archive_isolated_preview_result(self.current_archive_preview_result)
+        self.archive_d3d11_preview_host.set_render_tuning(
+            self._current_model_preview_render_settings()
+        )
         self.schedule_settings_save()

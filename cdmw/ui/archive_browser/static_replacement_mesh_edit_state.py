@@ -301,7 +301,7 @@ def mesh_edit_safe_scale(raw_scale: object) -> float:
 
 
 # Legacy normalization helper retained for archive/static-data plumbing. Active
-# Mesh Editor screen-to-world transforms are owned by the native D3D11/core path.
+# Mesh Editor screen-to-world transforms are owned by the resident Vortice/core path.
 def mesh_edit_preview_to_source_vector(vector: Iterable[object], raw_scale: object) -> tuple[float, float, float]:
     values = tuple(vector)
     scale = mesh_edit_safe_scale(raw_scale)

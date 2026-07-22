@@ -44,7 +44,7 @@ from cdmw.ui.mesh_editor.actions import (
     mesh_editor_actions_by_key,
 )
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.native_preview_panel import NativePreviewPanel
 
 

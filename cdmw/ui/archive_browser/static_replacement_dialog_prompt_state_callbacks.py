@@ -401,7 +401,6 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     preview_renderer_combo.currentIndexChanged.connect(lambda _index: _set_preview_renderer())
     preview_mode_combo.currentIndexChanged.connect(_set_preview_mode)
     overlay_original_locked_checkbox.toggled.connect(_queue_static_preview_refresh)
-    alignment_d3d11_status_timer.timeout.connect(_poll_alignment_d3d11_status)
     alignment_d3d11_reload_timer.timeout.connect(_flush_alignment_d3d11_preview_request)
 
     alignment_selection_mapping_helpers = create_alignment_selection_mapping_helpers({

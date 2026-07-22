@@ -123,7 +123,7 @@ def _morph_slider_apply_to_working_mesh(_state, _callbacks,
         )
     elif _state._mesh_edit_tab_active():
         _callbacks._mesh_edit_mark_native_preview_stale(
-            "Active Mesh Editor morph-slider apply requires native D3D11 refresh; Python preview rebuild fallback is disabled."
+            "Active Mesh Editor morph-slider apply requires .NET/Vortice refresh; Python preview rebuild fallback is disabled."
         )
     else:
         _state._queue_static_preview_rebuild()

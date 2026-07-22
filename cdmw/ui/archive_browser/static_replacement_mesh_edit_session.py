@@ -280,7 +280,7 @@ def _mesh_edit_refresh_replacement_preview_model(_state, _callbacks,
         and not _state._alignment_d3d11_preview_active()
     ):
         _state.self.set_status_message(
-            "Active Mesh Editor preview refresh requires native D3D11; Python preview rebuild fallback is disabled.",
+            "Active Mesh Editor preview refresh requires .NET/Vortice; Python preview rebuild fallback is disabled.",
             error=True,
         )
         return False

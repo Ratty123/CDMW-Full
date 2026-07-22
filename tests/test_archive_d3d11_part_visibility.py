@@ -6,7 +6,6 @@ from types import SimpleNamespace
 from typing import Callable
 
 from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
-from cdmw.ui.archive_browser.preview_d3d11_runtime import ArchivePreviewD3D11RuntimeMixin
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
 
 
@@ -102,7 +101,7 @@ class _FakePreviewHost:
         return True
 
 
-class _PartVisibilityHarness(ArchivePreviewD3D11PartsMixin, ArchivePreviewD3D11RuntimeMixin):
+class _PartVisibilityHarness(ArchivePreviewD3D11PartsMixin):
     def __init__(self, *, accept_commands: bool = True) -> None:
         self.archive_d3d11_part_visibility_menu = _FakeMenu()
         self.archive_d3d11_part_visibility_button = _FakeButton()
@@ -275,9 +274,7 @@ def test_archive_preview_reapplies_default_prefab_visibility_after_first_rendere
     harness.archive_d3d11_preview_host.accept_commands = True
     status_file = package_dir / "host_status.json"
     status_file.write_text(json.dumps({"event": "loaded", "batch_count": 2}), encoding="utf-8")
-    harness.archive_isolated_renderer_status_file = status_file
-
-    harness._poll_archive_isolated_renderer_status()
+    harness._set_archive_d3d11_hidden_parts_from_menu()
 
     assert harness.archive_d3d11_preview_host.hidden_source_submeshes == [[]]
     assert harness.archive_d3d11_part_visibility_button.text == "Parts 2/2"

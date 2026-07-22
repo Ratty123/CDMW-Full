@@ -25,7 +25,6 @@ owner_names = {
     "cdmw.core.texture_pipeline.preview",
     "cdmw.rendering.material_combiner",
     "cdmw.rendering.model_preview_prepare",
-    "cdmw.rendering.native_d3d11_host",
     "cdmw.rendering.native_preview_core",
     "cdmw.rendering.native_preview_package_cache",
     "cdmw.rendering.native_preview_package_writer",

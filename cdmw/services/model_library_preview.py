@@ -5,6 +5,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import sys
+import tempfile
 import threading
 import time
 from collections import defaultdict
@@ -26,12 +27,14 @@ from cdmw.modding.scene_import_result_ops import reduce_scene_import_result_qual
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
+from cdmw.services.mesh_dotnet_preview_package import (
+    build_or_lookup_dotnet_preview_package_from_model,
+)
 
 _INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 500
 _INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 1200
-_NATIVE_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 50_000
-_NATIVE_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 80_000
+_DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 50_000
+_DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 80_000
 _SUBPROCESS_TIMEOUT_SECONDS = 300
 
 
@@ -149,7 +152,7 @@ def prepare_model_library_inline_preview(
     payload: Optional[Mapping[str, object]] = None,
     extract_root: Optional[Path] = None,
     render_settings: object = None,
-    renderer_backend: str = "native_d3d11",
+    renderer_backend: str = "d3d11_vortice_shader",
     model_name: str = "",
     request_id: int = 0,
     high_quality_textures: bool = False,
@@ -160,7 +163,9 @@ def prepare_model_library_inline_preview(
     source = Path(source_path)
     metadata = dict(payload or {})
     name = str(model_name or metadata.get("name", "") or source.stem or "model")
-    backend = str(renderer_backend or "native_d3d11").strip().lower()
+    backend = str(renderer_backend or "d3d11_vortice_shader").strip().lower()
+    if backend != "d3d11_vortice_shader":
+        raise ValueError(f"Unsupported model preview renderer: {backend}")
     raise_if_cancelled(stop_event)
     progress(f"Resolving model preview source: {source}")
     resolved_import_path = ModelLibraryService().resolve_importable_model(
@@ -183,9 +188,9 @@ def prepare_model_library_inline_preview(
     quality_reduction = None
     max_faces = _INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
     max_vertices = _INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
-    if backend == "native_d3d11":
-        max_faces = _NATIVE_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
-        max_vertices = _NATIVE_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
+    if backend == "d3d11_vortice_shader":
+        max_faces = _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
+        max_vertices = _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
     if any(
         len(getattr(submesh, "faces", ()) or ()) > max_faces
         or len(getattr(submesh, "vertices", ()) or ()) > max_vertices
@@ -209,22 +214,18 @@ def prepare_model_library_inline_preview(
     raise_if_cancelled(stop_event)
     package_dir = ""
     package_ms = 0.0
-    if backend == "native_d3d11":
+    if backend == "d3d11_vortice_shader":
         package_started = time.perf_counter()
-        progress("Writing native D3D11 preview package...")
+        progress("Writing canonical .NET/Vortice preview package...")
         package_dir = str(
-            write_isolated_d3d11_preview_package(
+            build_or_lookup_dotnet_preview_package_from_model(
                 prepared_model,
-                prepared_preview,
-                render_settings=render_settings,
-                use_textures=True,
-                high_quality_textures=bool(high_quality_textures),
-                backend="d3d11",
-                enable_material_combiner=True,
-                prefer_direct_dds=True,
-                editor_workspace="model_library",
-                on_progress=lambda _current, _total, message: progress(message),
-            )
+                cache_root=Path(tempfile.gettempdir()) / "cdmw_preview_packages",
+                archive_identity=f"model-library:{resolved_import_path}:{request_id}:{time.time_ns()}",
+                cache_mode="off",
+                cancelled=(stop_event.is_set if stop_event is not None else None),
+                metadata={"surface": "model_library", "source_path": str(resolved_import_path)},
+            ).package_dir
         )
         package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
     raise_if_cancelled(stop_event)
@@ -237,8 +238,8 @@ def prepare_model_library_inline_preview(
         "renderer_backend": backend,
         "preview_model": prepared_model,
         "prepared_preview": prepared_preview,
-        "d3d11_package_dir": package_dir,
-        "d3d11_package_ms": package_ms,
+        "dotnet_preview_package_path": package_dir,
+        "dotnet_package_ms": package_ms,
         "source_vertices": original_vertices,
         "source_faces": original_faces,
         "vertices": int(scene_result.mesh.total_vertices),
@@ -266,7 +267,7 @@ def prepare_model_library_inline_preview_in_subprocess(
     payload: Optional[Mapping[str, object]] = None,
     extract_root: Optional[Path] = None,
     render_settings: object = None,
-    renderer_backend: str = "native_d3d11",
+    renderer_backend: str = "d3d11_vortice_shader",
     model_name: str = "",
     request_id: int = 0,
     high_quality_textures: bool = False,
@@ -286,7 +287,7 @@ def prepare_model_library_inline_preview_in_subprocess(
                     "payload": dict(payload or {}),
                     "extract_root": str(extract_root) if extract_root is not None else "",
                     "render_settings": _model_preview_render_settings_payload(render_settings),
-                    "renderer_backend": str(renderer_backend or "native_d3d11"),
+                    "renderer_backend": str(renderer_backend or "d3d11_vortice_shader"),
                     "model_name": str(model_name or ""),
                     "request_id": int(request_id),
                     "high_quality_textures": bool(high_quality_textures),
@@ -323,7 +324,7 @@ def run_model_library_preview_worker(input_path: Path, output_path: Path) -> int
         payload=request.get("payload") if isinstance(request.get("payload"), dict) else None,
         extract_root=Path(str(request.get("extract_root", ""))) if str(request.get("extract_root", "") or "").strip() else None,
         render_settings=_model_preview_render_settings_from_payload(request.get("render_settings")),
-        renderer_backend=str(request.get("renderer_backend", "native_d3d11") or "native_d3d11"),
+        renderer_backend=str(request.get("renderer_backend", "d3d11_vortice_shader") or "d3d11_vortice_shader"),
         model_name=str(request.get("model_name", "") or ""),
         request_id=int(request.get("request_id", 0) or 0),
         high_quality_textures=bool(request.get("high_quality_textures", False)),

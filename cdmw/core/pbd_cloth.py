@@ -2,7 +2,7 @@
 
 The game runtime is not available here, so this module builds a small,
 deterministic preview payload from resolved model sidecars and recovered mesh
-data.  The native D3D11 host consumes the result as an approximate PBD
+data.  The .NET/Vortice host consumes the result as an approximate PBD
 simulation, not as Havok/Pearl Abyss exact runtime behavior.
 """
 

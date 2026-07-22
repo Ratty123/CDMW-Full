@@ -19,7 +19,7 @@ from cdmw.modding.mesh_native_core import (
     native_mesh_core_available,
 )
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
-from cdmw.ui.native_d3d11_preview_host import _remove_paths
+from cdmw.ui.mesh_editor.dotnet_update_queue import _remove_paths
 from cdmw.services import mesh_service as mesh_service_module
 from cdmw.workers.mesh_editor_workers import MeshEditablePackageExportWorker
 

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import time
 from pathlib import Path
-from types import SimpleNamespace
 
 from PySide6.QtCore import Signal
 
@@ -252,7 +251,7 @@ class MeshEditorActionsMixin:
                     self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
                 return True
         if _native_update_has_payload(update) or self._standalone_native_preview_update_active():
-            message = "Native D3D11 preview update failed; preview is stale. Reload native preview to resync."
+            message = ".NET/Vortice preview update failed; preview is stale. Retry the preview to resync."
             self.standalone_status_label.setText(message)
             self.status_message_requested.emit(message, True)
             return False
@@ -261,25 +260,15 @@ class MeshEditorActionsMixin:
         return (
             self.standalone_preview_stack.currentWidget() is getattr(self, "standalone_native_host_frame", None)
             or self._standalone_native_process_running()
-            or self.standalone_native_package_thread is not None
+            or self.standalone_dotnet_package_thread is not None
         )
     def _refresh_standalone_preview(self) -> None:
+        self.standalone_preview_stack.setCurrentWidget(self.standalone_native_host_frame)
         controller = self.standalone_controller
         if controller is None:
-            self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
-            self.standalone_preview.clear_model("No active edit session.")
+            self.standalone_native_host_frame.clear_preview()
             self.standalone_status_label.setText("No active edit session.")
             return
-        if self.standalone_compare_mode != "source" and controller.native_editor_mesh_dirty():
-            message = "Native D3D11 preview required; Python preview rebuild is disabled while C++ mesh state is dirty."
-            self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
-            self.standalone_preview.clear_model(message)
-            self.standalone_status_label.setText(message)
-            return
-        self.standalone_preview_stack.setCurrentWidget(self.standalone_preview)
-        prepared = controller.source_preview_data() if self.standalone_compare_mode == "source" else controller.native_preview_data()
-        model = SimpleNamespace(meshes=tuple(getattr(prepared, "batches", ()) or ()), vertex_count=getattr(prepared, "vertex_count", 0))
-        self.standalone_preview.set_prepared_model(model, prepared)
         view = controller.session_view()
         self._set_standalone_status(view)
     def _set_standalone_compare_mode(self, mode: str) -> None:
@@ -303,31 +292,31 @@ class MeshEditorActionsMixin:
                 and self.standalone_preview_stack.currentWidget() is self.standalone_native_host_frame
                 and setter("original_only")
             ):
-                self.standalone_status_label.setText("Native D3D11 compare view: source.")
+                self.standalone_status_label.setText(".NET/Vortice compare view: source.")
                 return
             if self._standalone_native_preview_update_active():
-                if self.standalone_native_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
-                    self.standalone_status_label.setText("Preparing native D3D11 source compare preview...")
+                if self.standalone_dotnet_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
+                    self.standalone_status_label.setText("Preparing .NET/Vortice source compare preview...")
                 else:
-                    self.standalone_status_label.setText("Native D3D11 source compare preview pending.")
+                    self.standalone_status_label.setText(".NET/Vortice source compare preview pending.")
                 return
             self._refresh_standalone_preview()
             return
         if normalized == "ghost" and self._standalone_native_preview_update_active() and not self.standalone_native_package_has_reference:
-            if self.standalone_native_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
-                self.standalone_status_label.setText("Preparing native D3D11 ghost compare preview...")
+            if self.standalone_dotnet_package_thread is None and self.start_standalone_native_preview_async(reset_view=False):
+                self.standalone_status_label.setText("Preparing .NET/Vortice ghost compare preview...")
             else:
-                self.standalone_status_label.setText("Native D3D11 ghost compare preview pending.")
+                self.standalone_status_label.setText(".NET/Vortice ghost compare preview pending.")
             return
         host = self.standalone_native_host
         setter = getattr(host, "set_display_mode", None)
         if callable(setter) and self.standalone_preview_stack.currentWidget() is self.standalone_native_host_frame:
             display_mode = "overlay" if normalized == "ghost" else "replacement_only"
             if setter(display_mode):
-                self.standalone_status_label.setText(f"Native D3D11 compare view: {normalized}.")
+                self.standalone_status_label.setText(f".NET/Vortice compare view: {normalized}.")
                 return
             if self._standalone_native_preview_update_active():
-                message = "Native D3D11 compare view update failed; preview is stale. Reload native preview to resync."
+                message = ".NET/Vortice compare view update failed; preview is stale. Retry the preview to resync."
                 self.standalone_status_label.setText(message)
                 self.status_message_requested.emit(message, True)
                 return

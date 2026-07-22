@@ -10,13 +10,8 @@ from types import SimpleNamespace
 
 from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.rendering.native_preview_package import (
-    read_isolated_d3d11_preview_manifest,
-    write_isolated_d3d11_preview_package,
-)
 from cdmw.services.atomic_file_service import atomic_write_text
 from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
-from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
 from cdmw.services.mesh_dotnet_material_compiler import (
     MeshDotNetMaterialCompileRequest,
     compile_mesh_dotnet_material_update,
@@ -55,7 +50,6 @@ from tools.mesh_harness.visual_audit_manifest_v2 import (
     PRIOR_CONCERN_SWORD_PATH,
     REQUIRED_SWORD_PATH,
 )
-from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 from tools.mesh_harness.visual_audit_source_boards import build_source_material_boards
 
 
@@ -211,7 +205,6 @@ def run_modify_original_material_subset(
     rows: list[dict[str, object]] = []
     runtime_assets: list[dict[str, object]] = []
     package_root = temporary_root / "packages"
-    texture_cache = temporary_root / "archive-texture-cache"
     for index, subset_asset in enumerate(subset, 1):
         role = subset_asset.role
         spec = subset_asset.spec
@@ -231,29 +224,11 @@ def run_modify_original_material_subset(
             entries_by_path=entries_by_path,
             entries_by_basename=entries_by_basename,
         )
-        prepared_model, prepared_preview = prepare_model_preview(
+        prepared_model, _prepared_preview = prepare_model_preview(
             preview_result.preview_model,
             enable_material_combiner=False,
         )
         copy_dotnet_preview_material_bindings(original_mesh, prepared_model)
-        archive_package_dir = package_root / "archive-browser" / f"{index:02d}-{role}"
-        archive_package = write_isolated_d3d11_preview_package(
-            prepared_model,
-            prepared_preview,
-            output_root=archive_package_dir,
-            use_textures=True,
-            high_quality_textures=True,
-            backend="d3d11",
-            enable_material_combiner=True,
-            display_mode="replacement_only",
-            texture_cache_dir=texture_cache,
-        )
-        archive_package_stability = stabilize_visual_audit_archive_package(archive_package)
-        archive_manifest = read_isolated_d3d11_preview_manifest(archive_package)
-        apply_dotnet_native_material_batch_bindings(
-            original_mesh,
-            archive_manifest.get("batches", ()),
-        )
         resolved_original_preview = parsed_mesh_to_preview_model(original_mesh)
 
         workspace = temporary_root / "modify-original-sessions" / f"{index:02d}-{role}"
@@ -330,6 +305,12 @@ def run_modify_original_material_subset(
             interaction_mode="placement",
             scene_session_id=asset_id,
         )
+        archive_package_stability = {
+            "schema": "cdmw_visual_audit_shared_dotnet_package_v1",
+            "renderer_id": "d3d11_vortice_shader",
+            "same_package_for_archive_and_mesh_editor": True,
+            "package_dir": str(package.package_dir),
+        }
         resident_payload = compile_mesh_dotnet_material_update(
             MeshDotNetMaterialCompileRequest(
                 session_id=asset_id,

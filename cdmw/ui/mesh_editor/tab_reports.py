@@ -404,7 +404,7 @@ class MeshEditorReportsMixin:
         return target
     def _start_standalone_native_preview_requested(self) -> None:
         if not self.has_active_standalone_session():
-            self.status_message_requested.emit("Open a mesh session before starting native D3D11 preview.", True)
+            self.status_message_requested.emit("Open a mesh session before starting .NET/Vortice Preview.", True)
             return
         if self.start_standalone_native_preview_async():
-            self.status_message_requested.emit("Native D3D11 preview package preparation started.", False)
+            self.status_message_requested.emit(".NET/Vortice preview package preparation started.", False)

@@ -534,7 +534,7 @@ def _remaining_static_preview_refresh_step_020(_state):
 
     def _safe_refresh_static_dialog_preview(*, live_mesh_edit: bool=False) -> None:
         if live_mesh_edit and _state._mesh_edit_tab_active():
-            message = 'Active Mesh Editor static preview refresh requires native D3D11; Python preview rebuild fallback is disabled.'
+            message = 'Active Mesh Editor static preview refresh requires .NET/Vortice; Python preview rebuild fallback is disabled.'
             _state._record_runtime_event('mesh_edit_static_preview_refresh_blocked', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, message=message)
             _state._set_alignment_d3d11_loading(False, message)
             _state._set_preview_performance_status(message, details=message)

@@ -195,18 +195,18 @@ def test_selection_change_cancels_icon_output_and_rejects_stale_delivery(tmp_pat
         _app().processEvents()
 
 
-def test_preview_and_native_host_keep_encoding_out_of_capture_handler() -> None:
+def test_preview_and_dotnet_host_keep_encoding_out_of_capture_handler() -> None:
     preview_source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
     output_source = Path("cdmw/ui/model_library/icon_output.py").read_text(encoding="utf-8")
     capture_start = preview_source.index("    def _capture_inline_preview_icon")
     capture_end = preview_source.index("    def closeEvent", capture_start)
     capture_body = preview_source[capture_start:capture_end]
     worker_source = Path("cdmw/workers/model_library_workers.py").read_text(encoding="utf-8")
-    host_source = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
+    host_source = Path("cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
 
     assert ".save(" not in capture_body
     assert ".scaled(" not in capture_body
-    assert "capture_replacement_icon_image()" in capture_body
+    assert "capture_replacement_icon(capture_path)" in capture_body
     assert "write_model_library_preview_icon(request, stop_event=stop_event)" in output_source
     assert "os.link(staging, candidate)" in worker_source
-    assert "def capture_replacement_icon_image" in host_source
+    assert "def capture_replacement_icon" in host_source

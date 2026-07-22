@@ -64,7 +64,7 @@ class MeshEditorInteractionMixin:
             self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
             if self.standalone_compare_mode != "source":
                 if self._standalone_native_preview_update_active():
-                    if self.standalone_native_package_thread is None:
+                    if self.standalone_dotnet_package_thread is None:
                         self.start_standalone_native_preview_async(reset_view=False)
                 else:
                     self._refresh_standalone_preview()
@@ -93,7 +93,7 @@ class MeshEditorInteractionMixin:
         self.update_editor_session_state(controller.session_view(), active_selection_mode=controller.active_selection_mode)
         if self.standalone_compare_mode != "source":
             if self._standalone_native_preview_update_active():
-                if self.standalone_native_package_thread is None:
+                if self.standalone_dotnet_package_thread is None:
                     self.start_standalone_native_preview_async(reset_view=False)
             else:
                 self._refresh_standalone_preview()
@@ -233,12 +233,12 @@ class MeshEditorInteractionMixin:
             )
             native_update = controller.native_update_for_result(result)
         except Exception as exc:
-            self.standalone_status_label.setText(f"Native D3D11 mesh selection failed: {exc}")
-            self.status_message_requested.emit(f"Native D3D11 mesh selection failed: {exc}", True)
+            self.standalone_status_label.setText(f".NET/Vortice mesh selection failed: {exc}")
+            self.status_message_requested.emit(f".NET/Vortice mesh selection failed: {exc}", True)
             return False
         if not result.ok:
             diagnostic = "; ".join(str(item) for item in tuple(result.diagnostics or ()) if str(item).strip())
-            self.standalone_status_label.setText(f"Native D3D11 mesh selection failed{': ' + diagnostic if diagnostic else ''}.")
+            self.standalone_status_label.setText(f".NET/Vortice mesh selection failed{': ' + diagnostic if diagnostic else ''}.")
             return False
         self.standalone_last_action_result = result
         self.standalone_last_action_metrics = {
@@ -248,12 +248,12 @@ class MeshEditorInteractionMixin:
             return False
         if context_request:
             if float(dict(result.metrics).get("editor_select_source_pick_count", 0.0) or 0.0) <= 0.0:
-                self.standalone_status_label.setText("Native D3D11 mesh context hit no source part.")
+                self.standalone_status_label.setText(".NET/Vortice mesh context hit no source part.")
                 return False
             view = controller.session_view()
             source_indices = tuple(int(index) for index in view.selection.source_indices)
             if not source_indices:
-                self.standalone_status_label.setText("Native D3D11 mesh context hit no source part.")
+                self.standalone_status_label.setText(".NET/Vortice mesh context hit no source part.")
                 return False
             try:
                 context_x = int(payload.get("context_x", 0) or 0)
@@ -269,9 +269,9 @@ class MeshEditorInteractionMixin:
                     position,
                 ),
             )
-            self.standalone_status_label.setText("Native D3D11 mesh context opened.")
+            self.standalone_status_label.setText(".NET/Vortice mesh context opened.")
             return True
-        self.standalone_status_label.setText("Native D3D11 mesh selection updated.")
+        self.standalone_status_label.setText(".NET/Vortice mesh selection updated.")
         return True
     def _apply_standalone_native_mesh_edit_stroke(self, payload: object, phase: str) -> bool:
         controller = self.standalone_controller
@@ -355,16 +355,16 @@ class MeshEditorInteractionMixin:
                     self.current_undo_count += 1
                     self.current_redo_count = 0
                     QTimer.singleShot(0, self._sync_state)
-                self.standalone_status_label.setText(f"Native D3D11 mesh edit stroke {phase}.")
+                self.standalone_status_label.setText(f".NET/Vortice mesh edit stroke {phase}.")
             else:
-                self.standalone_status_label.setText("Native D3D11 mesh edit stroke updating.")
+                self.standalone_status_label.setText(".NET/Vortice mesh edit stroke updating.")
         elif phase in {"end", "cancel"}:
             if phase == "end" and stroke_changed:
                 self.current_selection_mode = controller.active_selection_mode
                 self.current_undo_count += 1
                 self.current_redo_count = 0
                 QTimer.singleShot(0, self._sync_state)
-            self.standalone_status_label.setText(f"Native D3D11 mesh edit stroke {phase}.")
+            self.standalone_status_label.setText(f".NET/Vortice mesh edit stroke {phase}.")
     def _handle_standalone_live_stroke_failed(self, failure: object) -> None:
         if not isinstance(failure, _tab.MeshLiveStrokeFailure):
             return
@@ -378,7 +378,7 @@ class MeshEditorInteractionMixin:
             self.standalone_native_mesh_edit_stroke_changed = False
         if failure.cancelled:
             return
-        message = f"Native D3D11 mesh edit stroke failed: {failure.message}"
+        message = f".NET/Vortice mesh edit stroke failed: {failure.message}"
         self.standalone_status_label.setText(message)
         self.status_message_requested.emit(message, True)
     def _standalone_native_mesh_edit_stroke_command(self, payload: Mapping[object, object], phase: str) -> _tab.MeshEditCommand | None:

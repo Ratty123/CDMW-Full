@@ -107,6 +107,13 @@ class ArchivePreviewResultMixin:
             return 0.0
 
         dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
+        if preferred_view == "model" and not self.archive_preview_showing_loose:
+            requested_package = Path(dotnet_package_path) if dotnet_package_path else None
+            active_package = getattr(self, "archive_isolated_renderer_active_package", None)
+            if requested_package is None or requested_package != active_package:
+                self.archive_d3d11_preview_host.clear_preview()
+                self.archive_isolated_renderer_active_package = None
+            self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
         if preferred_view == "model" and dotnet_package_path and not self.archive_preview_showing_loose:
             if request_id is not None and request_id != self.archive_preview_request_id:
                 return 0.0

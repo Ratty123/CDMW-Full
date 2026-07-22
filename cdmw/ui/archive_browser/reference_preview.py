@@ -173,7 +173,9 @@ class ArchiveReferencePreviewMixin:
         preview_d3d11_host.setMinimumSize(320, 240)
         preview_media = MediaPreviewWidget("No media preview available.", theme_key=self.current_theme_key)
         preview_stack.addWidget(preview_scroll)
-        preview_stack.addWidget(preview_model)
+        # Retained off-stack as a data/settings compatibility adapter.  Model
+        # pixels are rendered only by the resident .NET/Vortice host.
+        preview_model.setVisible(False)
         preview_stack.addWidget(preview_d3d11_host)
         preview_stack.addWidget(preview_media)
         preview_stack.addWidget(preview_text_edit)

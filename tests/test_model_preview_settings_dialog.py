@@ -13,7 +13,7 @@ from cdmw.ui.model_preview_settings_visibility import (
     DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB,
     preview_setting_widgets_by_tab,
 )
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 
 
 def _app() -> QApplication:
@@ -23,13 +23,16 @@ def _app() -> QApplication:
     return app
 
 
-class _CapturingD3D11HostFrame(NativeD3D11PreviewHostFrame):
+class _CapturingD3D11HostFrame(DotNetPreviewHostFrame):
     def __init__(self) -> None:
-        super().__init__()
+        super().__init__(profile=DotNetPreviewProfile.PREVIEW)
         self.commands: list[dict[str, object]] = []
+        self.controller.remember_state = self._capture_state  # type: ignore[method-assign]
 
-    def _send_host_json_command(self, payload: Mapping[str, object]) -> bool:
-        self.commands.append(dict(payload))
+    def _capture_state(
+        self, key: str, event: str, payload: Mapping[str, object]
+    ) -> bool:
+        self.commands.append({"key": key, "command": event, **dict(payload)})
         return True
 
 
@@ -376,12 +379,15 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
 
         try:
             self.assertTrue(host.set_render_tuning(settings))
-            self.assertEqual(1, len(host.commands))
-            payload = host.commands[0]
-            self.assertEqual("set_render_tuning", payload["command"])
+            self.assertEqual(2, len(host.commands))
+            payload = next(
+                command
+                for command in host.commands
+                if command["command"] == "presentation_state_update"
+            )["display"]["quality"]
             self.assertTrue(
                 {
-                    "d3d11_view_mode",
+                    "dotnet_view_mode",
                     "max_anisotropy",
                     "diffuse_wrap_bias",
                     "orbit_sensitivity",
@@ -404,7 +410,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
                     "diffuse_light_scale",
                 }.issubset(payload)
             )
-            self.assertEqual("normal", payload["d3d11_view_mode"])
+            self.assertEqual("normal", payload["dotnet_view_mode"])
             self.assertEqual(8, payload["max_anisotropy"])
             self.assertEqual(0.84, payload["diffuse_wrap_bias"])
             self.assertEqual(0.31, payload["orbit_sensitivity"])

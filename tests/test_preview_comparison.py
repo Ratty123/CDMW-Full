@@ -12,10 +12,6 @@ from unittest.mock import patch
 from PySide6.QtGui import QColor, QImage
 
 from cdmw.rendering.preview_comparison import compare_preview_images, image_color_stats, parse_roi, write_preview_comparison_report
-from cdmw.rendering.native_preview_screenshot import (
-    capture_native_d3d11_preview_package,
-    native_preview_screenshot_command,
-)
 from cdmw.rendering.ingame_capture import (
     DEFAULT_CRIMSON_GAME_ROOT,
     _capture_hwnd_client,
@@ -367,31 +363,16 @@ class TestRunSwordManifestTests(unittest.TestCase):
         )
 
 
-class NativePreviewScreenshotTests(unittest.TestCase):
-    def test_native_screenshot_command_targets_package_and_status_file(self) -> None:
-        command = native_preview_screenshot_command(
-            Path("C:/tools/cdmw-d3d11-preview.exe"),
-            Path("C:/package"),
-            Path("C:/package/status.json"),
-            diagnostic_log=Path("C:/package/diag.jsonl"),
-        )
+class VorticePreviewCaptureTests(unittest.TestCase):
+    def test_capture_is_owned_by_the_shared_resident_host(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        host_source = (root / "cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
+        controller_source = (root / "cdmw/ui/preview/dotnet_session.py").read_text(encoding="utf-8")
 
-        self.assertIn("--preview-package", command)
-        self.assertIn("C:\\package", command)
-        self.assertIn("--status-file", command)
-        self.assertIn("C:\\package\\status.json", command)
-        self.assertIn("--diagnostic-log", command)
-
-    def test_native_screenshot_capture_reports_unsupported_platform_before_launch(self) -> None:
-        if sys.platform.startswith("win"):
-            self.skipTest("unsupported-platform guard is for non-Windows hosts")
-        with tempfile.TemporaryDirectory() as temp_dir:
-            package_dir = Path(temp_dir) / "package"
-            package_dir.mkdir()
-            result = capture_native_d3d11_preview_package(package_dir, Path(temp_dir) / "preview.png")
-
-        self.assertFalse(result.ok)
-        self.assertEqual("unsupported_platform", result.diagnostics[0]["code"])
+        self.assertIn("def request_frame_capture(", host_source)
+        self.assertIn("self.controller.request_capture", host_source)
+        self.assertIn('"deterministic_offscreen_capture_v1"', controller_source)
+        self.assertFalse((root / "cdmw/rendering/native_preview_screenshot.py").exists())
 
 
 class InGameCaptureTests(unittest.TestCase):

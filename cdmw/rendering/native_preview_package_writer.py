@@ -1,3 +1,9 @@
+"""Legacy derived-package writer retained for offline compatibility tests.
+
+The resident .NET/Vortice renderer uses ``mesh_dotnet_preview_package`` and
+never consumes artifacts produced by this module.
+"""
+
 from __future__ import annotations
 
 from array import array

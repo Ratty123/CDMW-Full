@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
+from pathlib import Path
 
-from cdmw.ui.archive_browser.preview_d3d11_runtime import (
-    ArchivePreviewD3D11RuntimeMixin,
-    archive_model_initial_view_state,
-)
 from cdmw.ui.archive_browser.preview_state import archive_model_preview_refresh_tooltip
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_archive_model_preview_refresh_tooltip_preserves_copy() -> None:
@@ -16,59 +15,19 @@ def test_archive_model_preview_refresh_tooltip_preserves_copy() -> None:
     )
 
 
-def test_archive_model_initial_view_state_is_front_facing_by_default() -> None:
-    assert archive_model_initial_view_state() == {
-        "role": "replacement",
-        "reason": "archive_model_initial_front",
-        "zoom_factor": 1.0,
-        "fit_to_view": True,
-        "yaw": 0.0,
-        "pitch": 0.0,
-        "pan": (0.0, 0.0, 0.0),
-    }
+def test_archive_model_view_is_restored_by_the_shared_vortice_host() -> None:
+    host_source = (ROOT / "cdmw/ui/preview/dotnet_host.py").read_text(encoding="utf-8")
+    controller_source = (ROOT / "cdmw/ui/preview/dotnet_session.py").read_text(encoding="utf-8")
+
+    assert "def restore_view_state(" in host_source
+    assert '"absolute_camera_state_v1"' in controller_source
+    assert '"view_state_changed_v1"' in controller_source
+    assert '"presentation"' in controller_source
 
 
-def test_archive_model_initial_view_state_uses_overhead_only_for_weapon_paths() -> None:
-    overhead_paths = (
-        "character/model/1_pc/1_phm/weapon/1_longsword/blade.pac",
-        "character/model/1_pc/1_phm/subweapon/quiver.pac",
-        "character/model/1_pc/1_phm/shield/buckler.pac",
-        "character/model/1_pc/1_phm/4_bow/bow.pac",
-        "character/model/1_pc/1_phm/twohandweapon/axe.pac",
-    )
-    front_paths = (
-        "character/model/1_pc/1_phm/upper/armor.pac",
-        "character/model/1_pc/1_phm/lower/trousers.pac",
-        "character/model/1_pc/1_phm/hand/gloves.pac",
-        "character/model/1_pc/1_phm/foot/boots.pac",
-        "character/model/object/chair.pac",
-        "",
-    )
+def test_archive_warm_selection_keeps_view_for_same_resident_package() -> None:
+    source = (ROOT / "cdmw/ui/archive_browser/preview_result.py").read_text(encoding="utf-8")
 
-    assert all(archive_model_initial_view_state(path)["pitch"] == -89.0 for path in overhead_paths)
-    assert all(archive_model_initial_view_state(path)["pitch"] == 0.0 for path in front_paths)
-
-
-def test_archive_model_pending_view_state_clears_only_after_restore() -> None:
-    restored_states: list[dict[str, object]] = []
-
-    class _Host:
-        restore_succeeds = False
-
-        def restore_view_state(self, state: object) -> bool:
-            restored_states.append(dict(state))
-            return self.restore_succeeds
-
-    host = _Host()
-    runtime = SimpleNamespace(
-        archive_d3d11_pending_view_state=archive_model_initial_view_state(),
-        archive_d3d11_preview_host=host,
-    )
-
-    assert not ArchivePreviewD3D11RuntimeMixin._restore_archive_d3d11_pending_view_state(runtime)
-    assert runtime.archive_d3d11_pending_view_state == archive_model_initial_view_state()
-
-    host.restore_succeeds = True
-    assert ArchivePreviewD3D11RuntimeMixin._restore_archive_d3d11_pending_view_state(runtime)
-    assert restored_states == [archive_model_initial_view_state(), archive_model_initial_view_state()]
-    assert runtime.archive_d3d11_pending_view_state == {}
+    assert "same_model = package_dir ==" in source
+    assert "reset_view=not same_model" in source
+    assert "self.archive_d3d11_preview_host.clear_preview()" in source

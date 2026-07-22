@@ -3,14 +3,12 @@
 from __future__ import annotations
 
 import dataclasses
-import json
-import platform
 import shutil
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from PySide6.QtCore import QSize, Qt, QProcess, QThread, QTimer
+from PySide6.QtCore import QSize, Qt, QThread, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -32,7 +30,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.constants import MODEL_PREVIEW_BACKGROUND_COLOR, MODEL_PREVIEW_TEXT_COLOR
 from cdmw.services.archive_preview_service import build_archive_preview_result
 from cdmw.services.archive_workflow_service import build_prefab_socket_name_patch
 from cdmw.services.archive_read_service import read_archive_entry_data
@@ -48,7 +45,6 @@ from cdmw.models import (
     ModelPreviewData,
     clamp_model_preview_render_settings,
 )
-from cdmw.services.preview_rendering_service import find_native_d3d11_host
 from cdmw.ui.archive_browser.attachment_task_controller import (
     attachment_task_controller_for_guard,
 )
@@ -57,8 +53,7 @@ from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependencyContext,
     archive_workflow_dependency_context,
 )
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
-from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.shell.responsiveness_controller import expand_tree_columns_to_available_width
 from cdmw.workers.d3d11_package_workers import AlignmentD3D11PackageWorker
 from cdmw.workers.attachment_io_workers import (
@@ -96,7 +91,7 @@ def _attachment_safe_placement_dependencies(
 
 
 class ArchiveAttachmentSafePlacementDialogMixin:
-    """D3D11-only safe placement editor for attachment workflows."""
+    """Resident .NET/Vortice safe placement editor for attachment workflows."""
 
     def _open_archive_attachment_safe_placement_dialog(
         self,
@@ -110,7 +105,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         if (placement_dependencies := _attachment_safe_placement_dependencies(self, target_entry, donor_entry)) is None:
             return
         target_entry, donor_entry, archive_dependencies, sidecars_by_path, sidecars_by_basename = placement_dependencies
-        # D3D11-only placement editor: crash dumps showed Qt fail-fast inside Qt renderer widgets.
+        # The shared out-of-process .NET/Vortice host owns all visible model rendering.
         target_model_entry = self._attachment_visual_model_entry(target_entry, target_graph)
         donor_graph = donor_graph if isinstance(donor_graph, AssetFamilyGraph) else None
         donor_model_entry = (
@@ -195,7 +190,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         layout.setContentsMargins(12, 12, 12, 12)
         layout.setSpacing(8)
         intro = QLabel(
-            "This editor uses native D3D11 when available and never creates the crashing in-process renderer widget. "
+            "This editor uses the shared out-of-process .NET/Vortice Preview. "
             "Pick a recovered attach point, review the socket chain, optionally drag/tune offset/rotation, then build the same loose package copy plan."
         )
         intro.setObjectName("HintLabel")
@@ -277,30 +272,21 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         preview_layout.setContentsMargins(8, 8, 8, 8)
         preview_layout.setSpacing(6)
         preview_stack = QStackedWidget()
-        placement_d3d11_host_binary = find_native_d3d11_host() if platform.system().lower() == "windows" else None
-        placement_d3d11_available = bool(placement_d3d11_host_binary is not None)
-        if not placement_d3d11_available:
-            if platform.system().lower() != "windows":
-                reason = "Native D3D11 placement preview is Windows-only."
-            else:
-                reason = "Native D3D11 host is missing."
-            QMessageBox.critical(
-                dialog,
-                "Native D3D11 Required",
-                f"{reason}\n\nNo fallback preview renderer is available.",
-            )
-            return
+        placement_d3d11_available = True
         d3d11_page = QWidget()
         d3d11_layout = QVBoxLayout(d3d11_page)
         d3d11_layout.setContentsMargins(0, 0, 0, 0)
         d3d11_layout.setSpacing(6)
-        placement_d3d11_host = NativeD3D11PreviewHostFrame(d3d11_page)
-        placement_d3d11_host.setObjectName("PlacementNativeD3D11PreviewHost")
-        placement_d3d11_host.setAttribute(Qt.WA_NativeWindow, True)
+        placement_d3d11_host = DotNetPreviewHostFrame(
+            d3d11_page,
+            profile=DotNetPreviewProfile.PREVIEW,
+            terminate_on_close=True,
+        )
+        placement_d3d11_host.setObjectName("PlacementDotNetVorticePreviewHost")
         placement_d3d11_host.setMinimumSize(QSize(520, 360))
         placement_d3d11_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         d3d11_layout.addWidget(placement_d3d11_host, 1)
-        placement_d3d11_status = QLabel("Native D3D11 placement preview is available.")
+        placement_d3d11_status = QLabel(".NET/Vortice placement preview is available.")
         placement_d3d11_status.setObjectName("HintLabel")
         placement_d3d11_status.setWordWrap(True)
         d3d11_layout.addWidget(placement_d3d11_status)
@@ -309,7 +295,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         preview_layout.addWidget(preview_stack, 1)
         preview_button_row = QHBoxLayout()
         preview_button_row.addStretch(1)
-        reload_d3d11_button = QPushButton("Reload D3D11 Preview")
+        reload_d3d11_button = QPushButton("Reload .NET/Vortice Preview")
         reload_d3d11_button.setEnabled(True)
         preview_button_row.addWidget(reload_d3d11_button)
         preview_layout.addLayout(preview_button_row)
@@ -349,19 +335,13 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         d3d11_reload_timer = QTimer(dialog)
         d3d11_reload_timer.setSingleShot(True)
         d3d11_reload_timer.setInterval(420)
-        d3d11_status_timer = QTimer(dialog)
-        d3d11_status_timer.setInterval(250)
         d3d11_state: Dict[str, object] = {
             "request_id": 0,
             "model_thread": None,
             "model_worker": None,
             "package_thread": None,
             "package_worker": None,
-            "process": None,
             "active_package": None,
-            "status_file": None,
-            "status_signature": (0, 0),
-            "status_payload_text": "",
             "preview_loaded": False,
             "target_model": None,
             "donor_model": None,
@@ -415,12 +395,6 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                     return " ".join(str(component) for component in value)
             return str(value or "")
 
-        def _placement_d3d11_theme_payload() -> Dict[str, str]:
-            return {
-                "background": MODEL_PREVIEW_BACKGROUND_COLOR,
-                "text": MODEL_PREVIEW_TEXT_COLOR,
-            }
-
         def _placement_d3d11_cleanup_package(package_dir: object, *, delay_ms: int = 0) -> None:
             if package_dir is None:
                 return
@@ -429,9 +403,15 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             except TypeError:
                 return
 
+            cleanup_path = (
+                package_path.parent
+                if package_path.name == "package" and package_path.parent.name.startswith("cdmw_dotnet_preview_")
+                else package_path
+            )
+
             def _remove() -> None:
                 try:
-                    shutil.rmtree(package_path, ignore_errors=True)
+                    shutil.rmtree(cleanup_path, ignore_errors=True)
                 except OSError:
                     pass
 
@@ -444,7 +424,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             return bool(placement_d3d11_available and not bool(d3d11_state.get("closed")))
 
         def _placement_d3d11_hard_error(message: str) -> None:
-            detail = str(message or "Native D3D11 placement preview failed.").strip()
+            detail = str(message or ".NET/Vortice placement preview failed.").strip()
             if "No fallback preview renderer is available." not in detail:
                 detail = f"{detail} No fallback preview renderer is available."
             placement_d3d11_status.setText(detail)
@@ -456,37 +436,15 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 package_worker.stop()
 
         def _placement_d3d11_stop_process() -> None:
-            process = d3d11_state.get("process")
             package_dir = d3d11_state.get("active_package")
-            d3d11_state["process"] = None
             d3d11_state["active_package"] = None
-            d3d11_state["status_file"] = None
-            d3d11_state["status_signature"] = (0, 0)
-            d3d11_state["status_payload_text"] = ""
             d3d11_state["preview_loaded"] = False
-            d3d11_status_timer.stop()
-            if not isinstance(process, QProcess):
-                _placement_d3d11_cleanup_package(package_dir)
-                return
-            try:
-                process.disconnect()
-            except (RuntimeError, TypeError):
-                pass
-            try:
-                if process.state() != QProcess.NotRunning:
-                    process.terminate()
-                    QTimer.singleShot(1200, lambda process=process: self._kill_archive_isolated_renderer_process_if_running(process))
-                    _placement_d3d11_cleanup_package(package_dir, delay_ms=5000)
-                else:
-                    _placement_d3d11_cleanup_package(package_dir)
-                process.deleteLater()
-            except RuntimeError:
-                _placement_d3d11_cleanup_package(package_dir)
+            placement_d3d11_host.controller.shutdown()
+            _placement_d3d11_cleanup_package(package_dir, delay_ms=1000)
 
         def _shutdown_placement_d3d11_preview() -> None:
             d3d11_state["closed"] = True
             d3d11_reload_timer.stop()
-            d3d11_status_timer.stop()
             d3d11_state["request_id"] = int(d3d11_state.get("request_id", 0) or 0) + 1
             _placement_d3d11_stop_worker()
             _placement_d3d11_stop_process()
@@ -531,115 +489,25 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             return preview_model if isinstance(preview_model, ModelPreviewData) else None, tuple(int(index) for index in editable_indices)
 
         def _placement_d3d11_start_process(package_dir: Path) -> None:
-            status_file = package_dir / "host_status.json"
-            try:
-                status_file.unlink(missing_ok=True)
-            except OSError:
-                pass
-            existing_process = d3d11_state.get("process")
-            if isinstance(existing_process, QProcess) and existing_process.state() != QProcess.NotRunning:
-                previous_package = d3d11_state.get("active_package")
-                d3d11_state["active_package"] = package_dir
-                d3d11_state["status_file"] = status_file
-                d3d11_state["status_signature"] = (0, 0)
-                d3d11_state["status_payload_text"] = ""
-                d3d11_state["preview_loaded"] = False
-                if placement_d3d11_host.load_package(package_dir, status_file, reset_view=False):
-                    placement_d3d11_host.set_display_mode("overlay")
-                    placement_d3d11_host.set_render_tuning(self._current_model_preview_render_settings())
-                    _placement_d3d11_cleanup_package(previous_package, delay_ms=5000)
-                    d3d11_status_timer.start()
-                    placement_d3d11_status.setText("Reloading native D3D11 placement preview...")
-                    return
-                d3d11_state["active_package"] = previous_package
-            _placement_d3d11_stop_process()
+            previous_package = d3d11_state.get("active_package")
             d3d11_state["active_package"] = package_dir
-            d3d11_state["status_file"] = status_file
-            d3d11_state["status_signature"] = (0, 0)
-            d3d11_state["status_payload_text"] = ""
             d3d11_state["preview_loaded"] = False
-            process = QProcess(dialog)
-            try:
-                program, arguments = self._native_d3d11_renderer_command(
-                    package_dir,
-                    status_file,
-                    host_widget=placement_d3d11_host,
-                    theme_payload=_placement_d3d11_theme_payload(),
-                )
-            except Exception as exc:
-                _placement_d3d11_hard_error(f"Native D3D11 unavailable: {exc}")
-                _placement_d3d11_cleanup_package(package_dir)
-                return
-            process.setProgram(program)
-            process.setArguments(arguments)
-            try:
-                process.setWorkingDirectory(str(Path(__file__).resolve().parents[3]))
-            except Exception:
-                pass
-            process.setProcessChannelMode(QProcess.SeparateChannels)
-            process.readyReadStandardError.connect(
-                lambda process=process: placement_d3d11_status.setText(
-                    "Native D3D11 stderr: "
-                    + bytes(process.readAllStandardError()).decode("utf-8", errors="replace").strip()[-300:]
-                )
-                if process is d3d11_state.get("process")
-                else None
-            )
-            process.finished.connect(lambda exit_code, exit_status, process=process: _handle_placement_d3d11_finished(process, exit_code, exit_status))
-            process.errorOccurred.connect(lambda error, process=process: placement_d3d11_status.setText(f"Native D3D11 process error: {error}") if process is d3d11_state.get("process") else None)
-            d3d11_state["process"] = process
             preview_stack.setCurrentWidget(d3d11_page)
-            placement_d3d11_status.setText("Starting native D3D11 placement preview...")
-            d3d11_status_timer.start()
-            process.start()
+            placement_d3d11_status.setText("Loading .NET/Vortice placement preview...")
+            if placement_d3d11_host.load_package(package_dir, reset_view=previous_package is None):
+                placement_d3d11_host.set_display_mode("overlay")
+                placement_d3d11_host.set_render_tuning(self._current_model_preview_render_settings())
+                if previous_package is not None and previous_package != package_dir:
+                    _placement_d3d11_cleanup_package(previous_package, delay_ms=5000)
+            else:
+                d3d11_state["active_package"] = previous_package
+                _placement_d3d11_hard_error(".NET/Vortice Preview rejected the placement package.")
+                _placement_d3d11_cleanup_package(package_dir)
 
-        def _handle_placement_d3d11_finished(process: QProcess, exit_code: int, exit_status: object) -> None:
-            if process is not d3d11_state.get("process"):
+        def _handle_placement_dotnet_state(state: str, message: str) -> None:
+            if bool(d3d11_state.get("closed")):
                 return
-            _poll_placement_d3d11_status()
-            d3d11_state["process"] = None
-            d3d11_status_timer.stop()
-            package_dir = d3d11_state.get("active_package")
-            d3d11_state["active_package"] = None
-            d3d11_state["status_file"] = None
-            _placement_d3d11_cleanup_package(package_dir)
-            if int(exit_code) != 0:
-                _placement_d3d11_hard_error(f"Native D3D11 exited with code {int(exit_code)} ({exit_status}).")
-
-        def _poll_placement_d3d11_status() -> None:
-            status_file = d3d11_state.get("status_file")
-            if not isinstance(status_file, Path):
-                return
-            try:
-                stat = status_file.stat()
-            except OSError:
-                if bool(d3d11_state.get("preview_loaded")):
-                    placement_d3d11_status.setText("Native D3D11 placement preview loaded.")
-                return
-            signature = _d3d11_status_file_signature(stat)
-            try:
-                payload_text = status_file.read_text(encoding="utf-8")
-            except Exception as exc:
-                placement_d3d11_status.setText(f"Native D3D11 status read failed: {exc}")
-                return
-            if (
-                signature == d3d11_state.get("status_signature", (0, 0))
-                and payload_text == str(d3d11_state.get("status_payload_text", "") or "")
-            ):
-                if bool(d3d11_state.get("preview_loaded")) and "Loading" in placement_d3d11_status.text():
-                    placement_d3d11_status.setText("Native D3D11 placement preview loaded.")
-                return
-            d3d11_state["status_signature"] = signature
-            d3d11_state["status_payload_text"] = payload_text
-            try:
-                payload = json.loads(payload_text)
-            except Exception as exc:
-                placement_d3d11_status.setText(f"Native D3D11 status read failed: {exc}")
-                return
-            if not isinstance(payload, Mapping):
-                return
-            event = str(payload.get("event", "") or "").strip().lower()
-            if event == "loaded":
+            if str(state) == "ready":
                 d3d11_state["preview_loaded"] = True
                 editable_indices = tuple(int(index) for index in tuple(d3d11_state.get("editable_indices", ()) or ()))
                 placement_d3d11_host.set_display_mode("overlay")
@@ -651,15 +519,12 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                     rotation_degrees_per_pixel=0.35,
                 )
                 _placement_d3d11_sync_fast_transform()
-                placement_d3d11_status.setText("Native D3D11 placement preview loaded. Drag selected placement mesh to adjust offset; use rotation drag for rotation.")
-            elif event == "loading":
-                if bool(d3d11_state.get("preview_loaded")):
-                    placement_d3d11_status.setToolTip(str(payload.get("message", "") or "Loading native D3D11 placement preview..."))
-                    return
-                placement_d3d11_status.setText(str(payload.get("message", "") or "Loading native D3D11 placement preview..."))
-            elif event == "error":
+                placement_d3d11_status.setText(".NET/Vortice placement preview loaded. Drag selected placement mesh to adjust offset; use rotation drag for rotation.")
+            elif str(state) == "error":
                 d3d11_state["preview_loaded"] = False
-                _placement_d3d11_hard_error(str(payload.get("message", "") or "Native D3D11 placement renderer error."))
+                _placement_d3d11_hard_error(message)
+            else:
+                placement_d3d11_status.setText(str(message or ".NET/Vortice Preview"))
 
         def _handle_placement_d3d11_package_ready(request_id: int, package_dir_object: object, prepare_ms: float, package_ms: float) -> None:
             try:
@@ -669,13 +534,13 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 _placement_d3d11_cleanup_package(package_dir)
                 return
-            placement_d3d11_status.setText(f"Native D3D11 package ready: prepare {prepare_ms:.0f} ms, package {package_ms:.0f} ms.")
+            placement_d3d11_status.setText(f".NET/Vortice package ready: prepare {prepare_ms:.0f} ms, package {package_ms:.0f} ms.")
             _placement_d3d11_start_process(package_dir)
 
         def _handle_placement_d3d11_package_error(request_id: int, message: str) -> None:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 return
-            _placement_d3d11_hard_error(f"Native D3D11 package failed: {message}")
+            _placement_d3d11_hard_error(f".NET/Vortice package failed: {message}")
 
         def _cleanup_placement_d3d11_package_refs() -> None:
             d3d11_state["package_thread"] = None
@@ -691,7 +556,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 d3d11_state["request_id"] = int(d3d11_state.get("request_id", 0) or 0) + 1
                 d3d11_state["pending"] = True
                 _placement_d3d11_stop_worker()
-                placement_d3d11_status.setText("Queued latest native D3D11 placement preview...")
+                placement_d3d11_status.setText("Queued latest .NET/Vortice placement preview...")
                 return
             d3d11_state["request_id"] = int(d3d11_state.get("request_id", 0) or 0) + 1
             request_id = int(d3d11_state["request_id"])
@@ -723,7 +588,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             thread.finished.connect(_cleanup_placement_d3d11_package_refs)
             d3d11_state["package_worker"] = worker
             d3d11_state["package_thread"] = thread
-            placement_d3d11_status.setText("Preparing native D3D11 placement preview package...")
+            placement_d3d11_status.setText("Preparing .NET/Vortice placement preview package...")
             thread.start()
 
         def _start_placement_d3d11_model_load() -> None:
@@ -773,21 +638,21 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             thread.finished.connect(_cleanup_placement_d3d11_model_refs)
             d3d11_state["model_worker"] = worker
             d3d11_state["model_thread"] = thread
-            placement_d3d11_status.setText("Loading target/source models for native D3D11 placement preview...")
+            placement_d3d11_status.setText("Loading target/source models for .NET/Vortice placement preview...")
             thread.start()
 
         def _handle_placement_d3d11_models_loaded(request_id: int, payload: object) -> None:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 return
             if not isinstance(payload, Mapping) or not isinstance(payload.get("target"), ArchivePreviewResult):
-                placement_d3d11_status.setText("Native D3D11 placement model load returned an unexpected payload.")
+                placement_d3d11_status.setText(".NET/Vortice placement model load returned an unexpected payload.")
                 return
             target_preview = payload.get("target")
             donor_preview = payload.get("donor") if isinstance(payload.get("donor"), ArchivePreviewResult) else None
             target_model = getattr(target_preview, "preview_model", None)
             donor_model = getattr(donor_preview, "preview_model", None) if donor_preview is not None else None
             if not isinstance(target_model, ModelPreviewData):
-                placement_d3d11_status.setText("Native D3D11 placement preview has no renderable target model.")
+                placement_d3d11_status.setText(".NET/Vortice placement preview has no renderable target model.")
                 return
             self._attach_archive_model_preview_images(target_model)
             if isinstance(donor_model, ModelPreviewData):
@@ -799,7 +664,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         def _handle_placement_d3d11_models_error(request_id: int, message: str) -> None:
             if int(request_id) != int(d3d11_state.get("request_id", 0) or 0):
                 return
-            _placement_d3d11_hard_error(f"Native D3D11 placement model load failed: {message}")
+            _placement_d3d11_hard_error(f".NET/Vortice placement model load failed: {message}")
 
         def _cleanup_placement_d3d11_model_refs() -> None:
             d3d11_state["model_thread"] = None
@@ -816,7 +681,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
                 return
             preview_model, editable_indices = _placement_d3d11_build_preview_model()
             if not isinstance(preview_model, ModelPreviewData):
-                placement_d3d11_status.setText("Native D3D11 placement preview could not build a renderable model.")
+                placement_d3d11_status.setText(".NET/Vortice placement preview could not build a renderable model.")
                 return
             _start_placement_d3d11_package_worker(preview_model, editable_indices)
 
@@ -1182,7 +1047,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
         reset_button.clicked.connect(lambda _checked=False: _reset_adjustment())
         reload_d3d11_button.clicked.connect(lambda _checked=False: _queue_placement_d3d11_preview())
         d3d11_reload_timer.timeout.connect(_queue_placement_d3d11_preview)
-        d3d11_status_timer.timeout.connect(_poll_placement_d3d11_status)
+        placement_d3d11_host.controller.state_changed.connect(_handle_placement_dotnet_state)
         placement_d3d11_host.alignment_drag_finished.connect(_commit_d3d11_translation)
         placement_d3d11_host.alignment_rotation_finished.connect(_commit_d3d11_rotation)
         build_button.clicked.connect(lambda _checked=False: _build_safe_package())

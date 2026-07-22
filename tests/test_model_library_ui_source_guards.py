@@ -25,8 +25,9 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             self.assertIsNone(remove_model_library_preview_package_dir(skipped_dir))
             self.assertTrue(skipped_dir.is_dir())
 
-            package_dir = temp / "cdmw_isolated_d3d11_test"
-            package_dir.mkdir()
+            package_root = temp / "cdmw_dotnet_preview_test"
+            package_dir = package_root / "package"
+            package_dir.mkdir(parents=True)
             (package_dir / "payload.txt").write_text("delete me", encoding="utf-8")
 
             thread = remove_model_library_preview_package_dir(package_dir)
@@ -36,7 +37,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             self.assertIsNot(threading.current_thread(), thread)
             thread.join(timeout=5)
             self.assertFalse(thread.is_alive())
-            self.assertFalse(package_dir.exists())
+            self.assertFalse(package_root.exists())
             self.assertTrue(skipped_dir.is_dir())
 
     def test_model_library_texture_status_classification_is_explicit(self) -> None:
@@ -168,7 +169,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             + "\n"
             + Path("cdmw/ui/shell/model_library_bridge.py").read_text(encoding="utf-8")
             + "\n"
-            + Path("cdmw/ui/archive_browser/preview_d3d11_process.py").read_text(encoding="utf-8")
+            + Path("cdmw/ui/archive_browser/preview_dotnet_lifecycle.py").read_text(encoding="utf-8")
         )
 
         self.assertIn("from cdmw.ui.model_library import ModelLibraryTab", source)
@@ -182,7 +183,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("self._preview_model_library_mesh", source)
         self.assertIn("self._handle_model_library_item_icon_generated", source)
         self.assertIn("QMessageBox.information(self, \"Import Mesh\", message)", source)
-        self.assertIn("_show_archive_d3d11_hard_failure", source)
+        self.assertIn(".NET/Vortice Preview rejected the prepared package", source)
         self.assertIn("def task(_log: Callable[[str], None], stop_event: object) -> object:", source)
         self.assertIn("task_accepts_cancel=True", source)
         self.assertIn('"model_library"', source)
@@ -207,42 +208,38 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("supplemental_list.itemChanged.connect(lambda _item: _refresh_supplemental_warning())", source)
         self.assertIn("_refresh_supplemental_warning()", source)
 
-    def test_inline_d3d11_status_timer_ignores_deleted_qt_object(self) -> None:
+    def test_inline_preview_uses_controller_signals_without_status_polling(self) -> None:
         source = (
             Path("cdmw/ui/model_library/tab.py").read_text(encoding="utf-8")
             + "\n"
             + Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
+            + "\n"
+            + Path("cdmw/ui/model_library/panels.py").read_text(encoding="utf-8")
         )
 
-        self.assertIn("def _start_inline_d3d11_status_timer(self) -> None:", source)
-        self.assertIn("def _stop_inline_d3d11_status_timer(self) -> None:", source)
-        self.assertIn("except RuntimeError:\n            pass", source)
-        self.assertIn("self._start_inline_d3d11_status_timer()", source)
-        self.assertIn("self._stop_inline_d3d11_status_timer()", source)
-        self.assertNotIn("self._inline_d3d11_status_timer.stop()\n        if process is None:", source)
+        self.assertIn("controller.state_changed.connect(tab._handle_inline_dotnet_state)", source)
+        self.assertIn("controller.capture_completed.connect(tab._handle_inline_dotnet_capture_completed)", source)
+        self.assertNotIn("_inline_d3d11_status_timer = QTimer", source)
+        self.assertNotIn("status_file.read_text", source)
 
-    def test_inline_d3d11_preview_is_fast_first_and_promotes_after_loaded(self) -> None:
+    def test_inline_dotnet_preview_loads_resident_package_and_promotes_when_ready(self) -> None:
         source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
         start_block = source[
             source.index("def _start_inline_d3d11_process"):
-            source.index("def _check_inline_d3d11_start_timeout")
+            source.index("def _poll_inline_d3d11_status")
         ]
-        loaded_block = source[
-            source.index('if event == "loaded":'):
-            source.index('elif event == "error":')
-        ]
+        loaded_block = source[source.index("def _handle_inline_dotnet_state"):source.index("def _stop_inline_d3d11_process")]
         task_block = source[
             source.index("def task(progress: Callable[[str], None]) -> object:"):
             source.index("def complete(result: object) -> None:")
         ]
 
-        self.assertNotIn("inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)", start_block)
-        self.assertNotIn("inline_d3d11_preview_host.clear_preview(status_file)", start_block)
+        self.assertIn("self.inline_d3d11_preview_host.load_package(", start_block)
+        self.assertIn("resident=bool(self._inline_d3d11_process_running())", start_block)
         self.assertIn("high_quality_textures=False", task_block)
         self.assertIn("self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)", loaded_block)
-        self.assertIn("native_texture_ms", loaded_block)
-        self.assertIn("png_fallback", loaded_block)
-        self.assertIn("texture_cache_hits", loaded_block)
+        self.assertIn('if str(state) == "ready"', loaded_block)
+        self.assertNotIn("native_d3d11_renderer_command", source)
 
     def test_model_library_tab_scans_searches_and_shows_manual_file_urls(self) -> None:
         source = (
@@ -406,7 +403,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn('QPushButton("Preview")', source)
         self.assertIn('QCheckBox("Auto preview local selection")', source)
         self.assertIn("Automatically previews local selections in the Model Library preview panel", source)
-        self.assertIn("D3D11 Preview", source)
+        self.assertIn(".NET/Vortice Preview", source)
         self.assertIn("Preview In Archive Browser", source)
         self.assertNotIn("Import Local Model", source)
         self.assertIn("Generate Icon", source)
@@ -420,7 +417,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("WEBGL_PBR_RENDERER_BACKEND", source)
         self.assertNotIn("webgl_pbr", source)
         self.assertIn("def _inline_preview_renderer_backend", source)
-        self.assertIn('return "native_d3d11"', source)
+        self.assertIn('return "d3d11_vortice_shader"', source)
         self.assertNotIn("inline_green_up", source)
         self.assertIn("self.inline_preview_stack", source)
         self.assertIn('inline_render_settings.visible_texture_mode = "sidecar_visible_first"', source)
@@ -442,7 +439,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("settings.flip_texture_v = bool(checked)", source)
         self.assertIn("def _reload_inline_preview_for_orientation", source)
         self.assertIn("reset_orientation=False", source)
-        self.assertIn('== "native_d3d11"', source)
+        self.assertIn('== "d3d11_vortice_shader"', source)
         self.assertIn("self._inline_preview_loaded_texture_count", source)
         self.assertIn("preview_render_settings = self.inline_preview_widget.render_settings()", source)
         self.assertIn("render_settings=preview_render_settings", source)
@@ -452,8 +449,8 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("stop_event=stop_event", source)
         self.assertIn("_pending_inline_preview_request = (Path(source_path), dict(payload), bool(reset_orientation))", source)
         self.assertIn("def _after_model_library_task_finished", source)
-        self.assertIn("_inline_d3d11_diagnostic_paths", source)
-        self.assertIn("_check_inline_d3d11_start_timeout", source)
+        self.assertIn("_handle_inline_dotnet_state", source)
+        self.assertIn("capture_replacement_icon", source)
         self.assertIn("_cleanup_inline_d3d11_packages", source)
         self.assertNotIn("write_isolated_d3d11_preview_package", source)
         self.assertNotIn("def _inline_preview_material_channel_summary", source)
@@ -597,14 +594,14 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_record_model_library_preview_event", source)
         self.assertIn('"model_library_preview_start"', source)
         self.assertIn('"model_library_preview_progress"', source)
-        self.assertIn('"model_library_d3d11_loaded"', source)
+        self.assertIn('"model_library_dotnet_package_requested"', source)
 
         complete_start = source.index("        def complete(", load_start)
         complete_body = source[complete_start: source.index("        def handle_error(", complete_start)]
-        self.assertIn("self.inline_preview_widget.set_prepared_model(preview_model, prepared_preview)", complete_body)
-        self.assertIn('renderer_note = " | renderer: Qt preview"', complete_body)
-        self.assertIn('self._set_inline_preview_status("Qt preview data was not built."', complete_body)
-        self.assertNotIn("Native D3D11 preview package was not built", complete_body)
+        self.assertIn('result.get("dotnet_preview_package_path"', complete_body)
+        self.assertIn("self._start_inline_d3d11_process(package_dir", complete_body)
+        self.assertIn("no legacy fallback is available", complete_body)
+        self.assertNotIn("set_prepared_model", complete_body)
         self.assertIn("payload[\"import_path\"] = str(resolved_import_path)", complete_body)
         self.assertIn("self._refresh_result_row_status(payload)", complete_body)
         self.assertNotIn("self._refresh_result_row_statuses()", complete_body)
@@ -643,37 +640,24 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("path.is_file()", source_path_body)
         self.assertNotIn("_existing_mirror_asset_dir", source_path_body)
 
-    def test_inline_d3d11_host_is_prepared_before_hwnd_capture_without_early_stack_switch(self) -> None:
+    def test_inline_dotnet_host_uses_resident_load_without_manual_process_start(self) -> None:
         source = Path("cdmw/ui/model_library/preview.py").read_text(encoding="utf-8")
         start = source.index("    def _start_inline_d3d11_process")
-        body = source[start: source.index("    def _handle_inline_d3d11_stderr", start)]
+        body = source[start: source.index("    def _poll_inline_d3d11_status", start)]
 
-        command_index = body.index("native_d3d11_renderer_command(")
-        self.assertNotIn("self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)", body)
-        self.assertLess(body.index("self.inline_d3d11_preview_host.setAttribute("), command_index)
-        self.assertLess(body.index("self.inline_d3d11_preview_host.show()"), command_index)
-        self.assertIn("crash_dir, diagnostic_log = self._inline_d3d11_diagnostic_paths()", body)
-        self.assertIn("crash_dir=crash_dir", body)
-        self.assertIn("diagnostic_log=diagnostic_log", body)
-        self.assertIn("_check_inline_d3d11_start_timeout", body)
-        self.assertIn("cleanup_packages=True", body)
-        self.assertIn('"model_library_d3d11_process_configured"', body)
-        self.assertIn('"model_library_d3d11_process_started"', body)
-        self.assertIn("process.start()", body)
-        self.assertNotIn("QTimer.singleShot(0, process.start)", body)
-        self.assertIn('"model_library_d3d11_start_failed"', body)
-        self.assertIn('self._set_inline_preview_status("Native D3D11 renderer did not start."', body)
-        self.assertIn("QTimer.singleShot(7000", source)
+        self.assertIn("self.inline_d3d11_preview_host.load_package(", body)
+        self.assertIn("reset_view=previous_package is None", body)
+        self.assertIn("self.inline_d3d11_preview_host.set_render_tuning(render_settings)", body)
+        self.assertNotIn("QProcess", body)
+        self.assertNotIn("native_d3d11_renderer_command", body)
 
-    def test_d3d11_command_reads_diagnostic_env_defaults(self) -> None:
-        source = Path("cdmw/ui/native_d3d11_preview_host.py").read_text(encoding="utf-8")
-        start = source.index("def native_d3d11_renderer_command")
-        body = source[start: source.index("__all__", start)]
+    def test_dotnet_controller_owns_launch_retry_and_provenance(self) -> None:
+        source = Path("cdmw/ui/preview/dotnet_session.py").read_text(encoding="utf-8")
 
-        self.assertIn('os.environ.get("CDMW_CRASH_DIR"', body)
-        self.assertIn('os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG"', body)
-        self.assertIn('arguments.extend(["--crash-dir", str(crash_dir)])', body)
-        self.assertIn('arguments.extend(["--diagnostic-log", str(diagnostic_log)])', body)
+        self.assertIn("profile=self.profile.value", source)
+        self.assertIn("mesh_dotnet_helper_provenance_blockers", source)
+        self.assertIn("_TRANSIENT_RETRY_DELAYS_MS", source)
+        self.assertIn("_STATIC_RETRY_DELAY_MS", source)
 
 
 if __name__ == "__main__":

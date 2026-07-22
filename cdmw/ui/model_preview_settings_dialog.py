@@ -199,9 +199,9 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.setHorizontalSpacing(12)
         general_form.setVerticalSpacing(10)
         self.archive_renderer_backend_combo = QComboBox()
-        self.archive_renderer_backend_combo.addItem("Native D3D11 (Default)", self.ARCHIVE_RENDERER_D3D11)
+        self.archive_renderer_backend_combo.addItem(".NET/Vortice Preview", self.ARCHIVE_RENDERER_D3D11)
         self.archive_renderer_backend_combo.setToolTip(
-            "Native D3D11 is the only Archive Browser preview path."
+            ".NET/Vortice is the only Archive Browser model-preview path."
         )
         self.archive_renderer_backend_combo.setVisible(False)
         self.use_textures_checkbox = QCheckBox("Use textures when available")
@@ -228,7 +228,7 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         self.d3d11_cull_back_faces_checkbox = QCheckBox("Cull back faces")
         self.d3d11_cull_back_faces_checkbox.setToolTip(
-            "Draw only front-facing triangles in the native D3D11 preview to inspect flipped winding or two-sided materials."
+            "Draw only front-facing triangles in the .NET/Vortice preview to inspect flipped winding or two-sided materials."
         )
         self.visible_texture_mode_combo = QComboBox()
         for mode in MODEL_PREVIEW_VISIBLE_TEXTURE_MODES:
@@ -305,7 +305,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.general_hint_label.setWordWrap(True)
         general_layout.addWidget(self.general_hint_label)
         self.d3d11_hint_label = QLabel(
-            "Native D3D11 supports texture on/off, culling, D3D11 view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and native DDS diagnostics."
+            ".NET/Vortice Preview supports texture on/off, culling, view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and exact DDS diagnostics."
         )
         self.d3d11_hint_label.setObjectName("HintLabel")
         self.d3d11_hint_label.setWordWrap(True)
@@ -461,7 +461,7 @@ class ModelPreviewSettingsDialog(QDialog):
         )
         quality_layout.addLayout(quality_form)
         self.quality_hint_label = QLabel(
-            "Native D3D11 applies these to its shader and sampler directly. Texture resolution normally comes from direct DDS upload; generated fallback maps still use the existing preview cache pipeline."
+            ".NET/Vortice applies these to its shader and sampler directly. Texture resolution normally comes from exact DDS resources; generated fallback maps still use the existing preview cache pipeline."
         )
         self.quality_hint_label.setObjectName("HintLabel")
         self.quality_hint_label.setWordWrap(True)
@@ -678,7 +678,7 @@ class ModelPreviewSettingsDialog(QDialog):
         self.native_preview_cache_mode_combo.addItem("Balanced", "balanced")
         self.native_preview_cache_mode_combo.addItem("Aggressive", "aggressive")
         self.native_preview_cache_mode_combo.setToolTip(
-            "Durable native D3D11 package cache. Balanced reuses exact previews; Aggressive also prebuilds nearby visible models and uses more disk."
+            "Durable .NET/Vortice package cache. Balanced reuses exact previews; Aggressive also prebuilds nearby visible models and uses more disk."
         )
         self.quick_then_full_checkbox = QCheckBox("Show metadata placeholder while 3D preview builds")
         self.quick_then_full_checkbox.setToolTip(

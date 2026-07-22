@@ -345,7 +345,7 @@ def _refresh_queue_step_026(_state):
 
     def _active_mesh_edit_preview_queue_blocked(kind: str, event: str) -> bool:
         if _state._mesh_edit_enabled_checked() and callable(_state._alignment_mesh_edit_tab_active) and _state._alignment_mesh_edit_tab_active():
-            message = f'Active Mesh Editor static preview {kind} is disabled; native D3D11 preview payloads are required.'
+            message = f'Active Mesh Editor static preview {kind} is disabled; .NET/Vortice preview payloads are required.'
             _state._record_runtime_event(event, path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason=message)
             _state.self.set_status_message(message, error=True)
             return True

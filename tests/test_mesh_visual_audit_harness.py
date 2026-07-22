@@ -15,7 +15,6 @@ from tools.mesh_editor_visual_audit_refresh_dotnet import (
 from tools.mesh_harness.visual_audit_corpus import (
     VISUAL_AUDIT_VIEWS,
     VisualAuditAssetSpec,
-    _archive_package_key,
     _remove_visual_audit_overlays,
     _resume_visual_audit_state,
     default_visual_audit_specs,
@@ -307,26 +306,14 @@ def test_visual_audit_packages_the_exact_prepared_archive_material_bindings() ->
     assert "build_archive_preview_result(\n            model_entry,\n            ()," in provenance
     assert "build_archive_preview_result(\n        None,\n        entry," not in source
     assert "build_archive_preview_result(\n            None,\n            model_entry," not in provenance
-    prepared = source.index("prepared_model, prepared_preview = prepare_model_preview(")
+    prepared = source.index("prepared_model, _prepared_preview = prepare_model_preview(")
     stripped = source.index("comparison_overlays = _remove_visual_audit_overlays(prepared_model)")
     copied = source.index("copy_dotnet_preview_material_bindings(mesh, prepared_model)")
-    archive_package = source.index("write_isolated_d3d11_preview_package(")
-    stabilized = source.index("stabilize_visual_audit_archive_package(archive_package)")
-    manifest = source.index("read_isolated_d3d11_preview_manifest(archive_package)")
-    applied = source.index("apply_dotnet_native_material_batch_bindings(")
     state = source.index("material_state = mesh_dotnet_material_state_payload(")
     dotnet_package = source.index("dotnet_package = build_mesh_dotnet_experiment_package(")
-    assert (
-        prepared
-        < stripped
-        < copied
-        < archive_package
-        < stabilized
-        < manifest
-        < applied
-        < state
-        < dotnet_package
-    )
+    shared_package = source.index('"same_package_for_archive_and_mesh_editor": True')
+    assert prepared < stripped < copied < state < dotnet_package < shared_package
+    assert "write_isolated_d3d11_preview_package(" not in source
 
 
 def test_default_visual_audit_corpus_has_required_real_pac_coverage() -> None:
@@ -520,20 +507,14 @@ def test_visual_audit_runtime_paths_do_not_embed_long_evidence_or_asset_names(tm
     evidence = tmp_path / ("descriptive-evidence-name-" * 8)
     run_id = "a" * 32
     temporary_root = _visual_audit_temporary_root(evidence, run_id)
-    spider = next(spec for spec in default_visual_audit_specs() if spec.asset_id.startswith("029-"))
-    package_key = _archive_package_key(spider)
-
     assert evidence.name not in temporary_root.name
     assert temporary_root.name.endswith(run_id)
     assert len(temporary_root.name) == 45
-    assert spider.asset_id not in package_key
-    assert package_key.startswith("029-")
-    assert len(package_key) == 12
     worst_case_resource = (
         temporary_root
         / "packages"
-        / "archive-browser"
-        / package_key
+        / "mesh-editor"
+        / "canonical-package"
         / "textures"
         / "combined"
         / "batch_002_03_standard_v2_material_roughness.png"
@@ -712,25 +693,7 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     corpus = (ROOT / "tools" / "mesh_harness" / "visual_audit_corpus.py").read_text(
         encoding="utf-8"
     )
-    native_host = (ROOT / "cdmw" / "ui" / "native_d3d11_preview_host.py").read_text(
-        encoding="utf-8"
-    )
-    native_lifecycle = (
-        ROOT
-        / "native"
-        / "cdmw_d3d11_preview"
-        / "src"
-        / "owners"
-        / "renderer_lifecycle.cpp"
-    ).read_text(encoding="utf-8")
-    native_render = (
-        ROOT
-        / "native"
-        / "cdmw_d3d11_preview"
-        / "src"
-        / "owners"
-        / "renderer_render_alignment.cpp"
-    ).read_text(encoding="utf-8")
+    shared_host = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
 
     assert "VisualAuditBatch.IsRequested(args)" in entry
     assert '["process_start_count"] = 1' in batch
@@ -766,18 +729,20 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert '["capture_mode"] = "hidden_hwnd_no_show"' in batch
     assert '["native_windows_remained_hidden"] = nativeWindowsRemainedHidden' in batch
     assert "500.0f / size" in batch
-    assert '"process_start_count": 1' in capture
-    assert "host.load_package(" in capture
-    assert "host.request_frame_capture(capture_path)" in capture
-    assert "capture_path.unlink(missing_ok=True)" in capture
+    assert '"process_start_count"] = 1' in batch
+    assert "report = run_dotnet_capture_batch(" in capture
+    assert '"backend": "d3d11_vortice_shader"' in capture
+    assert '"surface": "archive_browser"' in capture
+    assert '"shared_package_artifacts": True' in capture
+    assert '"--visual-audit-batch"' in capture
     assert "report_path.unlink(missing_ok=True)" in capture
     assert "completed.returncode == 0" in capture
     assert 'str(report.get("run_id", "")) == run_id' in capture
-    assert '"command": "capture_frame"' in native_host
-    assert r'\"rendered_camera\"' in native_lifecycle
-    assert "last_rendered_camera_evidence_.world_view_projection" in native_render
+    assert "def request_frame_capture(" in shared_host
+    assert not (ROOT / "cdmw" / "ui" / "native_d3d11_preview_host.py").exists()
+    assert not (ROOT / "native" / "cdmw_d3d11_preview" / "CMakeLists.txt").exists()
     assert "enable_material_combiner=False" in corpus
-    assert "enable_material_combiner=True" in corpus
+    assert "enable_material_combiner=True" not in corpus
 
 
 @pytest.mark.parametrize(

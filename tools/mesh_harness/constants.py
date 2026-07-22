@@ -2,35 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-_WM_COPYDATA = 0x004A
-
-_WM_CLOSE = 0x0010
-
 _WM_MOUSEMOVE = 0x0200
 
 _WM_LBUTTONDOWN = 0x0201
 
 _WM_LBUTTONUP = 0x0202
 
-_WM_COPYDATA_COMMAND = 0x43444D57
-
 _MK_LBUTTON = 0x0001
-
-_HOST_CLASS = "CDMWNativeD3D11PreviewWindow"
 
 _REAL_MESH_EDITOR_DOTNET_SCENARIO = "real-archive-mesh-editor-dotnet-edit-smoke"
 
 _REAL_MESH_EDITOR_VISUAL_SCENARIO = _REAL_MESH_EDITOR_DOTNET_SCENARIO
 
 _DOTNET_NATIVE_PARITY_SCENARIO = "mesh-dotnet-native-parity-report"
-
-_SYNTHETIC_D3D11_SCENARIOS = frozenset(
-    {
-        "full-suite-smoke",
-        "native-mesh-editor-d3d11-delta",
-        "native-mesh-editor-d3d11-payloads",
-    }
-)
 
 _SYNTHETIC_MESH_FORMATS = ("pac", "pam", "pamlod")
 

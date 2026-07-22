@@ -18,7 +18,6 @@ SOAK_MINUTES_DEFAULT = 180.0
 SOAK_MINUTES_MINIMUM = 120.0
 NATIVE_HELPER_RELATIVE_PATHS = (
     Path("native/cd_texture_dx/build/Release/cd-texture-dx.exe"),
-    Path("native/cdmw_d3d11_preview/build/Release/cdmw-d3d11-preview.exe"),
     Path("native/cdmw_mesh_core/build/Release/cdmw-mesh-core.exe"),
     Path("tools/dotnet_mesh_editor_experiment/bin/Release/net8.0-windows/cdmw-mesh-dotnet-editor.exe"),
 )

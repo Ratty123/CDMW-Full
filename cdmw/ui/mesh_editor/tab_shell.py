@@ -163,6 +163,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         self.standalone_native_host_frame = page.native_host_frame
         self.standalone_preview = page.preview
         self.standalone_native_host = page.native_host_frame
+        self._wire_shared_dotnet_controller(self.standalone_native_host)
         self._wire_standalone_native_part_events(self.standalone_native_host)
         self.standalone_native_preview_button = page.native_preview_button
         self.standalone_run_validation_report_button = page.run_validation_report_button
@@ -277,7 +278,6 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         return (
             ("standalone_file_load", self.standalone_file_load_thread, self.standalone_file_load_worker),
             ("standalone_texture_source", self.standalone_texture_source_thread, self.standalone_texture_source_worker),
-            ("standalone_native_package", self.standalone_native_package_thread, self.standalone_native_package_worker),
             ("standalone_mesh_action", self.standalone_action_thread, self.standalone_action_worker),
             ("standalone_validation", self.standalone_validation_thread, self.standalone_validation_worker),
             ("standalone_rebuild_report", self.standalone_rebuild_report_thread, self.standalone_rebuild_report_worker),
@@ -306,12 +306,14 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
                 widget.deleteLater()
         self.embedded_builder_host_layout.addWidget(builder)
         self.workspace_stack.setCurrentWidget(self.embedded_builder_host)
+        self.set_native_preview_host(builder.findChild(QWidget, "AlignmentDotNetVorticePreviewHost"))
         self._install_embedded_merged_mesh_editing(builder)
         self._wire_embedded_dotnet_button(builder)
         self._sync_state()
         QTimer.singleShot(0, self._start_embedded_dotnet_preview_if_available)
     def show_empty_state(self, message: str = "") -> None:
         self.close_standalone_session()
+        self.set_native_preview_host(getattr(self, "standalone_native_host_frame", None))
         self.embedded_workspace = None
         self._embedded_control_tabs = None
         self._embedded_classic_builder = None
@@ -552,10 +554,68 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         self._start_embedded_dotnet_editor_requested()
     def set_native_preview_host(self, host: object | None) -> None:
         self.standalone_native_host = host if host is not None else getattr(self, "standalone_native_host_frame", None)
+        self._wire_shared_dotnet_controller(self.standalone_native_host)
         self._wire_standalone_native_part_events(self.standalone_native_host)
         if self.standalone_native_part_picking_wanted:
             self._request_standalone_native_part_picking(True, retries=2)
         self._sync_standalone_native_mesh_edit_state(force=True)
+
+    def _active_shared_dotnet_controller(self) -> object | None:
+        host = (
+            self.standalone_native_host
+            if self.standalone_dotnet_target_embedded
+            else getattr(self, "standalone_native_host_frame", None)
+        )
+        return getattr(host, "controller", None)
+
+    def _wire_shared_dotnet_controller(self, host: object | None) -> None:
+        controller = getattr(host, "controller", None)
+        if controller is None or id(controller) in self._wired_shared_dotnet_controller_ids:
+            return
+        controller.protocol_event.connect(
+            lambda payload, target=controller: self._handle_shared_dotnet_protocol_event(target, payload)
+        )
+        controller.state_changed.connect(
+            lambda state, message, target=controller: self._handle_shared_dotnet_state(target, state, message)
+        )
+        controller.set_authoring_rehydrator(
+            lambda target=controller: self._rehydrate_shared_dotnet_controller(target)
+        )
+        self._wired_shared_dotnet_controller_ids.add(id(controller))
+
+    def _handle_shared_dotnet_protocol_event(self, controller: object, payload: object) -> None:
+        if controller is not self._active_shared_dotnet_controller() or not isinstance(payload, Mapping):
+            return
+        self.standalone_dotnet_editor_process = getattr(controller, "process", None)
+        self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
+        self.standalone_dotnet_capabilities.update(getattr(controller, "capabilities", ()) or ())
+        self._handle_dotnet_protocol_event(payload)
+
+    def _handle_shared_dotnet_state(self, controller: object, state: str, message: str) -> None:
+        if controller is not self._active_shared_dotnet_controller():
+            return
+        self.standalone_dotnet_editor_process = getattr(controller, "process", None)
+        self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
+        if str(state) == "ready":
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state("ready", active=True)
+            self._set_dotnet_status("Mesh Editor .NET/Vortice viewport ready.")
+        elif str(state) == "error":
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state("failed", active=False)
+            self._set_dotnet_status(str(message or ".NET/Vortice viewport failed."), error=True)
+
+    def _rehydrate_shared_dotnet_controller(self, controller: object) -> bool:
+        if controller is not self._active_shared_dotnet_controller():
+            return False
+        self.standalone_dotnet_editor_process = getattr(controller, "process", None)
+        self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
+        self.standalone_dotnet_capabilities.update(getattr(controller, "capabilities", ()) or ())
+        sent = self._send_dotnet_session_state()
+        self._send_dotnet_scene_state()
+        self._send_dotnet_presentation_state()
+        self._send_dotnet_cached_morph_state()
+        return bool(sent)
     def _wire_standalone_native_part_events(self, host: object | None) -> None:
         if host is None:
             return
@@ -610,7 +670,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
                 updater("Part pick: ready", available=True)
             return True
         if callable(updater):
-            updater("Part pick: unavailable, waiting for D3D11 host", available=False)
+            updater("Part pick: unavailable, waiting for .NET/Vortice host", available=False)
         if retries > 0:
             QTimer.singleShot(250, lambda remaining=int(retries) - 1: self._retry_standalone_native_part_picking(remaining))
         return False

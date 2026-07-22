@@ -6,17 +6,17 @@ import copy
 import dataclasses
 import json
 import shutil
+import tempfile
 import threading
 import time
 from collections import OrderedDict
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from PySide6.QtCore import QObject, Signal, Slot
 
 from cdmw.models import (
-    ArchiveEntry,
     ModelPreviewRenderSettings,
     PreparedModelPreviewBatch,
     PreparedModelPreviewData,
@@ -24,182 +24,9 @@ from cdmw.models import (
     clamp_model_preview_render_settings,
 )
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.rendering.native_preview_core import run_native_preview_core_preview_job
-from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
-from cdmw.rendering.native_preview_package_cache import (
-    create_native_preview_package_staging_dir,
-    lookup_native_preview_package_cache,
-    native_preview_package_cache_build_lock,
-    release_native_preview_package_staging_dir,
-    store_native_preview_package_cache,
+from cdmw.services.mesh_dotnet_preview_package import (
+    build_or_lookup_dotnet_preview_package_from_model,
 )
-
-
-NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}
-
-
-class ArchiveD3D11PackageWorker(QObject):
-    completed = Signal(int, int, object, float)
-    error = Signal(int, int, str)
-    finished = Signal()
-
-    def __init__(
-        self,
-        request_id: int,
-        archive_preview_request_id: int,
-        preview_model: object,
-        prepared_preview: PreparedModelPreviewData,
-        render_settings: ModelPreviewRenderSettings,
-        *,
-        use_textures: bool,
-        high_quality_textures: bool,
-        backend: str = "d3d11",
-        prefer_direct_dds: bool = True,
-    ) -> None:
-        super().__init__()
-        self.request_id = int(request_id)
-        self.archive_preview_request_id = int(archive_preview_request_id)
-        self.preview_model = preview_model
-        self.prepared_preview = prepared_preview
-        self.render_settings = clamp_model_preview_render_settings(render_settings)
-        self.use_textures = bool(use_textures)
-        self.high_quality_textures = bool(high_quality_textures)
-        self.backend = str(backend or "d3d11").strip().lower() or "d3d11"
-        self.prefer_direct_dds = bool(prefer_direct_dds)
-        self.stop_event = threading.Event()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            if self.stop_event.is_set():
-                return
-            started = time.perf_counter()
-            package_dir = write_isolated_d3d11_preview_package(
-                self.preview_model,
-                self.prepared_preview,
-                render_settings=self.render_settings,
-                use_textures=self.use_textures,
-                high_quality_textures=self.high_quality_textures,
-                backend=self.backend,
-                enable_material_combiner=True,
-                prefer_direct_dds=self.prefer_direct_dds,
-                stop_event=self.stop_event,
-            )
-            elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)
-            if not self.stop_event.is_set():
-                self.completed.emit(self.request_id, self.archive_preview_request_id, package_dir, elapsed_ms)
-            else:
-                try:
-                    shutil.rmtree(package_dir, ignore_errors=True)
-                except OSError:
-                    pass
-        except Exception as exc:
-            if not self.stop_event.is_set():
-                self.error.emit(self.request_id, self.archive_preview_request_id, str(exc))
-        finally:
-            self.finished.emit()
-
-
-class ArchiveNativePreviewPrefetchWorker(QObject):
-    finished = Signal()
-
-    def __init__(
-        self,
-        jobs: Sequence[Tuple[ArchiveEntry, Optional[ArchiveEntry], str]],
-        render_settings: ModelPreviewRenderSettings,
-        cache_root: Path,
-        package_root: Optional[Path],
-        cache_mode: str,
-        package_cache_max_bytes: int,
-        package_cache_target_bytes: int,
-        *,
-        validate_package: Callable[[Path], Tuple[bool, Sequence[str]]],
-    ) -> None:
-        super().__init__()
-        self.jobs = tuple(jobs)
-        self.render_settings = clamp_model_preview_render_settings(render_settings)
-        self.cache_root = cache_root
-        self.package_root = package_root
-        self.cache_mode = str(cache_mode or "off").strip().lower()
-        self.package_cache_max_bytes = max(0, int(package_cache_max_bytes or 0))
-        self.package_cache_target_bytes = max(0, int(package_cache_target_bytes or 0))
-        self.validate_package = validate_package
-        self.stop_event = threading.Event()
-
-    def stop(self) -> None:
-        self.stop_event.set()
-
-    @Slot()
-    def run(self) -> None:
-        try:
-            if self.cache_mode != "aggressive" or self.package_cache_max_bytes <= 0:
-                return
-            for entry, companion_entry, cache_key in self.jobs:
-                if self.stop_event.is_set():
-                    return
-                if str(getattr(entry, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
-                    continue
-                key = str(cache_key or "").strip()
-                if not key:
-                    continue
-                if lookup_native_preview_package_cache(
-                    self.cache_root,
-                    key,
-                    validate_package=self.validate_package,
-                ) is not None:
-                    continue
-                with native_preview_package_cache_build_lock(self.cache_root, key):
-                    if self.stop_event.is_set():
-                        return
-                    if lookup_native_preview_package_cache(
-                        self.cache_root,
-                        key,
-                        validate_package=self.validate_package,
-                    ) is not None:
-                        continue
-                    staging_entry_dir: Optional[Path] = None
-                    try:
-                        staging_entry_dir = create_native_preview_package_staging_dir(self.cache_root, leased=True)
-                        attempt = run_native_preview_core_preview_job(
-                            entry,
-                            cache_root=self.cache_root,
-                            render_settings=self.render_settings,
-                            companion_entry=companion_entry,
-                            package_root=self.package_root,
-                            output_root=staging_entry_dir / "package",
-                            timeout_seconds=5.0,
-                            stop_event=self.stop_event,
-                            dds_cache_max_bytes=512 * 1024 * 1024,
-                            dds_cache_target_bytes=384 * 1024 * 1024,
-                        )
-                        if attempt.succeeded:
-                            store_native_preview_package_cache(
-                                self.cache_root,
-                                key,
-                                staging_entry_dir,
-                                {
-                                    "entry_path": str(getattr(entry, "path", "") or ""),
-                                    "companion_path": str(getattr(companion_entry, "path", "") or ""),
-                                    "cache_mode": self.cache_mode,
-                                    "prefetch": True,
-                                    "diagnostics": dict(attempt.diagnostics),
-                                },
-                                validate_package=self.validate_package,
-                                max_bytes=self.package_cache_max_bytes,
-                                target_bytes=self.package_cache_target_bytes,
-                            )
-                    except RunCancelled:
-                        return
-                    except Exception:
-                        continue
-                    finally:
-                        if staging_entry_dir is not None:
-                            release_native_preview_package_staging_dir(staging_entry_dir, cleanup=True)
-        finally:
-            self.finished.emit()
 
 
 class AlignmentD3D11PackageWorker(QObject):
@@ -662,30 +489,24 @@ class AlignmentD3D11PackageWorker(QObject):
                 return
             _emit_progress(40, 100, "Preparing preview - model buffers ready.")
             package_started = time.perf_counter()
-            package_dir = write_isolated_d3d11_preview_package(
+            _emit_package_progress(1, 2, "Writing canonical .NET/Vortice preview package...")
+            dotnet_package = build_or_lookup_dotnet_preview_package_from_model(
                 prepared_model,
-                prepared_preview,
-                render_settings=self.render_settings,
-                use_textures=self.use_textures,
-                high_quality_textures=self.high_quality_textures,
-                backend="d3d11",
-                enable_material_combiner=bool(self.enable_material_combiner and self.use_textures),
-                prefer_direct_dds=True,
-                original_reference_material_parity=self.original_reference_material_parity,
-                display_mode=self.display_mode,
-                editor_workspace=self.editor_workspace,
-                geometry_cache_dir=self.geometry_cache_dir,
-                texture_cache_dir=self.texture_cache_dir,
-                geometry_cache_key=self.geometry_signature,
-                stop_event=self.stop_event,
-                on_progress=_emit_package_progress,
+                cache_root=Path(tempfile.gettempdir()) / "cdmw_preview_packages",
+                archive_identity=(
+                    self.geometry_signature
+                    or f"{self.editor_workspace}:{self.request_id}:{time.time_ns()}"
+                ),
+                cache_mode="off",
+                cancelled=self.stop_event.is_set,
+                metadata={
+                    "surface": self.editor_workspace,
+                    "display_mode": self.display_mode,
+                    "package_quality": self.package_quality,
+                },
             )
-            if self.original_reference_native_package_dir is not None:
-                self._replace_original_reference_with_native_package(
-                    package_dir,
-                    self.original_reference_native_package_dir,
-                    mirror_replacement_batches=self.editor_workspace == "modify_original_alignment",
-                )
+            package_dir = dotnet_package.package_dir
+            _emit_package_progress(2, 2, ".NET/Vortice preview package ready.")
             package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
             if not self.stop_event.is_set():
                 _emit_progress(80, 100, "Preparing preview - package ready.")
@@ -706,7 +527,4 @@ class AlignmentD3D11PackageWorker(QObject):
 
 __all__ = [
     "AlignmentD3D11PackageWorker",
-    "ArchiveD3D11PackageWorker",
-    "ArchiveNativePreviewPrefetchWorker",
-    "NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS",
 ]

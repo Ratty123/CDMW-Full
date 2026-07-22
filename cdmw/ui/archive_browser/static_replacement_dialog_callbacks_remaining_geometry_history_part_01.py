@@ -446,12 +446,12 @@ def _remaining_geometry_history_step_023(_state):
             if callable(live_preview_updater):
                 live_preview_updater(changed_vertices_by_submesh, include_normals=include_normals, immediate=True)
                 return
-            message = 'Native D3D11 mesh edit commands are unavailable; preview is stale. Reload D3D11 preview to resync.'
+            message = '.NET/Vortice mesh edit commands are unavailable; preview is stale. Retry the preview to resync.'
             _state._record_runtime_event('mesh_edit_geometry_sparse_restore_live_update_unavailable', source_indices=tuple(sorted((int(index) for index in changed_vertices_by_submesh))), message=message)
             _state.self.set_status_message(message, error=True)
             return
         if _state._geometry_mesh_edit_active():
-            message = 'Active Mesh Editor geometry restore requires native D3D11 refresh; Python preview rebuild fallback is disabled.'
+            message = 'Active Mesh Editor geometry restore requires a .NET/Vortice refresh; software preview fallback is disabled.'
             _state._record_runtime_event('mesh_edit_geometry_sparse_restore_python_preview_rebuild_blocked', source_indices=tuple(sorted((int(index) for index in changed_vertices_by_submesh))), message=message)
             _state.self.set_status_message(message, error=True)
             return
@@ -479,12 +479,12 @@ def _remaining_geometry_history_step_025(_state):
             if callable(live_preview_updater):
                 live_preview_updater(None, include_normals=True, immediate=True)
                 return
-            message = 'Native D3D11 mesh edit commands are unavailable; preview is stale. Reload D3D11 preview to resync.'
+            message = '.NET/Vortice mesh edit commands are unavailable; preview is stale. Retry the preview to resync.'
             _state._record_runtime_event('mesh_edit_geometry_full_restore_live_update_unavailable', message=message)
             _state.self.set_status_message(message, error=True)
             return
         if _state._geometry_mesh_edit_active():
-            message = 'Active Mesh Editor geometry restore requires native D3D11 refresh; Python preview rebuild fallback is disabled.'
+            message = 'Active Mesh Editor geometry restore requires a .NET/Vortice refresh; software preview fallback is disabled.'
             _state._record_runtime_event('mesh_edit_geometry_full_restore_python_preview_rebuild_blocked', message=message)
             _state.self.set_status_message(message, error=True)
             return

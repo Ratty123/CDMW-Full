@@ -21,9 +21,8 @@ def _app() -> QApplication:
     return QApplication.instance() or QApplication([])
 
 
-class _QtPreviewModelLibraryTab(ModelLibraryTab):
-    def _inline_preview_renderer_backend(self) -> str:
-        return "qt"
+class _DotNetPreviewModelLibraryTab(ModelLibraryTab):
+    pass
 
 
 class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
@@ -32,7 +31,7 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             settings = create_settings(settings_file_path=root / "settings.ini")
-            tab = _QtPreviewModelLibraryTab(settings=settings, base_dir=root)
+            tab = _DotNetPreviewModelLibraryTab(settings=settings, base_dir=root)
             try:
                 tab.resize(1200, 760)
                 tab.show()
@@ -65,7 +64,7 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             settings = create_settings(settings_file_path=root / "settings.ini")
-            tab = _QtPreviewModelLibraryTab(settings=settings, base_dir=root)
+            tab = _DotNetPreviewModelLibraryTab(settings=settings, base_dir=root)
             try:
                 def task(_progress: object) -> object:
                     worker_thread_ids.append(threading.get_ident())
@@ -106,7 +105,7 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
             root = Path(temp_dir)
             scene_path = _write_triangle_gltf(root, triangle_count=1200)
             settings = create_settings(settings_file_path=root / "settings.ini")
-            tab = _QtPreviewModelLibraryTab(
+            tab = _DotNetPreviewModelLibraryTab(
                 settings=settings,
                 base_dir=root,
                 record_runtime_event=lambda event, **fields: events.append((str(event), dict(fields))),
@@ -144,10 +143,11 @@ class ModelLibraryInlinePreviewUiTests(unittest.TestCase):
                         f"events={[event for event, _fields in events]!r}"
                     ),
                 )
-                self.assertEqual(tab._inline_preview_loaded_renderer_backend, "qt")
+                self.assertEqual(tab._inline_preview_loaded_renderer_backend, "d3d11_vortice_shader")
                 self.assertIn("model_library_preview_start", [event for event, _fields in events])
                 self.assertIn("model_library_preview_prepared", [event for event, _fields in events])
-                self.assertGreater(int(getattr(tab.inline_preview_widget, "_vertex_count", 0) or 0), 0)
+                self.assertIsNotNone(tab._inline_d3d11_active_package)
+                self.assertIs(tab.inline_preview_stack.currentWidget(), tab.inline_d3d11_preview_host)
             finally:
                 if tab._task_thread is not None and tab._task_thread.isRunning():
                     if tab._stop_event is not None and hasattr(tab._stop_event, "set"):
