@@ -108,7 +108,7 @@ Native preview-core/D3D11 ownership, aggregated source guards, Release builds,
 and headless self-tests:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_native_preview_core_decomposition.py tests/test_native_d3d11_preview_decomposition.py tests/test_native_preview_core.py tests/test_native_preview_package_cache_concurrency.py
+.\.venv\Scripts\python.exe -m pytest tests/test_native_preview_core_decomposition.py tests/test_native_d3d11_preview_decomposition.py tests/test_native_preview_core.py tests/test_native_preview_package_cache_concurrency.py tests/test_native_preview_prefab_opt_in.py tests/test_archive_d3d11_part_visibility.py
 cmake -S native/cdmw_preview_core -B native/cdmw_preview_core/build
 cmake --build native/cdmw_preview_core/build --config Release
 native\cdmw_preview_core\build\Release\cdmw-preview-core.exe self-test

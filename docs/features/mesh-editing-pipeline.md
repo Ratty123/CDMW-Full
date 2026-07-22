@@ -596,9 +596,15 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   Native original-reference material batches are applied by authoritative local
   submesh identity. Secondary/prefab batches are decoded as separate
   original-reference-only geometry; they never enter the editable replacement,
-  export, or archive-mutation authority. Archive Browser composite previews
-  initially hide those prefab batches while leaving the base component visible;
-  the Parts menu can explicitly show them. Layer-only detail, damage, grime,
+  export, or archive-mutation authority. Archive Browser packages leave prefab
+  component geometry, material sidecars, textures, and batches unloaded by
+  default while exposing lightweight resolved candidates in Parts. Enabling a
+  candidate rebuilds the package under a prefab-selection-specific cache key;
+  disabling it hides the active batch immediately and rebuilds without it.
+  Native cache publication repairs invalid recently used entries and preserves
+  a complete standalone package if an active cache target cannot be replaced,
+  so consumers never receive a staging path that cleanup deletes. Layer-only
+  detail, damage, grime,
   dye, and overlay textures remain diagnostic bindings and are not promoted
   into a primary base channel when their blend graph is unavailable. None of
   these material changes rebuilds the package, restarts the
