@@ -19,7 +19,7 @@ from cdmw.services.preview_rendering_service import (
     find_native_preview_core_binary,
     render_settings_to_native_preview_core_dict,
 )
-from cdmw.rendering.dotnet_preview_package_cache import (
+from cdmw.services.preview_rendering_service import (
     DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA,
     clear_dotnet_preview_package_cache,
     dotnet_preview_package_cache_budget,

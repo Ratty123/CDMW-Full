@@ -225,7 +225,7 @@ def build_static_texture_payloads(state: MeshImportBuildState, original_sidecars
     fingerprint = str(values.get("material_authority_fingerprint", "") or "")
     bindings = tuple(values.get("material_authority_resolved_bindings", ()) or ())
     if fingerprint or bindings:
-        from cdmw.services.material_authority_build_artifacts import (
+        from cdmw.core.material_authority_build_artifacts import (
             synchronize_material_authority_build_payloads,
         )
 

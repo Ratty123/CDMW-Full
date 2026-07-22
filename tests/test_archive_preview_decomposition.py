@@ -233,7 +233,6 @@ def test_model_support_attachment_honors_pre_cancel() -> None:
     )
     with pytest.raises(RunCancelled):
         _attach_model_support_texture_preview_paths(
-            None,
             _entry(model.path),
             model,
             sidecar_texture_bindings=(binding,),

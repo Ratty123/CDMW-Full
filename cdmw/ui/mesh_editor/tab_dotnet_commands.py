@@ -359,6 +359,60 @@ class MeshEditorDotNetCommandMixin:
             command_name=command,
             request_payload=payload,
         )
+
+    def _handle_dotnet_embedded_part_command(
+        self,
+        command: str,
+        local_selection: object,
+        target_mode: str,
+        payload: Mapping[str, object],
+    ) -> bool | None:
+        if not (
+            self.standalone_dotnet_target_embedded
+            and target_mode in {"part", "source"}
+            and command in {"delete", "duplicate", "toggle_visibility"}
+        ):
+            return None
+        runner = getattr(self.active_builder(), "_mesh_editor_embedded_run_part_action", None)
+        if not callable(runner):
+            self._send_dotnet_command_result(
+                command,
+                ok=False,
+                status="unavailable",
+                diagnostics=("Resident part action bridge is unavailable.",),
+                request_payload=payload,
+            )
+            return False
+        try:
+            ok = bool(runner(command, tuple(local_selection.source_indices)))
+        except Exception as exc:
+            self._set_dotnet_status(f"Mesh .NET editor part action failed: {command}: {exc}", error=True)
+            self._send_dotnet_command_result(
+                command,
+                ok=False,
+                status="error",
+                diagnostics=(str(exc),),
+                request_payload=payload,
+            )
+            return False
+        revision = None
+        current_controller = self._dotnet_target_controller()
+        if current_controller is not None:
+            try:
+                revision = current_controller.session_view().revision
+            except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+                pass
+        self._refresh_embedded_workspace_from_builder()
+        self._send_dotnet_command_result(
+            command,
+            ok=ok,
+            status="applied" if ok else "no_change",
+            revision=revision,
+            request_payload=payload,
+        )
+        self._send_dotnet_session_state()
+        return ok
+
     def _handle_dotnet_command_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
@@ -387,50 +441,14 @@ class MeshEditorDotNetCommandMixin:
         )
         action_selection = local_selection if selection_supplied else None
         target_mode = str(payload.get("target_mode", "") or "").strip().lower()
-        if (
-            self.standalone_dotnet_target_embedded
-            and target_mode in {"part", "source"}
-            and command in {"delete", "duplicate", "toggle_visibility"}
-        ):
-            runner = getattr(self.active_builder(), "_mesh_editor_embedded_run_part_action", None)
-            if not callable(runner):
-                self._send_dotnet_command_result(
-                    command,
-                    ok=False,
-                    status="unavailable",
-                    diagnostics=("Resident part action bridge is unavailable.",),
-                    request_payload=payload,
-                )
-                return False
-            try:
-                ok = bool(runner(command, tuple(local_selection.source_indices)))
-            except Exception as exc:
-                self._set_dotnet_status(f"Mesh .NET editor part action failed: {command}: {exc}", error=True)
-                self._send_dotnet_command_result(
-                    command,
-                    ok=False,
-                    status="error",
-                    diagnostics=(str(exc),),
-                    request_payload=payload,
-                )
-                return False
-            revision = None
-            current_controller = self._dotnet_target_controller()
-            if current_controller is not None:
-                try:
-                    revision = current_controller.session_view().revision
-                except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
-                    pass
-            self._refresh_embedded_workspace_from_builder()
-            self._send_dotnet_command_result(
-                command,
-                ok=ok,
-                status="applied" if ok else "no_change",
-                revision=revision,
-                request_payload=payload,
-            )
-            self._send_dotnet_session_state()
-            return ok
+        embedded_result = self._handle_dotnet_embedded_part_command(
+            command,
+            local_selection,
+            target_mode,
+            payload,
+        )
+        if embedded_result is not None:
+            return embedded_result
         try:
             if command == "clear_selection":
                 return self._start_dotnet_action_worker(

@@ -16,7 +16,7 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
-from cdmw.rendering.dotnet_preview_package_cache import (
+from cdmw.services.preview_rendering_service import (
     dotnet_preview_package_cache_budget,
     prune_dotnet_preview_package_cache,
 )

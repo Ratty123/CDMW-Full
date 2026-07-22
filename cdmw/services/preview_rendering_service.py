@@ -6,6 +6,34 @@ from importlib import import_module
 
 
 _EXPORTS: dict[str, tuple[str, str]] = {
+    "DotNetPreviewPackageCacheLease": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "DotNetPreviewPackageCacheLease",
+    ),
+    "DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA",
+    ),
+    "acquire_dotnet_preview_package_cache_lease_for_path": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "acquire_dotnet_preview_package_cache_lease_for_path",
+    ),
+    "clear_dotnet_preview_package_cache": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "clear_dotnet_preview_package_cache",
+    ),
+    "dotnet_preview_package_cache_budget": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "dotnet_preview_package_cache_budget",
+    ),
+    "is_durable_dotnet_preview_package_path": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "is_durable_dotnet_preview_package_path",
+    ),
+    "prune_dotnet_preview_package_cache": (
+        "cdmw.rendering.dotnet_preview_package_cache",
+        "prune_dotnet_preview_package_cache",
+    ),
     "NativePreviewPackageCacheLease": (
         "cdmw.rendering.native_preview_package_cache",
         "NativePreviewPackageCacheLease",

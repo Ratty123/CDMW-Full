@@ -98,6 +98,12 @@ _exports(
 )
 _exports("cdmw.core.texture_pipeline.discovery", "collect_dds_files")
 _exports("cdmw.core.texture_pipeline.preflight", "build_texture_policy_preview_payload")
+_exports("cdmw.core.texture_native", "native_texture_backend_identity")
+_exports(
+    "cdmw.core.texture_legacy_compat",
+    "OBSOLETE_SETTINGS_KEY",
+    "sanitized_profile_mapping",
+)
 
 
 __all__ = ["TEXTURE_WORKFLOW_EXPORTS"]

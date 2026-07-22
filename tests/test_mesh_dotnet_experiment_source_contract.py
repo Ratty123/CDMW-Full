@@ -55,7 +55,7 @@ def test_dotnet_experiment_renderer_source_contract() -> None:
     assert "ResourceUsage.Dynamic" in d3d_overlay_source
     assert "CpuAccessFlags.Write" in d3d_overlay_source
     assert "MapMode.WriteDiscard" in d3d_overlay_source
-    assert "MapMode.WriteNoOverwrite" in d3d_overlay_source
+    assert "MapMode.WriteNoOverwrite" not in d3d_overlay_source
     assert "using var vertexBuffer = _device.CreateBuffer" not in d3d_overlay_source
     assert "Graphics" not in d3d_overlay_source
     assert "VSOverlay" in hlsl_source
@@ -198,17 +198,20 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     build_script = context["build_script"]
     assert '"dds_resources"]' in source
     assert '"dds_decoded_resources"]' in source
-    assert '"dds_upload_mode"] = "bitmap_rgba_upload"' in source
+    assert '"native_dds_mip_chain_with_bitmap_generated_mips"' in source
+    assert '"native_dds_mip_chain"' in source
+    assert '"bitmap_bgra32_generated_mip_chain_or_unavailable"' in source
     assert '"native_dds_parity"] = false' in source
     assert "MaterialNormalYInverted" in source
-    assert '"dds_native_dxgi_upload"] = false' in source
+    assert '"dds_native_dxgi_upload"] = _d3d11Viewport?.NativeDdsTextureCount > 0' in source
     assert '"renderer_blocked"]' in source
     assert '"blocked_renderer_unavailable"' in source
     assert "ProductionD3D11Required" in source
     assert "DeveloperRendererFallback" in source
     assert "developer-renderer-fallback" in source
-    assert '"dds_upload_format"] = "B8G8R8A8_UNorm"' in source
-    assert '"bitmap_decode_then_bgra32_upload"' in source
+    assert '"dds_upload_format"] = "per_resource_dxgi_view"' in source
+    assert '"source_dds_native_mip_chain_with_optional_bitmap_edit_fallback"' in source
+    assert '"bitmap_decode_then_bgra32_generated_mip_chain"' in source
     assert '"dds_decode_tools"]' in source
     assert '"header_verified_not_sampled"' in source
     assert '"material_contract_gap"]' in source
@@ -250,11 +253,10 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "Renderer ready, waiting for first frame" in source
     assert "\"has_rendered_frame\"" in source
     assert "\"frame_count\"" in source
-    assert "WorldViewProjection()" in source
+    assert "WorldViewProjection" in camera_source
     assert "ApplyPreviewVertexUpdate" in source
     assert "ApplyPreviewTriangleUpdate" in source
-    assert "BuildToolPanel()" in source
-    assert "DotNetMeshEditorToolPanel" in source
+    assert "BuildPresentationViewportRegion()" in source
     assert "Mesh Edit Session" in source
     assert "Preview mode" in source
     assert "_previewMode.SelectedIndex = 5;" in source

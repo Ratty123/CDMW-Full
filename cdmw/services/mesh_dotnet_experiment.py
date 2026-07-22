@@ -22,7 +22,6 @@ from cdmw.domain.mesh.operations import (
 )
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.modding.mesh_deformer import clone_mesh_for_editing
-from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_obj_importer import import_obj
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.modding.static_mesh_scene_frame import (
@@ -121,6 +120,8 @@ def _mesh_scene_bounds(meshes: Sequence[ParsedMesh]) -> tuple[list[float], list[
 
 
 def _build_dotnet_scene_mesh(mesh: ParsedMesh, reference_mesh: ParsedMesh | None) -> ParsedMesh:
+    from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
+
     scene_mesh = clone_mesh_for_editing(mesh)
     if reference_mesh is not None:
         reference = clone_mesh_for_editing(reference_mesh)

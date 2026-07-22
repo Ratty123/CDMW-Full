@@ -12,8 +12,8 @@ from typing import Any
 
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
-from cdmw.core.atomic_file import atomic_copy_file
-from cdmw.rendering.dotnet_preview_package_cache import (
+from cdmw.services.atomic_file_service import atomic_copy_file
+from cdmw.services.preview_rendering_service import (
     acquire_dotnet_preview_package_cache_lease_for_path,
 )
 from cdmw.services.mesh_dotnet_experiment import (

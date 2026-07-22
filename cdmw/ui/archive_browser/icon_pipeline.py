@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Tuple
 from PySide6.QtCore import QObject, QRectF, Qt, QThread, QTimer, Slot
 from PySide6.QtGui import QColor, QFont, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
-from cdmw.core.texture_native import native_texture_backend_identity
+from cdmw.services.texture_workflow_service import native_texture_backend_identity
 from cdmw.domain.archives.format import normalize_archive_extension_filter
 from cdmw.workers.archive_workers import ArchiveItemIconWarmupWorker
 

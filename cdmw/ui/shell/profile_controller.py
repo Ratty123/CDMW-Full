@@ -34,7 +34,7 @@ from cdmw.constants import (
     UPSCALE_BACKEND_NONE,
 )
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.core.texture_legacy_compat import (
+from cdmw.services.texture_workflow_service import (
     OBSOLETE_SETTINGS_KEY,
     sanitized_profile_mapping,
 )

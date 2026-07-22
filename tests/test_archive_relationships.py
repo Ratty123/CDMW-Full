@@ -428,7 +428,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
 
         result = build_archive_preview_result(
-            None,
             entries[0],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -457,7 +456,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
 
         result = build_archive_preview_result(
-            None,
             entries[0],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -550,7 +548,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
             )
         )
         result = build_archive_preview_result(
-            None,
             entries[0],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -585,7 +582,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
 
         result = build_archive_preview_result(
-            None,
             entries[0],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -1679,7 +1675,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
 
         result = build_archive_preview_result(
-            None,
             entries[1],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -1707,7 +1702,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
                 )
 
                 result = build_archive_preview_result(
-                    None,
                     entries[0],
                     texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
                     texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -1738,7 +1732,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
 
         result = build_archive_preview_result(
-            None,
             entries[0],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -1774,7 +1767,6 @@ class ArchiveRelationshipTests(unittest.TestCase):
         )
 
         result = build_archive_preview_result(
-            None,
             entries[0],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),
