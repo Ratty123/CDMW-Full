@@ -608,7 +608,7 @@ public sealed class ArchiveQueryService(ArchiveSessionManager sessions)
             var (text, number, secondary) = field switch
             {
                 ArchiveSortField.Name => (entry.Name, 0L, 0L),
-                ArchiveSortField.KnownName => (entry.KnownName, 0L, 0L),
+                ArchiveSortField.KnownName => (entry.ItemName, 0L, 0L),
                 ArchiveSortField.ExactName => (entry.ExactName, 0L, 0L),
                 ArchiveSortField.NameEvidence => (entry.NameEvidence, 0L, 0L),
                 ArchiveSortField.Extension => (entry.Extension, 0L, 0L),

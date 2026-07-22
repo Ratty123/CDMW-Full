@@ -257,10 +257,15 @@ class ArchiveBrowserRowPayloadMixin:
         size_tooltip: str,
     ) -> Tuple[str, ...]:
         _override_state, override_tooltip = self._archive_entry_override_state(entry)
+        if exact_item_name:
+            item_name_tooltip = (
+                f"{exact_item_name}\nExact: ItemInfo localization ID plus direct model/prefab hash."
+            )
+        else:
+            item_name_tooltip = name_match_tooltip or name_match or ""
         return (
             entry.path,
-            f"{exact_item_name}\nExact: iteminfo localization ID plus direct model/prefab hash." if exact_item_name else "",
-            name_match_tooltip or name_match or "",
+            item_name_tooltip,
             f"Role: {role_label}\nExtension: {entry.extension or '-'}",
             size_tooltip,
             "",
@@ -280,12 +285,12 @@ class ArchiveBrowserRowPayloadMixin:
         size_text, size_tooltip = self._archive_entry_display_size(entry)
         display_name = normalized_parts[-1] if normalized_parts else entry.basename
         exact_item_name, name_match, name_match_tooltip = self._archive_entry_item_name_match(entry)
+        item_name = exact_item_name or name_match
         role_label = self._archive_entry_role_label(entry)
         override_state = self._archive_entry_override_state_label(entry)
         columns = (
             display_name,
-            exact_item_name or "-",
-            name_match or "-",
+            item_name or "-",
             self._archive_role_display_text(entry),
             size_text,
             entry.compression_label,

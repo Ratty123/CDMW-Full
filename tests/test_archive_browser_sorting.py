@@ -53,8 +53,8 @@ class ArchiveBrowserSortingTests(unittest.TestCase):
             _entry("folder/large.pac", size=4096, comp_size=900),
         ]
 
-        ascending = sort_archive_entries_for_browser(entries, 4, "asc")
-        descending = sort_archive_entries_for_browser(entries, 4, "desc")
+        ascending = sort_archive_entries_for_browser(entries, 3, "asc")
+        descending = sort_archive_entries_for_browser(entries, 3, "desc")
 
         self.assertEqual([entry.basename for entry in ascending], ["small.pac", "medium.pac", "large.pac"])
         self.assertEqual([entry.basename for entry in descending], ["large.pac", "medium.pac", "small.pac"])
@@ -68,7 +68,7 @@ class ArchiveBrowserSortingTests(unittest.TestCase):
         exact_names = {"cd_weapon_king_halberd": "Vow of the Dead King"}
         display_names = {"icon_002": "Inventory Icon 2"}
 
-        for column in range(9):
+        for column in range(8):
             sorted_once = sort_archive_entries_for_browser(
                 entries,
                 column,
@@ -77,6 +77,7 @@ class ArchiveBrowserSortingTests(unittest.TestCase):
                 item_exact_display_names=exact_names,
                 archive_entries_by_normalized_path=path_index,
             )
+
             sorted_twice = sort_archive_entries_for_browser(
                 entries,
                 column,
@@ -103,6 +104,20 @@ class ArchiveBrowserSortingTests(unittest.TestCase):
                     for entry in entries
                 )
             )
+
+    def test_item_name_sort_combines_exact_and_inferred_names(self) -> None:
+        exact = _entry("character/model/exact.pac")
+        inferred = _entry("character/model/inferred.pac")
+
+        sorted_entries = sort_archive_entries_for_browser(
+            [inferred, exact],
+            1,
+            "asc",
+            item_exact_display_names={"exact": "Alpha Blade"},
+            item_related_display_names={"inferred": "Zulu Blade"},
+        )
+
+        self.assertEqual([entry.basename for entry in sorted_entries], ["exact.pac", "inferred.pac"])
 
     def test_tree_index_can_preserve_sorted_file_order_inside_folders(self) -> None:
         entries = [

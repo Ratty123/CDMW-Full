@@ -29,14 +29,13 @@ _VIEW_MODES = {
 
 _SORT_FIELDS = {
     0: ArchiveSortField.NAME,
-    1: ArchiveSortField.EXACT_NAME,
-    2: ArchiveSortField.NAME_EVIDENCE,
-    3: ArchiveSortField.ROLE,
-    4: ArchiveSortField.ORIGINAL_SIZE,
-    5: ArchiveSortField.COMPRESSION,
-    6: ArchiveSortField.PACKAGE,
-    7: ArchiveSortField.ACTIVE_OVERRIDE,
-    8: ArchiveSortField.PATH,
+    1: ArchiveSortField.KNOWN_NAME,
+    2: ArchiveSortField.ROLE,
+    3: ArchiveSortField.ORIGINAL_SIZE,
+    4: ArchiveSortField.COMPRESSION,
+    5: ArchiveSortField.PACKAGE,
+    6: ArchiveSortField.ACTIVE_OVERRIDE,
+    7: ArchiveSortField.PATH,
 }
 
 _ROLE_FILTERS = {

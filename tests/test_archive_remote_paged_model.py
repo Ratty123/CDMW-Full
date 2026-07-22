@@ -105,8 +105,8 @@ def test_remote_model_accepts_only_current_bounded_pages_and_repaints_rows() -> 
     assert model.accept_page(current)
     index = model.index(0, 0)
     assert model.data(index, Qt.DisplayRole) == "file_0.pac"
-    assert model.data(model.index(0, 3), Qt.DisplayRole) == "Mesh .pac"
-    assert model.data(model.index(0, 7), Qt.DisplayRole) == "Active mod"
+    assert model.data(model.index(0, 2), Qt.DisplayRole) == "Mesh .pac"
+    assert model.data(model.index(0, 6), Qt.DisplayRole) == "Active mod"
     assert model.data(index, REMOTE_ENTRY_DTO_ROLE) == current.rows[0]
     assert changed == [(0, 3)]
     assert not model.accept_page(ArchivePage("session-a", "old-query", 4, 12, 0, current.rows))
@@ -121,7 +121,23 @@ def test_remote_model_prefers_backend_canonical_type_display() -> None:
     row = replace(_entry(0), type_display="Canonical Mesh .pac")
 
     assert model.accept_page(ArchivePage("session-a", "query-a", 4, 1, 0, (row,)))
-    assert model.data(model.index(0, 3), Qt.DisplayRole) == "Canonical Mesh .pac"
+    assert model.data(model.index(0, 2), Qt.DisplayRole) == "Canonical Mesh .pac"
+
+
+def test_remote_model_merges_exact_and_inferred_names_with_confidence_tooltips() -> None:
+    _app()
+    model = RemoteArchiveBrowserModel(page_size=4)
+    model.publish_query(_handle(total=2), view_mode=ArchiveViewMode.FLAT, prime=False)
+    exact = _entry(0)
+    inferred = replace(_entry(1), known_name="", exact_name="", name_evidence="Related Blade")
+
+    assert model.accept_page(ArchivePage("session-a", "query-a", 4, 2, 0, (exact, inferred)))
+    assert model.columnCount() == 8
+    assert model.headerData(1, Qt.Horizontal, Qt.DisplayRole) == "Item Name"
+    assert model.data(model.index(0, 1), Qt.DisplayRole) == "Exact 0"
+    assert "Exact:" in str(model.data(model.index(0, 1), Qt.ToolTipRole))
+    assert model.data(model.index(1, 1), Qt.DisplayRole) == "Related Blade"
+    assert "not proof" in str(model.data(model.index(1, 1), Qt.ToolTipRole))
 
 
 def test_remote_page_cache_is_lru_bounded_below_ten_thousand_entries() -> None:

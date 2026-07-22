@@ -567,7 +567,7 @@ class ResponsivenessControllerMixin:
         header = self.archive_tree.header()
         if header is None:
             return
-        if self._parse_archive_tree_column_ints("ui/archive_tree_v4_column_widths", clamp_to_columns=False):
+        if self._parse_archive_tree_column_ints("ui/archive_tree_v5_column_widths", clamp_to_columns=False):
             return
         use_fast_widths = bool(
             hasattr(self.archive_tree, "set_archive_state")
@@ -577,24 +577,22 @@ class ResponsivenessControllerMixin:
         font_metrics = header.fontMetrics()
         min_widths = {
             0: max(180, font_metrics.horizontalAdvance("Name") + 48),
-            1: max(160, font_metrics.horizontalAdvance("Exact Item Name") + 28),
-            2: max(170, font_metrics.horizontalAdvance("Related Name Hint") + 28),
-            3: max(72, font_metrics.horizontalAdvance("Folder") + 28),
-            4: max(112, font_metrics.horizontalAdvance("9999.9 KB") + 28),
-            5: max(84, font_metrics.horizontalAdvance("Partial") + 28),
-            6: max(132, font_metrics.horizontalAdvance("0009/20.pamt") + 28),
-            7: max(122, font_metrics.horizontalAdvance("Shadowed original") + 28),
-            8: max(220, font_metrics.horizontalAdvance("Path") + 48),
+            1: max(180, font_metrics.horizontalAdvance("Item Name") + 28),
+            2: max(110, font_metrics.horizontalAdvance("Role / Type") + 28),
+            3: max(112, font_metrics.horizontalAdvance("9999.9 KB") + 28),
+            4: max(84, font_metrics.horizontalAdvance("Partial") + 28),
+            5: max(132, font_metrics.horizontalAdvance("0009/20.pamt") + 28),
+            6: max(122, font_metrics.horizontalAdvance("Shadowed original") + 28),
+            7: max(220, font_metrics.horizontalAdvance("Path") + 48),
         }
         max_widths = {
             0: 360,
-            1: 280,
-            2: 260,
-            3: 110,
-            4: 160,
-            5: 120,
+            1: 320,
+            2: 150,
+            3: 160,
+            4: 120,
+            5: 180,
             6: 180,
-            7: 180,
         }
         self.archive_tree.setUpdatesEnabled(False)
         try:
@@ -604,7 +602,7 @@ class ResponsivenessControllerMixin:
                 content_width = 0 if use_fast_widths else self.archive_tree.sizeHintForColumn(column) + 28
                 width = max(min_widths.get(column, 72), content_width)
                 max_width = max_widths.get(column)
-                if max_width is not None and column != 8:
+                if max_width is not None and column != 7:
                     width = min(width, max_width)
                 header.resizeSection(column, width)
         finally:

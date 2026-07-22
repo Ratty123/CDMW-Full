@@ -950,12 +950,14 @@ internal static class FullArchiveTestRunner
             Require(
                 enrichedExact.KnownName == "Synthetic Blade" &&
                 enrichedExact.ExactName == "Synthetic Blade" &&
+                enrichedExact.ItemName == "Synthetic Blade" &&
                 enrichedExact.NameEvidence == "Exact localization",
                 "exact archive name evidence changed");
             var relatedEntry = session.Index.FindEntriesByPath("character/model/cd_marni_laser_hel_0001_index01.pac").Single();
             var enrichedRelated = session.ReadEntry(relatedEntry.EntryId);
             Require(
                 enrichedRelated.KnownName.Length == 0 &&
+                enrichedRelated.ItemName == "Synthetic Blade" &&
                 enrichedRelated.NameEvidence == "Synthetic Blade",
                 "related archive name evidence changed");
             var iconEntry = session.Index.FindEntriesByPath("ui/itemicon/itemicon_prefab_cd_marni_laser_hel_0001_n.dds").Single();

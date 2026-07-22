@@ -486,24 +486,22 @@ def archive_browser_entry_sort_key(
     if column == 0:
         primary: object = _archive_browser_natural_sort_key(basename)
     elif column == 1:
-        primary = _archive_browser_natural_sort_key(exact_name)
+        primary = _archive_browser_natural_sort_key(exact_name or name_evidence)
     elif column == 2:
-        primary = _archive_browser_natural_sort_key(name_evidence)
-    elif column == 3:
         primary = _archive_browser_natural_sort_key(archive_entry_role_display_text(entry))
-    elif column == 4:
+    elif column == 3:
         primary = (int(entry.orig_size), int(entry.comp_size))
-    elif column == 5:
+    elif column == 4:
         primary = (
             _archive_browser_natural_sort_key(entry.compression_label),
             int(entry.compression_type),
             int(entry.flags),
         )
-    elif column == 6:
+    elif column == 5:
         primary = _archive_browser_natural_sort_key(entry.package_label)
-    elif column == 7:
+    elif column == 6:
         primary = _archive_browser_natural_sort_key(override_state)
-    elif column == 8:
+    elif column == 7:
         primary = _archive_browser_natural_sort_key(normalized_path or parent_path)
     else:
         primary = ()

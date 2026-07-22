@@ -190,7 +190,7 @@ class ArchiveRenderLifecycleMixin:
 
     def _archive_sort_waits_for_enhanced_index(self) -> bool:
         column = normalize_archive_browser_sort_column(self.archive_tree_sort_column)
-        return column in {1, 2} and self._archive_enhanced_index_missing_for_search()
+        return column == 1 and self._archive_enhanced_index_missing_for_search()
 
     def _schedule_archive_initial_sort_after_first_paint(self, delay_ms: int = 250) -> None:
         if self._shutting_down or not self.archive_initial_sort_apply_pending:
@@ -225,7 +225,7 @@ class ArchiveRenderLifecycleMixin:
     def _invalidate_archive_browser_name_columns(self) -> None:
         self.archive_browser_row_display_cache.clear()
         if hasattr(self.archive_tree, "invalidate_archive_rows"):
-            self.archive_tree.invalidate_archive_rows((1, 2))
+            self.archive_tree.invalidate_archive_rows((1,))
             return
         current_entry = self._current_archive_entry()
         preferred_path = current_entry.path if current_entry is not None else ""

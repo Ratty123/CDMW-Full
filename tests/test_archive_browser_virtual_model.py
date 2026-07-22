@@ -1,6 +1,7 @@
-from pathlib import Path
+from collections import OrderedDict
 from collections.abc import Iterator, Mapping
 import os
+from pathlib import Path
 import sys
 import tempfile
 import unittest
@@ -12,6 +13,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from cdmw.models import ArchiveEntry, ArchivePerformanceSettings, clamp_archive_performance_settings
 from cdmw.ui.archive_browser.mesh_swap_support import ArchiveMeshSwapSupportMixin
+from cdmw.ui.archive_browser.controller import ArchiveBrowserRowPayloadMixin
 from cdmw.ui.archive_browser_model import ArchiveBrowserModel, ArchiveBrowserRowPayload, ArchiveBrowserTreeView
 from cdmw.ui.settings_tab import SettingsTab
 from cdmw.workers.archive_filter_workers import ArchiveFilterWorker
@@ -93,8 +95,8 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         entries = [_entry(f"ui/texture/file_{index}.dds", index) for index in range(10_000)]
         model = ArchiveBrowserModel(
             row_provider=lambda index, show_full_path: ArchiveBrowserRowPayload(
-                columns=(f"row {index}", "-", "-", "Texture", "20 B", "None", "pkg", "-", entries[index].path if show_full_path else ""),
-                tooltips=(entries[index].path,) * 9,
+                columns=(f"row {index}", "-", "Texture", "20 B", "None", "pkg", "-", entries[index].path if show_full_path else ""),
+                tooltips=(entries[index].path,) * 8,
             )
         )
         model.set_archive_state(entries, mode="flat", fetch_batch_size=500)
@@ -115,7 +117,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         model = ArchiveBrowserModel(
             row_cache_limit=32,
             row_provider=lambda index, _show_full_path: ArchiveBrowserRowPayload(
-                columns=(f"row {index}", "-", "-", "Texture", "20 B", "None", "pkg", "-", "")
+                columns=(f"row {index}", "-", "Texture", "20 B", "None", "pkg", "-", "")
             ),
         )
         model.set_archive_state(entries, mode="flat", fetch_batch_size=5000)
@@ -159,10 +161,10 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
             def tooltips() -> tuple[str, ...]:
                 nonlocal tooltip_calls
                 tooltip_calls += 1
-                return (entries[index].path,) * 9
+                return (entries[index].path,) * 8
 
             return ArchiveBrowserRowPayload(
-                columns=(f"row {index}", "-", "-", "Texture", "20 B", "None", "pkg", "-", entries[index].path),
+                columns=(f"row {index}", "-", "Texture", "20 B", "None", "pkg", "-", entries[index].path),
                 tooltip_provider=tooltips,
             )
 
@@ -179,7 +181,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         model = ArchiveBrowserModel(
             row_cache_limit=2,
             row_provider=lambda index, _show_full_path: ArchiveBrowserRowPayload(
-                columns=(f"row {index}", "-", "-", "Texture", "20 B", "None", "pkg", "-", entries[index].path),
+                columns=(f"row {index}", "-", "Texture", "20 B", "None", "pkg", "-", entries[index].path),
             ),
         )
         model.set_archive_state(entries, mode="flat")
@@ -191,7 +193,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
 
     def test_invalidate_rows_clears_cached_name_columns_and_repaints(self) -> None:
         entries = [_entry("character/model/test.pac", 0)]
-        name_columns = {"exact": "-", "evidence": "-"}
+        item_name = {"value": "-"}
         changed_ranges: list[tuple[int, int]] = []
 
         def row_provider(index: int, show_full_path: bool) -> ArchiveBrowserRowPayload:
@@ -199,8 +201,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
             return ArchiveBrowserRowPayload(
                 columns=(
                     "test.pac",
-                    name_columns["exact"],
-                    name_columns["evidence"],
+                    item_name["value"],
                     "Model",
                     "20 B",
                     "None",
@@ -215,13 +216,34 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         model.set_archive_state(entries, mode="flat")
         self.assertEqual(model.data(model.index(0, 1), Qt.DisplayRole), "-")
 
-        name_columns["exact"] = "Sword of the Lord"
-        name_columns["evidence"] = "Exact localization"
-        model.invalidate_rows((1, 2))
+        item_name["value"] = "Sword of the Lord"
+        model.invalidate_rows((1,))
 
         self.assertEqual(model.data(model.index(0, 1), Qt.DisplayRole), "Sword of the Lord")
-        self.assertEqual(model.data(model.index(0, 2), Qt.DisplayRole), "Exact localization")
-        self.assertIn((1, 2), changed_ranges)
+        self.assertIn((1, 1), changed_ranges)
+
+    def test_legacy_row_payload_merges_item_name_and_preserves_confidence_tooltip(self) -> None:
+        entry = _entry("character/model/test.pac", 0)
+
+        class Harness(ArchiveBrowserRowPayloadMixin):
+            def __init__(self, name_match: tuple[str, str, str]) -> None:
+                self.archive_filtered_entries = [entry]
+                self.archive_entries_by_normalized_path = {entry.path.casefold(): [entry]}
+                self.archive_browser_row_display_cache = OrderedDict()
+                self.archive_browser_row_display_cache_limit = 4
+                self.name_match = name_match
+
+            def _archive_entry_item_name_match(self, _entry: ArchiveEntry) -> tuple[str, str, str]:
+                return self.name_match
+
+        exact = Harness(("Exact Blade", "", ""))._archive_browser_row_payload(0)
+        inferred = Harness(("", "Related Blade", "Possible related item name; not proof."))._archive_browser_row_payload(0)
+
+        self.assertEqual(len(exact.columns), 8)
+        self.assertEqual(exact.columns[1], "Exact Blade")
+        self.assertIn("Exact:", exact.tooltip(1))
+        self.assertEqual(inferred.columns[1], "Related Blade")
+        self.assertIn("not proof", inferred.tooltip(1))
 
     def test_folder_child_parent_lookup_uses_stable_row_numbers(self) -> None:
         entries = [_entry(f"ui/texture/folder/file_{index}.dds", index) for index in range(3)]
@@ -285,7 +307,7 @@ class ArchiveBrowserVirtualModelTests(unittest.TestCase):
         visual_order = [header.logicalIndex(visual_index) for visual_index in range(header.count())]
         visible_order = [column for column in visual_order if not view.isColumnHidden(column)]
         hidden_order = [column for column in visual_order if view.isColumnHidden(column)]
-        self.assertEqual([0, 1, 2, 3, 4, 7, 8], visible_order)
+        self.assertEqual([0, 1, 2, 3, 4, 7], visible_order)
         self.assertEqual([6, 5], hidden_order)
         self.assertGreaterEqual(header.visualIndex(5), len(visible_order))
         self.assertGreaterEqual(header.visualIndex(6), len(visible_order))
@@ -368,7 +390,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("self.archive_initial_sort_apply_pending = initial_sort_deferred", source)
         self.assertIn("sort_column=initial_worker_sort_column", source)
         self.assertIn("def _apply_archive_initial_sort_after_first_paint", source)
-        self.assertIn("column in {1, 2} and self._archive_enhanced_index_missing_for_search()", source)
+        self.assertIn("column == 1 and self._archive_enhanced_index_missing_for_search()", source)
 
     def test_enhanced_index_completion_invalidates_name_columns_without_post_ready_filter_refresh(self) -> None:
         source = Path("cdmw/ui/archive_browser/index_workers.py").read_text(encoding="utf-8")

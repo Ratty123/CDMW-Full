@@ -405,8 +405,10 @@ evidence. It accepts bounded multi-prefab ItemInfo lists, recovers localization
 IDs near the documented field when record layouts shift, and admits StringInfo
 icon/model links only when item-name semantics remain compatible. Related names
 also propagate to recognizable item-icon, texture-family, component, and
-sidecar filenames. The Archive Browser renders the recovered related name
-directly in **Name Evidence**; it does not add a redundant `Name hint:` prefix.
+sidecar filenames. The Archive Browser renders the direct name when available,
+otherwise the recovered related name, in one **Item Name** column. Exact and
+inferred mappings remain separate in the underlying contract, and the cell
+tooltip identifies the confidence without spending a second table column on it.
 
 Lite therefore does not need a second archive scan. It needs to retain and
 serve data it already computes.

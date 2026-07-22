@@ -148,7 +148,7 @@ def normalize_archive_browser_sort_column(value: object) -> int:
         column = int(value)
     except (TypeError, ValueError):
         return -1
-    return column if 0 <= column <= 8 else -1
+    return column if 0 <= column <= 7 else -1
 
 
 def normalize_archive_browser_sort_order(value: object) -> str:

@@ -71,6 +71,7 @@ def _entry_payload() -> dict[str, object]:
 def test_archive_entry_and_page_parse_to_frozen_bounded_contracts() -> None:
     entry = ArchiveEntryDto.from_wire(_entry_payload())
     assert entry.role is ArchiveEntryRole.MODEL
+    assert entry.item_name == "Example Sword"
     assert entry.override_state == "Shadowed original"
     assert entry.type_display == "Mesh .pac"
     assert entry.identity == ArchiveDurableIdentity(
@@ -93,6 +94,19 @@ def test_archive_entry_and_page_parse_to_frozen_bounded_contracts() -> None:
     assert len(page.rows) == 1
     with pytest.raises(FrozenInstanceError):
         page.total_matches = 0  # type: ignore[misc]
+
+
+def test_archive_entry_item_name_falls_back_to_inferred_evidence() -> None:
+    payload = _entry_payload()
+    payload.update(known_name="", exact_name="", name_evidence="Related Sword")
+
+    entry = ArchiveEntryDto.from_wire(payload)
+
+    assert entry.item_name == "Related Sword"
+
+    payload.update(known_name="Known Sword", name_evidence="Exact localization")
+
+    assert ArchiveEntryDto.from_wire(payload).item_name == "Known Sword"
 
 
 def test_query_serializes_using_worker_snake_case_enums() -> None:

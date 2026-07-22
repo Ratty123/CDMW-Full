@@ -168,6 +168,12 @@ class ArchiveEntryDto:
     override_state: str = ""
     type_display: str = ""
 
+    @property
+    def item_name(self) -> str:
+        """Return the best display name while retaining exact/evidence fields."""
+
+        return self.exact_name.strip() or self.known_name.strip() or self.name_evidence.strip()
+
     @classmethod
     def from_wire(cls, value: object) -> "ArchiveEntryDto":
         payload = require_mapping(value, "archive entry")

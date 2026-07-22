@@ -50,17 +50,17 @@ class ArchiveBrowserHeaderMixin:
         header = self.archive_tree.header()
         if header is None:
             return
-        widths = self._parse_archive_tree_column_ints("ui/archive_tree_v4_column_widths", clamp_to_columns=False)
+        widths = self._parse_archive_tree_column_ints("ui/archive_tree_v5_column_widths", clamp_to_columns=False)
         for column, width in enumerate(widths[: self.archive_tree.columnCount()]):
             if width > 0:
                 header.resizeSection(column, max(48, width))
-        order = self._parse_archive_tree_column_ints("ui/archive_tree_v4_column_order")
+        order = self._parse_archive_tree_column_ints("ui/archive_tree_v5_column_order")
         if len(order) == self.archive_tree.columnCount() and len(set(order)) == self.archive_tree.columnCount():
             for target_visual, logical_index in enumerate(order):
                 current_visual = header.visualIndex(logical_index)
                 if current_visual >= 0 and current_visual != target_visual:
                     header.moveSection(current_visual, target_visual)
-        hidden_columns = set(self._parse_archive_tree_column_ints("ui/archive_tree_v4_hidden_columns"))
+        hidden_columns = set(self._parse_archive_tree_column_ints("ui/archive_tree_v5_hidden_columns"))
         if len(hidden_columns) >= self.archive_tree.columnCount():
             hidden_columns = set()
         for column in range(self.archive_tree.columnCount()):
@@ -88,9 +88,9 @@ class ArchiveBrowserHeaderMixin:
             for column in range(self.archive_tree.columnCount())
             if self.archive_tree.isColumnHidden(column)
         ]
-        self.settings.setValue("ui/archive_tree_v4_column_order", ",".join(order))
-        self.settings.setValue("ui/archive_tree_v4_column_widths", ",".join(widths))
-        self.settings.setValue("ui/archive_tree_v4_hidden_columns", ",".join(hidden))
+        self.settings.setValue("ui/archive_tree_v5_column_order", ",".join(order))
+        self.settings.setValue("ui/archive_tree_v5_column_widths", ",".join(widths))
+        self.settings.setValue("ui/archive_tree_v5_hidden_columns", ",".join(hidden))
 
     def _set_archive_tree_column_visible(self, column: int, visible: bool) -> None:
         if not (0 <= column < self.archive_tree.columnCount()):
@@ -113,7 +113,7 @@ class ArchiveBrowserHeaderMixin:
             current_visual = header.visualIndex(logical_index)
             if current_visual >= 0 and current_visual != logical_index:
                 header.moveSection(current_visual, logical_index)
-        default_widths = [360, 220, 170, 78, 145, 72, 130, 122, 360]
+        default_widths = [360, 220, 110, 145, 84, 130, 122, 360]
         for column, width in enumerate(default_widths[: self.archive_tree.columnCount()]):
             header.resizeSection(column, width)
         self.schedule_settings_save()

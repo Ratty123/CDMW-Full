@@ -57,7 +57,7 @@ class ArchiveFilesPanelMixin:
             "No archive files loaded",
             "Scan archive packages to browse, preview, extract, and route files.",
         )
-        self.archive_tree.setHeaderLabels(["Name", "Exact Name", "Name Evidence", "Role / Type", "Size", "Comp", "Package", "State", "Path"])
+        self.archive_tree.setHeaderLabels(["Name", "Item Name", "Role / Type", "Size", "Comp", "Package", "State", "Path"])
         self.archive_tree.set_archive_providers(
             row_provider=self._archive_browser_row_payload,
             category_provider=self._archive_entry_category,
@@ -98,7 +98,7 @@ class ArchiveFilesPanelMixin:
         archive_header.setSectionsClickable(True)
         archive_header.setSectionResizeMode(0, QHeaderView.Interactive)
         archive_header.setSectionResizeMode(1, QHeaderView.Interactive)
-        archive_header.setSectionResizeMode(8, QHeaderView.Stretch)
+        archive_header.setSectionResizeMode(7, QHeaderView.Stretch)
         archive_header.setSectionsMovable(True)
         archive_header.setToolTip("Drag columns to reorder. Right-click the header to show, hide, or reset columns.")
         archive_header.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -107,19 +107,18 @@ class ArchiveFilesPanelMixin:
         archive_header.sectionMoved.connect(lambda *_args: self.schedule_settings_save())
         archive_header.sectionResized.connect(lambda *_args: self.schedule_settings_save())
         for section in range(self.archive_tree.columnCount()):
-            if section == 8:
+            if section == 7:
                 archive_header.setSectionResizeMode(section, QHeaderView.Stretch)
             else:
                 archive_header.setSectionResizeMode(section, QHeaderView.Interactive)
         archive_header.resizeSection(0, 480)
-        archive_header.resizeSection(1, 160)
-        archive_header.resizeSection(2, 150)
-        archive_header.resizeSection(3, 110)
-        archive_header.resizeSection(4, 72)
+        archive_header.resizeSection(1, 190)
+        archive_header.resizeSection(2, 110)
+        archive_header.resizeSection(3, 72)
+        archive_header.resizeSection(4, 130)
         archive_header.resizeSection(5, 130)
-        archive_header.resizeSection(6, 130)
-        archive_header.resizeSection(7, 122)
-        archive_header.resizeSection(8, 360)
+        archive_header.resizeSection(6, 122)
+        archive_header.resizeSection(7, 360)
         self._apply_archive_tree_header_settings()
         for section in range(self.archive_tree.columnCount()):
             archive_header.setSectionResizeMode(section, QHeaderView.Interactive)

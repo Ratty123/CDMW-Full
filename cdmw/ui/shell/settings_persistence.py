@@ -174,8 +174,8 @@ class SettingsPersistenceMixin:
         self.settings.setValue("archive/min_size_kb", self.archive_min_size_spin.value())
         self.settings.setValue("archive/previewable_only", self.archive_previewable_only_checkbox.isChecked())
         self.settings.setValue("archive/browser_view_mode", self._archive_browser_view_mode())
-        self.settings.setValue("ui/archive_tree_v4_sort_column", int(self.archive_tree_sort_column))
-        self.settings.setValue("ui/archive_tree_v4_sort_order", self.archive_tree_sort_order)
+        self.settings.setValue("ui/archive_tree_v5_sort_column", int(self.archive_tree_sort_column))
+        self.settings.setValue("ui/archive_tree_v5_sort_order", self.archive_tree_sort_order)
         self._save_archive_tree_header_settings()
         self._save_model_preview_settings_if_loaded()
         self.settings.setValue(
@@ -342,10 +342,10 @@ class SettingsPersistenceMixin:
         self.archive_previewable_only_checkbox.setChecked(bool(defaults.archive_previewable_only))
         self._set_combo_by_value(self.archive_browser_view_mode_combo, ARCHIVE_BROWSER_VIEW_MODE)
         self.archive_tree_sort_column = normalize_archive_browser_sort_column(
-            self.settings.value("ui/archive_tree_v4_sort_column", -1)
+            self.settings.value("ui/archive_tree_v5_sort_column", -1)
         )
         self.archive_tree_sort_order = normalize_archive_browser_sort_order(
-            self.settings.value("ui/archive_tree_v4_sort_order", "asc")
+            self.settings.value("ui/archive_tree_v5_sort_order", "asc")
         )
         self._update_archive_tree_sort_indicator()
         self._model_preview_settings_read_pending = True

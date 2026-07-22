@@ -50,6 +50,12 @@ public sealed record ArchiveEntryDto(
     public bool IsEncrypted => ((Flags >> 4) & 0x0F) != 0;
     public int EncryptionType => (Flags >> 4) & 0x0F;
     public string Name => System.IO.Path.GetFileName(Path.Replace('/', System.IO.Path.DirectorySeparatorChar));
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string ItemName => !string.IsNullOrWhiteSpace(ExactName)
+        ? ExactName
+        : !string.IsNullOrWhiteSpace(KnownName)
+            ? KnownName
+            : NameEvidence;
 }
 
 public enum ArchiveEntryRole

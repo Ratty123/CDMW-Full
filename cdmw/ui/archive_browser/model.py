@@ -14,8 +14,7 @@ from cdmw.ui.archive_browser.remote_flat_view import RemoteArchiveFlatTableView
 
 ARCHIVE_BROWSER_COLUMNS = (
     "Name",
-    "Exact Name",
-    "Name Evidence",
+    "Item Name",
     "Role / Type",
     "Size",
     "Comp",
@@ -199,7 +198,7 @@ class ArchiveBrowserModel(QAbstractItemModel):
                 node = ArchiveBrowserNode(
                     "category",
                     str(category),
-                    columns=(f"{category} ({len(indexes):,})", "-", "-", "Category", "-", "-", "-", "-", ""),
+                    columns=(f"{category} ({len(indexes):,})", "-", "Category", "-", "-", "-", "-", ""),
                     tooltips=(f"{category} assets in the current filtered view",),
                     parent=self._root,
                     entry_indexes=tuple(int(index) for index in indexes),
@@ -222,7 +221,7 @@ class ArchiveBrowserModel(QAbstractItemModel):
         return ArchiveBrowserNode(
             "folder",
             tuple(folder_key),
-            columns=(folder_key[-1] if folder_key else "(root)", "-", "-", "Folder", "-", "-", "-", "-", tooltip),
+            columns=(folder_key[-1] if folder_key else "(root)", "-", "Folder", "-", "-", "-", "-", tooltip),
             tooltips=(tooltip,),
             parent=parent,
             entry_indexes=tuple(int(index) for index in self._tree_folder_entry_indexes.get(folder_key, ())),
@@ -267,7 +266,6 @@ class ArchiveBrowserModel(QAbstractItemModel):
         folder = entry.path if show_full_path else "/".join(parts[:-1])
         columns = (
             display_name,
-            "-",
             "-",
             str(entry.extension or "-"),
             str(getattr(entry, "orig_size", "") or "-"),

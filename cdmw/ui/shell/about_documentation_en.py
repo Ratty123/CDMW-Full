@@ -348,7 +348,7 @@ class AboutDocumentationEnglishMixin:
                   <li>Click <b>Scan</b>. Use the cached result on repeat scans when the package files have not changed.</li>
                   <li>Use flat view when searching broadly and tree view when following folders.</li>
                 </ol>
-                <div class="doc-callout"><b>Finding things quickly:</b> the main search checks paths, basenames, and linked item/localization aliases when the item-name index is available. <b>Exact Name</b> is only filled when package data provides a direct ItemInfo/localization-to-model hash link. <b>Name Evidence</b> shows the recovered name directly for broader model-family, icon, texture, or sidecar links; it is navigation evidence, not proof that the selected file is that item.</div>
+                <div class="doc-callout"><b>Finding things quickly:</b> the main search checks paths, basenames, and linked item/localization aliases when the item-name index is available. <b>Item Name</b> shows a direct ItemInfo/localization-to-model hash name when available, otherwise it shows the best related model-family, icon, texture, or sidecar name. Hover the cell to see whether the name is exact or inferred; an inferred name is navigation evidence, not proof that the selected file is that item.</div>
                 <h4>Find useful files</h4>
                 <ul>
                   <li>Filter by path fragments, package, file extension, role, size, and previewability.</li>
@@ -358,7 +358,7 @@ class AboutDocumentationEnglishMixin:
                 </ul>
                 <table>
                   <tr><th>Goal</th><th>Use</th><th>Notes</th></tr>
-                  <tr><td>Find a character or item model</td><td>Search by file stem, folder, or in-game name; use <b>Exact Name</b> and <b>Name Evidence</b> columns when available.</td><td>Exact names require direct package links. A name shown only as evidence is useful for navigation but is not proof of item identity.</td></tr>
+                  <tr><td>Find a character or item model</td><td>Search by file stem, folder, or in-game name; use the <b>Item Name</b> column when available.</td><td>The tooltip identifies direct names and inferred navigation evidence without spending a second table column on confidence.</td></tr>
                   <tr><td>Tell which duplicate is active</td><td>Read the <b>State</b> column.</td><td><b>Active mod</b> is the replacement payload currently winning over an original; <b>Shadowed original</b> or <b>Shadowed mod</b> means another row with the same virtual path has priority.</td></tr>
                   <tr><td>Find textures used by a model</td><td>Select the model and read <b>Referenced Files</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
                   <tr><td>Choose a placement source</td><td>Use <b>Edit HKX</b>, then <b>Choose Placement Source</b>, or pick through <b>Item Finder</b>.</td><td>Choose the visible source <code>.pac</code> when possible. HKX is useful context, but placement usually resolves through prefab/socket data around the model family.</td></tr>

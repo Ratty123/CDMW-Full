@@ -101,14 +101,14 @@ class RemoteArchiveBrowserNode:
         if column == 0:
             count = f" ({self.match_count:,})" if self.match_count else ""
             return f"{self.label}{count}"
-        if column == 3:
+        if column == 2:
             return "Category" if self.kind == "category" else "Folder"
-        if column == 8 and self.kind == "folder":
+        if column == 7 and self.kind == "folder":
             return self.path
-        return "-" if column in {1, 2, 4, 5, 6, 7} else ""
+        return "-" if column in {1, 3, 4, 5, 6} else ""
 
     def toolTip(self, column: int) -> str:
-        return (self.path or self.key) if column in {0, 8} else ""
+        return (self.path or self.key) if column in {0, 7} else ""
 
     def isSelected(self) -> bool:
         return False
@@ -649,8 +649,7 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
     role = _remote_type_display(entry)
     columns = (
         display_name,
-        entry.exact_name or "-",
-        entry.name_evidence or entry.known_name or "-",
+        entry.item_name or "-",
         role,
         _format_bytes(entry.original_size),
         compression,
@@ -661,8 +660,7 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
     size_tooltip = f"Original: {entry.original_size:,} bytes\nStored: {entry.stored_size:,} bytes"
     tooltips = (
         path,
-        entry.exact_name,
-        entry.name_evidence,
+        _item_name_tooltip(entry),
         f"Role: {entry.role.value}\nExtension: {entry.extension or '-'}",
         size_tooltip,
         compression,
@@ -671,6 +669,23 @@ def _row_payload(entry: ArchiveEntryDto, *, show_full_path: bool) -> ArchiveBrow
         path,
     )
     return ArchiveBrowserRowPayload(columns=columns, tooltips=tooltips)
+
+
+def _item_name_tooltip(entry: ArchiveEntryDto) -> str:
+    if entry.exact_name.strip():
+        return (
+            f"{entry.item_name}\n"
+            "Exact: ItemInfo localization ID plus direct model/prefab hash."
+        )
+    if entry.name_evidence.strip():
+        return (
+            f"{entry.item_name}\n"
+            "Possible related item name from model-family, icon, texture, sidecar, or equipment evidence; "
+            "it is not proof that this file is that item."
+        )
+    if entry.known_name.strip():
+        return f"{entry.item_name}\nArchive-provided item name."
+    return ""
 
 
 def _remote_type_display(entry: ArchiveEntryDto) -> str:
