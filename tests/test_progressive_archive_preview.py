@@ -292,7 +292,7 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
         self.assertIn("def _quick_archive_model_preview_payload", worker)
         self.assertIn('source="preview_cache"', worker)
         self.assertIn('source="preview_cache_fast"', worker)
-        self.assertIn('source="native_package_cache"', worker)
+        self.assertIn('source="dotnet_package_cache"', worker)
         self.assertIn('source="quick_preview"', worker)
         self.assertIn("emit_private_payloads=True", source)
 

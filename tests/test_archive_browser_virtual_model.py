@@ -652,7 +652,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("archive_preview_cache_limit_mode_combo", source)
         self.assertIn("Balanced 64 (recommended)", source)
         self.assertIn("High 128 (faster)", source)
-        self.assertIn("D3D11 disk cache", source)
+        self.assertIn(".NET/Vortice disk cache", source)
         self.assertIn("archive_resource_profile_combo", source)
         self.assertIn("archive_native_acceleration_checkbox", source)
         self.assertIn("archive_native_preview_cache_mode_combo", source)
