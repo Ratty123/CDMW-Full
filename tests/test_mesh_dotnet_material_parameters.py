@@ -15,7 +15,11 @@ from PySide6.QtWidgets import QApplication
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.mesh_editor.controller import MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.material_override_payloads import material_override_groups_for_native_triangle_groups
-from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder, _FakeProcess
+from tests.test_mesh_editor_action_bar import (
+    _EmbeddedMeshBuilder,
+    _FakeProcess,
+    _install_shared_dotnet_test_process,
+)
 
 
 _CAPABILITY = "resident_material_parameter_updates_v1"
@@ -33,9 +37,8 @@ def resident_parameter_tab(request: pytest.FixtureRequest) -> Iterator[tuple[QAp
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add(_CAPABILITY)
+    _install_shared_dotnet_test_process(tab, process, capabilities=(_CAPABILITY,))
     yield app, tab, builder, process
     tab.standalone_dotnet_material_parameter_timer.stop()
     tab.deleteLater()

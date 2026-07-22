@@ -17,7 +17,7 @@ from cdmw.models import TextureEditorSourceBinding
 from cdmw.modding.mesh_exporter import export_obj
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.texture_workflow.editor_resident_texture import build_texture_editor_resident_patch
-from tests.test_mesh_editor_action_bar import _FakeProcess
+from tests.test_mesh_editor_action_bar import _FakeProcess, _install_shared_dotnet_test_process
 from tools.mesh_harness.fixtures import build_synthetic_mesh
 
 
@@ -45,9 +45,12 @@ def test_texture_editor_dds_updates_resident_dotnet_resource_without_legacy_pack
         tab.open_mesh_session(mesh, session_id="texture-delta", mode="edit")
         process = _FakeProcess(tab)
         process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
         tab._connect_dotnet_protocol(process)
-        tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+        _install_shared_dotnet_test_process(
+            tab,
+            process,
+            capabilities=("resident_material_updates_v2",),
+        )
         binding = TextureEditorSourceBinding(
             launch_origin="mesh_editor",
             source_identity_path=f"texture-delta:0:{source_path}",
@@ -93,9 +96,12 @@ def test_texture_editor_export_assigns_undoable_resident_texture_and_obj_export(
         tab.open_mesh_session(mesh, session_id="texture-assignment", mode="edit")
         process = _FakeProcess(tab)
         process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
         tab._connect_dotnet_protocol(process)
-        tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+        _install_shared_dotnet_test_process(
+            tab,
+            process,
+            capabilities=("resident_material_updates_v2",),
+        )
         tab.standalone_texture_preview_overrides[0] = str(preview_path)
         binding = TextureEditorSourceBinding(
             launch_origin="mesh_editor",
@@ -183,9 +189,12 @@ def test_texture_editor_assignment_uses_embedded_dotnet_target_controller(tmp_pa
         tab.standalone_controller = None
         process = _FakeProcess(tab)
         process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
         tab._connect_dotnet_protocol(process)
-        tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+        _install_shared_dotnet_test_process(
+            tab,
+            process,
+            capabilities=("resident_material_updates_v2",),
+        )
         binding = TextureEditorSourceBinding(
             launch_origin="mesh_editor",
             texture_type="mesh_material",
@@ -220,9 +229,12 @@ def test_texture_editor_patch_uses_material_resource_and_cleans_payload_after_ac
         tab.open_mesh_session(mesh, session_id="texture-region", mode="edit")
         process = _FakeProcess(tab)
         process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
         tab._connect_dotnet_protocol(process)
-        tab.standalone_dotnet_capabilities.add("resident_texture_region_updates_v1")
+        _install_shared_dotnet_test_process(
+            tab,
+            process,
+            capabilities=("resident_texture_region_updates_v1",),
+        )
         tab.standalone_texture_region_queue._output_root = tmp_path / "patches"
         binding = TextureEditorSourceBinding(
             launch_origin="mesh_editor",

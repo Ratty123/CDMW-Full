@@ -20,7 +20,11 @@ from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.mesh_editor.controller import MeshEditorController, MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
 from cdmw.ui.mesh_editor.workspace import MeshEditorWorkspace
-from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder, _FakeProcess
+from tests.test_mesh_editor_action_bar import (
+    _EmbeddedMeshBuilder,
+    _FakeProcess,
+    _install_shared_dotnet_test_process,
+)
 from tests.test_mesh_service_editing import _quad_mesh
 
 
@@ -74,10 +78,9 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         }
         tab.standalone_dotnet_target_embedded = True
         tab.standalone_dotnet_target_controller = builder.controller
-        tab.standalone_dotnet_process_generation = 7
         process = _FakeProcess()
         process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
+        _install_shared_dotnet_test_process(tab, process, generation=7)
         tab._set_embedded_dotnet_state("ready", active=True)
         tab.standalone_dotnet_presentation_desired = {
             "active_view": "editable",
@@ -127,10 +130,9 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         builder._mesh_editor_embedded_placement_comparison_mode = lambda: "original_only"  # type: ignore[attr-defined]
         tab.standalone_dotnet_target_embedded = True
         tab.standalone_dotnet_target_controller = builder.controller
-        tab.standalone_dotnet_process_generation = 9
         process = _FakeProcess()
         process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
+        _install_shared_dotnet_test_process(tab, process, generation=9)
         tab._set_embedded_dotnet_state("ready", active=True)
         scene_transitions: list[dict[str, object]] = []
         tab._send_dotnet_scene_state = lambda **payload: scene_transitions.append(  # type: ignore[method-assign]
@@ -177,10 +179,9 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         tab.mount_embedded_builder(builder)
         tab.standalone_dotnet_target_embedded = True
         tab.standalone_dotnet_target_controller = builder.controller
-        tab.standalone_dotnet_process_generation = 10
         process = _FakeProcess()
         process._state = process.Running
-        tab.standalone_dotnet_editor_process = process
+        _install_shared_dotnet_test_process(tab, process, generation=10)
         tab.standalone_live_stroke_dispatcher = SimpleNamespace(
             metrics=lambda: {"active": 1, "control_depth": 0, "queue_depth": 1}
         )

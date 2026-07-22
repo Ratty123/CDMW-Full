@@ -12,7 +12,11 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.ui.mesh_editor import MeshEditorTab
-from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder, _FakeProcess
+from tests.test_mesh_editor_action_bar import (
+    _EmbeddedMeshBuilder,
+    _FakeProcess,
+    _install_shared_dotnet_test_process,
+)
 
 
 def _wait_for(app: QApplication, predicate, timeout: float = 3.0) -> bool:
@@ -64,9 +68,12 @@ def test_material_compiler_keeps_one_active_and_only_latest_pending_generation()
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
     try:
         with patch(
             "cdmw.workers.mesh_dotnet_material_update_worker.compile_mesh_dotnet_material_update",
@@ -101,9 +108,12 @@ def test_editor_close_cancels_active_and_pending_material_compilation() -> None:
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
     with patch(
         "cdmw.workers.mesh_dotnet_material_update_worker.compile_mesh_dotnet_material_update",
         side_effect=_slow_payload,

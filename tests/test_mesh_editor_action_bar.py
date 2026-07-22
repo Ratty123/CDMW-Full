@@ -352,6 +352,33 @@ class _FakeProcess:
         self.deleted = True
 
 
+def _install_shared_dotnet_test_process(
+    tab: MeshEditorTab,
+    process: _FakeProcess,
+    *,
+    generation: int = 1,
+    capabilities: tuple[str, ...] = (),
+) -> object:
+    """Attach a fake process to the canonical shared host used by the tab."""
+    host = (
+        tab.standalone_native_host
+        if tab.standalone_dotnet_target_embedded
+        else tab.standalone_native_host_frame
+    )
+    controller = host.controller
+    controller._process = process
+    controller._process_generation = int(generation)
+    controller._protocol_ready = True
+    controller._renderer_ready = True
+    controller._session_established = True
+    controller._capabilities.update(capabilities)
+    tab.standalone_dotnet_editor_process = process
+    tab.standalone_dotnet_process_generation = int(generation)
+    tab.standalone_dotnet_capabilities.update(capabilities)
+    tab._wire_shared_dotnet_controller(host)
+    return controller
+
+
 def _wait_for(app: QApplication, predicate: Callable[[], bool], *, timeout_seconds: float = 2.0) -> bool:
     started = time.monotonic()
     while time.monotonic() - started < timeout_seconds:

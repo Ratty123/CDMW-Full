@@ -18,7 +18,11 @@ from cdmw.services.mesh_dotnet_experiment import (
 )
 from cdmw.modding.static_mesh_scene_frame import static_scene_source_identity
 from cdmw.ui.mesh_editor import MeshEditorTab
-from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder, _FakeProcess
+from tests.test_mesh_editor_action_bar import (
+    _EmbeddedMeshBuilder,
+    _FakeProcess,
+    _install_shared_dotnet_test_process,
+)
 
 
 def _material_writes(
@@ -82,11 +86,14 @@ def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -
     )
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab.standalone_dotnet_experiment_package = package
     tab.standalone_dotnet_material_signature = original_signature
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
     mesh.submeshes[0].texture = "changed_material.dds"
 
     tab._start_dotnet_editor_requested(builder.controller, embedded=True)
@@ -128,9 +135,12 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
     source = tmp_path / "generated-base.dds"
     source.write_bytes(b"generated")
     binding = {
@@ -192,9 +202,12 @@ def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
     editable_mesh = builder.controller.working_mesh(clone=False)
     texture_path = tmp_path / "resolved-body.dds"
     texture_path.write_bytes(b"resolved-body")
@@ -251,9 +264,12 @@ def test_late_unindexed_clone_materials_survive_original_only_supplemental_parts
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
     editable_mesh = builder.controller.working_mesh(clone=False)
     texture_path = tmp_path / "resolved-unindexed.dds"
     texture_path.write_bytes(b"resolved-unindexed")
@@ -323,8 +339,8 @@ def test_pre_ready_clone_materials_replay_and_stale_pending_models_clear(tmp_pat
 
     process = _FakeProcess(tab)
     process._state = process.Running
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(tab, process)
     assert tab.standalone_dotnet_pending_clone_material_model is preview_model
     assert tab.standalone_dotnet_pending_reference_material_model is preview_model
     assert not process.stdin_writes
@@ -354,9 +370,12 @@ def test_failed_new_material_attempt_preserves_inflight_generation_and_commit(tm
     process._state = process.Running
     tab.standalone_dotnet_target_embedded = True
     tab.standalone_dotnet_target_controller = builder.controller
-    tab.standalone_dotnet_editor_process = process
     tab._connect_dotnet_protocol(process)
-    tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2",),
+    )
     hook = getattr(builder, "_mesh_editor_embedded_apply_material_resources")
     session_id = builder.controller.session_view().session_id
 

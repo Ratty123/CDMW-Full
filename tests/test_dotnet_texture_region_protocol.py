@@ -19,7 +19,7 @@ def test_dotnet_texture_region_protocol_is_negotiated_validated_and_acknowledged
     assert 'case "texture_region_update":' in protocol
     assert "HandleTextureRegionUpdate(root);" in protocol
     assert '"resident_texture_region_updates_v1"' in provenance
-    assert "HelperBuildProvenance.RequiredProtocolCapabilities" in protocol
+    assert "HelperBuildProvenance.ProtocolCapabilities(_options.Profile)" in protocol
     assert 'capabilities.Add("resident_texture_region_updates_v1")' in status
     assert 'WriteProtocolEvent("texture_region_applied"' in region
     assert 'WriteProtocolEvent("texture_region_failed"' in region
