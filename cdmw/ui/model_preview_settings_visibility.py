@@ -276,7 +276,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
             "Advanced diagnostics and render options can be expensive, visually incorrect, asset-dependent, or have no visible effect on some previews. Use them for inspection rather than as guaranteed final rendering."
         )
         dialog.general_hint_label.setText(
-            "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview. Visible texture mode controls how aggressively sidecar-visible layers are allowed to replace the mesh-derived base texture."
+            "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview."
         )
         dialog.d3d11_hint_label.setText(
             ".NET/Vortice Preview supports texture on/off, culling, view modes, Flip texture V, normal-Y override, sampler address mode, support-map shading, camera controls, zoom, fit, tool-side PBD physics preview, static HKX context when present, and exact DDS diagnostics."
@@ -294,17 +294,21 @@ def sync_renderer_specific_controls(dialog: object) -> None:
             "Reset keeps the inversion checkboxes as-is so you do not lose your preferred camera controls."
         )
         dialog.reset_button.setText("Reset to Defaults")
-    for widget, native_label, dotnet_label in (
-        (dialog.d3d11_view_mode_combo, "D3D11 view mode", "View mode"),
-        (dialog.d3d11_normal_y_mode_combo, "D3D11 normal Y", "Normal-map Y"),
-        (dialog.d3d11_texture_address_mode_combo, "D3D11 texture address", "Texture address"),
+    for widget, archive_label, embedded_label in (
+        (dialog.d3d11_view_mode_combo, ".NET/Vortice view", ".NET/Vortice view"),
+        (dialog.d3d11_normal_y_mode_combo, ".NET/Vortice normal Y", ".NET/Vortice normal Y"),
+        (
+            dialog.d3d11_texture_address_mode_combo,
+            ".NET/Vortice texture address",
+            ".NET/Vortice texture address",
+        ),
     ):
         label = dialog._form_field_label(widget)
         if label is not None:
-            label.setText(dotnet_label if dotnet else native_label)
+            label.setText(embedded_label if dotnet else archive_label)
     if not dotnet:
         dialog.high_quality_checkbox.setToolTip(
-            "D3D11 packages and shades resolved normal/material/height support maps only when this is enabled."
+            ".NET/Vortice packages and shades resolved normal/material/height support maps only when this is enabled."
         )
     dialog._sync_probe_controls_enabled()
 

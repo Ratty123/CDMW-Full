@@ -1,4 +1,4 @@
-"""D3D11 preview package workers."""
+"""Compatibility-named .NET/Vortice preview package workers."""
 
 from __future__ import annotations
 
@@ -55,7 +55,6 @@ class AlignmentD3D11PackageWorker(QObject):
         reuse_prepared_geometry: bool = False,
         geometry_cache_dir: Optional[Path] = None,
         texture_cache_dir: Optional[Path] = None,
-        original_reference_native_package_dir: Optional[Path] = None,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -72,11 +71,6 @@ class AlignmentD3D11PackageWorker(QObject):
         self.reuse_prepared_geometry = bool(reuse_prepared_geometry)
         self.geometry_cache_dir = Path(geometry_cache_dir).expanduser() if geometry_cache_dir else None
         self.texture_cache_dir = Path(texture_cache_dir).expanduser() if texture_cache_dir else None
-        self.original_reference_native_package_dir = (
-            Path(original_reference_native_package_dir).expanduser()
-            if original_reference_native_package_dir
-            else None
-        )
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -449,14 +443,14 @@ class AlignmentD3D11PackageWorker(QObject):
                 self.request_id,
                 max(0, int(current)),
                 max(1, int(total)),
-                str(message or "Preparing D3D11 preview package..."),
+                str(message or "Preparing .NET/Vortice preview package..."),
             )
 
         def _emit_package_progress(current: int, total: int, message: str) -> None:
             total = max(1, int(total))
             current = max(0, min(total, int(current)))
             percent = 40 + int(round((float(current) / float(total)) * 40.0))
-            _emit_progress(percent, 100, message or "Writing D3D11 preview package...")
+            _emit_progress(percent, 100, message or "Writing .NET/Vortice preview package...")
 
         try:
             if self.stop_event.is_set():

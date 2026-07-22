@@ -467,3 +467,29 @@ def clear_native_preview_package_cache(cache_root: Path) -> None:
         packages_root.rmdir()
     except OSError:
         pass
+
+
+# Canonical .NET/Vortice names.  The implementation remains in this module so
+# older extensions can keep importing the historical symbols, but production
+# renderer code imports the canonical facade in ``dotnet_preview_package_cache``.
+DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA = NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA
+DOTNET_PREVIEW_PACKAGE_CACHE_MODES = NATIVE_PREVIEW_PACKAGE_CACHE_MODES
+DotNetPreviewPackageCacheHit = NativePreviewPackageCacheHit
+DotNetPreviewPackageCacheLease = NativePreviewPackageCacheLease
+clamp_dotnet_preview_package_cache_mode = clamp_native_preview_package_cache_mode
+dotnet_preview_package_cache_budget = native_preview_package_cache_budget
+dotnet_preview_package_prefetch_limit = native_preview_package_prefetch_limit
+dotnet_preview_package_cache_packages_root = native_preview_package_cache_packages_root
+dotnet_preview_package_cache_entry_dir = native_preview_package_cache_entry_dir
+dotnet_preview_package_cache_build_lock = native_preview_package_cache_build_lock
+create_dotnet_preview_package_staging_dir = create_native_preview_package_staging_dir
+release_dotnet_preview_package_staging_dir = release_native_preview_package_staging_dir
+dotnet_preview_package_cache_use = native_preview_package_cache_use
+acquire_dotnet_preview_package_cache_lease = acquire_native_preview_package_cache_lease
+acquire_dotnet_preview_package_cache_lease_for_path = acquire_native_preview_package_cache_lease_for_path
+is_temp_dotnet_preview_package_path = is_temp_native_preview_package_path
+is_durable_dotnet_preview_package_path = is_durable_native_preview_package_path
+lookup_dotnet_preview_package_cache = lookup_native_preview_package_cache
+store_dotnet_preview_package_cache = store_native_preview_package_cache
+prune_dotnet_preview_package_cache = prune_native_preview_package_cache
+clear_dotnet_preview_package_cache = clear_native_preview_package_cache

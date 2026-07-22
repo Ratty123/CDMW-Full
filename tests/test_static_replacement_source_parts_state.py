@@ -2342,12 +2342,12 @@ def test_source_parts_preview_rebuild_pending_presentation_keeps_old_geometry_wa
     assert presentation.apply_button_enabled is False
     assert presentation.label_text == (
         "Applied: source-part changes. Rebuilding preview; "
-        "old D3D11 geometry may remain visible until reload finishes."
+        "old .NET/Vortice geometry may remain visible until reload finishes."
     )
     assert presentation.label_visible is True
     assert presentation.performance_summary == "Source-part changes applied. Rebuilding preview package."
     assert presentation.performance_details == (
-        "source-part changes\nOld D3D11 geometry may remain visible until reload finishes."
+        "source-part changes\nOld .NET/Vortice geometry may remain visible until reload finishes."
     )
 
 

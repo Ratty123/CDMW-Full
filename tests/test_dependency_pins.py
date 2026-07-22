@@ -10,10 +10,7 @@ VGMSTREAM_SHA256 = "110f9087e60057c4af6cff84e26c214159c224792421affdddd3aaa2091f
 
 
 def test_directxtex_fetches_are_pinned_to_the_same_commit() -> None:
-    for path in (
-        Path("native/cdmw_d3d11_preview/CMakeLists.txt"),
-        Path("native/cd_texture_dx/CMakeLists.txt"),
-    ):
+    for path in (Path("native/cd_texture_dx/CMakeLists.txt"),):
         source = path.read_text(encoding="utf-8")
         assert f'set(CDMW_DIRECTXTEX_COMMIT "{DIRECTXTEX_COMMIT}"' in source
         assert "GIT_TAG ${CDMW_DIRECTXTEX_COMMIT}" in source

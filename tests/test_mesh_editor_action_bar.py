@@ -3619,7 +3619,7 @@ class MeshEditorActionBarTests(unittest.TestCase):
         self.assertEqual(0, workspace.log_list.count())
         workspace.set_native_performance_status({"metrics": {"frame_time_ms": 33.4, "cpu_update_ms": 2.5, "gpu_upload_ms": 7.0, "draw_call_count": 9}})
         self.assertEqual(1, workspace.log_list.count())
-        self.assertIn("Slow native preview frame: 33.40 ms", workspace.log_list.item(0).text())
+        self.assertIn("Slow .NET/Vortice preview frame: 33.40 ms", workspace.log_list.item(0).text())
         workspace.set_native_performance_status({"metrics": {"frame_time_ms": 33.4, "cpu_update_ms": 2.5, "gpu_upload_ms": 7.0, "draw_call_count": 9}})
         self.assertEqual(1, workspace.log_list.count())
         app.processEvents()

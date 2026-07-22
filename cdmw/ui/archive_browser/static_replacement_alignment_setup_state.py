@@ -29,7 +29,7 @@ def alignment_builder_already_open_status() -> str:
 
 
 def alignment_builder_closed_empty_state_message() -> str:
-    return "Mesh Replacement Builder closed. Choose a workflow to reopen the live D3D11 preview."
+    return "Mesh Replacement Builder closed. Choose a workflow to reopen the live .NET/Vortice Preview."
 
 
 def alignment_builder_archive_preview_pause_message() -> str:

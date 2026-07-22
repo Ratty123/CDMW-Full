@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from pathlib import Path
 from types import SimpleNamespace
-
-from tests.native_source_text import d3d11_preview_source
 
 from cdmw.ui.archive_browser.static_replacement_d3d11_cache import (
     alignment_d3d11_cache_display_class,
@@ -30,11 +29,12 @@ def test_alignment_d3d11_cache_display_class_normalizes_modes() -> None:
     assert alignment_d3d11_cache_display_class("") == "with_original"
 
 
-def test_native_texture_cache_uses_hardlink_identity_across_package_reloads() -> None:
-    source = d3d11_preview_source()
+def test_vortice_texture_cache_uses_material_fingerprints_across_package_reloads() -> None:
+    source = Path("tools/dotnet_mesh_editor_experiment/NetTextureSet.Incremental.cs").read_text(encoding="utf-8")
 
-    assert "GetFileInformationByHandle" in source
-    assert "stable_file_id ? L\"\" : (L\"|\" + path)" in source
+    assert 'return $"fingerprint|{fingerprint}";' in source
+    assert ".GroupBy(item => item.Reference.SourceCacheKey" in source
+    assert "_decodedByFingerprint.TryGetValue(reference.SourceCacheKey" in source
 
 
 def test_alignment_d3d11_package_is_cached_checks_ordered_cache_paths(tmp_path) -> None:

@@ -36,7 +36,7 @@ def _combo_entries(combo: QComboBox) -> list[tuple[str, object]]:
 
 
 def test_static_combo_options_keep_expected_order_and_values() -> None:
-    assert PREVIEW_RENDERER_OPTIONS == (("Native D3D11 accurate", "d3d11"),)
+    assert PREVIEW_RENDERER_OPTIONS == ((".NET/Vortice Preview", "d3d11"),)
     assert PREVIEW_MODE_OPTIONS == (
         ("Side by side", "side_by_side"),
         ("Overlay", "overlay"),

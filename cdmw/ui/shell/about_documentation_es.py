@@ -264,7 +264,7 @@ class AboutDocumentationSpanishMixin:
                   <li><b>Importar vista de malla</b> prueba OBJ/DAE/glTF/GLB sin escribir salida.</li>
                   <li><b>Importar malla</b> continua desde la misma revision y puede escribir salida suelta mod-ready o parche compatible despues de confirmar.</li>
                   <li><b>Intercambiar con malla del juego</b> marca una malla del archivo como destino y usa otra malla cargada como origen para el flujo de alineacion.</li>
-                  <li><b>Editar HKX</b> y <b>Elegir origen de colocacion</b> copian datos de prefab/socket desde otro arma/modelo. Elige el <code>.pac</code> visible cuando sea posible; el selector muestra una miniatura estatica de geometria y la edicion visual se abre en D3D11 nativo.</li>
+                  <li><b>Editar HKX</b> y <b>Elegir origen de colocacion</b> copian datos de prefab/socket desde otro arma/modelo. Elige el <code>.pac</code> visible cuando sea posible; el selector muestra una miniatura estatica de geometria y la edicion visual se abre en la vista .NET/Vortice.</li>
                   <li>Los parches directos son compatibles solo para formatos donde la app puede reconstruir datos de forma segura.</li>
                 </ul>
                 """,
@@ -440,7 +440,7 @@ class AboutDocumentationSpanishMixin:
                     <ul>
                       <li><b>Abrir colocacion HKX</b> trata el recurso abierto como el objetivo que cambia. <b>Elegir origen de colocacion</b> busca el arma/modelo fuente del que se copiara la colocacion.</li>
                       <li>Elige un <code>.pac</code> visible como origen cuando sea posible. Puedes buscar en los indices del archivo o usar <b>Item Finder</b> para empezar por nombre, icono o categoria.</li>
-                      <li>El selector de origen muestra una miniatura estatica de geometria para confirmar el modelo; la edicion visual se abre en D3D11 nativo.</li>
+                      <li>El selector de origen muestra una miniatura estatica de geometria para confirmar el modelo; la edicion visual se abre en la vista .NET/Vortice.</li>
                       <li><b>Comparar colocacion</b> verifica prefab/socket/HKX resueltos antes de empaquetar. <b>Editar valores de socket</b> aparece cuando el XML recuperado se puede mostrar y escribir de forma segura.</li>
                     </ul>
                     """,
@@ -473,7 +473,7 @@ class AboutDocumentationSpanishMixin:
                       <li>Los perfiles no guardan archivos abiertos, documentos activos ni sesiones de proyecto por pestana.</li>
                       <li><b>Exportar diagnosticos</b> incluye el mismo perfil, logs, resumen de cache, analisis de chaiNNer, contexto de fallos si existe, README, licencia y avisos de terceros.</li>
                       <li><b>Configuracion / Inicio</b>: carga automatica del archivo, preferencia de cache, ultima pestana y filtros del explorador.</li>
-                      <li><b>Configuracion / Rendimiento</b>: perfil de recursos, backend de vista, presupuesto UI, workers, aceleracion nativa, indexacion de sidecars y cache D3D11.</li>
+                      <li><b>Configuracion / Rendimiento</b>: perfil de recursos, backend de vista, presupuesto UI, workers, aceleracion nativa, indexacion de sidecars y cache .NET/Vortice.</li>
                       <li><b>Configuracion / Apariencia</b>: temas, Espanol/Aleman integrados, idiomas personalizados, fuentes, densidad, colores y valores 3D.</li>
                     </ul>
                     <p>Exportar idioma crea JSON con claves en ingles. Manten las claves sin cambios y edita solo los valores traducidos.</p>

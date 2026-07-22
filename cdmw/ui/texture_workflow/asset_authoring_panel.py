@@ -572,7 +572,7 @@ class TextureWorkflowAssetAuthoringPanelMixin:
         self._queue_current_compare_preview_if_visible()
         if self._is_tool_visible_or_current(self.archive_browser_tab):
             self._force_refresh_current_model_preview_assets()
-            self.append_log("Requested Archive Browser D3D11 preview refresh for generated texture maps.")
+            self.append_log("Requested Archive Browser .NET/Vortice Preview refresh for generated texture maps.")
         self._refresh_dashboard()
 
     def open_material_maker_export_folder(self) -> None:

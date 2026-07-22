@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-from tests.native_source_text import d3d11_preview_source
 from tests.static_replacement_source_support import (
     static_replacement_callback_factory_source,
     static_replacement_mesh_edit_implementation_source,
@@ -112,21 +111,16 @@ class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
         self.assertIn('"morph_state_update" => $"{message.EventName}|{sessionId}"', source)
         self.assertNotIn("Process.Start", (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs").read_text(encoding="utf-8"))
 
-    def test_native_vertex_dots_use_instanced_overlay_and_cached_screen_vertices(self) -> None:
-        native_source = d3d11_preview_source()
+    def test_vortice_vertex_overlay_reuses_resident_geometry_buffers(self) -> None:
+        overlay_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
+        selection_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "MeshViewport.SelectionPicking.cs").read_text(encoding="utf-8")
 
-        self.assertIn("struct MeshEditScreenVertexCache", native_source)
-        self.assertIn("mesh_edit_screen_vertices_for_view", native_source)
-        self.assertIn("draw_mesh_edit_vertex_dots_instanced", native_source)
-        self.assertIn("DrawInstanced", native_source)
-        self.assertIn('std::string selection_mode = "brush";', native_source)
-        self.assertIn('mesh_edit_.selection_mode == "lasso"', native_source)
-        self.assertIn('mesh_edit_.selection_mode == "rectangle"', native_source)
-        self.assertIn('command == "set_mesh_edit_selection"', native_source)
-        dot_draw_start = native_source.index("void draw_mesh_edit_vertex_dots_instanced")
-        dot_draw_end = native_source.index("void draw_mesh_edit_overlay", dot_draw_start)
-        dot_draw_body = native_source[dot_draw_start:dot_draw_end]
-        self.assertNotIn("add_disc", dot_draw_body)
+        self.assertIn("private void DrawD3D11VertexOverlay()", overlay_source)
+        self.assertIn("_context.IASetVertexBuffer(0u, batch.VertexBuffer", overlay_source)
+        self.assertIn("_context.DrawIndexed((uint)batch.IndexCount", overlay_source)
+        self.assertIn("PrimitiveTopology.PointList", overlay_source)
+        self.assertIn("VertexIdsInRectangle", selection_source)
+        self.assertIn("FaceIdsInRectangle", selection_source)
 
 
 if __name__ == "__main__":

@@ -953,7 +953,7 @@ class ArchiveAttachmentSafePlacementDialogMixin:
             diagnostics = [
                 f"Target: {target_entry.path}",
                 f"Placement source: {donor_entry.path if isinstance(donor_entry, ArchiveEntry) else 'none'}",
-                f"Safe editor: D3D11-only socket selection.",
+                f"Safe editor: .NET/Vortice-only socket selection.",
                 f"Selected attach point: {getattr(selected_evidence, 'character_socket_name', '') or 'source default'}",
                 f"Selected pivot socket: {selected_socket_name or '-'}",
                 f"Manual offset: {_format_value(_visual_offset())}",

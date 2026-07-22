@@ -73,14 +73,14 @@ def alignment_d3d11_restart_performance_details(
     return (
         f"{str(stale_details or '')}\n"
         f"restart={int(restart_count or 0) + 1}/{int(max_restarts or 0)}\n"
-        "The stale native load was cancelled and the latest preview request was queued immediately."
+        "The stale .NET/Vortice load was cancelled and the latest preview request was queued immediately."
     )
 
 
 def alignment_d3d11_failed_performance_details(stale_details: str) -> str:
     return (
         f"{str(stale_details or '')}\n"
-        "The native renderer stayed alive, but no native loaded event arrived before the watchdog."
+        "The .NET/Vortice renderer stayed alive, but no package-loaded acknowledgement arrived before the watchdog."
     )
 
 

@@ -30,12 +30,12 @@ from cdmw.rendering.native_preview_core import (
     render_settings_to_native_preview_core_dict,
     run_native_preview_core_preview_job,
 )
-from cdmw.rendering.native_preview_package_cache import (
-    create_native_preview_package_staging_dir,
-    lookup_native_preview_package_cache,
-    native_preview_package_cache_build_lock,
-    release_native_preview_package_staging_dir,
-    store_native_preview_package_cache,
+from cdmw.rendering.dotnet_preview_package_cache import (
+    create_dotnet_preview_package_staging_dir,
+    dotnet_preview_package_cache_build_lock,
+    lookup_dotnet_preview_package_cache,
+    release_dotnet_preview_package_staging_dir,
+    store_dotnet_preview_package_cache,
 )
 from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package
 
@@ -125,14 +125,14 @@ class ArchivePreviewNativeMixin:
         dds_cache_target_bytes = 64 * 1024 * 1024
         try:
             if durable_cache_enabled:
-                build_lock = native_preview_package_cache_build_lock(
+                build_lock = dotnet_preview_package_cache_build_lock(
                     cache_root,
                     self.native_preview_package_cache_key,
                 )
                 build_lock.acquire()
                 if self.stop_event.is_set():
                     raise RunCancelled("Native preview-core job cancelled.")
-                hit = lookup_native_preview_package_cache(
+                hit = lookup_dotnet_preview_package_cache(
                     cache_root,
                     self.native_preview_package_cache_key,
                     validate_package=self._validate_native_preview_core_package_basic,
@@ -155,7 +155,7 @@ class ArchivePreviewNativeMixin:
                 dds_cache_max_bytes = 512 * 1024 * 1024 if cache_mode == "aggressive" else 192 * 1024 * 1024
                 dds_cache_target_bytes = 384 * 1024 * 1024 if cache_mode == "aggressive" else 128 * 1024 * 1024
                 try:
-                    staging_entry_dir = create_native_preview_package_staging_dir(cache_root, leased=True)
+                    staging_entry_dir = create_dotnet_preview_package_staging_dir(cache_root, leased=True)
                     output_root = staging_entry_dir / "package"
                 except OSError:
                     staging_entry_dir = None
@@ -189,7 +189,7 @@ class ArchivePreviewNativeMixin:
                     "render_settings": render_settings_to_native_preview_core_dict(self.render_settings),
                     "diagnostics": dict(native_attempt.diagnostics),
                 }
-                hit = store_native_preview_package_cache(
+                hit = store_dotnet_preview_package_cache(
                     cache_root,
                     self.native_preview_package_cache_key,
                     staging_entry_dir,
@@ -242,7 +242,7 @@ class ArchivePreviewNativeMixin:
             )
         finally:
             if staging_entry_dir is not None:
-                release_native_preview_package_staging_dir(staging_entry_dir, cleanup=True)
+                release_dotnet_preview_package_staging_dir(staging_entry_dir, cleanup=True)
             if build_lock is not None:
                 build_lock.release()
 
@@ -319,7 +319,7 @@ class ArchivePreviewNativeMixin:
         package_dir = Path(str(package_path or ""))
         manifest_path = package_dir / "manifest.json"
         if not manifest_path.is_file():
-            return (), None, ("Native manifest metadata missing; D3D11 package remains native-only.",), 0
+            return (), None, ("Preview Core manifest metadata is missing; the decode package cannot be converted.",), 0
         try:
             manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         except Exception as exc:
@@ -327,7 +327,7 @@ class ArchivePreviewNativeMixin:
         schema_version = int(manifest.get("schema_version") or 0)
         asset_payload = manifest.get("asset_family")
         if not isinstance(asset_payload, dict):
-            return (), None, ("Native manifest has no asset_family payload; D3D11 package remains native-only.",), schema_version
+            return (), None, ("Preview Core manifest has no asset_family payload; the decode package cannot be converted.",), schema_version
 
         source_entry = self.entry
         root_path = str(asset_payload.get("root_path") or getattr(source_entry, "path", "") or "").replace("\\", "/")
@@ -594,7 +594,10 @@ class ArchivePreviewNativeMixin:
     ) -> ArchivePreviewResult:
         entry = self.entry
         metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
-        reason = str(getattr(native_attempt, "fallback_reason", "") or "native preview-core did not produce a D3D11 package")
+        reason = str(
+            getattr(native_attempt, "fallback_reason", "")
+            or "native Preview Core did not produce a .NET/Vortice package"
+        )
         detail_text = "\n".join(
             part
             for part in (

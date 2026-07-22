@@ -589,7 +589,10 @@ def _transform_drag_step_034(_state):
         _state._safe_stop_alignment_timer(_state.static_preview_settle_timer)
         _state._safe_stop_alignment_timer(_state.alignment_d3d11_drag_ui_timer)
         _state._flush_alignment_d3d11_drag_ui()
-        prepare_state = _state._alignment_preview_drag_prepare_state_helper(_state._alignment_part_source_indices_for_commit(), undo_label='D3D11 part drag')
+        prepare_state = _state._alignment_preview_drag_prepare_state_helper(
+            _state._alignment_part_source_indices_for_commit(),
+            undo_label='.NET/Vortice part drag',
+        )
         part_source_indices = tuple(prepare_state['part_source_indices'])
         if bool(prepare_state['push_undo']):
             _state._push_geometry_undo_snapshot(str(prepare_state['undo_label']))
@@ -688,7 +691,7 @@ def _transform_drag_step_043(_state):
         delta = _state._alignment_d3d11_translation_to_transform_units(dx, dy, dz)
         part_source_indices = _state._alignment_d3d11_drag_part_source_indices_helper(_state.alignment_d3d11_drag_transaction)
         if part_source_indices:
-            if _state._active_mesh_edit_part_adjustment_mutation_blocked('D3D11 transform'):
+            if _state._active_mesh_edit_part_adjustment_mutation_blocked('.NET/Vortice transform'):
                 return
             update_state = _state._alignment_d3d11_drag_transform_update_state_helper(part_source_indices=part_source_indices, delta_xyz=delta, value_index=0, part_transform_values={int(source_index): _state._alignment_d3d11_base_part_transform(source_index) for source_index in part_source_indices})
             for source_index, new_offset in dict(update_state['part_values']).items():

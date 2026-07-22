@@ -5,12 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from cdmw.models import (
+    D3D11_PREVIEW_VIEW_MODE_LABELS,
     MODEL_PREVIEW_ALPHA_HANDLING_LABELS,
     MODEL_PREVIEW_DIFFUSE_SWIZZLE_LABELS,
-    MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS,
     MODEL_PREVIEW_SAMPLER_PROBE_LABELS,
     MODEL_PREVIEW_TEXTURE_PROBE_SOURCE_LABELS,
-    MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS,
     ModelPreviewRenderSettings,
 )
 
@@ -46,13 +45,9 @@ _DISABLE_TOGGLE_FIELDS: tuple[tuple[str, str], ...] = (
 
 
 def model_preview_settings_status(settings: ModelPreviewRenderSettings) -> tuple[str, str]:
-    visible_label = MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS.get(
-        settings.visible_texture_mode,
-        settings.visible_texture_mode,
-    )
-    render_label = MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS.get(
-        settings.render_diagnostic_mode,
-        settings.render_diagnostic_mode,
+    view_label = D3D11_PREVIEW_VIEW_MODE_LABELS.get(
+        settings.d3d11_view_mode,
+        settings.d3d11_view_mode,
     )
     alpha_label = MODEL_PREVIEW_ALPHA_HANDLING_LABELS.get(
         settings.alpha_handling_mode,
@@ -78,14 +73,13 @@ def model_preview_settings_status(settings: ModelPreviewRenderSettings) -> tuple
     ]
     checked_text = ", ".join(checked_disables) if checked_disables else "None"
     status = (
-        f"3D Preview: Visible {visible_label} | {render_label} | "
+        f"3D Preview: .NET/Vortice {view_label} | "
         f"ON: Textures {'yes' if settings.use_textures_by_default else 'no'}, "
         f"Support-map shading {'yes' if settings.high_quality_by_default else 'no'} | "
         f"Checked disables: {checked_text}"
     )
     detail_lines = [
-        f"Visible texture mode: {visible_label}",
-        f"Diagnostic render mode: {render_label}",
+        f".NET/Vortice view: {view_label}",
         f"Use textures when available: {'enabled' if settings.use_textures_by_default else 'disabled'}",
         f"Support-map preview shading: {'enabled' if settings.high_quality_by_default else 'disabled'}",
         f"Alpha handling: {alpha_label}",

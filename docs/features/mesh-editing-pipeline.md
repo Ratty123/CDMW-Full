@@ -37,13 +37,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
     sources through one named unity group; no owner source includes another.
     `tests/test_native_mesh_core_decomposition.py` enforces the 1,000-line
     default file and 150-line real-function ceilings.
-  - `native/cdmw_d3d11_preview/src/main.cpp` is likewise a thin host entry.
-    Ordered CMake unity owners under `src/owners/` retain the existing package,
-    renderer, picking, interaction, sparse-update, command, and status protocols
-    without source-level owner includes. `tests/native_source_text.py` provides
-    the ordered aggregate used by legacy source guards, while
-    `tests/test_native_d3d11_preview_decomposition.py` enforces the same 1,000/150
-    ceilings.
+  - `cdmw/ui/preview/` owns the shared Qt host and resident .NET/Vortice process
+    lifecycle. Preview-profile surfaces are read-only; authoring-profile
+    surfaces use the same process plus the resident MeshService mutation
+    protocol. Native Preview Core and Mesh Core remain decode/edit services and
+    never own visible rendering.
 - Import/export formats:
   - GLB editable packages are handled by
     `cdmw.modding.mesh_glb_interchange`. They write `mesh.glb` plus the same
@@ -310,18 +308,18 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   `MeshExportValidationWorker` to refresh export validation off the UI thread;
   `Copy` copies the current structured export validation report as JSON from the
   same report object rendered in the panel.
-- The Mesh Editor preview toolbar and Performance panel show native preview FPS,
+- The Mesh Editor preview toolbar and Performance panel show .NET/Vortice FPS,
   average FPS, frame time, CPU update time, GPU upload time, draw call count,
   vertex count, index count, visible submesh count, and texture memory when
-  native status provides them. They consume direct native D3D11 status fields
+  renderer status provides them. They consume direct Vortice status fields
   (`first_frame_ms`, `geometry_upload_ms`, `vertex_count`, `batch_count`) and
   nested status metrics (`current_fps`, `average_fps`, `frame_time_ms`) from file
-  polling or native host events. Embedded replacement D3D11 load summaries also
-  surface FPS/frame-time when native status reports them.
-- Slow native preview frames over the 16.6 ms target are logged once per metric
+  polling or shared-host events. Embedded replacement load summaries also
+  surface FPS/frame-time when renderer status reports them.
+- Slow preview frames over the 16.6 ms target are logged once per metric
   sample in the existing Mesh Editor log strip with frame, CPU, GPU, draw-call,
   and visible-submesh details when available.
-- Active native preview package creation fails closed before native handoff when
+- Active .NET preview package creation fails closed before resident handoff when
   malformed non-finite vertex, normal, UV, tangent, or bitangent data is present.
   Explicit fallback-only test helpers still sanitize those values for diagnostic
   payload checks.
@@ -466,8 +464,7 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   normalization, including imports prepared inside the preflight worker. .NET
   material synthesis preserves that source orientation across raw and generated
   channels, so support-map baking cannot discard the automatic normalization.
-  a ready acknowledgement stops any covered native D3D11 sibling once so it
-  cannot paint over the child. Production readiness is emitted only after
+  Production readiness is emitted only after
   textures/material bindings are applied and the Vortice viewport has presented
   its first frame. Renderer-blocked or failed embedded startup leaves preview
   unavailable; it never restores a native/classic Mesh Editor renderer. The helper uses
@@ -476,8 +473,8 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   `cdmw-mesh-dotnet-editor.exe`; stale configured paths fall through to
   bundled/dev discovery. A ready watchdog stops helpers that start but never
   become interactive. Texture resources are deduplicated and hard-linked where
-  possible, .NET decode runs in the background, and native D3D11 uses Windows
-  file identity to reuse hard-linked SRVs across package paths. The host builds
+  possible, .NET decode runs in the background, and Vortice uses Windows file
+  identity to reuse hard-linked SRVs across package paths. The host builds
   the handoff package in
   `MeshDotNetExperimentPackageWorker`, and launches the process with input
   metadata, status, output, and edit-operation paths. Modify Original mirrors

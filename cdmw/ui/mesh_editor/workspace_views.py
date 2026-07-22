@@ -117,7 +117,10 @@ def _part_selection_summary_text(summary: MeshWorkspaceSummary | None) -> str:
         return "Selected parts: no mesh."
     selected = tuple(part for part in summary.parts if part.selected)
     if not selected:
-        return f"Selected parts: 0/{int(summary.part_count or 0)}. Click rows or D3D11 viewport parts to select."
+        return (
+            f"Selected parts: 0/{int(summary.part_count or 0)}. "
+            "Click rows or .NET/Vortice viewport parts to select."
+        )
     details = "; ".join(_part_detail_text(part) for part in selected[:4])
     if len(selected) > 4:
         details = f"{details}; +{len(selected) - 4} more"

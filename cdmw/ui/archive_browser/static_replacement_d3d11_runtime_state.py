@@ -614,7 +614,7 @@ def alignment_d3d11_host_ready_state(
         except (TypeError, ValueError, OverflowError):
             normalized_child_hwnd = 0
         if normalized_child_hwnd <= 0:
-            return AlignmentD3D11HostReadyState(False, "native preview child HWND is unavailable")
+            return AlignmentD3D11HostReadyState(False, ".NET/Vortice preview child HWND is unavailable")
     return AlignmentD3D11HostReadyState(True, "preview host is ready")
 
 

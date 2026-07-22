@@ -38,8 +38,8 @@ from cdmw.models import (
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.rendering.static_model_thumbnail import render_static_model_thumbnail_image
 from cdmw.workers.archive_preview_native import ArchivePreviewNativeMixin, NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
-from cdmw.rendering.native_preview_package_cache import (
-    lookup_native_preview_package_cache,
+from cdmw.rendering.dotnet_preview_package_cache import (
+    lookup_dotnet_preview_package_cache,
 )
 from cdmw.services.mesh_dotnet_preview_package import (
     build_or_lookup_dotnet_preview_package_from_model,
@@ -311,7 +311,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         cache_mode = str(self.native_preview_package_cache_mode or "off").strip().lower()
         if cache_root is None or cache_mode == "off" or not cache_key:
             return None
-        hit = lookup_native_preview_package_cache(
+        hit = lookup_dotnet_preview_package_cache(
             Path(cache_root),
             cache_key,
             validate_package=self._validate_native_preview_core_package_basic,
@@ -329,7 +329,7 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             sidecar_generation=self.sidecar_generation,
             source_manifest=source_manifest,
         )
-        dotnet_hit = lookup_native_preview_package_cache(
+        dotnet_hit = lookup_dotnet_preview_package_cache(
             Path(cache_root) / "dotnet_vortice",
             dotnet_cache_key,
             validate_package=validate_dotnet_preview_package,

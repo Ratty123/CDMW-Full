@@ -168,7 +168,7 @@ class MeshEditorTab(MeshEditorTabShellMixin, MeshEditorNativePreviewMixin, MeshE
     """Main mesh replacement/editing workspace host.
 
     The full Mesh Replacement Builder is mounted here for active sessions so the
-    D3D11 preview, tabs, build preflight, and archive safety gates stay shared.
+    .NET/Vortice preview, tabs, build preflight, and archive safety gates stay shared.
     """
 
     status_message_requested = Signal(str, bool)

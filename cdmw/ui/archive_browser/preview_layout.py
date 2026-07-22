@@ -98,7 +98,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_disable_support_checkbox.setVisible(False)
         self.archive_model_preview_refresh_button = QPushButton("Refresh")
         self.archive_model_preview_refresh_button.setToolTip(archive_model_preview_refresh_tooltip())
-        self.archive_isolated_renderer_button = QPushButton("Reload D3D11")
+        self.archive_isolated_renderer_button = QPushButton("Reload .NET/Vortice")
         self.archive_isolated_renderer_button.setToolTip(
             "Rebuild and reload the active native Direct3D 11 preview package."
         )

@@ -1,4 +1,4 @@
-"""Pure cache helpers for static replacement D3D11 preview packages."""
+"""Compatibility-named cache helpers for static replacement .NET/Vortice packages."""
 
 from __future__ import annotations
 

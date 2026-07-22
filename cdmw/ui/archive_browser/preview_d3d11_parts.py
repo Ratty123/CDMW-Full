@@ -8,7 +8,7 @@ from typing import Dict, List, Mapping, Optional
 
 
 class ArchivePreviewD3D11PartsMixin:
-    """Menu helpers for toggling source submeshes in the D3D11 preview host."""
+    """Menu helpers for toggling source submeshes in the .NET/Vortice preview host."""
 
     @staticmethod
     def _archive_d3d11_prefab_component_path_key(path_value: object) -> str:

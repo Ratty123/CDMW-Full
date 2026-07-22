@@ -934,7 +934,7 @@ def write_isolated_d3d11_preview_package(
         if on_progress is None:
             return
         try:
-            on_progress(max(0, int(current)), max(1, int(total)), str(message or "Writing D3D11 preview package..."))
+            on_progress(max(0, int(current)), max(1, int(total)), str(message or "Writing .NET/Vortice preview package..."))
         except Exception:
             pass
 
@@ -1007,7 +1007,7 @@ def write_isolated_d3d11_preview_package(
                         entry.get("source_path", ""),
                     )
 
-    _emit_progress(0, progress_total, "Writing D3D11 preview package...")
+    _emit_progress(0, progress_total, "Writing .NET/Vortice preview package...")
     has_cloth_batches = any(
         isinstance(getattr(batch, "cloth_preview", None), ClothPreviewBatch)
         for batch in prepared_batches
@@ -1024,7 +1024,7 @@ def write_isolated_d3d11_preview_package(
     legacy_pbr_cache: Dict[Tuple[str, int], Dict[str, str]] = {}
     for batch_index, batch in enumerate(prepared_batches):
         if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
-            raise RunCancelled("D3D11 package write cancelled.")
+            raise RunCancelled(".NET/Vortice preview package write cancelled.")
         if not isinstance(batch, PreparedModelPreviewBatch):
             continue
         batch = _materialized_in_memory_batch(
@@ -1060,7 +1060,7 @@ def write_isolated_d3d11_preview_package(
         aggregate_geometry_chunks.append(usable_blob)
         aggregate_geometry_size += len(usable_blob)
         if stop_event is not None and getattr(stop_event, "is_set", lambda: False)():
-            raise RunCancelled("D3D11 package write cancelled.")
+            raise RunCancelled(".NET/Vortice preview package write cancelled.")
         identity_offset = aggregate_identity_size
         expected_identity_size = vertex_count * _IDENTITY_STRUCT.size
         precomputed_identity_blob = bytes(getattr(batch, "editor_identity_blob", b"") or b"")
@@ -1441,7 +1441,7 @@ def write_isolated_d3d11_preview_package(
         _emit_progress(
             min(batch_index + 1, progress_total),
             progress_total,
-            f"Writing D3D11 preview package... {min(batch_index + 1, progress_total)} / {progress_total} batches",
+            f"Writing .NET/Vortice preview package... {min(batch_index + 1, progress_total)} / {progress_total} batches",
         )
 
     normalized_display_mode = str(display_mode or "replacement_only").strip().lower()
@@ -1576,7 +1576,7 @@ def write_isolated_d3d11_preview_package(
     manifest["renderdoc_truth_pass"] = asset_preflight.get("renderdoc_truth_pass", {})
     manifest["shader_asset_fidelity_status"] = asset_preflight.get("shader_asset_fidelity_status", {})
     _write_verified_preview_manifest(package_dir / "manifest.json", manifest)
-    _emit_progress(progress_total, progress_total, "D3D11 preview package manifest written.")
+    _emit_progress(progress_total, progress_total, ".NET/Vortice preview package manifest written.")
     return package_dir
 
 

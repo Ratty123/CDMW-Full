@@ -95,27 +95,7 @@ def _d3d11_package_lifecycle_step_050(_state):
         live_frame_available = _state._alignment_d3d11_live_frame_available()
         if not live_frame_available:
             _state._alignment_d3d11_mark_preview_unloaded_helper(_state.alignment_d3d11_state)
-        package_quality_key = str(package_quality).strip().lower()
-        native_reference_package_dir: _state.Optional[_state.Path] = None
-        if package_quality_key in {'archive_parity', 'material_refresh'} and requested_display_mode in {'side_by_side', 'overlay'}:
-            native_reference_package_text = str(_state.original_reference_texture_preview_state.get('native_package_path', '') or '').strip()
-            if native_reference_package_text:
-                try:
-                    candidate_native_reference_package_dir = _state.Path(native_reference_package_text)
-                    if candidate_native_reference_package_dir.is_dir():
-                        native_reference_package_dir = candidate_native_reference_package_dir
-                except (OSError, ValueError):
-                    native_reference_package_dir = None
         cache_key = _state._alignment_d3d11_preview_cache_key(model, settings, label=label, display_mode=requested_display_mode, package_quality=package_quality)
-        native_reference_signature_hash = ''
-        if native_reference_package_dir is not None:
-            try:
-                native_reference_stat = native_reference_package_dir.stat()
-                native_reference_signature = f'{native_reference_package_dir}|{int(native_reference_stat.st_mtime_ns)}|{int(native_reference_stat.st_size)}'
-            except OSError:
-                native_reference_signature = str(native_reference_package_dir)
-            native_reference_signature_hash = _state.hashlib.sha1(native_reference_signature.encode('utf-8', 'ignore')).hexdigest()
-        cache_key = _state._alignment_d3d11_cache_key_with_native_reference_helper(cache_key, native_reference_signature_hash=native_reference_signature_hash)
         _state._alignment_d3d11_remember_request_cache_key_helper(_state.alignment_d3d11_state, request_id, cache_key)
         cache_entry = _state._alignment_d3d11_package_cache_get(cache_key)
         if isinstance(cache_entry, _state.Mapping):
@@ -168,7 +148,7 @@ def _d3d11_package_lifecycle_step_050(_state):
         worker_original_reference_material_parity = bool(worker_use_textures)
         geometry_signature = _state._alignment_d3d11_geometry_cache_key(model, settings, display_mode=requested_display_mode)
         preview_cache_root = _state.self.archive_cache_root / 'd3d11_preview_cache' / _state.alignment_dialog_key_hash
-        worker = _state.AlignmentD3D11PackageWorker(request_id, model, settings, use_textures=worker_use_textures, high_quality_textures=worker_high_quality_textures, enable_material_combiner=worker_enable_material_combiner, original_reference_material_parity=worker_original_reference_material_parity, display_mode=requested_display_mode, editor_workspace='modify_original_alignment' if _state.modify_original_clone_mode else 'mesh_replacement_alignment', package_quality=package_quality, geometry_signature=geometry_signature, reuse_prepared_geometry=bool(geometry_signature), geometry_cache_dir=preview_cache_root / 'geometry', texture_cache_dir=preview_cache_root / 'textures', original_reference_native_package_dir=native_reference_package_dir)
+        worker = _state.AlignmentD3D11PackageWorker(request_id, model, settings, use_textures=worker_use_textures, high_quality_textures=worker_high_quality_textures, enable_material_combiner=worker_enable_material_combiner, original_reference_material_parity=worker_original_reference_material_parity, display_mode=requested_display_mode, editor_workspace='modify_original_alignment' if _state.modify_original_clone_mode else 'mesh_replacement_alignment', package_quality=package_quality, geometry_signature=geometry_signature, reuse_prepared_geometry=bool(geometry_signature), geometry_cache_dir=preview_cache_root / 'geometry', texture_cache_dir=preview_cache_root / 'textures')
         thread = _state.QThread(_state.dialog)
         worker.moveToThread(thread)
         thread.started.connect(worker.run)

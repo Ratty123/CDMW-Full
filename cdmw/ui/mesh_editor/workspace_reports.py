@@ -235,7 +235,7 @@ class WorkspaceReportMixin:
         if key == self._last_slow_frame_log_key:
             return
         self._last_slow_frame_log_key = key
-        parts = [f"Slow native preview frame: {frame_ms:.2f} ms"]
+        parts = [f"Slow .NET/Vortice preview frame: {frame_ms:.2f} ms"]
         if cpu_ms is not None and cpu_ms > 0:
             parts.append(f"CPU {cpu_ms:.2f} ms")
         if gpu_ms is not None and gpu_ms > 0:

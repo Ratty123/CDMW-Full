@@ -30,7 +30,7 @@ from cdmw.models import (
     ModelPreviewData,
     ModelPreviewRenderSettings,
 )
-from cdmw.rendering.native_preview_package_cache import create_native_preview_package_staging_dir
+from cdmw.rendering.dotnet_preview_package_cache import create_dotnet_preview_package_staging_dir
 from cdmw.services.mesh_dotnet_preview_package import (
     build_or_lookup_dotnet_preview_package_from_model,
 )
@@ -155,7 +155,7 @@ def fast_material_preview_package_from_manifest(
     batches = manifest.get("batches")
     if not isinstance(batches, list):
         return None
-    package_dir = create_native_preview_package_staging_dir(cache_root)
+    package_dir = create_dotnet_preview_package_staging_dir(cache_root)
 
     def check_cancelled() -> None:
         if stop_event is not None and stop_event.is_set():

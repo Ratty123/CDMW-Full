@@ -8,7 +8,7 @@ import unittest
 
 from PySide6.QtGui import QColor, QImage
 
-from tests.native_source_text import d3d11_preview_source, texture_dx_source
+from tests.native_source_text import texture_dx_source
 
 from cdmw.models import (
     ClothPreviewBatch,
@@ -273,10 +273,8 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
             mirror_replacement_batch["dds_textures"]["base"]["source_path"],
         )
         worker_source = Path("cdmw/workers/d3d11_package_workers.py").read_text(encoding="utf-8")
-        self.assertIn(
-            'mirror_replacement_batches=self.editor_workspace == "modify_original_alignment"',
-            worker_source,
-        )
+        self.assertIn("build_or_lookup_dotnet_preview_package_from_model(", worker_source)
+        self.assertNotIn("original_reference_native_package_dir=", worker_source)
 
     def test_writes_empty_preview_package(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

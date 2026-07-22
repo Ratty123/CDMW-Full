@@ -1,4 +1,4 @@
-"""D3D11 preview status-state helpers for static replacement previews."""
+"""Compatibility-named .NET/Vortice status helpers for static replacement previews."""
 
 from __future__ import annotations
 
@@ -182,7 +182,7 @@ def alignment_d3d11_loaded_status_route(
     pipeline_detail = ""
     if quality == "fast_geometry":
         pipeline_stage = "fast_geometry"
-        pipeline_detail = "first visible D3D11 geometry ready"
+        pipeline_detail = "first visible .NET/Vortice geometry ready"
     elif quality == "archive_parity":
         pipeline_stage = "archive_parity_ready"
         pipeline_detail = "full material preview ready"

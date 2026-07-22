@@ -104,17 +104,15 @@ This suite is deterministic protocol and native readback evidence. The hidden
 GPU sparse soak below exercises the production upload path without opening a
 window; neither is visible licensed-game or real-PAC proof.
 
-Native preview-core/D3D11 ownership, aggregated source guards, Release builds,
-and headless self-tests:
+Preview Core decode/package ownership, shared .NET host lifecycle, native
+renderer retirement guards, Release build, and headless self-tests:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_native_preview_core_decomposition.py tests/test_native_d3d11_preview_decomposition.py tests/test_native_preview_core.py tests/test_native_preview_package_cache_concurrency.py tests/test_native_preview_prefab_opt_in.py tests/test_archive_d3d11_part_visibility.py
+.\.venv\Scripts\python.exe -m pytest tests/test_native_preview_core_decomposition.py tests/test_native_preview_core.py tests/test_native_preview_package_cache_concurrency.py tests/test_native_preview_prefab_opt_in.py tests/test_archive_d3d11_part_visibility.py tests/test_dotnet_preview_shared_host.py tests/test_isolated_d3d11_renderer_source_guards.py tests/test_release_packaging.py
 cmake -S native/cdmw_preview_core -B native/cdmw_preview_core/build
 cmake --build native/cdmw_preview_core/build --config Release
 native\cdmw_preview_core\build\Release\cdmw-preview-core.exe self-test
-cmake -S native/cdmw_d3d11_preview -B native/cdmw_d3d11_preview/build
-cmake --build native/cdmw_d3d11_preview/build --config Release
-native\cdmw_d3d11_preview\build\Release\cdmw-d3d11-preview.exe --self-test
+dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
 ```
 
 For user-facing Mesh Editor edit proof, run the read-only real game archive
@@ -231,8 +229,7 @@ assets under a unique system-temp root. Visible automation still requires
 explicit authorization. A green subset of interaction segments is diagnostic
 evidence only: continuous `resize-stress` remains part of the overall hard gate.
 
-Native-core protocol, responsiveness, production .NET, and legacy-renderer
-compatibility checks:
+Native edit-core protocol, responsiveness, and production .NET checks:
 
 ```powershell
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-benchmark --output "$env:TEMP\cdmw-native-mesh-editor-benchmark"
@@ -242,18 +239,15 @@ compatibility checks:
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario native-mesh-editor-qt-cancellation --output "$env:TEMP\cdmw-native-mesh-editor-qt-cancel"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-dotnet-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-dotnet-edit"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-dotnet-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-dotnet-performance" --performance-manifest "$env:TEMP\cdmw-dotnet-performance-manifest.json" --performance-duration-seconds 30 --performance-target-hz 144
-.\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-mesh-editor-d3d11-edit-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-real-archive-mesh-editor-d3d11-edit"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-rigging-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-rigging"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-animation-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-animation"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-sequence-binding-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-sequence"
 .\.venv\Scripts\python.exe tools\mesh_editor_dev_harness.py --scenario real-archive-app-workflow-smoke --game-root "C:\games\Steam\steamapps\common\Crimson Desert" --output "$env:TEMP\cdmw-mesh-real-archive-app-workflow"
 ```
 
-The `real-archive-mesh-editor-dotnet-edit-smoke` scenario is canonical.
-`real-archive-mesh-editor-d3d11-edit-smoke` is legacy C++ renderer
-compatibility only. Registry validation fails if a production visual role is
-not .NET/Vortice or if a legacy/checker role is not opt-in compatibility-only;
-normal/full QA metadata excludes both visual classes. The real proof cycles the
+The `real-archive-mesh-editor-dotnet-edit-smoke` scenario is the sole visual
+renderer proof. Registry validation fails if a production visual role is not
+.NET/Vortice; normal/full QA metadata excludes visual classes. The real proof cycles the
 same resident nude PAC through neutral untextured faces, wire plus vertices,
 vertices only, and restored production textures. It requires stable PID/HWND,
 zero package/decode/SRV churn, non-black geometry, and captured draw counters
@@ -345,16 +339,13 @@ every non-visual split harness test; only tests marked `visual` or `real_game`
 are deselected. Use `codex_check -Area mesh` for the real in-game PAC visual
 edit proof.
 Run visible harness commands only when intentionally validating the production
-.NET renderer or legacy compatibility. The canonical .NET proof requires
+.NET renderer. The canonical proof requires
 `renderer_backend=d3d11_vortice_shader`, `edit_backend=cdmw_mesh_core_0.1`, real
-archive DDS bindings, selected-only geometry changes, stationary native HWNDs,
+archive DDS bindings, selected-only geometry changes, a stable helper PID/HWND,
 sub-16.7 ms handler p95, sub-200 ms heartbeat gaps, and unchanged PAMT/PAZ hashes.
 
-Do not use `native-mesh-editor-d3d11-delta`,
-`native-mesh-editor-d3d11-payloads`, or `full-suite-smoke` as visual edit proof.
-They are synthetic/protocol regression harnesses and intentionally do not show game geometry.
-The harness blocks them by default; pass `--allow-synthetic-d3d11` only for
-protocol-only regression testing.
+Do not use `full-suite-smoke` as visual edit proof. It is a headless
+service/protocol regression harness and intentionally does not show game geometry.
 
 `tools/headless_feature_stress.py` never schedules the visible .NET proof by
 default, even when `--game-root` is present. Pass `--include-native-visual`

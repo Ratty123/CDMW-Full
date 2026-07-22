@@ -263,7 +263,7 @@ def test_alignment_d3d11_resources_waiting_details_include_host_and_progress() -
         active_package="pkg",
     )
 
-    assert "Native D3D11 uploaded package resources" in detail
+    assert ".NET/Vortice uploaded package resources" in detail
     assert "elapsed=7.2s" in detail
     assert "last_progress=45%" in detail
     assert "last_stage=package" in detail
@@ -302,7 +302,7 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
         active_package="pkg",
     )
 
-    assert stale.startswith("Native D3D11 stayed alive but did not report a fresh rendered frame.")
+    assert stale.startswith(".NET/Vortice stayed alive but did not report a fresh rendered frame.")
     assert "elapsed=6.0s" in stale
     assert "last_progress=80%" in stale
     assert "last_stage=native_start" in stale
@@ -313,12 +313,12 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
         stale,
         restart_count=1,
     )
-    assert "no native loaded event arrived before the watchdog" in alignment_d3d11_failed_performance_details(
+    assert "no package-loaded acknowledgement arrived before the watchdog" in alignment_d3d11_failed_performance_details(
         stale
     )
 
     cleared = alignment_d3d11_loading_cleared_performance("loading watchdog")
-    assert cleared.summary == "D3D11 preview loading state cleared."
+    assert cleared.summary == ".NET/Vortice Preview loading state cleared."
     assert cleared.details == "reason=loading watchdog"
 
     ready = alignment_d3d11_watchdog_ready_performance(
@@ -326,11 +326,11 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
         reason="loading watchdog",
         active_package="pkg",
     )
-    assert ready.summary == "D3D11 preview ready - Archive Preview parity - loaded before watchdog"
+    assert ready.summary == ".NET/Vortice Preview ready - Archive Preview parity - loaded before watchdog"
     assert ready.details == "reason=loading watchdog\nactive_package=pkg"
 
     waiting = alignment_d3d11_resources_waiting_performance("waiting details")
-    assert waiting.summary == "D3D11 resources loaded; waiting for visible preview panel."
+    assert waiting.summary == ".NET/Vortice resources loaded; waiting for visible preview panel."
     assert waiting.details == "waiting details"
 
     restart = alignment_d3d11_restart_performance(
@@ -338,15 +338,15 @@ def test_alignment_d3d11_stale_loading_details_and_restart_failure_text() -> Non
         stale_details=stale,
         restart_count=1,
     )
-    assert restart.summary == "D3D11 preview reload restarted - Archive Preview parity"
+    assert restart.summary == ".NET/Vortice Preview reload restarted - Archive Preview parity"
     assert "restart=2/2" in restart.details
 
     failed = alignment_d3d11_failed_performance(
         quality_label="Archive Preview parity",
         stale_details=stale,
     )
-    assert failed.summary == "D3D11 preview reload failed - Archive Preview parity"
-    assert "no native loaded event arrived before the watchdog" in failed.details
+    assert failed.summary == ".NET/Vortice Preview reload failed - Archive Preview parity"
+    assert "no package-loaded acknowledgement arrived before the watchdog" in failed.details
 
 
 def test_alignment_d3d11_loaded_timing_presentation_formats_summary_and_details() -> None:
@@ -377,8 +377,8 @@ def test_alignment_d3d11_loaded_timing_presentation_formats_summary_and_details(
     assert presentation.native_load_ms == 6.75
     assert presentation.texture_text == "diffuse:2 roughness:1"
     assert presentation.summary == (
-        "D3D11 preview loaded - Archive Preview parity - FPS 222.2 - frame 4.50 ms - "
-        "archive_parity package - reason material - cache hit - native 7 ms - textures diffuse:2 roughness:1"
+        ".NET/Vortice Preview loaded - Archive Preview parity - FPS 222.2 - frame 4.50 ms - "
+        "archive_parity package - reason material - cache hit - renderer 7 ms - textures diffuse:2 roughness:1"
     )
     assert "cache=hit" in presentation.details
     assert "pipeline ready" in presentation.details
@@ -399,16 +399,16 @@ def test_alignment_d3d11_cached_reuse_and_loading_performance_text() -> None:
         rebuild_reason="texture_uv",
     )
 
-    assert reuse.summary == "D3D11 cached preview package - Fast geometry - reason texture_uv"
+    assert reuse.summary == ".NET/Vortice cached preview package - Fast geometry - reason texture_uv"
     assert "cache=hit" in reuse.details
     assert "reason=texture_uv" in reuse.details
     assert "prepare 3.2 ms" in reuse.details
     assert "package 4.5 ms" in reuse.details
-    assert "native load/upload 0.0 ms (active package reused)" in reuse.details
+    assert ".NET load/upload 0.0 ms (active package reused)" in reuse.details
 
     loading = alignment_d3d11_cached_loading_performance("material")
 
-    assert loading.summary == "D3D11 cached preview package loading - reason material"
+    assert loading.summary == ".NET/Vortice cached preview package loading - reason material"
     assert loading.details == "cache=hit\nreason=material"
 
 
@@ -468,7 +468,7 @@ def test_alignment_d3d11_package_preparing_performance_text() -> None:
         rebuild_reason="geometry",
     )
 
-    assert presentation.summary == "D3D11 package preparing - Archive Preview parity - cache miss"
+    assert presentation.summary == ".NET/Vortice package preparing - Archive Preview parity - cache miss"
     assert "cache=miss" in presentation.details
     assert "reason=geometry" in presentation.details
     assert "Full material parity runs in a background worker" in presentation.details
@@ -487,7 +487,7 @@ def test_alignment_d3d11_reload_and_starting_performance_text() -> None:
     )
 
     assert reload_presentation.summary == (
-        "D3D11 reload queued - Material refresh - material_refresh package - "
+        ".NET/Vortice reload queued - Material refresh - material_refresh package - "
         "reason material - cache hit - prepare 12 ms, package 34 ms"
     )
     assert "cache=hit" in reload_presentation.details
@@ -503,7 +503,7 @@ def test_alignment_d3d11_reload_and_starting_performance_text() -> None:
     )
 
     assert starting.summary == (
-        "Starting D3D11 preview - Archive Preview parity - archive_parity package - "
+        "Starting .NET/Vortice Preview - Archive Preview parity - archive_parity package - "
         "reason geometry - cache hit - prepare 12 ms, package 34 ms"
     )
     assert starting.details == "cache=hit\nreason=geometry"
@@ -514,46 +514,46 @@ def test_alignment_d3d11_startup_and_error_performance_text() -> None:
         rebuild_reason="geometry",
         host_detail="window_not_visible",
     )
-    assert pending.summary == "D3D11 preview host pending layout before renderer start."
+    assert pending.summary == ".NET/Vortice Preview host pending layout before renderer start."
     assert pending.details == "reason=geometry\nhost=window_not_visible"
 
     unavailable = alignment_d3d11_unavailable_performance()
-    assert unavailable.summary == "Native D3D11 unavailable."
-    assert "Native D3D11 is required for live alignment preview." in unavailable.details
+    assert unavailable.summary == ".NET/Vortice Preview unavailable."
+    assert ".NET/Vortice Preview is required for live alignment preview." in unavailable.details
     assert "Defender quarantines" in unavailable.details
 
     startup_timeout = alignment_d3d11_startup_timeout_performance()
-    assert startup_timeout.summary == "D3D11 startup timeout."
-    assert "Native D3D11 startup timeout waiting for status." in startup_timeout.details
+    assert startup_timeout.summary == ".NET/Vortice startup timeout."
+    assert ".NET/Vortice startup timeout waiting for status." in startup_timeout.details
     assert "Defender quarantines" in startup_timeout.details
 
     package_failed = alignment_d3d11_package_failed_performance("bad package")
-    assert package_failed.summary == "D3D11 package failed."
+    assert package_failed.summary == ".NET/Vortice package failed."
     assert package_failed.details == "bad package"
 
     live_mode = alignment_d3d11_live_display_mode_performance("overlay")
-    assert live_mode.summary == "D3D11 display mode changed live: overlay"
+    assert live_mode.summary == ".NET/Vortice display mode changed live: overlay"
     assert live_mode.details == "cache=live-command reason=display_mode"
 
     selection = alignment_d3d11_selection_highlight_performance()
     assert selection.summary == "Selection highlight updated."
     assert (
         selection.details
-        == "Selection changes use live D3D11 highlight commands and do not rebuild the preview package."
+        == "Selection changes use live .NET/Vortice highlight commands and do not rebuild the preview package."
     )
 
 
 def test_alignment_d3d11_live_status_performance_text() -> None:
     settings_rebuild = alignment_d3d11_render_settings_rebuild_performance()
-    assert settings_rebuild.summary == "D3D11 preview package rebuild queued for texture settings."
+    assert settings_rebuild.summary == ".NET/Vortice preview package rebuild queued for texture settings."
     assert settings_rebuild.details == "cache=material_dirty reason=render_settings"
 
     tuning = alignment_d3d11_render_tuning_live_performance()
-    assert tuning.summary == "D3D11 render tuning applied without rebuilding preview package."
+    assert tuning.summary == ".NET/Vortice render tuning applied without rebuilding preview package."
     assert tuning.details == "cache=live-command reason=render_tuning"
 
     flip_v = alignment_d3d11_texture_flip_v_live_performance()
-    assert flip_v.summary == "D3D11 texture Flip V applied without rebuilding preview package."
+    assert flip_v.summary == ".NET/Vortice texture Flip V applied without rebuilding preview package."
     assert flip_v.details == ""
 
     dropped_detail = alignment_d3d11_stale_package_dropped_detail(
@@ -562,7 +562,7 @@ def test_alignment_d3d11_live_status_performance_text() -> None:
         active_preview_alive=True,
     )
     assert dropped_detail == (
-        "Stale D3D11 package dropped before display.\n"
+        "Stale .NET/Vortice package dropped before display.\n"
         "reason=stale_drag\n"
         "request_id=12\n"
         "active_preview_alive=True"
@@ -572,22 +572,22 @@ def test_alignment_d3d11_live_status_performance_text() -> None:
         request_id=12,
         active_preview_alive=True,
     )
-    assert dropped.summary == "Dropped stale D3D11 preview package; rebuilding current preview."
+    assert dropped.summary == "Dropped stale .NET/Vortice preview package; rebuilding current preview."
     assert dropped.details == "reason=stale_drag\nrequest_id=12\nactive_preview_alive=True"
 
     renderer_error = alignment_d3d11_renderer_error_performance("renderer crashed")
-    assert renderer_error.summary == "D3D11 renderer error."
+    assert renderer_error.summary == ".NET/Vortice renderer error."
     assert renderer_error.details == "renderer crashed"
 
     queued = alignment_d3d11_package_queued_performance(
         quality_label="Archive Preview parity",
         refresh_elapsed_ms=14.6,
     )
-    assert queued.summary == "D3D11 package queued - Archive Preview parity - refresh 15 ms"
+    assert queued.summary == ".NET/Vortice package queued - Archive Preview parity - refresh 15 ms"
     assert queued.details == ""
 
     failed = alignment_d3d11_alignment_preview_failed_performance("preview crashed")
-    assert failed.summary == "D3D11 alignment preview failed."
+    assert failed.summary == ".NET/Vortice alignment preview failed."
     assert failed.details == "preview crashed"
 
 
@@ -614,7 +614,7 @@ def test_alignment_d3d11_reload_progress_details_stay_in_presentation_state() ->
         rebuild_reason="texture_uv",
         host_detail="old host",
     )
-    assert restart.summary == "D3D11 renderer host not reusable; restarting."
+    assert restart.summary == ".NET/Vortice host not reusable; restarting."
     assert restart.details == "reason=texture_uv\nhost=old host"
 
 
@@ -976,7 +976,7 @@ def test_alignment_d3d11_resources_and_loading_status_routes_normalize_payloads(
         loading_stuck=True,
     )
     assert stuck.action == "clear_stuck"
-    assert stuck.message == "Loading native D3D11 alignment preview..."
+    assert stuck.message == "Loading .NET/Vortice alignment preview..."
 
     progress = alignment_d3d11_loading_status_route(
         {"message": "Uploading", "percent": 0, "stage": "textures"},
@@ -2354,7 +2354,7 @@ def test_alignment_d3d11_host_ready_state_reports_first_blocking_reason() -> Non
         parent_hwnd=5,
         child_hwnd=0,
         require_child=True,
-    ).detail == "native preview child HWND is unavailable"
+    ).detail == ".NET/Vortice preview child HWND is unavailable"
     ready = alignment_d3d11_host_ready_state(
         dialog_live=True,
         host_visible=True,

@@ -19,12 +19,12 @@ from cdmw.services.preview_rendering_service import (
     find_native_preview_core_binary,
     render_settings_to_native_preview_core_dict,
 )
-from cdmw.services.preview_rendering_service import (
-    NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
-    clear_native_preview_package_cache,
-    native_preview_package_cache_budget,
+from cdmw.rendering.dotnet_preview_package_cache import (
+    DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA,
+    clear_dotnet_preview_package_cache,
+    dotnet_preview_package_cache_budget,
+    is_durable_dotnet_preview_package_path,
 )
-from cdmw.rendering.dotnet_preview_package_cache import is_durable_dotnet_preview_package_path
 from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
 from cdmw.services.mesh_workflow_service import clear_pac_xml_profile_index_cache
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
@@ -68,7 +68,7 @@ class ArchivePreviewCacheMixin:
         self.archive_preview_cache_last_miss_reason = ""
         self.archive_preview_cache_last_miss_detail = ""
         if clear_native_packages:
-            clear_native_preview_package_cache(self._native_preview_package_cache_root())
+            clear_dotnet_preview_package_cache(self._native_preview_package_cache_root())
             clear_pac_xml_profile_index_cache(self.settings_file_path.parent)
 
     @staticmethod
@@ -178,7 +178,7 @@ class ArchivePreviewCacheMixin:
         ).strip().lower()
 
     def _native_preview_package_cache_budget(self) -> Tuple[int, int]:
-        return native_preview_package_cache_budget(self._native_preview_package_cache_mode())
+        return dotnet_preview_package_cache_budget(self._native_preview_package_cache_mode())
 
     def _collect_archive_preview_loose_roots(self) -> List[Path]:
         roots: List[Path] = []
@@ -265,7 +265,7 @@ class ArchivePreviewCacheMixin:
             return ""
         dependency_digest = _archive_preview_dependency_digest(tuple(dependency_entries))
         payload = {
-            "schema": NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
+            "schema": DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA,
             "base_preview_key": base_key,
             "entry": self._archive_entry_native_cache_signature(entry),
             "companion": self._archive_entry_native_cache_signature(companion_entry),
@@ -297,90 +297,7 @@ class ArchivePreviewCacheMixin:
 
     @staticmethod
     def _validate_d3d11_preview_package_paths(package_dir: Path) -> Tuple[bool, Tuple[str, ...]]:
-        package_dir = Path(package_dir)
-        manifest_path = package_dir / "manifest.json"
-        if not manifest_path.is_file():
-            return False, (f"missing manifest:{manifest_path}",)
-        try:
-            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        except Exception as exc:
-            return False, (f"invalid manifest:{exc}",)
-        if not isinstance(manifest, Mapping):
-            return False, ("manifest is not a JSON object",)
-
-        def existing_path(raw_value: object, *, relative_to_package: bool) -> Tuple[bool, str]:
-            text = str(raw_value or "").strip()
-            if not text:
-                return True, ""
-            try:
-                path = Path(text)
-                if relative_to_package and not path.is_absolute():
-                    path = package_dir / text
-                elif not path.is_absolute():
-                    path = package_dir / text
-                return path.is_file(), str(path)
-            except (OSError, ValueError) as exc:
-                return False, f"{text}:{exc}"
-
-        missing: List[str] = []
-        manifest_use_textures = bool(manifest.get("use_textures", False))
-        for batch_index, batch in enumerate(tuple(manifest.get("batches", ()) or ())):
-            if not isinstance(batch, Mapping):
-                continue
-            vertex_ok, vertex_path = existing_path(batch.get("vertex_file"), relative_to_package=True)
-            if not vertex_ok:
-                missing.append(f"batch {batch_index} vertex:{vertex_path}")
-            if bool(batch.get("cloth_enabled")):
-                for key in ("cloth_particle_file", "cloth_pin_file", "cloth_constraint_file"):
-                    ok, path_text = existing_path(batch.get(key), relative_to_package=True)
-                    if not ok:
-                        missing.append(f"batch {batch_index} {key}:{path_text}")
-            textures = batch.get("textures")
-            active_texture_count = 0
-            if isinstance(textures, Mapping):
-                for slot, raw_value in textures.items():
-                    if str(raw_value or "").strip():
-                        active_texture_count += 1
-                    ok, path_text = existing_path(raw_value, relative_to_package=True)
-                    if not ok:
-                        missing.append(f"batch {batch_index} {slot} PNG:{path_text}")
-            dds_textures = batch.get("dds_textures")
-            if isinstance(dds_textures, Mapping):
-                for slot, descriptor in dds_textures.items():
-                    if isinstance(descriptor, Mapping):
-                        if not bool(descriptor.get("available", True)):
-                            continue
-                        if not bool(descriptor.get("direct_upload_candidate", True)):
-                            continue
-                        if str(descriptor.get("source_path", "") or "").strip():
-                            active_texture_count += 1
-                        ok, path_text = existing_path(descriptor.get("source_path"), relative_to_package=False)
-                        if not ok:
-                            missing.append(f"batch {batch_index} {slot} DDS:{path_text}")
-            selected_slots = batch.get("selected_texture_slots")
-            selected_texture_count = 0
-            if isinstance(selected_slots, Mapping):
-                for descriptor in selected_slots.values():
-                    if isinstance(descriptor, Mapping) and str(descriptor.get("texture_name", "") or descriptor.get("archive_path", "") or "").strip():
-                        selected_texture_count += 1
-            if (
-                manifest_use_textures
-                and bool(batch.get("has_texture_coordinates", False))
-                and selected_texture_count > 0
-                and active_texture_count == 0
-            ):
-                missing.append(
-                    f"batch {batch_index} texture manifest empty despite {selected_texture_count} selected native texture slot(s)"
-                )
-            primary_layer = batch.get("primary_material_layer")
-            if isinstance(primary_layer, Mapping):
-                for slot in ("diffuse_source", "mask_source", "material_source", "normal_source", "height_source"):
-                    ok, path_text = existing_path(primary_layer.get(slot), relative_to_package=False)
-                    if not ok:
-                        missing.append(f"batch {batch_index} layer {slot}:{path_text}")
-            if len(missing) >= 12:
-                break
-        return not missing, tuple(missing[:12])
+        return validate_dotnet_preview_package(Path(package_dir))
 
     @staticmethod
     def _d3d11_preview_package_model_key(package_dir: Path) -> str:

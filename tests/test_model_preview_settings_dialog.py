@@ -443,7 +443,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertFalse(dialog.disable_normal_map_checkbox.isHidden())
         self.assertFalse(dialog.flip_texture_v_checkbox.isHidden())
         self.assertFalse(dialog.d3d11_hint_label.isHidden())
-        self.assertIn("D3D11 packages", dialog.high_quality_checkbox.toolTip())
+        self.assertIn(".NET/Vortice packages", dialog.high_quality_checkbox.toolTip())
 
         dialog.close()
         dialog.deleteLater()

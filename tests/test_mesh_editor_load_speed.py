@@ -16,7 +16,6 @@ from cdmw.rendering.native_preview_package import (
     read_isolated_d3d11_preview_manifest,
     write_isolated_d3d11_preview_package,
 )
-from tests.native_source_text import d3d11_preview_source
 from tests.static_replacement_source_support import static_replacement_callback_factory_source
 
 
@@ -34,8 +33,6 @@ def _i32_descriptor_values(descriptor: object) -> list[int]:
 
 
 def _read(relative: str) -> str:
-    if relative == "native/cdmw_d3d11_preview/src/main.cpp":
-        return d3d11_preview_source()
     if relative == "cdmw/ui/archive_browser/static_replacement_dialog_callback_factories.py":
         return static_replacement_callback_factory_source(ROOT)
     return (ROOT / relative).read_text(encoding="utf-8")
@@ -725,16 +722,14 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
         self.assertIn("dds_manifest_cache", source)
         self.assertIn('"texture_manifest": {', source)
 
-    def test_native_loader_reads_aggregate_geometry_ranges(self) -> None:
-        source = _read("native/cdmw_d3d11_preview/src/main.cpp")
+    def test_vortice_loader_streams_and_bounds_package_geometry(self) -> None:
+        source = _read("tools/dotnet_mesh_editor_experiment/NativePreviewPackageDocument.cs")
 
-        self.assertIn("std::uint64_t vertex_offset = 0;", source)
-        self.assertIn("std::uint64_t identity_offset = 0;", source)
-        self.assertIn("read_binary_range(batch.vertex_file, batch.vertex_offset, vertex_read_size)", source)
-        self.assertIn("read_binary_range(\n                        batch.identity_file,", source)
-        self.assertIn('\\"native_manifest_ms\\"', source)
-        self.assertIn('\\"native_geometry_ms\\"', source)
-        self.assertIn('\\"native_texture_ms\\"', source)
+        self.assertIn("FileOptions.SequentialScan", source)
+        self.assertIn("stream.ReadExactly(vertex);", source)
+        self.assertIn("var expectedBytes = checked((long)vertexCount * BytesPerVertex);", source)
+        self.assertIn("fileLength != expectedBytes", source)
+        self.assertIn("totalVertices > MaximumVertices", source)
 
 
 if __name__ == "__main__":

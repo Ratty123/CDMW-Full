@@ -364,7 +364,7 @@ def test_role_pane_split_event_routes_to_active_builder_persistence_callback() -
 
 
 def test_builder_role_pane_split_uses_shared_persisted_ratio() -> None:
-    host_source = (ROOT / "cdmw" / "ui" / "native_d3d11_preview_host.py").read_text(
+    host_source = (ROOT / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(
         encoding="utf-8"
     )
     builder_source = (

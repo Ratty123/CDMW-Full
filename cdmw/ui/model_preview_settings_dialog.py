@@ -259,11 +259,9 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("", self.disable_height_map_checkbox)
         general_form.addRow("", self.flip_texture_v_checkbox)
         general_form.addRow("", self.d3d11_cull_back_faces_checkbox)
-        general_form.addRow("Visible texture mode", self.visible_texture_mode_combo)
-        general_form.addRow("D3D11 view mode", self.d3d11_view_mode_combo)
-        general_form.addRow("Diagnostic render mode", self.render_diagnostic_mode_combo)
-        general_form.addRow("D3D11 normal Y", self.d3d11_normal_y_mode_combo)
-        general_form.addRow("D3D11 texture address", self.d3d11_texture_address_mode_combo)
+        general_form.addRow(".NET/Vortice view", self.d3d11_view_mode_combo)
+        general_form.addRow(".NET/Vortice normal Y", self.d3d11_normal_y_mode_combo)
+        general_form.addRow(".NET/Vortice texture address", self.d3d11_texture_address_mode_combo)
         self.enable_tool_pbd_cloth_preview_checkbox = QCheckBox("Enable tool-side PBD physics preview")
         self.enable_tool_pbd_cloth_preview_checkbox.setToolTip(
             "Runs a free local CPU PBD approximation for detected soft-physics mesh batches such as cloth, leather, hair, and ropes. "
@@ -299,7 +297,7 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("", self.reset_tool_pbd_cloth_button)
         general_layout.addLayout(general_form)
         self.general_hint_label = QLabel(
-            "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview. Visible texture mode controls how aggressively sidecar-visible layers are allowed to replace the mesh-derived base texture."
+            "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview."
         )
         self.general_hint_label.setObjectName("HintLabel")
         self.general_hint_label.setWordWrap(True)
@@ -685,9 +683,9 @@ class ModelPreviewSettingsDialog(QDialog):
             "Shows archive metadata and likely same-stem sidecars immediately, then replaces it with the full 3D preview when ready. This changes feedback, not final preview quality."
         )
         self.clear_preview_cache_button = QPushButton("Clear Preview Cache")
-        self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results, durable native preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.")
+        self.clear_preview_cache_button.setToolTip("Clears in-memory Archive Browser preview results, durable .NET/Vortice preview packages, and the PAC XML profile index. Sidecar scan caches on disk are not removed.")
         preview_cache_layout.addRow("In-memory preview results", self.preview_cache_limit_spin)
-        preview_cache_layout.addRow("D3D11 package cache", self.native_preview_cache_mode_combo)
+        preview_cache_layout.addRow(".NET/Vortice package cache", self.native_preview_cache_mode_combo)
         preview_cache_layout.addRow("", self.quick_then_full_checkbox)
         preview_cache_layout.addRow("", self.clear_preview_cache_button)
         preview_cache_hint = QLabel(

@@ -1,4 +1,4 @@
-"""D3D11 preview progress, quality, theme, and render-setting helpers."""
+"""Compatibility-named .NET/Vortice progress and presentation helpers."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from cdmw.ui.archive_browser.static_replacement_d3d11_loading_details import (
 
 ALIGNMENT_D3D11_LOADING_SPINNER_FRAMES = ("&#9679;", "&#9683;", "&#9681;", "&#9682;")
 ALIGNMENT_D3D11_DEFENDER_HINT = (
-    "If Defender quarantines an unsigned experimental EXE, submit it to Microsoft before allowing it."
+    "If Defender quarantines the packaged .NET helper, submit it to Microsoft before allowing it."
 )
 
 
@@ -131,7 +131,7 @@ def alignment_d3d11_loading_spinner_html(frame: str) -> str:
 
 def alignment_d3d11_loading_cleared_performance(reason: str) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 preview loading state cleared.",
+        summary=".NET/Vortice Preview loading state cleared.",
         details=f"reason={str(reason or '')}",
     )
 
@@ -143,14 +143,14 @@ def alignment_d3d11_watchdog_ready_performance(
     active_package: object,
 ) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary=f"D3D11 preview ready - {str(quality_label or '')} - loaded before watchdog",
+        summary=f".NET/Vortice Preview ready - {str(quality_label or '')} - loaded before watchdog",
         details=f"reason={str(reason or '')}\nactive_package={active_package}",
     )
 
 
 def alignment_d3d11_resources_waiting_performance(details: str) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 resources loaded; waiting for visible preview panel.",
+        summary=".NET/Vortice resources loaded; waiting for visible preview panel.",
         details=str(details or ""),
     )
 
@@ -163,7 +163,7 @@ def alignment_d3d11_restart_performance(
     max_restarts: int = 2,
 ) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary=f"D3D11 preview reload restarted - {str(quality_label or '')}",
+        summary=f".NET/Vortice Preview reload restarted - {str(quality_label or '')}",
         details=alignment_d3d11_restart_performance_details(
             stale_details,
             restart_count=restart_count,
@@ -178,7 +178,7 @@ def alignment_d3d11_failed_performance(
     stale_details: str,
 ) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary=f"D3D11 preview reload failed - {str(quality_label or '')}",
+        summary=f".NET/Vortice Preview reload failed - {str(quality_label or '')}",
         details=alignment_d3d11_failed_performance_details(stale_details),
     )
 
@@ -206,13 +206,13 @@ def alignment_d3d11_cached_reuse_performance(
     prepare_ms, package_ms = _alignment_d3d11_state_timing_details(state)
     reason_text = str(rebuild_reason or "geometry")
     return AlignmentD3D11StatusPresentation(
-        summary=f"D3D11 cached preview package - {str(quality_label or '')} - reason {reason_text}",
+        summary=f".NET/Vortice cached preview package - {str(quality_label or '')} - reason {reason_text}",
         details=(
             f"cache=hit\n"
             f"reason={reason_text}\n"
             f"prepare {prepare_ms:.1f} ms\n"
             f"package {package_ms:.1f} ms\n"
-            "native load/upload 0.0 ms (active package reused)"
+            ".NET load/upload 0.0 ms (active package reused)"
         ),
     )
 
@@ -220,7 +220,7 @@ def alignment_d3d11_cached_reuse_performance(
 def alignment_d3d11_cached_loading_performance(rebuild_reason: str) -> AlignmentD3D11StatusPresentation:
     reason_text = str(rebuild_reason or "geometry")
     return AlignmentD3D11StatusPresentation(
-        summary=f"D3D11 cached preview package loading - reason {reason_text}",
+        summary=f".NET/Vortice cached preview package loading - reason {reason_text}",
         details=f"cache=hit\nreason={reason_text}",
     )
 
@@ -288,7 +288,7 @@ def alignment_d3d11_package_preparing_performance(
     reason_text = str(rebuild_reason or "geometry")
     return AlignmentD3D11StatusPresentation(
         summary=(
-            f"D3D11 package preparing - {str(quality_label or '')} - "
+            f".NET/Vortice package preparing - {str(quality_label or '')} - "
             f"{str(cache_label or '')}"
         ),
         details=(
@@ -313,7 +313,7 @@ def alignment_d3d11_reload_queued_performance(
     reason_text = str(rebuild_reason or "geometry")
     cache_event = str(state.get("last_cache_event", "miss") or "miss")
     summary = (
-        f"D3D11 reload queued - {str(quality_label or '')} - "
+        f".NET/Vortice reload queued - {str(quality_label or '')} - "
         f"{str(package_quality or 'normal')} package - "
         f"reason {reason_text} - {str(cache_label or '')} - "
         f"prepare {prepare_ms:.0f} ms, "
@@ -342,7 +342,7 @@ def alignment_d3d11_starting_performance(
     cache_event = str(state.get("last_cache_event", "miss") or "miss")
     return AlignmentD3D11StatusPresentation(
         summary=(
-            f"Starting D3D11 preview - {str(quality_label or '')} - "
+            f"Starting .NET/Vortice Preview - {str(quality_label or '')} - "
             f"{str(package_quality or 'normal')} package - "
             f"reason {reason_text} - {str(cache_label or '')} - "
             f"prepare {prepare_ms:.0f} ms, "
@@ -358,7 +358,7 @@ def alignment_d3d11_pending_host_performance(
     host_detail: str,
 ) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 preview host pending layout before renderer start.",
+        summary=".NET/Vortice Preview host pending layout before renderer start.",
         details=f"reason={str(rebuild_reason or 'geometry')}\nhost={str(host_detail or '')}",
     )
 
@@ -396,14 +396,14 @@ def alignment_d3d11_startup_timeout_performance() -> AlignmentD3D11StatusPresent
 
 def alignment_d3d11_package_failed_performance(message: str) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 package failed.",
+        summary=".NET/Vortice package failed.",
         details=str(message),
     )
 
 
 def alignment_d3d11_live_display_mode_performance(mode: str) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary=f"D3D11 display mode changed live: {str(mode or '')}",
+        summary=f".NET/Vortice display mode changed live: {str(mode or '')}",
         details="cache=live-command reason=display_mode",
     )
 
@@ -411,27 +411,27 @@ def alignment_d3d11_live_display_mode_performance(mode: str) -> AlignmentD3D11St
 def alignment_d3d11_selection_highlight_performance() -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
         summary="Selection highlight updated.",
-        details="Selection changes use live D3D11 highlight commands and do not rebuild the preview package.",
+        details="Selection changes use live .NET/Vortice highlight commands and do not rebuild the preview package.",
     )
 
 
 def alignment_d3d11_render_settings_rebuild_performance() -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 preview package rebuild queued for texture settings.",
+        summary=".NET/Vortice preview package rebuild queued for texture settings.",
         details="cache=material_dirty reason=render_settings",
     )
 
 
 def alignment_d3d11_render_tuning_live_performance() -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 render tuning applied without rebuilding preview package.",
+        summary=".NET/Vortice render tuning applied without rebuilding preview package.",
         details="cache=live-command reason=render_tuning",
     )
 
 
 def alignment_d3d11_texture_flip_v_live_performance() -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 texture Flip V applied without rebuilding preview package.",
+        summary=".NET/Vortice texture Flip V applied without rebuilding preview package.",
         details="",
     )
 
@@ -443,7 +443,7 @@ def alignment_d3d11_stale_package_dropped_detail(
     active_preview_alive: bool,
 ) -> str:
     return (
-        "Stale D3D11 package dropped before display.\n"
+        "Stale .NET/Vortice package dropped before display.\n"
         f"reason={str(reason or '')}\n"
         f"request_id={int(request_id or 0)}\n"
         f"active_preview_alive={bool(active_preview_alive)}"
@@ -457,7 +457,7 @@ def alignment_d3d11_stale_package_dropped_performance(
     active_preview_alive: bool,
 ) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="Dropped stale D3D11 preview package; rebuilding current preview.",
+        summary="Dropped stale .NET/Vortice preview package; rebuilding current preview.",
         details=(
             f"reason={str(reason or '')}\n"
             f"request_id={int(request_id or 0)}\n"
@@ -480,7 +480,7 @@ def alignment_d3d11_package_queued_performance(
 ) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
         summary=(
-            f"D3D11 package queued - {str(quality_label or '')} - "
+            f".NET/Vortice package queued - {str(quality_label or '')} - "
             f"refresh {float(refresh_elapsed_ms or 0.0):.0f} ms"
         ),
         details="",
@@ -489,7 +489,7 @@ def alignment_d3d11_package_queued_performance(
 
 def alignment_d3d11_alignment_preview_failed_performance(message: str) -> AlignmentD3D11StatusPresentation:
     return AlignmentD3D11StatusPresentation(
-        summary="D3D11 alignment preview failed.",
+        summary=".NET/Vortice alignment preview failed.",
         details=str(message),
     )
 
@@ -526,11 +526,11 @@ def alignment_d3d11_loaded_timing_presentation(
     frame_text = f"FPS {fps:.1f} - frame {frame_ms:.2f} ms - " if fps > 0.0 and frame_ms > 0.0 else ""
     channel_debug_text = _alignment_d3d11_channel_debug_text(channel_debug)
     summary = (
-        f"D3D11 preview loaded - {str(quality_label or '')} - "
+        f".NET/Vortice Preview loaded - {str(quality_label or '')} - "
         f"{frame_text}"
         f"{str(state.get('package_quality', 'normal') or 'normal')} package - "
         f"reason {rebuild_reason} - {str(cache_label or '')} - "
-        f"native {native_load_ms:.0f} ms - "
+        f"renderer {native_load_ms:.0f} ms - "
         f"textures {texture_text}"
     )
     details = (

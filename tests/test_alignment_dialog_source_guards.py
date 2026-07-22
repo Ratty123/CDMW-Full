@@ -3598,13 +3598,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_queue_latest_alignment_d3d11_rebuild_for_stale_reload", loading_source)
         self.assertIn("Preview reload restarted.", d3d11_watchdog_source)
         self.assertIn("_state._alignment_d3d11_restart_performance_helper(", loading_source)
-        self.assertIn("D3D11 preview reload restarted", d3d11_presentation_source)
+        self.assertIn(".NET/Vortice Preview reload restarted", d3d11_presentation_source)
         self.assertNotIn("Preview stale/no fresh frame.", loading_source)
         loading_stuck_block = _nested_function_source(loading_source, "_alignment_d3d11_loading_stuck")
         self.assertIn("queued_model", loading_stuck_block)
         self.assertIn("pending_model", loading_stuck_block)
         self.assertIn("thread.isRunning()", loading_stuck_block)
-        self.assertIn("native load/upload 0.0 ms (active package reused)", d3d11_presentation_source)
+        self.assertIn(".NET load/upload 0.0 ms (active package reused)", d3d11_presentation_source)
         self.assertIn('details="cache=live-command reason=display_mode"', d3d11_presentation_source)
         self.assertIn("native_load_upload", d3d11_presentation_source)
 
@@ -4441,7 +4441,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", package_worker_block)
         self.assertIn("package_quality=package_quality", package_worker_block)
         self.assertIn("geometry_cache_dir=preview_cache_root / 'geometry'", package_worker_block)
-        self.assertIn("original_reference_native_package_dir=native_reference_package_dir", package_worker_block)
+        self.assertNotIn("original_reference_native_package_dir=", package_worker_block)
         self.assertIn("editor_workspace='modify_original_alignment' if _state.modify_original_clone_mode else 'mesh_replacement_alignment'", package_worker_block)
         self.assertNotIn("original_reference_material_parity=enable_material_combiner", package_worker_block)
 
@@ -5216,7 +5216,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_state.apply_source_parts_button.setEnabled(bool(_state.source_parts_apply_state.get('pending')))", outliner_source)
         self.assertIn('"preview_rebuild_pending": False', source_parts_state_source)
         self.assertIn("def _set_source_parts_preview_rebuild_pending(reason: str) -> None:", source)
-        self.assertIn("old D3D11 geometry may remain visible until reload finishes", source_parts_state_source)
+        self.assertIn(
+            "old .NET/Vortice geometry may remain visible until reload finishes",
+            source_parts_state_source,
+        )
         self.assertIn("_clear_source_parts_preview_rebuild_pending()", source)
         self.assertNotIn("source_parts_apply_button.setEnabled", source)
 
@@ -5587,7 +5590,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn('if _state._d3d11_preview_active():', queue_source)
         self.assertIn("_sync_highlight_sets()", queue_source)
         self.assertIn("_alignment_d3d11_selection_highlight_performance_helper()", queue_source)
-        self.assertIn("Selection changes use live D3D11 highlight commands", d3d11_presentation_source)
+        self.assertIn("Selection changes use live .NET/Vortice highlight commands", d3d11_presentation_source)
         self.assertIn("_queue_static_preview_refresh()", queue_source)
         self.assertLess(
             queue_source.index("_alignment_d3d11_selection_highlight_performance_helper()"),

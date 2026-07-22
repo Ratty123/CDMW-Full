@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tests.native_source_text import d3d11_preview_source
 from tests.static_replacement_source_support import (
     static_replacement_source_part_mutation_callback_source,
     static_replacement_ui_concern_source,
@@ -16,12 +15,11 @@ PROMPT_SETUP = (
 
 
 def test_alignment_selection_highlight_is_bounded() -> None:
-    native_source = d3d11_preview_source()
+    vortice_source = (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.Overlay.cs").read_text(encoding="utf-8")
 
-    assert "std::clamp(batch.highlight_strength * 0.18f, 0.0f, 0.14f)" in native_source
-    assert "std::max(view.reference_tint_alpha, selection_tint_alpha)" in native_source
-    assert "std::clamp(batch.highlight_strength, 0.0f, 0.74f)" not in native_source
-    assert "std::clamp(batch.highlight_strength, 0.0f, 0.82f)" not in native_source
+    assert "private void DrawSelectedSourcesOverlay()" in vortice_source
+    assert "OverlayColor(70, 155, 255, _overlayShowXRay ? 64 : 42)" in vortice_source
+    assert "OverlayColor(70, 155, 255, _overlayShowXRay ? 230 : 185)" in vortice_source
 
 
 def test_source_part_mutation_lazy_state_is_initialized_and_guarded() -> None:

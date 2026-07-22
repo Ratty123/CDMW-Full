@@ -245,7 +245,7 @@ def _mesh_editor_sync_static_replacement_session_to_working_mesh(_state, _callba
             message=str(exc),
         )
         _state.self.set_status_message(
-            "Native Mesh Editor mesh sync failed; reload the D3D11 preview before continuing.",
+            ".NET/Vortice Mesh Editor sync failed; reload the preview before continuing.",
             error=True,
         )
         return False

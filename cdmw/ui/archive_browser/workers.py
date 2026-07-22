@@ -237,22 +237,22 @@ class ArchivePreviewWorkerMixin:
         cache_miss_reason = ""
         cache_miss_detail = ""
         for preview_cache_key, cached_result in tuple(preview_cache_snapshot.items()):
-            native_package_path = str(getattr(cached_result, "native_preview_package_path", "") or "").strip()
-            if not native_package_path:
+            dotnet_package_path = str(getattr(cached_result, "dotnet_preview_package_path", "") or "").strip()
+            if not dotnet_package_path:
                 continue
-            valid_package, missing_paths = self._validate_d3d11_preview_package_paths(Path(native_package_path))
+            valid_package, missing_paths = self._validate_d3d11_preview_package_paths(Path(dotnet_package_path))
             if valid_package:
                 continue
             preview_cache_snapshot.pop(preview_cache_key, None)
             self.archive_preview_cache.pop(preview_cache_key, None)
-            cache_miss_reason = "native_package_expired"
+            cache_miss_reason = "dotnet_package_expired"
             cache_miss_detail = "; ".join(missing_paths[:4])
             self._record_runtime_event(
-                "archive_preview_cache_native_package_expired",
+                "archive_preview_cache_dotnet_package_expired",
                 request_id=request_id,
                 selected_path=str(getattr(entry, "path", "") or ""),
                 cache_key=preview_cache_key,
-                package_path=native_package_path,
+                package_path=dotnet_package_path,
                 missing=list(missing_paths[:12]),
             )
 

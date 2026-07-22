@@ -191,11 +191,12 @@ def test_model_preview_settings_status_preserves_default_summary_and_details() -
     status, details = model_preview_settings_status(ModelPreviewRenderSettings())
 
     assert status == (
-        "3D Preview: Visible Mesh Base First | Lit | ON: Textures yes, "
+        "3D Preview: .NET/Vortice Lit | ON: Textures yes, "
         "Support-map shading yes | Checked disables: Brightness, UV scale, HKX physics overlay"
     )
-    assert "Visible texture mode: Mesh Base First" in details
-    assert "Diagnostic render mode: Lit" in details
+    assert ".NET/Vortice view: Lit" in details
+    assert "Visible texture mode" not in details
+    assert "Diagnostic render mode" not in details
     assert "Use textures when available: enabled" in details
     assert "Support-map preview shading: enabled" in details
     assert "Alpha handling: Default Discard" in details
@@ -229,7 +230,7 @@ def test_model_preview_settings_status_preserves_unknown_values_and_disabled_fla
     status, details = model_preview_settings_status(settings)
 
     assert status == (
-        "3D Preview: Visible custom_visible | custom_render | ON: Textures no, "
+        "3D Preview: .NET/Vortice Lit | ON: Textures no, "
         "Support-map shading no | Checked disables: None"
     )
     assert "Alpha handling: custom_alpha" in details
@@ -316,7 +317,7 @@ def test_model_preview_settings_live_d3d11_tuning_success_does_not_rebuild_previ
     assert window.archive_d3d11_preview_host.render_tuning_settings == [current]
     assert window.refreshed_assets == 0
     assert window.scheduled_asset_refreshes == 0
-    assert window.status_messages == [("Updated native D3D11 render tuning.", False)]
+    assert window.status_messages == [("Updated .NET/Vortice render tuning.", False)]
     assert window.saved_settings == 1
 
 
@@ -328,5 +329,5 @@ def test_model_preview_settings_live_d3d11_tuning_failure_reloads_preview() -> N
     assert len(window.archive_d3d11_preview_host.render_tuning_settings) == 1
     assert window.refreshed_assets == 1
     assert window.scheduled_asset_refreshes == 0
-    assert window.status_messages == [("Reloading native D3D11 preview to apply render settings.", False)]
+    assert window.status_messages == [("Reloading .NET/Vortice preview to apply render settings.", False)]
     assert window.saved_settings == 1

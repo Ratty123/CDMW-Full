@@ -833,7 +833,10 @@ class MaterialSidecarEditorHelperTests(unittest.TestCase):
         )
         self.assertEqual("No model preview available for this material sidecar.", material_sidecar_no_model_preview_status())
         self.assertEqual("Building material preview for armor.pac_xml...", material_sidecar_preview_task_status("armor.pac_xml"))
-        self.assertIn("reused active Archive Preview D3D11 package", material_sidecar_reused_package_summary())
+        self.assertIn(
+            "reused active Archive Browser .NET/Vortice package",
+            material_sidecar_reused_package_summary(),
+        )
         self.assertEqual(
             "Reusing cached material preview geometry for model.pac...",
             material_sidecar_cached_geometry_log("model.pac"),

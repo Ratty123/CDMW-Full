@@ -597,12 +597,12 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.archive_native_preview_cache_mode_combo.setMinimumWidth(360)
         self.archive_native_preview_cache_mode_combo.setMaximumWidth(460)
         self.archive_native_preview_cache_mode_combo.setToolTip(
-            "Durable D3D11 .pac preview package cache on disk. Balanced reuses exact previews. Aggressive also prebuilds a few nearby visible models and uses more disk."
+            "Durable .NET/Vortice .pac preview package cache on disk. Balanced reuses exact previews. Aggressive also prebuilds a few nearby visible models and uses more disk."
         )
         preview_cache_row = _add_performance_row(
             preview_cache_layout,
             preview_cache_row,
-            "D3D11 disk cache",
+            ".NET/Vortice disk cache",
             self.archive_native_preview_cache_mode_combo,
             "Impact: Balanced reuses exact previews. Aggressive uses more disk to prebuild nearby models.",
             max_control_width=460,
@@ -645,23 +645,21 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.visible_texture_mode_combo.setToolTip(
             "Controls whether the preview prefers mesh-derived base textures or lets sidecar-visible layered textures replace them."
         )
-        preview_layout.addRow("Visible texture mode", self.visible_texture_mode_combo)
         self.render_diagnostic_mode_combo = QComboBox()
         for mode in MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES:
             self.render_diagnostic_mode_combo.addItem(MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow("Diagnostic render mode", self.render_diagnostic_mode_combo)
         self.d3d11_view_mode_combo = QComboBox()
         for mode in D3D11_PREVIEW_VIEW_MODES:
             self.d3d11_view_mode_combo.addItem(D3D11_PREVIEW_VIEW_MODE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow("D3D11 view mode", self.d3d11_view_mode_combo)
+        preview_layout.addRow(".NET/Vortice view", self.d3d11_view_mode_combo)
         self.d3d11_normal_y_mode_combo = QComboBox()
         for mode in D3D11_NORMAL_Y_MODES:
             self.d3d11_normal_y_mode_combo.addItem(D3D11_NORMAL_Y_MODE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow("D3D11 normal Y", self.d3d11_normal_y_mode_combo)
+        preview_layout.addRow(".NET/Vortice normal Y", self.d3d11_normal_y_mode_combo)
         self.d3d11_texture_address_mode_combo = QComboBox()
         for mode in D3D11_TEXTURE_ADDRESS_MODES:
             self.d3d11_texture_address_mode_combo.addItem(D3D11_TEXTURE_ADDRESS_MODE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow("D3D11 texture address", self.d3d11_texture_address_mode_combo)
+        preview_layout.addRow(".NET/Vortice texture address", self.d3d11_texture_address_mode_combo)
         self.alpha_handling_combo = QComboBox()
         for mode in MODEL_PREVIEW_ALPHA_HANDLING_MODES:
             self.alpha_handling_combo.addItem(MODEL_PREVIEW_ALPHA_HANDLING_LABELS.get(mode, mode), mode)
@@ -674,10 +672,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.diffuse_swizzle_combo = QComboBox()
         for mode in MODEL_PREVIEW_DIFFUSE_SWIZZLE_MODES:
             self.diffuse_swizzle_combo.addItem(MODEL_PREVIEW_DIFFUSE_SWIZZLE_LABELS.get(mode, mode), mode)
-        preview_layout.addRow("Alpha handling", self.alpha_handling_combo)
-        preview_layout.addRow("Texture source probe", self.texture_probe_source_combo)
-        preview_layout.addRow("Sampler probe", self.sampler_probe_combo)
-        preview_layout.addRow("Diffuse swizzle", self.diffuse_swizzle_combo)
         self.disable_tint_checkbox = QCheckBox("Disable base tint")
         self.disable_brightness_checkbox = QCheckBox("Disable brightness")
         self.disable_uv_scale_checkbox = QCheckBox("Disable UV scale")
@@ -689,7 +683,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.disable_lighting_checkbox = QCheckBox("Disable lighting")
         self.disable_depth_test_checkbox = QCheckBox("Disable depth test")
         self.show_texture_debug_strip_checkbox = QCheckBox("Show texture debug strip")
-        self.d3d11_cull_back_faces_checkbox = QCheckBox("D3D11 cull back faces")
+        self.d3d11_cull_back_faces_checkbox = QCheckBox(".NET/Vortice cull back faces")
         for checkbox in (
             self.disable_tint_checkbox,
             self.disable_brightness_checkbox,
@@ -816,7 +810,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 mip LOD bias", self.d3d11_mip_lod_bias_spin)
+        shading_layout.addRow(".NET/Vortice mip LOD bias", self.d3d11_mip_lod_bias_spin)
         self.d3d11_light_azimuth_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_azimuth_degrees"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_azimuth_degrees"][1],
@@ -824,7 +818,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
             decimals=0,
             suffix=" deg",
         )
-        shading_layout.addRow("D3D11 light azimuth", self.d3d11_light_azimuth_spin)
+        shading_layout.addRow(".NET/Vortice light azimuth", self.d3d11_light_azimuth_spin)
         self.d3d11_light_elevation_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_elevation_degrees"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_light_elevation_degrees"][1],
@@ -832,7 +826,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
             decimals=0,
             suffix=" deg",
         )
-        shading_layout.addRow("D3D11 light elevation", self.d3d11_light_elevation_spin)
+        shading_layout.addRow(".NET/Vortice light elevation", self.d3d11_light_elevation_spin)
         self.normal_strength_cap_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["normal_strength_cap"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["normal_strength_cap"][1],
@@ -923,56 +917,56 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 AO strength", self.d3d11_ao_strength_spin)
+        shading_layout.addRow(".NET/Vortice AO strength", self.d3d11_ao_strength_spin)
         self.d3d11_roughness_bias_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_roughness_bias"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_roughness_bias"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 roughness bias", self.d3d11_roughness_bias_spin)
+        shading_layout.addRow(".NET/Vortice roughness bias", self.d3d11_roughness_bias_spin)
         self.d3d11_metalness_scale_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_metalness_scale"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_metalness_scale"][1],
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 metalness scale", self.d3d11_metalness_scale_spin)
+        shading_layout.addRow(".NET/Vortice metalness scale", self.d3d11_metalness_scale_spin)
         self.d3d11_environment_strength_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_environment_strength"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_environment_strength"][1],
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 environment strength", self.d3d11_environment_strength_spin)
+        shading_layout.addRow(".NET/Vortice environment strength", self.d3d11_environment_strength_spin)
         self.d3d11_emissive_gain_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_emissive_gain"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_emissive_gain"][1],
             step=0.05,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 emissive gain", self.d3d11_emissive_gain_spin)
+        shading_layout.addRow(".NET/Vortice emissive gain", self.d3d11_emissive_gain_spin)
         self.d3d11_tone_exposure_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_exposure"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_exposure"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 tone exposure", self.d3d11_tone_exposure_spin)
+        shading_layout.addRow(".NET/Vortice tone exposure", self.d3d11_tone_exposure_spin)
         self.d3d11_tone_contrast_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_contrast"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_contrast"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 tone contrast", self.d3d11_tone_contrast_spin)
+        shading_layout.addRow(".NET/Vortice tone contrast", self.d3d11_tone_contrast_spin)
         self.d3d11_tone_gamma_spin = self._create_float_spin(
             minimum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_gamma"][0],
             maximum=MODEL_PREVIEW_RENDER_LIMITS["d3d11_tone_gamma"][1],
             step=0.02,
             decimals=2,
         )
-        shading_layout.addRow("D3D11 tone gamma", self.d3d11_tone_gamma_spin)
+        shading_layout.addRow(".NET/Vortice tone gamma", self.d3d11_tone_gamma_spin)
         reset_row = QHBoxLayout()
         reset_row.setContentsMargins(0, 0, 0, 0)
         reset_row.setSpacing(8)

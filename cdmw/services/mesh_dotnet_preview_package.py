@@ -16,12 +16,12 @@ from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
-from cdmw.rendering.native_preview_package_cache import (
-    create_native_preview_package_staging_dir,
-    lookup_native_preview_package_cache,
-    native_preview_package_cache_build_lock,
-    release_native_preview_package_staging_dir,
-    store_native_preview_package_cache,
+from cdmw.rendering.dotnet_preview_package_cache import (
+    create_dotnet_preview_package_staging_dir,
+    dotnet_preview_package_cache_build_lock,
+    lookup_dotnet_preview_package_cache,
+    release_dotnet_preview_package_staging_dir,
+    store_dotnet_preview_package_cache,
 )
 from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
@@ -482,17 +482,17 @@ def build_or_lookup_dotnet_preview_package(
     derived_cache_root = Path(cache_root) / "dotnet_vortice"
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
     if durable:
-        build_lock = native_preview_package_cache_build_lock(derived_cache_root, cache_key)
+        build_lock = dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key)
         with build_lock:
             _check_cancelled(cancelled)
-            hit = lookup_native_preview_package_cache(
+            hit = lookup_dotnet_preview_package_cache(
                 derived_cache_root,
                 cache_key,
                 validate_package=validate_dotnet_preview_package,
             )
             if hit is not None:
                 return mesh_dotnet_experiment_package_from_path(hit.package_dir)
-            staging_entry = create_native_preview_package_staging_dir(derived_cache_root, leased=True)
+            staging_entry = create_dotnet_preview_package_staging_dir(derived_cache_root, leased=True)
             try:
                 mesh = decode_dotnet_native_preview_package(source_package, cancelled=cancelled)
                 overlays = dotnet_preview_overlays_from_preview_core_package(source_package, cancelled=cancelled)
@@ -516,7 +516,7 @@ def build_or_lookup_dotnet_preview_package(
                         "source_package": str(source_package),
                     }
                 )
-                hit = store_native_preview_package_cache(
+                hit = store_dotnet_preview_package_cache(
                     derived_cache_root,
                     cache_key,
                     staging_entry,
@@ -529,7 +529,7 @@ def build_or_lookup_dotnet_preview_package(
                     raise RuntimeError("Canonical .NET preview package cache publication failed.")
                 return mesh_dotnet_experiment_package_from_path(hit.package_dir)
             finally:
-                release_native_preview_package_staging_dir(staging_entry, cleanup=True)
+                release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
 
     _check_cancelled(cancelled)
     Path(cache_root).mkdir(parents=True, exist_ok=True)
@@ -573,16 +573,16 @@ def build_or_lookup_dotnet_preview_package_from_model(
     derived_cache_root = Path(cache_root) / "dotnet_vortice"
     durable = str(cache_mode or "off").strip().lower() in {"balanced", "aggressive"} and max_bytes > 0
     if durable:
-        with native_preview_package_cache_build_lock(derived_cache_root, cache_key):
+        with dotnet_preview_package_cache_build_lock(derived_cache_root, cache_key):
             _check_cancelled(cancelled)
-            hit = lookup_native_preview_package_cache(
+            hit = lookup_dotnet_preview_package_cache(
                 derived_cache_root,
                 cache_key,
                 validate_package=validate_dotnet_preview_package,
             )
             if hit is not None:
                 return mesh_dotnet_experiment_package_from_path(hit.package_dir)
-            staging_entry = create_native_preview_package_staging_dir(derived_cache_root, leased=True)
+            staging_entry = create_dotnet_preview_package_staging_dir(derived_cache_root, leased=True)
             try:
                 mesh = parsed_mesh_from_model_preview(model)
                 _check_cancelled(cancelled)
@@ -605,7 +605,7 @@ def build_or_lookup_dotnet_preview_package_from_model(
                         "source_decoder": "python_model_preview",
                     }
                 )
-                hit = store_native_preview_package_cache(
+                hit = store_dotnet_preview_package_cache(
                     derived_cache_root,
                     cache_key,
                     staging_entry,
@@ -618,7 +618,7 @@ def build_or_lookup_dotnet_preview_package_from_model(
                     raise RuntimeError("Canonical .NET preview package cache publication failed.")
                 return mesh_dotnet_experiment_package_from_path(hit.package_dir)
             finally:
-                release_native_preview_package_staging_dir(staging_entry, cleanup=True)
+                release_dotnet_preview_package_staging_dir(staging_entry, cleanup=True)
 
     _check_cancelled(cancelled)
     Path(cache_root).mkdir(parents=True, exist_ok=True)

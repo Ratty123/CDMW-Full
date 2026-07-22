@@ -50,7 +50,6 @@ def run_scenario(
     output_dir: Path,
     *,
     game_root: Path | str | None = None,
-    allow_synthetic_d3d11: bool = False,
     parity_reference: Path | str | None = None,
     parity_candidate: Path | str | None = None,
     openimageio_path: Path | str | None = None,
@@ -70,7 +69,6 @@ def run_scenario(
     )
     output_dir.mkdir(parents=True, exist_ok=True)
     metadata = scenario_metadata(scenario)
-    del allow_synthetic_d3d11
     if scenario == 'asset-authoring-discovery':
         discovery_result = run_asset_authoring_discovery(output_dir)
         result = {'scenario': scenario, 'ok': bool(discovery_result.get('ok')), 'asset_authoring': discovery_result}

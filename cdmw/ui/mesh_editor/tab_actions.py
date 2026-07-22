@@ -610,7 +610,10 @@ class MeshEditorActionsMixin:
                 return True
         refresh_started = self.start_standalone_native_preview_async(reset_view=False)
         if refresh_started:
-            self.status_message_requested.emit(f"Refreshing Mesh Editor D3D11 texture preview: {resolved.name}", False)
+            self.status_message_requested.emit(
+                f"Refreshing Mesh Editor .NET/Vortice texture preview: {resolved.name}",
+                False,
+            )
         else:
             self.status_message_requested.emit(f"Mesh Editor texture preview staged: {resolved.name}", False)
         return True

@@ -29,9 +29,6 @@ def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
         ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_presentation.py"
     ).read_text(encoding="utf-8")
 
-    native_camera_types = (
-        ROOT / "native" / "cdmw_d3d11_preview" / "src" / "d3d_preview_types.hpp"
-    ).read_text(encoding="utf-8")
     expected_steps = (
         0.1,
         0.25,
@@ -54,12 +51,8 @@ def test_dotnet_wheel_zoom_is_reversible_and_uses_fit_relative_bounds() -> None:
     dotnet_step_block = policy.split(
         "ArchiveBrowserZoomSteps =", maxsplit=1
     )[1].split("};", maxsplit=1)[0]
-    native_step_block = native_camera_types.split(
-        "kZoomSteps[] =", maxsplit=1
-    )[1].split("};", maxsplit=1)[0]
 
     assert tuple(float(value) for value in re.findall(r"([0-9.]+)f", dotnet_step_block)) == expected_steps
-    assert tuple(float(value) for value in re.findall(r"([0-9.]+)f", native_step_block)) == expected_steps
     assert "MathF.Pow(" not in policy
     assert "MinimumFitZoomRatio = 0.1f" in policy
     assert "MaximumFitZoomRatio = 64.0f" in policy

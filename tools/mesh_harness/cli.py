@@ -26,11 +26,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         default=Path(os.environ.get("CDMW_GAME_ROOT") or _DEFAULT_GAME_ROOT),
     )
     parser.add_argument("--output", required=True, type=Path)
-    parser.add_argument(
-        "--allow-synthetic-d3d11",
-        action="store_true",
-        help="Allow synthetic checkerboard D3D11 protocol harnesses; do not use this for visual edit proof.",
-    )
     parser.add_argument("--parity-reference", type=Path, help="Reference PNG for offline OpenImageIO parity comparison.")
     parser.add_argument("--parity-candidate", type=Path, help="Candidate PNG for offline OpenImageIO parity comparison.")
     parser.add_argument("--oiio-path", type=Path, help="Optional path to oiiotool; CDMW_OIIO_BIN and PATH remain supported.")
@@ -61,7 +56,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.scenario,
             args.output,
             game_root=args.game_root,
-            allow_synthetic_d3d11=args.allow_synthetic_d3d11,
             parity_reference=args.parity_reference,
             parity_candidate=args.parity_candidate,
             openimageio_path=args.oiio_path,

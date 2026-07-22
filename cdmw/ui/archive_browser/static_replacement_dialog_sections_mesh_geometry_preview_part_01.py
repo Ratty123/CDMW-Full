@@ -420,8 +420,7 @@ def _bind_embedded_mesh_editor_preview(_state):
         same_entry = callable(getattr(_state.self, '_same_archive_entry', None)) and _state.self._same_archive_entry(current_entry, _state.entry)
         if not same_entry:
             return ''
-        current_result = getattr(_state.self, 'current_archive_preview_result', None)
-        return str(getattr(current_result, 'native_preview_package_path', '') or '').strip()
+        return ''
 
     def _mesh_editor_embedded_defer_reference_material_synthesis() -> bool:
         current_getter = getattr(_state, '_current_original_reference_preview_model', None)

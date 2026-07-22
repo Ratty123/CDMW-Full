@@ -472,7 +472,7 @@ def material_sidecar_preview_task_status(basename: object) -> str:
 def material_sidecar_reused_package_summary() -> str:
     return (
         "Approximate sidecar preview\n"
-        "reused active Archive Preview D3D11 package; no material values changed."
+        "reused active Archive Browser .NET/Vortice package; no material values changed."
     )
 
 

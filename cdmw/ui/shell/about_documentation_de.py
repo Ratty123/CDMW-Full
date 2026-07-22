@@ -263,7 +263,7 @@ class AboutDocumentationGermanMixin:
                   <li><b>Mesh-Importvorschau</b> testet OBJ/DAE/glTF/GLB, ohne Ausgabe zu schreiben.</li>
                   <li><b>Mesh importieren</b> nutzt dieselbe Pruefung und kann nach Bestaetigung mod-fertige Loose-Ausgabe oder kompatible Patches schreiben.</li>
                   <li><b>Mit Ingame-Mesh tauschen</b> markiert eine Archiv-Mesh als Ziel und nutzt eine andere geladene Mesh als Quelle fuer die Ausrichtung.</li>
-                  <li><b>HKX bearbeiten</b> und <b>Platzierungsquelle waehlen</b> kopieren Prefab-/Socket-Daten von einer anderen Waffen-/Modellfamilie. Wenn moeglich den sichtbaren <code>.pac</code> waehlen; der Picker zeigt eine statische Geometrie-Miniatur, die visuelle Bearbeitung laeuft in nativem D3D11.</li>
+                  <li><b>HKX bearbeiten</b> und <b>Platzierungsquelle waehlen</b> kopieren Prefab-/Socket-Daten von einer anderen Waffen-/Modellfamilie. Wenn moeglich den sichtbaren <code>.pac</code> waehlen; der Picker zeigt eine statische Geometrie-Miniatur, die visuelle Bearbeitung laeuft in der .NET/Vortice-Vorschau.</li>
                   <li>Direkte Patches sind nur fuer Formate sinnvoll, die die App sicher rekonstruieren kann.</li>
                 </ul>
                 """,
@@ -439,7 +439,7 @@ class AboutDocumentationGermanMixin:
                     <ul>
                       <li><b>HKX bearbeiten</b> behandelt das geoeffnete Asset als Ziel, das sich aendert. <b>Platzierungsquelle waehlen</b> sucht die Waffen-/Modellquelle, deren Platzierung kopiert wird.</li>
                       <li>Wenn moeglich einen sichtbaren <code>.pac</code> als Quelle waehlen. Du kannst direkt in Archivindizes suchen oder mit <b>Item Finder</b> ueber Name, Icon oder Kategorie starten.</li>
-                      <li>Der Quellen-Picker zeigt eine statische Geometrie-Miniatur zur Modellbestaetigung; die visuelle Bearbeitung laeuft in nativem D3D11.</li>
+                      <li>Der Quellen-Picker zeigt eine statische Geometrie-Miniatur zur Modellbestaetigung; die visuelle Bearbeitung laeuft in der .NET/Vortice-Vorschau.</li>
                       <li><b>Platzierung vergleichen</b> prueft aufgeloeste Prefab-/Socket-/HKX-Daten vor dem Paketbau. <b>Socket-Werte bearbeiten</b> erscheint, wenn das wiederhergestellte XML sicher angezeigt und geschrieben werden kann.</li>
                     </ul>
                     """,
@@ -472,7 +472,7 @@ class AboutDocumentationGermanMixin:
                       <li>Profile speichern keine geoeffneten Archive, aktiven Dokumente oder Projekt-Sitzungen pro Tab.</li>
                       <li><b>Diagnosen exportieren</b> enthaelt dasselbe Profil, Logs, Cache-Zusammenfassung, chaiNNer-Analyse, Crash-Kontext wenn vorhanden, README, Lizenz und Drittanbieterhinweise.</li>
                       <li><b>Einstellungen / Start</b>: Archiv-Autoload, Cache-Praeferenz, letzter Tab und Archivfilter.</li>
-                      <li><b>Einstellungen / Leistung</b>: Ressourcenprofil, Ansichtsbackend, UI-Budget, Worker, native Beschleunigung, Sidecar-Indexierung und D3D11-Cache.</li>
+                      <li><b>Einstellungen / Leistung</b>: Ressourcenprofil, Ansichtsbackend, UI-Budget, Worker, native Beschleunigung, Sidecar-Indexierung und .NET/Vortice-Cache.</li>
                       <li><b>Einstellungen / Darstellung</b>: Themes, integriertes Spanisch/Deutsch, eigene Sprachdateien, Schrift, Dichte, Farben und 3D-Werte.</li>
                     </ul>
                     <p>Sprachexport erzeugt JSON mit englischen Schluesseln. Schluessel unveraendert lassen und nur uebersetzte Werte bearbeiten.</p>

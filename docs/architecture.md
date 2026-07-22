@@ -57,17 +57,23 @@ behind compatibility wrappers.
   `src/owners/`. A named CMake unity group preserves the legacy private-type
   dependency order without source-level `.cpp` includes. Owners/functions are
   capped at 1,000/150 lines; executable names, commands, package schema, report
-  fields, texture provenance, and no-fallback behavior remain compatible.
-- `native/cdmw_d3d11_preview/`: isolated legacy compatibility/protocol preview
-  host. It is not the canonical user-facing Mesh Editor renderer. Its thin entry
-  delegates to ordered protocol, package/material, renderer lifecycle/resource,
-  draw, picking, interaction, sparse-update, command, cloth, and app owners.
-  CMake's named unity group retains private translation-unit ordering without
-  source-level `.cpp` includes. Owner/header and function ceilings are 1,000 and
-  150 lines respectively; the wire protocol and executable name remain stable.
+  fields, texture provenance, and no-fallback behavior remain compatible. It is
+  a decode/package service and never owns a visible renderer.
 
-- `tools/dotnet_mesh_editor_experiment/`: production embedded Mesh Editor
-  presentation and input host. Its required renderer backend is the
+- `cdmw/ui/preview/`: shared Qt host and resident session controller for every
+  visible model preview. One controller owns one verified `QProcess`, monotonic
+  process/package generations, latest-wins preparation, stale-result rejection,
+  package leases, bounded shutdown, and visibility-scoped retry. The `preview`
+  profile exposes read-only presentation, picking, overlays, resident package
+  replacement, and capture; the `authoring` profile additionally exposes the
+  Mesh Editor mutation protocol and rehydrates from authoritative MeshService
+  state after recovery. Long-lived tabs deactivate and retain their process;
+  modal owners terminate it on close. No surface falls back to another visual
+  renderer.
+- `tools/dotnet_mesh_editor_experiment/`: production presentation and input
+  host for Archive Browser, reference/material/attachment previews, Model
+  Library, static replacement/alignment, icon capture, and Mesh Editor. Its
+  required renderer backend is the
   .NET/Vortice D3D11 path `d3d11_vortice_shader`; WPF/GDI rendering is available
   only through an explicit developer override. The resident C++ edit backend
   remains `cdmw_mesh_core_0.1`. One resident scene protocol owns editable and
@@ -86,6 +92,13 @@ behind compatibility wrappers.
   material combiner from `MeshDotNetExperimentPackageWorker`. Generated preview base and
   support maps are packaged with their raw source diagnostics; lightweight
   resident material-state snapshots never run image synthesis or package I/O.
+  Archive and editor surfaces consume the same `dotnet_scene.json`,
+  `net_materials.json`, exact DDS resources, canonical material compiler, and
+  atomic derived-package cache. Legacy `preview/d3d11_*` setting names and
+  `native_preview_*` package APIs are compatibility storage/artifact aliases;
+  they do not launch a renderer. The retired `cdmw-d3d11-preview.exe`, native
+  project, HWND/WM_COPYDATA protocol, and packaged payload are forbidden by
+  source and release-package guards.
 
 Focused owner source files use a shared 1,000-line default ceiling. Smaller
 feature-specific caps remain valid. A cohesive, static-data, or generated owner
@@ -328,9 +341,9 @@ full-model and every-submesh review. A semantic-green package or a prior
 120/120 paired-image verdict cannot substitute for that source-authority and
 region-level appearance proof.
 Normal/full QA runs the split nonvisual tests and never substitutes synthetic
-checker geometry for the explicit read-only real-game proof. The canonical
-user-facing scenario is `real-archive-mesh-editor-dotnet-edit-smoke`; legacy
-`real-archive-mesh-editor-d3d11-*` scenarios remain compatibility-only.
+geometry for the explicit read-only real-game proof. The only user-facing
+scenario is `real-archive-mesh-editor-dotnet-edit-smoke`; the retired native
+renderer has no harness scenario.
 Preview-material data classes are owned by `cdmw/domain/model_preview_materials.py`
 and re-exported from `cdmw.models`; focused geometry-preparation, material-manifest,
 and native-host protocol helpers retain their existing compatibility imports.

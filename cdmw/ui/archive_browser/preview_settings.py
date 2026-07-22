@@ -16,9 +16,9 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
-from cdmw.services.preview_rendering_service import (
-    native_preview_package_cache_budget,
-    prune_native_preview_package_cache,
+from cdmw.rendering.dotnet_preview_package_cache import (
+    dotnet_preview_package_cache_budget,
+    prune_dotnet_preview_package_cache,
 )
 from cdmw.ui.model_preview_native import (
     ARCHIVE_MODEL_RENDERER_D3D11,
@@ -498,7 +498,7 @@ class ArchivePreviewSettingsMixin:
         self._clear_archive_preview_cache(clear_native_packages=True)
         self.append_archive_log(
             f"Cleared {cleared_count:,} in-memory archive preview cache entr{'y' if cleared_count == 1 else 'ies'} "
-            "plus durable native preview packages and PAC XML profile index."
+            "plus durable .NET/Vortice preview packages and PAC XML profile index."
         )
         self.set_status_message("Archive preview cache cleared.")
 
@@ -607,7 +607,7 @@ class ArchivePreviewSettingsMixin:
             widget.set_high_quality_textures(bool(preview_settings.high_quality_by_default))
         change_flags = model_preview_settings_change_flags(previous_settings, preview_settings)
         current_result = self.current_archive_preview_result
-        native_package_path = str(getattr(current_result, "native_preview_package_path", "") or "").strip() if current_result is not None else ""
+        dotnet_package_path = str(getattr(current_result, "dotnet_preview_package_path", "") or "").strip() if current_result is not None else ""
         d3d11_backend_active = (
             self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
             and current_result is not None
@@ -617,7 +617,7 @@ class ArchivePreviewSettingsMixin:
             current_result is not None
             and (
                 getattr(current_result, "preview_model", None) is not None
-                or native_package_path
+                or dotnet_package_path
             )
         )
         if d3d11_backend_active and current_has_d3d11_preview_data and (
@@ -668,15 +668,15 @@ class ArchivePreviewSettingsMixin:
             self.append_archive_log(f"Archive preview cache size set to {self.archive_preview_cache_limit}.")
         if previous_native_cache_mode != performance_settings.native_preview_cache_mode:
             self._stop_archive_native_preview_prefetch()
-            max_bytes, target_bytes = native_preview_package_cache_budget(performance_settings.native_preview_cache_mode)
+            max_bytes, target_bytes = dotnet_preview_package_cache_budget(performance_settings.native_preview_cache_mode)
             if max_bytes > 0:
-                prune_native_preview_package_cache(
+                prune_dotnet_preview_package_cache(
                     self._native_preview_package_cache_root(),
                     max_bytes=max_bytes,
                     target_bytes=target_bytes,
                 )
             self.append_archive_log(
-                f"Native preview package cache mode set to {performance_settings.native_preview_cache_mode}."
+                f".NET/Vortice preview package cache mode set to {performance_settings.native_preview_cache_mode}."
             )
         if (
             not performance_settings.enable_sidecar_indexing

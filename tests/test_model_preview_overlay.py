@@ -254,22 +254,23 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertIn('"cd_runtime_approx"', package_source)
         self.assertIn("preview_divergence_reasons", package_source)
 
-    def test_sketchfab_style_geometry_diagnostic_modes_are_available(self) -> None:
-        for mode, label in (
-            ("matcap", "Matcap"),
-            ("wireframe", "Wireframe"),
-            ("vertex_normals", "Vertex Normals"),
-            ("uv_checker", "UV Checker"),
-        ):
-            self.assertIn(mode, MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODES)
-            self.assertEqual(label, MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS[mode])
-            settings = clamp_model_preview_render_settings(ModelPreviewRenderSettings(render_diagnostic_mode=mode))
-            self.assertEqual(mode, settings.render_diagnostic_mode)
+    def test_vortice_view_modes_are_an_explicit_renderer_allow_list(self) -> None:
+        source = Path("tools/dotnet_mesh_editor_experiment/DotNetPreviewViewModes.cs").read_text(encoding="utf-8")
+        settings_ui = Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
 
-        native_source = d3d11_preview_source()
-        self.assertIn("wireframe_rasterizer_", native_source)
-        self.assertIn("diagnostic_mode_code", native_source)
-        self.assertIn('mode == "uv_checker"', native_source)
+        for mode in ("lit", "game_outdoor", "base_direct", "normal", "uv_checker", "base_alpha", "part_id", "material_response", "layer_mask"):
+            self.assertIn(f'"{mode}"', source)
+        for retired_mode in ("matcap", "wireframe", "vertex_normals", "normal_raw"):
+            self.assertNotIn(f'"{retired_mode}"', source)
+        self.assertNotIn('general_form.addRow("Visible texture mode"', settings_ui)
+        self.assertNotIn('general_form.addRow("Diagnostic render mode"', settings_ui)
+        global_settings_ui = Path("cdmw/ui/settings_tab.py").read_text(encoding="utf-8")
+        self.assertNotIn('preview_layout.addRow("Visible texture mode"', global_settings_ui)
+        self.assertNotIn('preview_layout.addRow("Diagnostic render mode"', global_settings_ui)
+        self.assertNotIn('preview_layout.addRow("Alpha handling"', global_settings_ui)
+        self.assertNotIn('preview_layout.addRow("Texture source probe"', global_settings_ui)
+        self.assertNotIn('preview_layout.addRow("Sampler probe"', global_settings_ui)
+        self.assertNotIn('preview_layout.addRow("Diffuse swizzle"', global_settings_ui)
 
     def test_normal_diagnostics_distinguish_geometry_from_texture_maps(self) -> None:
         self.assertEqual("Geometry Normal", MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS["normal"])
@@ -277,9 +278,9 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
         self.assertEqual(5, _RENDER_DIAGNOSTIC_MODE_CODES["normal"])
         self.assertEqual(11, _RENDER_DIAGNOSTIC_MODE_CODES["normal_raw"])
 
-        native_source = d3d11_preview_source()
-        self.assertIn('mode == "normal"', native_source)
-        self.assertIn('mode == "normal_raw"', native_source)
+        vortice_source = Path("tools/dotnet_mesh_editor_experiment/DotNetPreviewViewModes.cs").read_text(encoding="utf-8")
+        self.assertIn('"normal" => 2', vortice_source)
+        self.assertNotIn('"normal_raw"', vortice_source)
 
     def test_derived_relief_texture_generation_is_relief_mode_only(self) -> None:
         self.assertFalse(
@@ -575,14 +576,16 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
 
     def test_enhanced_relief_shader_path_is_gated(self) -> None:
         prep_source = Path("cdmw/rendering/model_preview_prepare.py").read_text(encoding="utf-8")
-        native_source = d3d11_preview_source()
+        vortice_modes = Path("tools/dotnet_mesh_editor_experiment/DotNetPreviewViewModes.cs").read_text(encoding="utf-8")
+        settings_ui = Path("cdmw/ui/model_preview_settings_dialog.py").read_text(encoding="utf-8")
 
         self.assertIn("def enhanced_relief_status", prep_source)
         self.assertIn('"height_calibrated"', prep_source)
         self.assertIn('"cd_runtime_approx"', prep_source)
         self.assertIn("height_effect_max", prep_source)
-        self.assertIn("height_value", native_source)
-        self.assertIn("roughness = saturate(roughness - relief", native_source)
+        self.assertNotIn('"height_calibrated"', vortice_modes)
+        self.assertNotIn('"cd_runtime_approx"', vortice_modes)
+        self.assertNotIn('general_form.addRow("Diagnostic render mode"', settings_ui)
 
     def test_black_output_triage_distinguishes_missing_base_from_support_only(self) -> None:
         framebuffer = _FramebufferVisibilitySample(visible_pixels=100, average_luma=0.02, dark_ratio=0.95)
@@ -919,33 +922,21 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
 
     def test_hkx_physics_overlay_supports_hover_and_ctrl_click_selection(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        source = (root / "cdmw" / "ui" / "native_preview_panel.py").read_text(encoding="utf-8")
-        main_source = "\n".join(
-            (
-                (root / "cdmw" / "ui" / "shell" / "app_window.py").read_text(encoding="utf-8"),
-                hkx_editor_dialog_source(root),
-            )
-        )
-        native_source = d3d11_preview_source()
-        package_source = "\n".join(
-            (
-                (root / "cdmw" / "rendering" / "native_preview_package.py").read_text(encoding="utf-8"),
-                (root / "cdmw" / "rendering" / "native_preview_package_writer.py").read_text(encoding="utf-8"),
-            )
-        )
-        self.assertIn("set_physics_overlay_edited_targets", source)
-        self.assertIn("physics_overlay_target_selected = Signal", source)
-        self.assertIn("physics_overlay_bones_visible", source)
-        self.assertNotIn("_step_physics_simulation_preview", source)
-        self.assertIn("physics_overlay_target_selected.connect(_state._show_preview_overlay_target_in_hkx_editor)", main_source)
-        self.assertIn("preview.set_physics_overlay_edited_targets(edited_targets)", main_source)
-        self.assertIn("shape:", main_source)
-        self.assertIn("physics_overlay_enabled", native_source)
-        self.assertIn("physics_overlay_cloth", native_source)
-        self.assertIn("cloth_preview_active", native_source)
-        self.assertIn("reset_tool_pbd_cloth_preview", native_source)
-        self.assertIn("physics_overlays", package_source)
-        self.assertIn("cloth_particle_count", package_source)
+        host_source = (root / "cdmw" / "ui" / "preview" / "dotnet_host.py").read_text(encoding="utf-8")
+        protocol_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.OverlayProtocol.cs").read_text(encoding="utf-8")
+        renderer_source = (root / "tools" / "dotnet_mesh_editor_experiment" / "D3D11MaterialViewport.PreviewOverlays.cs").read_text(encoding="utf-8")
+        package_source = (root / "cdmw" / "services" / "mesh_dotnet_preview_package.py").read_text(encoding="utf-8")
+
+        self.assertIn('"overlay_state_update"', host_source)
+        self.assertIn("set_skeleton_selected_bone", host_source)
+        self.assertIn("reset_tool_pbd_cloth_preview", host_source)
+        self.assertIn('"overlay_state_update_ack"', protocol_source)
+        self.assertIn('"skeleton_overlay_v1"', protocol_source)
+        self.assertIn('"pbd_cloth_overlay_v1"', protocol_source)
+        self.assertIn("DrawSkeletonPreviewOverlay", renderer_source)
+        self.assertIn("DrawClothPreviewOverlay", renderer_source)
+        self.assertIn("ClothColliders", renderer_source)
+        self.assertIn("dotnet_preview_overlays_from_preview_core_package", package_source)
 
     def test_hkx_skeleton_context_is_static_for_approx_motion_preview(self) -> None:
         widget = NativePreviewPanel.__new__(NativePreviewPanel)
@@ -957,30 +948,13 @@ class ModelPreviewRenderSafetyTests(unittest.TestCase):
     def test_referenced_hkx_previews_disable_legacy_guide_motion(self) -> None:
         root = Path(__file__).resolve().parents[1]
         source = (root / "cdmw" / "ui" / "archive_browser" / "reference_preview.py").read_text(encoding="utf-8")
-        main_source = "\n".join(
-            (
-                (root / "cdmw" / "ui" / "shell" / "app_window.py").read_text(encoding="utf-8"),
-                hkx_editor_dialog_source(root),
-            )
-        )
-        preview_result_source = (root / "cdmw" / "ui" / "archive_browser" / "preview_result.py").read_text(encoding="utf-8")
-        reference_start = source.index("def _show_archive_reference_preview_dialog")
-        reference_end = source.index("def _update_archive_texture_reference_action_controls", reference_start)
-        reference_source = source[reference_start:reference_end]
-        embedded_start = main_source.index("def _enable_hkx_preview_overlay")
-        embedded_end = main_source.index("def _current_hkx_link_preview_model", embedded_start)
-        embedded_source = main_source[embedded_start:embedded_end]
-        main_apply_start = preview_result_source.index("model_preview_widget.set_prepared_model(")
-        main_apply_end = preview_result_source.index("self._sync_archive_isolated_renderer_if_running(result)", main_apply_start)
-        main_apply_source = preview_result_source[main_apply_start:main_apply_end]
+        package_source = (root / "cdmw" / "services" / "mesh_dotnet_preview_package.py").read_text(encoding="utf-8")
 
-        self.assertIn('str(entry.extension or "").lower() in {".hkx", ".hkt"}', reference_source)
-        self.assertIn("show_physics_overlay=True", reference_source)
-        self.assertIn("show_physics_simulation_preview=False", reference_source)
-        self.assertIn("show_physics_simulation_preview", embedded_source)
-        self.assertIn("show_physics_simulation_preview=False", embedded_source)
-        self.assertIn('str(getattr(selected_entry, "extension", "") or "").lower() in {".hkx", ".hkt"}', main_apply_source)
-        self.assertIn("show_physics_simulation_preview=False", main_apply_source)
+        self.assertIn("DotNetPreviewHostFrame", source)
+        self.assertIn("build_or_lookup_dotnet_preview_package(", source)
+        self.assertIn("dotnet_reference_package_path", source)
+        self.assertIn("dotnet_preview_overlays_from_preview_core_package", package_source)
+        self.assertNotIn("NativeD3D11PreviewHostFrame", source)
 
     def test_framebuffer_visibility_probe_is_throttled(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "cdmw" / "rendering" / "model_preview_prepare.py").read_text(encoding="utf-8")

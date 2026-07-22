@@ -460,7 +460,7 @@ class ArchiveAppearanceCompositeMixin:
             prepared_preview_model = None
             if isinstance(getattr(result, "preview_model", None), ModelPreviewData):
                 try:
-                    log("Preparing composite appearance preview for D3D11...")
+                    log("Preparing composite appearance preview for .NET/Vortice...")
                     prepared_model, prepared_preview_model = prepare_model_preview(
                         result.preview_model,
                         render_settings=preview_settings,
@@ -470,7 +470,8 @@ class ArchiveAppearanceCompositeMixin:
                 except Exception as exc:
                     result = dataclasses.replace(
                         result,
-                        warnings=tuple(result.warnings or ()) + (f"D3D11 composite preparation failed: {exc}",),
+                        warnings=tuple(result.warnings or ())
+                        + (f".NET/Vortice composite preparation failed: {exc}",),
                     )
             return result, prepared_preview_model
 

@@ -259,7 +259,7 @@ class MeshEditorSessionMixin:
         if event == "loaded":
             retain_package = getattr(
                 self.standalone_native_host or getattr(self, "standalone_native_host_frame", None),
-                "retain_native_preview_package_cache_lease",
+                "retain_package_lease",
                 None,
             )
             if callable(retain_package) and self.standalone_native_package_dir is not None:
@@ -281,7 +281,7 @@ class MeshEditorSessionMixin:
         elif event == "error":
             release_package = getattr(
                 self.standalone_native_host or getattr(self, "standalone_native_host_frame", None),
-                "release_native_preview_package_cache_lease",
+                "release_package_lease",
                 None,
             )
             if callable(release_package) and self.standalone_native_package_dir is not None:

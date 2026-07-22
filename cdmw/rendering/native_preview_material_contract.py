@@ -354,13 +354,13 @@ def _material_input_slot_state(slot_name: str, texture_input: PreviewMaterialTex
         parameter_declared_by=str(getattr(texture_input, "parameter_declared_by", "") or ""),
     )
     note_by_slot = {
-        "clearcoat": "source clearcoat recorded; native preview approximates it through specular response",
-        "sheen": "source sheen recorded; native preview approximates it through soft specular response",
-        "transmission": "source transmission/volume recorded; native preview does not render true glass",
+        "clearcoat": "source clearcoat recorded; .NET/Vortice preview approximates it through specular response",
+        "sheen": "source sheen recorded; .NET/Vortice preview approximates it through soft specular response",
+        "transmission": "source transmission/volume recorded; .NET/Vortice preview does not render true glass",
         "opacity": "source opacity recorded; not used as material mask to avoid opaque preview blackout",
         "specular_glossiness": "source specular-glossiness recorded; preview generation decodes RGB specular and alpha glossiness",
         "glossiness": "source glossiness recorded; preview generation inverts it to roughness where supported",
-        "unlit": "source unlit material recorded; native preview uses flat non-PBR material hints",
+        "unlit": "source unlit material recorded; .NET/Vortice preview uses flat non-PBR material hints",
     }
     return {
         "slot": slot_name,
@@ -502,7 +502,7 @@ def _normalized_material_texture_slot_states(
             "status": "recorded",
             "confidence": "high",
             "source_kind": "material_parameter",
-            "diagnostic": "source unlit material recorded; native preview uses flat non-PBR material hints",
+            "diagnostic": "source unlit material recorded; .NET/Vortice preview uses flat non-PBR material hints",
         }
     return states
 
@@ -676,7 +676,7 @@ def _material_contract_for_batch(
     if str(normalized_slot_states.get("opacity", {}).get("status", "") or "") != "missing":
         divergence_reasons.append("opacity texture recorded but not used as material response map")
     if str(normalized_slot_states.get("transmission", {}).get("status", "") or "") != "missing":
-        divergence_reasons.append("transmission/volume recorded but native preview does not render true glass")
+        divergence_reasons.append("transmission/volume recorded but .NET/Vortice preview does not render true glass")
     slot_diagnostics = _material_slot_diagnostics(slot_states)
     normalized_slot_diagnostics = _material_slot_diagnostics(
         normalized_slot_states,
