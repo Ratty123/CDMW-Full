@@ -49,6 +49,10 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
         self.standalone_dotnet_protocol_events = []
         self.standalone_dotnet_capabilities.clear()
         self.standalone_dotnet_provenance_verified = False
+        self.standalone_dotnet_morph_sent_state_revision = -1
+        self.standalone_dotnet_morph_ack_state_revision = -1
+        self.standalone_dotnet_morph_sent_change_id = ""
+        self.standalone_dotnet_morph_sent_request_id = 0
         self.standalone_dotnet_presentation_pending = None
         self.standalone_dotnet_presentation_queued = False
         self.standalone_dotnet_presentation_acknowledged = None
@@ -155,6 +159,21 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
             return self.standalone_texture_region_queue.acknowledge(event, payload)
         if event == "scene_state_update_ack":
             return self._handle_dotnet_scene_state_ack(payload)
+        if event == "morph_state_update_ack":
+            if not self._dotnet_session_matches(payload):
+                return False
+            revision = self._standalone_native_payload_int(payload.get("state_revision"), -1)
+            change_id = str(payload.get("change_id") or "")
+            request_id = self._standalone_native_payload_int(payload.get("request_id"), 0)
+            if (
+                revision != self.standalone_dotnet_morph_sent_state_revision
+                or revision <= self.standalone_dotnet_morph_ack_state_revision
+                or change_id != self.standalone_dotnet_morph_sent_change_id
+                or request_id != self.standalone_dotnet_morph_sent_request_id
+            ):
+                return False
+            self.standalone_dotnet_morph_ack_state_revision = revision
+            return True
         if event == "presentation_state_update_ack":
             return self._handle_dotnet_presentation_state_ack(payload)
         self._append_dotnet_protocol_event(payload)

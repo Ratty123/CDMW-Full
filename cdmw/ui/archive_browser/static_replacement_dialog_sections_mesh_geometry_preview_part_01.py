@@ -57,12 +57,10 @@ def _mesh_geometry_preview_step_001(_state):
     _state.preview_part_pick_checkbox = _state.context.get('preview_part_pick_checkbox')
     _state._current_alignment_preview_render_settings = _state.context.get('_current_alignment_preview_render_settings')
     _state._current_original_reference_preview_model = _state.context.get('_current_original_reference_preview_model')
-    _state._morph_slider_add_target_action_text_helper = _state.context.get('_morph_slider_add_target_action_text_helper')
     _state._morph_slider_bake_action_text_helper = _state.context.get('_morph_slider_bake_action_text_helper')
     _state._morph_slider_bake_action_tooltip_helper = _state.context.get('_morph_slider_bake_action_tooltip_helper')
     _state._morph_slider_create_action_text_helper = _state.context.get('_morph_slider_create_action_text_helper')
     _state._morph_slider_create_action_tooltip_helper = _state.context.get('_morph_slider_create_action_tooltip_helper')
-    _state._morph_slider_import_action_text_helper = _state.context.get('_morph_slider_import_action_text_helper')
     _state._morph_slider_manage_action_text_helper = _state.context.get('_morph_slider_manage_action_text_helper')
     _state._morph_slider_manage_action_tooltip_helper = _state.context.get('_morph_slider_manage_action_tooltip_helper')
     _state._morph_slider_reload_action_text_helper = _state.context.get('_morph_slider_reload_action_text_helper')
@@ -262,9 +260,6 @@ def _mesh_geometry_preview_step_005(_state):
     _state.morph_slider_manage_button = _state.QPushButton(_state._morph_slider_manage_action_text_helper())
     _state.morph_slider_manage_button.setToolTip(_state._morph_slider_manage_action_tooltip_helper())
     _state.morph_slider_manage_menu = _state.QMenu(_state.morph_slider_manage_button)
-    _state.morph_slider_import_action = _state.morph_slider_manage_menu.addAction(_state._morph_slider_import_action_text_helper())
-    _state.morph_slider_add_action = _state.morph_slider_manage_menu.addAction(_state._morph_slider_add_target_action_text_helper())
-    _state.morph_slider_manage_menu.addSeparator()
     _state.morph_slider_reload_action = _state.morph_slider_manage_menu.addAction(_state._morph_slider_reload_action_text_helper())
     _state.morph_slider_manage_button.setMenu(_state.morph_slider_manage_menu)
     _state.morph_slider_reset_button = _state.QPushButton(_state._morph_slider_reset_action_text_helper())
@@ -654,7 +649,6 @@ def _mesh_geometry_preview_step_009(_state):
     _state._mesh_edit_vertices_from_payload = _state.alignment_mesh_edit_callbacks._mesh_edit_vertices_from_payload
     _state._morph_slider_active_deltas = _state.alignment_mesh_edit_callbacks._morph_slider_active_deltas
     _state._morph_slider_add_row = _state.alignment_mesh_edit_callbacks._morph_slider_add_row
-    _state._morph_slider_add_target = _state.alignment_mesh_edit_callbacks._morph_slider_add_target
     _state._morph_slider_apply_to_working_mesh = _state.alignment_mesh_edit_callbacks._morph_slider_apply_to_working_mesh
     _state._morph_slider_bake = _state.alignment_mesh_edit_callbacks._morph_slider_bake
     _state._morph_slider_begin_change = _state.alignment_mesh_edit_callbacks._morph_slider_begin_change
@@ -666,7 +660,6 @@ def _mesh_geometry_preview_step_009(_state):
     _state._morph_slider_ensure_post_edit_deltas = _state.alignment_mesh_edit_callbacks._morph_slider_ensure_post_edit_deltas
     _state._morph_slider_has_loaded_deltas = _state.alignment_mesh_edit_callbacks._morph_slider_has_loaded_deltas
     _state._morph_slider_has_nonzero_values = _state.alignment_mesh_edit_callbacks._morph_slider_has_nonzero_values
-    _state._morph_slider_import_pack = _state.alignment_mesh_edit_callbacks._morph_slider_import_pack
     _state._morph_slider_mark_topology_changed = _state.alignment_mesh_edit_callbacks._morph_slider_mark_topology_changed
     _state._morph_slider_rebuild_rows = _state.alignment_mesh_edit_callbacks._morph_slider_rebuild_rows
     _state._morph_slider_refresh_controls = _state.alignment_mesh_edit_callbacks._morph_slider_refresh_controls
@@ -689,7 +682,10 @@ def _mesh_geometry_preview_step_009(_state):
         _state.mesh_edit_layout_page.addWidget(_state.legacy_mesh_edit_section, 0)
     else:
         _state.mesh_edit_layout_page.addWidget(_state.mesh_edit_group, 0)
-    _state.mesh_edit_layout_page.addWidget(_state.morph_slider_group, 0)
+    # Procedural Morph & Refit is resident in the C# Edit Mesh surface.  Keep
+    # this legacy object alive only so older dialog state can finish teardown;
+    # it is intentionally not mounted or exposed as a second editor.
+    _state.morph_slider_group.setVisible(False)
     _state.mesh_edit_layout_page.addStretch(1)
     _state.source_tree.currentItemChanged.connect(_state._source_selection_changed)
     _state.source_tree.itemSelectionChanged.connect(_state._refresh_source_tree_selection_state)

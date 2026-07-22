@@ -482,6 +482,11 @@ class MeshEditorDotNetProcessMixin:
                 diagnostics=(text,),
                 request_payload=self.standalone_action_dotnet_request_payload,
             )
+            if self.standalone_action_dotnet_command.startswith("morph_"):
+                self._send_dotnet_cached_morph_state(
+                    request_payload=self.standalone_action_dotnet_request_payload,
+                    failure=text,
+                )
         self.standalone_status_label.setText(text)
         self.status_message_requested.emit(text, True)
         self._complete_pending_dotnet_exit()

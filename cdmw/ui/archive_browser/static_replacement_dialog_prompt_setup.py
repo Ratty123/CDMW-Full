@@ -415,11 +415,9 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         mesh_edit_tool_combo = alignment_mesh_geometry_preview_section.mesh_edit_tool_combo
         mesh_edit_tool_palette = alignment_mesh_geometry_preview_section.mesh_edit_tool_palette
         mesh_edit_undo_button = alignment_mesh_geometry_preview_section.mesh_edit_undo_button
-        morph_slider_add_action = alignment_mesh_geometry_preview_section.morph_slider_add_action
         morph_slider_bake_button = alignment_mesh_geometry_preview_section.morph_slider_bake_button
         morph_slider_create_button = alignment_mesh_geometry_preview_section.morph_slider_create_button
         morph_slider_group = alignment_mesh_geometry_preview_section.morph_slider_group
-        morph_slider_import_action = alignment_mesh_geometry_preview_section.morph_slider_import_action
         morph_slider_manage_button = alignment_mesh_geometry_preview_section.morph_slider_manage_button
         morph_slider_reload_action = alignment_mesh_geometry_preview_section.morph_slider_reload_action
         morph_slider_reset_button = alignment_mesh_geometry_preview_section.morph_slider_reset_button

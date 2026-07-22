@@ -15,7 +15,9 @@
 #include <functional>
 #include <iomanip>
 #include <iostream>
+#include <iterator>
 #include <map>
+#include <memory>
 #include <set>
 #include <sstream>
 #include <stdexcept>

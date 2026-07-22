@@ -40,6 +40,7 @@ set(MESH_CORE_OWNER_SOURCES
     src/owners/session_history_01.cpp
     src/owners/session_export_01.cpp
     src/owners/session_apply_prepare_01.cpp
+    src/owners/session_morph_01.cpp
     src/owners/session_apply_execute_01.cpp
     src/owners/session_apply_commit_01.cpp
     src/owners/session_apply_01.cpp

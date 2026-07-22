@@ -78,6 +78,12 @@ Last updated: 2026-07-19
 - Non-topology edits use sparse channel/index deltas. Topology edits use
   copy-on-write affected-submesh snapshots. History is bounded to 64 whole
   operations and 256 MiB while preserving exact undo/redo.
+- Procedural Morph & Refit stays inside the resident Edit Mesh workflow: C# owns
+  controls, C++ owns live body-rule fields and selected-garment barycentric refit,
+  and Python owns only correlated transport plus atomic v2 profile/preset
+  persistence. Compose baked base + ordinary-edit residual + procedural layer;
+  block topology while unbaked, keep reference batches immutable, and never
+  restore the retired target-import workflow.
 - Mesh session views expose one ordered applied/undone timeline for geometry,
   replacement, rigging, and selection changes. Selection history stores only
   descriptors, remains undoable while the native mesh is dirty, and does not

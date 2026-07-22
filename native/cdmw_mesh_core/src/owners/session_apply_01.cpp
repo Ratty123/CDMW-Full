@@ -110,6 +110,10 @@ std::string mesh_editor_apply_session_report(
         native_session,
         state
     );
+    if (mesh_editor_morph_topology_blocked(session)
+        && mesh_editor_apply_needs_topology_history(session, state)) {
+        throw std::runtime_error("Bake or Reset active procedural sliders before a topology edit");
+    }
     mesh_editor_execute_apply_operation(session, *edit, native_session, state);
     mesh_editor_commit_apply_results(session, native_session, state);
     bool response_stroke_active = session.active_stroke.active;

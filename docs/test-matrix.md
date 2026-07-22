@@ -92,6 +92,18 @@ bounded history, and revision transport:
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_editor_tab_decomposition.py tests/test_mesh_editor_workspace_decomposition.py tests/test_static_replacement_mesh_edit_decomposition.py tests/test_mesh_service_decomposition.py tests/test_mesh_native_core_decomposition.py tests/test_native_mesh_core_decomposition.py tests/test_native_mesh_core_service.py tests/test_mesh_history_bounds.py tests/test_mesh_edit_revision_protocol.py
 ```
 
+Procedural body sliders and selected-garment refit in the resident Edit Mesh
+session, including native readback, persistence/migration, history/topology, and
+correlated latest-wins protocol:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_morph_profiles_v2.py tests/test_mesh_morph_service.py tests/test_native_mesh_editor_morph_refit.py tests/test_mesh_morph_refit_protocol.py tests/test_mesh_morph_sliders.py tests/test_static_replacement_morph_slider_state.py tests/test_mesh_morph_slider_ui_source_guards.py tests/test_static_replacement_mesh_edit_decomposition.py
+```
+
+This suite is deterministic protocol and native readback evidence. The hidden
+GPU sparse soak below exercises the production upload path without opening a
+window; neither is visible licensed-game or real-PAC proof.
+
 Native preview-core/D3D11 ownership, aggregated source guards, Release builds,
 and headless self-tests:
 

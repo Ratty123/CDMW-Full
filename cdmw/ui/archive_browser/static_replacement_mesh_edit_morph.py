@@ -411,69 +411,6 @@ def _morph_slider_bake(_state, _callbacks, ) -> None:
     _callbacks._morph_slider_end_change()
     _state.self.set_status_message(bake_state.status_text)
 
-def _morph_slider_import_pack(_state, _callbacks, ) -> None:
-    route_state = _state._morph_slider_import_route_state_helper(
-        has_base_mesh=_state._mesh_edit_state.replacement_mesh_base_for_mapping is not None
-    )
-    if not route_state.allowed:
-        _state.QMessageBox.information(
-            _state.dialog,
-            route_state.title,
-            route_state.message,
-        )
-        return
-    selected = _state.QFileDialog.getExistingDirectory(
-        _state.dialog,
-        _state._morph_slider_import_action_text_helper(),
-        str(_state.self.settings_file_path.parent),
-    )
-    if not selected:
-        return
-    try:
-        profile = _state.import_body_slider_profile(
-            selected,
-            _state._mesh_edit_state.replacement_mesh_base_for_mapping,
-            _state.entry.path,
-            _state.morph_slider_profile_root,
-        )
-    except Exception as exc:
-        _state.QMessageBox.warning(_state.dialog, _state._morph_slider_import_action_text_helper(), str(exc))
-        return
-    _callbacks._morph_slider_reload_profiles(preserve_values=True)
-    _state.self.set_status_message(_state._morph_slider_imported_status_text_helper(profile.name))
-
-def _morph_slider_add_target(_state, _callbacks, ) -> None:
-    route_state = _state._morph_slider_add_target_route_state_helper(
-        has_base_mesh=_state._mesh_edit_state.replacement_mesh_base_for_mapping is not None
-    )
-    if not route_state.allowed:
-        _state.QMessageBox.information(
-            _state.dialog,
-            route_state.title,
-            route_state.message,
-        )
-        return
-    selected, _selected_filter = _state.QFileDialog.getOpenFileName(
-        _state.dialog,
-        _state._morph_slider_add_target_action_text_helper(),
-        str(_state.self.settings_file_path.parent),
-        _state._morph_slider_target_mesh_file_filter_helper(),
-    )
-    if not selected:
-        return
-    try:
-        profile = _state.import_single_morph_slider_profile(
-            selected,
-            _state._mesh_edit_state.replacement_mesh_base_for_mapping,
-            _state.entry.path,
-            _state.morph_slider_profile_root,
-        )
-    except Exception as exc:
-        _state.QMessageBox.warning(_state.dialog, _state._morph_slider_add_target_action_text_helper(), str(exc))
-        return
-    _callbacks._morph_slider_reload_profiles(preserve_values=True)
-    _state.self.set_status_message(_state._morph_slider_added_status_text_helper(profile.name))
-
 def _morph_slider_default_region_amount(_state, _callbacks, ) -> float:
     if _state._mesh_edit_state.replacement_mesh_base_for_mapping is None:
         return 0.01
@@ -563,8 +500,6 @@ _CALLBACKS = (
     _morph_slider_reset_all,
     _morph_slider_clone_working_mesh_for_bake,
     _morph_slider_bake,
-    _morph_slider_import_pack,
-    _morph_slider_add_target,
     _morph_slider_default_region_amount,
     _morph_slider_create_from_selection,
 )

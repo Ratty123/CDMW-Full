@@ -52,6 +52,89 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             "selection_depth_mode": "visible",
         }
         return self._send_dotnet_protocol_message(payload)
+
+    def _send_dotnet_cached_morph_state(
+        self,
+        *,
+        request_payload: Mapping[str, object] | None = None,
+        failure: str = "",
+    ) -> bool:
+        controller = self._dotnet_target_controller()
+        if controller is None:
+            return False
+        try:
+            state = controller.cached_morph_state()
+            view = controller.session_view()
+        except (AttributeError, KeyError, RuntimeError, TypeError, ValueError):
+            return False
+        if state is None:
+            return False
+        payload: dict[str, object] = {
+            "event": "morph_state_update",
+            "session_id": state.session_id or view.session_id,
+            "process_generation": self.standalone_dotnet_process_generation,
+            "revision": view.revision,
+            "edit_revision": view.revision,
+            "native_edit_revision": state.edit_revision,
+            "state_revision": state.state_revision,
+            "change_id": state.change_id,
+            "profile_id": state.profile_id,
+            "preset_id": state.preset_id,
+            "topology_fingerprint": state.topology_fingerprint,
+            "available_profiles": [
+                {"profile_id": profile_id, "name": name}
+                for profile_id, name in state.available_profiles
+            ],
+            "available_presets": [
+                {"preset_id": preset_id, "name": name}
+                for preset_id, name in state.available_presets
+            ],
+            "definitions": [
+                {
+                    "definition_id": definition.definition_id,
+                    "label": definition.label,
+                    "category": definition.category,
+                    "min_percent": definition.min_percent,
+                    "max_percent": definition.max_percent,
+                    "default_percent": definition.default_percent,
+                    "value": dict(state.values).get(definition.definition_id, definition.default_percent),
+                    "rule": definition.rule.kind,
+                    "axis": definition.rule.axis,
+                    "amount": definition.rule.amount,
+                    "falloff": definition.rule.falloff,
+                    "feather": definition.rule.feather,
+                    "parameters": {key: value for key, value in definition.rule.parameters},
+                    "mirror_mode": definition.mirror_mode,
+                    "pivot": list(definition.pivot),
+                    "local_basis": [list(axis) for axis in definition.local_basis],
+                }
+                for definition in state.definitions
+            ],
+            "values": {key: value for key, value in state.values},
+            "driver_submesh_indices": list(state.driver_submesh_indices),
+            "refit": {
+                "driver_submesh_indices": list(state.refit.driver_submesh_indices),
+                "garment_submesh_indices": list(state.refit.garment_submesh_indices),
+                "bound_vertex_count": state.refit.bound_vertex_count,
+                "maximum_distance": state.refit.maximum_distance,
+                "p95_distance": state.refit.p95_distance,
+                "warning_distance": state.refit.warning_distance,
+                "distance_warning": state.refit.distance_warning,
+            },
+            "unbaked": state.unbaked,
+            "topology_blocked": state.topology_blocked,
+            "busy": state.busy,
+            "failure": str(failure or state.failure),
+            "diagnostics": list(state.diagnostics),
+        }
+        if request_payload is not None:
+            for key in ("request_id", "base_revision", "protocol_version"):
+                if key in request_payload:
+                    payload[key] = request_payload[key]
+        self.standalone_dotnet_morph_sent_state_revision = int(state.state_revision)
+        self.standalone_dotnet_morph_sent_change_id = str(state.change_id or "")
+        self.standalone_dotnet_morph_sent_request_id = self._standalone_native_payload_int(payload.get("request_id"), 0)
+        return self._send_dotnet_protocol_message(payload)
     @staticmethod
     def _dotnet_selection_payload(selection: _tab.MeshEditSelection) -> dict[str, object]:
         return {
@@ -345,4 +428,7 @@ class MeshEditorDotNetPayloadMixin(MeshEditorDotNetMaterialParameterMixin):
             request_payload=request_payload,
         )
         self._send_dotnet_session_state()
+        normalized_command = (command_name or result.action).strip().lower()
+        if normalized_command.startswith("morph_") or normalized_command in {"undo", "redo"} or result.topology_changed:
+            self._send_dotnet_cached_morph_state(request_payload=request_payload)
         return str(result.status or "").strip().lower() != "error"

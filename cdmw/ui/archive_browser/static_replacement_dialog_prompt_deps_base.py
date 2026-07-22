@@ -145,8 +145,6 @@ from cdmw.services.mesh_workflow_service import (
     MeshMorphSliderProfile,
     apply_morph_slider_values,
     create_region_volume_slider_profile,
-    import_body_slider_profile,
-    import_single_morph_slider_profile,
     load_morph_slider_delta,
     load_morph_slider_profiles,
     validate_morph_target,

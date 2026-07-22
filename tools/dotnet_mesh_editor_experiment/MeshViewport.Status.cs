@@ -162,6 +162,7 @@ internal sealed partial class MeshViewport
             "resident_mutation_envelope_v2",
             "host_tool_state_v1",
             "resident_material_updates_v2",
+            "procedural_morph_refit_v2",
         };
         if (_rendererBlocked)
         {

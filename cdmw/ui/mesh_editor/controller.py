@@ -13,6 +13,9 @@ from cdmw.domain.mesh import (
     MeshEditResult,
     MeshEditSelection,
     MeshEditSessionView,
+    MeshMorphProfile,
+    MeshMorphState,
+    MeshMorphValuePreset,
     MeshCompareSummary,
     MeshExportValidationReport,
     MeshSkeletonSummary,
@@ -185,6 +188,66 @@ class MeshEditorController:
 
     def uv_summary(self) -> MeshUvSummary:
         return self.mesh_service.uv_summary(self._session_id())
+
+    def morph_state(self) -> MeshMorphState:
+        return self.mesh_service.morph_state(self._session_id())
+
+    def cached_morph_state(self) -> MeshMorphState | None:
+        return self.mesh_service.cached_morph_state(self._session_id())
+
+    def activate_morph_profile(self, profile_id: object) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.activate_morph_profile(self._session_id(), profile_id)
+
+    def create_morph_definition(self, **definition: object) -> MeshMorphProfile:
+        return self.mesh_service.create_morph_definition(self._session_id(), **definition)
+
+    def delete_morph_definition(self, definition_id: object) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.delete_morph_definition(self._session_id(), definition_id)
+
+    def save_active_morph_profile(self) -> MeshMorphProfile:
+        return self.mesh_service.save_active_morph_profile(self._session_id())
+
+    def delete_morph_profile(self, profile_id: object) -> bool:
+        return self.mesh_service.delete_morph_profile(self._session_id(), profile_id)
+
+    def set_morph_value(
+        self,
+        definition_id: object,
+        value: object,
+        *,
+        phase: object = "end",
+        change_id: object = "",
+    ) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.set_morph_value(
+            self._session_id(), definition_id, value, phase=phase, change_id=change_id
+        )
+
+    def apply_morph_preset(self, preset_id: object) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.apply_morph_preset(self._session_id(), preset_id)
+
+    def save_morph_preset(self, preset_id: object, name: object) -> MeshMorphValuePreset:
+        return self.mesh_service.save_morph_preset(self._session_id(), preset_id, name)
+
+    def delete_morph_preset(self, preset_id: object) -> bool:
+        return self.mesh_service.delete_morph_preset(self._session_id(), preset_id)
+
+    def set_refit_driver(self, submesh_indices: Sequence[object]) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.set_refit_driver(self._session_id(), submesh_indices)
+
+    def bind_refit(self, garment_submesh_indices: Sequence[object]) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.bind_refit(self._session_id(), garment_submesh_indices)
+
+    def clear_refit(self) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.clear_refit(self._session_id())
+
+    def reset_morph(self) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.reset_morph(self._session_id())
+
+    def bake_morph(self) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.bake_morph(self._session_id())
+
+    def finish_morph(self) -> tuple[MeshEditResult, MeshMorphState]:
+        return self.mesh_service.finish_morph(self._session_id())
 
     def select_uv_region(
         self,

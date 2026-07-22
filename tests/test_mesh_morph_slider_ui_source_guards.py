@@ -43,53 +43,60 @@ def _mesh_edit_source() -> str:
     )
 
 
+def _resident_morph_source() -> str:
+    paths = (
+        ROOT / "cdmw" / "services" / "mesh_service_morph.py",
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_commands.py",
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_payloads.py",
+        ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_protocol.py",
+        ROOT / "native" / "cdmw_mesh_core" / "src" / "owners" / "session_morph_01.cpp",
+        ROOT / "native" / "cdmw_mesh_core" / "src" / "owners" / "session_state_05.cpp",
+        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs",
+        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MutationAuthority.cs",
+        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.Protocol.cs",
+        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Program.cs",
+    )
+    return "\n".join(path.read_text(encoding="utf-8") for path in paths)
+
+
 class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
-    def test_mesh_editing_tab_exposes_morph_slider_controls(self) -> None:
-        source = _mesh_edit_source()
+    def test_existing_edit_mesh_exposes_resident_morph_refit_and_removes_target_import_controls(self) -> None:
+        legacy_source = _mesh_edit_source()
+        resident_source = _resident_morph_source()
 
-        self.assertIn("_state.morph_slider_title_label = _state.QLabel(_state._morph_slider_title_text_helper())", source)
-        self.assertIn("_state.morph_slider_create_button = _state.QPushButton(_state._morph_slider_create_action_text_helper())", source)
-        self.assertIn("_state.morph_slider_manage_button = _state.QPushButton(_state._morph_slider_manage_action_text_helper())", source)
-        self.assertIn("_state.morph_slider_import_action = _state.morph_slider_manage_menu.addAction(_state._morph_slider_import_action_text_helper())", source)
-        self.assertIn("_state.morph_slider_add_action = _state.morph_slider_manage_menu.addAction(_state._morph_slider_add_target_action_text_helper())", source)
-        self.assertIn("_state.morph_slider_reset_button = _state.QPushButton(_state._morph_slider_reset_action_text_helper())", source)
-        self.assertIn("reset_button = _state.QPushButton(row_state.reset_text)", source)
-        self.assertIn("def morph_slider_row_reset_action_text() -> str:", source)
-        self.assertIn("_state.morph_slider_bake_button = _state.QPushButton(_state._morph_slider_bake_action_text_helper())", source)
-        self.assertIn("_state._populate_combo_options_helper(_state.mesh_edit_selection_mode_combo, _state.MESH_EDIT_SELECTION_MODE_OPTIONS)", source)
-        self.assertIn('("Lasso Select", "lasso")', source)
-        self.assertIn('("Rectangle Select", "rectangle")', source)
-        self.assertIn("_state.mesh_edit_grow_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['grow_selection'])", source)
-        self.assertIn("_state.mesh_edit_shrink_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['shrink_selection'])", source)
-        self.assertIn("_state.mesh_edit_smooth_selection_button = _state.QPushButton(_state.mesh_edit_action_control_text['smooth_selection'])", source)
-        self.assertIn("morph_slider_profile_root = self.settings_file_path.parent / \"mesh_slider_profiles\"", source)
-        self.assertIn("load_morph_slider_profiles(", source)
-        self.assertIn("create_region_volume_slider_profile(", source)
-        self.assertIn("import_body_slider_profile(", source)
-        self.assertIn("import_single_morph_slider_profile(", source)
-        self.assertIn("load_morph_slider_delta(", source)
-        self.assertIn("apply_morph_slider_values(", source)
-        self.assertIn("_state.mesh_edit_layout_page.addWidget(_state.morph_slider_group, 0)", source)
+        self.assertIn('StyledButton("▾  Morph & Refit"', resident_source)
+        self.assertIn('LabeledControl("Definition profile", _morphProfile)', resident_source)
+        self.assertIn('LabeledControl("Value preset", _morphPreset)', resident_source)
+        self.assertIn('StyledActionButton("Set Driver"', resident_source)
+        self.assertIn('StyledActionButton("Bind Selected Parts"', resident_source)
+        self.assertIn('StyledActionButton("Clear Refit"', resident_source)
+        self.assertIn('StyledActionButton("Reset All"', resident_source)
+        self.assertIn('StyledActionButton("Bake"', resident_source)
+        self.assertIn('WriteCommandRequest("morph_author_definition"', resident_source)
+        self.assertIn('"morph_delete_definition"', resident_source)
+        self.assertIn("RequestFinishEditMesh", resident_source)
+        self.assertNotIn("import_body_slider_profile(", legacy_source)
+        self.assertNotIn("import_single_morph_slider_profile(", legacy_source)
+        self.assertNotIn("morph_slider_import_action =", legacy_source)
+        self.assertNotIn("morph_slider_add_action =", legacy_source)
+        self.assertNotIn("_state.mesh_edit_layout_page.addWidget(_state.morph_slider_group, 0)", legacy_source)
 
-    def test_morph_sliders_are_layered_and_export_through_edited_source_mesh(self) -> None:
-        main_source = _mesh_edit_source()
-        static_source = "\n".join(
-            (
-                (ROOT / "cdmw" / "modding" / "static_mesh_replacer.py").read_text(encoding="utf-8"),
-                (ROOT / "cdmw" / "modding" / "static_mesh_types.py").read_text(encoding="utf-8"),
-                (ROOT / "cdmw" / "modding" / "static_mesh_analysis.py").read_text(encoding="utf-8"),
-                (ROOT / "cdmw" / "modding" / "static_mesh_runtime_builder.py").read_text(encoding="utf-8"),
-            )
-        )
+    def test_morph_refit_uses_mesh_service_and_resident_cpp_without_renderer_restart(self) -> None:
+        source = _resident_morph_source()
 
-        self.assertIn("morph_slider_post_edit_deltas", main_source)
-        self.assertIn("def _morph_slider_capture_post_edit_deltas", main_source)
-        self.assertIn("def _morph_slider_apply_to_working_mesh", main_source)
-        self.assertIn("Bake or reset Morph Sliders before removing faces.", main_source)
-        self.assertIn("_morph_slider_mark_topology_changed", main_source)
-        self.assertIn("edited_source_mesh = _state.replacement_mesh_for_mapping", main_source)
-        self.assertIn("edited_source_mesh: ParsedMesh | None = None", static_source)
-        self.assertIn("def _replacement_mesh_from_options", static_source)
+        self.assertIn("class MeshMorphServiceMixin", source)
+        self.assertIn('native_mesh_editor_session_command(', source)
+        self.assertIn('"morph_upload"', source)
+        self.assertIn("mesh_editor_recompose_morph", source)
+        self.assertIn("mesh_editor_add_refit_layer", source)
+        self.assertIn("mesh_editor_morph_topology_blocked", source)
+        self.assertIn('command == "morph_bake" || command == "morph_finish"', source)
+        self.assertIn('case "morph_state_update":', source)
+        self.assertIn('"morph_state_update_ack"', source)
+        self.assertIn("requestId <= _morphStateRequestId", source)
+        self.assertIn('payload["preserve_selection"] = definition.HasValue', source)
+        self.assertIn('"morph_state_update" => $"{message.EventName}|{sessionId}"', source)
+        self.assertNotIn("Process.Start", (ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.MorphRefit.cs").read_text(encoding="utf-8"))
 
     def test_native_vertex_dots_use_instanced_overlay_and_cached_screen_vertices(self) -> None:
         native_source = d3d11_preview_source()

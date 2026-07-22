@@ -503,6 +503,24 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   leaving Edit Mesh collapses or restores both tool panels as one suspended,
   buffered layout update; it does not resize each section recursively or restart
   the resident helper.
+  Morph & Refit is part of that same resident Edit Mesh form. C# owns profile,
+  preset, body-rule, and selected-garment controls; Python owns only correlated
+  command transport plus settings-backed persistence; the resident C++ session
+  remains authoritative for every live deformation, garment refit, reset, bake,
+  history, and topology gate. Six procedural body rules produce deterministic
+  sparse 100% fields from an exact driver-topology fingerprint. Slider values
+  always compose from the baked base plus ordinary-edit residuals, so returning
+  a slider to zero is exact and drift-free.
+  Garment binding is explicit and selected-submesh-only. C++ projects garment
+  vertices to the closest driver triangles, stores barycentric bindings and
+  seam cohorts, and reports maximum and p95 bind distance warnings. Refit never
+  mutates driver or reference batches. Topology commands stay disabled while a
+  procedural layer is unbaked; Reset removes that layer without adding hidden
+  history, while Bake folds it into the resident base and normal history.
+  Version 2 profiles and presets publish atomically under the settings-owned
+  `mesh_slider_profiles` directory. Legacy version 1 regions migrate in memory;
+  legacy target-import data is omitted with a diagnostic and the old file is
+  left untouched.
   Grow, Shrink, and Invert operate only on the active vertex/edge/face domain;
   a retained part highlight cannot expand a vertex selection to the whole mesh.
   Visible-surface selection and brushes rasterize only their screen-space
@@ -822,6 +840,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   topology snapshot swapping, selected-submesh cleanup scope, metadata-only
   material history, inline sparse service transport, and compatibility of the
   existing file protocol and summary fields.
+- `tests/test_mesh_morph_profiles_v2.py`, `tests/test_mesh_morph_service.py`,
+  `tests/test_native_mesh_editor_morph_refit.py`, and
+  `tests/test_mesh_morph_refit_protocol.py` cover all six deterministic rules,
+  exact sparse-field readback, driver fingerprints, v1 migration, atomic v2
+  persistence, selected-garment barycentric/seam refit, untouched-part equality,
+  reset/bake/history/topology behavior, and correlated latest-wins transport.
 - `tests/test_mesh_dotnet_live_stroke_dispatch.py` covers the production
   embedded .NET queue-depth-one, latest-wins stroke path. The explicit
   `real-archive-mesh-editor-dotnet-edit-smoke` binds real archive DDS files,

@@ -31,6 +31,10 @@ class MeshEditorDotNetCommandMixin:
         live_stroke_busy = normalized != "stroke" and bool(
             str(self.standalone_native_mesh_edit_stroke_id or "").strip()
         )
+        if normalized != "morph_change":
+            live_stroke_busy = live_stroke_busy or bool(
+                str(getattr(self, "standalone_dotnet_morph_change_id", "") or "").strip()
+            )
         dispatcher = self.standalone_live_stroke_dispatcher
         if normalized != "stroke" and dispatcher is not None:
             try:
@@ -151,7 +155,7 @@ class MeshEditorDotNetCommandMixin:
         )
         return False
     def _handle_dotnet_live_stroke_completed(self, outcome: object) -> None:
-        if not isinstance(outcome, _tab.MeshLiveStrokeOutcome) or outcome.source != "dotnet":
+        if not isinstance(outcome, _tab.MeshLiveStrokeOutcome) or outcome.source not in {"dotnet", "dotnet_morph"}:
             return
         controller = self._dotnet_target_controller()
         if controller is None or outcome.controller is not controller:
@@ -188,17 +192,27 @@ class MeshEditorDotNetCommandMixin:
             result=outcome.result,
             request_payload=request_payloads[-1] if request_payloads else None,
         )
+        if outcome.source == "dotnet_morph":
+            self._send_dotnet_cached_morph_state(
+                request_payload=request_payloads[-1] if request_payloads else None,
+            )
         if outcome.phase in {"end", "cancel"}:
-            self.standalone_native_mesh_edit_stroke_id = ""
+            if outcome.source == "dotnet_morph":
+                self.standalone_dotnet_morph_change_id = ""
+            else:
+                self.standalone_native_mesh_edit_stroke_id = ""
             self._send_dotnet_session_state()
     def _handle_dotnet_live_stroke_failed(self, failure: object) -> None:
-        if not isinstance(failure, _tab.MeshLiveStrokeFailure) or failure.source != "dotnet":
+        if not isinstance(failure, _tab.MeshLiveStrokeFailure) or failure.source not in {"dotnet", "dotnet_morph"}:
             return
         controller = self._dotnet_target_controller()
         if controller is None or failure.controller is not controller:
             return
         if failure.phase in {"begin", "end", "cancel"}:
-            self.standalone_native_mesh_edit_stroke_id = ""
+            if failure.source == "dotnet_morph":
+                self.standalone_dotnet_morph_change_id = ""
+            else:
+                self.standalone_native_mesh_edit_stroke_id = ""
         if failure.cancelled:
             return
         message = f"Mesh .NET editor stroke failed: {failure.message}"
@@ -206,12 +220,129 @@ class MeshEditorDotNetCommandMixin:
         request_payloads = tuple(failure.request_payloads) or (None,)
         for request_payload in request_payloads:
             self._send_dotnet_command_result(
-                "stroke",
+                "morph_change" if failure.source == "dotnet_morph" else "stroke",
                 ok=False,
                 status="error",
                 diagnostics=(failure.message,),
                 request_payload=request_payload,
             )
+        if failure.source == "dotnet_morph":
+            self._send_dotnet_cached_morph_state(
+                request_payload=request_payloads[-1],
+                failure=failure.message,
+            )
+
+    def _handle_dotnet_morph_command_request(
+        self,
+        controller: _tab.MeshEditorController,
+        command: str,
+        payload: Mapping[str, object],
+    ) -> bool:
+        if command == "morph_change":
+            phase = str(payload.get("phase", "end") or "end").strip().lower()
+            change_id = str(payload.get("change_id") or "").strip()
+            definition_id = str(payload.get("definition_id") or "").strip()
+            if phase not in {"begin", "update", "end", "cancel"} or not change_id or not definition_id:
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="error",
+                    diagnostics=("Morph change requires definition_id, change_id, and a valid phase.",),
+                    request_payload=payload,
+                )
+                return False
+            if self._standalone_action_worker_active() or self.standalone_native_mesh_edit_stroke_id:
+                return self._reject_dotnet_mutation_while_busy(command, payload)
+            if phase == "begin":
+                if self.standalone_dotnet_morph_change_id and self.standalone_dotnet_morph_change_id != change_id:
+                    self._send_dotnet_command_result(
+                        command,
+                        ok=False,
+                        status="busy",
+                        diagnostics=("Finish the active Morph & Refit slider change first.",),
+                        request_payload=payload,
+                    )
+                    return True
+                self.standalone_dotnet_morph_change_id = change_id
+            elif self.standalone_dotnet_morph_change_id and self.standalone_dotnet_morph_change_id != change_id:
+                self._send_dotnet_command_result(
+                    command,
+                    ok=False,
+                    status="error",
+                    diagnostics=("Ignored stale Morph & Refit change id.",),
+                    request_payload=payload,
+                )
+                return False
+            queued = _tab.MeshEditCommand(
+                "morph_change",
+                params={
+                    "definition_id": definition_id,
+                    "value": self._standalone_native_payload_float(payload.get("value"), 0.0),
+                    "phase": phase,
+                    "change_id": change_id,
+                },
+                label="Adjust Procedural Morph",
+            )
+            sequence = self._ensure_standalone_live_stroke_dispatcher().submit(
+                controller,
+                queued,
+                phase,
+                source="dotnet_morph",
+                request_payload=payload,
+            )
+            if sequence > 0:
+                return True
+            if phase in {"begin", "end", "cancel"}:
+                self.standalone_dotnet_morph_change_id = ""
+            self._send_dotnet_command_result(
+                command,
+                ok=False,
+                status="cancelled",
+                diagnostics=("Morph & Refit dispatcher is stopping.",),
+                request_payload=payload,
+            )
+            return False
+
+        if self._reject_dotnet_mutation_while_busy(command, payload):
+            return True
+        local_selection = self._dotnet_local_selection_payload_to_selection(payload)
+        params: dict[str, object] = {}
+        if command in {"morph_activate", "morph_delete_profile"}:
+            params["profile_id"] = str(payload.get("profile_id") or "").strip()
+        elif command == "morph_delete_definition":
+            params["definition_id"] = str(payload.get("definition_id") or "").strip()
+        elif command in {"morph_apply_preset", "morph_delete_preset"}:
+            params["preset_id"] = str(payload.get("preset_id") or "").strip()
+        elif command == "morph_save_preset":
+            params.update({
+                "preset_id": str(payload.get("preset_id") or "").strip(),
+                "name": str(payload.get("name") or payload.get("preset_name") or "").strip(),
+            })
+        elif command == "morph_set_driver":
+            params["submesh_indices"] = tuple(local_selection.source_indices)
+        elif command == "morph_bind":
+            params["garment_submesh_indices"] = tuple(local_selection.source_indices)
+        elif command == "morph_author_definition":
+            for key in (
+                "profile_id", "profile_name", "definition_id", "label", "category",
+                "rule", "axis", "amount", "feather", "falloff", "mirror_mode",
+                "min_percent", "max_percent", "default_percent", "local_basis",
+                "preserve_selection", "source_definition_id",
+            ):
+                if key in payload:
+                    params[key] = payload[key]
+        worker_command = _tab.MeshEditCommand(
+            command,
+            selection=local_selection if command in {"morph_author_definition", "morph_set_driver", "morph_bind"} else None,
+            params=params,
+            label=command.removeprefix("morph_").replace("_", " ").title(),
+        )
+        return self._start_dotnet_action_worker(
+            controller,
+            worker_command,
+            command_name=command,
+            request_payload=payload,
+        )
     def _handle_dotnet_command_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
@@ -221,6 +352,8 @@ class MeshEditorDotNetCommandMixin:
         if not command:
             self._send_dotnet_command_result("command", ok=False, status="error", diagnostics=("Missing command.",), request_payload=payload)
             return False
+        if command.startswith("morph_"):
+            return self._handle_dotnet_morph_command_request(controller, command, payload)
         if self._reject_dotnet_mutation_while_busy(command, payload):
             return True
         if command in {"copy", "paste"}:

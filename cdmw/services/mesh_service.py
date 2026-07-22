@@ -16,6 +16,7 @@ from cdmw.domain.mesh import (
     DEVELOPER_OVERRIDABLE_REBUILD_BLOCKERS,
     MESH_EDIT_ACTIONS,
     MESH_EDIT_MODES,
+    MESH_MORPH_ACTIONS,
     MeshAnimationClip,
     MeshEditCommand,
     MeshEditHistoryEntry,
@@ -198,6 +199,7 @@ from cdmw.services.mesh_service_history import (
     _history_value_retained_bytes,
     _native_submesh_snapshot_payload_bytes,
 )
+from cdmw.services.mesh_service_morph import MeshMorphServiceMixin
 from cdmw.services.mesh_service_kernel import (
     _TANGENT_INVALIDATING_ACTIONS,
     _append_unique_diagnostics,
@@ -395,11 +397,13 @@ class MeshService(
     MeshWorkingReplacementServiceMixin,
     MeshRebuildServiceMixin,
     MeshHistoryServiceMixin,
+    MeshMorphServiceMixin,
 ):
     settings: object | None = None
     max_history: int = 64
     max_history_bytes: int = _DEFAULT_MESH_HISTORY_BYTES
     _sessions: dict[str, _MeshEditSession] = field(default_factory=dict)
+    _morph_sessions: dict[str, object] = field(default_factory=dict)
 
     def load_mesh_bytes(self, data: bytes, source_path: Path | str, *, run_roundtrip: bool = False) -> ParsedMesh:
         return _load_mesh_bytes(data, source_path, run_roundtrip=run_roundtrip)
@@ -459,6 +463,7 @@ class MeshService(
                 if self._sessions.get(session_key) is not session:
                     return
                 self._sessions.pop(session_key, None)
+                self._morph_sessions.pop(session_key, None)
                 session.closed = True
             _close_native_editor_session(session)
             _clear_history_stack(session.undo_stack)
@@ -743,8 +748,10 @@ class MeshService(
     ) -> MeshEditResult:
         edit_command = _coerce_command(command)
         action = str(edit_command.action or "").strip().lower()
-        if action not in MESH_EDIT_ACTIONS:
+        if action not in (*MESH_EDIT_ACTIONS, *MESH_MORPH_ACTIONS):
             raise ValueError(f"Unsupported mesh edit action: {edit_command.action!r}")
+        if action in MESH_MORPH_ACTIONS:
+            return self._apply_morph_edit_command_locked(session, edit_command)
         if action == "set_mode":
             session.mode = _mode(edit_command.mode or edit_command.params.get("mode", session.mode))
             return self._result(session, action)
@@ -1121,6 +1128,8 @@ class MeshService(
                 _trim_native_history_markers(session, *counts)
                 self._trim_session_history(session)
             diagnostics = self._finalize_changed_geometry(execution, topology_changed)
+            if topology_changed:
+                self._invalidate_morph_after_topology_locked(session)
             return diagnostics
         return ()
 

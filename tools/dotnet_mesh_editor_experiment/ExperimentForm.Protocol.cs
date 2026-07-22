@@ -306,6 +306,7 @@ internal sealed partial class ExperimentForm
             "preview_vertex_update" or "preview_triangle_update" => $"{message.EventName}|{sessionId}",
             "texture_region_update" => $"{message.EventName}|{JsonString(root, "resource_id").Trim()}",
             "material_state_update" or "material_parameter_update" => $"{message.EventName}|{sessionId}",
+            "morph_state_update" => $"{message.EventName}|{sessionId}",
             "viewport_display_update" or "scene_state_update" or "presentation_state_update" => message.EventName,
             _ => null,
         };
@@ -428,6 +429,7 @@ internal sealed partial class ExperimentForm
                     ApplyHistoryState(root);
                     ApplySelectionUpdate(root, requireCorrelation: false);
                     _statusLabel.Text = "Live MeshService bridge connected.";
+                    RequestMorphStateRefresh();
                     break;
                 case "tool_state": ApplyHostToolState(root); break;
                 case "selection_update":
@@ -473,6 +475,9 @@ internal sealed partial class ExperimentForm
                 case "presentation_state_update":
                     HandlePresentationStateUpdate(root);
                     break;
+                case "morph_state_update":
+                    HandleMorphStateUpdate(root);
+                    break;
                 case "capture_request":
                     HandleCaptureRequest(root);
                     break;
@@ -513,6 +518,7 @@ internal sealed partial class ExperimentForm
         "texture_region_update" or
         "material_state_update" or
         "material_parameter_update" or
+        "morph_state_update" or
         "viewport_display_update" or
         "scene_state_update" or
         "presentation_state_update";

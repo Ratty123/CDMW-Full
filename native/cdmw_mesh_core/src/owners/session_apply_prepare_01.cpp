@@ -1,4 +1,5 @@
 struct MeshEditorApplyState {
+    std::string editor_session_id;
     std::string delta_output_dir;
     std::string operation;
     std::string stroke_phase;
@@ -162,6 +163,12 @@ MeshEditorCancelState mesh_editor_cancel_active_stroke(
         } else {
             mesh_editor_cancel_sparse_history(native_session, entry, apply, session_id, cancel);
         }
+        if (entry.morph_state_changed) {
+            session.morph = std::make_shared<MeshMorphRuntime>(
+                entry.morph_before ? *entry.morph_before : MeshMorphRuntime{}
+            );
+            session.morph->state_revision = ++session.morph_state_revision;
+        }
         ++session.edit_revision;
         cancel.cancelled_history = true;
     }
@@ -229,6 +236,7 @@ std::set<int> mesh_editor_apply_history_candidates(
     if (candidates.empty() && state.operation != "transform") {
         for (const auto& item : native_session) candidates.insert(item.first);
     }
+    mesh_editor_add_morph_history_candidates(session, candidates);
     return candidates;
 }
 
@@ -313,6 +321,7 @@ void mesh_editor_initialize_apply_operation(
     std::map<int, MeshSessionSubmesh>& native_session,
     MeshEditorApplyState& state
 ) {
+    state.editor_session_id = session_id;
     state.normal_operation = mesh_editor_is_normal_operation(state.operation);
     state.tangent_operation = mesh_editor_is_tangent_operation(state.operation);
     state.uv_operation = mesh_editor_is_uv_operation(state.operation);
@@ -327,5 +336,6 @@ void mesh_editor_initialize_apply_operation(
     state.history.operation = state.operation;
     state.history.stroke_id = state.stroke_id;
     state.history.stroke_update_count = state.stroke_phase.empty() ? 0 : 1;
+    mesh_editor_capture_morph_before_apply(session, state);
     mesh_editor_capture_apply_history(session, edit, native_session, state);
 }

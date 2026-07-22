@@ -122,6 +122,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_provenance_verified = False
         self.standalone_dotnet_lifecycle_session_id = ""
         self.standalone_dotnet_process_generation = 0
+        self.standalone_dotnet_morph_change_id = ""
+        self.standalone_dotnet_morph_sent_state_revision = -1
+        self.standalone_dotnet_morph_ack_state_revision = -1
+        self.standalone_dotnet_morph_sent_change_id = ""
+        self.standalone_dotnet_morph_sent_request_id = 0
         self.standalone_dotnet_lifecycle_counts: dict[str, int] = {
             "initial_package_build_count": 0,
             "package_build_count": 0,

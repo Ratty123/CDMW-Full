@@ -309,7 +309,6 @@ def _preview_model_step_013(_state):
     elif _state._prompt_context_value('rotate_x_spin') is not None:
         _state._refresh_startup_model_controls()
     _state.mesh_edit_layout_page.addWidget(_state.mesh_edit_group, 0)
-    _state.mesh_edit_layout_page.addWidget(_state.morph_slider_group, 0)
     _state.mesh_edit_layout_page.addStretch(1)
     _state._alignment_startup_step(_state.alignment_startup_text['replacement_texture_sources'])
     _state.texture_files_for_mapping: _state.List[_state.Path] = []

@@ -12,6 +12,8 @@ internal sealed partial class ExperimentForm
         public required long RequestId { get; init; }
         public required long BaseRevision { get; init; }
         public required long ProcessGeneration { get; init; }
+        public string Command { get; init; } = string.Empty;
+        public string Phase { get; init; } = string.Empty;
         public bool SelectionApplied { get; set; }
         public bool CommandAccepted { get; set; }
     }
@@ -35,6 +37,8 @@ internal sealed partial class ExperimentForm
             RequestId = requestId,
             BaseRevision = Math.Max(0, DictionaryLong(envelope, "base_revision")),
             ProcessGeneration = Math.Max(0, DictionaryLong(envelope, "process_generation")),
+            Command = Convert.ToString(envelope.GetValueOrDefault("command"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
+            Phase = Convert.ToString(envelope.GetValueOrDefault("phase"), CultureInfo.InvariantCulture)?.Trim().ToLowerInvariant() ?? string.Empty,
         };
         _pendingMutationRequests[requestId] = pending;
         if (IsProvisionalSelectionRequest(normalizedEvent))
@@ -72,6 +76,7 @@ internal sealed partial class ExperimentForm
                 _viewport.ApplySceneState();
                 restored = true;
             }
+            CompleteMorphCommandResult(pending, accepted: false);
             _pendingMutationRequests.Remove(pending.RequestId);
             _statusLabel.Text = restored
                 ? $"Command result: {status}. Restored last acknowledged state."
@@ -80,9 +85,10 @@ internal sealed partial class ExperimentForm
         }
 
         pending.CommandAccepted = true;
+        CompleteMorphCommandResult(pending, accepted: true);
         if (status == "coalesced"
             || pending.EventName == "placement_transform_request"
-            || !MutationMayReturnSelection(pending.EventName)
+            || !MutationMayReturnSelection(pending)
             || pending.SelectionApplied)
         {
             _pendingMutationRequests.Remove(pending.RequestId);
@@ -96,7 +102,7 @@ internal sealed partial class ExperimentForm
         out long revision)
     {
         if (!TryMatchPendingMutation(root, out pending, out revision)
-            || !MutationMayReturnSelection(pending.EventName)
+            || !MutationMayReturnSelection(pending)
             || revision < _viewport.AcknowledgedSelectionRevision)
         {
             pending = null!;
@@ -141,6 +147,7 @@ internal sealed partial class ExperimentForm
         _pendingMutationRequests.Clear();
         _viewport.ResetSelectionAuthority();
         _scene.ResetProvisionalPlacement();
+        ResetMorphStateAuthority();
     }
 
     private bool TryMatchPendingMutation(
@@ -178,7 +185,7 @@ internal sealed partial class ExperimentForm
     private static bool IsProvisionalSelectionRequest(string eventName) =>
         eventName is "select_request" or "selection_request";
 
-    private static bool MutationMayReturnSelection(string eventName) => eventName switch
+    private static bool MutationMayReturnSelection(PendingMutationRequest pending) => pending.EventName switch
     {
         "select_request" or
         "selection_request" or
@@ -186,7 +193,9 @@ internal sealed partial class ExperimentForm
         "stroke_update" or
         "stroke_end" or
         "stroke_cancel" or
-        "command_request" => true,
+        "command_request" => pending.Command is
+            "clear_selection" or "select_all" or "grow" or "shrink" or "invert" or
+            "undo" or "redo" or "delete" or "duplicate" or "subdivide" or "refine_smooth",
         _ => false,
     };
 

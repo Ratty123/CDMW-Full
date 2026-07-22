@@ -122,8 +122,6 @@ MESH_WORKFLOW_EXPORTS.update(
         "MeshMorphSliderProfile": ("cdmw.modding.mesh_morph_sliders", "MeshMorphSliderProfile"),
         "apply_morph_slider_values": ("cdmw.modding.mesh_morph_sliders", "apply_morph_slider_values"),
         "create_region_volume_slider_profile": ("cdmw.modding.mesh_morph_sliders", "create_region_volume_slider_profile"),
-        "import_body_slider_profile": ("cdmw.modding.mesh_morph_sliders", "import_body_slider_profile"),
-        "import_single_morph_slider_profile": ("cdmw.modding.mesh_morph_sliders", "import_single_morph_slider_profile"),
         "load_morph_slider_delta": ("cdmw.modding.mesh_morph_sliders", "load_morph_slider_delta"),
         "load_morph_slider_profiles": ("cdmw.modding.mesh_morph_sliders", "load_morph_slider_profiles"),
         "validate_morph_target": ("cdmw.modding.mesh_morph_sliders", "validate_morph_target"),

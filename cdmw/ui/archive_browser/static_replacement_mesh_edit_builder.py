@@ -113,7 +113,6 @@ PUBLIC_CALLBACK_NAMES = (
     '_mesh_edit_vertices_from_payload',
     '_morph_slider_active_deltas',
     '_morph_slider_add_row',
-    '_morph_slider_add_target',
     '_morph_slider_apply_to_working_mesh',
     '_morph_slider_bake',
     '_morph_slider_begin_change',
@@ -125,7 +124,6 @@ PUBLIC_CALLBACK_NAMES = (
     '_morph_slider_ensure_post_edit_deltas',
     '_morph_slider_has_loaded_deltas',
     '_morph_slider_has_nonzero_values',
-    '_morph_slider_import_pack',
     '_morph_slider_mark_topology_changed',
     '_morph_slider_rebuild_rows',
     '_morph_slider_refresh_controls',
@@ -189,8 +187,6 @@ def _connect_callbacks(state: SimpleNamespace, callbacks: SimpleNamespace) -> No
     state.mesh_edit_reset_part_button.clicked.connect(lambda _checked=False: callbacks._mesh_edit_reset_scope())
     state.mesh_edit_full_reset_button.clicked.connect(lambda _checked=False: callbacks._mesh_edit_full_reset_mesh())
     state.morph_slider_create_button.clicked.connect(lambda _checked=False: callbacks._morph_slider_create_from_selection())
-    state.morph_slider_import_action.triggered.connect(lambda _checked=False: callbacks._morph_slider_import_pack())
-    state.morph_slider_add_action.triggered.connect(lambda _checked=False: callbacks._morph_slider_add_target())
     state.morph_slider_reload_action.triggered.connect(lambda _checked=False: callbacks._morph_slider_reload_profiles(preserve_values=True))
     state.morph_slider_reset_button.clicked.connect(lambda _checked=False: callbacks._morph_slider_reset_all())
     state.morph_slider_bake_button.clicked.connect(lambda _checked=False: callbacks._morph_slider_bake())

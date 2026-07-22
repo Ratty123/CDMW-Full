@@ -6,11 +6,7 @@ from unittest.mock import patch
 from cdmw.modding import mesh_native_core
 import cdmw.ui.archive_browser.static_replacement_morph_slider_state as morph_slider_state
 from cdmw.ui.archive_browser.static_replacement_morph_slider_state import (
-    morph_slider_add_requires_modify_original_text,
-    morph_slider_add_target_route_state,
-    morph_slider_add_target_action_text,
     morph_slider_activity_guard_initial_state,
-    morph_slider_added_status_text,
     morph_slider_amount_prompt_text,
     morph_slider_applied_status_text,
     morph_slider_active_deltas,
@@ -33,10 +29,6 @@ from cdmw.ui.archive_browser.static_replacement_morph_slider_state import (
     morph_slider_feather_prompt_text,
     morph_slider_has_loaded_deltas,
     morph_slider_has_nonzero_values,
-    morph_slider_import_action_text,
-    morph_slider_import_requires_modify_original_text,
-    morph_slider_import_route_state,
-    morph_slider_imported_status_text,
     morph_slider_manage_action_text,
     morph_slider_manage_action_tooltip,
     morph_slider_name_prompt_text,
@@ -52,7 +44,6 @@ from cdmw.ui.archive_browser.static_replacement_morph_slider_state import (
     morph_slider_row_sync_states,
     morph_slider_status_text,
     morph_slider_supported,
-    morph_slider_target_mesh_file_filter,
     morph_slider_title_text,
     morph_slider_topology_blocked_initial_state,
     morph_slider_topology_changed_reason_text,
@@ -202,13 +193,6 @@ def test_morph_slider_value_commit_state_routes_apply_and_noop_cases() -> None:
 
 
 def test_morph_slider_action_route_reset_and_bake_state() -> None:
-    assert morph_slider_import_route_state(has_base_mesh=False).message == (
-        "Open Modify Original for a parsed mesh before importing sliders."
-    )
-    assert morph_slider_import_route_state(has_base_mesh=True).allowed is True
-    assert morph_slider_add_target_route_state(has_base_mesh=False).message == (
-        "Open Modify Original for a parsed mesh before adding sliders."
-    )
     assert morph_slider_create_route_state(has_base_mesh=False, has_selection=True).message == (
         "Open Modify Original for a parsed mesh before creating sliders."
     )
@@ -252,10 +236,7 @@ def test_morph_slider_presentation_text_preserves_existing_user_messages() -> No
         == "Save the selected vertices as a Volume Size slider for this Modify Original mesh topology."
     )
     assert morph_slider_manage_action_text() == "Manage Profiles"
-    assert morph_slider_manage_action_tooltip() == "Import Body Slider Pro packs or add exact same-topology target-mesh sliders."
-    assert morph_slider_import_action_text() == "Import Slider Pack"
-    assert morph_slider_add_target_action_text() == "Add Slider From Target Mesh"
-    assert morph_slider_target_mesh_file_filter() == "Morph Target Mesh (*.obj *.pac *.pam *.pamlod)"
+    assert morph_slider_manage_action_tooltip() == "Legacy slider controls moved to the resident C# Morph & Refit section."
     assert morph_slider_reload_action_text() == "Reload Profiles"
     assert morph_slider_reset_action_text() == "Reset Sliders"
     assert morph_slider_row_reset_action_text() == "Reset"
@@ -269,11 +250,6 @@ def test_morph_slider_presentation_text_preserves_existing_user_messages() -> No
     assert morph_slider_bake_change_label() == "Bake Morph Sliders"
     assert morph_slider_baked_status_text() == "Baked Morph Sliders into the editable mesh base."
     assert (
-        morph_slider_import_requires_modify_original_text()
-        == "Open Modify Original for a parsed mesh before importing sliders."
-    )
-    assert morph_slider_add_requires_modify_original_text() == "Open Modify Original for a parsed mesh before adding sliders."
-    assert (
         morph_slider_create_requires_modify_original_text()
         == "Open Modify Original for a parsed mesh before creating sliders."
     )
@@ -283,8 +259,6 @@ def test_morph_slider_presentation_text_preserves_existing_user_messages() -> No
     assert morph_slider_default_name_text() == "Volume Size"
     assert morph_slider_amount_prompt_text() == "100% size amount:"
     assert morph_slider_feather_prompt_text() == "Feather rings:"
-    assert morph_slider_imported_status_text("Slim") == "Imported Morph Slider profile: Slim."
-    assert morph_slider_added_status_text("Wide") == "Added Morph Slider profile: Wide."
     assert morph_slider_created_status_text("Volume Size") == "Created Morph Slider profile: Volume Size."
 
 

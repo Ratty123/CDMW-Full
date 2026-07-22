@@ -103,8 +103,6 @@ def _context() -> dict[str, object]:
         "mesh_edit_undo_button",
         "mesh_edit_redo_button",
         "morph_slider_create_button",
-        "morph_slider_import_action",
-        "morph_slider_add_action",
         "morph_slider_reload_action",
         "morph_slider_reset_button",
         "morph_slider_bake_button",
@@ -129,7 +127,7 @@ def test_factory_preserves_public_order_identity_and_patch_seam(monkeypatch) -> 
     callbacks = facade.create_alignment_mesh_edit_callbacks(context)
 
     assert tuple(vars(callbacks)) == builder.PUBLIC_CALLBACK_NAMES
-    assert len(builder.PUBLIC_CALLBACK_NAMES) == len(set(builder.PUBLIC_CALLBACK_NAMES)) == 102
+    assert len(builder.PUBLIC_CALLBACK_NAMES) == len(set(builder.PUBLIC_CALLBACK_NAMES)) == 100
     enabled_signal = context["mesh_edit_enabled_checkbox"].toggled
     assert enabled_signal.slots == [callbacks._mesh_edit_enabled_toggled]
     assert tuple(inspect.signature(callbacks._mesh_edit_apply_preview_payload).parameters) == (

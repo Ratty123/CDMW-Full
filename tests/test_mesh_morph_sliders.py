@@ -13,7 +13,6 @@ from cdmw.modding.mesh_morph_sliders import (
     build_morph_delta,
     build_region_volume_delta,
     create_region_volume_slider_profile,
-    import_body_slider_profile,
     load_morph_slider_delta,
     load_morph_slider_profiles,
     validate_morph_target,
@@ -81,13 +80,6 @@ def _mesh(
         total_vertices=sum(len(submesh.vertices) for submesh in resolved_submeshes),
         total_faces=sum(len(submesh.faces) for submesh in resolved_submeshes),
     )
-
-
-def _write_obj(path: Path, vertices: list[tuple[float, float, float]], *, name: str = "part") -> None:
-    lines = [f"o {name}"]
-    lines.extend(f"v {x} {y} {z}" for x, y, z in vertices)
-    lines.append("f 1 2 3")
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 class MeshMorphSliderTests(unittest.TestCase):
@@ -339,30 +331,13 @@ class MeshMorphSliderTests(unittest.TestCase):
 
         self.assertEqual((tuple(expected),), result)
 
-    def test_import_body_slider_profile_reads_target_mesh_and_language_label(self) -> None:
-        base = _mesh()
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            pack = root / "Body Slider Pro"
-            target_dir = pack / "target_mesh" / "damiane"
-            target_dir.mkdir(parents=True)
-            language_dir = pack / "language"
-            language_dir.mkdir()
-            (language_dir / "en.json").write_text('{"slider_wide_body": "Wide Body"}', encoding="utf-8")
-            _write_obj(
-                target_dir / "wide_body.obj",
-                [(0.5, 0.0, 0.0), (1.5, 0.0, 0.0), (0.5, 1.0, 0.0)],
-            )
-            output_root = root / "profiles"
+    def test_target_mesh_import_apis_are_removed(self) -> None:
+        from cdmw.services import mesh_workflow_exports
 
-            profile = import_body_slider_profile(pack, base, "character/model/test.pac", output_root)
-            loaded = load_morph_slider_profiles(output_root, base, "character/model/test.pac")
-            copied_target_exists = (loaded[0].root_path / loaded[0].sliders[0].target_path).is_file()
-
-        self.assertEqual("Body Slider Pro - damiane", profile.name)
-        self.assertEqual(1, len(loaded))
-        self.assertEqual("Wide Body", loaded[0].sliders[0].label)
-        self.assertTrue(copied_target_exists)
+        self.assertFalse(hasattr(morph_sliders, "import_body_slider_profile"))
+        self.assertFalse(hasattr(morph_sliders, "import_single_morph_slider_profile"))
+        self.assertFalse(hasattr(mesh_workflow_exports, "import_body_slider_profile"))
+        self.assertFalse(hasattr(mesh_workflow_exports, "import_single_morph_slider_profile"))
 
     def test_region_volume_delta_supports_positive_negative_zero_feather_and_multi_submesh(self) -> None:
         base = _mesh(

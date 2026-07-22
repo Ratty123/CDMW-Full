@@ -24,7 +24,7 @@ def test_part_pick_off_routes_authoritative_clear_selection() -> None:
         '_partPick.CheckedChanged += (_, _) =>', maxsplit=1
     )[1].split("var left = new Panel", maxsplit=1)[0]
     command_guard = program_source.split(
-        "private void WriteCommandRequest", maxsplit=1
+        "private long WriteCommandRequest", maxsplit=1
     )[1].split("var targetMode = SelectionTarget();", maxsplit=1)[0]
 
     assert 'WriteCommandRequest("clear_selection");' in part_pick_handler
@@ -696,6 +696,7 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     program_source = _source("Program.cs")
     controls_source = _source("ExperimentForm.Controls.cs")
     protocol_source = _source("ExperimentForm.Protocol.cs")
+    morph_source = _source("ExperimentForm.MorphRefit.cs")
     material_source = _source("ExperimentForm.MaterialProtocol.cs")
     input_source = _source("MeshViewport.Input.cs")
     split_view_source = _source("MeshViewport.SplitView.cs")
@@ -724,7 +725,8 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert 'CommandButton("Duplicate", "duplicate")' in program_source
     assert 'CommandButton("Delete", "delete")' in program_source
     assert '"Finish Edit Mesh"' in program_source
-    assert 'WriteProtocolEvent("save_request")' in program_source
+    assert "RequestFinishEditMesh();" in program_source
+    assert 'WriteProtocolEvent("save_request")' in morph_source
     assert 'AddSection(stack, "Clipboard"' not in program_source
     assert '_selectionTarget.SelectedItem = "Part";' in program_source
     assert "RefreshSubmeshList();" in protocol_source

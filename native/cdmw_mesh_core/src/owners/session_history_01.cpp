@@ -234,6 +234,13 @@ std::string mesh_editor_history_session_report(
     } else {
         mesh_editor_apply_sparse_history(entry, session, state);
     }
+    if (entry.morph_state_changed) {
+        const std::shared_ptr<const MeshMorphRuntime>& restore = command == "undo"
+            ? entry.morph_before
+            : entry.morph_after;
+        session.morph = std::make_shared<MeshMorphRuntime>(restore ? *restore : MeshMorphRuntime{});
+        session.morph->state_revision = ++session.morph_state_revision;
+    }
     mesh_editor_push_history(to_stack, std::move(entry));
     mesh_editor_trim_session_history(session);
     if (state.topology_changed) {

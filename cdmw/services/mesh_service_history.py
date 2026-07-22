@@ -128,7 +128,8 @@ class MeshHistoryServiceMixin:
         ):
             raise RuntimeError("native mesh editor undo requires native history; Python mesh state is stale")
         snapshot = session.undo_stack.pop()
-        if snapshot.native_editor_history:
+        native_editor_history = snapshot.native_editor_history
+        if native_editor_history:
             outcome = _service_call("_restore_native_editor_history", session, snapshot, "undo")
         else:
             outcome = _service_call("_restore_snapshot", session, snapshot)
@@ -145,6 +146,11 @@ class MeshHistoryServiceMixin:
         else:
             refresh_mesh_totals(session.working_mesh)
             session.selection = _service_call("_prune_selection_to_mesh", session.working_mesh, session.selection)
+        if native_editor_history:
+            self._refresh_cached_morph_after_history_locked(
+                session,
+                topology_changed=outcome.topology_changed,
+            )
         metrics = dict(outcome.metrics)
         metrics["service_finalize_ms"] = max(0.0, (time.perf_counter() - finalize_started) * 1000.0)
         result = self._result(
@@ -179,7 +185,8 @@ class MeshHistoryServiceMixin:
         ):
             raise RuntimeError("native mesh editor redo requires native history; Python mesh state is stale")
         snapshot = session.redo_stack.pop()
-        if snapshot.native_editor_history:
+        native_editor_history = snapshot.native_editor_history
+        if native_editor_history:
             outcome = _service_call("_restore_native_editor_history", session, snapshot, "redo")
         else:
             outcome = _service_call("_restore_snapshot", session, snapshot)
@@ -196,6 +203,11 @@ class MeshHistoryServiceMixin:
         else:
             refresh_mesh_totals(session.working_mesh)
             session.selection = _service_call("_prune_selection_to_mesh", session.working_mesh, session.selection)
+        if native_editor_history:
+            self._refresh_cached_morph_after_history_locked(
+                session,
+                topology_changed=outcome.topology_changed,
+            )
         metrics = dict(outcome.metrics)
         metrics["service_finalize_ms"] = max(0.0, (time.perf_counter() - finalize_started) * 1000.0)
         result = self._result(

@@ -635,7 +635,10 @@ class MeshEditorDotNetLaunchMixin:
             return
         self._complete_embedded_dotnet_exit("dotnet_deactivated", final_state="suspended")
     def _dotnet_target_controller(self) -> _tab.MeshEditorController | None:
-        return self.standalone_dotnet_target_controller or self.standalone_controller
+        controller = self.standalone_dotnet_target_controller or self.standalone_controller
+        if controller is not None and controller.mesh_service.settings is None:
+            controller.mesh_service.settings = self.settings
+        return controller
     def _notify_embedded_dotnet_ready(self) -> None:
         builder = self.active_builder()
         callback = getattr(builder, "_mesh_editor_embedded_dotnet_ready", None) if builder is not None else None

@@ -201,6 +201,7 @@ void mesh_editor_commit_apply_results(
     std::map<int, MeshSessionSubmesh>& native_session,
     MeshEditorApplyState& state
 ) {
+    mesh_editor_append_refit_after_geometry(session, state);
     mesh_editor_collect_apply_result_indices(state);
     mesh_editor_delete_apply_parts(native_session, state);
     mesh_editor_append_apply_submeshes(session, native_session, state);
@@ -218,6 +219,7 @@ void mesh_editor_commit_apply_results(
         mesh_editor_attach_topology_result_metadata(native_session, state);
     }
     mesh_editor_capture_sparse_apply_history(native_session, state);
+    mesh_editor_finalize_morph_after_apply(session, state);
     mesh_editor_publish_apply_history(session, state);
     if (state.applied_topology_changed) {
         ++session.topology_revision;

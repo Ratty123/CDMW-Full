@@ -24,6 +24,28 @@ std::string run_mesh_editor_session(const JsonValue& root) {
     if (command == "summary") {
         return mesh_editor_summary_report(session_id, session, started);
     }
+    if (command == "morph_state") {
+        return mesh_editor_morph_state_session_report(session_id, session, started);
+    }
+    if (command == "morph_upload") {
+        return mesh_editor_morph_upload_session_report(root, session_id, session, started);
+    }
+    if (command == "morph_change") {
+        return mesh_editor_morph_change_session_report(root, session_id, session, started);
+    }
+    if (command == "morph_apply_preset") {
+        return mesh_editor_morph_values_session_report(root, session_id, session, started);
+    }
+    if (command == "morph_set_driver") {
+        return mesh_editor_morph_set_driver_session_report(root, session_id, session, started);
+    }
+    if (command == "morph_bind") {
+        return mesh_editor_morph_bind_session_report(root, session_id, session, started);
+    }
+    if (command == "morph_clear_refit" || command == "morph_reset"
+        || command == "morph_bake" || command == "morph_finish") {
+        return mesh_editor_morph_reset_or_bake_session_report(command, root, session_id, session, started);
+    }
     if (command == "select") {
         return mesh_editor_select_session_report(root, session_id, session, started);
     }

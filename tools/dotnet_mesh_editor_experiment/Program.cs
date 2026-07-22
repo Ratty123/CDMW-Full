@@ -438,7 +438,7 @@ internal sealed partial class ExperimentForm : Form
         {
             if (_options.Embedded)
             {
-                WriteProtocolEvent("save_request");
+                RequestFinishEditMesh();
             }
             else
             {
@@ -503,13 +503,18 @@ internal sealed partial class ExperimentForm : Form
             "Every applied mesh edit and selection change appears here. Undone actions remain visible for Redo.",
             out _,
             _actionHistoryList));
+        BuildMorphRefitSection(rightStack);
         AddSection(leftStack, "Part Pick", _partPick);
+        var duplicatePartButton = CommandButton("Duplicate", "duplicate");
+        var deletePartButton = CommandButton("Delete", "delete");
+        RegisterTopologyMutationButton(duplicatePartButton);
+        RegisterTopologyMutationButton(deletePartButton);
         _meshEditOnlySections.Add(AddSection(rightStack, "Parts",
             _submeshList,
             ButtonRow(
                 CommandButton("Show / Hide", "toggle_visibility"),
-                CommandButton("Duplicate", "duplicate"),
-                CommandButton("Delete", "delete"))));
+                duplicatePartButton,
+                deletePartButton)));
         _meshEditOnlySections.Add(AddHelpSection(
             leftStack,
             "Selection",
@@ -535,8 +540,12 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Strength", _strength),
             LabeledControl("Falloff", _falloff),
             ButtonRow(ToolButton("Smooth", "smooth"), ToolButton("Inflate", "inflate"), ToolButton("Pinch", "pinch"))));
+        var subdivideButton = CommandButton("Subdivide", "subdivide");
+        var refineButton = CommandButton("Refine Smooth", "refine_smooth");
+        RegisterTopologyMutationButton(subdivideButton);
+        RegisterTopologyMutationButton(refineButton);
         _meshEditOnlySections.Add(AddSection(leftStack, "Topology",
-            ButtonRow(CommandButton("Subdivide", "subdivide"), CommandButton("Refine Smooth", "refine_smooth"))));
+            ButtonRow(subdivideButton, refineButton)));
         AddHelpSection(
             rightStack,
             "Viewport",
@@ -667,13 +676,13 @@ internal sealed partial class ExperimentForm : Form
     [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)]
     private static extern int SetWindowTheme(IntPtr hWnd, string? pszSubAppName, string? pszSubIdList);
 
-    private void WriteCommandRequest(string command, Dictionary<string, object?>? extraPayload = null)
+    private long WriteCommandRequest(string command, Dictionary<string, object?>? extraPayload = null)
     {
         if (!string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(command, "clear_selection", StringComparison.OrdinalIgnoreCase))
         {
             _statusLabel.Text = "Placement mode: enable Edit Mesh to mutate geometry.";
-            return;
+            return 0;
         }
         var targetMode = SelectionTarget();
         var payload = new Dictionary<string, object?>
@@ -691,6 +700,7 @@ internal sealed partial class ExperimentForm : Form
             }
         }
         WriteProtocolEvent("command_request", payload);
+        return _outgoingMutationRequestSequence;
     }
 
     private void RequestTransformMove(float deltaX)

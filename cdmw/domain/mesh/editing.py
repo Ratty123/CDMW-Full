@@ -13,6 +13,25 @@ MeshEdgeMap = Mapping[int, Iterable[Sequence[int]]]
 
 MESH_EDIT_MODES = ("object", "edit", "sculpt")
 
+MESH_MORPH_ACTIONS = (
+    "morph_refresh",
+    "morph_activate",
+    "morph_author_definition",
+    "morph_delete_definition",
+    "morph_save_profile",
+    "morph_delete_profile",
+    "morph_change",
+    "morph_apply_preset",
+    "morph_save_preset",
+    "morph_delete_preset",
+    "morph_set_driver",
+    "morph_bind",
+    "morph_clear_refit",
+    "morph_reset",
+    "morph_bake",
+    "morph_finish",
+)
+
 MESH_EDIT_ACTIONS = (
     "set_mode",
     "select",
@@ -249,6 +268,7 @@ class MeshEditSessionView:
 __all__ = [
     "MESH_EDIT_ACTIONS",
     "MESH_EDIT_MODES",
+    "MESH_MORPH_ACTIONS",
     "MeshEditCommand",
     "MeshEditHistoryEntry",
     "MeshEditResult",

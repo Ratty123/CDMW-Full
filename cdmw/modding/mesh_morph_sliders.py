@@ -7,7 +7,6 @@ import json
 import math
 import os
 import re
-import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
@@ -537,59 +536,6 @@ def _prettify_slider_label(value: object) -> str:
     return text.title() if text else "Morph Slider"
 
 
-def _language_entries(folder: Path) -> dict[str, str]:
-    candidates: list[Path] = []
-    current = folder
-    for _depth in range(4):
-        candidates.append(current / "language" / "en.json")
-        if current.parent == current:
-            break
-        current = current.parent
-    for candidate in candidates:
-        if not candidate.is_file():
-            continue
-        try:
-            payload = json.loads(candidate.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        entries: dict[str, str] = {}
-
-        def visit(prefix: str, value: object) -> None:
-            if isinstance(value, str):
-                entries[prefix.strip().lower()] = value
-                entries[re.sub(r"[^a-z0-9]+", "_", prefix.lower()).strip("_")] = value
-                return
-            if isinstance(value, Mapping):
-                for key, child in value.items():
-                    key_text = str(key or "")
-                    visit(key_text if not prefix else f"{prefix}.{key_text}", child)
-
-        visit("", payload)
-        return entries
-    return {}
-
-
-def _label_from_language(slider_id: str, language_entries: Mapping[str, str]) -> str:
-    normalized = re.sub(r"[^a-z0-9]+", "_", slider_id.lower()).strip("_")
-    candidates = (
-        slider_id.lower(),
-        normalized,
-        f"slider_{normalized}",
-        f"sliders_{normalized}",
-    )
-    for key in candidates:
-        label = str(language_entries.get(key, "") or "").strip()
-        if label:
-            return label
-    for key, label in language_entries.items():
-        normalized_key = re.sub(r"[^a-z0-9]+", "_", str(key or "").lower()).strip("_")
-        if normalized_key.endswith(normalized) or normalized_key.endswith(f"slider_{normalized}"):
-            label_text = str(label or "").strip()
-            if label_text:
-                return label_text
-    return _prettify_slider_label(slider_id)
-
-
 def _target_mesh_from_path(path: Path) -> ParsedMesh:
     suffix = path.suffix.lower()
     if suffix not in MESH_MORPH_TARGET_EXTENSIONS:
@@ -810,140 +756,6 @@ def load_morph_slider_profiles(root: str | Path, base_mesh: ParsedMesh, virtual_
         if _matching_profile(profile, base_signature, virtual_path):
             profiles.append(profile)
     return tuple(profiles)
-
-
-def _candidate_body_slider_target_dirs(folder: Path) -> tuple[Path, ...]:
-    candidates: list[Path] = []
-    target_root = folder / "target_mesh"
-    if target_root.is_dir():
-        candidates.extend(path for path in sorted(target_root.iterdir()) if path.is_dir())
-    if folder.name.lower() == "target_mesh":
-        candidates.extend(path for path in sorted(folder.iterdir()) if path.is_dir())
-    if folder.parent.name.lower() == "target_mesh":
-        candidates.append(folder)
-    if any(folder.glob("*.obj")):
-        candidates.append(folder)
-    seen: set[str] = set()
-    deduped: list[Path] = []
-    for candidate in candidates:
-        key = str(candidate.resolve()).lower()
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(candidate)
-    return tuple(deduped)
-
-
-def _copy_target_mesh(target_path: Path, target_root: Path, slider_id: str) -> str:
-    target_root.mkdir(parents=True, exist_ok=True)
-    safe_name = f"{_safe_slider_id(slider_id)}{target_path.suffix.lower()}"
-    destination = target_root / safe_name
-    counter = 2
-    while destination.exists():
-        destination = target_root / f"{_safe_slider_id(slider_id)}_{counter}{target_path.suffix.lower()}"
-        counter += 1
-    shutil.copy2(target_path, destination)
-    return destination.relative_to(target_root.parent).as_posix()
-
-
-def import_body_slider_profile(
-    folder: str | Path,
-    base_mesh: ParsedMesh,
-    virtual_path: str,
-    output_root: str | Path,
-) -> MeshMorphSliderProfile:
-    source_root = Path(folder).expanduser().resolve()
-    if not source_root.is_dir():
-        raise ValueError(f"Slider pack folder does not exist: {source_root}")
-    language = _language_entries(source_root)
-    target_files: list[Path] = []
-    for target_dir in _candidate_body_slider_target_dirs(source_root):
-        target_files.extend(sorted(target_dir.glob("*.obj")))
-    if not target_files:
-        raise ValueError(f"No Body Slider Pro OBJ targets found under {source_root}")
-
-    compatible_targets: list[tuple[Path, str, str]] = []
-    errors: list[str] = []
-    used_ids: set[str] = set()
-    for target_path in target_files:
-        slider_id = _safe_slider_id(target_path.stem)
-        original_slider_id = slider_id
-        counter = 2
-        while slider_id.lower() in used_ids:
-            slider_id = f"{original_slider_id}_{counter}"
-            counter += 1
-        try:
-            target_mesh = _target_mesh_from_path(target_path)
-            validate_morph_target(base_mesh, target_mesh)
-        except Exception as exc:
-            errors.append(f"{target_path.name}: {exc}")
-            continue
-        used_ids.add(slider_id.lower())
-        compatible_targets.append((target_path, slider_id, _label_from_language(slider_id, language)))
-
-    if not compatible_targets:
-        detail = "; ".join(errors[:6])
-        raise ValueError(f"No compatible morph targets found in {source_root}" + (f": {detail}" if detail else ""))
-
-    character_names = sorted({target_path.parent.name for target_path, _slider_id, _label in compatible_targets})
-    character_label = ", ".join(character_names[:3])
-    profile_name = f"Body Slider Pro - {character_label}" if character_label else "Body Slider Pro"
-    profile_root = _new_profile_dir(Path(output_root).expanduser(), profile_name, virtual_path, str(source_root))
-    targets_root = profile_root / "targets"
-    sliders: list[MeshMorphSliderSpec] = []
-    for target_path, slider_id, label in compatible_targets:
-        relative_target_path = _copy_target_mesh(target_path, targets_root, slider_id)
-        sliders.append(
-            MeshMorphSliderSpec(
-                slider_id=slider_id,
-                label=label,
-                target_path=relative_target_path,
-            )
-        )
-
-    profile = MeshMorphSliderProfile(
-        name=profile_name,
-        root_path=profile_root,
-        base_virtual_path=str(virtual_path or ""),
-        base_basename=Path(str(virtual_path or "")).name,
-        topology_signature=_topology_signature_payload(base_mesh),
-        sliders=tuple(sliders),
-    )
-    _write_profile(profile)
-    return profile
-
-
-def import_single_morph_slider_profile(
-    target_file: str | Path,
-    base_mesh: ParsedMesh,
-    virtual_path: str,
-    output_root: str | Path,
-    *,
-    label: str = "",
-) -> MeshMorphSliderProfile:
-    target_path = Path(target_file).expanduser().resolve()
-    target_mesh = _target_mesh_from_path(target_path)
-    validate_morph_target(base_mesh, target_mesh)
-    slider_id = _safe_slider_id(target_path.stem)
-    profile_name = f"Manual Morph Slider - {_prettify_slider_label(slider_id)}"
-    profile_root = _new_profile_dir(Path(output_root).expanduser(), profile_name, virtual_path, str(target_path))
-    relative_target_path = _copy_target_mesh(target_path, profile_root / "targets", slider_id)
-    profile = MeshMorphSliderProfile(
-        name=profile_name,
-        root_path=profile_root,
-        base_virtual_path=str(virtual_path or ""),
-        base_basename=Path(str(virtual_path or "")).name,
-        topology_signature=_topology_signature_payload(base_mesh),
-        sliders=(
-            MeshMorphSliderSpec(
-                slider_id=slider_id,
-                label=label.strip() or _prettify_slider_label(slider_id),
-                target_path=relative_target_path,
-            ),
-        ),
-    )
-    _write_profile(profile)
-    return profile
 
 
 def create_region_volume_slider_profile(

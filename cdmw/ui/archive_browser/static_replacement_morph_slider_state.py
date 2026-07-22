@@ -134,19 +134,7 @@ def morph_slider_manage_action_text() -> str:
 
 
 def morph_slider_manage_action_tooltip() -> str:
-    return "Import Body Slider Pro packs or add exact same-topology target-mesh sliders."
-
-
-def morph_slider_import_action_text() -> str:
-    return "Import Slider Pack"
-
-
-def morph_slider_add_target_action_text() -> str:
-    return "Add Slider From Target Mesh"
-
-
-def morph_slider_target_mesh_file_filter() -> str:
-    return "Morph Target Mesh (*.obj *.pac *.pam *.pamlod)"
+    return "Legacy slider controls moved to the resident C# Morph & Refit section."
 
 
 def morph_slider_reload_action_text() -> str:
@@ -185,14 +173,6 @@ def morph_slider_baked_status_text() -> str:
     return "Baked Morph Sliders into the editable mesh base."
 
 
-def morph_slider_import_requires_modify_original_text() -> str:
-    return "Open Modify Original for a parsed mesh before importing sliders."
-
-
-def morph_slider_add_requires_modify_original_text() -> str:
-    return "Open Modify Original for a parsed mesh before adding sliders."
-
-
 def morph_slider_create_requires_modify_original_text() -> str:
     return "Open Modify Original for a parsed mesh before creating sliders."
 
@@ -219,14 +199,6 @@ def morph_slider_amount_prompt_text() -> str:
 
 def morph_slider_feather_prompt_text() -> str:
     return "Feather rings:"
-
-
-def morph_slider_imported_status_text(profile_name: object) -> str:
-    return f"Imported Morph Slider profile: {profile_name}."
-
-
-def morph_slider_added_status_text(profile_name: object) -> str:
-    return f"Added Morph Slider profile: {profile_name}."
 
 
 def morph_slider_created_status_text(profile_name: object) -> str:
@@ -299,22 +271,6 @@ def morph_slider_value_commit_state(
         slider_id,
         clamped,
         morph_slider_applied_status_text(getattr(delta, "label", slider_id), clamped),
-    )
-
-
-def morph_slider_import_route_state(*, has_base_mesh: bool) -> MorphSliderActionRouteState:
-    return MorphSliderActionRouteState(
-        allowed=bool(has_base_mesh),
-        title=morph_slider_title_text(),
-        message="" if has_base_mesh else morph_slider_import_requires_modify_original_text(),
-    )
-
-
-def morph_slider_add_target_route_state(*, has_base_mesh: bool) -> MorphSliderActionRouteState:
-    return MorphSliderActionRouteState(
-        allowed=bool(has_base_mesh),
-        title=morph_slider_title_text(),
-        message="" if has_base_mesh else morph_slider_add_requires_modify_original_text(),
     )
 
 
@@ -565,11 +521,7 @@ __all__ = [
     "MorphSliderRowState",
     "MorphSliderRowSyncState",
     "MorphSliderValueCommitState",
-    "morph_slider_add_requires_modify_original_text",
-    "morph_slider_add_target_route_state",
-    "morph_slider_add_target_action_text",
     "morph_slider_activity_guard_initial_state",
-    "morph_slider_added_status_text",
     "morph_slider_amount_prompt_text",
     "morph_slider_applied_status_text",
     "morph_slider_active_deltas",
@@ -592,10 +544,6 @@ __all__ = [
     "morph_slider_feather_prompt_text",
     "morph_slider_has_loaded_deltas",
     "morph_slider_has_nonzero_values",
-    "morph_slider_import_action_text",
-    "morph_slider_import_requires_modify_original_text",
-    "morph_slider_import_route_state",
-    "morph_slider_imported_status_text",
     "morph_slider_manage_action_text",
     "morph_slider_manage_action_tooltip",
     "morph_slider_name_prompt_text",
@@ -611,7 +559,6 @@ __all__ = [
     "morph_slider_row_sync_states",
     "morph_slider_status_text",
     "morph_slider_supported",
-    "morph_slider_target_mesh_file_filter",
     "morph_slider_title_text",
     "morph_slider_topology_changed_reason_text",
     "morph_slider_topology_blocked_initial_state",
