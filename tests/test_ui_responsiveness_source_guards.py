@@ -573,10 +573,9 @@ class UIResponsivenessSourceGuards(unittest.TestCase):
         self.assertIn("visible = self.isVisible() and (self.window() is None or self.window().isVisible())", native_panel)
         self.assertIn("if not self.isVisible():\n            self._pan_drag_active = False", native_panel)
         self.assertIn("def _deactivate_archive_model_renderers_for_non_model_preview(self) -> None:", main_window)
-        self.assertIn("def _cancel_archive_isolated_package_worker_for_non_model_preview(self) -> None:", main_window)
-        self.assertIn("self.archive_isolated_package_pending_result = None", main_window)
-        self.assertIn("worker.stop()", main_window)
-        self.assertIn("self._shutdown_archive_isolated_renderer_host()", main_window)
+        self.assertNotIn("archive_isolated_package_request_id", main_window)
+        self.assertNotIn("archive_isolated_package_pending_result", main_window)
+        self.assertIn("self.archive_d3d11_preview_host.clear_preview()", main_window)
         self.assertIn("self._deactivate_archive_model_renderers_for_non_model_preview()", main_window)
 
     def test_research_archive_picker_flat_view_is_batched(self) -> None:

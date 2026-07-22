@@ -192,6 +192,7 @@ def test_helper_command_selects_explicit_profiles(tmp_path: Path) -> None:
 
 def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     controller, process, first = _start_controller(tmp_path)
+    assert controller.process_id == 4242
     applied: list[tuple[str, int]] = []
     controller.package_applied.connect(lambda path, generation: applied.append((path, generation)))
     _make_ready(controller)
@@ -218,6 +219,7 @@ def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     assert applied[-1] == (str(third.package_dir), 3)
     assert controller.applied_package_path == str(third.package_dir)
     controller.shutdown()
+    assert controller.process_id == 0
 
 
 def test_preview_host_restores_absolute_camera_and_rejects_mutation(tmp_path: Path) -> None:

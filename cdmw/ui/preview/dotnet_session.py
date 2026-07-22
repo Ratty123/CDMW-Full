@@ -156,6 +156,16 @@ class DotNetPreviewSessionController(QObject):
         return self._process
 
     @property
+    def process_id(self) -> int:
+        process = self._process
+        if process is None:
+            return 0
+        try:
+            return max(0, int(process.processId()))
+        except (AttributeError, RuntimeError, TypeError, ValueError, OverflowError):
+            return 0
+
+    @property
     def is_running(self) -> bool:
         return self._process is not None and qprocess_is_running(self._process)
 

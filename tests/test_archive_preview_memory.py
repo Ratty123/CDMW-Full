@@ -2,6 +2,7 @@ import os
 import unittest
 from pathlib import Path
 from threading import Event, Thread
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from cdmw.rendering import native_preview_core
@@ -11,17 +12,15 @@ from cdmw.ui.archive_browser.preview_memory import ArchivePreviewMemoryAuditMixi
 
 
 class _MemoryAuditHarness(ArchivePreviewMemoryAuditMixin):
-    def __init__(self, diagnostics: dict[str, object]) -> None:
+    def __init__(self, diagnostics: dict[str, object], *, controller: object | None = None) -> None:
         self.current_archive_preview_result = ArchivePreviewResult(
             status="ok",
             native_preview_diagnostics=diagnostics,
         )
+        self.archive_d3d11_preview_host = SimpleNamespace(controller=controller) if controller is not None else None
 
     def _current_archive_entry(self) -> None:
         return None
-
-    def _archive_qprocess_pid(self, _process: object) -> int:
-        return 0
 
     def _archive_preview_result_prepared_bytes(self, _result: object) -> int:
         return 0
@@ -34,6 +33,8 @@ class ArchivePreviewMemoryTests(unittest.TestCase):
             return {"pid": pid, "private_bytes": 100, "working_set_bytes": 80}
         if pid == 4321:
             return {"pid": pid, "private_bytes": 300, "working_set_bytes": 200}
+        if pid == 7654:
+            return {"pid": pid, "private_bytes": 500, "working_set_bytes": 400}
         return {}
 
     def test_stopped_service_reports_zero_live_memory_and_separate_last_job_memory(self) -> None:
@@ -63,6 +64,7 @@ class ArchivePreviewMemoryTests(unittest.TestCase):
         self.assertEqual(payload["preview_core_last_job_process_pid"], 1234)
         self.assertEqual(payload["preview_core_last_job_process_private_bytes"], 667_000_000)
         self.assertEqual(payload["preview_core_last_job_process_working_set_bytes"], 637_000_000)
+        self.assertEqual(payload["dotnet_preview_process_pid"], 0)
         self.assertEqual(payload["memory_total_private_bytes"], 100)
 
     def test_live_memory_uses_current_service_pid_instead_of_cached_job_pid(self) -> None:
@@ -91,6 +93,35 @@ class ArchivePreviewMemoryTests(unittest.TestCase):
         self.assertEqual(payload["preview_core_process_working_set_bytes"], 200)
         self.assertEqual(payload["preview_core_last_job_process_pid"], 1234)
         self.assertEqual(payload["memory_total_private_bytes"], 400)
+
+    def test_live_dotnet_preview_memory_uses_shared_controller_process(self) -> None:
+        controller = SimpleNamespace(
+            process_id=7654,
+            process_generation=3,
+            package_generation=7,
+            is_running=True,
+        )
+        harness = _MemoryAuditHarness({}, controller=controller)
+
+        with (
+            patch(
+                "cdmw.ui.archive_browser.preview_memory.native_preview_core_service_process_id",
+                return_value=0,
+            ),
+            patch(
+                "cdmw.ui.archive_browser.preview_memory._windows_process_memory_snapshot",
+                side_effect=self._snapshot,
+            ),
+        ):
+            payload = harness._archive_memory_audit_payload("active")
+
+        self.assertEqual(payload["dotnet_preview_process_pid"], 7654)
+        self.assertEqual(payload["dotnet_preview_process_private_bytes"], 500)
+        self.assertEqual(payload["dotnet_preview_process_working_set_bytes"], 400)
+        self.assertEqual(payload["dotnet_preview_process_generation"], 3)
+        self.assertEqual(payload["dotnet_preview_package_generation"], 7)
+        self.assertTrue(payload["dotnet_preview_process_running"])
+        self.assertEqual(payload["memory_total_private_bytes"], 600)
 
     def test_service_pid_probe_does_not_wait_for_active_preview_job(self) -> None:
         class RunningProcess:

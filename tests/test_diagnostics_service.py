@@ -319,6 +319,7 @@ class DiagnosticsServiceTests(unittest.TestCase):
         result = runtime_event_child_memory(
             {
                 "process_pid": os.getpid(),
+                "dotnet_preview_process_pid": 345,
                 "d3d11_process_pid": "123",
                 "preview_core_process_pid": "bad",
                 "native_preview_core_process_pid": 456,
@@ -327,10 +328,11 @@ class DiagnosticsServiceTests(unittest.TestCase):
             memory_snapshot=snapshot,
         )
 
-        self.assertEqual([123, 456], calls)
+        self.assertEqual([345, 123, 456], calls)
         self.assertEqual(
             {
                 "123": {"pid": 123, "private_bytes": 1230},
+                "345": {"pid": 345, "private_bytes": 3450},
                 "456": {"pid": 456, "private_bytes": 4560},
             },
             result,

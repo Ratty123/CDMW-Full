@@ -44,16 +44,8 @@ class ArchivePreviewRendererControlsMixin:
             if callable(pause_timers):
                 pause_timers()
 
-    def _cancel_archive_isolated_package_worker_for_non_model_preview(self) -> None:
-        self.archive_isolated_package_pending_result = None
-        self.archive_isolated_package_request_id += 1
-        worker = getattr(self, "archive_isolated_package_worker", None)
-        if worker is not None:
-            worker.stop()
-
     def _deactivate_archive_model_renderers_for_non_model_preview(self) -> None:
         self._pause_archive_model_preview_widgets()
-        self._cancel_archive_isolated_package_worker_for_non_model_preview()
         self.archive_d3d11_preview_host.clear_preview()
         self.archive_isolated_renderer_active_package = None
 

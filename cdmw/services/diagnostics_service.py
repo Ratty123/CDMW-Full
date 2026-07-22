@@ -333,6 +333,7 @@ def runtime_event_child_memory(
     snapshots: dict[str, dict[str, int]] = {}
     for key in (
         "process_pid",
+        "dotnet_preview_process_pid",
         "d3d11_process_pid",
         "preview_core_process_pid",
         "native_preview_core_process_pid",

@@ -117,19 +117,11 @@ class _PartVisibilityHarness(ArchivePreviewD3D11PartsMixin):
             offset=128,
         )
         self.refresh_calls: list[bool] = []
-        self.archive_isolated_renderer_status_file: Path | None = None
-        self.archive_isolated_renderer_status_signature = (0, 0)
-        self.archive_isolated_renderer_status_payload_text = ""
-        self.archive_isolated_renderer_last_status_payload: dict[str, object] = {}
-        self.archive_isolated_renderer_process = None
         self.runtime_events: list[tuple[str, dict[str, object]]] = []
         self.status_messages: list[tuple[str, bool]] = []
 
     def _record_archive_d3d11_runtime_event(self, event: str, **fields: object) -> None:
         self.runtime_events.append((event, dict(fields)))
-
-    def _archive_qprocess_pid(self, _process: object) -> int:
-        return 0
 
     def _promote_archive_d3d11_pending_package_if_loaded(self, _status_file: Path) -> None:
         return
