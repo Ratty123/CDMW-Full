@@ -184,6 +184,57 @@ static std::vector<std::string> find_object_array_values(
     return values;
 }
 
+static std::vector<std::string> find_string_array_values(
+    const std::string& json,
+    const std::string& key,
+    size_t max_count,
+    bool& truncated
+) {
+    std::vector<std::string> values;
+    truncated = false;
+    const std::string needle = "\"" + key + "\"";
+    size_t pos = json.find(needle);
+    if (pos == std::string::npos) return values;
+    pos = json.find(':', pos + needle.size());
+    if (pos == std::string::npos) return values;
+    pos = json.find('[', pos + 1);
+    if (pos == std::string::npos) return values;
+    ++pos;
+    while (pos < json.size()) {
+        while (pos < json.size() && (std::isspace(static_cast<unsigned char>(json[pos])) || json[pos] == ',')) ++pos;
+        if (pos >= json.size() || json[pos] == ']') break;
+        if (json[pos] != '"') return values;
+        ++pos;
+        std::string value;
+        bool escaped = false;
+        for (; pos < json.size(); ++pos) {
+            const char ch = json[pos];
+            if (escaped) {
+                switch (ch) {
+                case 'n': value += '\n'; break;
+                case 'r': value += '\r'; break;
+                case 't': value += '\t'; break;
+                default: value += ch; break;
+                }
+                escaped = false;
+                continue;
+            }
+            if (ch == '\\') {
+                escaped = true;
+                continue;
+            }
+            if (ch == '"') {
+                ++pos;
+                break;
+            }
+            value += ch;
+        }
+        if (values.size() < max_count) values.push_back(std::move(value));
+        else truncated = true;
+    }
+    return values;
+}
+
 long long find_int_value(const std::string& json, const std::string& key, long long fallback = 0) {
     const std::string needle = "\"" + key + "\"";
     size_t pos = json.find(needle);
@@ -355,6 +406,7 @@ struct EntryJob {
     ArchiveEntryRef companion_entry;
     std::vector<ArchiveEntryRef> archive_dependency_entries;
     bool archive_dependency_entries_complete = false;
+    std::vector<std::string> enabled_prefab_component_paths;
     bool use_textures = true;
     bool high_quality_textures = true;
     bool disable_all_support_maps = false;
@@ -797,6 +849,15 @@ EntryJob parse_job(const fs::path& job_path) {
         false);
     if (job.archive_dependency_entries_complete && dependency_entries_truncated) {
         throw std::runtime_error("archive dependency entries exceeded the 4,096-entry safety bound");
+    }
+    bool prefab_components_truncated = false;
+    job.enabled_prefab_component_paths = find_string_array_values(
+        text,
+        "enabled_prefab_component_paths",
+        32,
+        prefab_components_truncated);
+    if (prefab_components_truncated) {
+        throw std::runtime_error("enabled prefab component paths exceeded the 32-entry safety bound");
     }
     job.path = job.entry.path;
     job.extension = job.entry.extension.empty() ? basename_extension(job.path) : job.entry.extension;

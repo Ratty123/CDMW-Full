@@ -347,12 +347,10 @@ def store_native_preview_package_cache(
                 if hit is not None:
                     shutil.rmtree(staging_entry_dir, ignore_errors=True)
                     return hit
-                if _cache_key_is_protected(cache_root, key):
-                    shutil.rmtree(staging_entry_dir, ignore_errors=True)
+                if _cache_key_is_active(cache_root, key):
                     return None
                 shutil.rmtree(final_entry_dir, ignore_errors=True)
                 if final_entry_dir.exists():
-                    shutil.rmtree(staging_entry_dir, ignore_errors=True)
                     return None
             packages_root = native_preview_package_cache_packages_root(cache_root)
             packages_root.mkdir(parents=True, exist_ok=True)
@@ -371,9 +369,9 @@ def store_native_preview_package_cache(
                 staging_entry_dir.replace(final_entry_dir)
             except OSError:
                 hit = lookup_native_preview_package_cache(cache_root, key, validate_package=validate_package)
-                shutil.rmtree(staging_entry_dir, ignore_errors=True)
                 if hit is None:
                     return None
+                shutil.rmtree(staging_entry_dir, ignore_errors=True)
                 return hit
             _mark_cache_key_recent(cache_root, key)
     finally:

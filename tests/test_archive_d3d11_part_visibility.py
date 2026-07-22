@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Callable
 
 from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
 from cdmw.ui.archive_browser.preview_d3d11_runtime import ArchivePreviewD3D11RuntimeMixin
+from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
 
 
 class _FakeSignal:
@@ -107,7 +109,15 @@ class _PartVisibilityHarness(ArchivePreviewD3D11PartsMixin, ArchivePreviewD3D11R
         self.archive_d3d11_preview_host = _FakePreviewHost(accept_commands=accept_commands)
         self.archive_d3d11_preview_status_label = _FakeButton()
         self.archive_d3d11_part_visibility_actions: dict[int, _FakeAction] = {}
-        self.archive_d3d11_part_visibility_groups: dict[str, tuple[object, tuple[int, ...], bool]] = {}
+        self.archive_d3d11_part_visibility_groups: dict[str, tuple[object, tuple[int, ...], bool, str]] = {}
+        self.archive_d3d11_prefab_component_selections: dict[str, set[str]] = {}
+        self.archive_d3d11_part_visibility_bulk_update = False
+        self.current_entry = SimpleNamespace(
+            path="character/body.pac",
+            pamt_path=Path("archive.pamt"),
+            offset=128,
+        )
+        self.refresh_calls: list[bool] = []
         self.archive_isolated_renderer_status_file: Path | None = None
         self.archive_isolated_renderer_status_signature = (0, 0)
         self.archive_isolated_renderer_status_payload_text = ""
@@ -146,68 +156,120 @@ class _PartVisibilityHarness(ArchivePreviewD3D11PartsMixin, ArchivePreviewD3D11R
     def _record_archive_memory_audit(self, _event: str, **_fields: object) -> None:
         return
 
+    def _current_archive_entry(self) -> object:
+        return self.current_entry
 
-def _write_part_visibility_package(package_dir: Path) -> None:
+    def _refresh_current_model_preview_assets(self, *, force: bool = False) -> None:
+        self.refresh_calls.append(bool(force))
+
+
+def _write_part_visibility_package(package_dir: Path, *, include_prefab_batch: bool) -> None:
     package_dir.mkdir()
+    batches = [
+        {
+            "index": 0,
+            "editor_identity": {
+                "source_submesh_index": 0,
+                "part_label": "Body",
+                "source_model_path": "character/body.pac",
+                "source_component_index": 0,
+                "prefab_component": False,
+            },
+        }
+    ]
+    if include_prefab_batch:
+        batches.append(
+            {
+                "index": 1,
+                "editor_identity": {
+                    "source_submesh_index": 1,
+                    "part_label": "Underwear",
+                    "source_model_path": "character/underwear.pac",
+                    "source_component_index": 1,
+                    "prefab_component": True,
+                },
+            }
+        )
     (package_dir / "manifest.json").write_text(
         json.dumps(
             {
-                "batches": [
-                    {
-                        "index": 0,
-                        "editor_identity": {
-                            "source_submesh_index": 0,
-                            "part_label": "Body",
-                            "source_model_path": "character/body.pac",
-                            "source_component_index": 0,
-                            "prefab_component": False,
-                        },
-                    },
-                    {
-                        "index": 1,
-                        "editor_identity": {
-                            "source_submesh_index": 1,
-                            "part_label": "Underwear",
-                            "source_model_path": "character/underwear.pac",
-                            "source_component_index": 1,
-                            "prefab_component": True,
-                        },
-                    },
-                ]
+                "asset_family": {
+                    "member_rows": [
+                        {
+                            "group": "Prefab / Components",
+                            "role": "Model Component",
+                            "display_name": "Underwear",
+                            "path": "character/underwear.pac",
+                        }
+                    ]
+                },
+                "batches": batches,
             }
         ),
         encoding="utf-8",
     )
 
 
-def test_archive_preview_hides_prefab_parts_by_default(tmp_path: Path) -> None:
+def _prefab_action(harness: _PartVisibilityHarness) -> _FakeAction:
+    return next(
+        action
+        for action, _source_indices, prefab_component, _model_path
+        in harness.archive_d3d11_part_visibility_groups.values()
+        if prefab_component
+    )
+
+
+def test_archive_preview_loads_prefab_only_after_its_part_is_enabled(tmp_path: Path) -> None:
     package_dir = tmp_path / "preview"
-    _write_part_visibility_package(package_dir)
+    _write_part_visibility_package(package_dir, include_prefab_batch=False)
     harness = _PartVisibilityHarness()
 
     harness._populate_archive_d3d11_part_visibility_menu(package_dir)
 
     assert harness.archive_d3d11_part_visibility_actions[0].isChecked() is True
-    assert harness.archive_d3d11_part_visibility_actions[1].isChecked() is False
-    assert harness.archive_d3d11_preview_host.hidden_source_submeshes == [[1]]
+    prefab_action = _prefab_action(harness)
+    assert prefab_action.isChecked() is False
+    assert 1 not in harness.archive_d3d11_part_visibility_actions
+    assert harness.archive_d3d11_preview_host.hidden_source_submeshes == [[]]
     assert harness.archive_d3d11_part_visibility_button.text == "Parts 1/2"
     assert harness.archive_d3d11_part_visibility_button.enabled is True
     assert harness.archive_d3d11_part_visibility_button.visible is True
 
-    harness.archive_d3d11_part_visibility_actions[1].setChecked(True)
+    prefab_action.setChecked(True)
 
     assert harness.archive_d3d11_preview_host.hidden_source_submeshes[-1] == []
     assert harness.archive_d3d11_part_visibility_button.text == "Parts 2/2"
+    assert harness._archive_d3d11_enabled_prefab_component_paths() == ("character/underwear.pac",)
+    assert harness.refresh_calls == [True]
+
+
+def test_archive_preview_disabling_loaded_prefab_hides_then_rebuilds(tmp_path: Path) -> None:
+    package_dir = tmp_path / "preview"
+    _write_part_visibility_package(package_dir, include_prefab_batch=True)
+    harness = _PartVisibilityHarness()
+    assert harness._set_archive_d3d11_enabled_prefab_component_paths(("character/underwear.pac",))
+
+    harness._populate_archive_d3d11_part_visibility_menu(package_dir)
+    prefab_action = _prefab_action(harness)
+    assert prefab_action.isChecked() is True
+    assert harness.archive_d3d11_preview_host.hidden_source_submeshes == [[]]
+
+    prefab_action.setChecked(False)
+
+    assert harness.archive_d3d11_preview_host.hidden_source_submeshes[-1] == [1]
+    assert harness._archive_d3d11_enabled_prefab_component_paths() == ()
+    assert harness.refresh_calls == [True]
 
 
 def test_archive_preview_reapplies_default_prefab_visibility_after_first_renderer_load(tmp_path: Path) -> None:
     package_dir = tmp_path / "preview"
-    _write_part_visibility_package(package_dir)
+    _write_part_visibility_package(package_dir, include_prefab_batch=True)
     harness = _PartVisibilityHarness(accept_commands=False)
+    assert harness._set_archive_d3d11_enabled_prefab_component_paths(("character/underwear.pac",))
 
     harness._populate_archive_d3d11_part_visibility_menu(package_dir)
 
-    assert harness.archive_d3d11_part_visibility_actions[1].isChecked() is False
+    assert _prefab_action(harness).isChecked() is True
     assert harness.archive_d3d11_preview_host.hidden_source_submeshes == []
 
     harness.archive_d3d11_preview_host.accept_commands = True
@@ -217,5 +279,54 @@ def test_archive_preview_reapplies_default_prefab_visibility_after_first_rendere
 
     harness._poll_archive_isolated_renderer_status()
 
-    assert harness.archive_d3d11_preview_host.hidden_source_submeshes == [[1]]
-    assert harness.archive_d3d11_part_visibility_button.text == "Parts 1/2"
+    assert harness.archive_d3d11_preview_host.hidden_source_submeshes == [[]]
+    assert harness.archive_d3d11_part_visibility_button.text == "Parts 2/2"
+
+
+def test_archive_preview_cache_identity_includes_enabled_prefab_paths(tmp_path: Path) -> None:
+    class CacheHarness(ArchivePreviewD3D11PartsMixin, ArchivePreviewCacheMixin):
+        archive_sidecar_generation = 0
+
+        def __init__(self) -> None:
+            self.archive_d3d11_prefab_component_selections: dict[str, set[str]] = {}
+            self.entry = SimpleNamespace(
+                path="character/body.pac",
+                extension=".pac",
+                pamt_path=tmp_path / "archive.pamt",
+                paz_file=tmp_path / "archive.paz",
+                offset=128,
+                comp_size=64,
+                orig_size=128,
+                flags=0,
+                paz_index=0,
+            )
+
+        def _current_archive_entry(self) -> object:
+            return self.entry
+
+        @staticmethod
+        def _archive_model_renderer_backend() -> str:
+            return "d3d11_native"
+
+        @staticmethod
+        def _current_model_preview_render_settings() -> object:
+            return SimpleNamespace(
+                disable_all_support_maps=False,
+                disable_normal_map=False,
+                disable_material_map=False,
+                disable_height_map=False,
+                visible_texture_mode="mesh_base_first",
+                preview_texture_max_dimension=2048,
+                low_quality_texture_max_dimension=512,
+                flip_texture_v=False,
+                high_quality_by_default=True,
+                use_textures_by_default=True,
+            )
+
+    harness = CacheHarness()
+    base_key = harness._archive_preview_cache_key(harness.entry, ())
+    assert harness._set_archive_d3d11_enabled_prefab_component_paths(("character/underwear.pac",))
+    selected_key = harness._archive_preview_cache_key(harness.entry, ())
+
+    assert base_key != selected_key
+    assert "prefabs:character/underwear.pac" in selected_key

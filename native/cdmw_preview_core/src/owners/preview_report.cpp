@@ -73,8 +73,34 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
         }
         int component_models_added = 0;
         int component_batches_added = 0;
-        for (const ArchiveEntryRef& component : prefab_model_component_refs_for_job(job, index, 8)) {
+        int component_models_available = 0;
+        const std::vector<ArchiveEntryRef> prefab_components = prefab_model_component_refs_for_job(job, index, 8);
+        for (const ArchiveEntryRef& component : prefab_components) {
             if (lower_copy(component.path) == lower_copy(job.path)) continue;
+            ++component_models_available;
+            add_asset_family_row(package, NativeAssetFamilyRow{
+                "Prefab / Components",
+                "Model Component",
+                component.basename.empty() ? basename_from_path(component.path) : component.basename,
+                component.path,
+                "Resolved",
+                "Prefab",
+                "authoritative",
+                "optional",
+                "Available prefab model component; geometry and materials load only when enabled in Archive Browser Parts.",
+                "model",
+                "Prefab model component",
+                "",
+                "",
+                "",
+                package_label_for_ref(component),
+                component.extension,
+                "",
+                "",
+                "",
+                ""
+            });
+            if (!prefab_component_enabled_for_job(component, job)) continue;
             try {
                 const std::vector<char> component_data = read_archive_ref_decoded_bytes(component);
                 NativeMeshParseResult component_parse;
@@ -106,28 +132,6 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
                     std::make_move_iterator(component_parse.meshes.begin()),
                     std::make_move_iterator(component_parse.meshes.end()));
                 ++component_models_added;
-                add_asset_family_row(package, NativeAssetFamilyRow{
-                    "Prefab / Components",
-                    "Model Component",
-                    component.basename.empty() ? basename_from_path(component.path) : component.basename,
-                    component.path,
-                    "Resolved",
-                    "Prefab",
-                    "authoritative",
-                    "required",
-                    "Native preview-core expanded a same-stem item prefab component into the D3D11 package.",
-                    "model",
-                    "Prefab model component",
-                    "",
-                    "",
-                    "",
-                    package_label_for_ref(component),
-                    component.extension,
-                    "",
-                    "",
-                    "",
-                    ""
-                });
             } catch (const std::exception& exc) {
                 package.notes.push_back("native prefab composite component skipped:" + component.path + ":" + exc.what());
             }
@@ -138,6 +142,11 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
                 "native prefab composite: added " + std::to_string(component_models_added) +
                 " referenced model component(s), " + std::to_string(component_batches_added) +
                 " batch(es), from same-stem item prefab"
+            );
+        } else if (component_models_available > 0) {
+            package.notes.push_back(
+                "native prefab composite: " + std::to_string(component_models_available) +
+                " referenced model component(s) available; none loaded until enabled in Archive Browser Parts"
             );
         }
     } else if (job.extension == ".pam") {

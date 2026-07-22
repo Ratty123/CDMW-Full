@@ -389,6 +389,7 @@ class ArchivePreviewWorkerMixin:
                 entries_by_normalized_path=texture_entries_by_normalized_path,
             )
         preview_settings = self._current_model_preview_render_settings()
+        enabled_prefab_component_paths = self._archive_d3d11_enabled_prefab_component_paths(entry)
         native_cache_mode = self._native_preview_package_cache_mode()
         native_cache_max_bytes, native_cache_target_bytes = self._native_preview_package_cache_budget()
         native_package_cache_key = ""
@@ -415,6 +416,7 @@ class ArchivePreviewWorkerMixin:
             native_preview_core_enabled=(self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11),
             native_preview_cache_mode=native_cache_mode,
             native_preview_package_cache_key=native_package_cache_key,
+            enabled_prefab_component_count=len(enabled_prefab_component_paths),
         )
         worker = ArchivePreviewWorker(
             request_id,
@@ -447,6 +449,7 @@ class ArchivePreviewWorkerMixin:
             ),
             native_preview_dependency_entries=native_preview_dependency_entries,
             native_preview_dependency_entries_complete=native_preview_dependency_entries_complete,
+            enabled_prefab_component_paths=enabled_prefab_component_paths,
             native_preview_package_cache_key=native_package_cache_key,
             native_preview_package_cache_mode=native_cache_mode,
             native_preview_package_cache_max_bytes=native_cache_max_bytes,

@@ -167,6 +167,88 @@ class NativePreviewPackageCacheConcurrencyTests(unittest.TestCase):
             self.assertTrue((final_package / "manifest.json").is_file())
             self.assertTrue(all(not staging.exists() for staging in stages))
 
+    def test_publication_repairs_invalid_recent_entry(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            stale_entry = _raw_cache_entry(cache_root, "recent-invalid")
+            self.assertIsNotNone(
+                lookup_native_preview_package_cache(
+                    cache_root,
+                    "recent-invalid",
+                    validate_package=_validate,
+                )
+            )
+            (stale_entry / "package" / "manifest.json").unlink()
+            staging = create_native_preview_package_staging_dir(cache_root)
+            package = staging / "package"
+            package.mkdir()
+            (package / "manifest.json").write_text('{"replacement":true}', encoding="utf-8")
+
+            hit = store_native_preview_package_cache(
+                cache_root,
+                "recent-invalid",
+                staging,
+                {},
+                validate_package=_validate,
+                max_bytes=1024 * 1024,
+                target_bytes=512 * 1024,
+            )
+
+            self.assertIsNotNone(hit)
+            self.assertTrue((stale_entry / "package" / "manifest.json").is_file())
+            self.assertIn("replacement", (stale_entry / "package" / "manifest.json").read_text(encoding="utf-8"))
+            self.assertFalse(staging.exists())
+
+    def test_foreground_build_preserves_complete_package_when_cache_entry_is_active_and_invalid(self) -> None:
+        class Harness(ArchivePreviewNativeMixin):
+            pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            cache_root = Path(temp_dir) / "cache"
+            active_entry = _raw_cache_entry(cache_root, "active-invalid")
+            (active_entry / "package" / "manifest.json").unlink()
+            harness = Harness()
+            harness.native_preview_core_enabled = True
+            harness.entry = _entry()
+            harness.native_preview_core_cache_root = cache_root
+            harness.native_preview_package_cache_mode = "balanced"
+            harness.native_preview_package_cache_key = "active-invalid"
+            harness.native_preview_package_cache_max_bytes = 1024 * 1024
+            harness.native_preview_package_cache_target_bytes = 512 * 1024
+            harness.render_settings = None
+            harness.companion_entry = None
+            harness.native_preview_core_package_root = None
+            harness.native_preview_dependency_entries = ()
+            harness.native_preview_dependency_entries_complete = False
+            harness.enabled_prefab_component_paths = ()
+            harness.stop_event = threading.Event()
+
+            def fake_build(_entry, **kwargs):
+                output_root = Path(kwargs["output_root"])
+                output_root.mkdir(parents=True)
+                (output_root / "manifest.json").write_text("{}", encoding="utf-8")
+                return NativePreviewCoreAttempt(status="ok", package_path=str(output_root))
+
+            with (
+                native_preview_package_cache_use(cache_root, "active-invalid"),
+                patch(
+                    "cdmw.workers.archive_preview_native.run_native_preview_core_preview_job",
+                    side_effect=fake_build,
+                ),
+            ):
+                attempt = harness._try_native_preview_core()
+
+            self.assertIsNotNone(attempt)
+            self.assertTrue(attempt.succeeded)  # type: ignore[union-attr]
+            package_dir = Path(attempt.package_path)  # type: ignore[union-attr]
+            self.assertTrue((package_dir / "manifest.json").is_file())
+            self.assertTrue(package_dir.parent.name.startswith("cdmw_preview_core_"))
+            self.assertEqual(
+                "standalone_fallback",
+                attempt.diagnostics["native_preview_package_cache"],  # type: ignore[union-attr]
+            )
+            release_native_preview_package_staging_dir(package_dir.parent, cleanup=True)
+
     def test_prune_skips_active_staging_lease(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             cache_root = Path(temp_dir) / "cache"

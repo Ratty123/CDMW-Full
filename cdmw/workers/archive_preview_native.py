@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import tempfile
 import time
 from collections import defaultdict
 from collections.abc import Mapping
@@ -39,6 +40,34 @@ from cdmw.rendering.native_preview_package_cache import (
 
 
 NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}
+
+
+def _preserve_native_preview_core_staging_package(
+    cache_root: Path,
+    staging_entry_dir: Path,
+) -> Optional[Path]:
+    """Move a complete unpublished package out of the prunable staging lane."""
+
+    staging_entry_dir = Path(staging_entry_dir)
+    package_dir = staging_entry_dir / "package"
+    if not package_dir.is_dir():
+        return None
+    fallback_entry_dir: Optional[Path] = None
+    try:
+        Path(cache_root).mkdir(parents=True, exist_ok=True)
+        fallback_entry_dir = Path(
+            tempfile.mkdtemp(prefix="cdmw_preview_core_", dir=str(Path(cache_root)))
+        )
+        fallback_entry_dir.rmdir()
+        staging_entry_dir.replace(fallback_entry_dir)
+        return fallback_entry_dir / "package"
+    except OSError:
+        if fallback_entry_dir is not None:
+            try:
+                fallback_entry_dir.rmdir()
+            except OSError:
+                pass
+        return None
 
 
 class ArchivePreviewNativeMixin:
@@ -139,6 +168,11 @@ class ArchivePreviewNativeMixin:
                 dependency_entries_complete=bool(
                     getattr(self, "native_preview_dependency_entries_complete", False)
                 ),
+                enabled_prefab_component_paths=getattr(
+                    self,
+                    "enabled_prefab_component_paths",
+                    (),
+                ),
                 package_root=self.native_preview_core_package_root,
                 output_root=output_root,
                 timeout_seconds=8.0,
@@ -173,7 +207,30 @@ class ArchivePreviewNativeMixin:
                         diagnostics=diagnostics,
                     )
                 diagnostics["native_preview_package_cache"] = "store_failed"
-                return dataclasses.replace(native_attempt, diagnostics=diagnostics)
+                staging_package_dir = staging_entry_dir / "package"
+                valid_staging, _missing = self._validate_native_preview_core_package_basic(
+                    staging_package_dir
+                )
+                fallback_package_dir = (
+                    _preserve_native_preview_core_staging_package(cache_root, staging_entry_dir)
+                    if valid_staging
+                    else None
+                )
+                if fallback_package_dir is not None:
+                    diagnostics["package_path"] = str(fallback_package_dir)
+                    diagnostics["native_preview_package_cache"] = "standalone_fallback"
+                    return dataclasses.replace(
+                        native_attempt,
+                        package_path=str(fallback_package_dir),
+                        diagnostics=diagnostics,
+                        job_root_path=str(fallback_package_dir.parent),
+                    )
+                return NativePreviewCoreAttempt(
+                    status="error",
+                    fallback_reason="native preview-core package cache publication failed",
+                    diagnostics=diagnostics,
+                    elapsed_ms=native_attempt.elapsed_ms,
+                )
             return native_attempt
         except RunCancelled:
             raise

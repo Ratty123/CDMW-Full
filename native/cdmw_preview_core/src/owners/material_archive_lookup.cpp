@@ -378,6 +378,24 @@ static bool prefab_model_path_matches_job(const std::string& model_path, const E
     return model_dir.empty() || job_dir.empty() || model_dir == job_dir;
 }
 
+static std::string prefab_component_path_key(std::string path) {
+    std::replace(path.begin(), path.end(), '\\', '/');
+    return lower_copy(path);
+}
+
+static bool prefab_component_enabled_for_job(
+    const ArchiveEntryRef& component,
+    const EntryJob& job
+) {
+    const std::string component_key = prefab_component_path_key(component.path);
+    return std::any_of(
+        job.enabled_prefab_component_paths.begin(),
+        job.enabled_prefab_component_paths.end(),
+        [&](const std::string& enabled_path) {
+            return prefab_component_path_key(enabled_path) == component_key;
+        });
+}
+
 static std::vector<ArchiveEntryRef> prefab_model_component_refs_for_job(
     const EntryJob& job,
     const PamtIndex& index,
@@ -460,11 +478,15 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
     const std::string model_dir = dirname_from_path(job.path);
     std::vector<std::string> basenames;
     if (job.extension == ".pac") {
-        basenames = {model_stem + ".pac_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab", model_stem + ".prefabdata_xml", model_stem + ".meshinfo"};
+        basenames = {model_stem + ".pac_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".meshinfo"};
     } else if (job.extension == ".pam") {
-        basenames = {model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab", model_stem + ".prefabdata_xml", model_stem + ".meshinfo"};
+        basenames = {model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".meshinfo"};
     } else if (job.extension == ".pamlod") {
-        basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".prefab", model_stem + ".prefabdata_xml", model_stem + ".meshinfo"};
+        basenames = {model_stem + ".pamlod_xml", model_stem + ".pami", model_stem + ".pam_xml", model_stem + ".material", model_stem + ".technique", model_stem + ".meshinfo"};
+    }
+    if (!job.enabled_prefab_component_paths.empty()) {
+        basenames.push_back(model_stem + ".prefab");
+        basenames.push_back(model_stem + ".prefabdata_xml");
     }
     for (const std::string& base : basenames) {
         const size_t before_primary = candidates.size();
@@ -475,9 +497,10 @@ static std::vector<ArchiveEntryRef> material_sidecar_candidates_for_job(
             }
         }
     }
-    if (job.extension == ".pac") {
+    if (job.extension == ".pac" && !job.enabled_prefab_component_paths.empty()) {
         for (const ArchiveEntryRef& component : prefab_model_component_refs_for_job(job, index, 12)) {
             if (lower_copy(component.path) == lower_copy(job.path)) continue;
+            if (!prefab_component_enabled_for_job(component, job)) continue;
             const std::string component_stem = stem_from_path(component.path);
             const std::string component_dir = dirname_from_path(component.path);
             for (const std::string& base : {

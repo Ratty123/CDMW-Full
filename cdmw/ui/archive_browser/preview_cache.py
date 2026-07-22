@@ -97,6 +97,7 @@ class ArchivePreviewCacheMixin:
         sidecar_generation: Optional[int] = None,
         quality_tier: str = "full",
         dependency_entries: Sequence[ArchiveEntry] = (),
+        enabled_prefab_component_paths: Optional[Sequence[str]] = None,
     ) -> str:
         if entry is None:
             return ""
@@ -111,6 +112,25 @@ class ArchivePreviewCacheMixin:
         if dependency_entries and not dependency_digest:
             return ""
         preview_settings = self._current_model_preview_render_settings()
+        if enabled_prefab_component_paths is None:
+            enabled_prefab_paths_getter = getattr(
+                self,
+                "_archive_d3d11_enabled_prefab_component_paths",
+                None,
+            )
+            enabled_prefab_paths = (
+                tuple(enabled_prefab_paths_getter(entry))
+                if callable(enabled_prefab_paths_getter)
+                else ()
+            )
+        else:
+            enabled_prefab_paths = tuple(
+                sorted(
+                    str(path or "").replace("\\", "/").strip().casefold()
+                    for path in enabled_prefab_component_paths
+                    if str(path or "").strip()
+                )
+            )
         support_slots_key = ",".join(self._archive_preview_support_texture_slots(preview_settings))
         renderer_backend_key = str(self._archive_model_renderer_backend() or "").strip().lower()
         pamt_stamp = self._archive_file_stamp_for_cache(getattr(entry, "pamt_path", None))
@@ -145,6 +165,7 @@ class ArchivePreviewCacheMixin:
                 "hq" if preview_settings.high_quality_by_default else "lq",
                 "tex" if preview_settings.use_textures_by_default else "flat",
                 "archive",
+                "prefabs:" + ",".join(enabled_prefab_paths),
             ]
         if dependency_digest:
             key_parts.append(f"dependencies:{dependency_digest}")
@@ -209,11 +230,31 @@ class ArchivePreviewCacheMixin:
         *,
         include_loose_preview_assets: bool = False,
         dependency_entries: Sequence[ArchiveEntry] = (),
+        enabled_prefab_component_paths: Optional[Sequence[str]] = None,
     ) -> str:
         if entry is None:
             return ""
         binary = find_native_preview_core_binary()
         binary_signature = NativePreviewCoreServiceClient.resolve_binary_signature(binary) if binary is not None else (0, 0)
+        if enabled_prefab_component_paths is None:
+            enabled_prefab_paths_getter = getattr(
+                self,
+                "_archive_d3d11_enabled_prefab_component_paths",
+                None,
+            )
+            enabled_prefab_paths = (
+                tuple(enabled_prefab_paths_getter(entry))
+                if callable(enabled_prefab_paths_getter)
+                else ()
+            )
+        else:
+            enabled_prefab_paths = tuple(
+                sorted(
+                    str(path or "").replace("\\", "/").strip().casefold()
+                    for path in enabled_prefab_component_paths
+                    if str(path or "").strip()
+                )
+            )
         base_key = self._archive_preview_cache_key(
             entry,
             loose_search_roots,
@@ -221,6 +262,7 @@ class ArchivePreviewCacheMixin:
             sidecar_generation=self.archive_sidecar_generation,
             quality_tier="full",
             dependency_entries=dependency_entries,
+            enabled_prefab_component_paths=enabled_prefab_paths,
         )
         if not base_key:
             return ""
@@ -231,6 +273,7 @@ class ArchivePreviewCacheMixin:
             "entry": self._archive_entry_native_cache_signature(entry),
             "companion": self._archive_entry_native_cache_signature(companion_entry),
             "dependency_digest": dependency_digest,
+            "enabled_prefab_component_paths": enabled_prefab_paths,
             "render_settings": render_settings_to_native_preview_core_dict(self._current_model_preview_render_settings()),
             "support_slots": self._archive_preview_support_texture_slots(self._current_model_preview_render_settings()),
             "renderer_backend": str(self._archive_model_renderer_backend() or "").strip().lower(),

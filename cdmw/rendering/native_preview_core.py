@@ -35,6 +35,7 @@ NATIVE_PREVIEW_CORE_MATERIAL_CONTRACT_SCHEMA_VERSION = 2
 NATIVE_PREVIEW_CORE_MATERIAL_CHANNEL_CONTRACT_SCHEMA_VERSION = 2
 NATIVE_PREVIEW_CORE_TEXTURE_QUALITY_SCHEMA_VERSION = 1
 NATIVE_PREVIEW_CORE_MAX_DEPENDENCY_ENTRIES = 4096
+NATIVE_PREVIEW_CORE_MAX_PREFAB_COMPONENTS = 32
 
 
 def _repo_root() -> Path:
@@ -736,6 +737,25 @@ def _validated_native_preview_dependency_entries(
     return entries
 
 
+def _validated_enabled_prefab_component_paths(
+    component_paths: Sequence[str],
+) -> tuple[str, ...]:
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_path in component_paths:
+        path = str(raw_path or "").replace("\\", "/").strip()
+        if not path:
+            continue
+        key = path.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(path)
+        if len(normalized) > NATIVE_PREVIEW_CORE_MAX_PREFAB_COMPONENTS:
+            raise ValueError("Native preview prefab selections are limited to 32 components.")
+    return tuple(normalized)
+
+
 def build_native_preview_core_job(
     entry: ArchiveEntry,
     *,
@@ -745,6 +765,7 @@ def build_native_preview_core_job(
     companion_entry: Optional[ArchiveEntry] = None,
     dependency_entries: Sequence[ArchiveEntry] = (),
     dependency_entries_complete: bool = False,
+    enabled_prefab_component_paths: Sequence[str] = (),
     package_root: Optional[Path] = None,
     renderer_backend: str = "d3d11",
     schema_version: int = 8,
@@ -752,6 +773,9 @@ def build_native_preview_core_job(
     dependency_entries = _validated_native_preview_dependency_entries(
         dependency_entries,
         complete=dependency_entries_complete,
+    )
+    enabled_prefab_component_paths = _validated_enabled_prefab_component_paths(
+        enabled_prefab_component_paths
     )
     return {
         "version": 1,
@@ -769,6 +793,7 @@ def build_native_preview_core_job(
             for dependency in dependency_entries
         ],
         "archive_dependency_entries_complete": bool(dependency_entries_complete),
+        "enabled_prefab_component_paths": list(enabled_prefab_component_paths),
         "render_settings": render_settings_to_native_preview_core_dict(render_settings),
         "capabilities": {
             "direct_dds": True,
@@ -790,6 +815,7 @@ def run_native_preview_core_preview_job(
     companion_entry: Optional[ArchiveEntry] = None,
     dependency_entries: Sequence[ArchiveEntry] = (),
     dependency_entries_complete: bool = False,
+    enabled_prefab_component_paths: Sequence[str] = (),
     package_root: Optional[Path] = None,
     output_root: Optional[Path] = None,
     timeout_seconds: float = 3.0,
@@ -804,6 +830,9 @@ def run_native_preview_core_preview_job(
     dependency_entries = _validated_native_preview_dependency_entries(
         dependency_entries,
         complete=dependency_entries_complete,
+    )
+    enabled_prefab_component_paths = _validated_enabled_prefab_component_paths(
+        enabled_prefab_component_paths
     )
     binary = find_native_preview_core_binary()
     if binary is None:
@@ -828,6 +857,7 @@ def run_native_preview_core_preview_job(
         companion_entry=companion_entry,
         dependency_entries=dependency_entries,
         dependency_entries_complete=dependency_entries_complete,
+        enabled_prefab_component_paths=enabled_prefab_component_paths,
         package_root=package_root,
     )
     job_path.write_text(json.dumps(job, separators=(",", ":")), encoding="utf-8")

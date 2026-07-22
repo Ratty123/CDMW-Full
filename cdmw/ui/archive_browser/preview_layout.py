@@ -110,7 +110,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_d3d11_part_visibility_button.setPopupMode(QToolButton.InstantPopup)
         self.archive_d3d11_part_visibility_button.setToolButtonStyle(Qt.ToolButtonTextOnly)
         self.archive_d3d11_part_visibility_button.setToolTip(
-            "Show or hide individual D3D11 composite preview parts without rebuilding the package."
+            "Show or hide base parts. Prefab components are packaged only after you enable them."
         )
         self.archive_d3d11_part_visibility_button.setEnabled(False)
         self.archive_d3d11_part_visibility_button.setVisible(False)
@@ -120,7 +120,12 @@ class ArchivePreviewLayoutMixin:
             self.archive_d3d11_part_visibility_menu.setToolTipsVisible(True)
         self.archive_d3d11_part_visibility_button.setMenu(self.archive_d3d11_part_visibility_menu)
         self.archive_d3d11_part_visibility_actions: Dict[int, object] = {}
-        self.archive_d3d11_part_visibility_groups: Dict[str, Tuple[object, Tuple[int, ...], bool]] = {}
+        self.archive_d3d11_part_visibility_groups: Dict[
+            str,
+            Tuple[object, Tuple[int, ...], bool, str],
+        ] = {}
+        self.archive_d3d11_prefab_component_selections: Dict[str, set[str]] = {}
+        self.archive_d3d11_part_visibility_bulk_update = False
         self.archive_model_preview_reset_overrides_button = QPushButton("Reset")
         self.archive_model_preview_reset_overrides_button.setToolTip(
             "Clear the temporary Flip Base V and Disable Support Maps preview overrides."

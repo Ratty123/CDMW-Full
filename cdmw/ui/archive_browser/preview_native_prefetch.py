@@ -80,6 +80,7 @@ class ArchivePreviewNativePrefetchMixin:
                 candidate,
                 companion_entry,
                 self._collect_archive_preview_loose_roots(),
+                enabled_prefab_component_paths=(),
             )
             if not cache_key:
                 continue
@@ -128,6 +129,7 @@ class ArchivePreviewNativePrefetchMixin:
                     entry,
                     self._find_archive_preview_companion_entry(entry),
                     loose_search_roots,
+                    enabled_prefab_component_paths=(),
                 ),
             )
             for entry in entries
