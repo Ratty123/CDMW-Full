@@ -10,7 +10,7 @@ import pytest
 from PIL import Image
 
 from cdmw.models import ArchiveEntry
-from tools.mesh_harness.visual_audit_cli import _write_draft_review
+from tools.mesh_harness.visual_audit_cli import _load_specs, _write_draft_review
 from tools.mesh_harness.visual_audit_integrity import (
     _capture_integrity,
     _material_region_captures_complete,
@@ -37,6 +37,12 @@ from tools.mesh_harness.visual_audit_manifest_v2 import (
     select_visual_audit_v2_candidates,
     validate_visual_audit_v2_selection,
 )
+from tools.mesh_harness.visual_audit_manifest_cli import (
+    EXPANSION_REPEAT_PATHS,
+    build_visual_audit_expansion_manifest,
+    load_visual_audit_exclusion_registry,
+    write_visual_audit_expansion_manifest,
+)
 from tools.mesh_harness.visual_audit_review import (
     _payload_sha256,
     _semantic_conservation_ok,
@@ -59,23 +65,43 @@ from tools.mesh_harness.visual_audit_source_boards import (
 _ALL_GRAPH_TAGS = tuple(VISUAL_AUDIT_V2_GRAPH_MINIMUMS)
 
 
-def _synthetic_candidates() -> tuple[VisualAuditV2Candidate, ...]:
+def _synthetic_candidates(*, extra_per_category: int = 3) -> tuple[VisualAuditV2Candidate, ...]:
     rows: list[VisualAuditV2Candidate] = [
-        VisualAuditV2Candidate(REQUIRED_SWORD_PATH, "weapon_sword", 1, _ALL_GRAPH_TAGS),
-        VisualAuditV2Candidate(PRIOR_CONCERN_SWORD_PATH, "weapon_sword", 2, _ALL_GRAPH_TAGS),
+        VisualAuditV2Candidate(
+            REQUIRED_SWORD_PATH,
+            "weapon_sword",
+            1,
+            _ALL_GRAPH_TAGS,
+            pac_xml_sha256=hashlib.sha256(REQUIRED_SWORD_PATH.encode()).hexdigest(),
+            shader_families=("standardv2",),
+        ),
+        VisualAuditV2Candidate(
+            PRIOR_CONCERN_SWORD_PATH,
+            "weapon_sword",
+            2,
+            _ALL_GRAPH_TAGS,
+            pac_xml_sha256=hashlib.sha256(PRIOR_CONCERN_SWORD_PATH.encode()).hexdigest(),
+            shader_families=("standardv2",),
+        ),
     ]
     for category, count in VISUAL_AUDIT_V2_CATEGORY_COUNTS.items():
         existing = sum(row.category == category for row in rows)
-        for index in range(count + 3 - existing):
+        for index in range(count + extra_per_category - existing):
+            virtual_path = (
+                f"character/model/synthetic/{category}/"
+                f"cd_synthetic_{category}_{index:04d}.pac"
+            )
             rows.append(
                 VisualAuditV2Candidate(
-                    virtual_path=(
-                        f"character/model/synthetic/{category}/"
-                        f"cd_synthetic_{category}_{index:04d}.pac"
-                    ),
+                    virtual_path=virtual_path,
                     category=category,
                     graph_complexity=1000 - index,
                     graph_tags=_ALL_GRAPH_TAGS,
+                    pac_xml_sha256=hashlib.sha256(virtual_path.encode()).hexdigest(),
+                    wrapper_count=1 + index % 5,
+                    parameter_count=10 + index,
+                    texture_parameter_count=2 + index % 4,
+                    shader_families=(f"shader_family_{index % 7}",),
                 )
             )
     return tuple(rows)
@@ -100,6 +126,136 @@ def test_visual_audit_v2_selection_is_deterministic_exact_and_keeps_regressions(
         coverage["graph_coverage"][tag] >= minimum
         for tag, minimum in VISUAL_AUDIT_V2_GRAPH_MINIMUMS.items()
     )
+
+
+def test_visual_audit_v2_expansion_selection_excludes_history_except_allowed_repeats() -> None:
+    candidates = _synthetic_candidates(extra_per_category=30)
+    historical = select_visual_audit_v2_candidates(candidates)
+    historical_paths = {row.virtual_path for row in historical}
+
+    selected = select_visual_audit_v2_candidates(
+        tuple(reversed(candidates)),
+        excluded_paths=reversed(tuple(historical_paths)),
+        allowed_repeat_paths=EXPANSION_REPEAT_PATHS,
+        selection_seed="expanded-selection-test",
+    )
+    repeated = select_visual_audit_v2_candidates(
+        candidates,
+        excluded_paths=historical_paths,
+        allowed_repeat_paths=reversed(EXPANSION_REPEAT_PATHS),
+        selection_seed="expanded-selection-test",
+    )
+
+    assert selected == repeated
+    selected_paths = {row.virtual_path.casefold() for row in selected}
+    historical_normalized = {path.casefold() for path in historical_paths}
+    assert selected_paths & historical_normalized == {
+        path.casefold() for path in EXPANSION_REPEAT_PATHS
+    }
+    assert len(selected_paths - historical_normalized) == 118
+    assert validate_visual_audit_v2_selection(selected)["asset_count"] == 120
+
+
+def test_visual_audit_v2_expansion_requires_repeat_permission_for_excluded_priority() -> None:
+    candidates = _synthetic_candidates(extra_per_category=30)
+    historical = select_visual_audit_v2_candidates(candidates)
+
+    with pytest.raises(ValueError, match="excluded without repeat permission"):
+        select_visual_audit_v2_candidates(
+            candidates,
+            excluded_paths=(row.virtual_path for row in historical),
+            selection_seed="expanded-selection-test",
+        )
+
+
+def test_visual_audit_v2_expansion_manifest_records_deterministic_history_and_hash(
+    tmp_path: Path,
+) -> None:
+    candidates = _synthetic_candidates(extra_per_category=30)
+    historical = select_visual_audit_v2_candidates(candidates)
+    baseline_path = tmp_path / "baseline-corpus.json"
+    manifest_path = tmp_path / "historical-manifest.json"
+    baseline_path.write_text(
+        json.dumps(
+            {
+                "schema": "cdmw_mesh_visual_audit_corpus_v2",
+                "assets": [
+                    {"virtual_path": row.virtual_path}
+                    for row in historical[:60]
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest_path.write_text(
+        json.dumps(
+            {
+                "schema": "cdmw_mesh_visual_audit_selection_v1",
+                "assets": [
+                    {"virtual_path": row.virtual_path}
+                    for row in historical[60:]
+                ],
+                "excluded_virtual_paths": [
+                    historical[0].virtual_path.upper().replace("/", "\\")
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    registry = load_visual_audit_exclusion_registry((manifest_path, baseline_path))
+    repeated_registry = load_visual_audit_exclusion_registry((baseline_path, manifest_path))
+    assert registry == repeated_registry
+    assert len(registry.paths) == 120
+
+    payload = build_visual_audit_expansion_manifest(
+        tuple(reversed(candidates)),
+        registry,
+        selection_seed="expanded-manifest-test",
+        archive_fingerprints_before={
+            "C:/game/0009/0.pamt": {"exists": True, "size": 1, "sha256": "a" * 64}
+        },
+        archive_fingerprints_after={
+            "C:/game/0009/0.pamt": {"exists": True, "size": 1, "sha256": "a" * 64}
+        },
+    )
+    repeated_payload = build_visual_audit_expansion_manifest(
+        candidates,
+        repeated_registry,
+        selection_seed="expanded-manifest-test",
+        archive_fingerprints_before={
+            "C:/game/0009/0.pamt": {"exists": True, "size": 1, "sha256": "a" * 64}
+        },
+        archive_fingerprints_after={
+            "C:/game/0009/0.pamt": {"exists": True, "size": 1, "sha256": "a" * 64}
+        },
+    )
+    assert payload == repeated_payload
+    provenance = payload["selection_provenance"]
+    assert provenance["excluded_path_count"] == 120
+    assert provenance["new_path_count"] == 118
+    assert provenance["allowed_repeat_paths"] == sorted(
+        path.casefold() for path in EXPANSION_REPEAT_PATHS
+    )
+    assert len(provenance["manifest_core_sha256"]) == 64
+    assert provenance["source_archive_fingerprints"]["unchanged"] is True
+
+    output_path = tmp_path / "manifest-expanded-sixth-120.json"
+    result = write_visual_audit_expansion_manifest(output_path, payload)
+    assert hashlib.sha256(output_path.read_bytes()).hexdigest() == result["manifest_sha256"]
+    assert Path(result["sha256_path"]).read_text(encoding="ascii").startswith(
+        result["manifest_sha256"]
+    )
+    assert len(_load_specs(output_path)) == 120
+
+    with pytest.raises(ValueError, match="fingerprints changed"):
+        build_visual_audit_expansion_manifest(
+            candidates,
+            registry,
+            selection_seed="expanded-manifest-test",
+            archive_fingerprints_before={"pamt": {"sha256": "a" * 64}},
+            archive_fingerprints_after={"pamt": {"sha256": "b" * 64}},
+        )
 
 
 def test_visual_audit_v2_specs_use_the_v2_coverage_contract() -> None:

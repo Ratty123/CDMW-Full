@@ -34,6 +34,8 @@ VISUAL_AUDIT_V2_GRAPH_MINIMUMS: Mapping[str, int] = {
     "soft_control_candidate": 20,
 }
 
+VISUAL_AUDIT_V2_EXPANSION_RULES_VERSION = "coverage-aware-pac-graph-v1"
+
 REQUIRED_SWORD_PATH = (
     "character/model/1_pc/1_phm/weapon/2_twohandweapon/"
     "cd_phm_02_sword_0014.pac"
@@ -55,6 +57,7 @@ class VisualAuditV2Candidate:
     wrapper_count: int = 0
     parameter_count: int = 0
     texture_parameter_count: int = 0
+    shader_families: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,30 +69,7 @@ class _VisualAuditV2GraphField:
 
 
 def build_visual_audit_v2_candidates(game_root: Path) -> tuple[VisualAuditV2Candidate, ...]:
-    pamt_path = Path(game_root).resolve() / "0009" / "0.pamt"
-    entries = parse_archive_pamt(pamt_path)
-    entries_by_basename: dict[str, list[ArchiveEntry]] = {}
-    pac_entries: list[ArchiveEntry] = []
-    for entry in entries:
-        key = _archive_key(entry.path)
-        entries_by_basename.setdefault(key.rsplit("/", 1)[-1], []).append(entry)
-        if str(entry.extension or "").casefold() == ".pac":
-            pac_entries.append(entry)
-    basename_index = {key: tuple(values) for key, values in entries_by_basename.items()}
-
-    resolved: list[tuple[str, str, ArchiveEntry | None, str]] = []
-    for entry in pac_entries:
-        virtual_path = str(entry.path or "").replace("\\", "/")
-        category = classify_visual_audit_v2_path(virtual_path)
-        if not category:
-            continue
-        sidecar_entries = _find_archive_model_sidecar_entries(
-            entry,
-            basename_index,
-        )
-        sidecar_entry = sidecar_entries[0] if sidecar_entries else None
-        sidecar_path = str(getattr(sidecar_entry, "path", "") or "")
-        resolved.append((virtual_path, category, sidecar_entry, sidecar_path))
+    _pamt_path, resolved = _visual_audit_v2_candidate_sources(game_root)
     unique_sidecars = {
         _sidecar_identity(sidecar): sidecar
         for _path, _category, sidecar, _sidecar_path in resolved
@@ -114,29 +94,121 @@ def build_visual_audit_v2_candidates(game_root: Path) -> tuple[VisualAuditV2Cand
     return tuple(candidates)
 
 
+def visual_audit_v2_archive_paths(game_root: Path) -> tuple[Path, ...]:
+    pamt_path, resolved = _visual_audit_v2_candidate_sources(game_root)
+    paths = {
+        pamt_path,
+        *(
+            Path(sidecar.paz_file).resolve()
+            for _path, _category, sidecar, _sidecar_path in resolved
+            if sidecar is not None
+        ),
+    }
+    return tuple(sorted(paths, key=lambda path: str(path).casefold()))
+
+
+def _visual_audit_v2_candidate_sources(
+    game_root: Path,
+) -> tuple[Path, tuple[tuple[str, str, ArchiveEntry | None, str], ...]]:
+    pamt_path = Path(game_root).resolve() / "0009" / "0.pamt"
+    entries = parse_archive_pamt(pamt_path)
+    entries_by_basename: dict[str, list[ArchiveEntry]] = {}
+    pac_entries: list[ArchiveEntry] = []
+    for entry in entries:
+        key = _archive_key(entry.path)
+        entries_by_basename.setdefault(key.rsplit("/", 1)[-1], []).append(entry)
+        if str(entry.extension or "").casefold() == ".pac":
+            pac_entries.append(entry)
+    basename_index = {key: tuple(values) for key, values in entries_by_basename.items()}
+
+    resolved: list[tuple[str, str, ArchiveEntry | None, str]] = []
+    for entry in pac_entries:
+        virtual_path = str(entry.path or "").replace("\\", "/")
+        category = classify_visual_audit_v2_path(virtual_path)
+        if not category:
+            continue
+        sidecar_entries = _find_archive_model_sidecar_entries(
+            entry,
+            basename_index,
+        )
+        sidecar_entry = sidecar_entries[0] if sidecar_entries else None
+        sidecar_path = str(getattr(sidecar_entry, "path", "") or "")
+        resolved.append((virtual_path, category, sidecar_entry, sidecar_path))
+    return pamt_path, tuple(resolved)
+
+
 def select_visual_audit_v2_candidates(
     candidates: Sequence[VisualAuditV2Candidate],
     *,
     priority_paths: Iterable[str] = (REQUIRED_SWORD_PATH, PRIOR_CONCERN_SWORD_PATH),
+    excluded_paths: Iterable[str] = (),
+    allowed_repeat_paths: Iterable[str] = (),
+    selection_seed: str | None = None,
 ) -> tuple[VisualAuditV2Candidate, ...]:
+    ordered_candidates = tuple(sorted(candidates, key=_candidate_identity_key))
+    candidates_by_path: dict[str, VisualAuditV2Candidate] = {}
+    for candidate in ordered_candidates:
+        normalized_path = normalize_visual_audit_virtual_path(candidate.virtual_path)
+        existing = candidates_by_path.get(normalized_path)
+        if existing is not None and existing != candidate:
+            raise ValueError(
+                "Visual-audit candidate metadata is ambiguous for normalized PAC path: "
+                f"{normalized_path}"
+            )
+        candidates_by_path[normalized_path] = candidate
+
+    normalized_exclusions = {
+        normalize_visual_audit_virtual_path(path)
+        for path in excluded_paths
+        if str(path or "").strip()
+    }
+    normalized_repeats = {
+        normalize_visual_audit_virtual_path(path)
+        for path in allowed_repeat_paths
+        if str(path or "").strip()
+    }
+    effective_exclusions = normalized_exclusions - normalized_repeats
+    eligible_candidates = tuple(
+        candidate
+        for normalized_path, candidate in candidates_by_path.items()
+        if normalized_path not in effective_exclusions
+    )
+    candidate_sort_key = _candidate_sort_key
+    if selection_seed is not None:
+        candidate_sort_key = _expansion_candidate_sort_key(
+            eligible_candidates,
+            selection_seed=selection_seed,
+        )
+
     by_category: dict[str, list[VisualAuditV2Candidate]] = {
         category: [] for category in VISUAL_AUDIT_V2_CATEGORY_COUNTS
     }
-    for candidate in candidates:
+    for candidate in eligible_candidates:
         if candidate.category in by_category:
             by_category[candidate.category].append(candidate)
     for rows in by_category.values():
-        rows.sort(key=_candidate_sort_key)
+        rows.sort(key=candidate_sort_key)
 
-    normalized_priorities = tuple(_archive_key(path) for path in priority_paths)
+    normalized_priorities = tuple(
+        normalize_visual_audit_virtual_path(path) for path in priority_paths
+    )
     selected: list[VisualAuditV2Candidate] = []
     selected_paths: set[str] = set()
     for priority in normalized_priorities:
         match = next(
-            (candidate for candidate in candidates if _archive_key(candidate.virtual_path) == priority),
+            (
+                candidate
+                for candidate in eligible_candidates
+                if normalize_visual_audit_virtual_path(candidate.virtual_path) == priority
+            ),
             None,
         )
         if match is None:
+            if priority in effective_exclusions:
+                raise ValueError(
+                    "Required visual-audit PAC is excluded without repeat permission: "
+                    f"{priority}"
+                )
             raise ValueError(f"Required visual-audit PAC is unavailable: {priority}")
         selected.append(match)
         selected_paths.add(priority)
@@ -146,7 +218,7 @@ def select_visual_audit_v2_candidates(
         available = [
             candidate
             for candidate in by_category[category]
-            if _archive_key(candidate.virtual_path) not in selected_paths
+            if normalize_visual_audit_virtual_path(candidate.virtual_path) not in selected_paths
         ]
         if current + len(available) < required_count:
             raise ValueError(
@@ -155,15 +227,32 @@ def select_visual_audit_v2_candidates(
             )
         for candidate in available[: required_count - current]:
             selected.append(candidate)
-            selected_paths.add(_archive_key(candidate.virtual_path))
+            selected_paths.add(normalize_visual_audit_virtual_path(candidate.virtual_path))
 
-    selected = _improve_graph_constraint_coverage(selected, by_category, selected_paths)
+    selected = _improve_graph_constraint_coverage(
+        selected,
+        by_category,
+        selected_paths,
+        protected_paths=set(normalized_priorities),
+    )
     selected.sort(
         key=lambda candidate: (
             tuple(VISUAL_AUDIT_V2_CATEGORY_COUNTS).index(candidate.category),
-            _candidate_sort_key(candidate),
+            candidate_sort_key(candidate),
         )
     )
+    unexpected_overlap = sorted(
+        {
+            normalize_visual_audit_virtual_path(candidate.virtual_path)
+            for candidate in selected
+        }
+        & normalized_exclusions
+        - normalized_repeats
+    )
+    if unexpected_overlap:
+        raise ValueError(
+            f"Visual-audit v2 selection reuses excluded PAC paths: {unexpected_overlap}"
+        )
     validate_visual_audit_v2_selection(selected)
     return tuple(selected)
 
@@ -204,6 +293,10 @@ def validate_visual_audit_v2_selection(
         "category_counts": dict(category_counts),
         "graph_coverage": graph_counts,
     }
+
+
+def normalize_visual_audit_virtual_path(virtual_path: str) -> str:
+    return _archive_key(str(virtual_path or "").strip())
 
 
 def classify_visual_audit_v2_path(virtual_path: str) -> str:
@@ -318,6 +411,15 @@ def _candidate_from_metadata(
         wrapper_count=int(metadata.get("wrapper_count", 0) or 0),
         parameter_count=int(metadata.get("parameter_count", 0) or 0),
         texture_parameter_count=int(metadata.get("texture_parameter_count", 0) or 0),
+        shader_families=tuple(
+            sorted(
+                {
+                    str(field.shader_name or "").strip().casefold()
+                    for field in fields
+                    if str(field.shader_name or "").strip()
+                }
+            )
+        ),
     )
 
 
@@ -374,20 +476,29 @@ def _improve_graph_constraint_coverage(
     selected: list[VisualAuditV2Candidate],
     by_category: Mapping[str, Sequence[VisualAuditV2Candidate]],
     selected_paths: set[str],
+    *,
+    protected_paths: set[str] | None = None,
 ) -> list[VisualAuditV2Candidate]:
-    protected = {_archive_key(REQUIRED_SWORD_PATH), _archive_key(PRIOR_CONCERN_SWORD_PATH)}
+    protected = protected_paths or {
+        normalize_visual_audit_virtual_path(REQUIRED_SWORD_PATH),
+        normalize_visual_audit_virtual_path(PRIOR_CONCERN_SWORD_PATH),
+    }
     for tag, minimum in VISUAL_AUDIT_V2_GRAPH_MINIMUMS.items():
         while sum(tag in candidate.graph_tags for candidate in selected) < minimum:
             replacement: tuple[int, VisualAuditV2Candidate] | None = None
             for index, current in enumerate(selected):
-                if tag in current.graph_tags or _archive_key(current.virtual_path) in protected:
+                if (
+                    tag in current.graph_tags
+                    or normalize_visual_audit_virtual_path(current.virtual_path) in protected
+                ):
                     continue
                 candidate = next(
                     (
                         row
                         for row in by_category[current.category]
                         if tag in row.graph_tags
-                        and _archive_key(row.virtual_path) not in selected_paths
+                        and normalize_visual_audit_virtual_path(row.virtual_path)
+                        not in selected_paths
                     ),
                     None,
                 )
@@ -397,14 +508,90 @@ def _improve_graph_constraint_coverage(
             if replacement is None:
                 break
             index, candidate = replacement
-            selected_paths.remove(_archive_key(selected[index].virtual_path))
+            selected_paths.remove(
+                normalize_visual_audit_virtual_path(selected[index].virtual_path)
+            )
             selected[index] = candidate
-            selected_paths.add(_archive_key(candidate.virtual_path))
+            selected_paths.add(normalize_visual_audit_virtual_path(candidate.virtual_path))
     return selected
 
 
 def _candidate_sort_key(candidate: VisualAuditV2Candidate) -> tuple[int, str]:
     return (-candidate.graph_complexity, _archive_key(candidate.virtual_path))
+
+
+def _candidate_identity_key(candidate: VisualAuditV2Candidate) -> tuple[object, ...]:
+    return (
+        normalize_visual_audit_virtual_path(candidate.virtual_path),
+        candidate.category,
+        -candidate.graph_complexity,
+        candidate.graph_tags,
+        candidate.pac_xml_virtual_path.casefold(),
+        candidate.pac_xml_sha256.casefold(),
+        -candidate.wrapper_count,
+        -candidate.parameter_count,
+        -candidate.texture_parameter_count,
+        candidate.shader_families,
+    )
+
+
+def _expansion_candidate_sort_key(
+    candidates: Sequence[VisualAuditV2Candidate],
+    *,
+    selection_seed: str,
+):
+    fingerprint_counts = Counter(
+        candidate.pac_xml_sha256.casefold()
+        for candidate in candidates
+        if candidate.pac_xml_sha256
+    )
+    shader_family_counts = Counter(
+        family
+        for candidate in candidates
+        for family in candidate.shader_families
+    )
+    graph_tag_counts = Counter(
+        tag
+        for candidate in candidates
+        for tag in candidate.graph_tags
+    )
+    seed = str(selection_seed).encode("utf-8")
+
+    def key(candidate: VisualAuditV2Candidate) -> tuple[object, ...]:
+        fingerprint = candidate.pac_xml_sha256.casefold()
+        fingerprint_frequency = (
+            fingerprint_counts[fingerprint] if fingerprint else len(candidates) + 1
+        )
+        shader_rarity = sum(
+            1_000_000 // shader_family_counts[family]
+            for family in candidate.shader_families
+            if shader_family_counts[family]
+        )
+        tag_rarity = sum(
+            1_000_000 // graph_tag_counts[tag]
+            for tag in candidate.graph_tags
+            if graph_tag_counts[tag]
+        )
+        normalized_path = normalize_visual_audit_virtual_path(candidate.virtual_path)
+        seeded_tie_breaker = hashlib.sha256(
+            seed + b"\0" + normalized_path.encode("utf-8")
+        ).hexdigest()
+        return (
+            0 if fingerprint else 1,
+            fingerprint_frequency,
+            -shader_rarity,
+            -tag_rarity,
+            -len(candidate.shader_families),
+            -len(candidate.graph_tags),
+            -candidate.wrapper_count,
+            -candidate.texture_parameter_count,
+            -candidate.parameter_count,
+            -candidate.graph_complexity,
+            seeded_tie_breaker,
+            normalized_path,
+        )
+
+    return key
 
 
 def _token(text: str, token: str) -> bool:
@@ -419,10 +606,13 @@ __all__ = [
     "PRIOR_CONCERN_SWORD_PATH",
     "REQUIRED_SWORD_PATH",
     "VISUAL_AUDIT_V2_CATEGORY_COUNTS",
+    "VISUAL_AUDIT_V2_EXPANSION_RULES_VERSION",
     "VISUAL_AUDIT_V2_GRAPH_MINIMUMS",
     "VisualAuditV2Candidate",
     "build_visual_audit_v2_candidates",
     "classify_visual_audit_v2_path",
+    "normalize_visual_audit_virtual_path",
     "select_visual_audit_v2_candidates",
     "validate_visual_audit_v2_selection",
+    "visual_audit_v2_archive_paths",
 ]
