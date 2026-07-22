@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-17
+Last reviewed: 2026-07-22
 
 ## Goal
 
@@ -47,6 +47,29 @@ keeps core user workflows working behind stable facades.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-22:
+
+- The single-renderer migration is complete through `9aed552`. Archive Browser,
+  reference preview, Material Sidecar, attachment placement, Model Library,
+  static replacement/alignment, icon capture, and Mesh Editor now share the
+  resident .NET/Vortice host. The retired native renderer project, executable,
+  HWND/WM_COPYDATA protocol, fallback startup, and packaged payload are absent;
+  the release spec rejects any reintroduced `cdmw-d3d11-preview.exe`.
+- The final nonvisual suite was split into six bounded file groups because the
+  desktop shell has a shorter effective command ceiling than the complete
+  suite. All groups passed on the final working tree: 5,976 tests passed, 5
+  skipped, 1 deselected, and 337 subtests passed. The authoritative follow-up
+  checks passed with Archive 113/113 and Mesh Unit 910/911 with one expected
+  skip. The HKX Rust crate passed 24/24 tests, and the rebuilt Release mesh core
+  passed its focused native selection/decomposition coverage.
+- Release validation built the self-contained .NET helper with zero warnings or
+  errors, passed material-resource policy, Material Authority parity, hidden
+  sparse GPU soak, canonical 144 Hz pacing, dependency pins, and both onedir and
+  onefile packaging checks. Both package forms included the verified .NET helper
+  and excluded the retired renderer. These are hidden/synthetic renderer and
+  packaging results; no new visible licensed real-PAC or Full-app proof was run
+  or claimed for this migration.
 
 2026-07-17:
 
