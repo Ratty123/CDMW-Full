@@ -12,7 +12,7 @@ testing was not authorized.
 Those paired audits are renderer-to-renderer compatibility evidence. Even a
 directly reviewed 120/120 PASS means the two renderers agreed on the prepared
 inputs; it does not prove that those inputs retained the exact PAC XML material
-owner, every declared parameter, or authoritative DDS bindings. The active
+owner, every declared parameter, or authoritative DDS bindings. The completed
 PAC-source follow-up therefore treats wrapper/owner/parameter conservation,
 cross-owner and layer-as-base rejection, initial/resident equivalence, source
 boards, and direct full-model/every-submesh review as separate required lanes.
@@ -22,10 +22,25 @@ rendered image has a verdict and the asset result is fixed to the worst rendered
 image; source evidence alone cannot issue visual PASS. It binds hashes back to
 the frozen corpus, recomputes capture integrity, and validates the prepared
 package seal before global acceptance. Its fresh capture and region verdicts
-remain incomplete and are not replaced by the historical results below.
+are now complete and remain distinct from the historical results below.
 
 ## Current verdict
 
+- The 2026-07-22 PAC-source final-acceptance run is complete at 120 PASS,
+  0 CONCERN, and 0 FAIL, including 112 equipment PACs and eight regression
+  controls. All 3,558 images were opened separately at original detail: 720
+  full-model comparisons, 120 contact sheets, 1,359 PAC/DDS source boards, and
+  1,359 isolated material-region images. A full path/SHA-256 recheck found zero
+  integrity problems, and the strict verdict-v2 reviewer accepted all 1,359
+  region verdicts.
+- Forty-two parked concern rows across 35 assets were adjudicated. Forty-one
+  were cleared using the corresponding source board, isolated region, whole
+  model, PAC binding state, and renderer material state. One was a real shared
+  renderer defect: textureless generic materials ignored an explicitly present
+  base tint when its blend strength was zero. Restoring the existing
+  `MaterialBaseTint.w` fallback makes spear-0057 submesh 3 gold-tan and submesh
+  15 coral; direct Lit/Base recaptures passed, and a textured-metal control was
+  unchanged.
 - The historical fifth material-first audit added another 120 real PACs while excluding all
   317 paths in the prior evidence ledger. All 720 paired views were directly
   inspected and finalized at 120 PASS, 0 CONCERN, and 0 FAIL with zero
@@ -124,7 +139,7 @@ remain incomplete and are not replaced by the historical results below.
 
 ## Current evidence
 
-### PAC-source final acceptance sweep (in progress)
+### PAC-source final acceptance sweep (complete)
 
 The current final-acceptance sweep is intentionally stricter than the
 historical renderer-to-renderer audits below. It freezes 120 real PACs and
@@ -134,23 +149,21 @@ sheet. Every accepted ledger row records the relative path, SHA-256, inspection
 mode, status, and a concrete observation; source evidence alone cannot issue a
 visual PASS.
 
-Checkpoint on 2026-07-22:
+Final checkpoint on 2026-07-22:
 
 | Evidence class | Reviewed | Total | Remaining |
 |---|---:|---:|---:|
 | Six comparison angles | 720 | 720 | 0 |
 | Full-model contact sheets | 120 | 120 | 0 |
-| PAC/DDS source boards | 1,208 | 1,359 | 151 |
-| Material-region sheets | 1,158 | 1,359 | 201 |
-| **Total** | **3,206** | **3,558** | **352** |
+| PAC/DDS source boards | 1,359 | 1,359 | 0 |
+| Material-region sheets | 1,359 | 1,359 | 0 |
+| **Total** | **3,558** | **3,558** | **0** |
 
-All 120 full-model sets are complete, accounting for 840 directly reviewed
-images. The latest sealed partial asset is
-`072-armor_body-cd-r0002-02-horse-ub-0002`: all 17 source boards and region
-sheets 0 through 13 were opened successfully, logged, and rechecked with zero
-duplicate paths or path/hash mismatches. Its region sheets 14 through 16 are
-the next three images. Fifteen assets retain outstanding source or region
-work; the local direct-review ledgers are authoritative for the exact paths.
+All 120 full-model sets and all 1,359 visible submesh lanes are complete. The
+three direct-review ledgers contain 3,558 unique paths; every path exists and
+matches its recorded SHA-256. The final strict review is 120 PASS,
+0 CONCERN, and 0 FAIL at asset level and 1,359 PASS at region level. The
+equipment subset is 112 PASS with no unresolved visual verdict.
 
 The frozen selection manifest hashes to
 `c70e8905f3d4c12edf263c16792040716f5c52fbbdb5036f87ce6fe757b9c2ba`;
@@ -163,12 +176,21 @@ before and after capture. The local evidence root is
 Generated images, licensed asset data, and the temporary JSONL ledgers are not
 versioned.
 
-Forty-one visual concerns across 34 assets are parked for one grouped
-adjudication after the broad sweep; none is prematurely cleared or promoted to
-a global defect. The set includes renderer divergences, sparse or ambiguous
-emissive intent, guessed-mask response, and cross-domain material-source
-context. In particular, helmets 090 and 091 retain the user's possible
-glowing-eye hint as an unresolved emissive question.
+The final parked-concern ledger contains 42 rows across 35 assets. Its matching
+adjudication ledger clears 41 and records one fixed defect. Cross-domain paths
+were conserved localized kitbash reuse, Archive Browser differences were
+adjudicated against PAC/source and isolated-region authority, and ambiguous
+emissive cases were resolved from actual resource presence, scalar/color
+authority, and intensity. In particular, helmets 090 and 091 have no emissive
+resource and intensity zero on the questioned eye-adjacent regions, so the
+absence of visible eye glow is source-consistent.
+
+Two evidence/renderer limitations remain explicit without producing a visual
+CONCERN: 21 source-board rows cannot bitmap-preview a native DDS format even
+though the actual renderer loaded the resources and their direct output passed,
+and 68 hair regions retain the pre-existing unsupported
+`hair_fur_anisotropy_and_flow` response. Those rows are marked unsupported and
+unchanged rather than silently treated as fully implemented game-shader proof.
 
 Several Codex image-transport failures occurred while returning large PNGs.
 They are not Mesh Editor failures and never count as reviewed images. The safe
@@ -178,10 +200,9 @@ image payloads is prohibited. A fresh Codex task can clear corrupted or
 oversized image history without losing audit state because the frozen corpus,
 ledgers, and handover checkpoint remain on disk.
 
-This checkpoint is progress evidence only. Global acceptance remains unproven
-until all 3,558 images are reviewed, all parked concerns are adjudicated, the
-strict reviewed-v2 verifier passes, and the authorized non-visible validation
-gates complete. No visible licensed-game gate has been authorized.
+This is complete CDMW renderer/source-material acceptance for the frozen corpus.
+It is not licensed-game visual parity: no visible real-game gate was authorized
+or run.
 
 ### Fifth 120-PAC material-first expansion
 
@@ -463,21 +484,27 @@ global x-ray behavior or texture downscaling.
 
 ## Validation state
 
-- The current focused material/package/audit/capture suite passed 121 tests.
-  This includes the fifth non-overlapping 120-PAC manifest, `_sp` decoding,
-  dominant-versus-localized armor metal,
-  inferred sparse-alpha fallback, required material classification, manifest
-  coverage, capture-camera basis preservation, and audit integrity.
+- The strict reviewed-v2 finalizer passed 120 assets and 1,359 material regions:
+  120 PASS, 0 CONCERN, and 0 FAIL. The evidence summary status is
+  `complete_visual_review`.
+- The current focused parameter/material-audit checks passed 40 tests. Fresh
+  `.\scripts\codex_check.ps1 -Area mesh-unit` passed 917 tests with one skip.
 - Fresh .NET Release build succeeded with 0 warnings and 0 errors, and the
-  material-resource-policy report passed schema/runtime eligibility.
+  material-resource-policy runtime report passed.
 - Fresh full-scale hidden Vortice soak passed at 1,000,000 vertices and 1,000
-  updates: release eligible, `0.2111 ms` handler p95, `59.9553` updates/s,
-  all textured-metal readability gates true, hidden windows, and no capture
-  device reset.
-- Fresh hidden 30-second 144 Hz frame-pacing proof captured 4,316 frames at
-  `143.865` effective FPS with `7.3750 ms` p95, `7.5837 ms` p99, no frame over
-  `20.83 ms`, and zero restarts/resets.
-- Fresh `.\scripts\codex_check.ps1 -Area mesh-unit`: 902 passed, 1 skipped.
+  updates: release eligible, `0.3348 ms` handler p95, `59.9861` updates/s,
+  hidden production D3D11/Vortice, and no working-set growth after warm-up.
+- Fresh hidden resident material-authority parity passed all 38 controls with no
+  mesh/process reload, viewport replacement, camera reset, or device reset.
+- The canonical hidden 30-second/144 Hz frame-pacing command was run twice and
+  retained as a bounded validation exception. On the current 175 Hz desktop it
+  captured 4,317 frames at `143.859` effective FPS, `6.0717 ms` p50,
+  `12.1883 ms` p95, `12.3357 ms` p99, and no interval above `13.89 ms`; 32 of
+  33 gates passed, but the fixed `8.68 ms` p95 gate failed because `Present(1)`
+  quantized the requested 144 Hz cadence to one or two 175 Hz refreshes. The
+  repeat reproduced the same single gate failure, so it is not recorded as a
+  passing release-performance proof or dismissed as a flake. It is unrelated
+  to the base-tint shader correction.
 - The fifth 120-PAC ledger is 120/0/0 with every image reviewed and every row
   explicitly material-classified.
 - The fourth 120-PAC original/repaired ledgers are 99/4/17 and 119/1/0.
@@ -491,30 +518,27 @@ global x-ray behavior or texture downscaling.
 
 ## Durable continuation point
 
-This audit pass is complete. Future texture/material-parity work should start
-from the finalized fifth 120-PAC material-first root and the finalized repaired
-fourth 120-PAC root, with the finalized 50-PAC post-fix root and the two
-162-PAC discovery roots as prior coverage. Use the older 15-PAC metallic root
-only as historical pre-expansion proof, and do not use mirrored or
+The PAC-source final acceptance is complete for the frozen CDMW corpus. Future
+texture/material-parity work should start from evidence root
+`C:\Users\Ratrider\AppData\Local\Temp\cdmw-material-parity-final-120-20260720-111535`
+and its `complete_visual_review` summary. The finalized fifth and repaired
+fourth 120-PAC roots, the 50-PAC post-fix root, and the two 162-PAC discovery
+roots remain historical coverage. Do not use mirrored or
 capture-resized-with-a-recreated-basis camera evidence.
 
 Highest-value remaining work:
 
-1. Resolve sword 004's localized guard tint/material-region mismatch without
-   changing the now-proven soft-material and true-metal controls.
-2. Implement an authoritative `skinnedmeshtear` layer graph, then extend skin
-   subsurface/wrinkle and advanced hair/fur anisotropy, flow, and multilayer
-   response without changing the proven cutout default.
-3. Resolve the packed roughness/normal/material contracts for long black boots
-   0166, the aircastle core, and black glasses 0001, then revisit the localized
-   lightsource inner-brazier layer.
-4. Refine the remaining facial-card alpha-density/color response and audit
-   synthesized material-graph output sizing. Direct authoritative DDS
-   transport is proven byte-identical, but capped synthesized outputs remain a
-   plausible softness source.
-5. Add authoritative alpha-blend/transmission corpus entries when real PAC
-   examples are identified; current moth, foliage, hair, and eye-cover assets
-   remain cutout/thin-surface proxies.
+1. Make the source-board compositor decode the 21 currently unpreviewable native
+   DDS rows without changing the renderer's direct DDS authority.
+2. Implement authoritative hair/fur anisotropy and flow, then recapture only the
+   affected 68 frozen regions and their whole-model cross-section.
+3. Make the frame-pacing acceptance gate account for the actual presentation
+   refresh contract, or rerun the unchanged 144 Hz command on a true 144 Hz
+   presentation target; do not weaken the fixed gate merely to pass 175 Hz
+   cadence quantization.
+4. Add real-game reflection, bloom, transmission, and proprietary shader-graph
+   validation only when explicitly authorized; hidden CDMW proof does not cover
+   those effects.
 
 To refresh a completed visual ledger after a renderer change, rerun its
 manifest into a new evidence root, inspect all six paired views per model, then
