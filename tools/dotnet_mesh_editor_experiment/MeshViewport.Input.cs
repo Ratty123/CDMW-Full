@@ -42,12 +42,14 @@ internal sealed partial class MeshViewport
             _yaw = 0.0f;
             _pitch = 1.35f;
         }
+        NotifyViewStateChanged();
         UpdateGpuViewport();
     }
 
     public void RotateYawDegrees(float degrees)
     {
         _yaw += degrees * MathF.PI / 180.0f;
+        NotifyViewStateChanged();
         UpdateGpuViewport();
     }
 
@@ -261,6 +263,7 @@ internal sealed partial class MeshViewport
             var orbitY = _residentPresentationSettings.InvertOrbitY ? -dy : dy;
             _yaw += orbitX * radiansPerPixel;
             _pitch = Math.Clamp(_pitch + orbitY * radiansPerPixel, -1.45f, 1.45f);
+            NotifyViewStateChanged();
         }
         else if (_panning)
         {
@@ -268,6 +271,7 @@ internal sealed partial class MeshViewport
             var panY = _residentPresentationSettings.InvertPanY ? -dy : dy;
             _panX += panX * _residentPresentationSettings.PanSensitivity;
             _panY += panY * _residentPresentationSettings.PanSensitivity;
+            NotifyViewStateChanged();
         }
         UpdateGpuViewport();
         base.OnMouseMove(e);
@@ -301,6 +305,7 @@ internal sealed partial class MeshViewport
         {
             return;
         }
+        NotifyViewStateChanged();
         UpdateGpuViewport();
         base.OnMouseWheel(e);
     }

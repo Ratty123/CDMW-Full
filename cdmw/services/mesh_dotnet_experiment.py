@@ -54,6 +54,7 @@ from cdmw.services.mesh_dotnet_runtime_status import (
     MESH_DOTNET_HELPER_MANIFEST_NAME,
     mesh_dotnet_experiment_evaluation_path,
     mesh_dotnet_helper_provenance_blockers,
+    mesh_dotnet_helper_static_provenance_blockers,
     mesh_dotnet_material_parity_warnings,
     mesh_dotnet_renderer_blockers,
     write_mesh_dotnet_experiment_evaluation,
@@ -309,6 +310,63 @@ def resolve_mesh_dotnet_experiment_editor(
 def find_mesh_dotnet_experiment_editor() -> Path | None:
     resolution = resolve_mesh_dotnet_experiment_editor()
     return Path(resolution.resolved_path) if resolution.is_file and resolution.resolved_path else None
+
+
+def mesh_dotnet_experiment_package_from_path(
+    package_dir: Path | str,
+    *,
+    status_path: Path | str | None = None,
+) -> MeshDotNetExperimentPackage:
+    """Open a canonical .NET preview package without rebuilding derived assets."""
+
+    root = Path(package_dir).expanduser().resolve()
+    mesh_path = root / "mesh.obj"
+    scene_mesh_path = root / "scene.obj"
+    obj_sidecar_path = root / "mesh.obj.meta.json"
+    cdmeta_path = root / "mesh.cdmeta.json"
+    original_asset_hash_path = root / "original_asset_hash.txt"
+    scene_manifest_path = root / "dotnet_scene.json"
+    materials_path = root / "net_materials.json"
+    required = (
+        mesh_path,
+        obj_sidecar_path,
+        cdmeta_path,
+        original_asset_hash_path,
+        scene_manifest_path,
+        materials_path,
+    )
+    missing = tuple(path.name for path in required if not path.is_file())
+    if missing:
+        raise ValueError(".NET preview package is incomplete: " + ", ".join(missing))
+    output_dir = root / "output"
+    if not output_dir.is_dir():
+        raise ValueError(".NET preview package is incomplete: output")
+    resolved_status_path = Path(status_path).expanduser() if status_path is not None else output_dir / "dotnet_status.json"
+    try:
+        resolved_status_path.resolve(strict=False).relative_to(output_dir.resolve())
+    except (OSError, ValueError) as exc:
+        raise ValueError(".NET preview package status path escapes its output directory.") from exc
+    material_signature = ""
+    try:
+        material_payload = json.loads(materials_path.read_text(encoding="utf-8-sig"))
+        if isinstance(material_payload, Mapping):
+            material_signature = str(material_payload.get("material_signature", "") or "")
+    except (OSError, ValueError):
+        pass
+    return MeshDotNetExperimentPackage(
+        package_dir=root,
+        mesh_path=mesh_path,
+        obj_sidecar_path=obj_sidecar_path,
+        cdmeta_path=cdmeta_path,
+        original_asset_hash_path=original_asset_hash_path,
+        status_path=resolved_status_path,
+        output_dir=output_dir,
+        edit_operations_path=output_dir / "edit_operations.json",
+        launch_manifest_path=root / "dotnet_launch.json",
+        material_signature=material_signature,
+        scene_mesh_path=scene_mesh_path if scene_mesh_path.is_file() else mesh_path,
+        scene_manifest_path=scene_manifest_path,
+    )
 
 
 def _scene_material_slot_indices(
@@ -575,10 +633,14 @@ def mesh_dotnet_experiment_command(
     *,
     embedded_parent_hwnd: int = 0,
     developer_renderer_fallback: bool = False,
+    profile: str = "authoring",
 ) -> tuple[str, list[str]]:
     executable = Path(executable_path)
     if not str(executable).strip():
         raise ValueError("Mesh .NET editor experiment executable is not configured.")
+    normalized_profile = str(profile or "authoring").strip().lower()
+    if normalized_profile not in {"preview", "authoring"}:
+        raise ValueError("Mesh .NET renderer profile must be preview or authoring.")
     status_path = _resolve_package_output_path(package, package.status_path, label="status")
     edit_operations_path = _resolve_package_output_path(
         package, package.edit_operations_path, label="edit operations"
@@ -601,6 +663,8 @@ def mesh_dotnet_experiment_command(
         str(edit_operations_path),
         "--evaluation",
         str(evaluation_path),
+        "--profile",
+        normalized_profile,
     ]
     if int(embedded_parent_hwnd or 0) > 0:
         args.extend(["--embedded", "--parent-hwnd", str(int(embedded_parent_hwnd))])
@@ -817,9 +881,11 @@ __all__ = [
     "resolve_mesh_dotnet_experiment_editor",
     "import_mesh_dotnet_experiment_output",
     "mesh_dotnet_experiment_command",
+    "mesh_dotnet_experiment_package_from_path",
     "mesh_dotnet_experiment_evaluation_path",
     "mesh_dotnet_experiment_output_obj_path",
     "mesh_dotnet_helper_provenance_blockers",
+    "mesh_dotnet_helper_static_provenance_blockers",
     "mesh_dotnet_material_input_signature",
     "mesh_dotnet_material_state_payload",
     "mesh_dotnet_material_parity_warnings",

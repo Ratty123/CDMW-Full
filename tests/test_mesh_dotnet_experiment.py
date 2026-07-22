@@ -165,7 +165,7 @@ def test_helper_provenance_fails_closed_on_release_hash_or_manifest_mismatch(tmp
     assert "helper provenance mismatch for semantic_version" in blockers
     assert "helper provenance mismatch for executable_sha256" in blockers
     assert "helper provenance mismatch for shader_sha256" in blockers
-    assert "helper provenance capability set does not match the release manifest" in blockers
+    assert "helper provenance capability set is not covered by the release manifest" in blockers
 
 
 def test_dotnet_texture_channels_seed_existing_source_texture_before_preview_overrides(tmp_path: Path) -> None:

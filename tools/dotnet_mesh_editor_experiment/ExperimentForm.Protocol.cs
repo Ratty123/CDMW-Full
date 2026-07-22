@@ -89,11 +89,12 @@ internal sealed partial class ExperimentForm
                     detectEncodingFromByteOrderMarks: true,
                     bufferSize: 4096,
                     leaveOpen: true);
-                var protocolCapabilities = HelperBuildProvenance.RequiredProtocolCapabilities;
+                var protocolCapabilities = HelperBuildProvenance.ProtocolCapabilities(_options.Profile);
                 WriteProtocolEvent("protocol_ready", new Dictionary<string, object?>
                 {
                     ["capabilities"] = protocolCapabilities,
                     ["provenance"] = HelperBuildProvenance.Payload(protocolCapabilities),
+                    ["profile"] = _options.Profile,
                 });
                 string? line;
                 while ((line = reader.ReadLine()) is not null)
@@ -124,6 +125,11 @@ internal sealed partial class ExperimentForm
                             eventName = JsonString(root, "type");
                         }
                         eventName = eventName.Trim().ToLowerInvariant();
+                        if (_options.SimplePreview && IsPreviewProfileMutation(eventName))
+                        {
+                            PublishPreviewProfileMutationRejectionThreadSafe(root, eventName);
+                            continue;
+                        }
                         if (eventName == "package_load_request")
                         {
                             WritePreparedProtocolEventThreadSafe("package_load_received", new Dictionary<string, object?>
@@ -397,6 +403,11 @@ internal sealed partial class ExperimentForm
     {
         var root = message.Root;
         var eventName = message.EventName;
+        if (_options.SimplePreview && IsPreviewProfileMutation(eventName))
+        {
+            PublishPreviewProfileMutationRejection(root, eventName);
+            return;
+        }
         var captureActive = PreviewPerformanceCapture.IsActive;
         var allocatedBytesBefore = captureActive ? GC.GetAllocatedBytesForCurrentThread() : 0L;
         var applyStarted = captureActive ? Stopwatch.GetTimestamp() : 0L;
@@ -423,6 +434,16 @@ internal sealed partial class ExperimentForm
                         break;
                     }
                     _ = ActivateResidentViewport();
+                    break;
+                case "preview_session_state":
+                    ObserveResidentSession(root);
+                    WriteProtocolEvent("preview_session_state_ack", new Dictionary<string, object?>
+                    {
+                        ["status"] = _residentProcessGeneration > 0 ? "applied" : "rejected",
+                        ["session_id"] = _residentMaterialSessionId,
+                        ["process_generation"] = _residentProcessGeneration,
+                        ["profile"] = _options.Profile,
+                    });
                     break;
                 case "session_state":
                     ObserveResidentSession(root);
@@ -474,6 +495,9 @@ internal sealed partial class ExperimentForm
                     break;
                 case "presentation_state_update":
                     HandlePresentationStateUpdate(root);
+                    break;
+                case "overlay_state_update":
+                    HandleOverlayStateUpdate(root);
                     break;
                 case "morph_state_update":
                     HandleMorphStateUpdate(root);
@@ -1058,7 +1082,12 @@ internal sealed partial class ExperimentForm
             && (_residentProcessGeneration <= 0 || requestedProcessGeneration == _residentProcessGeneration);
         var rejectionReason = string.Empty;
         var applied = false;
-        if (processMatches)
+        if (_options.SimplePreview
+            && string.Equals(JsonString(root, "interaction_mode"), "mesh_edit", StringComparison.OrdinalIgnoreCase))
+        {
+            rejectionReason = "preview_profile_read_only";
+        }
+        else if (processMatches)
         {
             applied = _scene.TryApplyResidentUpdate(root, _document.Submeshes.Count, out rejectionReason);
         }

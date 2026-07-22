@@ -217,10 +217,12 @@ internal sealed record LaunchOptions(
     string EvaluationPath,
     bool HeadlessSmoke,
     bool Embedded,
-    bool SimplePreview,
+    string Profile,
     bool DeveloperRendererFallback,
     long ParentHwnd)
 {
+    public bool SimplePreview => string.Equals(Profile, "preview", StringComparison.OrdinalIgnoreCase);
+    public bool Authoring => string.Equals(Profile, "authoring", StringComparison.OrdinalIgnoreCase);
     public string CloseRequestPath => Path.Combine(InputPackage, "dotnet_close_requested.txt");
     public string MaterialsPath => Path.Combine(InputPackage, "net_materials.json");
     public string ScenePath => Path.Combine(InputPackage, "dotnet_scene.json");
@@ -228,6 +230,15 @@ internal sealed record LaunchOptions(
     public static LaunchOptions Parse(string[] args)
     {
         var values = ParseArgs(args);
+        var profile = values.TryGetValue("profile", out var requestedProfile)
+            ? (requestedProfile ?? string.Empty).Trim().ToLowerInvariant()
+            : values.ContainsKey("simple-preview")
+                ? "preview"
+                : "authoring";
+        if (profile is not ("preview" or "authoring"))
+        {
+            throw new ArgumentException("--profile must be preview or authoring.");
+        }
         string Required(string name)
         {
             if (!values.TryGetValue(name, out var value) || string.IsNullOrWhiteSpace(value))
@@ -249,7 +260,7 @@ internal sealed record LaunchOptions(
                 : Path.Combine(Required("input-package"), "dotnet_evaluation.md"),
             values.ContainsKey("headless-smoke"),
             values.ContainsKey("embedded"),
-            values.ContainsKey("simple-preview"),
+            profile,
             values.ContainsKey("developer-renderer-fallback")
                 || IsTruthy(Environment.GetEnvironmentVariable("CDMW_MESH_DOTNET_DEVELOPER_RENDERER_FALLBACK")),
             values.TryGetValue("parent-hwnd", out var parentHwnd) && long.TryParse(parentHwnd, NumberStyles.Integer, CultureInfo.InvariantCulture, out var hwnd)

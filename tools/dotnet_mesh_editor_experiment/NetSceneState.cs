@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace Cdmw.MeshEditorExperiment;
 
-internal sealed class NetSceneState
+internal sealed partial class NetSceneState
 {
     private sealed record PlacementSnapshot(
         Vector3 Translation,
@@ -55,6 +55,7 @@ internal sealed class NetSceneState
     public Vector3 GroundNormal { get; private set; } = Vector3.UnitY;
     public bool HasAuthoritativeFrame { get; private set; }
     public bool HasProvisionalPlacement => _acknowledgedPlacement is not null;
+    public NetPreviewOverlayState PreviewOverlays { get; private set; } = new();
 
     public static NetSceneState Load(string path, int documentSubmeshCount)
     {
@@ -131,6 +132,7 @@ internal sealed class NetSceneState
             FramingBoundsMaximum = max;
             SceneExtent = Math.Max(0.01f, Math.Max(max.X - min.X, Math.Max(max.Y - min.Y, max.Z - min.Z)));
         }
+        PreviewOverlays.ApplySceneMetadata(root);
     }
 
     public bool TryApplyResidentUpdate(JsonElement root, int documentSubmeshCount, out string rejectionReason)
@@ -224,6 +226,18 @@ internal sealed class NetSceneState
             return;
         }
         ComparisonMode = next;
+        PresentationGeneration++;
+    }
+
+    public void SetInteractionMode(string value)
+    {
+        var next = NormalizeInteraction(value);
+        if (string.Equals(next, InteractionMode, StringComparison.Ordinal))
+        {
+            return;
+        }
+        InteractionMode = next;
+        ComparisonMode = EffectiveComparisonMode(ComparisonMode, InteractionMode);
         PresentationGeneration++;
     }
     public void SetPresentationOverlayVisibility(bool gridVisible, bool gizmoVisible)
@@ -600,6 +614,7 @@ internal sealed class NetSceneState
         GroundOrigin = other.GroundOrigin;
         GroundNormal = other.GroundNormal;
         HasAuthoritativeFrame = other.HasAuthoritativeFrame;
+        PreviewOverlays = other.PreviewOverlays.Clone();
         _presentationHiddenSubmeshes.Clear();
         _presentationHiddenSubmeshes.UnionWith(other._presentationHiddenSubmeshes);
         _presentationPartMatrices.Clear();

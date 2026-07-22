@@ -51,7 +51,7 @@ internal sealed partial class MeshViewport
         InitializePresentationContexts();
         if (_options.SimplePreview)
         {
-            _ = TrySetSynchronizedDisplayMode("untextured_wire", out _);
+            _ = TrySetSynchronizedDisplayMode("textured", out _);
         }
         ApplySceneState();
     }

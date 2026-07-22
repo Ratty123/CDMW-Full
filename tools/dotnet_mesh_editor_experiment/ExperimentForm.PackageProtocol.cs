@@ -55,11 +55,6 @@ internal sealed partial class ExperimentForm
         var requestId = JsonLongValue(root, "request_id");
         var generation = JsonLongValue(root, "generation");
         var packagePath = JsonString(root, "package_path").Trim();
-        if (!_options.SimplePreview)
-        {
-            PublishResidentPackageLoadFailure(requestId, generation, "Resident package loading is available only in simple-preview mode.");
-            return;
-        }
         if (requestId <= 0 || generation <= 0 || string.IsNullOrWhiteSpace(packagePath))
         {
             PublishResidentPackageLoadFailure(requestId, generation, "Resident package load request is incomplete.");
@@ -94,7 +89,7 @@ internal sealed partial class ExperimentForm
         try
         {
             prepared = await Task.Run(
-                () => PrepareResidentPackage(packagePath, operation.Token),
+                () => PrepareResidentPackage(packagePath, _options.SimplePreview, operation.Token),
                 CancellationToken.None).ConfigureAwait(false);
             operation.Token.ThrowIfCancellationRequested();
             var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -158,16 +153,24 @@ internal sealed partial class ExperimentForm
 
     private static PreparedResidentPackage PrepareResidentPackage(
         string requestedPackagePath,
+        bool previewProfile,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var packagePath = Path.GetFullPath(requestedPackagePath);
         var manifestPath = Path.Combine(packagePath, "manifest.json");
+        var sceneMeshPath = Path.Combine(packagePath, "scene.obj");
+        var editableMeshPath = Path.Combine(packagePath, "mesh.obj");
         var metadataPath = Path.Combine(packagePath, "mesh.cdmeta.json");
         var materialsPath = Path.Combine(packagePath, "net_materials.json");
         var scenePath = Path.Combine(packagePath, "dotnet_scene.json");
+        var geometryPath = File.Exists(manifestPath)
+            ? manifestPath
+            : File.Exists(sceneMeshPath)
+                ? sceneMeshPath
+                : editableMeshPath;
         if (!Directory.Exists(packagePath)
-            || !File.Exists(manifestPath)
+            || !File.Exists(geometryPath)
             || !File.Exists(metadataPath)
             || !File.Exists(materialsPath)
             || !File.Exists(scenePath))
@@ -176,12 +179,16 @@ internal sealed partial class ExperimentForm
         }
 
         var phase = Stopwatch.StartNew();
-        var document = ObjDocument.Load(manifestPath);
+        var document = ObjDocument.Load(geometryPath);
         cancellationToken.ThrowIfCancellationRequested();
         var materials = NetMaterialSet.Load(materialsPath);
         var scene = NetSceneState.Load(scenePath, document.Submeshes.Count);
-        scene.SetComparisonMode("replacement_only");
-        scene.SetPresentationOverlayVisibility(gridVisible: false, gizmoVisible: false);
+        if (previewProfile)
+        {
+            scene.SetInteractionMode("placement");
+            scene.SetComparisonMode("replacement_only");
+            scene.SetPresentationOverlayVisibility(gridVisible: false, gizmoVisible: false);
+        }
         var parseMilliseconds = phase.Elapsed.TotalMilliseconds;
         var textures = NetTextureSet.Load(materials);
         try
@@ -235,6 +242,7 @@ internal sealed partial class ExperimentForm
             ["request_id"] = requestId,
             ["generation"] = generation,
             ["package_path"] = prepared.PackagePath,
+            ["profile"] = _options.Profile,
             ["process_id"] = Environment.ProcessId,
             ["parse_ms"] = prepared.ParseMilliseconds,
             ["texture_ms"] = prepared.TextureMilliseconds,

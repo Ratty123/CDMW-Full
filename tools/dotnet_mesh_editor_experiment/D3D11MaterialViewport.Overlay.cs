@@ -165,6 +165,7 @@ internal sealed partial class D3D11MaterialViewport
         {
             DrawXRayOverlayMarker();
         }
+        DrawPreviewSceneOverlays();
 
         _context.OMSetDepthStencilState(_gizmoDepthState);
         _overlayCommandDepthMode = 2;

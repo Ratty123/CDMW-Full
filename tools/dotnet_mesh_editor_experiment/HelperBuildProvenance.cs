@@ -26,7 +26,29 @@ internal static class HelperBuildProvenance
         "deterministic_offscreen_capture_v1",
         "performance_capture_v1",
         "resident_package_load_v1",
+        "resident_preview_package_replace_v2",
+        "preview_profile_read_only_v1",
+        "preview_session_v1",
+        "view_state_changed_v1",
+        "absolute_camera_state_v1",
+        "read_only_part_pick_v1",
+        "overlay_state_update_v1",
+        "skeleton_overlay_v1",
+        "pbd_cloth_overlay_v1",
     };
+
+    public static string[] ProtocolCapabilities(string profile)
+    {
+        var capabilities = RequiredProtocolCapabilities.AsEnumerable();
+        if (string.Equals(profile, "preview", StringComparison.OrdinalIgnoreCase))
+        {
+            capabilities = capabilities.Where(capability => capability is not (
+                "mesh_edit_revision_ack_v1"
+                or "resident_mutation_envelope_v2"
+                or "host_tool_state_v1"));
+        }
+        return capabilities.Order(StringComparer.Ordinal).ToArray();
+    }
 
     public static Dictionary<string, object?> Payload(IEnumerable<string> capabilities)
     {

@@ -57,6 +57,7 @@ internal sealed partial class MeshViewport
                 ["ratio"] = normalized,
                 ["layout"] = "simultaneous_role_panes",
             });
+            NotifyViewStateChanged();
         }
         if (!changed)
         {
@@ -77,6 +78,7 @@ internal sealed partial class MeshViewport
         if (changed)
         {
             ActivePresentationPaneChanged?.Invoke(contextId);
+            NotifyViewStateChanged();
         }
         RequestFrame();
         UpdateGpuViewport();

@@ -23,29 +23,38 @@ internal sealed class NetViewPresentationContext
     public bool GizmoVisible { get; set; } = true;
     public bool PartPickEnabled { get; set; }
 
-    public Dictionary<string, object?> StatusPayload() => new()
+    public Dictionary<string, object?> StatusPayload()
     {
-        ["id"] = Id,
-        ["role_filter"] = RoleFilter,
-        ["camera"] = new Dictionary<string, object?>
+        var sceneSize = Math.Max(
+            CameraMaximum.X - CameraMinimum.X,
+            Math.Max(CameraMaximum.Y - CameraMinimum.Y, CameraMaximum.Z - CameraMinimum.Z));
+        var fitZoom = CameraZoomPolicy.FitZoomForSceneSize(sceneSize);
+        return new Dictionary<string, object?>
         {
-            ["yaw_degrees"] = Yaw * 180.0f / MathF.PI,
-            ["pitch_degrees"] = Pitch * 180.0f / MathF.PI,
-            ["zoom"] = Zoom,
-            ["pan"] = new[] { PanX, PanY },
-            ["bounds_minimum"] = new[] { CameraMinimum.X, CameraMinimum.Y, CameraMinimum.Z },
-            ["bounds_maximum"] = new[] { CameraMaximum.X, CameraMaximum.Y, CameraMaximum.Z },
-            ["last_command_generation"] = LastCameraCommandGeneration,
-        },
-        ["display_mode"] = DisplayMode,
-        ["xray"] = XRay,
-        ["material_debug_mode"] = MaterialDebugMode,
-        ["textures_enabled"] = TexturesEnabled,
-        ["grid_visible"] = GridVisible,
-        ["gizmo_visible"] = GizmoVisible,
-        ["part_pick_enabled"] = PartPickEnabled,
-        ["interaction_allowed"] = string.Equals(RoleFilter, "editable", StringComparison.OrdinalIgnoreCase),
-    };
+            ["id"] = Id,
+            ["role_filter"] = RoleFilter,
+            ["camera"] = new Dictionary<string, object?>
+            {
+                ["yaw_degrees"] = Yaw * 180.0f / MathF.PI,
+                ["pitch_degrees"] = Pitch * 180.0f / MathF.PI,
+                ["zoom"] = Zoom,
+                ["fit_relative_zoom"] = CameraZoomPolicy.FitRelativeRatio(Zoom, fitZoom),
+                ["fit_mode"] = "manual",
+                ["pan"] = new[] { PanX, PanY },
+                ["bounds_minimum"] = new[] { CameraMinimum.X, CameraMinimum.Y, CameraMinimum.Z },
+                ["bounds_maximum"] = new[] { CameraMaximum.X, CameraMaximum.Y, CameraMaximum.Z },
+                ["last_command_generation"] = LastCameraCommandGeneration,
+            },
+            ["display_mode"] = DisplayMode,
+            ["xray"] = XRay,
+            ["material_debug_mode"] = MaterialDebugMode,
+            ["textures_enabled"] = TexturesEnabled,
+            ["grid_visible"] = GridVisible,
+            ["gizmo_visible"] = GizmoVisible,
+            ["part_pick_enabled"] = PartPickEnabled,
+            ["interaction_allowed"] = string.Equals(RoleFilter, "editable", StringComparison.OrdinalIgnoreCase),
+        };
+    }
 }
 
 internal sealed partial class MeshViewport
@@ -279,7 +288,8 @@ internal sealed partial class MeshViewport
         {
             ApplyCameraPreset(context, preset);
         }
-        if (JsonBool(camera, "fit", JsonBool(camera, "fit_to_view", false)))
+        var fitMode = JsonString(camera, "fit_mode", string.Empty).Trim().ToLowerInvariant();
+        if (fitMode == "fit" || JsonBool(camera, "fit", JsonBool(camera, "fit_to_view", false)))
         {
             var bounds = SceneBoundsForContext(contextId);
             context.CameraMinimum = bounds.Min;
@@ -301,12 +311,19 @@ internal sealed partial class MeshViewport
             context.Pitch + JsonFloat(camera, "pitch_delta", 0.0f) * MathF.PI / 180.0f,
             -1.55f,
             1.55f);
-        var zoomFactor = Math.Clamp(JsonFloat(camera, "zoom_factor", 1.0f), 0.01f, 100.0f);
-        var targetZoom = CameraZoomPolicy.ApplyZoomFactor(
-            context.Zoom,
-            FitZoomForBounds((context.CameraMinimum, context.CameraMaximum)),
-            zoomFactor);
-        ApplyZoomToContext(context, targetZoom);
+        var fitZoom = FitZoomForBounds((context.CameraMinimum, context.CameraMaximum));
+        if (camera.TryGetProperty("fit_relative_zoom", out var relativeZoom)
+            && relativeZoom.TryGetSingle(out var fitRelativeZoom)
+            && float.IsFinite(fitRelativeZoom))
+        {
+            ApplyZoomToContext(context, fitZoom * Math.Clamp(fitRelativeZoom, 0.1f, 64.0f));
+        }
+        else
+        {
+            var zoomFactor = Math.Clamp(JsonFloat(camera, "zoom_factor", 1.0f), 0.01f, 100.0f);
+            var targetZoom = CameraZoomPolicy.ApplyZoomFactor(context.Zoom, fitZoom, zoomFactor);
+            ApplyZoomToContext(context, targetZoom);
+        }
         if (camera.TryGetProperty("pan", out var pan) && pan.ValueKind == JsonValueKind.Array)
         {
             var values = pan.EnumerateArray().Take(2)
@@ -459,6 +476,11 @@ internal sealed partial class MeshViewport
             },
             ["hovered_source_index"] = _presentationHoveredSource,
         };
+    }
+
+    private void NotifyViewStateChanged()
+    {
+        EditorEventRequested?.Invoke("view_state_changed", PresentationStatusPayload());
     }
 
     private static void ReplaceIntSet(HashSet<int> target, JsonElement root, string name)

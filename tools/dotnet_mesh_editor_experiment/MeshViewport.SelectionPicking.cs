@@ -142,6 +142,30 @@ internal sealed partial class MeshViewport
             ["target_mode"] = targetMode,
             ["selection_depth_mode"] = ShowXRay ? "xray" : "visible",
         };
+        if (_options.SimplePreview && targetMode is "source" or "part")
+        {
+            int[] sourceIndices;
+            if (rectangle.Width < 4 && rectangle.Height < 4)
+            {
+                var sourceIndex = PickPartAt(point);
+                sourceIndices = sourceIndex >= 0 ? new[] { sourceIndex } : Array.Empty<int>();
+            }
+            else
+            {
+                sourceIndices = PartIdsInRectangle(rectangle);
+            }
+            payload["source_indices"] = sourceIndices;
+            payload["sources"] = sourceIndices;
+            payload["active_pane"] = ActivePresentationPane;
+            payload["hit"] = sourceIndices.Length > 0;
+            EditorEventRequested?.Invoke("part_pick_result", payload);
+            StatusRequested?.Invoke(sourceIndices.Length > 0
+                ? $"Preview part pick: {string.Join(", ", sourceIndices)}"
+                : "Preview part pick: no hit.");
+            UpdateGpuViewport();
+            Invalidate();
+            return;
+        }
         if (rectangle.Width < 4 && rectangle.Height < 4)
         {
             payload["screen_brush"] = ScreenPayload(point, SelectionClickRadiusPixels);

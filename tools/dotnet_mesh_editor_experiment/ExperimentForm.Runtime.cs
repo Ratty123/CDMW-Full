@@ -6,11 +6,20 @@ namespace Cdmw.MeshEditorExperiment;
 internal sealed partial class ExperimentForm
 {
     private const double PlacementTransformProtocolIntervalMs = 30.0;
+    private const double ViewStateProtocolIntervalMs = 50.0;
     private Dictionary<string, object?>? _pendingPlacementTransformPayload;
+    private Dictionary<string, object?>? _pendingViewStatePayload;
     private long _lastPlacementTransformProtocolTimestamp;
+    private long _lastViewStateProtocolTimestamp;
 
     private void HandleViewportEditorEvent(string eventName, Dictionary<string, object?> payload)
     {
+        if (string.Equals(eventName, "view_state_changed", StringComparison.OrdinalIgnoreCase))
+        {
+            _pendingViewStatePayload = new Dictionary<string, object?>(payload);
+            FlushPendingViewState();
+            return;
+        }
         if (!string.Equals(eventName, "placement_transform_request", StringComparison.OrdinalIgnoreCase))
         {
             WriteProtocolEvent(eventName, payload);
@@ -30,6 +39,26 @@ internal sealed partial class ExperimentForm
 
         _pendingPlacementTransformPayload = new Dictionary<string, object?>(payload);
         FlushPendingPlacementTransform();
+    }
+
+    private void FlushPendingViewState(bool force = false)
+    {
+        if (_pendingViewStatePayload is null)
+        {
+            return;
+        }
+        var now = Stopwatch.GetTimestamp();
+        var elapsedMs = _lastViewStateProtocolTimestamp <= 0
+            ? double.MaxValue
+            : (now - _lastViewStateProtocolTimestamp) * 1000.0 / Stopwatch.Frequency;
+        if (!force && elapsedMs < ViewStateProtocolIntervalMs)
+        {
+            return;
+        }
+        var payload = _pendingViewStatePayload;
+        _pendingViewStatePayload = null;
+        WriteProtocolEvent("view_state_changed", payload);
+        _lastViewStateProtocolTimestamp = Stopwatch.GetTimestamp();
     }
 
     private void FlushPendingPlacementTransform(bool force = false)
@@ -82,6 +111,7 @@ internal sealed partial class ExperimentForm
             }
             _viewport.EnsureRenderScheduled();
             FlushPendingPlacementTransform();
+            FlushPendingViewState();
             if (_readyPendingFirstFrame && _viewport.HasRenderedRequiredPresentation)
             {
                 _readyPendingFirstFrame = false;

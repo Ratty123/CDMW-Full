@@ -104,6 +104,7 @@ def mesh_dotnet_helper_provenance_blockers(
     status_payload: Mapping[str, object] | None,
     *,
     require_manifest: bool = False,
+    required_capabilities: Sequence[str] = (),
 ) -> tuple[str, ...]:
     """Verify helper-reported runtime identity against disk and release manifest."""
 
@@ -190,14 +191,94 @@ def mesh_dotnet_helper_provenance_blockers(
         if isinstance(capabilities, Sequence) and not isinstance(capabilities, (str, bytes)) and isinstance(
             manifest_capabilities, Sequence
         ) and not isinstance(manifest_capabilities, (str, bytes)):
-            if {str(value) for value in capabilities} != {str(value) for value in manifest_capabilities}:
-                blockers.append("helper provenance capability set does not match the release manifest")
+            reported_capabilities = {str(value) for value in capabilities}
+            packaged_capabilities = {str(value) for value in manifest_capabilities}
+            if not reported_capabilities.issubset(packaged_capabilities):
+                blockers.append("helper provenance capability set is not covered by the release manifest")
         else:
             blockers.append("release helper manifest capability set is missing")
+    if isinstance(capabilities, Sequence) and not isinstance(capabilities, (str, bytes)):
+        available_capabilities = {str(value) for value in capabilities}
+        missing_capabilities = sorted(
+            {str(value) for value in required_capabilities if str(value)} - available_capabilities
+        )
+        if missing_capabilities:
+            blockers.append("helper required capabilities are missing: " + ", ".join(missing_capabilities))
     if str(provenance.get("renderer_backend", "") or "") != "d3d11_vortice_shader":
         blockers.append("helper provenance renderer backend is not d3d11_vortice_shader")
     if str(provenance.get("edit_backend", "") or "") != "cdmw_mesh_core_0.1":
         blockers.append("helper provenance edit backend is not cdmw_mesh_core_0.1")
+    return tuple(dict.fromkeys(blockers))
+
+
+def mesh_dotnet_helper_static_provenance_blockers(
+    executable: Path | str,
+    *,
+    require_manifest: bool = False,
+    required_capabilities: Sequence[str] = (),
+) -> tuple[str, ...]:
+    """Verify a helper from disk before any process is allowed to execute it."""
+
+    executable_path = Path(executable).expanduser()
+    if not executable_path.is_file():
+        return (f"helper executable is missing: {executable_path}",)
+    manifest_path = executable_path.parent / MESH_DOTNET_HELPER_MANIFEST_NAME
+    if not manifest_path.is_file():
+        if require_manifest:
+            return (f"release helper manifest is missing: {manifest_path}",)
+        repo_root = Path(__file__).resolve().parents[2]
+        trusted_development_roots = (
+            repo_root / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Release",
+            repo_root / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Debug",
+        )
+        try:
+            resolved = executable_path.resolve()
+            trusted = any(resolved.is_relative_to(root.resolve()) for root in trusted_development_roots)
+        except OSError:
+            trusted = False
+        return () if trusted else ("unmanifested helper is outside the trusted repository build output",)
+
+    try:
+        loaded = json.loads(manifest_path.read_text(encoding="utf-8-sig"))
+    except (OSError, ValueError) as exc:
+        return (f"helper manifest is invalid: {exc}",)
+    if not isinstance(loaded, Mapping):
+        return ("helper manifest is not a JSON object",)
+    manifest = loaded
+    blockers: list[str] = []
+    try:
+        executable_hash = hashlib.sha256(executable_path.read_bytes()).hexdigest()
+    except OSError as exc:
+        blockers.append(f"helper executable hash failed: {exc}")
+        executable_hash = ""
+    if executable_hash != str(manifest.get("executable_sha256", "") or "").strip().lower():
+        blockers.append("helper executable SHA-256 does not match the release manifest")
+    shader_path = executable_path.parent / "D3D11MaterialShaders.hlsl"
+    try:
+        shader_hash = hashlib.sha256(shader_path.read_bytes()).hexdigest()
+    except OSError as exc:
+        blockers.append(f"helper shader hash failed: {exc}")
+        shader_hash = ""
+    if shader_hash != str(manifest.get("shader_sha256", "") or "").strip().lower():
+        blockers.append("helper shader SHA-256 does not match the release manifest")
+    if str(manifest.get("renderer_backend", "") or "") != "d3d11_vortice_shader":
+        blockers.append("helper manifest renderer backend is not d3d11_vortice_shader")
+    if str(manifest.get("edit_backend", "") or "") != "cdmw_mesh_core_0.1":
+        blockers.append("helper manifest edit backend is not cdmw_mesh_core_0.1")
+    try:
+        protocol_version = int(manifest.get("protocol_version", 0) or 0)
+    except (TypeError, ValueError, OverflowError):
+        protocol_version = 0
+    if protocol_version < 2:
+        blockers.append("helper manifest protocol version is unsupported")
+    capabilities = manifest.get("capabilities")
+    if isinstance(capabilities, Sequence) and not isinstance(capabilities, (str, bytes)):
+        available = {str(value) for value in capabilities}
+        missing = sorted({str(value) for value in required_capabilities if str(value)} - available)
+        if missing:
+            blockers.append("helper manifest required capabilities are missing: " + ", ".join(missing))
+    else:
+        blockers.append("helper manifest capability set is missing")
     return tuple(dict.fromkeys(blockers))
 
 

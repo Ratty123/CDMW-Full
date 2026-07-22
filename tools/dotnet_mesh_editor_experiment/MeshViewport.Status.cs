@@ -189,6 +189,32 @@ internal sealed partial class MeshViewport
         {
             capabilities.Add("winforms_gdi_fallback_renderer");
         }
+        capabilities.Add("resident_preview_package_replace_v2");
+        capabilities.Add("preview_session_v1");
+        capabilities.Add("view_state_changed_v1");
+        capabilities.Add("absolute_camera_state_v1");
+        capabilities.Add("read_only_part_pick_v1");
+        capabilities.Add("overlay_state_update_v1");
+        capabilities.Add("skeleton_overlay_v1");
+        capabilities.Add("pbd_cloth_overlay_v1");
+        if (_options.SimplePreview)
+        {
+            capabilities.RemoveAll(capability => capability is
+                "visible_selection"
+                or "xray_selection"
+                or "local_edge_topology"
+                or "local_edge_picking"
+                or "local_edge_overlay"
+                or "stable_edge_descriptors"
+                or "topology_generation"
+                or "strokes"
+                or "commands"
+                or "mesh_edit_revision_ack_v1"
+                or "resident_mutation_envelope_v2"
+                or "host_tool_state_v1"
+                or "procedural_morph_refit_v2");
+            capabilities.Add("preview_profile_read_only_v1");
+        }
         return capabilities.ToArray();
     }
 
