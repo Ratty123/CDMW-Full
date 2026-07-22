@@ -46,16 +46,13 @@ def _mesh_edit_control_runtime_state(_state, _callbacks):
     can_edit, reason = _callbacks._mesh_edit_can_edit_scope()
     dotnet_state = str(getattr(_state.dialog, "_mesh_editor_embedded_dotnet_state", "") or "").strip().lower()
     dotnet_active = bool(getattr(_state.dialog, "_mesh_editor_embedded_dotnet_active", False))
-    dotnet_owns_or_is_starting = bool(
-        _state.mesh_edit_enabled_checkbox.isChecked()
-        and (dotnet_state in {"launching", "ready", "closing"} or dotnet_active)
-    )
+    dotnet_owns_edit_surface = bool(_state.mesh_edit_enabled_checkbox.isChecked())
     _state.mesh_edit_group.setEnabled(_state.mesh_edit_supported)
     set_toolbar_visible = getattr(_state.classic_mesh_edit_toolbar, "setVisible", None)
     classic_toolbar_visible = bool(
         _state.mesh_edit_supported
         and _state.mesh_edit_enabled_checkbox.isChecked()
-        and not dotnet_owns_or_is_starting
+        and not dotnet_owns_edit_surface
     )
     if callable(set_toolbar_visible):
         set_toolbar_visible(classic_toolbar_visible)
@@ -73,15 +70,10 @@ def _mesh_edit_control_runtime_state(_state, _callbacks):
             bool(
                 _state.mesh_edit_supported
                 and _state.mesh_edit_enabled_checkbox.isChecked()
-                and not dotnet_owns_or_is_starting
+                and not dotnet_owns_edit_surface
             )
         )
-    dotnet_owns_preview_rows = bool(
-        _state.mesh_edit_enabled_checkbox.isChecked()
-        and dotnet_state not in {"closing", "closed", "failed", "suspended"}
-        and (dotnet_state in {"launching", "ready"} or dotnet_active)
-    )
-    legacy_preview_rows_visible = not dotnet_owns_preview_rows
+    legacy_preview_rows_visible = not dotnet_owns_edit_surface
     for row in getattr(_state.dialog, "_mesh_editor_legacy_preview_rows", ()):
         set_row_visible = getattr(row, "setVisible", None)
         if callable(set_row_visible):

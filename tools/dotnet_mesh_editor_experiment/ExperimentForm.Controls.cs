@@ -22,7 +22,9 @@ internal sealed partial class ExperimentForm
     {
         combo.Items.Clear();
         combo.Items.AddRange(values);
-        combo.SelectedIndex = Math.Clamp(selectedIndex, 0, Math.Max(0, combo.Items.Count - 1));
+        combo.SelectedIndex = combo.Items.Count == 0
+            ? -1
+            : Math.Clamp(selectedIndex, 0, combo.Items.Count - 1);
         combo.DropDownStyle = ComboBoxStyle.DropDownList;
         combo.FlatStyle = FlatStyle.Flat;
         combo.ItemHeight = Math.Max(combo.ItemHeight, combo.Font.Height + 4);

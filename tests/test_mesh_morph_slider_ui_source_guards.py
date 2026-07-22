@@ -59,7 +59,21 @@ def _resident_morph_source() -> str:
     return "\n".join(path.read_text(encoding="utf-8") for path in paths)
 
 
+def _resident_controls_source() -> str:
+    return (
+        ROOT / "tools" / "dotnet_mesh_editor_experiment" / "ExperimentForm.Controls.cs"
+    ).read_text(encoding="utf-8")
+
+
 class MeshMorphSliderUiSourceGuardTests(unittest.TestCase):
+    def test_empty_morph_selectors_start_without_an_invalid_selected_index(self) -> None:
+        source = _resident_controls_source()
+
+        self.assertIn("combo.Items.Count == 0", source)
+        self.assertIn("? -1", source)
+        self.assertIn(": Math.Clamp(selectedIndex, 0, combo.Items.Count - 1)", source)
+        self.assertNotIn("Math.Max(0, combo.Items.Count - 1)", source)
+
     def test_existing_edit_mesh_exposes_resident_morph_refit_and_removes_target_import_controls(self) -> None:
         legacy_source = _mesh_edit_source()
         resident_source = _resident_morph_source()

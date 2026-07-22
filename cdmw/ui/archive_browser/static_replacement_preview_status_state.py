@@ -93,7 +93,7 @@ def alignment_preview_control_text() -> dict[str, str]:
         ),
         "part_pick": "Part Pick",
         "part_pick_tooltip": (
-            "In the D3D11 preview, hover highlights source parts and right-click opens the selected part menu."
+            "In the .NET/Vortice preview, hover highlights source parts and right-click opens the selected part menu."
         ),
         "dotnet_view_tooltip": (
             ".NET/Vortice view mode for the resident Original and Replacement preview panes. "
@@ -109,8 +109,8 @@ def alignment_preview_control_text() -> dict[str, str]:
             "Side by side: Original Reference is locked on the left; Replacement Preview is editable on the right. "
             "Controls: left-drag orbit, middle/right-drag pan, wheel zoom, drag axis/center move, Alt-drag rotate."
         ),
-        "d3d11_waiting_status": "Native D3D11 alignment preview is waiting for the first refresh.",
-        "d3d11_renderer_error": "Native D3D11 renderer error.",
+        "d3d11_waiting_status": ".NET/Vortice alignment preview is waiting for the resident renderer.",
+        "d3d11_renderer_error": ".NET/Vortice renderer error.",
         "d3d11_unavailable_status": "Preview host is unavailable.",
         "d3d11_closed_status": "Preview closed.",
     }
@@ -148,10 +148,10 @@ def alignment_preview_render_control_text() -> dict[str, str]:
 def alignment_preview_help_presentation(*, d3d11_active: bool) -> PreviewHelpPresentation:
     if d3d11_active:
         return PreviewHelpPresentation(
-            text="Native D3D11 alignment preview.",
-            tooltip="Movement, rotation, part hover/selection, brush/vertex strokes, and view modes run through D3D11.",
+            text="Resident .NET/Vortice alignment preview.",
+            tooltip="Movement, rotation, part hover/selection, brush/vertex strokes, and view modes run through the resident .NET/Vortice renderer.",
             settings_tooltip=(
-                "Open 3D preview settings supported by the native D3D11 renderer, including lighting, support maps, "
+                "Open 3D preview settings supported by the .NET/Vortice renderer, including lighting, support maps, "
                 "depth, shine, and resolution."
             ),
         )

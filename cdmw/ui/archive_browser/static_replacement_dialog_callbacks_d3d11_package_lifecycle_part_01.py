@@ -596,9 +596,10 @@ def _d3d11_package_lifecycle_step_041(_state):
 
 def _d3d11_package_lifecycle_step_042(_state):
 
-    def _queue_alignment_d3d11_preview(model: object, *, label: str='Live alignment preview', reason: str='') -> None:
+    def _queue_alignment_d3d11_preview(model: object, *, label: str='Live alignment preview', reason: str='') -> bool:
         del model, label
         _state._record_runtime_event('mesh_alignment_d3d11_preview_queue_skipped', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, reason='dotnet_authoritative', requested_reason=str(reason or ''), modify_original_clone=_state.modify_original_clone_mode)
+        return False
     _state._queue_alignment_d3d11_preview = _queue_alignment_d3d11_preview
 
 def _d3d11_package_lifecycle_step_043(_state):

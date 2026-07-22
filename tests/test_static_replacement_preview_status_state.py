@@ -66,13 +66,13 @@ def test_alignment_preview_control_text_preserves_header_and_control_copy() -> N
     assert text["camera_label"] == "Camera"
 
 
-def test_alignment_preview_control_text_preserves_d3d11_status_copy() -> None:
+def test_alignment_preview_control_text_uses_dotnet_authoritative_status_copy() -> None:
     text = alignment_preview_control_text()
 
     assert text["d3d11_legend"] == "Drag axes/center to move; Alt-drag to rotate; wheel zooms."
     assert "left-drag orbit" in text["d3d11_legend_tooltip"]
-    assert text["d3d11_waiting_status"] == "Native D3D11 alignment preview is waiting for the first refresh."
-    assert text["d3d11_renderer_error"] == "Native D3D11 renderer error."
+    assert text["d3d11_waiting_status"] == ".NET/Vortice alignment preview is waiting for the resident renderer."
+    assert text["d3d11_renderer_error"] == ".NET/Vortice renderer error."
     assert text["d3d11_unavailable_status"] == "Preview host is unavailable."
     assert text["d3d11_closed_status"] == "Preview closed."
 
@@ -84,13 +84,13 @@ def test_alignment_preview_help_presentation_preserves_renderer_mode_copy() -> N
     assert static_help.text == "Live preview. Build Mod validates final package paths during export."
     assert "candidate location/rotation/scale" in static_help.tooltip
     assert "Mesh Replacement Alignment renderer" in static_help.settings_tooltip
-    assert d3d11_help.text == "Native D3D11 alignment preview."
-    assert "view modes run through D3D11" in d3d11_help.tooltip
-    assert "native D3D11 renderer" in d3d11_help.settings_tooltip
+    assert d3d11_help.text == "Resident .NET/Vortice alignment preview."
+    assert "resident .NET/Vortice renderer" in d3d11_help.tooltip
+    assert ".NET/Vortice renderer" in d3d11_help.settings_tooltip
 
 
 def test_alignment_d3d11_renderer_error_message_preserves_fallback() -> None:
-    assert alignment_d3d11_renderer_error_message("") == "Native D3D11 renderer error."
+    assert alignment_d3d11_renderer_error_message("") == ".NET/Vortice renderer error."
     assert alignment_d3d11_renderer_error_message("GPU device removed") == "GPU device removed"
 
 

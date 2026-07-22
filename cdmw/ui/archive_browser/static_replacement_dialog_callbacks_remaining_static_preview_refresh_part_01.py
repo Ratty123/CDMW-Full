@@ -345,8 +345,15 @@ def _remaining_static_preview_refresh_step_017(_state):
             return False
         d3d11_preview_model = _state._alignment_d3d11_display_model_helper(preview_model, _state.state.original_reference_preview_model, active_preview_mode=active_preview_mode, tag_workspace_model=_state._tag_alignment_d3d11_workspace_model, combine_preview_models=_state._combine_preview_models, clone_model=_state._clone_preview_model)
         _state._record_runtime_event('mesh_alignment_preview_refresh_d3d11', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, active_preview_mode=active_preview_mode, d3d11_model_ready=d3d11_preview_model is not None, source_model_meshes=len(getattr(preview_model, 'meshes', ()) or ()), original_model_meshes=len(getattr(_state.state.original_reference_preview_model, 'meshes', ()) or ()), modify_original_clone=_state.modify_original_clone_mode)
-        if d3d11_preview_model is not None:
-            _state._queue_alignment_d3d11_preview(d3d11_preview_model, label=f"{active_preview_mode.replace('_', ' ').title()} alignment preview")
+        preview_queued = bool(
+            d3d11_preview_model is not None
+            and _state._queue_alignment_d3d11_preview(
+                d3d11_preview_model,
+                label=f"{active_preview_mode.replace('_', ' ').title()} alignment preview",
+            )
+        )
+        if not preview_queued:
+            return False
         _state._sync_mesh_edit_preview_settings()
         _state._capture_static_preview_baked_transform_state(selected_preview_indices, transform_generation=refresh_transform_generation)
         package_queued_presentation = _state._alignment_d3d11_package_queued_performance_helper(quality_label=_state._alignment_preview_quality_label_helper(_state.alignment_d3d11_state), refresh_elapsed_ms=(_state.time.perf_counter() - refresh_started) * 1000.0)
