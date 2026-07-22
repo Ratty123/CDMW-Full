@@ -1108,14 +1108,15 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("authoritative_small_slot", source)
         self.assertIn("_native_preview_core_manifest_metadata", python_source)
         self.assertIn("Native Asset Family: schema=v", python_source)
-        self.assertIn("D3D11 runtime is native-only", python_source)
+        self.assertIn("The legacy renderer is not used as a fallback", python_source)
         self.assertIn("_native_preview_core_failure_result", python_source)
         self.assertNotIn("_native_preview_core_reference_metadata", python_source)
         self.assertNotIn("compatibility fallback used", python_source)
         self.assertNotIn("requires Python material resolver", python_source)
         self.assertNotIn("_native_preview_core_quality_fallback_reason", python_source)
         self.assertNotIn("Native Preview Core: material quality fallback", python_source)
-        self.assertIn("D3D11 package source: native-core", python_source)
+        self.assertIn(".NET/Vortice package source: canonical Preview Core decode", python_source)
+        self.assertIn("dotnet_preview_package_path", python_source)
 
     def test_native_base_selection_prefers_visible_layer_over_low_authority_overlay(self) -> None:
         source = preview_core_source()

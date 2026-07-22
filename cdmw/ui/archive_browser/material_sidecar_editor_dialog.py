@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json, shutil, threading
+import shutil, threading
 from functools import partial
 from pathlib import Path
 from typing import Callable, Dict, List, Mapping, Optional, Tuple
 
-from PySide6.QtCore import QProcess, Qt, QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -66,8 +66,8 @@ from cdmw.ui.archive_browser.workflow_dependencies import (
     ArchiveWorkflowDependenciesUnavailable,
     archive_workflow_dependency_context,
 )
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
-from cdmw.ui.shell.diagnostics_controller import d3d11_status_file_signature as _d3d11_status_file_signature
+from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 
 
 def _material_editor_dependencies(owner: object, entry: ArchiveEntry):
@@ -163,8 +163,12 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         preview_status_label.setObjectName("HintLabel")
         preview_status_label.setWordWrap(True)
         preview_layout.addWidget(preview_status_label)
-        material_preview_host = NativeD3D11PreviewHostFrame(dialog)
-        material_preview_host.setObjectName("MaterialValuesNativeD3D11PreviewHost")
+        material_preview_host = DotNetPreviewHostFrame(
+            dialog,
+            profile=DotNetPreviewProfile.PREVIEW,
+            terminate_on_close=True,
+        )
+        material_preview_host.setObjectName("MaterialValuesDotNetVorticePreviewHost")
         material_preview_host.setAttribute(Qt.WA_NativeWindow, True)
         material_preview_host.setMinimumSize(*material_sidecar_text.material_sidecar_preview_host_minimum_size())
         material_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
@@ -418,13 +422,6 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         )
         preview_generation = material_sidecar_text.material_sidecar_preview_generation_state()
         material_preview_base_result_state: Dict[str, object] = material_sidecar_text.material_sidecar_preview_base_result_state()
-        material_preview_status_timer = QTimer(dialog)
-        material_preview_status_timer.setInterval(material_sidecar_text.material_sidecar_preview_status_poll_interval_ms())
-
-        def _material_preview_process_running() -> bool:
-            process = material_preview_process_state.get("process")
-            return isinstance(process, QProcess) and self._archive_qprocess_state(process) != QProcess.NotRunning
-
         def _remove_material_preview_package(package_dir: object) -> None:
             if package_dir is None:
                 return
@@ -432,8 +429,9 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 path = Path(package_dir)
             except (TypeError, ValueError):
                 return
+            removable = path.parent if path.name == "package" and path.parent.name.startswith("cdmw_dotnet_preview_") else path
             try:
-                shutil.rmtree(path, ignore_errors=True)
+                shutil.rmtree(removable, ignore_errors=True)
             except OSError:
                 pass
 
@@ -442,90 +440,20 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 _remove_material_preview_package(package_dir)
             material_preview_packages.clear()
 
-        def _stop_material_preview_process() -> None:
-            process = material_preview_process_state.get("process")
-            material_preview_process_state["process"] = None
-            if not isinstance(process, QProcess):
-                return
-
-            def _kill_later(target: QProcess = process) -> None:
-                try:
-                    if target.state() != QProcess.NotRunning:
-                        target.kill()
-                except RuntimeError:
-                    pass
-
-            try:
-                if process.state() != QProcess.NotRunning:
-                    process.terminate()
-                    QTimer.singleShot(material_sidecar_text.material_sidecar_preview_process_kill_delay_ms(), _kill_later)
-            except RuntimeError:
-                pass
-
         def _shutdown_material_preview() -> None:
             live_preview_timer.stop()
-            material_preview_status_timer.stop()
             preview_generation["value"] += 1
             worker = preview_generation.pop("worker", None)
             if worker is getattr(self, "utility_worker", None):
                 worker.stop()
-            _stop_material_preview_process()
+            material_preview_host.controller.shutdown()
             QTimer.singleShot(
                 material_sidecar_text.material_sidecar_preview_package_cleanup_delay_ms(),
                 _clear_material_preview_packages,
             )
 
-        def _apply_material_preview_status_payload(payload: Mapping[str, object]) -> None:
-            event = str(payload.get("event", "") or "").strip().lower()
-            summary = str(material_preview_process_state.get("summary", "") or "").strip()
-            if event == "loaded":
-                loaded_message = material_sidecar_text.material_sidecar_native_loaded_status(
-                    batch_count=payload.get("batch_count", 0),
-                    vertex_count=payload.get("vertex_count", 0),
-                    first_frame_ms=payload.get("first_frame_ms", 0.0),
-                    texture_failure_count=payload.get("texture_failures", 0),
-                )
-                preview_status_label.setText(
-                    material_sidecar_text.material_sidecar_preview_payload_status(summary, loaded_message)
-                )
-            elif event == "error":
-                preview_status_label.setText(
-                    material_sidecar_text.material_sidecar_native_error_status(payload.get("message", ""))
-                )
-
-        def _poll_material_preview_status() -> None:
-            status_file = material_preview_process_state.get("status_file")
-            if status_file is None:
-                return
-            try:
-                status_path = Path(status_file)
-                stat = status_path.stat()
-            except OSError:
-                return
-            signature = _d3d11_status_file_signature(stat)
-            try:
-                payload_text = status_path.read_text(encoding="utf-8")
-            except Exception:
-                return
-            if (
-                signature == material_preview_process_state.get("status_signature")
-                and payload_text == material_preview_process_state.get("status_payload_text")
-            ):
-                return
-            material_preview_process_state["status_signature"] = signature
-            material_preview_process_state["status_payload_text"] = payload_text
-            try:
-                payload = json.loads(payload_text)
-            except Exception:
-                return
-            if isinstance(payload, Mapping):
-                _apply_material_preview_status_payload(payload)
-
-        material_preview_status_timer.timeout.connect(_poll_material_preview_status)
-        material_preview_host.native_event_received.connect(
-            lambda payload: _apply_material_preview_status_payload(payload)
-            if isinstance(payload, Mapping)
-            else None
+        material_preview_host.controller.state_changed.connect(
+            lambda _state, message: preview_status_label.setText(str(message or ".NET/Vortice Preview"))
         )
 
         def _launch_material_preview_package(
@@ -535,7 +463,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
             summary: str,
             cleanup_owned_package: bool = True,
         ) -> bool:
-            valid_package, missing_paths = self._validate_d3d11_preview_package_paths(package_dir)
+            valid_package, missing_paths = validate_dotnet_preview_package(package_dir)
             if not valid_package:
                 preview_status_label.setText(
                     material_sidecar_text.material_sidecar_package_validation_failed_status(missing_paths)
@@ -543,76 +471,20 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
                 if cleanup_owned_package:
                     _remove_material_preview_package(package_dir)
                 return False
-            status_file = package_dir / "material_values_status.json"
-            try:
-                status_file.unlink(missing_ok=True)
-            except OSError:
-                pass
-            material_preview_process_state["status_file"] = status_file
-            material_preview_process_state["status_signature"] = (0, 0)
-            material_preview_process_state["status_payload_text"] = ""
             material_preview_process_state["summary"] = str(summary or "").strip()
             material_preview_process_state["package_dir"] = package_dir
             _configure_material_value_preview_host()
             if cleanup_owned_package and package_dir not in material_preview_packages:
                 material_preview_packages.append(package_dir)
-            if _material_preview_process_running():
-                if material_preview_host.load_package(package_dir, status_file, reset_view=bool(reset_view)):
-                    material_preview_host.set_render_tuning(_material_value_preview_render_settings())
-                    material_preview_status_timer.start()
-                    preview_status_label.setText(
-                        material_sidecar_text.material_sidecar_reloading_native_preview_status(summary)
-                    )
-                    return True
-                _stop_material_preview_process()
-            try:
-                program, arguments = self._native_d3d11_renderer_command(
-                    package_dir,
-                    status_file,
-                    host_widget=material_preview_host,
-                    theme_payload=self._archive_isolated_renderer_theme_payload(),
+            if not material_preview_host.load_package(package_dir, reset_view=bool(reset_view)):
+                preview_status_label.setText(
+                    ".NET/Vortice material preview rejected the canonical package."
                 )
-            except Exception as exc:
-                preview_status_label.setText(material_sidecar_text.material_sidecar_native_preview_start_failed_status(exc))
                 return False
-            process = QProcess(dialog)
-            process.setProgram(program)
-            process.setArguments(arguments)
-            process.setProcessChannelMode(QProcess.SeparateChannels)
-
-            def _handle_material_preview_stderr(target: QProcess = process) -> None:
-                try:
-                    chunk = bytes(target.readAllStandardError()).decode("utf-8", errors="replace").strip()
-                except RuntimeError:
-                    return
-                if chunk:
-                    preview_status_label.setText(material_sidecar_text.material_sidecar_native_preview_stderr_status(chunk))
-
-            def _handle_material_preview_error(_error: object, target: QProcess = process) -> None:
-                if material_preview_process_state.get("process") is target:
-                    preview_status_label.setText(
-                        material_sidecar_text.material_sidecar_native_preview_process_error_status(target.errorString())
-                    )
-
-            def _handle_material_preview_finished(exit_code: int, _exit_status: object, target: QProcess = process) -> None:
-                if material_preview_process_state.get("process") is target:
-                    material_preview_process_state["process"] = None
-                    if int(exit_code) != 0:
-                        preview_status_label.setText(
-                            material_sidecar_text.material_sidecar_native_preview_exited_status(exit_code)
-                        )
-                try:
-                    target.deleteLater()
-                except RuntimeError:
-                    pass
-
-            process.readyReadStandardError.connect(_handle_material_preview_stderr)
-            process.errorOccurred.connect(_handle_material_preview_error)
-            process.finished.connect(_handle_material_preview_finished)
-            material_preview_process_state["process"] = process
-            material_preview_status_timer.start()
-            preview_status_label.setText(material_sidecar_text.material_sidecar_starting_native_preview_status(summary))
-            process.start()
+            material_preview_host.set_render_tuning(_material_value_preview_render_settings())
+            preview_status_label.setText(
+                f"{str(summary or '').strip()} | resident .NET/Vortice package requested".strip(" |")
+            )
             return True
 
         def _current_archive_material_preview_result() -> Optional[ArchivePreviewResult]:
@@ -637,7 +509,7 @@ class ArchiveMaterialSidecarEditorMixin(ArchiveMaterialSidecarDocumentController
         def _archive_material_preview_source_package() -> Optional[Path]:
             current_archive_result = _current_archive_material_preview_result()
             if isinstance(current_archive_result, ArchivePreviewResult):
-                current_package_text = str(getattr(current_archive_result, "native_preview_package_path", "") or "").strip()
+                current_package_text = str(getattr(current_archive_result, "dotnet_preview_package_path", "") or "").strip()
                 if current_package_text:
                     return Path(current_package_text)
             try:

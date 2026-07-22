@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
 
 from cdmw.ui.archive_browser.actions import archive_context_menu_icons
 from cdmw.ui.archive_browser.preview_state import archive_model_preview_refresh_tooltip
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.widgets import (
     ArchiveDetailsEditor,
     CodePreviewEditor,
@@ -621,20 +621,20 @@ class ArchivePreviewLayoutMixin:
         )
         self.archive_model_preview.view_state_changed.connect(self._handle_archive_model_view_state_changed)
         self.archive_model_preview.debug_details_changed.connect(self._refresh_archive_preview_details_text)
-        self.archive_d3d11_preview_host = NativeD3D11PreviewHostFrame()
-        self.archive_d3d11_preview_host.setObjectName("NativeD3D11PreviewHost")
+        self.archive_d3d11_preview_host = DotNetPreviewHostFrame(
+            profile=DotNetPreviewProfile.PREVIEW,
+            terminate_on_close=False,
+        )
+        self.archive_d3d11_preview_host.setObjectName("DotNetVorticePreviewHost")
         self.archive_d3d11_preview_host.setAttribute(Qt.WA_NativeWindow, True)
         self.archive_d3d11_preview_host.setMinimumHeight(260)
         self.archive_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.archive_d3d11_preview_host.view_state_changed.connect(self._handle_archive_model_view_state_changed)
         self.archive_d3d11_preview_host.view_state_payload_changed.connect(self._handle_archive_d3d11_view_state_payload)
-        archive_d3d11_preview_layout = QVBoxLayout(self.archive_d3d11_preview_host)
-        archive_d3d11_preview_layout.setContentsMargins(0, 0, 0, 0)
-        archive_d3d11_preview_layout.setSpacing(0)
-        self.archive_d3d11_preview_status_label = QLabel("D3D11 preview is not running.")
+        self.archive_d3d11_preview_status_label = QLabel(".NET/Vortice Preview")
         self.archive_d3d11_preview_status_label.setObjectName("HintLabel")
         self.archive_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
-        archive_d3d11_preview_layout.addWidget(self.archive_d3d11_preview_status_label)
+        self.archive_d3d11_preview_status_label.setVisible(False)
         self.archive_media_preview = MediaPreviewWidget(
             "Select an archive file to preview it here.",
             theme_key=self.current_theme_key,

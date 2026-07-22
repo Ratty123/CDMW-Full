@@ -152,11 +152,65 @@ def _write_dotnet_scene_manifest(
     *,
     scene_frame: StaticMeshSceneFrame,
     session_id: str = "",
+    part_identities: Sequence[Mapping[str, object]] = (),
+    preview_overlays: Mapping[str, object] | None = None,
 ) -> None:
     payload = scene_frame.to_protocol_payload()
     payload["renderer_authority"] = "dotnet_vortice_resident_scene"
     payload["session_id"] = str(session_id or "")
+    payload["part_identities"] = [dict(identity) for identity in part_identities]
+    if isinstance(preview_overlays, Mapping):
+        skeleton = preview_overlays.get("skeleton")
+        cloth = preview_overlays.get("cloth")
+        if isinstance(skeleton, Mapping):
+            payload["skeleton_overlay"] = dict(skeleton)
+        if isinstance(cloth, Mapping):
+            payload["cloth_overlay"] = dict(cloth)
     atomic_write_text(path, json.dumps(payload, indent=2))
+
+
+def _dotnet_scene_part_identities(scene_mesh: ParsedMesh) -> tuple[dict[str, object], ...]:
+    def identity_int(value: object, fallback: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError, OverflowError):
+            return fallback
+
+    identities: list[dict[str, object]] = []
+    for scene_index, submesh in enumerate(tuple(getattr(scene_mesh, "submeshes", ()) or ())):
+        identities.append(
+            {
+                "scene_submesh_index": scene_index,
+                "source_submesh_index": identity_int(
+                    getattr(
+                        submesh,
+                        "cdmw_native_source_submesh_index",
+                        getattr(submesh, "cdmw_mesh_edit_topology_source_submesh_index", scene_index),
+                    ),
+                    scene_index,
+                ),
+                "source_local_submesh_index": identity_int(
+                    getattr(submesh, "cdmw_native_source_local_submesh_index", scene_index),
+                    scene_index,
+                ),
+                "source_component_index": identity_int(
+                    getattr(submesh, "cdmw_native_source_component_index", 0),
+                ),
+                "source_component_label": str(
+                    getattr(submesh, "cdmw_native_source_component_label", "") or ""
+                ),
+                "prefab_component": bool(
+                    getattr(submesh, "cdmw_native_prefab_component", False)
+                ),
+                "role": str(getattr(submesh, "preview_role", "") or "archive_model"),
+                "name": str(getattr(submesh, "name", "") or ""),
+                "material": str(getattr(submesh, "material", "") or ""),
+                "source_asset_path": str(
+                    getattr(submesh, "preview_source_asset_path", "") or ""
+                ),
+            }
+        )
+    return tuple(identities)
 
 
 def default_mesh_dotnet_experiment_editor_path(*, release: bool = True) -> Path:
@@ -416,10 +470,16 @@ def build_mesh_dotnet_experiment_package(
     scene_session_id: str = "",
     selection_pivot_source: tuple[float, float, float] | None = None,
     cancelled: Callable[[], bool] | None = None,
+    output_package_dir: Path | str | None = None,
+    preview_overlays: Mapping[str, object] | None = None,
 ) -> MeshDotNetExperimentPackage:
     material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
-    package_dir = root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
+    package_dir = (
+        Path(output_package_dir)
+        if output_package_dir is not None
+        else root / f"package_{int(time.time() * 1000)}_{uuid4().hex[:8]}"
+    )
     package_dir.mkdir(parents=True, exist_ok=False)
 
     exported_paths = _export_dotnet_obj_paths(mesh, package_dir, "mesh")
@@ -532,6 +592,12 @@ def build_mesh_dotnet_experiment_package(
         scene_manifest_path,
         scene_frame=scene_frame,
         session_id=scene_session_id,
+        part_identities=_dotnet_scene_part_identities(scene_mesh),
+        preview_overlays=(
+            preview_overlays
+            if isinstance(preview_overlays, Mapping)
+            else getattr(mesh, "cdmw_preview_overlays", None)
+        ),
     )
 
     output_dir = package_dir / "output"

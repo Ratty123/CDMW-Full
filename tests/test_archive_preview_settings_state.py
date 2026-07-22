@@ -192,7 +192,7 @@ def test_model_preview_settings_status_preserves_default_summary_and_details() -
 
     assert status == (
         "3D Preview: Visible Mesh Base First | Lit | ON: Textures yes, "
-        "Support-map shading yes | Checked disables: Base tint, Brightness, UV scale, HKX physics overlay"
+        "Support-map shading yes | Checked disables: Brightness, UV scale, HKX physics overlay"
     )
     assert "Visible texture mode: Mesh Base First" in details
     assert "Diagnostic render mode: Lit" in details

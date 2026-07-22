@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import math
 import os
@@ -9,6 +10,7 @@ import struct
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
+from cdmw.domain.cancellation import RunCancelled
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.mesh_dotnet_material_state import apply_dotnet_native_material_batch_binding
@@ -129,6 +131,8 @@ def _decode_native_reference_submesh(
     center: tuple[float, float, float],
     scale: float,
     cancelled: Callable[[], bool],
+    preview_role: str = "original_reference_prefab",
+    material_authority_profile: str = "native_reference_composite",
 ) -> SubMesh | None:
     vertex_count = _index(batch.get("vertex_count"), 0)
     if vertex_count <= 0 or vertex_count % 3 or vertex_count > _MAX_REFERENCE_COMPOSITE_VERTICES:
@@ -222,11 +226,92 @@ def _decode_native_reference_submesh(
         source_bbox_min=minimum,
         source_bbox_extent=tuple(maximum[axis] - minimum[axis] for axis in range(3)),
     )
-    setattr(submesh, "preview_role", "original_reference_prefab")
-    setattr(submesh, "cdmw_material_authority_profile", "native_reference_composite")
+    setattr(submesh, "preview_role", str(preview_role or "archive_model"))
+    setattr(submesh, "preview_source_asset_path", str(identity.get("source_asset_path", "") or ""))
+    setattr(submesh, "cdmw_material_authority_profile", str(material_authority_profile or "native_preview_core"))
     setattr(submesh, "cdmw_mesh_edit_topology_source_submesh_index", raw_index)
+    setattr(submesh, "cdmw_native_source_submesh_index", _index(identity.get("source_submesh_index"), raw_index))
+    setattr(submesh, "cdmw_native_source_local_submesh_index", local_index)
+    setattr(submesh, "cdmw_native_source_component_index", component_index)
+    setattr(submesh, "cdmw_native_source_component_label", component_label)
+    setattr(submesh, "cdmw_native_prefab_component", bool(identity.get("prefab_component", False)))
+    setattr(submesh, "cdmw_native_editor_identity", copy.deepcopy(dict(identity)))
     apply_dotnet_native_material_batch_binding(submesh, batch)
     return submesh
+
+
+def decode_dotnet_native_preview_package(
+    package_path: Path | str,
+    *,
+    cancelled: Callable[[], bool] | None = None,
+) -> ParsedMesh:
+    """Decode every preview-core batch into canonical ``ParsedMesh`` input.
+
+    Preview Core remains the authoritative archive decoder.  Its normalized
+    triangle stream is restored to source coordinates here so the ordinary
+    .NET package/material compiler owns every visible artifact after decoding.
+    """
+
+    stop_requested = cancelled or (lambda: False)
+    if stop_requested():
+        raise RunCancelled("Preview-core package decode cancelled.")
+    loaded = _load_native_manifest(package_path)
+    if loaded is None:
+        raise ValueError("Preview-core package manifest is missing or invalid.")
+    package_dir, manifest = loaded
+    center = _vec3(manifest.get("normalization_center"))
+    scale = _finite_float(manifest.get("normalization_scale"), 0.0)
+    raw_batches = manifest.get("batches")
+    if center is None or abs(scale) <= 1.0e-12:
+        raise ValueError("Preview-core package normalization is invalid.")
+    if not isinstance(raw_batches, Sequence) or isinstance(raw_batches, (str, bytes, bytearray)):
+        raise ValueError("Preview-core package batch list is invalid.")
+
+    decoded: list[SubMesh] = []
+    total_vertices = 0
+    for raw_batch in raw_batches:
+        if stop_requested():
+            raise RunCancelled("Preview-core package decode cancelled.")
+        if not isinstance(raw_batch, Mapping):
+            raise ValueError("Preview-core package contains an invalid batch.")
+        batch_vertices = _index(raw_batch.get("vertex_count"), 0)
+        if batch_vertices <= 0 or total_vertices + batch_vertices > _MAX_REFERENCE_COMPOSITE_VERTICES:
+            raise ValueError("Preview-core package exceeds the canonical preview vertex limit.")
+        submesh = _decode_native_reference_submesh(
+            package_dir,
+            raw_batch,
+            center=center,
+            scale=scale,
+            cancelled=stop_requested,
+            preview_role="archive_model",
+            material_authority_profile="native_preview_core_canonical",
+        )
+        if submesh is None:
+            if stop_requested():
+                raise RunCancelled("Preview-core package decode cancelled.")
+            raise ValueError("Preview-core package geometry is incomplete or corrupt.")
+        decoded.append(submesh)
+        total_vertices += len(submesh.vertices)
+    if not decoded:
+        raise ValueError("Preview-core package contains no renderable batches.")
+
+    minimum = tuple(min(submesh.source_bbox_min[axis] for submesh in decoded) for axis in range(3))
+    maximum = tuple(
+        max(submesh.source_bbox_min[axis] + submesh.source_bbox_extent[axis] for submesh in decoded)
+        for axis in range(3)
+    )
+    mesh = ParsedMesh(
+        path=str(manifest.get("source_path", "") or package_dir),
+        format=str(manifest.get("format", "") or "pac").strip().lower(),
+        bbox_min=minimum,
+        bbox_max=maximum,
+        submeshes=decoded,
+        has_uvs=all(len(submesh.uvs) == len(submesh.vertices) for submesh in decoded),
+    )
+    refresh_mesh_totals(mesh)
+    setattr(mesh, "cdmw_preview_core_package_path", str(package_dir))
+    setattr(mesh, "cdmw_preview_core_manifest", copy.deepcopy(dict(manifest)))
+    return mesh
 
 
 def append_dotnet_native_reference_composite(
@@ -288,4 +373,5 @@ def append_dotnet_native_reference_composite(
 __all__ = [
     "apply_dotnet_native_reference_materials",
     "append_dotnet_native_reference_composite",
+    "decode_dotnet_native_preview_package",
 ]

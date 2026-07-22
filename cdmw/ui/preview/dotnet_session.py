@@ -13,8 +13,8 @@ from typing import Any
 from PySide6.QtCore import QObject, QProcess, QTimer, Signal
 
 from cdmw.core.atomic_file import atomic_copy_file
-from cdmw.rendering.native_preview_package_cache import (
-    acquire_native_preview_package_cache_lease_for_path,
+from cdmw.rendering.dotnet_preview_package_cache import (
+    acquire_dotnet_preview_package_cache_lease_for_path,
 )
 from cdmw.services.mesh_dotnet_experiment import (
     MeshDotNetExperimentPackage,
@@ -837,7 +837,7 @@ class DotNetPreviewSessionController(QObject):
         key = self._package_key(package_dir)
         if key in self._package_leases:
             return
-        lease = acquire_native_preview_package_cache_lease_for_path(Path(package_dir))
+        lease = acquire_dotnet_preview_package_cache_lease_for_path(Path(package_dir))
         if lease is not None:
             self._package_leases[key] = lease
 

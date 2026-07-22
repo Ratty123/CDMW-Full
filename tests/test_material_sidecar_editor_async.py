@@ -133,14 +133,15 @@ def test_material_live_preview_manifest_work_only_runs_inside_cancellable_task()
     assert "material_preview_package_matches_entry(" in service_source
     assert "fast_material_preview_package_from_manifest(" in service_source
     assert "stop_event=stop_event" in service_source
-    assert "prepare_model_preview(" in service_source
-    assert "write_isolated_d3d11_preview_package(" in service_source
+    assert "build_or_lookup_dotnet_preview_package_from_model(" in service_source
+    assert 'cache_mode="off"' in service_source
     assert "task_accepts_cancel=True" in source[start : source.index("def _schedule_live_preview_for_item", start)]
     shutdown_start = source.index("def _shutdown_material_preview()")
-    shutdown_body = source[shutdown_start : source.index("def _apply_material_preview_status_payload", shutdown_start)]
+    shutdown_body = source[shutdown_start : source.index("material_preview_host.controller.state_changed.connect", shutdown_start)]
     assert 'preview_generation["value"] += 1' in shutdown_body
     assert 'preview_generation.pop("worker", None)' in shutdown_body
     assert "worker.stop()" in shutdown_body
+    assert "material_preview_host.controller.shutdown()" in shutdown_body
 
 
 def test_cancelled_fast_material_preview_removes_staging_package(
@@ -284,20 +285,18 @@ def test_material_preview_build_does_not_publish_cached_skeleton_when_disabled(
         captured.update(kwargs)
         return ArchivePreviewResult(status="ok", preview_model=preview_model)
 
-    def fake_prepare(model: ModelPreviewData, **_kwargs: object):
+    def fake_build_dotnet(model: ModelPreviewData, **_kwargs: object):
         assert model.physics_overlay is None
-        return model, PreparedModelPreviewData(source_path=model.path)
+        return SimpleNamespace(package_dir=package_dir)
 
     package_dir = tmp_path / "package"
     package_dir.mkdir()
     monkeypatch.setattr(preview_service, "build_archive_preview_result", fake_build_archive_preview_result)
-    monkeypatch.setattr(preview_service, "prepare_model_preview", fake_prepare)
     monkeypatch.setattr(
         preview_service,
-        "create_native_preview_package_staging_dir",
-        lambda _root: package_dir,
+        "build_or_lookup_dotnet_preview_package_from_model",
+        fake_build_dotnet,
     )
-    monkeypatch.setattr(preview_service, "write_isolated_d3d11_preview_package", lambda *_args, **_kwargs: None)
     request = preview_service.MaterialSidecarPreviewBuildRequest(
         generation=1,
         preview_model_entry=model_entry,

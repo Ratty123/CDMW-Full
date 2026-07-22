@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
+import json
 import threading
 import time
 from collections.abc import Mapping, Sequence
@@ -39,6 +40,11 @@ from cdmw.rendering.static_model_thumbnail import render_static_model_thumbnail_
 from cdmw.workers.archive_preview_native import ArchivePreviewNativeMixin, NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 from cdmw.rendering.native_preview_package_cache import (
     lookup_native_preview_package_cache,
+)
+from cdmw.services.mesh_dotnet_preview_package import (
+    build_or_lookup_dotnet_preview_package_from_model,
+    dotnet_preview_package_cache_key,
+    validate_dotnet_preview_package,
 )
 
 
@@ -280,9 +286,9 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         cached = self.preview_cache_snapshot.get(key)
         if not isinstance(cached, ArchivePreviewResult):
             return None
-        native_package_path = str(getattr(cached, "native_preview_package_path", "") or "").strip()
-        if native_package_path:
-            valid_package, _missing = self._validate_native_preview_core_package_basic(Path(native_package_path))
+        dotnet_package_path = str(getattr(cached, "dotnet_preview_package_path", "") or "").strip()
+        if dotnet_package_path:
+            valid_package, _missing = validate_dotnet_preview_package(Path(dotnet_package_path))
             if not valid_package:
                 return None
         result = self._attach_cached_preview_payload_images(cached)
@@ -312,16 +318,35 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
         )
         if hit is None:
             return None
+        try:
+            source_manifest = json.loads((hit.package_dir / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        if not isinstance(source_manifest, Mapping):
+            return None
+        dotnet_cache_key = dotnet_preview_package_cache_key(
+            cache_key,
+            sidecar_generation=self.sidecar_generation,
+            source_manifest=source_manifest,
+        )
+        dotnet_hit = lookup_native_preview_package_cache(
+            Path(cache_root) / "dotnet_vortice",
+            dotnet_cache_key,
+            validate_package=validate_dotnet_preview_package,
+        )
+        if dotnet_hit is None:
+            return None
         diagnostics_source = hit.metadata.get("diagnostics") if isinstance(hit.metadata, Mapping) else {}
         diagnostics = dict(diagnostics_source) if isinstance(diagnostics_source, Mapping) else {}
         diagnostics["native_preview_package_cache"] = "hit"
         diagnostics["native_preview_package_cache_mode"] = str(hit.metadata.get("cache_mode", "") or "")
-        diagnostics["package_path"] = str(hit.package_dir)
+        diagnostics["native_decode_package_path"] = str(hit.package_dir)
+        diagnostics["dotnet_preview_package_path"] = str(dotnet_hit.package_dir)
         detail_lines = [
-            "Native Preview Core loaded a validated durable D3D11 preview package.",
-            "D3D11 package source: native-core cache",
-            f"Package: {hit.package_dir}",
-            "Cached preview package hit; no archive package rebuild was needed.",
+            "Loaded a validated durable .NET/Vortice preview package.",
+            ".NET/Vortice package source: canonical derived cache",
+            f"Package: {dotnet_hit.package_dir}",
+            "Warm selection reused resident-ready package artifacts without rebuilding the archive decode.",
         ]
         result = ArchivePreviewResult(
             status="ok",
@@ -329,14 +354,14 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
             metadata_summary=f"{build_archive_entry_metadata_summary(self.entry)} | cached preview package",
             detail_text="\n".join(detail_lines),
             preview_model=None,
-            native_preview_package_path=str(hit.package_dir),
+            dotnet_preview_package_path=str(dotnet_hit.package_dir),
             native_preview_diagnostics=diagnostics,
             preferred_view="model",
             sidecar_generation=self.sidecar_generation,
         )
         return _ArchivePreviewWorkerPayload(
             result=result,
-            source="native_package_cache",
+            source="dotnet_package_cache",
             cache_key=self.full_preview_cache_key,
             cacheable=True,
         )
@@ -514,6 +539,58 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                 preview_model=prepared_model,
                 prepared_preview_model=prepared_preview_model,
             )
+            if str(quality_tier or "").strip().lower() == "full":
+                cache_root = self.native_preview_core_cache_root
+                if cache_root is None:
+                    payload = dataclasses.replace(
+                        payload,
+                        status="error",
+                        preview_model=None,
+                        prepared_preview_model=None,
+                        preferred_view="details",
+                        warning_badge=".NET/Vortice package unavailable",
+                        warning_text="The canonical preview cache root is unavailable.",
+                    )
+                else:
+                    try:
+                        dotnet_package = build_or_lookup_dotnet_preview_package_from_model(
+                            prepared_model,
+                            cache_root=Path(cache_root),
+                            archive_identity=(
+                                str(self.full_preview_cache_key or "").strip()
+                                or str(getattr(self.entry, "path", "") or "")
+                            ),
+                            sidecar_generation=self.sidecar_generation,
+                            cache_mode=self.native_preview_package_cache_mode,
+                            max_bytes=self.native_preview_package_cache_max_bytes,
+                            target_bytes=self.native_preview_package_cache_target_bytes,
+                            cancelled=self.stop_event.is_set,
+                            metadata={
+                                "entry_path": str(getattr(self.entry, "path", "") or ""),
+                                "source_decoder": "python_model_preview",
+                            },
+                        )
+                        payload = dataclasses.replace(
+                            payload,
+                            dotnet_preview_package_path=str(dotnet_package.package_dir),
+                            preferred_view="model",
+                        )
+                    except RunCancelled:
+                        raise
+                    except Exception as exc:
+                        payload = dataclasses.replace(
+                            payload,
+                            status="error",
+                            preview_model=None,
+                            prepared_preview_model=None,
+                            preferred_view="details",
+                            warning_badge=".NET/Vortice package failed",
+                            warning_text=str(exc),
+                            detail_text=(
+                                f"{str(getattr(payload, 'detail_text', '') or '').rstrip()}\n\n"
+                                f"Canonical .NET/Vortice package generation failed: {exc}"
+                            ).strip(),
+                        )
         timings["prepared_model_s"] = max(0.0, float(time.perf_counter() - prepared_model_started_at))
         if self.stop_event.is_set():
             return payload

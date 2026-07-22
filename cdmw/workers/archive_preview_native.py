@@ -37,6 +37,7 @@ from cdmw.rendering.native_preview_package_cache import (
     release_native_preview_package_staging_dir,
     store_native_preview_package_cache,
 )
+from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_preview_package
 
 
 NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}
@@ -476,10 +477,54 @@ class ArchivePreviewNativeMixin:
     ) -> ArchivePreviewResult:
         entry = self.entry
         metadata_summary = build_archive_entry_metadata_summary(entry) if entry is not None else "Native preview"
+        cache_root = self.native_preview_core_cache_root
+        if cache_root is None:
+            return self._native_preview_core_failure_result(
+                NativePreviewCoreAttempt(
+                    status="error",
+                    fallback_reason=".NET/Vortice preview cache root unavailable",
+                    diagnostics=dict(native_attempt.diagnostics),
+                    elapsed_ms=native_attempt.elapsed_ms,
+                ),
+                timings,
+            )
+        try:
+            dotnet_package = build_or_lookup_dotnet_preview_package(
+                native_attempt.package_path,
+                cache_root=Path(cache_root),
+                archive_identity=(
+                    str(self.native_preview_package_cache_key or "").strip()
+                    or str(getattr(entry, "path", "") or native_attempt.package_path)
+                ),
+                sidecar_generation=self.sidecar_generation,
+                cache_mode=self.native_preview_package_cache_mode,
+                max_bytes=self.native_preview_package_cache_max_bytes,
+                target_bytes=self.native_preview_package_cache_target_bytes,
+                cancelled=self.stop_event.is_set,
+                metadata={
+                    "entry_path": str(getattr(entry, "path", "") or ""),
+                    "native_preview_core_package": native_attempt.package_path,
+                },
+            )
+        except RunCancelled:
+            raise
+        except Exception as exc:
+            diagnostics = dict(native_attempt.diagnostics)
+            diagnostics["dotnet_preview_package_error"] = str(exc)
+            return self._native_preview_core_failure_result(
+                NativePreviewCoreAttempt(
+                    status="error",
+                    fallback_reason=f"canonical .NET preview package generation failed: {exc}",
+                    diagnostics=diagnostics,
+                    elapsed_ms=native_attempt.elapsed_ms,
+                ),
+                timings,
+            )
         model_texture_references, asset_family_graph, metadata_lines, native_schema_version = (
             self._native_preview_core_manifest_metadata(native_attempt.package_path)
         )
         diagnostics = dict(native_attempt.diagnostics)
+        diagnostics["dotnet_preview_package_path"] = str(dotnet_package.package_dir)
         notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
         base_quality_notes = tuple(
             str(note)
@@ -497,8 +542,8 @@ class ArchivePreviewNativeMixin:
             if str(note).strip()
         )
         diagnostic_lines = [
-            "Native Preview Core generated a D3D11 preview package without Python mesh preparation.",
-            "D3D11 package source: native-core",
+            "Preview Core decoded the archive model for the canonical .NET/Vortice preview package.",
+            ".NET/Vortice package source: canonical Preview Core decode",
             native_attempt.diagnostic_line(),
             (
                 "Native Material Quality: "
@@ -536,8 +581,8 @@ class ArchivePreviewNativeMixin:
             preview_model=None,
             model_texture_references=model_texture_references,
             asset_family_graph=asset_family_graph,
-            native_preview_package_path=native_attempt.package_path,
-            native_preview_diagnostics=dict(native_attempt.diagnostics),
+            dotnet_preview_package_path=str(dotnet_package.package_dir),
+            native_preview_diagnostics=diagnostics,
             preferred_view="model",
             sidecar_generation=self.sidecar_generation,
         )
@@ -553,8 +598,8 @@ class ArchivePreviewNativeMixin:
         detail_text = "\n".join(
             part
             for part in (
-                "Native Preview Core did not generate a D3D11 package.",
-                "D3D11 runtime is native-only; no fallback preview renderer is available.",
+                "Preview Core did not produce a canonical .NET/Vortice preview package.",
+                "The legacy renderer is not used as a fallback; the .NET/Vortice preview will retry.",
                 native_attempt.diagnostic_line(),
                 f"Native failure reason: {reason}",
             )

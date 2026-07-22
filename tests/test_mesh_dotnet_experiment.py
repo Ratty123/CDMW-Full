@@ -9,11 +9,18 @@ from types import SimpleNamespace
 import pytest
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services import mesh_dotnet_experiment
 from cdmw.services.mesh_dotnet_reference_composite import (
     apply_dotnet_native_reference_materials,
     append_dotnet_native_reference_composite,
+    decode_dotnet_native_preview_package,
+)
+from cdmw.services.mesh_dotnet_preview_package import (
+    build_or_lookup_dotnet_preview_package,
+    build_or_lookup_dotnet_preview_package_from_model,
+    validate_dotnet_preview_package,
 )
 from cdmw.services.mesh_dotnet_experiment import (
     MESH_DOTNET_EXPERIMENT_BINARY_NAME,
@@ -592,8 +599,21 @@ def _write_native_reference_composite_fixture(tmp_path: Path) -> Path:
             )
         )
     (geometry_dir / "batch_001.bin").write_bytes(b"".join(records))
+    (geometry_dir / "batch_000.bin").write_bytes(b"".join(records))
     (geometry_dir / "batch_001_identity.bin").write_bytes(
         b"".join(struct.pack("<2i", 1, source_vertex) for source_vertex in (7, 8, 9))
+    )
+    (geometry_dir / "batch_000_identity.bin").write_bytes(
+        b"".join(struct.pack("<2i", 0, source_vertex) for source_vertex in (0, 1, 2))
+    )
+    (geometry_dir / "batch_001_cloth_particles.bin").write_bytes(
+        b"".join(struct.pack("<3f", *tuple((position[axis] - center[axis]) * scale for axis in range(3))) for position in source_positions)
+    )
+    (geometry_dir / "batch_001_cloth_pins.bin").write_bytes(
+        b"".join(struct.pack("<f", value) for value in (1.0, 0.0, 0.0))
+    )
+    (geometry_dir / "batch_001_cloth_constraints.bin").write_bytes(
+        struct.pack("<2i2f", 0, 1, 1.0, 0.8) + struct.pack("<2i2f", 1, 2, 1.0, 0.8)
     )
     normal = tmp_path / "underwear_n.dds"
     material = tmp_path / "underwear_ma.dds"
@@ -610,13 +630,14 @@ def _write_native_reference_composite_fixture(tmp_path: Path) -> Path:
                     {
                         "index": 0,
                         "material_name": "material",
-                        "vertex_file": "geometry/missing_direct_batch.bin",
+                        "vertex_file": "geometry/batch_000.bin",
                         "vertex_count": 3,
                         "editor_identity": {
                             "source_submesh_index": 0,
                             "source_local_submesh_index": 0,
                             "source_component_index": 0,
                             "prefab_component": False,
+                            "identity_file": "geometry/batch_000_identity.bin",
                         },
                         "base_color": [0.78, 0.62, 0.44],
                         "base_tint_only_fallback": False,
@@ -645,7 +666,20 @@ def _write_native_reference_composite_fixture(tmp_path: Path) -> Path:
                             ],
                         },
                     },
-                    _prefab_reference_batch(normal, material),
+                    {
+                        **_prefab_reference_batch(normal, material),
+                        "cloth_enabled": True,
+                        "cloth_particle_file": "geometry/batch_001_cloth_particles.bin",
+                        "cloth_pin_file": "geometry/batch_001_cloth_pins.bin",
+                        "cloth_constraint_file": "geometry/batch_001_cloth_constraints.bin",
+                        "cloth_particle_count": 3,
+                        "cloth_constraint_count": 2,
+                        "cloth_gravity": -9.8,
+                        "cloth_damping": 0.7,
+                        "cloth_air_resistance": 0.9,
+                        "cloth_wind_response": 0.5,
+                        "cloth_solver_iterations": 24,
+                    },
                 ],
             }
         ),
@@ -738,3 +772,111 @@ def test_native_reference_composite_cancellation_publishes_no_partial_geometry(t
     ) == 0
     assert len(reference.submeshes) == 1
     assert reference.total_vertices == 3
+
+
+def test_preview_core_batches_build_one_cached_canonical_dotnet_package(tmp_path: Path) -> None:
+    source_package = _write_native_reference_composite_fixture(tmp_path)
+    decoded = decode_dotnet_native_preview_package(source_package)
+
+    assert decoded.total_vertices == 6
+    assert len(decoded.submeshes) == 2
+    assert decoded.submeshes[0].cdmw_native_source_component_index == 0
+    assert decoded.submeshes[1].cdmw_native_prefab_component is True
+    assert decoded.submeshes[1].source_vertex_map == [7, 8, 9]
+
+    cache_root = tmp_path / "preview-cache"
+    package = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=cache_root,
+        archive_identity="archive-entry-v1",
+        sidecar_generation=7,
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+    valid, missing = validate_dotnet_preview_package(package.package_dir)
+    assert valid, missing
+    scene = json.loads(package.scene_manifest_path.read_text(encoding="utf-8"))
+    assert scene["renderer_authority"] == "dotnet_vortice_resident_scene"
+    assert scene["part_identities"][1]["prefab_component"] is True
+    assert scene["part_identities"][1]["source_component_label"] == "underwear.pac"
+    assert scene["cloth_overlay"]["particles"] == [
+        [11.0, 20.0, 30.0],
+        [10.0, 21.0, 30.0],
+        [10.0, 20.0, 31.0],
+    ]
+    assert scene["cloth_overlay"]["constraints"] == [[0, 1], [1, 2]]
+    materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    assert len(materials["submeshes"]) == 2
+    packaged_resources = [package.package_dir / resource["path"] for resource in materials["resources"]]
+    assert packaged_resources
+    assert {path.read_bytes() for path in packaged_resources}.issuperset(
+        {(tmp_path / "skin_base.dds").read_bytes(), (tmp_path / "underwear_n.dds").read_bytes()}
+    )
+
+    warm = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=cache_root,
+        archive_identity="archive-entry-v1",
+        sidecar_generation=7,
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+    assert warm.package_dir == package.package_dir
+
+    package.scene_manifest_path.write_text("corrupt", encoding="utf-8")
+    rebuilt = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=cache_root,
+        archive_identity="archive-entry-v1",
+        sidecar_generation=7,
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+    assert rebuilt.package_dir == package.package_dir
+    assert validate_dotnet_preview_package(rebuilt.package_dir)[0] is True
+
+
+def test_python_preview_model_uses_the_same_canonical_package_contract(tmp_path: Path) -> None:
+    base = tmp_path / "python_base.dds"
+    base.write_bytes(b"python-base-dds")
+    preview_mesh = ModelPreviewMesh(
+        material_name="skin",
+        texture_name="skin.dds",
+        positions=[(-1.0, -1.0, 0.0), (1.0, -1.0, 0.0), (-1.0, 1.0, 0.0)],
+        texture_coordinates=[(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)],
+        normals=[(0.0, 0.0, 1.0)] * 3,
+        indices=[0, 1, 2],
+        source_submesh_index=4,
+        source_vertex_indices=[10, 11, 12],
+        preview_texture_dds_path=str(base),
+        preview_sidecar_shader_family="SkinnedMeshSkin",
+        preview_role="archive_model",
+    )
+    model = ModelPreviewData(
+        path="archive/python-body.pac",
+        format="pac",
+        normalization_center=(10.0, 20.0, 30.0),
+        normalization_scale=2.0,
+        meshes=[preview_mesh],
+    )
+
+    package = build_or_lookup_dotnet_preview_package_from_model(
+        model,
+        cache_root=tmp_path / "cache",
+        archive_identity="python-entry",
+        sidecar_generation=2,
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+
+    assert validate_dotnet_preview_package(package.package_dir)[0] is True
+    scene = json.loads(package.scene_manifest_path.read_text(encoding="utf-8"))
+    assert scene["part_identities"][0]["source_submesh_index"] == 4
+    materials = json.loads((package.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    assert materials["submeshes"][0]["shader_family"] == "skin"
+    resource_paths = [package.package_dir / resource["path"] for resource in materials["resources"]]
+    assert any(path.read_bytes() == b"python-base-dds" for path in resource_paths)

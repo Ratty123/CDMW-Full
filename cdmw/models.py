@@ -1051,6 +1051,9 @@ class ArchivePreviewResult:
     preview_model: object = None
     static_preview_image: object = None
     prepared_preview_model: Optional["PreparedModelPreviewData"] = None
+    dotnet_preview_package_path: str = ""
+    # Non-rendering compatibility field for cached results created before the
+    # single-renderer migration. Production preview code must use the field above.
     native_preview_package_path: str = ""
     native_preview_diagnostics: Dict[str, object] = field(default_factory=dict)
     model_texture_references: Tuple["ArchiveModelTextureReference", ...] = ()

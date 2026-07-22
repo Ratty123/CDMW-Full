@@ -114,7 +114,7 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
         self.assertIn("current_widget is self.archive_d3d11_preview_host", source)
         self.assertIn("preview_controls_hint_label.setVisible(current_widget is preview_model or current_widget is preview_d3d11_host)", source)
 
-    def test_referenced_pac_preview_can_use_native_d3d11_package(self) -> None:
+    def test_referenced_pac_preview_uses_canonical_dotnet_package(self) -> None:
         source = ARCHIVE_REFERENCE_PREVIEW.read_text(encoding="utf-8")
         reference_start = source.index("def _open_archive_reference_preview_entry")
         reference_end = source.index("def _export_selected_archive_texture_reference", reference_start)
@@ -125,10 +125,13 @@ class ArchiveReferencePreviewUiSourceGuards(unittest.TestCase):
 
         self.assertIn("run_native_preview_core_preview_job", reference_source)
         self.assertIn("NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS", reference_source)
-        self.assertIn("native_preview_package_path=native_attempt.package_path", reference_source)
-        self.assertIn("preview_d3d11_host = NativeD3D11PreviewHostFrame(dialog)", dialog_source)
+        self.assertIn("dotnet_preview_package_path=str(dotnet_package.package_dir)", reference_source)
+        self.assertIn("preview_d3d11_host = DotNetPreviewHostFrame(", dialog_source)
+        self.assertIn("profile=DotNetPreviewProfile.PREVIEW", dialog_source)
         self.assertIn("_start_reference_d3d11_preview", dialog_source)
-        self.assertIn("self._native_d3d11_renderer_command(", dialog_source)
+        self.assertIn("preview_d3d11_host.load_package(", dialog_source)
+        self.assertNotIn("self._native_d3d11_renderer_command(", dialog_source)
+        self.assertNotIn("QProcess", dialog_source)
 
 
 if __name__ == "__main__":

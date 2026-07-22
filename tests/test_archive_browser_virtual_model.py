@@ -497,7 +497,7 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         self.assertIn("if not force and self._mesh_replacement_builder_active():", flush_body)
         self.assertIn("self._show_archive_preview_loading_state(entry)", flush_body)
 
-    def test_native_core_preview_packages_are_not_cached_after_temp_cleanup(self) -> None:
+    def test_dotnet_preview_packages_are_validated_before_cache_reuse(self) -> None:
         app_source = Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
         cache_source = Path("cdmw/ui/archive_browser/preview_cache.py").read_text(encoding="utf-8")
         result_source = Path("cdmw/ui/archive_browser/preview_result.py").read_text(encoding="utf-8")
@@ -507,26 +507,28 @@ class ArchiveBrowserVirtualModelSourceGuards(unittest.TestCase):
         cacheable_body = cache_source[cacheable_start: cache_source.index("    def _clone_archive_preview_result_for_cache", cacheable_start)]
         cached_start = cache_source.index("    def _get_cached_archive_preview_result")
         cached_body = cache_source[cached_start: cache_source.index("__all__", cached_start)]
-        invalid_start = result_source.index('"d3d11_native_package_invalid_paths"')
+        invalid_start = result_source.index('"dotnet_preview_package_invalid"')
         invalid_body = result_source[
-            invalid_start: result_source.index("if self._archive_isolated_renderer_process_running()", invalid_start)
+            invalid_start: result_source.index("same_model = package_dir", invalid_start)
         ]
         flush_start = worker_source.index("    def _flush_scheduled_archive_preview_request(")
         flush_body = worker_source[flush_start: worker_source.index("    def _start_archive_preview_worker(", flush_start)]
 
-        self.assertIn('native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()', cacheable_body)
-        self.assertIn("is_durable_native_preview_package_path", cacheable_body)
+        self.assertIn('dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()', cacheable_body)
+        self.assertIn("is_durable_dotnet_preview_package_path", cacheable_body)
+        self.assertIn("validate_dotnet_preview_package", cacheable_body)
         self.assertIn("return bool(valid_package)", cacheable_body)
-        self.assertIn('native_package_path = str(getattr(cached, "native_preview_package_path", "") or "").strip()', cached_body)
+        self.assertIn('dotnet_package_path = str(getattr(cached, "dotnet_preview_package_path", "") or "").strip()', cached_body)
         self.assertIn("self.archive_preview_cache.pop(cache_key, None)", cached_body)
-        self.assertIn('"archive_preview_cache_native_package_expired"', cached_body)
-        self.assertIn('self.archive_preview_cache_last_miss_reason = "native_package_expired"', cached_body)
-        self.assertIn("def _get_durable_native_preview_package_result", source)
-        self.assertIn("lookup_native_preview_package_cache", source)
+        self.assertIn('"archive_preview_cache_dotnet_package_expired"', cached_body)
+        self.assertIn('self.archive_preview_cache_last_miss_reason = "dotnet_package_expired"', cached_body)
+        self.assertNotIn("def _get_durable_native_preview_package_result", source)
         self.assertIn("Cached preview package expired; rebuilding preview package...", flush_body)
-        self.assertIn("Rebuilding native D3D11 preview package", flush_body)
-        self.assertIn("self._stop_archive_preview_loading_indicator(success=False)", invalid_body)
-        self.assertIn("self.archive_preview_info_edit.setPlainText(detail_text)", invalid_body)
+        self.assertIn("Rebuilding .NET/Vortice preview package", flush_body)
+        self.assertIn(".NET/Vortice package validation failed", invalid_body)
+        self.assertIn("self._set_archive_preview_base_detail_text", invalid_body)
+        self.assertIn("self.set_status_message(message, error=True)", invalid_body)
+        self.assertIn("self.archive_d3d11_preview_host.load_package(", result_source)
 
     def test_archive_preview_refresh_replaces_dark_toolbar_and_bypasses_builder_pause(self) -> None:
         source = (

@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from pathlib import Path, PurePosixPath
 from typing import Dict, Optional
 
-from PySide6.QtCore import QProcess, Qt, QTimer
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QDialog,
@@ -35,8 +35,12 @@ from cdmw.services.preview_rendering_service import (
     NativePreviewCoreAttempt,
     run_native_preview_core_preview_job,
 )
+from cdmw.services.mesh_dotnet_preview_package import (
+    build_or_lookup_dotnet_preview_package,
+    build_or_lookup_dotnet_preview_package_from_model,
+)
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
-from cdmw.ui.native_d3d11_preview_host import NativeD3D11PreviewHostFrame
+from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.shell.theme_controller import build_monospace_font, read_log_text_style, read_text_color_scheme
 from cdmw.ui.widgets import (
     ArchiveDetailsEditor,
@@ -103,12 +107,12 @@ class ArchiveReferencePreviewMixin:
             edit_hkx_button = QPushButton("Edit HKX...")
             action_row.addWidget(edit_hkx_button)
         pending_hkx_editor_entry: Dict[str, ArchiveEntry] = {}
-        native_reference_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
+        dotnet_reference_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
         preview_dialog_settings_button = QPushButton("Preview Settings...")
         preview_dialog_settings_button.setToolTip("Open the global preview settings used by every model preview window.")
         preview_dialog_settings_button.setVisible(
             result.preferred_view == "model"
-            and (result.preview_model is not None or bool(native_reference_package_path))
+            and bool(dotnet_reference_package_path)
         )
         action_row.addWidget(preview_dialog_settings_button)
         action_row.addStretch(1)
@@ -161,7 +165,11 @@ class ArchiveReferencePreviewMixin:
         preview_info_edit.set_color_scheme(preview_color_scheme)
         preview_model = NativePreviewPanel("No model preview available.", theme_key=self.current_theme_key)
         self._configure_model_preview_widget(preview_model, apply_toggle_defaults=True)
-        preview_d3d11_host = NativeD3D11PreviewHostFrame(dialog)
+        preview_d3d11_host = DotNetPreviewHostFrame(
+            dialog,
+            profile=DotNetPreviewProfile.PREVIEW,
+            terminate_on_close=True,
+        )
         preview_d3d11_host.setMinimumSize(320, 240)
         preview_media = MediaPreviewWidget("No media preview available.", theme_key=self.current_theme_key)
         preview_stack.addWidget(preview_scroll)
@@ -308,8 +316,6 @@ class ArchiveReferencePreviewMixin:
                 )
             )
 
-        reference_d3d11_process: Optional[QProcess] = None
-
         def _append_reference_d3d11_status(message: str) -> None:
             detail = str(message or "").strip()
             if not detail:
@@ -318,65 +324,20 @@ class ArchiveReferencePreviewMixin:
             preview_info_edit.setPlainText(f"{current}\n\n{detail}".strip() if current else detail)
 
         def _start_reference_d3d11_preview() -> None:
-            nonlocal reference_d3d11_process
-            package_text = str(native_reference_package_path or "").strip()
-            if not package_text or reference_d3d11_process is not None:
+            package_text = str(dotnet_reference_package_path or "").strip()
+            if not package_text:
                 return
             package_dir = Path(package_text)
-            status_file = package_dir / "reference_d3d11_status.json"
-            try:
-                program, arguments = self._native_d3d11_renderer_command(
-                    package_dir,
-                    status_file,
-                    host_widget=preview_d3d11_host,
-                    theme_payload=self._archive_isolated_renderer_theme_payload(),
-                )
-            except Exception as exc:
+            if not preview_d3d11_host.load_package(package_dir, reset_view=True):
                 _append_reference_d3d11_status(
-                    f"Native D3D11 reference preview could not start: {exc}"
+                    ".NET/Vortice reference preview rejected the canonical package."
                 )
                 preview_stack.setCurrentWidget(preview_info_edit)
                 _update_reference_preview_text_tools_visibility()
                 return
-            process = QProcess(dialog)
-            process.setProgram(program)
-            process.setArguments(arguments)
-            process.setProcessChannelMode(QProcess.MergedChannels)
+            preview_d3d11_host.set_render_tuning(self._current_model_preview_render_settings())
 
-            def _handle_process_error(_error: object) -> None:
-                _append_reference_d3d11_status(
-                    f"Native D3D11 reference preview process error: {process.errorString()}"
-                )
-
-            def _handle_process_finished(exit_code: int, _exit_status: object) -> None:
-                if exit_code != 0:
-                    _append_reference_d3d11_status(
-                        f"Native D3D11 reference preview exited with code {exit_code}."
-                    )
-
-            process.errorOccurred.connect(_handle_process_error)
-            process.finished.connect(_handle_process_finished)
-            reference_d3d11_process = process
-            process.start()
-
-        def _stop_reference_d3d11_preview() -> None:
-            process = reference_d3d11_process
-            if process is None:
-                return
-            def _kill_reference_process_later() -> None:
-                try:
-                    if process.state() != QProcess.NotRunning:
-                        process.kill()
-                except RuntimeError:
-                    pass
-            try:
-                if process.state() != QProcess.NotRunning:
-                    process.terminate()
-                    QTimer.singleShot(750, _kill_reference_process_later)
-            except RuntimeError:
-                pass
-
-        dialog.finished.connect(lambda _result: _stop_reference_d3d11_preview())
+        dialog.finished.connect(lambda _result: preview_d3d11_host.controller.shutdown())
 
         preferred_view = result.preferred_view
         if preferred_view == "image" and (result.preview_image is not None or result.preview_image_path):
@@ -387,23 +348,7 @@ class ArchiveReferencePreviewMixin:
             preview_media.clear_media("No media preview available.")
             preview_model.clear_model("No model preview available.")
             preview_stack.setCurrentWidget(preview_scroll)
-        elif preferred_view == "model" and result.preview_model is not None:
-            preview_model.set_model(result.preview_model)
-            if str(entry.extension or "").lower() in {".hkx", ".hkt"}:
-                try:
-                    preview_model.set_render_settings(
-                        dataclasses.replace(
-                            preview_model.render_settings(),
-                            show_physics_overlay=True,
-                            show_physics_simulation_preview=False,
-                        )
-                    )
-                except Exception:
-                    pass
-            preview_label.clear_preview("No image preview available.")
-            preview_media.clear_media("No media preview available.")
-            preview_stack.setCurrentWidget(preview_model)
-        elif preferred_view == "model" and native_reference_package_path:
+        elif preferred_view == "model" and dotnet_reference_package_path:
             preview_label.clear_preview("No image preview available.")
             preview_model.clear_model("No model preview available.")
             preview_media.clear_media("No media preview available.")
@@ -642,27 +587,40 @@ class ArchiveReferencePreviewMixin:
                 else None
             ),
         )
+        preview_settings = self._current_model_preview_render_settings()
+        preview_cache_root = self.archive_cache_root / "native_preview_core"
+        preview_cache_mode = self._native_preview_package_cache_mode()
+        preview_cache_max_bytes, preview_cache_target_bytes = self._native_preview_package_cache_budget()
+        preview_package_root_text = self.archive_package_root_edit.text().strip()
+        preview_package_root = Path(preview_package_root_text).expanduser() if preview_package_root_text else None
+        preview_sidecar_generation = int(self.archive_sidecar_generation)
+        use_preview_core = (
+            self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+            and str(getattr(resolved_entry, "extension", "") or "").strip().lower()
+            in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
+        )
+        preview_archive_identity = "::".join(
+            (
+                str(getattr(resolved_entry, "pamt_path", "") or ""),
+                str(getattr(resolved_entry, "paz_file", "") or ""),
+                str(getattr(resolved_entry, "offset", 0) or 0),
+                str(getattr(resolved_entry, "comp_size", 0) or 0),
+                str(getattr(resolved_entry, "path", "") or ""),
+            )
+        )
 
         def _task(log: Callable[[str], None]) -> ArchivePreviewResult:
             log(f"Preparing referenced-file preview for {resolved_entry.path}...")
-            preview_settings = self._current_model_preview_render_settings()
-            if (
-                self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
-                and str(getattr(resolved_entry, "extension", "") or "").strip().lower() in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
-            ):
+            if use_preview_core:
                 try:
                     native_attempt = run_native_preview_core_preview_job(
                         resolved_entry,
-                        cache_root=self.archive_cache_root / "native_preview_core",
+                        cache_root=preview_cache_root,
                         render_settings=preview_settings,
                         companion_entry=companion_entry,
                         dependency_entries=dependency_entries,
                         dependency_entries_complete=remote_dependencies is not None,
-                        package_root=(
-                            Path(self.archive_package_root_edit.text().strip()).expanduser()
-                            if self.archive_package_root_edit.text().strip()
-                            else None
-                        ),
+                        package_root=preview_package_root,
                         timeout_seconds=8.0,
                     )
                 except Exception as exc:
@@ -672,11 +630,25 @@ class ArchiveReferencePreviewMixin:
                     )
                 native_line = native_attempt.diagnostic_line()
                 if native_attempt.succeeded:
+                    dotnet_package = build_or_lookup_dotnet_preview_package(
+                        native_attempt.package_path,
+                        cache_root=preview_cache_root,
+                        archive_identity=preview_archive_identity,
+                        sidecar_generation=preview_sidecar_generation,
+                        cache_mode=preview_cache_mode,
+                        max_bytes=preview_cache_max_bytes,
+                        target_bytes=preview_cache_target_bytes,
+                        metadata={
+                            "entry_path": resolved_entry.path,
+                            "surface": "reference_preview",
+                        },
+                    )
                     diagnostics = dict(native_attempt.diagnostics)
+                    diagnostics["dotnet_preview_package_path"] = str(dotnet_package.package_dir)
                     notes = tuple(str(note) for note in tuple(diagnostics.get("notes", ()) or ()) if str(note).strip())
                     native_detail_lines = [
-                        "Native Preview Core generated a D3D11 preview package without Python mesh preparation.",
-                        "D3D11 package source: native-core",
+                        "Preview Core decoded the referenced model for .NET/Vortice Preview.",
+                        ".NET/Vortice package source: canonical Preview Core decode",
                         native_line,
                     ]
                     if notes:
@@ -685,11 +657,11 @@ class ArchiveReferencePreviewMixin:
                     return ArchivePreviewResult(
                         status="ok",
                         title=resolved_entry.basename,
-                        metadata_summary=f"{build_archive_entry_metadata_summary(resolved_entry)} | native preview package",
+                        metadata_summary=f"{build_archive_entry_metadata_summary(resolved_entry)} | .NET/Vortice preview package",
                         detail_text=detail_text,
                         preview_model=None,
                         asset_family_graph=build_archive_asset_family_graph(resolved_entry, ()),
-                        native_preview_package_path=native_attempt.package_path,
+                        dotnet_preview_package_path=str(dotnet_package.package_dir),
                         native_preview_diagnostics=diagnostics,
                         preferred_view="model",
                     )
@@ -700,8 +672,8 @@ class ArchiveReferencePreviewMixin:
                     detail_text="\n".join(
                         part
                         for part in (
-                            "Native Preview Core did not generate a D3D11 package.",
-                            "D3D11 referenced-file preview is native-only; Python mesh preparation was skipped.",
+                            "Preview Core did not generate a canonical .NET/Vortice package.",
+                            "The legacy renderer is not used as a fallback.",
                             native_line,
                             f"Native failure reason: {native_attempt.fallback_reason}",
                         )
@@ -719,6 +691,24 @@ class ArchiveReferencePreviewMixin:
                 semantic_sidecar_texts=semantic_sidecar_texts,
                 visible_texture_mode=preview_settings.visible_texture_mode,
             )
+            if result.preferred_view == "model" and result.preview_model is not None:
+                dotnet_package = build_or_lookup_dotnet_preview_package_from_model(
+                    result.preview_model,
+                    cache_root=preview_cache_root,
+                    archive_identity=preview_archive_identity,
+                    sidecar_generation=preview_sidecar_generation,
+                    cache_mode=preview_cache_mode,
+                    max_bytes=preview_cache_max_bytes,
+                    target_bytes=preview_cache_target_bytes,
+                    metadata={
+                        "entry_path": resolved_entry.path,
+                        "surface": "reference_preview",
+                    },
+                )
+                result = dataclasses.replace(
+                    result,
+                    dotnet_preview_package_path=str(dotnet_package.package_dir),
+                )
             return result
 
         def _handle_complete(result: object) -> None:

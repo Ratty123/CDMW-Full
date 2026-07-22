@@ -29,11 +29,11 @@ from cdmw.models import (
     ArchivePreviewResult,
     ModelPreviewData,
     ModelPreviewRenderSettings,
-    PreparedModelPreviewData,
 )
 from cdmw.rendering.native_preview_package_cache import create_native_preview_package_staging_dir
-from cdmw.rendering.model_preview_prepare import prepare_model_preview
-from cdmw.rendering.native_preview_package import write_isolated_d3d11_preview_package
+from cdmw.services.mesh_dotnet_preview_package import (
+    build_or_lookup_dotnet_preview_package_from_model,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,7 +100,7 @@ def material_preview_package_matches_entry(
     try:
         manifest = json.loads(
             read_text_file_cancellable(
-                Path(package_dir) / "manifest.json",
+                Path(package_dir) / "net_materials.json",
                 stop_event=stop_event,
                 max_bytes=64 * 1024 * 1024,
             )
@@ -108,7 +108,7 @@ def material_preview_package_matches_entry(
     except Exception:
         raise_if_cancelled(stop_event, "Material preview package validation cancelled.")
         return False
-    return isinstance(manifest, Mapping) and _entry_key(manifest.get("source_path", "")) == _entry_key(
+    return isinstance(manifest, Mapping) and _entry_key(manifest.get("source_mesh", "")) == _entry_key(
         model_entry.path
     )
 
@@ -324,43 +324,7 @@ def _reuse_or_fast_material_preview(
             0,
             0,
         )
-    fast_source = request.fast_source_package_dir
-    if fast_source is None and not request.include_skeleton_overlay:
-        fast_source = reusable
-    if fast_source is None or not material_preview_package_matches_entry(
-        fast_source,
-        request.preview_model_entry,
-        stop_event=stop_event,
-    ):
-        return None
-    fast_package = fast_material_preview_package_from_manifest(
-        fast_source,
-        cache_root=request.cache_root,
-        label_normalizer=request.label_normalizer,
-        preview_sidecar_text=request.preview_sidecar_text,
-        edited_values=request.material_preview_edits,
-        color_edits_active=request.color_edits_active,
-        include_skeleton_overlay=request.include_skeleton_overlay,
-        stop_event=stop_event,
-    )
-    if fast_package is None:
-        return None
-    package_dir, batch_count, vertex_count, notes = fast_package
-    return MaterialSidecarPreviewBuildResult(
-        "manifest",
-        request.generation,
-        package_dir,
-        None,
-        request.base_cache_key,
-        notes,
-        (),
-        request.live,
-        request.material_effects_active,
-        request.color_edits_active,
-        max(0.0, (time.perf_counter() - started) * 1000.0),
-        batch_count,
-        vertex_count,
-    )
+    return None
 
 
 def _build_full_material_preview(
@@ -449,32 +413,23 @@ def _build_full_material_preview(
             tuple(notes), warnings, request.live, request.material_effects_active,
             request.color_edits_active, 0.0, 0, 0,
         )
-    prepared_model, prepared_preview = prepare_model_preview(
+    package = build_or_lookup_dotnet_preview_package_from_model(
         preview_model,
-        render_settings=request.preview_settings,
-        stop_event=stop_event,
-        enable_material_combiner=True,
+        cache_root=request.cache_root,
+        archive_identity=(
+            f"material-sidecar:{request.preview_model_entry.path}:"
+            f"{request.generation}:{hash(request.preview_sidecar_text)}"
+        ),
+        sidecar_generation=request.generation,
+        cache_mode="off",
+        cancelled=(stop_event.is_set if stop_event is not None else None),
+        metadata={
+            "entry_path": request.preview_model_entry.path,
+            "surface": "material_sidecar",
+        },
     )
-    if not isinstance(prepared_preview, PreparedModelPreviewData):
-        raise ValueError(request.prepare_failed_message)
-    package_dir = create_native_preview_package_staging_dir(request.cache_root)
-    try:
-        write_isolated_d3d11_preview_package(
-            prepared_model,
-            prepared_preview,
-            render_settings=request.preview_settings,
-            use_textures=bool(request.preview_settings.use_textures_by_default and not request.color_edits_active),
-            high_quality_textures=bool(request.preview_settings.high_quality_by_default),
-            backend="d3d11",
-            output_root=package_dir,
-            enable_material_combiner=True,
-            prefer_direct_dds=True,
-            stop_event=stop_event,
-        )
-        raise_if_cancelled(stop_event, "Material live preview cancelled.")
-    except Exception:
-        shutil.rmtree(package_dir, ignore_errors=True)
-        raise
+    package_dir = package.package_dir
+    raise_if_cancelled(stop_event, "Material live preview cancelled.")
     return MaterialSidecarPreviewBuildResult(
         "built",
         request.generation,
@@ -487,8 +442,8 @@ def _build_full_material_preview(
         request.material_effects_active,
         request.color_edits_active,
         max(0.0, (time.perf_counter() - started) * 1000.0),
-        len(getattr(prepared_preview, "batches", ()) or ()),
-        int(getattr(prepared_preview, "vertex_count", 0) or 0),
+        len(tuple(getattr(preview_model, "meshes", ()) or ())),
+        int(getattr(preview_model, "vertex_count", 0) or 0),
     )
 
 

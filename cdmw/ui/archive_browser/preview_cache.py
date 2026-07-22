@@ -11,7 +11,6 @@ from typing import Dict, List, Optional, Tuple
 
 from PySide6.QtGui import QImageReader
 
-from cdmw.services.archive_read_service import build_archive_entry_metadata_summary
 from cdmw.services.archive_query_service import resolve_archive_pathc_path
 from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData, ModelPreviewMesh
 from cdmw.services.preview_rendering_service import PreparedModelPreviewData
@@ -23,14 +22,12 @@ from cdmw.services.preview_rendering_service import (
 from cdmw.services.preview_rendering_service import (
     NATIVE_PREVIEW_PACKAGE_CACHE_SCHEMA,
     clear_native_preview_package_cache,
-    is_durable_native_preview_package_path,
-    lookup_native_preview_package_cache,
-    native_preview_package_cache_entry_dir,
     native_preview_package_cache_budget,
 )
+from cdmw.rendering.dotnet_preview_package_cache import is_durable_dotnet_preview_package_path
+from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
 from cdmw.services.mesh_workflow_service import clear_pac_xml_profile_index_cache
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
-from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
 
 
 def _archive_preview_dependency_digest(entries: Sequence[ArchiveEntry]) -> str:
@@ -485,11 +482,14 @@ class ArchivePreviewCacheMixin:
         )
 
     def _archive_preview_result_cacheable(self, result: ArchivePreviewResult) -> bool:
-        native_package_path = str(getattr(result, "native_preview_package_path", "") or "").strip()
-        if native_package_path:
-            if not is_durable_native_preview_package_path(self._native_preview_package_cache_root(), native_package_path):
+        dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
+        if dotnet_package_path:
+            if not is_durable_dotnet_preview_package_path(
+                self._native_preview_package_cache_root() / "dotnet_vortice",
+                dotnet_package_path,
+            ):
                 return False
-            valid_package, _missing_paths = self._validate_d3d11_preview_package_paths(Path(native_package_path))
+            valid_package, _missing_paths = validate_dotnet_preview_package(Path(dotnet_package_path))
             return bool(valid_package)
         if getattr(result, "preview_model", None) is None:
             return True
@@ -589,104 +589,27 @@ class ArchivePreviewCacheMixin:
         cached = self.archive_preview_cache.get(cache_key)
         if cached is None:
             return None
-        native_package_path = str(getattr(cached, "native_preview_package_path", "") or "").strip()
-        if native_package_path:
-            package_dir = Path(native_package_path)
-            valid_package, missing_paths = self._validate_d3d11_preview_package_paths(package_dir)
+        dotnet_package_path = str(getattr(cached, "dotnet_preview_package_path", "") or "").strip()
+        if dotnet_package_path:
+            package_dir = Path(dotnet_package_path)
+            valid_package, missing_paths = validate_dotnet_preview_package(package_dir)
             if not valid_package:
                 self.archive_preview_cache.pop(cache_key, None)
                 detail = "; ".join(missing_paths[:4])
-                self.archive_preview_cache_last_miss_reason = "native_package_expired"
+                self.archive_preview_cache_last_miss_reason = "dotnet_package_expired"
                 self.archive_preview_cache_last_miss_detail = detail
                 selected_entry = self._current_archive_entry()
                 self._record_runtime_event(
-                    "archive_preview_cache_native_package_expired",
+                    "archive_preview_cache_dotnet_package_expired",
                     request_id=self.archive_preview_request_id,
                     selected_path=getattr(selected_entry, "path", ""),
                     cache_key=cache_key,
-                    package_path=native_package_path,
+                    package_path=dotnet_package_path,
                     missing=list(missing_paths[:12]),
                 )
                 return None
         self.archive_preview_cache.move_to_end(cache_key)
         return self._attach_archive_preview_result_images(cached)
-
-    def _get_durable_native_preview_package_result(
-        self,
-        *,
-        entry: Optional[ArchiveEntry],
-        companion_entry: Optional[ArchiveEntry],
-        loose_search_roots: Sequence[Path],
-        include_loose_preview_assets: bool,
-    ) -> Optional[ArchivePreviewResult]:
-        if entry is None or include_loose_preview_assets:
-            return None
-        if self._archive_model_renderer_backend() != ARCHIVE_MODEL_RENDERER_D3D11:
-            return None
-        if str(getattr(entry, "extension", "") or "").strip().lower() not in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS:
-            return None
-        mode = self._native_preview_package_cache_mode()
-        if mode == "off":
-            return None
-        cache_key = self._archive_native_preview_package_cache_key(
-            entry,
-            companion_entry,
-            loose_search_roots,
-            include_loose_preview_assets=include_loose_preview_assets,
-        )
-        if not cache_key:
-            return None
-        cache_root = self._native_preview_package_cache_root()
-        entry_dir = native_preview_package_cache_entry_dir(cache_root, cache_key)
-        existed_before = entry_dir.exists()
-        hit = lookup_native_preview_package_cache(
-            cache_root,
-            cache_key,
-            validate_package=self._validate_d3d11_preview_package_paths,
-        )
-        if hit is None:
-            if existed_before:
-                self._record_runtime_event(
-                    "archive_preview_cache_native_package_expired",
-                    request_id=self.archive_preview_request_id,
-                    selected_path=str(getattr(entry, "path", "") or ""),
-                    cache_key=cache_key,
-                    package_path=str(entry_dir / "package"),
-                    missing=["durable package validation failed"],
-                )
-                self.archive_preview_cache_last_miss_reason = "native_package_expired"
-                self.archive_preview_cache_last_miss_detail = "Durable native preview package expired; rebuilding."
-            return None
-        return self._archive_preview_result_from_durable_native_package(entry, hit.package_dir, hit.metadata)
-
-    def _archive_preview_result_from_durable_native_package(
-        self,
-        entry: ArchiveEntry,
-        package_dir: Path,
-        metadata: Mapping[str, object],
-    ) -> ArchivePreviewResult:
-        diagnostics_source = metadata.get("diagnostics") if isinstance(metadata, Mapping) else {}
-        diagnostics = dict(diagnostics_source) if isinstance(diagnostics_source, Mapping) else {}
-        diagnostics["native_preview_package_cache"] = "hit"
-        diagnostics["native_preview_package_cache_mode"] = str(metadata.get("cache_mode", "") or "")
-        diagnostics["package_path"] = str(package_dir)
-        detail_lines = [
-            "Native Preview Core loaded a validated durable D3D11 preview package.",
-            "D3D11 package source: native-core cache",
-            f"Package: {package_dir}",
-            "Cached preview package hit; no archive package rebuild was needed.",
-        ]
-        return ArchivePreviewResult(
-            status="ok",
-            title=entry.basename,
-            metadata_summary=f"{build_archive_entry_metadata_summary(entry)} | cached preview package",
-            detail_text="\n".join(detail_lines),
-            preview_model=None,
-            native_preview_package_path=str(package_dir),
-            native_preview_diagnostics=diagnostics,
-            preferred_view="model",
-            sidecar_generation=self.archive_sidecar_generation,
-        )
 
     def _store_cached_archive_preview_result(self, cache_key: str, result: ArchivePreviewResult) -> None:
         if not cache_key:
