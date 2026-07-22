@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from PySide6.QtCore import QCoreApplication, QObject, QProcess, Signal
@@ -276,6 +277,53 @@ def test_preview_host_restores_absolute_camera_and_rejects_mutation(tmp_path: Pa
         "command_generation": 1,
     }
     assert host.update_mesh_edit_vertices([], revision=2) is False
+    controller.shutdown()
+
+
+def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: Path) -> None:
+    controller, _process, first = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(first)
+    assert host.restore_view_state(
+        {
+            "yaw": 27.0,
+            "pitch": -11.0,
+            "zoom_factor": 2.5,
+            "fit_to_view": False,
+            "pan": (33.0, -14.0, 0.0),
+        }
+    )
+
+    second = _package(tmp_path, "package-b")
+    assert host.load_package(second, reset_view=True)
+    assert host.set_render_tuning(SimpleNamespace())
+    event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert event == "presentation_state_update"
+    assert payload["camera"] == {
+        "role": "editable",
+        "yaw": host._DEFAULT_YAW,  # noqa: SLF001
+        "pitch": host._DEFAULT_PITCH,  # noqa: SLF001
+        "fit_mode": "fit",
+        "fit_relative_zoom": 1.0,
+        "pan": [0.0, 0.0],
+        "command_generation": 2,
+    }
+    assert host.view_state_snapshot()["pan"] == (0.0, 0.0, 0.0)
+
+    assert host.restore_view_state(
+        {
+            "yaw": 18.0,
+            "pitch": 7.0,
+            "zoom_factor": 1.75,
+            "fit_to_view": False,
+            "pan": (8.0, 5.0, 0.0),
+        }
+    )
+    assert host.load_package(second, reset_view=False)
+    assert host.set_render_tuning(SimpleNamespace())
+    _event, same_model_payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert same_model_payload["camera"]["pan"] == [8.0, 5.0]
+    assert same_model_payload["camera"]["fit_mode"] == "manual"
     controller.shutdown()
 
 

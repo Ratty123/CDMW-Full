@@ -188,7 +188,10 @@ class DotNetPreviewHostFrame(QFrame):
             else Path(package_dir)
         )
         self._load_scene_state(package_path)
-        return self.controller.load_package(package_dir, status_file, reset_view=reset_view)
+        loaded = self.controller.load_package(package_dir, status_file, reset_view=reset_view)
+        if loaded and reset_view:
+            self._reset_package_view_state()
+        return loaded
 
     def clear_preview(self, status_file: Optional[Path] = None) -> bool:
         del status_file
@@ -607,6 +610,39 @@ class DotNetPreviewHostFrame(QFrame):
                 "pan": (0.0, 0.0, 0.0),
             }
         )
+
+    def _reset_package_view_state(self) -> None:
+        """Stage a centered fit camera so later state replay cannot restore stale pan."""
+
+        self._zoom_factor = 1.0
+        self._fit_to_view = True
+        base_state: dict[str, object] = {
+            "role": "replacement",
+            "reason": "package_reset",
+            "zoom_factor": 1.0,
+            "fit_to_view": True,
+            "yaw": self._DEFAULT_YAW,
+            "pitch": self._DEFAULT_PITCH,
+            "pan": (0.0, 0.0, 0.0),
+        }
+        self._view_state = dict(base_state)
+        self._view_states_by_role = {
+            role: {**base_state, "role": role}
+            for role in ("replacement", "reference", "all")
+        }
+        self._camera_generation += 1
+        self._presentation_state["camera"] = {
+            "role": "editable",
+            "yaw": self._DEFAULT_YAW,
+            "pitch": self._DEFAULT_PITCH,
+            "fit_mode": "fit",
+            "fit_relative_zoom": 1.0,
+            "pan": [0.0, 0.0],
+            "command_generation": self._camera_generation,
+        }
+        self._remember_presentation_state()
+        self.view_state_changed.emit(self._zoom_factor, self._fit_to_view)
+        self.view_state_payload_changed.emit(self.view_state_snapshot())
 
     def hold_package_lease(self, package_dir: Path) -> bool:
         return self.controller.hold_package_lease(package_dir)
