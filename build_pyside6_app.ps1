@@ -705,6 +705,15 @@ function Invoke-DotNetMeshEditorBuild {
         "helper_build_provenance_v1"
         "deterministic_offscreen_capture_v1"
         "performance_capture_v1"
+        "resident_preview_package_replace_v2"
+        "preview_profile_read_only_v1"
+        "preview_session_v1"
+        "view_state_changed_v1"
+        "absolute_camera_state_v1"
+        "read_only_part_pick_v1"
+        "overlay_state_update_v1"
+        "skeleton_overlay_v1"
+        "pbd_cloth_overlay_v1"
     )
     $sourceRevision = (& git -C $scriptDir rev-parse HEAD 2>$null | Select-Object -First 1)
     if (-not $sourceRevision) {

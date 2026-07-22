@@ -87,6 +87,18 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     assert 'cdmw-mesh-dotnet-editor.manifest.json' in source
     assert 'executable_sha256 = $exeHash' in source
     assert 'shader_sha256 = $shaderHash' in source
+    for capability in (
+        "resident_preview_package_replace_v2",
+        "preview_profile_read_only_v1",
+        "preview_session_v1",
+        "view_state_changed_v1",
+        "absolute_camera_state_v1",
+        "read_only_part_pick_v1",
+        "overlay_state_update_v1",
+        "skeleton_overlay_v1",
+        "pbd_cloth_overlay_v1",
+    ):
+        assert f'"{capability}"' in source
     assert 'Start-Process -FilePath $ExecutablePath' in source
     packaged_smoke = 'Invoke-DotNetMeshEditorGpuSmoke -ExecutablePath $packagedDotNetHelper -Context "packaged onedir"'
     assert packaged_smoke in source
