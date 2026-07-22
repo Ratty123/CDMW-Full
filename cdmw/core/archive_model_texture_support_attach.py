@@ -182,6 +182,13 @@ def _binding_registry_preview_slot(
 
 def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMesh, candidate: _MaterialInputBinding) -> bool:
     _key, entry, parameter, binding = candidate
+    declared_path = str(getattr(binding, "texture_path", "") or "").replace("\\", "/").strip()
+    transport_path = str(entry.path or "").replace("\\", "/").strip()
+    transport_is_alias = bool(
+        declared_path
+        and _normalize_model_texture_reference(declared_path)
+        != _normalize_model_texture_reference(transport_path)
+    )
     semantic_type, subtype, _confidence, channels = _resolve_model_texture_semantic_details(entry.path, sidecar_texts=_support_sidecar_texts(state, entry.path))
     semantic_type, subtype = _refine_model_texture_semantic_from_hint(semantic_type, subtype, parameter)
     registry_slot = _binding_registry_slot(
@@ -206,8 +213,11 @@ def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMes
         PreviewMaterialTextureInput(
             slot_kind=registry_slot,
             parameter_name=str(parameter or "").strip(),
-            source_texture_path=entry.path,
-            source_dds_path=entry.path,
+            # Keep the PAC-declared reference as semantic authority while the
+            # resolved archive entry records the local transport. Relocated
+            # texture families can legitimately use different virtual roots.
+            source_texture_path=declared_path or transport_path,
+            source_dds_path=transport_path,
             texture_name=PurePosixPath(entry.path.replace("\\", "/")).name,
             preview_texture_path=preview_path,
             semantic_type=registry_slot or str(semantic_type or "material").strip().lower(),
@@ -216,7 +226,7 @@ def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMes
             material_name=str(getattr(binding, "material_name", "") or getattr(binding, "submesh_name", "") or getattr(mesh, "material_name", "") or "").strip(),
             part_name=str(getattr(binding, "part_name", "") or "").strip(),
             shader_family=str(getattr(binding, "shader_family", "") or "").strip(),
-            confidence="sidecar-exact",
+            confidence=("sidecar-family-transport" if transport_is_alias else "sidecar-exact"),
             visualized=bool(preview_path),
             sidecar_kind=str(getattr(binding, "sidecar_kind", "") or "").strip(),
             sidecar_path=str(getattr(binding, "sidecar_path", "") or "").strip(),
@@ -342,6 +352,25 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
         sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
         sidecar_texts_by_basename=state.sidecar_texts_by_basename,
     )
+    if owner_qualified_pac and (entry is None or status != "resolved"):
+        # Some PACs retain an authoritative texture-family reference under an
+        # older virtual root (for example tree/.../*_color.dds) while the same
+        # family is shipped under character/.../*.dds. Only owner-qualified
+        # PAC parameters may use this semantic family fallback, and the slot
+        # constraint keeps base/material/normal siblings from crossing roles.
+        entry, status = _resolve_model_texture_archive_entry(
+            state.source_entry,
+            binding.texture_path,
+            "",
+            state.texture_entries_by_normalized_path,
+            state.texture_entries_by_basename,
+            semantic_hint=parameter,
+            expand_family_candidates=True,
+            allow_technical_match=True,
+            preferred_slot=slot,
+            sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
+            sidecar_texts_by_basename=state.sidecar_texts_by_basename,
+        )
     if entry is None or status != "resolved":
         return
     texts = _support_sidecar_texts(state, entry.path)

@@ -23,6 +23,7 @@ from cdmw.models import (
     PreviewMaterialParameterInput,
     PreviewMaterialTextureInput,
 )
+from cdmw.services.pac_material_graph import build_pac_material_graph_v1
 
 
 def _entry(path: str) -> ArchiveEntry:
@@ -1131,6 +1132,82 @@ class ArchivePreviewTextureBindingSupportTests(unittest.TestCase):
         self.assertEqual("", material_input.preview_texture_path)
         self.assertFalse(material_input.visualized)
         self.assertIn("material diagnostics and preview", "\n".join(lines))
+
+    def test_owner_qualified_pac_family_alias_keeps_declared_reference_and_transport(self) -> None:
+        source_entry = _entry("character/model/cd_phm_01_mace_0035.pac")
+        declared_base = "tree/texture/branch_broad_cotton_01_color.dds"
+        declared_material = "tree/texture/branch_broad_cotton_01_subsurface.dds"
+        transport_base = "character/texture/branch_broad_cotton_01.dds"
+        transport_material = "character/texture/branch_broad_cotton_01_sp.dds"
+        by_normalized, by_basename = _texture_maps(transport_base, transport_material)
+        parameters = (
+            PreviewMaterialParameterInput(
+                parameter_kind="texture",
+                parameter_name="_baseColorTexture",
+                texture_path=declared_base,
+            ),
+            PreviewMaterialParameterInput(
+                parameter_kind="texture",
+                parameter_name="_materialTexture",
+                texture_path=declared_material,
+            ),
+        )
+        common = {
+            "submesh_name": "Branch",
+            "material_name": "Branch",
+            "shader_family": "SkinnedMeshStandard_Ver2",
+            "sidecar_kind": "pac_xml",
+            "parameter_declared_by": "pac_xml",
+            "owner_slot_index": 0,
+            "owner_wrapper_item_id": "42",
+            "binding_authority": "authoritative",
+            "binding_disposition": "promoted",
+            "material_parameters": parameters,
+        }
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=declared_base,
+                parameter_name="_baseColorTexture",
+                source_kind="crimson_base_color",
+                **common,
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=declared_material,
+                parameter_name="_materialTexture",
+                source_kind="crimson_standard_material_response",
+                **common,
+            ),
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Branch", texture_name="Branch")],
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        inputs = {
+            item.parameter_name: item
+            for item in model.meshes[0].preview_material_texture_inputs
+        }
+        self.assertEqual(declared_base, inputs["_baseColorTexture"].source_texture_path)
+        self.assertEqual(transport_base, inputs["_baseColorTexture"].source_dds_path)
+        self.assertEqual(declared_material, inputs["_materialTexture"].source_texture_path)
+        self.assertEqual(transport_material, inputs["_materialTexture"].source_dds_path)
+        self.assertEqual("sidecar-family-transport", inputs["_baseColorTexture"].confidence)
+        graph = build_pac_material_graph_v1(model.meshes[0], {})
+        self.assertTrue(graph["binding_conservation"]["conserved"])
+        self.assertEqual([], graph["binding_conservation"]["dropped_parameters"])
 
     def test_owner_qualified_detail_diffuse_mask_resolves_as_layer_color_not_material_map(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
