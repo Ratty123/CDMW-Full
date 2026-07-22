@@ -295,14 +295,18 @@ def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: P
     )
 
     second = _package(tmp_path, "package-b")
-    assert host.load_package(second, reset_view=True)
+    assert host.load_package(
+        second,
+        reset_view=True,
+        initial_view_state={"yaw": 0.0, "pitch": -89.0, "reason": "archive_model_initial_overhead"},
+    )
     assert host.set_render_tuning(SimpleNamespace())
     event, payload = controller._resident_state["presentation"]  # noqa: SLF001
     assert event == "presentation_state_update"
     assert payload["camera"] == {
         "role": "editable",
-        "yaw": host._DEFAULT_YAW,  # noqa: SLF001
-        "pitch": host._DEFAULT_PITCH,  # noqa: SLF001
+        "yaw": 0.0,
+        "pitch": -89.0,
         "fit_mode": "fit",
         "fit_relative_zoom": 1.0,
         "pan": [0.0, 0.0],
@@ -324,6 +328,60 @@ def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: P
     _event, same_model_payload = controller._resident_state["presentation"]  # noqa: SLF001
     assert same_model_payload["camera"]["pan"] == [8.0, 5.0]
     assert same_model_payload["camera"]["fit_mode"] == "manual"
+    controller.shutdown()
+
+
+def test_preview_host_fit_resets_pan_and_zoom_without_changing_angle(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+    assert host.restore_view_state(
+        {
+            "yaw": 18.0,
+            "pitch": -7.0,
+            "zoom_factor": 3.0,
+            "fit_to_view": False,
+            "pan": (40.0, -25.0, 0.0),
+        }
+    )
+
+    host.set_fit_to_view(True)
+
+    _event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert payload["camera"]["yaw"] == 18.0
+    assert payload["camera"]["pitch"] == -7.0
+    assert payload["camera"]["fit_mode"] == "fit"
+    assert payload["camera"]["fit_relative_zoom"] == 1.0
+    assert payload["camera"]["pan"] == [0.0, 0.0]
+    controller.shutdown()
+
+
+def test_preview_host_preserves_zero_degree_renderer_camera(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+
+    host._handle_view_state_payload(  # noqa: SLF001
+        {
+            "active_camera_context": "editable",
+            "view_contexts": [
+                {
+                    "id": "editable",
+                    "camera": {
+                        "yaw_degrees": 0.0,
+                        "pitch_degrees": 0.0,
+                        "fit_relative_zoom": 1.0,
+                        "fit_mode": "manual",
+                        "pan": [0.0, 0.0],
+                    },
+                }
+            ],
+        }
+    )
+
+    state = host.view_state_snapshot()
+    assert state["yaw"] == 0.0
+    assert state["pitch"] == 0.0
     controller.shutdown()
 
 

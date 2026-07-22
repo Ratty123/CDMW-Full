@@ -831,13 +831,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
 - Model Library D3D11 preview derives high-quality texture packaging from the
   active render setting and logs the actual value instead of forcing low-quality
   packages.
-- Archive Browser chooses a newly selected mesh camera from the package
-  manifest `source_path`. Weapon, subweapon, shield, and recognized weapon-family
-  path segments use the fitted overhead view (`yaw=0`, `pitch=-89`); armor,
+- Archive Browser chooses a newly selected mesh camera from the selected archive
+  path, with the package manifest `source_path` as fallback. Weapon, subweapon,
+  shield, and recognized weapon-family path segments use the fitted overhead
+  view (`yaw=0`, `pitch=-89`); armor,
   hands, feet, generic, unknown, and missing paths use the straight-on view
   (`yaw=0`, `pitch=0`). Refreshing the same model preserves its current camera;
-  the initial framing is presentation-only and never changes mesh or export
-  transforms.
+  Fit and new-package reset both clear pan and restore `1x` fitted zoom. The
+  initial framing is presentation-only and never changes mesh or export transforms.
 - Exact import proof uses
   `character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac`
   with `wolf_gravestone_sword_free (1).zip`: original batches use archive-resolved

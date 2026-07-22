@@ -2,12 +2,85 @@
 
 from __future__ import annotations
 
+import json
+from collections.abc import Mapping
+from pathlib import Path
 from typing import Optional
 
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from cdmw.services.archive_read_service import format_byte_size
 from cdmw.ui.model_preview_native import ARCHIVE_MODEL_RENDERER_D3D11
+
+
+_ARCHIVE_OVERHEAD_CAMERA_SEGMENTS = frozenset(
+    {
+        "weapon",
+        "subweapon",
+        "shield",
+        "onehandweapon",
+        "twohandweapon",
+        "sword",
+        "longsword",
+        "greatsword",
+        "dagger",
+        "axe",
+        "spear",
+        "lance",
+        "staff",
+        "mace",
+        "hammer",
+        "bow",
+        "crossbow",
+        "musket",
+        "cannon",
+        "instrument",
+    }
+)
+
+
+def _archive_model_uses_overhead_camera(source_path: object) -> bool:
+    normalized = str(source_path or "").replace("\\", "/").strip().casefold()
+    if not normalized:
+        return False
+    segments = tuple(segment for segment in normalized.split("/") if segment)
+    path_families = {
+        segment.lstrip("0123456789_-").split(".", 1)[0]
+        for segment in (segments[:-1] if len(segments) > 1 else ())
+    }
+    filename_tokens = {
+        token
+        for token in segments[-1].split(".", 1)[0].replace("-", "_").split("_")
+        if token
+    }
+    return bool(_ARCHIVE_OVERHEAD_CAMERA_SEGMENTS.intersection(path_families | filename_tokens))
+
+
+def archive_model_manifest_source_path(package_dir: Path | str) -> str:
+    try:
+        payload = json.loads(
+            (Path(package_dir) / "manifest.json").read_text(encoding="utf-8-sig")
+        )
+    except (OSError, TypeError, ValueError):
+        return ""
+    if not isinstance(payload, Mapping):
+        return ""
+    return str(payload.get("source_path", "") or "").strip()
+
+
+def archive_model_initial_view_state(source_path: object = "") -> dict[str, object]:
+    """Return a centered fitted camera for a newly selected archive model."""
+
+    overhead = _archive_model_uses_overhead_camera(source_path)
+    return {
+        "role": "replacement",
+        "reason": "archive_model_initial_overhead" if overhead else "archive_model_initial_front",
+        "zoom_factor": 1.0,
+        "fit_to_view": True,
+        "yaw": 0.0,
+        "pitch": -89.0 if overhead else 0.0,
+        "pan": (0.0, 0.0, 0.0),
+    }
 
 
 def archive_model_preview_refresh_tooltip() -> str:

@@ -10,6 +10,10 @@ from typing import Dict, Optional
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
+from cdmw.ui.archive_browser.preview_state import (
+    archive_model_initial_view_state,
+    archive_model_manifest_source_path,
+)
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
 from cdmw.models import ArchivePreviewResult
 from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
@@ -149,9 +153,18 @@ class ArchivePreviewResultMixin:
             self._update_archive_model_action_controls(None)
             self._set_archive_preview_image_controls_enabled(True)
             self._apply_archive_preview_zoom()
+            initial_view_state = None
+            if not same_model:
+                selected_source_path = str(
+                    getattr(selected_entry, "path", "") if selected_entry is not None else ""
+                ).strip()
+                initial_view_state = archive_model_initial_view_state(
+                    selected_source_path or archive_model_manifest_source_path(package_dir)
+                )
             if not self.archive_d3d11_preview_host.load_package(
                 package_dir,
                 reset_view=not same_model,
+                initial_view_state=initial_view_state,
             ):
                 message = ".NET/Vortice Preview rejected the prepared package."
                 self.set_status_message(message, error=True)

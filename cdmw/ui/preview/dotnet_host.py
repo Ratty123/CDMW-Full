@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import math
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Optional
@@ -181,6 +182,7 @@ class DotNetPreviewHostFrame(QFrame):
         status_file: Path | str | None = None,
         *,
         reset_view: bool = False,
+        initial_view_state: Mapping[str, object] | None = None,
     ) -> bool:
         package_path = (
             package_dir.package_dir
@@ -190,7 +192,7 @@ class DotNetPreviewHostFrame(QFrame):
         self._load_scene_state(package_path)
         loaded = self.controller.load_package(package_dir, status_file, reset_view=reset_view)
         if loaded and reset_view:
-            self._reset_package_view_state()
+            self._reset_package_view_state(initial_view_state)
         return loaded
 
     def clear_preview(self, status_file: Optional[Path] = None) -> bool:
@@ -594,7 +596,16 @@ class DotNetPreviewHostFrame(QFrame):
 
     def set_fit_to_view(self, fit_to_view: bool) -> None:
         self._fit_to_view = bool(fit_to_view)
-        self.restore_view_state({**self._view_state, "fit_to_view": self._fit_to_view})
+        state = {**self._view_state, "fit_to_view": self._fit_to_view}
+        if self._fit_to_view:
+            self._zoom_factor = 1.0
+            state.update(
+                {
+                    "zoom_factor": 1.0,
+                    "pan": (0.0, 0.0, 0.0),
+                }
+            )
+        self.restore_view_state(state)
 
     def current_display_scale(self) -> float:
         return 1.0 if self._fit_to_view else self._zoom_factor
@@ -611,18 +622,33 @@ class DotNetPreviewHostFrame(QFrame):
             }
         )
 
-    def _reset_package_view_state(self) -> None:
+    def _reset_package_view_state(
+        self,
+        initial_view_state: Mapping[str, object] | None = None,
+    ) -> None:
         """Stage a centered fit camera so later state replay cannot restore stale pan."""
 
+        initial = initial_view_state if isinstance(initial_view_state, Mapping) else {}
+
+        def finite_float(name: str, fallback: float) -> float:
+            try:
+                value = float(initial.get(name, fallback))
+            except (TypeError, ValueError, OverflowError):
+                return fallback
+            return value if math.isfinite(value) else fallback
+
+        yaw = finite_float("yaw", self._DEFAULT_YAW)
+        pitch = finite_float("pitch", self._DEFAULT_PITCH)
+        reason = str(initial.get("reason", "package_reset") or "package_reset")
         self._zoom_factor = 1.0
         self._fit_to_view = True
         base_state: dict[str, object] = {
             "role": "replacement",
-            "reason": "package_reset",
+            "reason": reason,
             "zoom_factor": 1.0,
             "fit_to_view": True,
-            "yaw": self._DEFAULT_YAW,
-            "pitch": self._DEFAULT_PITCH,
+            "yaw": yaw,
+            "pitch": pitch,
             "pan": (0.0, 0.0, 0.0),
         }
         self._view_state = dict(base_state)
@@ -633,8 +659,8 @@ class DotNetPreviewHostFrame(QFrame):
         self._camera_generation += 1
         self._presentation_state["camera"] = {
             "role": "editable",
-            "yaw": self._DEFAULT_YAW,
-            "pitch": self._DEFAULT_PITCH,
+            "yaw": yaw,
+            "pitch": pitch,
             "fit_mode": "fit",
             "fit_relative_zoom": 1.0,
             "pan": [0.0, 0.0],
@@ -763,13 +789,21 @@ class DotNetPreviewHostFrame(QFrame):
         fit_relative_zoom = float(camera.get("fit_relative_zoom", self._zoom_factor) or self._zoom_factor)
         pan_value = tuple(camera.get("pan", (0.0, 0.0)) or (0.0, 0.0))
         pan = _triple((*pan_value[:2], 0.0), (0.0, 0.0, 0.0))
+
+        def camera_float(name: str, fallback: float) -> float:
+            try:
+                value = float(camera.get(name, fallback))
+            except (TypeError, ValueError, OverflowError):
+                return fallback
+            return value if math.isfinite(value) else fallback
+
         self._view_state = {
             "role": role,
             "reason": "renderer_view_state_changed",
             "zoom_factor": fit_relative_zoom,
             "fit_to_view": str(camera.get("fit_mode", "manual") or "manual") == "fit",
-            "yaw": float(camera.get("yaw_degrees", self._DEFAULT_YAW) or self._DEFAULT_YAW),
-            "pitch": float(camera.get("pitch_degrees", self._DEFAULT_PITCH) or self._DEFAULT_PITCH),
+            "yaw": camera_float("yaw_degrees", self._DEFAULT_YAW),
+            "pitch": camera_float("pitch_degrees", self._DEFAULT_PITCH),
             "pan": pan,
         }
         self._zoom_factor = fit_relative_zoom
