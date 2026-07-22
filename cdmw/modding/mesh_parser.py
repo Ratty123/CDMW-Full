@@ -1229,7 +1229,24 @@ def _parse_par_sections(data: bytes) -> list[dict]:
 
 
 def _find_name_strings(region: bytes, desc_start: int) -> tuple[str, str]:
-    """Extract the two length-prefixed ASCII names immediately before a descriptor."""
+    """Extract descriptor identity from either known PAC name-record layout."""
+    # Current equipment PACs may store one shared name/material record as
+    # ``length + ASCII + NUL + descriptor``.  The older layout below stores
+    # two adjacent length-prefixed records without terminators.  Decode the
+    # unambiguous NUL form first so its terminator is not mistaken for a gap.
+    if desc_start > 1 and region[desc_start - 1] == 0:
+        cursor = desc_start - 1
+        for back in range(1, min(256, cursor + 1)):
+            pos = cursor - back
+            candidate_len = region[pos]
+            if candidate_len == 0 or candidate_len != back - 1:
+                continue
+            name_bytes = region[pos + 1:cursor]
+            if not name_bytes or not all(32 <= value < 127 for value in name_bytes):
+                continue
+            name = name_bytes.decode("ascii", "replace")
+            return name, name
+
     names = []
     cursor = desc_start
 

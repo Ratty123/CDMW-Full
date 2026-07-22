@@ -195,6 +195,21 @@ def _hydrate_real_archive_mesh_materials(
                 or getattr(material_input, "slot_kind", "")
                 or "material"
             ).strip().casefold()
+            binding_disposition = str(
+                getattr(material_input, "binding_disposition", "") or ""
+            ).strip().casefold()
+            source_bound = (
+                getattr(material_input, "owner_slot_index", None) not in (None, -1)
+                or bool(str(getattr(material_input, "owner_wrapper_item_id", "") or "").strip())
+                or str(getattr(material_input, "sidecar_kind", "") or "").strip().casefold()
+                in {"pac_xml", "pami"}
+            )
+            legacy_direct = (
+                not source_bound
+                and not binding_disposition
+                and not str(getattr(material_input, "layer_role", "") or "").strip()
+                and not str(getattr(material_input, "layer_channel", "") or "").strip()
+            )
             direct_slot = {
                 "albedo": "base",
                 "base": "base",
@@ -205,7 +220,11 @@ def _hydrate_real_archive_mesh_materials(
                 "height": "height",
                 "emissive": "emissive",
             }.get(semantic, "material")
-            if direct_slot not in resolved_direct_slots:
+            if (
+                (binding_disposition == "promoted" or legacy_direct)
+                and direct_slot in {"base", "normal", "height", "emissive"}
+                and direct_slot not in resolved_direct_slots
+            ):
                 direct_attr = (
                     f"preview_{direct_slot}_texture_dds_path"
                     if direct_slot != "base"
@@ -228,13 +247,23 @@ def _hydrate_real_archive_mesh_materials(
                     "query": virtual_source,
                     "parameter_name": parameter_name,
                     "semantic": semantic,
+                    "owner_slot_index": getattr(material_input, "owner_slot_index", None),
+                    "owner_wrapper_item_id": str(
+                        getattr(material_input, "owner_wrapper_item_id", "") or ""
+                    ),
+                    "binding_authority": str(
+                        getattr(material_input, "binding_authority", "") or ""
+                    ),
+                    "binding_disposition": binding_disposition,
                     "material_authority": "sidecar",
                     "sidecar_paths": list(sidecar_paths),
                     "archive_path": str(resolution.archive_path or ""),
                     "source_path": str(source_path),
                     "source_bytes": source_path.stat().st_size,
                     "source_sha256": fingerprint_cache[source_path],
-                    "source_kind": str(resolution.status or ""),
+                    "source_kind": str(
+                        getattr(material_input, "source_kind", "") or resolution.status or ""
+                    ),
                     "archive_provenance": _archive_entry_provenance(resolution.archive_entry),
                 }
             )

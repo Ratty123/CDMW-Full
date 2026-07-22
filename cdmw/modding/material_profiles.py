@@ -379,6 +379,10 @@ def _manual_material_profile_from_payload(payload: Mapping[str, object]) -> CDMa
             value = _coerce_optional_byte(payload.get(key))
             if value is not None:
                 updates[key] = value
+    if "ao_default" in payload:
+        # The Automatic profile intentionally forces white AO. Manual AO Default
+        # must instead own missing-AO pixels so moving the control is observable.
+        updates["ao_mode"] = "source_or_default"
     for key in (
         "scratch_roughness",
         "scratch_metallic",

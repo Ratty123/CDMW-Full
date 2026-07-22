@@ -473,21 +473,74 @@ def create_alignment_source_part_transform_control_callbacks(context: dict[str, 
     )
 
 
+def _normalized_selected_glow_source_indices(
+    selected_indices_getter: object,
+    selected_source_part: dict[str, object],
+) -> tuple[int, ...]:
+    try:
+        raw_indices = selected_indices_getter() if callable(selected_indices_getter) else ()
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        raw_indices = ()
+    normalized: set[int] = set()
+    for index in tuple(raw_indices or ()):
+        try:
+            value = int(index)
+        except (TypeError, ValueError):
+            continue
+        if value >= 0:
+            normalized.add(value)
+    if normalized:
+        return tuple(sorted(normalized))
+    try:
+        fallback = int(selected_source_part.get('index', -1))
+    except (AttributeError, TypeError, ValueError):
+        fallback = -1
+    return (fallback,) if fallback >= 0 else ()
+
+
+def _load_source_part_glow_widget_values(
+    adjustment: object,
+    checkbox: object,
+    spins: tuple[object, ...],
+    strength_checkbox: object,
+    strength_spin: object,
+) -> None:
+    rgb = tuple(getattr(adjustment, 'emissive_color_rgb', ()) or ()) if adjustment is not None else ()
+    strength = getattr(adjustment, 'emissive_strength', None) if adjustment is not None else None
+    widgets = tuple(widget for widget in (checkbox, *spins, strength_checkbox, strength_spin) if widget is not None)
+    previous_blocks: list[tuple[object, bool]] = []
+    for widget in widgets:
+        blocker = getattr(widget, 'blockSignals', None)
+        previous_blocks.append((widget, bool(blocker(True)) if callable(blocker) else False))
+    try:
+        if checkbox is not None:
+            checkbox.setChecked(len(rgb) >= 3)
+        for spin, value in zip(spins, rgb[:3] if len(rgb) >= 3 else (255, 255, 255)):
+            spin.setValue(max(0, min(255, int(value))))
+        if strength_checkbox is not None:
+            strength_checkbox.setChecked(strength is not None)
+        if strength_spin is not None:
+            strength_spin.setValue(max(0.0, min(20.0, float(strength if strength is not None else 1.0))))
+    finally:
+        for widget, previous in previous_blocks:
+            blocker = getattr(widget, 'blockSignals', None)
+            if callable(blocker):
+                blocker(previous)
+
+
 def create_alignment_source_part_glow_callbacks(context: dict[str, object]) -> SimpleNamespace:
     Optional = context.get('Optional')
     StaticSourcePartAdjustment = context.get('StaticSourcePartAdjustment')
     _complete_external_swap_enabled = context.get('_complete_external_swap_enabled')
     _source_part_glow_color_controls_state_helper = context.get('_source_part_glow_color_controls_state_helper')
     _source_part_glow_rgb_helper = context.get('_source_part_glow_rgb_helper')
-    adjustment = context.get('adjustment')
-    can_override = context.get('can_override')
-    controls_ready = context.get('controls_ready')
-    controls_state = context.get('controls_state')
-    part_glow_color_checkbox = context.get('part_glow_color_checkbox')
-    part_glow_color_pick_button = context.get('part_glow_color_pick_button')
-    part_glow_color_spins = context.get('part_glow_color_spins')
-    spin = context.get('spin')
-
+    _selected_source_indices_from_tree = context.get('_selected_source_indices_from_tree')
+    selected_source_part = context.get('selected_source_part')
+    if not isinstance(selected_source_part, dict):
+        selected_source_part = {}
+    source_part_adjustments = context.get('source_part_adjustments')
+    if not isinstance(source_part_adjustments, dict):
+        source_part_adjustments = {}
     prompt_shell_context = context.get('prompt_shell_context')
 
     def _prompt_context_value(name: str) -> object:
@@ -510,6 +563,25 @@ def create_alignment_source_part_glow_callbacks(context: dict[str, object]) -> S
             for spin in spins
             if callable(getattr(spin, "value", None))
         )
+
+    def _part_glow_strength_checkbox() -> object:
+        return _prompt_context_value('part_glow_strength_checkbox')
+
+    def _part_glow_strength_spin() -> object:
+        return _prompt_context_value('part_glow_strength_spin')
+
+    def _selected_glow_source_indices() -> tuple[int, ...]:
+        return _normalized_selected_glow_source_indices(
+            _selected_source_indices_from_tree,
+            selected_source_part,
+        )
+
+    def _selected_part_glow_strength_from_controls() -> float:
+        spin = _part_glow_strength_spin()
+        try:
+            return max(0.0, min(20.0, float(spin.value())))
+        except (AttributeError, TypeError, ValueError, OverflowError):
+            return 1.0
 
     def _selected_part_glow_rgb_from_controls() -> tuple[int, int, int]:
         values = tuple(spin.value() for spin in _part_glow_color_spins())
@@ -536,12 +608,17 @@ def create_alignment_source_part_glow_callbacks(context: dict[str, object]) -> S
         spins = _part_glow_color_spins()
         checkbox = _part_glow_color_checkbox()
         pick_button = _part_glow_color_pick_button()
+        strength_checkbox = _part_glow_strength_checkbox()
+        strength_spin = _part_glow_strength_spin()
         if not spins or checkbox is None or pick_button is None:
             return
+        selected_indices = _selected_glow_source_indices()
+        adjustment = source_part_adjustments.get(selected_indices[0]) if len(selected_indices) == 1 else None
+        glow_role = str(getattr(adjustment, 'material_role', '') or '').strip().lower() == 'glow'
         try:
-            can_override = bool(_complete_external_swap_enabled())
+            can_override = bool(_complete_external_swap_enabled()) and len(selected_indices) == 1 and glow_role
         except Exception:
-            can_override = True
+            can_override = len(selected_indices) == 1 and glow_role
         checkbox.setEnabled(can_override)
         controls_state = _source_part_glow_color_controls_state_helper(
             rgb=_selected_part_glow_rgb_from_controls(),
@@ -552,14 +629,42 @@ def create_alignment_source_part_glow_callbacks(context: dict[str, object]) -> S
         for spin in spins:
             spin.setEnabled(controls_state.enabled)
         pick_button.setEnabled(controls_state.enabled)
+        if strength_checkbox is not None:
+            strength_checkbox.setEnabled(can_override)
+        if strength_spin is not None:
+            strength_spin.setEnabled(bool(can_override and strength_checkbox is not None and strength_checkbox.isChecked()))
+        reason = (
+            'Select exactly one source part to edit glow.'
+            if len(selected_indices) != 1
+            else 'Assign Glow / emissive to this part first.'
+            if not glow_role
+            else 'Material Authority activates automatically on the first glow edit.'
+            if not bool(_complete_external_swap_enabled())
+            else ''
+        )
+        for widget in (checkbox, pick_button, *spins, strength_checkbox, strength_spin):
+            if widget is not None and reason and callable(getattr(widget, 'setToolTip', None)):
+                widget.setToolTip(reason)
         _sync_part_glow_color_button()
 
     def _load_part_glow_color_controls(adjustment: Optional[StaticSourcePartAdjustment]) -> None:
-        _ = adjustment
+        checkbox = _part_glow_color_checkbox()
+        spins = _part_glow_color_spins()
+        strength_checkbox = _part_glow_strength_checkbox()
+        strength_spin = _part_glow_strength_spin()
+        _load_source_part_glow_widget_values(
+            adjustment,
+            checkbox,
+            spins,
+            strength_checkbox,
+            strength_spin,
+        )
         _refresh_part_glow_color_controls_enabled()
 
     return SimpleNamespace(
         _selected_part_glow_rgb_from_controls=_selected_part_glow_rgb_from_controls,
+        _selected_part_glow_strength_from_controls=_selected_part_glow_strength_from_controls,
+        _selected_glow_source_indices=_selected_glow_source_indices,
         _sync_part_glow_color_button=_sync_part_glow_color_button,
         _refresh_part_glow_color_controls_enabled=_refresh_part_glow_color_controls_enabled,
         _load_part_glow_color_controls=_load_part_glow_color_controls,

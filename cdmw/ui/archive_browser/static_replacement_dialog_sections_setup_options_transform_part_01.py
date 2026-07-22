@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from cdmw.domain.textures.material_authority_state import MATERIAL_AUTHORITY_EXPERT_KEYS
+
 def _setup_options_transform_step_001(_state):
     _state.ALIGNMENT_MODE_OPTIONS = _state.context.get('ALIGNMENT_MODE_OPTIONS')
     _state.CUSTOM_ITEM_ICON_DISABLED_STATUS = _state.context.get('CUSTOM_ITEM_ICON_DISABLED_STATUS')
@@ -281,6 +283,12 @@ def _setup_options_transform_step_004(_state):
     _state.part_glow_color_pick_button.setObjectName('MeshAlignmentSourceGlowColorPickButton')
     _state.part_glow_color_pick_button.setMinimumWidth(0)
     _state.part_glow_color_pick_button.setToolTip(_state.material_authority_control_tooltips['custom_glow_pick'])
+    _state.part_glow_strength_checkbox = _state.QCheckBox('Override glow strength')
+    _state.part_glow_strength_checkbox.setObjectName('MeshAlignmentSourceGlowStrengthOverrideCheckBox')
+    _state.part_glow_strength_checkbox.setToolTip('Override only the selected glow part. Effective intensity is this value multiplied by Accent Glow and clamped to 0–20.')
+    _state.part_glow_strength_spin = _state._make_double_spin_helper(1.0, 0.0, 20.0, 2, 0.1)
+    _state.part_glow_strength_spin.setObjectName('MeshAlignmentSourceGlowStrengthSpinBox')
+    _state.part_glow_strength_spin.setToolTip('Selected-part emissive strength before the global Accent Glow boost (0–20).')
 
 def _setup_options_transform_step_005(_state):
     _state.part_glow_color_row = _state.QHBoxLayout()
@@ -291,6 +299,12 @@ def _setup_options_transform_step_005(_state):
         _state.part_glow_color_row.addWidget(_state.channel_spin)
     _state.part_glow_color_row.addWidget(_state.part_glow_color_pick_button)
     _state.part_glow_color_row.addStretch(1)
+    _state.part_glow_strength_row = _state.QHBoxLayout()
+    _state.part_glow_strength_row.setContentsMargins(0, 0, 0, 0)
+    _state.part_glow_strength_row.setSpacing(3)
+    _state.part_glow_strength_row.addWidget(_state.part_glow_strength_checkbox)
+    _state.part_glow_strength_row.addWidget(_state.part_glow_strength_spin)
+    _state.part_glow_strength_row.addStretch(1)
     _state.true_source_basic_reset_button = _state.QPushButton(_state.material_authority_adjustment_labels['reset_adjustments'])
     _state.true_source_basic_reset_button.setObjectName('MeshAlignmentMaterialAuthorityResetAdjustmentsButton')
     _state.true_source_basic_reset_button.setToolTip(_state.material_authority_control_tooltips['reset_adjustments'])
@@ -324,8 +338,10 @@ def _setup_options_transform_step_005(_state):
     _state.true_source_basic_form.addLayout(_state.accent_glow_row, 7, 1)
     _state.true_source_basic_form.addWidget(_state.QLabel(_state.material_authority_adjustment_labels['glow_color']), 8, 0)
     _state.true_source_basic_form.addLayout(_state.part_glow_color_row, 8, 1)
-    _state.true_source_basic_form.addLayout(_state.material_authority_history_row, 9, 0, 1, 2)
-    _state.true_source_basic_form.addWidget(_state.true_source_basic_hint, 10, 0, 1, 2)
+    _state.true_source_basic_form.addWidget(_state.QLabel('Glow strength'), 9, 0)
+    _state.true_source_basic_form.addLayout(_state.part_glow_strength_row, 9, 1)
+    _state.true_source_basic_form.addLayout(_state.material_authority_history_row, 10, 0, 1, 2)
+    _state.true_source_basic_form.addWidget(_state.true_source_basic_hint, 11, 0, 1, 2)
     _state.unsafe_material_preflight_checkbox = _state.QCheckBox(_state.material_authority_setup_labels['unsafe_preflight'])
     _state.unsafe_material_preflight_checkbox.setObjectName('MeshAlignmentUnsafeMaterialPreflightExportCheckbox')
     _state.unsafe_material_preflight_checkbox.setChecked(False)
@@ -413,6 +429,44 @@ def _setup_options_transform_step_006(_state):
     _state._manual_check(37, 'preserve_target_layer_response', 'Preserve target layer response', 'Sidecar XML reset: keeps more old CD layer/detail/shader response. Useful for lost detail, but can restore grime/dark tint/gloss.')
     if not _state.modify_original_clone_mode:
         _state._manual_check(38, 'source_color_layer_authority', 'Route source color to layer slots', 'Sidecar XML texture routing: pushes source base color into compatible visible color/detail/grime slots if those slots exist. Can improve authority or overbind.')
+    _state.manual_profile_expert_group = _state.QGroupBox('Manual expert-only fields')
+    _state.manual_profile_expert_group.setObjectName('MeshAlignmentManualMaterialProfileExpertGroup')
+    _state.manual_profile_expert_layout = _state.QGridLayout(_state.manual_profile_expert_group)
+    _state.manual_profile_expert_layout.setContentsMargins(6, 4, 6, 4)
+    _state.manual_profile_expert_layout.setHorizontalSpacing(6)
+    _state.manual_profile_expert_layout.setVerticalSpacing(3)
+    _state.manual_profile_expert_warning = _state.QLabel('Expert overrides are inactive until unsafe export is acknowledged.')
+    _state.manual_profile_expert_warning.setObjectName('WarningLabel')
+    _state.manual_profile_expert_warning.setWordWrap(True)
+    _state.manual_profile_expert_layout.addWidget(_state.manual_profile_expert_warning, 0, 0, 1, 4)
+    _state.manual_profile_expert_row_keys = tuple(
+        key
+        for key in (
+            'scratch_roughness',
+            'scratch_metallic',
+            'shine_scalar',
+            'alpha_default',
+            'neutral_color_rgb',
+            'preserve_scratch_alpha',
+            'preserve_target_layer_response',
+            'source_color_layer_authority',
+        )
+        if (
+            not _state.modify_original_clone_mode
+            and key in MATERIAL_AUTHORITY_EXPERT_KEYS
+            and key in _state.manual_profile_effect_widgets
+        )
+    )
+    for _state.expert_row, _state.expert_key in enumerate(_state.manual_profile_expert_row_keys, start=1):
+        for _state.expert_column, _state.expert_widget in enumerate(
+            _state.manual_profile_effect_widgets.get(_state.expert_key, ())
+        ):
+            _state.manual_profile_layout.removeWidget(_state.expert_widget)
+            _state.manual_profile_expert_layout.addWidget(
+                _state.expert_widget,
+                _state.expert_row,
+                _state.expert_column,
+            )
     _state.manual_profile_texture_impact = _state.QLabel(_state._manual_material_profile_texture_impact_html_helper())
     _state.manual_profile_texture_impact.setObjectName('HintLabel')
     _state.manual_profile_texture_impact.setTextFormat(_state.Qt.RichText)
@@ -625,8 +679,9 @@ def _setup_options_transform_step_010(_state):
     if _state.modify_original_clone_mode:
         _state.modify_original_texture_tuning_section.body_layout.addWidget(_state.manual_profile_group)
     else:
-        _state.material_authority_unsafe_section.body_layout.addWidget(_state.manual_profile_group)
-        _state.material_authority_form.addWidget(_state.material_authority_unsafe_section, 3, 0, 1, 2)
+        _state.material_authority_form.addWidget(_state.manual_profile_group, 3, 0, 1, 2)
+        _state.material_authority_unsafe_section.body_layout.addWidget(_state.manual_profile_expert_group)
+        _state.material_authority_form.addWidget(_state.material_authority_unsafe_section, 4, 0, 1, 2)
     _state.material_authority_form.addWidget(_state.sidecar_warning_label, 11, 0, 1, 2)
     _state.texture_size_label = _state.QLabel(_state.material_authority_setup_labels['texture_size'])
     _state.form.addWidget(_state.texture_size_label, 3, 0)
@@ -670,6 +725,7 @@ def _setup_options_transform_step_010(_state):
     _state.setup_texture_reset_button.clicked.connect(_state._reset_setup_texture_orientation)
     _state.material_authority_adjustment_callbacks = _state.create_material_authority_adjustment_callbacks({**_state.context, **_state._factory_globals, **vars(_state)})
     _state._set_global_gloss_reduction = _state.material_authority_adjustment_callbacks._set_global_gloss_reduction
+    _state._ensure_material_authority_route_active = _state.material_authority_adjustment_callbacks._ensure_material_authority_route_active
     _state._refresh_global_gloss_reduction_hint = _state.material_authority_adjustment_callbacks._refresh_global_gloss_reduction_hint
     _state._basic_controls_profile_enabled = _state.material_authority_adjustment_callbacks._basic_controls_profile_enabled
     _state._current_material_authority_preview_profile = _state.material_authority_adjustment_callbacks._current_material_authority_preview_profile
@@ -703,6 +759,12 @@ def _setup_options_transform_step_010(_state):
     _state.source_color_faithful_checkbox.toggled.connect(lambda checked: _state._apply_sidecar_dependent_toggle(bool(checked)))
     _state.external_material_reset_checkbox.toggled.connect(lambda checked: _state._apply_sidecar_dependent_toggle(bool(checked)))
     _state.unsafe_material_preflight_checkbox.toggled.connect(lambda _checked: _state._refresh_output_impact_review())
+    _state.unsafe_material_preflight_checkbox.toggled.connect(lambda _checked: _state._refresh_manual_profile_control_effects())
+    _state.unsafe_material_preflight_checkbox.toggled.connect(
+        lambda _checked: _state._queue_material_authority_adjustment_preview_refresh(resource_keys=('*',))
+        if _state._complete_external_swap_enabled()
+        else None
+    )
     _state.global_gloss_reduction_slider.valueChanged.connect(lambda value: _state._set_global_gloss_reduction(int(value)))
     _state.global_gloss_reduction_spin.valueChanged.connect(lambda value: _state._set_global_gloss_reduction(int(value)))
     _state.auto_brightness_slider.valueChanged.connect(lambda value: _state._set_auto_brightness(int(value)))
@@ -716,7 +778,7 @@ def _setup_options_transform_step_010(_state):
     _state.edge_relief_source_combo.currentIndexChanged.connect(lambda _index: _state._set_edge_relief_source())
     _state.accent_glow_slider.valueChanged.connect(lambda value: _state._set_accent_glow(int(value)))
     _state.accent_glow_spin.valueChanged.connect(lambda value: _state._set_accent_glow(int(value)))
-    _state.context.update({'complete_external_swap_checkbox': _state.complete_external_swap_checkbox, 'part_glow_color_checkbox': _state.part_glow_color_checkbox, 'part_glow_color_pick_button': _state.part_glow_color_pick_button, 'part_glow_color_spins': _state.part_glow_color_spins})
+    _state.context.update({'complete_external_swap_checkbox': _state.complete_external_swap_checkbox, 'part_glow_color_checkbox': _state.part_glow_color_checkbox, 'part_glow_color_pick_button': _state.part_glow_color_pick_button, 'part_glow_color_spins': _state.part_glow_color_spins, 'part_glow_strength_checkbox': _state.part_glow_strength_checkbox, 'part_glow_strength_spin': _state.part_glow_strength_spin})
     _state.source_part_glow_controls_ready = callable(_state._set_selected_source_glow_color) and callable(_state._refresh_part_glow_color_controls_enabled) and callable(_state._apply_current_glow_color_to_role_overrides)
 
 def _setup_options_transform_step_011(_state):

@@ -26,6 +26,10 @@ from cdmw.rendering.material_combiner import (
 from cdmw.rendering.native_preview_material_contract import (
     _combiner_generated_authoritative_albedo,
 )
+from cdmw.services.mesh_dotnet_material_bindings import (
+    _canonical_dotnet_material_source,
+    _dotnet_material_slot_index,
+)
 from cdmw.services.mesh_dotnet_material_channels import (
     _dotnet_initial_material_parameters,
     _dotnet_material_channel_components,
@@ -51,9 +55,14 @@ _GENERATED_LINEAR_CHANNELS = {
     "specular",
 }
 _GENERATED_SUPPORT_CHANNELS = _GENERATED_LINEAR_CHANNELS - {"normal"}
-_DOMINANT_ARMOR_METAL_Q50_MIN = 0.35
-_DOMINANT_ARMOR_METAL_Q90_MIN = 0.50
-_DOMINANT_ARMOR_METAL_COVERAGE_MIN = 0.50
+_DOMINANT_EQUIPMENT_METAL_Q50_MIN = 0.35
+_DOMINANT_EQUIPMENT_METAL_Q90_MIN = 0.40
+_DOMINANT_EQUIPMENT_METAL_COVERAGE_MIN = 0.50
+_EQUIPMENT_FAMILY_METAL_REASONS = {
+    "metal:armor_family_material_response",
+    "metal:equipment_family_material_response",
+    "metal:weapon_family_material_response",
+}
 _PACKED_SUBTYPE_CHANNELS = {
     "arm": {"metallic", "occlusion", "roughness"},
     "gltfmetallicroughness": {"metallic", "roughness"},
@@ -186,11 +195,27 @@ def _package_synthesis_inputs(
         packed = tuple(_input_value(item, "packed_channels", ()) or ())
         layer_role = str(_input_value(item, "layer_role") or "").strip()
         layer_channel = str(_input_value(item, "layer_channel") or "").strip()
+        binding_disposition = str(
+            _input_value(item, "binding_disposition") or ""
+        ).strip().casefold()
+        direct_dispositions = {
+            "diagnostic_only",
+            "fallback_black",
+            "fallback_flat_normal",
+            "promoted",
+            "recorded",
+            "scalar_hint",
+        }
+        is_layer_input = bool(
+            layer_channel
+            or binding_disposition
+            in {"layer_direction", "layer_flow", "layer_material_response", "layer_only"}
+            or (layer_role and binding_disposition not in direct_dispositions)
+        )
         if (
             semantic in _SYNTHESIS_INPUT_SEMANTICS
             or packed
-            or layer_role
-            or layer_channel
+            or is_layer_input
         ):
             return inputs
     return ()
@@ -430,6 +455,8 @@ def _decoded_linear_channel_summary(source: object) -> dict[str, object]:
 def _refine_synthesized_material_contract(
     semantic_contract: Mapping[str, object],
     synthesis: Mapping[str, object],
+    *,
+    source_asset_path: str = "",
 ) -> dict[str, object]:
     """Apply evidence available only after shared material-map synthesis."""
 
@@ -438,29 +465,36 @@ def _refine_synthesized_material_contract(
         str(value or "").strip().casefold()
         for value in tuple(synthesis.get("generated_channels", ()) or ())
     }
+    metallic_summary = synthesis.get("metallic_summary")
+    dominant_metal = (
+        "metallic" in generated
+        and isinstance(metallic_summary, Mapping)
+        and float(metallic_summary.get("q50", 0.0) or 0.0)
+        >= _DOMINANT_EQUIPMENT_METAL_Q50_MIN
+        and float(metallic_summary.get("q90", 0.0) or 0.0)
+        >= _DOMINANT_EQUIPMENT_METAL_Q90_MIN
+        and float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
+        >= _DOMINANT_EQUIPMENT_METAL_COVERAGE_MIN
+    )
+    source_category = str(
+        refined.get("material_category", "") or ""
+    ).strip().casefold()
+    source_reason = str(
+        refined.get("material_category_reason", "") or ""
+    ).strip()
+    normalized_source_path = str(source_asset_path or "").replace("\\", "/").casefold()
     if (
         str(refined.get("shader_family", "") or "").strip().casefold()
         in {"standard", "standard_v2"}
-        and str(refined.get("material_category", "") or "").strip().casefold()
-        == "metal"
-        and str(refined.get("material_category_reason", "") or "").strip().casefold()
-        == "metal:armor_family_material_response"
+        and source_category == "metal"
+        and source_reason.casefold()
+        in _EQUIPMENT_FAMILY_METAL_REASONS
     ):
-        metallic_summary = synthesis.get("metallic_summary")
-        dominant_metal = (
-            "metallic" in generated
-            and isinstance(metallic_summary, Mapping)
-            and float(metallic_summary.get("q50", 0.0) or 0.0)
-            >= _DOMINANT_ARMOR_METAL_Q50_MIN
-            and float(metallic_summary.get("q90", 0.0) or 0.0)
-            >= _DOMINANT_ARMOR_METAL_Q90_MIN
-            and float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
-            >= _DOMINANT_ARMOR_METAL_COVERAGE_MIN
-        )
+        refined["material_category_pre_synthesis_reason"] = source_reason
         if dominant_metal:
             refined["material_category_confidence"] = 0.88
             refined["material_category_reason"] = (
-                "metal:dominant_decoded_armor_metal_channel"
+                "metal:dominant_decoded_equipment_metal_channel"
             )
             refined["material_response_promoted"] = True
         else:
@@ -471,13 +505,35 @@ def _refine_synthesized_material_contract(
                 # per-pixel map; it must not receive a whole-submesh metal
                 # fallback merely because the PAC lives in an armor slot.
                 refined["material_category_reason"] = (
-                    "generic:armor_material_response_without_dominant_decoded_metal_channel"
+                    "generic:equipment_material_response_without_dominant_decoded_metal_channel"
                 )
             else:
                 refined["material_category_reason"] = (
-                    "generic:armor_material_response_without_decoded_metal_channel"
+                    "generic:equipment_material_response_without_decoded_metal_channel"
                 )
             refined["material_response_promoted"] = False
+    elif (
+        str(refined.get("shader_family", "") or "").strip().casefold()
+        in {"standard", "standard_v2"}
+        and source_category == "generic"
+        and source_reason.casefold() == "generic:no_strong_material_token"
+        and any(
+            family_token in normalized_source_path
+            for family_token in ("/armor/", "/equipment/", "/weapon/")
+        )
+        and dominant_metal
+    ):
+        # A generic part name such as ``...Sword_0036`` deliberately carries
+        # no lexical metal promise.  The owning equipment path plus a dense
+        # synthesized metal map is stronger post-synthesis evidence and does
+        # not affect named cloth/leather/handle categories.
+        refined["material_category_pre_synthesis_reason"] = source_reason
+        refined["material_category"] = "metal"
+        refined["material_category_confidence"] = 0.88
+        refined["material_category_reason"] = (
+            "metal:dominant_decoded_equipment_metal_channel"
+        )
+        refined["material_response_promoted"] = True
 
     alpha_summary = synthesis.get("base_alpha_summary")
     if (
@@ -502,6 +558,9 @@ def _refine_synthesized_material_contract(
 def _source_has_usable_tangents(source: object | None) -> bool:
     if source is None:
         return False
+    explicit = getattr(source, "preview_tangents_usable", None)
+    if explicit is not None:
+        return bool(explicit)
     vertices = tuple(
         getattr(source, "vertices", ()) or getattr(source, "positions", ()) or ()
     )
@@ -633,6 +692,87 @@ def _generated_channels(
     return generated
 
 
+def _synthesis_input_identity(item: object) -> str:
+    for field in ("source_texture_path", "source_dds_path", "preview_texture_path"):
+        value = str(_input_value(item, field) or "").replace("\\", "/").strip().casefold()
+        if value:
+            return value
+    return ""
+
+
+def _synthesis_input_channel(item: object) -> str:
+    semantic = str(
+        _input_value(item, "semantic_type") or _input_value(item, "slot_kind") or ""
+    ).strip().casefold()
+    if semantic in {"albedo", "base", "color", "diffuse"}:
+        return "base"
+    if semantic in {"detail", "detail_mask", "layer_mask", "mask", "material_mask"}:
+        return "control"
+    return semantic
+
+
+def _layer_graph_is_source_identity(inputs: tuple[object, ...]) -> bool:
+    """Return true only when every layer source reuses its owning base source."""
+
+    baseline_sources: dict[str, set[str]] = {}
+    for item in inputs:
+        disposition = str(_input_value(item, "binding_disposition") or "").strip().casefold()
+        channel = _synthesis_input_channel(item)
+        identity = _synthesis_input_identity(item)
+        parameter_key = "".join(
+            character
+            for character in str(_input_value(item, "parameter_name") or "").casefold()
+            if character.isalnum()
+        )
+        is_baseline = disposition == "promoted" or (
+            channel == "material"
+            and parameter_key == "materialtexture"
+            and disposition == "layer_material_response"
+        )
+        if is_baseline and channel and identity:
+            baseline_sources.setdefault(channel, set()).add(identity)
+
+    found_layer_source = False
+    for item in inputs:
+        disposition = str(_input_value(item, "binding_disposition") or "").strip().casefold()
+        if disposition not in {"layer_material_response", "layer_only"}:
+            continue
+        channel = _synthesis_input_channel(item)
+        if channel == "control":
+            continue
+        found_layer_source = True
+        identity = _synthesis_input_identity(item)
+        if not identity or identity not in baseline_sources.get(channel, set()):
+            return False
+    return found_layer_source
+
+
+def _combiner_outputs_have_raw_channels(
+    combined: object,
+    raw_channels: Mapping[str, str],
+) -> bool:
+    outputs = {
+        str(value or "").strip().casefold().replace("metalness", "metallic")
+        for value in tuple(getattr(combined, "outputs", ()) or ())
+        if str(value or "").strip()
+    }
+    if not outputs:
+        return False
+    for output in outputs:
+        if output == "legacy_material":
+            continue
+        if output == "albedo":
+            if not any(
+                str(raw_channels.get(channel, "") or "").strip()
+                for channel in _GENERATED_COLOR_CHANNELS
+            ):
+                return False
+            continue
+        if not str(raw_channels.get(output, "") or "").strip():
+            return False
+    return True
+
+
 def _synthesize_dotnet_material_channels(
     source: object | None,
     raw_channels: Mapping[str, str],
@@ -712,17 +852,27 @@ def _synthesize_dotnet_material_channels(
             "skipped": "cancelled_after_synthesis",
         }, ()
     generated = _generated_channels(combined, raw_channels, inputs, raw_contract)
+    identity_noop = bool(
+        not generated
+        and tuple(raw_contract.get("layer_bindings", ()) or ())
+        and _layer_graph_is_source_identity(inputs)
+        and _combiner_outputs_have_raw_channels(combined, raw_channels)
+    )
     if not generated:
         shutil.rmtree(output_dir, ignore_errors=True)
     channels = dict(raw_channels)
     channels.update(generated)
+    synthesis_notes = list(tuple(getattr(combined, "notes", ()) or ()))
+    if identity_noop:
+        synthesis_notes.append("material graph resolved as source-identity no-op")
     metadata: dict[str, object] = {
         "attempted": True,
-        "succeeded": bool(generated),
+        "succeeded": bool(generated) or identity_noop,
+        "identity_noop": identity_noop,
         "outputs": list(tuple(getattr(combined, "outputs", ()) or ())),
         "generated_channels": sorted(generated),
         "decode_modes": list(tuple(getattr(combined, "decode_modes", ()) or ())),
-        "notes": list(tuple(getattr(combined, "notes", ()) or ())),
+        "notes": synthesis_notes,
         "texture_flip_vertical": bool(getattr(combined, "texture_flip_vertical", False)),
         "decoded_preview_input_count": int(decoded_preview_input_count),
     }
@@ -743,10 +893,11 @@ def _synthesize_dotnet_material_channels(
 def _resolved_synthesis_features(
     generated_channels: tuple[str, ...],
     raw_contract: Mapping[str, object],
+    synthesis: Mapping[str, object],
 ) -> list[str]:
-    if not generated_channels:
-        return []
     features: list[str] = []
+    if bool(synthesis.get("identity_noop", False)):
+        features.append("preview_material_graph_identity")
     if tuple(raw_contract.get("layer_bindings", ()) or ()) and "base" in generated_channels:
         features.append("preview_material_graph_baked")
     if any(channel in _GENERATED_LINEAR_CHANNELS for channel in generated_channels):
@@ -792,9 +943,26 @@ def _dotnet_submesh_material_payload(
     semantic_contract = _refine_synthesized_material_contract(
         semantic_contract,
         synthesis,
+        source_asset_path=source_asset_path,
     )
-    semantic_contract["unsupported_features"] = list(raw_contract["unsupported_features"])
-    semantic_contract["resolved_features"] = _resolved_synthesis_features(generated, raw_contract)
+    resolved_features = _resolved_synthesis_features(generated, raw_contract, synthesis)
+    remaining_unsupported = list(raw_contract["unsupported_features"])
+    if (
+        "shader_family_layer_graph" in remaining_unsupported
+        and bool(synthesis.get("succeeded", False))
+        and resolved_features
+    ):
+        remaining_unsupported.remove("shader_family_layer_graph")
+    semantic_contract["unsupported_features"] = remaining_unsupported
+    semantic_contract["resolved_features"] = resolved_features
+    semantic_contract["synthesis_evidence"] = {
+        "compiler": "canonical_mesh_dotnet_material_compiler",
+        "generated_channels": list(generated),
+        "resolved_features": list(resolved_features),
+        "required_graph_compiled": (
+            "shader_family_layer_graph" not in remaining_unsupported
+        ),
+    }
     for channel in generated:
         semantic_contract["channel_authorities"][channel] = "synthesized_shared_combiner"
         semantic_contract["channel_color_spaces"][channel] = (
@@ -861,7 +1029,10 @@ def _material_manifest_inputs(
     mesh: ParsedMesh,
     sidecar_payload: Mapping[str, object],
 ) -> tuple[list[object], list[object], tuple[object, ...]]:
-    source_submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    source_submeshes = tuple(
+        _canonical_dotnet_material_source(submesh, index)
+        for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ()))
+    )
     raw_slots = sidecar_payload.get("material_slots", [])
     slots = list(raw_slots) if isinstance(raw_slots, list) else []
     if not slots:
@@ -881,9 +1052,20 @@ def _material_manifest_inputs(
     if not submeshes:
         submeshes = [
             {
-                "submesh_index": index,
+                "submesh_index": _safe_int(
+                    getattr(
+                        submesh,
+                        "submesh_index",
+                        getattr(submesh, "source_submesh_index", index),
+                    ),
+                    index,
+                ),
                 "name": str(submesh.name or ""),
-                "material_slot_index": index,
+                "material_slot_index": _dotnet_material_slot_index(
+                    submesh,
+                    source_submeshes,
+                    index,
+                ),
                 "material": str(submesh.material or ""),
                 "texture": str(submesh.texture or ""),
             }
@@ -901,30 +1083,71 @@ def _write_dotnet_material_manifest(
     editable_submesh_count: int | None = None,
     cancelled: Callable[[], bool] | None = None,
 ) -> None:
+    payload = compile_mesh_dotnet_material_manifest(
+        mesh,
+        sidecar_payload=sidecar_payload,
+        package_dir=path.parent,
+        material_signature=material_signature,
+        editable_submesh_count=editable_submesh_count,
+        cancelled=cancelled,
+    )
+    atomic_write_text(path, json.dumps(payload, indent=2))
+
+
+def compile_mesh_dotnet_material_manifest(
+    mesh: ParsedMesh | object,
+    *,
+    sidecar_payload: Mapping[str, object] | None = None,
+    package_dir: Path,
+    material_signature: str,
+    editable_submesh_count: int | None = None,
+    role: str | None = None,
+    submesh_index_offset: int = 0,
+    absolute_resource_paths: bool = False,
+    cancelled: Callable[[], bool] | None = None,
+) -> dict[str, object]:
+    """Compile the canonical initial/resident .NET material manifest."""
+
+    sidecar_payload = dict(sidecar_payload or {})
     slots, submeshes, source_submeshes = _material_manifest_inputs(mesh, sidecar_payload)
     texture_copy_cache: dict[str, str] = {}
     resource_payloads: dict[str, dict[str, object]] = {}
     source_asset_path = str(getattr(mesh, "path", "") or "").strip()
     submesh_payloads = []
     for index, submesh in enumerate(submeshes):
+        submesh_row = dict(submesh) if isinstance(submesh, Mapping) else submesh
+        if isinstance(submesh_row, dict) and (
+            str(role or "replacement") != "replacement" or submesh_index_offset
+        ):
+            submesh_row["submesh_index"] = max(0, int(submesh_index_offset)) + index
+        effective_role = (
+            str(role or "")
+            if role is not None
+            else (
+                "original_reference"
+                if editable_submesh_count is not None and index >= int(editable_submesh_count)
+                else "replacement"
+            )
+        )
         submesh_payloads.append(
             _dotnet_submesh_material_payload(
-                submesh,
+                submesh_row,
                 index,
                 source_submesh=(source_submeshes[index] if index < len(source_submeshes) else None),
                 source_asset_path=source_asset_path,
-                package_dir=path.parent,
+                package_dir=package_dir,
                 texture_copy_cache=texture_copy_cache,
                 resource_payloads=resource_payloads,
-                role=(
-                    "original_reference"
-                    if editable_submesh_count is not None and index >= int(editable_submesh_count)
-                    else "replacement"
-                ),
+                role=effective_role,
                 cancelled=cancelled,
             )
         )
-    payload = {
+    if absolute_resource_paths:
+        for resource in resource_payloads.values():
+            resource_path = Path(str(resource.get("path", "") or ""))
+            if resource_path and not resource_path.is_absolute():
+                resource["path"] = str((package_dir / resource_path).resolve())
+    return {
         "format": "cdmw_mesh_dotnet_materials_v1",
         "renderer_authority": "dotnet_mesh_editor",
         "source": "mesh.cdmeta.json",
@@ -948,11 +1171,11 @@ def _write_dotnet_material_manifest(
         "source_mesh": str(getattr(mesh, "path", "") or ""),
         "material_signature": str(material_signature or ""),
     }
-    atomic_write_text(path, json.dumps(payload, indent=2))
 
 
 __all__ = [
     "_copy_dotnet_texture_channel_resources",
     "_dotnet_texture_channels",
     "_write_dotnet_material_manifest",
+    "compile_mesh_dotnet_material_manifest",
 ]

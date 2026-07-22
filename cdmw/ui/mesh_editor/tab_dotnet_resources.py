@@ -9,12 +9,22 @@ from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
 
 from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
+from cdmw.services.mesh_dotnet_material_compiler import (
+    MeshDotNetMaterialCompileRequest,
+    snapshot_mesh_dotnet_material_inputs,
+)
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
+from cdmw.ui.mesh_editor.tab_dotnet_material_compilation import (
+    MeshEditorDotNetMaterialCompilationMixin,
+)
 from cdmw.ui.mesh_editor.tab_dotnet_payloads import MeshEditorDotNetPayloadMixin
 
 
-class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
+class MeshEditorDotNetResourceProtocolMixin(
+    MeshEditorDotNetMaterialCompilationMixin,
+    MeshEditorDotNetPayloadMixin,
+):
     def _handle_dotnet_material_protocol_event(
         self,
         payload: Mapping[str, object],
@@ -244,6 +254,12 @@ class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
         affected_submeshes: Sequence[int] | None = None,
         mesh_snapshot: object | None = None,
         committed_resources: Sequence[Mapping[str, object]] = (),
+        role: str = "replacement",
+        submesh_index_offset: int = 0,
+        material_signature: str = "",
+        parameter_groups: Sequence[Mapping[str, object]] = (),
+        material_authority_fingerprint: str = "",
+        material_authority_revision: int = 0,
     ) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None or not self._dotnet_resident_material_updates_supported():
@@ -252,12 +268,30 @@ class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
         try:
             view = controller.session_view()
             mesh = mesh_snapshot if mesh_snapshot is not None else controller.working_mesh(clone=False)
-            payload = _tab.mesh_dotnet_material_state_payload(
+            package = getattr(self, "standalone_dotnet_experiment_package", None)
+            immutable_inputs = snapshot_mesh_dotnet_material_inputs(
                 mesh,
+                scene_material_slot_indices=tuple(
+                    getattr(package, "scene_material_slot_indices", ()) or ()
+                ),
+                submesh_index_offset=max(0, int(submesh_index_offset)),
+            )
+            request = MeshDotNetMaterialCompileRequest(
                 session_id=view.session_id,
                 edit_revision=view.revision,
                 generation=generation,
-                affected_submeshes=affected_submeshes,
+                role=str(role or "replacement"),
+                mesh_snapshot=immutable_inputs,
+                affected_submeshes=tuple(int(value) for value in tuple(affected_submeshes or ())),
+                submesh_index_offset=max(0, int(submesh_index_offset)),
+                material_signature=str(material_signature or ""),
+                reason=str(reason or "changed"),
+                process_generation=int(self.standalone_dotnet_process_generation),
+                parameter_groups=tuple(
+                    dict(group) for group in parameter_groups if isinstance(group, Mapping)
+                ),
+                material_authority_fingerprint=str(material_authority_fingerprint or ""),
+                material_authority_revision=max(0, int(material_authority_revision)),
             )
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
@@ -266,29 +300,11 @@ class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
                 error=True,
             )
             return False
-        payload.update(
-            {
-                "reason": str(reason or "changed"),
-                "request_id": generation,
-                "base_revision": view.revision,
-                "process_generation": self.standalone_dotnet_process_generation,
-                "protocol_version": 2,
-            }
-        )
-        if not self._send_dotnet_protocol_message(payload):
-            self.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
-            return False
         self.standalone_dotnet_material_generation = generation
-        _material_commit.remember_sent_material_resources(self, payload, committed_resources)
-        self.standalone_dotnet_lifecycle_counts["material_state_update_count"] += 1
-        self._record_mesh_dotnet_event(
-            "mesh_dotnet_material_state_update",
-            generation=generation,
-            edit_revision=view.revision,
-            material_signature=str(payload.get("material_signature", "") or ""),
-            affected_submesh_count=len(tuple(payload.get("affected_submeshes", ()) or ())),
+        return self._queue_dotnet_material_compile(
+            request,
+            committed_resources=committed_resources,
         )
-        return True
 
     def apply_resident_reference_material_resources(self, preview_model: object) -> bool:
         if preview_model is None:
@@ -309,39 +325,21 @@ class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
         if controller is None:
             return False
         try:
-            view = controller.session_view()
             editable_mesh = controller.working_mesh(clone=False)
             editable_count = len(tuple(getattr(editable_mesh, "submeshes", ()) or ()))
-            generation = self.standalone_dotnet_material_generation + 1
-            payload = _tab.mesh_dotnet_material_state_payload(
-                preview_model,
-                session_id=view.session_id,
-                edit_revision=view.revision,
-                generation=generation,
-                role="original_reference",
-                submesh_index_offset=editable_count,
-                material_signature=self.standalone_dotnet_material_signature,
-            )
         except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
             self._set_dotnet_status(
                 f"Could not snapshot late original/reference materials: {exc}",
                 error=True,
             )
             return False
-        payload.update(
-            {
-                "reason": "late_original_reference_resources",
-                "request_id": generation,
-                "base_revision": view.revision,
-                "process_generation": self.standalone_dotnet_process_generation,
-                "protocol_version": 2,
-            }
+        return self._send_dotnet_material_state(
+            reason="late_original_reference_resources",
+            mesh_snapshot=preview_model,
+            role="original_reference",
+            submesh_index_offset=editable_count,
+            material_signature=self.standalone_dotnet_material_signature,
         )
-        if not self._send_dotnet_protocol_message(payload):
-            return False
-        self.standalone_dotnet_material_generation = generation
-        self.standalone_dotnet_lifecycle_counts["material_state_update_count"] += 1
-        return True
 
     def apply_resident_clone_material_resources(self, preview_model: object) -> bool:
         """Mirror resolved original materials onto an exact editable clone in-place."""
@@ -499,6 +497,9 @@ class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
         *,
         affected_submeshes: Sequence[int] = (),
         reason: str = "material_authority_resource",
+        parameter_groups: Sequence[Mapping[str, object]] = (),
+        material_authority_fingerprint: str = "",
+        material_authority_revision: int = 0,
     ) -> bool:
         if not bindings:
             return False
@@ -524,4 +525,7 @@ class MeshEditorDotNetResourceProtocolMixin(MeshEditorDotNetPayloadMixin):
             affected_submeshes=scope or None,
             mesh_snapshot=snapshot,
             committed_resources=bindings,
+            parameter_groups=parameter_groups,
+            material_authority_fingerprint=material_authority_fingerprint,
+            material_authority_revision=material_authority_revision,
         )

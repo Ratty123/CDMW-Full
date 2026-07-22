@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import time
+from dataclasses import asdict
 from uuid import uuid4
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -17,11 +18,19 @@ from tools.mesh_harness.visual_audit_capture import (
     run_dotnet_capture_batch,
 )
 from tools.mesh_harness.visual_audit_corpus import (
+    VISUAL_AUDIT_VIEWS,
     VisualAuditAssetSpec,
     default_visual_audit_specs,
+    default_visual_audit_v2_specs,
     prepare_visual_audit_corpus,
 )
 from tools.mesh_harness.visual_audit_integrity import _capture_integrity
+from tools.mesh_harness.visual_audit_manifest_v2 import (
+    REQUIRED_SWORD_PATH,
+    VISUAL_AUDIT_V2_CATEGORY_COUNTS,
+    VISUAL_AUDIT_V2_GRAPH_MINIMUMS,
+)
+from tools.mesh_harness.visual_audit_package import fingerprint_visual_audit_prepared_packages
 from tools.mesh_harness.visual_audit_report import build_visual_audit_composites
 
 
@@ -32,7 +41,7 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--game-root", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--manifest", type=Path)
-    parser.add_argument("--phase", choices=("all", "prepare", "capture"), default="all")
+    parser.add_argument("--phase", choices=("all", "prepare", "seal", "capture"), default="all")
     parser.add_argument("--resume-prepare", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--native-timeout", type=float, default=45.0)
@@ -80,7 +89,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = _argument_parser()
     args = parser.parse_args(argv)
     game_root, evidence_root, runtime_root = _initialize_evidence_roots(args, parser)
-    if args.resume_prepare and args.phase == "capture":
+    if args.resume_prepare and args.phase in {"seal", "capture"}:
         parser.error("--resume-prepare requires the prepare or all phase.")
     final_root = evidence_root / "final"
     package_state_path = runtime_root / "package-state.json"
@@ -97,9 +106,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             evidence_root=evidence_root,
             runtime_root=runtime_root,
         )
-        if args.phase == "prepare":
-            _write_commands(evidence_root, args, temporary_root)
-            return 0
     else:
         package_state = _read_json(package_state_path)
         run_id = str(package_state.get("run_id", "") or "")
@@ -125,7 +131,44 @@ def main(argv: Sequence[str] | None = None) -> int:
         if isinstance(row, Mapping)
     ]
     if not runtime_assets:
-        parser.error("Capture phase requires a prepared runtime/package-state.json.")
+        parser.error("The selected phase requires a prepared runtime/package-state.json.")
+
+    package_fingerprint_path = runtime_root / "prepared-package-fingerprints.json"
+    try:
+        current_package_fingerprints = fingerprint_visual_audit_prepared_packages(
+            runtime_assets,
+            run_id=run_id,
+            corpus_sha256=str(package_state.get("corpus_sha256", "") or ""),
+            temporary_root=temporary_root,
+        )
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
+    if args.phase in {"all", "prepare", "seal"}:
+        try:
+            seal_action = _publish_or_verify_package_seal(
+                package_fingerprint_path,
+                current_package_fingerprints,
+                allow_replace=args.phase != "seal",
+            )
+        except ValueError as exc:
+            parser.error(str(exc))
+        print(
+            f"{seal_action}: {current_package_fingerprints['asset_count']} assets, "
+            f"aggregate {current_package_fingerprints['aggregate_sha256']}",
+            flush=True,
+        )
+        if args.phase in {"prepare", "seal"}:
+            _write_commands(evidence_root, args, temporary_root)
+            return 0
+        prepared_package_fingerprints_before = current_package_fingerprints
+    else:
+        prepared_package_fingerprints_before = _read_json(package_fingerprint_path)
+        if not prepared_package_fingerprints_before:
+            parser.error(
+                "Prepared package seal is missing. Run the same command with --phase seal first."
+            )
+        if prepared_package_fingerprints_before != current_package_fingerprints:
+            parser.error("Prepared package trees changed after sealing; refuse capture.")
 
     print("Capturing Archive Browser views in one resident native renderer process...", flush=True)
     archive_report = run_archive_browser_capture_batch(
@@ -171,7 +214,31 @@ def main(argv: Sequence[str] | None = None) -> int:
     before = _read_json(runtime_root / "archive-fingerprints-before.json")
     unchanged = before == after and bool(before)
     _atomic_write_json(runtime_root / "archive-fingerprints-after.json", after)
-    _write_draft_review(evidence_root, corpus, composite_rows, archive_report, dotnet_report, unchanged)
+    try:
+        prepared_package_fingerprints_after = fingerprint_visual_audit_prepared_packages(
+            runtime_assets,
+            run_id=run_id,
+            corpus_sha256=str(package_state.get("corpus_sha256", "") or ""),
+            temporary_root=temporary_root,
+        )
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
+    prepared_packages_unchanged = (
+        prepared_package_fingerprints_before == prepared_package_fingerprints_after
+    )
+    _atomic_write_json(
+        runtime_root / "prepared-package-fingerprints-after.json",
+        prepared_package_fingerprints_after,
+    )
+    _write_draft_review(
+        evidence_root,
+        corpus,
+        composite_rows,
+        archive_report,
+        dotnet_report,
+        unchanged,
+        prepared_packages_unchanged,
+    )
     _write_commands(evidence_root, args, temporary_root)
     expected_ids = [
         str(row.get("asset_id", ""))
@@ -184,12 +251,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         archive_report=archive_report,
         dotnet_report=dotnet_report,
         composite_rows=composite_rows,
+        prepared_packages_unchanged=prepared_packages_unchanged,
     )
     _atomic_write_json(runtime_root / "integrity.json", integrity)
     ok = (
         archive_report.get("ok") is True
         and dotnet_report.get("ok") is True
         and unchanged
+        and prepared_packages_unchanged
         and integrity["ok"] is True
     )
     return 0 if ok else 1
@@ -203,7 +272,29 @@ def _prepare_visual_audit_run(
     evidence_root: Path,
     runtime_root: Path,
 ) -> tuple[dict[str, object], str, Path]:
-    specs = _load_specs(args.manifest) if args.manifest else default_visual_audit_specs()
+    generated_manifest_path = runtime_root / "selection-manifest-v2.json"
+    if args.manifest:
+        specs = _load_specs(args.manifest)
+    elif args.resume_prepare and generated_manifest_path.is_file():
+        specs = _load_specs(generated_manifest_path)
+    else:
+        specs = default_visual_audit_v2_specs(game_root)
+        _atomic_write_json(
+            generated_manifest_path,
+            {
+                "schema": "cdmw_mesh_visual_audit_manifest_v2",
+                "minimum_asset_count": 120,
+                "required_coverage": {
+                    **dict(VISUAL_AUDIT_V2_CATEGORY_COUNTS),
+                    **dict(VISUAL_AUDIT_V2_GRAPH_MINIMUMS),
+                },
+                "selection_policy": (
+                    "required prior concerns, then descending PAC XML graph complexity, "
+                    "then virtual-path ordering"
+                ),
+                "assets": [asdict(spec) for spec in specs],
+            },
+        )
     if args.limit > 0:
         specs = specs[: max(1, args.limit)]
     resume_checkpoint: Mapping[str, object] | None = None
@@ -235,6 +326,7 @@ def _prepare_visual_audit_run(
         ),
         allow_partial=bool(args.limit > 0),
         resume_checkpoint=resume_checkpoint,
+        source_board_root=evidence_root / "source-boards",
     )
     prepared["run_id"] = run_id
     runtime_assets = prepared.pop("runtime_assets")
@@ -357,6 +449,27 @@ def _payload_sha256(payload: Mapping[str, object]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _publish_or_verify_package_seal(
+    path: Path,
+    current: Mapping[str, object],
+    *,
+    allow_replace: bool,
+) -> str:
+    path = Path(path)
+    if path.exists() and not allow_replace:
+        existing = _read_json(path)
+        if not existing:
+            raise ValueError("Existing prepared package seal is unreadable; refuse replacement.")
+        if existing != dict(current):
+            raise ValueError(
+                "Prepared package trees changed after the existing seal; refuse resealing. "
+                "Regenerate preparation into a deliberate new evidence root."
+            )
+        return "Verified prepared package seal"
+    _atomic_write_json(path, current)
+    return "Sealed prepared package trees"
+
+
 def _load_specs(path: Path) -> tuple[VisualAuditAssetSpec, ...]:
     payload = _read_json(path)
     assets = payload.get("assets")
@@ -377,6 +490,10 @@ def _load_specs(path: Path) -> tuple[VisualAuditAssetSpec, ...]:
                 model_category=category,
                 coverage_tags=tuple(str(value) for value in tuple(row.get("coverage_tags", ()) or ())),
                 selection_reason=str(row.get("selection_reason", "") or "User-supplied corpus manifest."),
+                graph_complexity=int(row.get("graph_complexity", 0) or 0),
+                graph_tags=tuple(str(value) for value in tuple(row.get("graph_tags", ()) or ())),
+                pac_xml_virtual_path=str(row.get("pac_xml_virtual_path", "") or ""),
+                pac_xml_sha256=str(row.get("pac_xml_sha256", "") or ""),
             )
         )
     result = tuple(specs)
@@ -441,6 +558,7 @@ def _write_draft_review(
     archive_report: Mapping[str, object],
     dotnet_report: Mapping[str, object],
     archives_unchanged: bool,
+    prepared_packages_unchanged: bool,
 ) -> None:
     composite_map = {str(row.get("id", "")): row for row in composites}
     lines = [
@@ -453,13 +571,78 @@ def _write_draft_review(
         f"- Archive Browser batch: {'PASS' if archive_report.get('ok') else 'FAIL'}",
         f"- Mesh Editor .NET/Vortice batch: {'PASS' if dotnet_report.get('ok') else 'FAIL'}",
         f"- Game archive fingerprints unchanged: {archives_unchanged}",
+        f"- Prepared package fingerprints unchanged: {prepared_packages_unchanged}",
         "",
     ]
+    verdict_assets: list[dict[str, object]] = []
+    unreviewed_submesh_count = 0
     for asset in tuple(corpus.get("assets", ()) or ()):
         if not isinstance(asset, Mapping):
             continue
         asset_id = str(asset.get("asset_id", "") or "")
         composite = composite_map.get(asset_id, {})
+        region_templates: list[dict[str, object]] = []
+        for region in tuple(composite.get("material_regions", ()) or ()):
+            if not isinstance(region, Mapping):
+                continue
+            unreviewed_submesh_count += 1
+            region_templates.append(
+                {
+                    "source_submesh_index": int(region.get("source_submesh_index", -1)),
+                    "classification": "",
+                    "classification_basis": "",
+                    "source_map_observations": "",
+                    "pac_evidence": "",
+                    "render_observations": "",
+                    "geometry_observations": "",
+                    "geometry_coherent": None,
+                    "confidence": "",
+                    "unsupported_features": [],
+                    "unsupported_feature_unchanged": False,
+                    "automated_metric_flags": [],
+                    "automated_metrics_only": False,
+                    "source_board_direct_image_inspection": False,
+                    "review_sheet_direct_image_inspection": False,
+                    "verdict": "",
+                    "source_board": str(region.get("source_board", "") or ""),
+                    "review_sheet": str(region.get("review_sheet", "") or ""),
+                }
+            )
+        verdict_assets.append(
+            {
+                "id": asset_id,
+                "selected_camera_angle": str(composite.get("selected_camera_angle", "three-quarter-front")),
+                "full_model_angle_reviews": [
+                    {
+                        "angle": str(view["name"]),
+                        "direct_image_inspection": False,
+                        "visual_observations": "",
+                        "geometry_coherent": None,
+                        "geometry_observations": "",
+                        "verdict": "",
+                    }
+                    for view in VISUAL_AUDIT_VIEWS
+                ],
+                "full_model_contact_sheet_direct_image_inspection": False,
+                "full_model_contact_sheet_observations": "",
+                "full_model_contact_sheet_verdict": "",
+                "full_model_geometry_coherent": None,
+                "full_model_geometry_observations": "",
+                "reference_status": "",
+                "reference_identity": "",
+                "reference_urls": [],
+                "reference_observations": "",
+                "reported_target_match": (
+                    None
+                    if str(asset.get("virtual_path", "") or "").casefold()
+                    == REQUIRED_SWORD_PATH.casefold()
+                    else "not_applicable"
+                ),
+                "reported_target_observations": "",
+                "overall_verdict": "",
+                "material_regions": region_templates,
+            }
+        )
         lines.extend(
             [
                 f"## {int(asset.get('index', 0) or 0):03d} - {asset_id}",
@@ -482,6 +665,7 @@ def _write_draft_review(
                 "- Remaining uncertainty: Visual adjudication pending.",
                 f"- Primary comparison: `{composite.get('primary_final_png', '')}`",
                 f"- Multi-angle contact sheet: `{composite.get('contact_sheet', '')}`",
+                f"- Visible submeshes awaiting review: {len(region_templates)}",
                 "",
             ]
         )
@@ -489,7 +673,7 @@ def _write_draft_review(
     _atomic_write_json(
         evidence_root / "summary.json",
         {
-            "schema": "cdmw_mesh_visual_audit_summary_v1",
+            "schema": "cdmw_mesh_visual_audit_summary_v2",
             "run_id": str(corpus.get("run_id", "") or ""),
             "status": "pending_visual_review",
             "asset_count": int(corpus.get("asset_count", 0) or 0),
@@ -497,10 +681,27 @@ def _write_draft_review(
             "concern_count": 0,
             "fail_count": 0,
             "unreviewed_count": int(corpus.get("asset_count", 0) or 0),
+            "unreviewed_submesh_count": unreviewed_submesh_count,
             "archive_browser_batch_ok": bool(archive_report.get("ok")),
             "dotnet_batch_ok": bool(dotnet_report.get("ok")),
             "archive_sources_unchanged": bool(archives_unchanged),
+            "prepared_packages_unchanged": bool(prepared_packages_unchanged),
             "assets": [dict(row) for row in composites],
+        },
+    )
+    _atomic_write_json(
+        evidence_root / "verdicts.template.json",
+        {
+            "schema": "cdmw_mesh_visual_audit_verdict_v2",
+            "run_id": str(corpus.get("run_id", "") or ""),
+            "review_policy": (
+                "Separate direct-inspection records for every PAC/DDS source board, every submesh "
+                "review sheet, all six individual full-model comparisons, and the contact sheet; "
+                "every rendered image receives PASS/CONCERN/FAIL and the asset takes the worst; "
+                "geometry coherence is a hard gate, and source/automated evidence may flag "
+                "candidates but cannot issue visual PASS."
+            ),
+            "assets": verdict_assets,
         },
     )
 
@@ -525,6 +726,18 @@ def _write_commands(evidence_root: Path, args: argparse.Namespace, temporary_roo
         "",
         "```powershell",
         command,
+        "```",
+        "",
+        "Seal an already prepared package without launching either renderer:",
+        "",
+        "```powershell",
+        command + " --phase seal",
+        "```",
+        "",
+        "Capture an unchanged sealed package without running preparation:",
+        "",
+        "```powershell",
+        command + " --phase capture",
         "```",
         "",
         "Run one PAC through the same preparation and paired capture path:",

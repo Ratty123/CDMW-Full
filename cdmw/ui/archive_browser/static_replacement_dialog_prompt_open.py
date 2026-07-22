@@ -64,6 +64,19 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     )
     cancel_button = build_footer.cancel_button
     import_button = build_footer.import_button
+    setattr(dialog, "_material_authority_build_button", import_button)
+    setattr(
+        dialog,
+        "_material_authority_base_build_allowed",
+        bool(replacement_export_allowed["allowed"]),
+    )
+    material_sync_status = str(getattr(dialog, "_material_authority_sync_status", "inactive") or "inactive")
+    material_sync_state = getattr(dialog, "_material_authority_resolved_state", None)
+    if material_sync_status != "inactive" and not bool(getattr(material_sync_state, "build_allowed", False)):
+        import_button.setEnabled(False)
+        import_button.setToolTip(
+            str(getattr(dialog, "_material_authority_sync_reason", "") or "Material Authority exact preview is pending.")
+        )
     build_status_bar = build_footer.build_status_bar
     build_status_label = build_footer.build_status_label
     cancel_button.clicked.connect(dialog.reject)

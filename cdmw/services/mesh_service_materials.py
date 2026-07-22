@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import math
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -61,6 +62,14 @@ def _resident_material_groups(session: _MeshEditSession) -> tuple[dict[str, obje
     )
 
 
+def _resident_material_file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 class MeshResidentMaterialServiceMixin:
     def commit_resident_material_resources(
         self,
@@ -96,6 +105,9 @@ class MeshResidentMaterialServiceMixin:
                     source = Path(str(binding.get("source_dds_path", binding.get("path", "")) or "")).expanduser()
                     if source.suffix.lower() != ".dds":
                         raise ValueError("committed resident material resource must be a DDS file")
+                    expected_hash = str(binding.get("content_sha256", "") or "").strip().lower()
+                    if expected_hash and _resident_material_file_sha256(source) != expected_hash:
+                        raise ValueError("resident material DDS hash does not match the resolved state")
                     revision = self.record_committed_texture_assignment(
                         session_id,
                         source,
@@ -106,6 +118,8 @@ class MeshResidentMaterialServiceMixin:
                         mesh_texture_assignment=False,
                     )
                     created.append(Path(session.committed_texture_resources[key].source_dds_path))
+                    if expected_hash and _resident_material_file_sha256(created[-1]) != expected_hash:
+                        raise ValueError("committed resident material DDS failed hash readback")
                     applied = revision > 0
                 if not applied:
                     raise ValueError("resident material resource update has no bindings")
@@ -117,6 +131,68 @@ class MeshResidentMaterialServiceMixin:
                 raise
             session.material_generation = previous_generation + 1
             return session.material_generation
+
+    def commit_resident_material_state(
+        self,
+        session_id: str,
+        bindings: Sequence[Mapping[str, object]],
+        *,
+        parameter_groups: Sequence[Mapping[str, object]] = (),
+        material_authority_fingerprint: str = "",
+        material_authority_revision: int = 0,
+        expected_mesh_revision: int | None = None,
+    ) -> int:
+        """Atomically commit acknowledged DDS resources and final renderer state."""
+
+        session = self._session(session_id)
+        with session.export_lock:
+            previous_resources = dict(session.committed_texture_resources)
+            previous_parameters = copy.deepcopy(session.resident_material_parameters)
+            previous_generation = int(session.material_generation)
+            previous_fingerprint = str(session.material_authority_fingerprint or "")
+            previous_revision = int(session.material_authority_revision)
+            previous_paths = {
+                Path(resource.source_dds_path)
+                for resource in previous_resources.values()
+                if str(resource.source_dds_path or "")
+            }
+            try:
+                if expected_mesh_revision is not None and int(expected_mesh_revision) != int(session.revision):
+                    raise RuntimeError(
+                        f"stale resident material revision: expected {int(expected_mesh_revision)}, current {session.revision}"
+                    )
+                if bindings:
+                    self.commit_resident_material_resources(
+                        session_id,
+                        bindings,
+                        expected_mesh_revision=expected_mesh_revision,
+                    )
+                if parameter_groups:
+                    self.commit_resident_material_parameters(
+                        session_id,
+                        parameter_groups,
+                        expected_mesh_revision=expected_mesh_revision,
+                    )
+                if not bindings and not parameter_groups:
+                    raise ValueError("resident material state update is empty")
+                session.material_authority_fingerprint = str(material_authority_fingerprint or "")
+                session.material_authority_revision = max(0, int(material_authority_revision))
+                session.material_generation = previous_generation + 1
+                return session.material_generation
+            except Exception:
+                created_paths = {
+                    Path(resource.source_dds_path)
+                    for resource in session.committed_texture_resources.values()
+                    if str(resource.source_dds_path or "")
+                } - previous_paths
+                session.committed_texture_resources = previous_resources
+                session.resident_material_parameters = previous_parameters
+                session.material_generation = previous_generation
+                session.material_authority_fingerprint = previous_fingerprint
+                session.material_authority_revision = previous_revision
+                for path in created_paths:
+                    path.unlink(missing_ok=True)
+                raise
 
     def commit_resident_material_parameters(
         self,

@@ -3142,7 +3142,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         flush_role_block = source[flush_role_start:flush_role_end]
         self.assertIn("_source_part_role_export_flush_states_helper(", flush_role_block)
         self.assertIn("flush_state.material_role_changed", flush_role_block)
-        self.assertIn("flush_state.clear_emissive_color", flush_role_block)
+        self.assertNotIn("clear_emissive_color", flush_role_block)
         self.assertNotIn("source_index = int(raw_source_index)", flush_role_block)
         self.assertIn("_apply_current_glow_color_to_role_overrides()", source)
         self.assertIn("_flush_source_role_overrides_for_export()", source)
@@ -4657,7 +4657,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
         self.assertIn('inactive[key] = "No effect: Color slot is disabled."', manual_profile_source)
         self.assertIn("manual_material_profile_control_effect_states", manual_profile_source)
-        self.assertIn('widget.setEnabled(bool(state.get("enabled", True)))', source)
+        self.assertIn(
+            'unsafe_acknowledged if expert_control and not modify_original_clone_mode else bool(state.get("enabled", True))',
+            source,
+        )
         self.assertIn("manual_material_profile_dirty_state", manual_profile_source)
         self.assertIn("manual_material_profile_panel_state", manual_profile_source)
         self.assertIn("manual_material_profile_token", manual_profile_source)
@@ -4677,7 +4680,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("manual_material_profile_change_status_text", manual_profile_source)
         self.assertIn("Manual sliders queue preview refresh after input settles", manual_profile_source)
         self.assertIn("Preview refresh queued; press Apply Manual Settings to force it now.", manual_profile_source)
-        self.assertIn("_queue_material_authority_adjustment_preview_refresh()", source)
+        self.assertIn("_refresh_preview_for_current_session(changed_keys)", source)
         self.assertIn("def _apply_current_manual_material_profile_to_preview", source)
         self.assertIn("_state.manual_profile_apply_button.clicked.connect(_state._apply_current_manual_material_profile_to_preview)", setup_ui_source)
         self.assertIn("_state.manual_profile_layout.addLayout(_state.manual_profile_apply_row, 4, 0, 1, 4)", setup_ui_source)

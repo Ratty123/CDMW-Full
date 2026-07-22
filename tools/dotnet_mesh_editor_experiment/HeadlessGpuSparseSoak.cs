@@ -713,6 +713,8 @@ internal static partial class HeadlessGpuSparseSoak
         };
     }
 
+    internal static bool IsWindowVisibleForProof(IntPtr handle) => IsWindowVisible(handle);
+
     private static double ApplySparseUpdate(
         D3D11MaterialViewport viewport,
         ObjSubmesh submesh,

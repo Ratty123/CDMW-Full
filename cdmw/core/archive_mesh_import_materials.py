@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 
 from cdmw.core.archive_mesh_import_build_state import MeshImportBuildState
 from cdmw.core.common import raise_if_cancelled
@@ -53,12 +54,30 @@ def configure_mesh_import_materials(state: MeshImportBuildState) -> None:
         ),
         "complete_external_material_reset": complete_reset,
         "complete_swap_material_profile": profile,
+        "material_authority_fingerprint": str(
+            getattr(options, "material_authority_fingerprint", "") or ""
+        ),
+        "material_authority_revision": max(
+            0, int(getattr(options, "material_authority_revision", 0) or 0)
+        ),
+        "material_authority_resolved_bindings": tuple(
+            dict(binding)
+            for binding in tuple(getattr(options, "material_authority_resolved_bindings", ()) or ())
+            if isinstance(binding, Mapping)
+        ),
+        "material_authority_residual_parameter_groups": tuple(
+            dict(group)
+            for group in tuple(getattr(options, "material_authority_residual_parameter_groups", ()) or ())
+            if isinstance(group, Mapping)
+        ),
         **values,
     }
     state.material_authority_settings = {
         "enabled": complete_reset,
         "requested_profile": profile,
         "resolved_profile": "",
+        "fingerprint": state.material_options["material_authority_fingerprint"],
+        "revision": state.material_options["material_authority_revision"],
         **values,
     }
     append_mesh_import_material_summary(state)
@@ -158,7 +177,7 @@ def build_static_texture_payloads(state: MeshImportBuildState, original_sidecars
         )
     ):
         return [], None
-    return api.build_texture_replacement_payloads(
+    payloads, report = api.build_texture_replacement_payloads(
         obj_mesh=state.effective_static_source_mesh,
         rebuilt_mesh=state.parsed_mesh,
         texture_files=texture_files,
@@ -203,6 +222,34 @@ def build_static_texture_payloads(state: MeshImportBuildState, original_sidecars
             getattr(state.static_replacement_options, "pac_xml_profile_cache_path", "") or ""
         ),
     )
+    fingerprint = str(values.get("material_authority_fingerprint", "") or "")
+    bindings = tuple(values.get("material_authority_resolved_bindings", ()) or ())
+    if fingerprint or bindings:
+        from cdmw.services.material_authority_build_artifacts import (
+            synchronize_material_authority_build_payloads,
+        )
+
+        if not fingerprint or not bindings:
+            raise ValueError("Material Authority exact build state is incomplete.")
+        exact_artifacts = synchronize_material_authority_build_payloads(
+            payloads,
+            report,
+            bindings,
+            fingerprint=fingerprint,
+            parameter_groups=tuple(
+                values.get("material_authority_residual_parameter_groups", ()) or ()
+            ),
+        )
+        state.material_authority_settings.update(
+            {
+                "status": "exact",
+                "exact_artifacts": exact_artifacts,
+                "residual_parameter_groups": tuple(
+                    values.get("material_authority_residual_parameter_groups", ()) or ()
+                ),
+            }
+        )
+    return payloads, report
 
 
 def append_texture_replacement_report(state: MeshImportBuildState, report: object) -> None:
@@ -303,6 +350,8 @@ def generate_mesh_import_material_payloads(state: MeshImportBuildState) -> None:
             raise_if_cancelled(state.stop_event, "Mesh import preview cancelled.")
         except Exception as exc:
             raise_if_cancelled(state.stop_event, "Mesh import preview cancelled.")
+            if str(state.material_options.get("material_authority_fingerprint", "") or ""):
+                raise ValueError(f"Material Authority exact build failed closed: {exc}") from exc
             payloads, report = [], None
             state.summary_lines.append(f"Static texture replacement failed: {exc}")
         if report is not None:

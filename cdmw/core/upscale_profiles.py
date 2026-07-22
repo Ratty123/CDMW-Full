@@ -145,6 +145,11 @@ class TextureSidecarBinding:
     layer_role: str = ""
     layer_channel: str = ""
     blend_flags: Tuple[str, ...] = ()
+    owner_slot_index: int = -1
+    owner_wrapper_item_id: str = ""
+    binding_authority: str = ""
+    binding_disposition: str = ""
+    source_kind: str = ""
 
 
 @dataclass(slots=True, frozen=True)
@@ -166,6 +171,7 @@ class MaterialSidecarSlot:
     material_name: str = ""
     shader_family: str = ""
     wrapper_item_id: str = ""
+    owner_slot_index: int = -1
     texture_parameters: Tuple[MaterialSidecarParameter, ...] = ()
     color_parameters: Tuple[MaterialSidecarParameter, ...] = ()
     float_parameters: Tuple[MaterialSidecarParameter, ...] = ()
@@ -404,6 +410,175 @@ def _parse_sidecar_color(value: str) -> Tuple[float, float, float]:
     if len(values) >= 3:
         return tuple(max(0.0, min(2.0, value)) for value in values[:3])  # type: ignore[return-value]
     return ()
+
+
+_RAW_XML_ATTRIBUTE_RE = re.compile(
+    r"(?P<name>[A-Za-z_:][A-Za-z0-9_.:-]*)\s*=\s*(?P<quote>['\"])(?P<value>.*?)(?P=quote)",
+    re.DOTALL,
+)
+_PAC_MODEL_PROPERTY_START_RE = re.compile(r"<(?:[A-Za-z_][\w.-]*:)?ModelProperty\b", re.IGNORECASE)
+_PAC_MODEL_PROPERTY_END_RE = re.compile(r"</(?:[A-Za-z_][\w.-]*:)?ModelProperty\s*>", re.IGNORECASE)
+_PAC_MATERIAL_WRAPPER_START_RE = re.compile(
+    r"<(?P<tag>(?:[A-Za-z_][\w.-]*:)?SkinnedMeshMaterialWrapper)\b[^>]*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_PAC_TOLERANT_FIELD_BUCKET_BY_KIND = {
+    "texture": "texture",
+    "color": "color",
+    "byte4": "byte4",
+    "bool": "flag",
+    "int": "flag",
+    "uint": "flag",
+    "bitflag32": "flag",
+    "enum": "flag",
+    "clothcategory": "flag",
+    "lightpreset": "flag",
+    "heightblendtype": "flag",
+    "systemeffect": "flag",
+    "float": "float",
+    "float2": "float",
+    "float3": "float",
+    "half2": "float",
+}
+
+
+def _raw_xml_attribute(start_tag: str, names: Sequence[str]) -> str:
+    wanted = {str(name).casefold() for name in names}
+    for match in _RAW_XML_ATTRIBUTE_RE.finditer(str(start_tag or "")):
+        if match.group("name").casefold() in wanted:
+            return str(match.group("value") or "").strip()
+    return ""
+
+
+def _first_pac_model_property_fragment(sidecar_text: str) -> str:
+    text = str(sidecar_text or "")
+    start = _PAC_MODEL_PROPERTY_START_RE.search(text)
+    if start is None:
+        return text
+    end = _PAC_MODEL_PROPERTY_END_RE.search(text, start.end())
+    if end is not None:
+        return text[start.start() : end.end()]
+    next_start = _PAC_MODEL_PROPERTY_START_RE.search(text, start.end())
+    return text[start.start() : (next_start.start() if next_start is not None else len(text))]
+
+
+def _pac_field_parameter_record(field: object) -> MaterialSidecarParameter:
+    value = str(getattr(field, "value", "") or "").strip()
+    kind = str(getattr(field, "kind", "") or "").strip().casefold()
+    parameter_type = str(getattr(field, "parameter_type", "") or "").strip()
+    try:
+        index = int(str(getattr(field, "index", "") or "").strip())
+    except (TypeError, ValueError):
+        index = -1
+    numeric_value: Optional[float] = None
+    if value:
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            numeric_value = None
+    return MaterialSidecarParameter(
+        parameter_name=str(getattr(field, "parameter_name", "") or "").strip(),
+        tag_name=(
+            parameter_type
+            if parameter_type.casefold().startswith("materialparameter")
+            else f"MaterialParameter{parameter_type or kind.title()}"
+        ),
+        string_item_id=str(getattr(field, "parameter_name", "") or "").strip(),
+        item_id=str(getattr(field, "item_id", "") or "").strip(),
+        index=index,
+        value=value,
+        texture_path=value.replace("\\", "/") if kind == "texture" else "",
+        color_value=_parse_sidecar_color(value) if kind == "color" else (),
+        numeric_value=numeric_value,
+    )
+
+
+def _parse_tolerant_pac_xml_material_profile(
+    sidecar_text: str,
+    *,
+    sidecar_path: str,
+) -> MaterialSidecarProfile:
+    """Recover the first PAC material group when the game XML is not strict XML.
+
+    Some production PAC sidecars contain a malformed tag outside otherwise valid
+    material wrappers.  The editor's PAC field reader can still parse each
+    wrapper safely, so keep the same first-ModelProperty policy as the strict ET
+    path and never fall back to filename-only material guesses.
+    """
+
+    from cdmw.domain.pac_xml_editor import parse_pac_xml_payload
+
+    sidecar_kind = "pac_xml"
+    linked_mesh_path = _linked_mesh_path_from_sidecar(sidecar_path, sidecar_kind)
+    fragment = _first_pac_model_property_fragment(sidecar_text)
+    starts = tuple(_PAC_MATERIAL_WRAPPER_START_RE.finditer(fragment))
+    materials: List[MaterialSidecarSlot] = []
+    order_key = lambda record: (
+        record.index if record.index >= 0 else 999_999,
+        record.parameter_name.lower(),
+        record.texture_path.lower(),
+    )
+    for owner_slot_index, start in enumerate(starts):
+        boundary = starts[owner_slot_index + 1].start() if owner_slot_index + 1 < len(starts) else len(fragment)
+        wrapper_tag = str(start.group("tag") or "SkinnedMeshMaterialWrapper")
+        close_re = re.compile(rf"</{re.escape(wrapper_tag)}\s*>", re.IGNORECASE)
+        close = close_re.search(fragment, start.end(), boundary)
+        if close is None:
+            continue
+        wrapper_text = fragment[start.start() : close.end()]
+        try:
+            document = parse_pac_xml_payload(wrapper_text.encode("utf-8"))
+        except (TypeError, UnicodeError, ValueError):
+            continue
+        start_tag = start.group(0)
+        part_name = _raw_xml_attribute(
+            start_tag,
+            ("_subMeshName", "subMeshName", "SubMeshName", "PrimitiveName", "primitiveName", "Name", "name"),
+        )
+        wrapper_item_id = _raw_xml_attribute(start_tag, ("ItemID", "itemID", "_itemID"))
+        shader_family = next(
+            (str(field.shader_name or "").strip() for field in document.fields if str(field.shader_name or "").strip()),
+            "",
+        )
+        buckets: Dict[str, List[MaterialSidecarParameter]] = {
+            "texture": [],
+            "color": [],
+            "float": [],
+            "flag": [],
+            "byte4": [],
+        }
+        for field in document.fields:
+            record = _pac_field_parameter_record(field)
+            kind = str(field.kind or "").strip().casefold()
+            bucket = _PAC_TOLERANT_FIELD_BUCKET_BY_KIND.get(kind)
+            if bucket is not None:
+                buckets[bucket].append(record)
+            elif record.numeric_value is not None:
+                buckets["float"].append(record)
+            else:
+                buckets["flag"].append(record)
+        if not any(buckets.values()):
+            continue
+        materials.append(
+            MaterialSidecarSlot(
+                part_name=part_name or f"Material {owner_slot_index}",
+                material_name=part_name,
+                shader_family=shader_family,
+                wrapper_item_id=wrapper_item_id,
+                owner_slot_index=owner_slot_index,
+                texture_parameters=tuple(sorted(buckets["texture"], key=order_key)),
+                color_parameters=tuple(sorted(buckets["color"], key=order_key)),
+                float_parameters=tuple(sorted(buckets["float"], key=order_key)),
+                flag_parameters=tuple(sorted(buckets["flag"], key=order_key)),
+                byte4_parameters=tuple(sorted(buckets["byte4"], key=order_key)),
+            )
+        )
+    return MaterialSidecarProfile(
+        sidecar_path=sidecar_path,
+        sidecar_kind=sidecar_kind,
+        linked_mesh_path=linked_mesh_path,
+        materials=tuple(materials),
+    )
 
 
 def _parse_sidecar_color_attrs(element: ET.Element) -> Tuple[float, float, float]:
@@ -645,6 +820,11 @@ def _parse_material_sidecar_profile_cached(sidecar_text_value: str, sidecar_path
     try:
         root = ET.fromstring(f"<Root>{sidecar_text}</Root>")
     except ET.ParseError:
+        if sidecar_kind == "pac_xml":
+            return _parse_tolerant_pac_xml_material_profile(
+                sidecar_text,
+                sidecar_path=sidecar_path,
+            )
         return MaterialSidecarProfile(sidecar_path=sidecar_path, sidecar_kind=sidecar_kind, linked_mesh_path=linked_mesh_path)
 
     materials: List[MaterialSidecarSlot] = []
@@ -662,11 +842,14 @@ def _parse_material_sidecar_profile_cached(sidecar_text_value: str, sidecar_path
         if model_properties:
             wrapper_roots = (model_properties[0],)
 
+    owner_slot_index = 0
     for wrapper_root in wrapper_roots:
         for wrapper in wrapper_root.iter():
             wrapper_tag = _strip_texture_sidecar_xml_namespace(wrapper.tag)
             if wrapper_tag not in wrapper_tags:
                 continue
+            current_owner_slot_index = owner_slot_index
+            owner_slot_index += 1
             if sidecar_kind != "pac_xml" and wrapper_tag == "Material":
                 part_name = _first_attr(wrapper, ("PrimitiveName", "primitiveName", "_subMeshName", "SubMeshName", "subMeshName", "Name", "name"))
             else:
@@ -713,6 +896,7 @@ def _parse_material_sidecar_profile_cached(sidecar_text_value: str, sidecar_path
                         material_name=material_name or part_name,
                         shader_family=shader_family,
                         wrapper_item_id=_first_attr(wrapper, ("ItemID", "itemID", "_itemID")),
+                        owner_slot_index=current_owner_slot_index,
                         texture_parameters=tuple(sorted(texture_parameters, key=order_key)),
                         color_parameters=tuple(sorted(color_parameters, key=order_key)),
                         float_parameters=tuple(sorted(float_parameters, key=order_key)),
@@ -780,13 +964,14 @@ def _parse_texture_sidecar_bindings_cached(
     if not sidecar_text:
         return ()
     sidecar_text = re.sub(r"^\s*<\?xml[^>]*\?>", "", sidecar_text, count=1, flags=re.IGNORECASE)
+    sidecar_kind = _texture_sidecar_kind(sidecar_path, sidecar_text)
     wrapped_text = f"<Root>{sidecar_text}</Root>"
+    strict_xml_ok = True
     try:
         root = ET.fromstring(wrapped_text)
     except ET.ParseError:
-        return ()
-
-    sidecar_kind = _texture_sidecar_kind(sidecar_path, sidecar_text)
+        strict_xml_ok = False
+        root = ET.Element("Root")
 
     def _parameter_name_for(parameter: ET.Element) -> str:
         return _first_attr(
@@ -920,6 +1105,18 @@ def _parse_texture_sidecar_bindings_cached(
             blend_flags.append(f"channel:{channel}")
         if exact_mask:
             blend_flags.append("crimson_ma_arm")
+        from cdmw.rendering.crimson_shader_registry import decode_crimson_texture_binding
+
+        decode = decode_crimson_texture_binding(
+            shader_family=shader_family,
+            parameter_name=parameter_name,
+            source_path=texture_path,
+            slot_name=role or "material",
+            layer_channel=channel,
+            blend_flags=blend_flags,
+            sidecar_kind=sidecar_kind_value,
+            parameter_declared_by=sidecar_kind_value or "sidecar",
+        )
         return {
             "srgb_mode": srgb_mode,
             "parameter_declared_by": sidecar_kind_value or "sidecar",
@@ -927,6 +1124,9 @@ def _parse_texture_sidecar_bindings_cached(
             "layer_role": role,
             "layer_channel": channel,
             "blend_flags": tuple(blend_flags),
+            "binding_authority": str(decode.get("authority", "") or ""),
+            "binding_disposition": str(decode.get("disposition", "") or ""),
+            "source_kind": str(decode.get("source_kind", "") or ""),
         }
 
     def _append_binding(
@@ -943,6 +1143,8 @@ def _parse_texture_sidecar_bindings_cached(
         brightness: float = 1.0,
         uv_scale: float = 1.0,
         tile_type: str = "",
+        owner_slot_index: int = -1,
+        owner_wrapper_item_id: str = "",
     ) -> None:
         normalized_texture = normalize_texture_reference_for_sidecar_lookup(texture_path)
         if not normalized_texture:
@@ -975,6 +1177,11 @@ def _parse_texture_sidecar_bindings_cached(
                 layer_role=str(metadata["layer_role"]),
                 layer_channel=str(metadata["layer_channel"]),
                 blend_flags=tuple(metadata["blend_flags"]),
+                owner_slot_index=int(owner_slot_index),
+                owner_wrapper_item_id=str(owner_wrapper_item_id or ""),
+                binding_authority=str(metadata["binding_authority"]),
+                binding_disposition=str(metadata["binding_disposition"]),
+                source_kind=str(metadata["source_kind"]),
             )
         )
 
@@ -1041,6 +1248,59 @@ def _parse_texture_sidecar_bindings_cached(
                 )
         return represent_color, tint_color, brightness, uv_scale, tile_type
 
+    if not strict_xml_ok:
+        if sidecar_kind != "pac_xml":
+            return ()
+        profile = parse_material_sidecar_profile(sidecar_text, sidecar_path=sidecar_path)
+        pac_bindings: List[TextureSidecarBinding] = []
+        for slot in profile.materials:
+            tint_color: Tuple[float, float, float] = ()
+            approximate_tints: List[Tuple[Tuple[float, float, float], float]] = []
+            for parameter in slot.color_parameters:
+                key = _normalized_parameter_key(parameter.parameter_name)
+                if key in {"tintcolor", "baseheighttintcolor"} and parameter.color_value:
+                    tint_color = parameter.color_value
+                    break
+                weight = 4.0 if key in {"tintcolorr", "tintcolorg", "tintcolorb"} else 0.0
+                if key in {"dyeingcolormaskr", "dyeingcolormaskg", "dyeingcolormaskb"}:
+                    weight = 2.5
+                elif key in {
+                    "dyeingdetaillayercolormaskr",
+                    "dyeingdetaillayercolormaskg",
+                    "dyeingdetaillayercolormaskb",
+                }:
+                    weight = 1.5
+                elif weight <= 0.0 and ("tintcolor" in key or ("dyeing" in key and "color" in key)):
+                    weight = 1.0
+                if weight > 0.0 and parameter.color_value:
+                    approximate_tints.append((parameter.color_value, weight))
+            if not tint_color and approximate_tints:
+                total_weight = sum(weight for _color, weight in approximate_tints)
+                tint_color = tuple(
+                    sum(color[channel] * weight for color, weight in approximate_tints) / total_weight
+                    for channel in range(3)
+                )  # type: ignore[assignment]
+            brightness = _parse_sidecar_float(slot.parameter_value("_brightness"), 1.0)
+            uv_scale = _parse_sidecar_float(slot.parameter_value("_uvScale"), 1.0)
+            for parameter in slot.texture_parameters:
+                if not parameter.texture_path:
+                    continue
+                _append_binding(
+                    pac_bindings,
+                    texture_path=parameter.texture_path,
+                    parameter_name=parameter.parameter_name,
+                    part_name=slot.part_name,
+                    material_name=slot.material_name,
+                    shader_family=slot.shader_family,
+                    linked_mesh_path=profile.linked_mesh_path,
+                    tint_color=tint_color,
+                    brightness=brightness,
+                    uv_scale=uv_scale,
+                    owner_slot_index=slot.owner_slot_index,
+                    owner_wrapper_item_id=slot.wrapper_item_id,
+                )
+        return tuple(pac_bindings)
+
     if sidecar_kind == "pami":
         linked_mesh_path = ""
         for static_mesh in root.iter():
@@ -1088,10 +1348,14 @@ def _parse_texture_sidecar_bindings_cached(
             if _strip_texture_sidecar_xml_namespace(element.tag) == "ModelProperty"
         )
         wrapper_roots = (model_properties[0],) if model_properties else (root,)
+        owner_slot_index = 0
         for wrapper_root in wrapper_roots:
             for wrapper in wrapper_root.iter():
                 if _strip_texture_sidecar_xml_namespace(wrapper.tag) != "SkinnedMeshMaterialWrapper":
                     continue
+                current_owner_slot_index = owner_slot_index
+                owner_slot_index += 1
+                owner_wrapper_item_id = _first_attr(wrapper, ("ItemID", "itemID", "_itemID"))
                 part_name = _first_attr(wrapper, ("_subMeshName", "subMeshName", "SubMeshName", "Name", "name"))
                 shader_family = _shader_family_from_material_node(wrapper, sidecar_kind)
                 represent_color, tint_color, brightness, uv_scale, tile_type = _preview_params_for_material(wrapper)
@@ -1117,6 +1381,8 @@ def _parse_texture_sidecar_bindings_cached(
                             brightness=brightness,
                             uv_scale=uv_scale,
                             tile_type=tile_type,
+                            owner_slot_index=current_owner_slot_index,
+                            owner_wrapper_item_id=owner_wrapper_item_id,
                         )
                 if len(pac_bindings) == wrapper_binding_count:
                     for resource in wrapper.iter():
@@ -1143,6 +1409,8 @@ def _parse_texture_sidecar_bindings_cached(
                                 brightness=brightness,
                                 uv_scale=uv_scale,
                                 tile_type=tile_type,
+                                owner_slot_index=current_owner_slot_index,
+                                owner_wrapper_item_id=owner_wrapper_item_id,
                             )
         if pac_bindings:
             return tuple(pac_bindings)
@@ -1220,6 +1488,9 @@ def _parse_texture_sidecar_bindings_cached(
                     layer_role=str(metadata["layer_role"]),
                     layer_channel=str(metadata["layer_channel"]),
                     blend_flags=tuple(metadata["blend_flags"]),
+                    binding_authority=str(metadata["binding_authority"]),
+                    binding_disposition=str(metadata["binding_disposition"]),
+                    source_kind=str(metadata["source_kind"]),
                 )
             )
 

@@ -12,6 +12,10 @@ from cdmw.ui.archive_browser.static_replacement_material_authority_history impor
     MaterialAuthorityHistory,
     create_material_authority_history_callbacks,
 )
+from cdmw.ui.archive_browser.static_replacement_dialog_routing_callbacks import (
+    _load_source_part_glow_widget_values,
+    _normalized_selected_glow_source_indices,
+)
 
 
 class _Widget:
@@ -75,6 +79,45 @@ class _Settings:
 @dataclass
 class _Shell:
     settings: _Settings
+
+
+def test_selected_glow_indices_require_exact_current_selection_before_fallback() -> None:
+    selected = {"index": 3}
+
+    assert _normalized_selected_glow_source_indices(lambda: (4, 2, 4), selected) == (2, 4)
+    assert _normalized_selected_glow_source_indices(lambda: (), selected) == (3,)
+    assert _normalized_selected_glow_source_indices(lambda: (), {"index": -1}) == ()
+
+
+def test_glow_widgets_load_each_parts_independent_color_and_strength_with_signals_blocked() -> None:
+    color_checkbox = _Widget(False)
+    color_spins = (_Widget(), _Widget(), _Widget())
+    strength_checkbox = _Widget(False)
+    strength_spin = _Widget(1.0)
+
+    _load_source_part_glow_widget_values(
+        SimpleNamespace(emissive_color_rgb=(12, 34, 56), emissive_strength=2.5),
+        color_checkbox,
+        color_spins,
+        strength_checkbox,
+        strength_spin,
+    )
+    assert color_checkbox.isChecked()
+    assert tuple(spin.value() for spin in color_spins) == (12, 34, 56)
+    assert strength_checkbox.isChecked()
+    assert strength_spin.value() == 2.5
+    assert not any(widget._blocked for widget in (color_checkbox, *color_spins, strength_checkbox, strength_spin))
+
+    _load_source_part_glow_widget_values(
+        SimpleNamespace(emissive_color_rgb=(200, 100, 50), emissive_strength=None),
+        color_checkbox,
+        color_spins,
+        strength_checkbox,
+        strength_spin,
+    )
+    assert tuple(spin.value() for spin in color_spins) == (200, 100, 50)
+    assert not strength_checkbox.isChecked()
+    assert strength_spin.value() == 1.0
 
 
 def _history_context() -> tuple[dict[str, object], dict[str, object], dict[str, int]]:
@@ -315,10 +358,11 @@ def test_target_without_height_binding_disables_height_only_manual_controls(tmp_
         resident_parameter_only=True,
         resident_parameters_available=True,
     )
-    assert resident["roughness_scale"]["enabled"]
+    assert not resident["roughness_scale"]["enabled"]
     assert not resident["scratch_roughness"]["enabled"]
     assert not resident["ao_default"]["enabled"]
     assert "material-resource channel" in resident["ao_default"]["tooltip"].lower()
+    assert "material-resource channel" in resident["roughness_scale"]["tooltip"].lower()
     unavailable = manual_material_profile_control_effect_states(
         {"mask_binding_mode": "detail_mask_material"},
         control_keys=("roughness_scale",),

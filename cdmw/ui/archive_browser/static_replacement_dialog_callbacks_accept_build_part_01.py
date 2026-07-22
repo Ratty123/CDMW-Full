@@ -179,6 +179,24 @@ def _accept_build_step_009(_state):
             mapping_table_ready = True
         modify_original_tuning_enabled = _state._modify_original_tuning_enabled_value()
         complete_swap_enabled = bool(_state._complete_external_swap_enabled()) and (not _state.modify_original_clone_mode)
+        resolved_material_state = getattr(_state.dialog, '_material_authority_resolved_state', None)
+        resolved_status = getattr(getattr(resolved_material_state, 'status', None), 'value', '')
+        material_state_ready = bool(
+            getattr(resolved_material_state, 'build_allowed', False)
+            and str(getattr(_state.dialog, '_material_authority_sync_status', '') or '') == str(resolved_status or '')
+        )
+        if (
+            complete_swap_enabled
+            and bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False))
+            and not material_state_ready
+        ):
+            reason = str(
+                getattr(_state.dialog, '_material_authority_sync_reason', '')
+                or 'The latest Material Authority revision is not acknowledged by the active .NET preview.'
+            )
+            if show_messages:
+                _state.QMessageBox.warning(_state.dialog, 'Build Mod', f'Build is blocked: {reason}')
+            return None
         if complete_swap_enabled and _state.original_mesh_for_mapping is not None and (_state.replacement_mesh_for_mapping is not None):
             parsed_mappings = _state._complete_external_swap_mappings()
             explicit_mapping_validation = True
@@ -238,6 +256,15 @@ def _accept_build_step_009(_state):
             pass
         placement_snapshot = _state._current_static_placement_snapshot(parsed_mappings, include_preview_only_independent_parts=False)
         options = _state._static_options_from_placement_snapshot(placement_snapshot, texture_slot_overrides=texture_slot_overrides, include_edited_source_mesh=bool(include_edited_source_mesh), rebuild_material_sidecar=bool(modify_original_tuning_enabled if _state.modify_original_clone_mode else _state.rebuild_sidecar_checkbox.isChecked() or complete_swap_enabled), complete_external_swap=bool(False if _state.modify_original_clone_mode else complete_swap_enabled), neutralize_inherited_material_layers=bool(False if _state.modify_original_clone_mode else _state.source_color_faithful_checkbox.isChecked() or complete_swap_enabled), complete_external_material_reset=bool(modify_original_tuning_enabled if _state.modify_original_clone_mode else _state.external_material_reset_checkbox.isChecked() or complete_swap_enabled), enable_missing_base_color_parameters=bool(False if _state.modify_original_clone_mode else _state.inject_base_color_checkbox.isChecked() or complete_swap_enabled), texture_output_size_mode=str(_state.texture_output_size_combo.currentData() or 'source'), complete_swap_material_profile=str(_state._current_complete_swap_material_profile_token()), global_gloss_reduction=0.0 if _state.modify_original_clone_mode else float(_state.global_gloss_reduction_spin.value()), edge_relief_strength=0.0 if _state.modify_original_clone_mode else float(_state.edge_relief_spin.value()), edge_relief_source='hybrid' if _state.modify_original_clone_mode else str(_state.edge_relief_source_combo.currentData() or 'hybrid'), accent_glow_strength=0.0 if _state.modify_original_clone_mode else float(_state.accent_glow_spin.value()), auto_brightness_balance=0.0 if _state.modify_original_clone_mode else float(_state.auto_brightness_spin.value()), dark_detail_lift=0.0 if _state.modify_original_clone_mode else float(_state.source_brightness_spin.value()), tone_contrast=0.0 if _state.modify_original_clone_mode else float(_state.tone_contrast_spin.value()), allow_unsafe_material_preflight_export=bool(False if _state.modify_original_clone_mode else _state.unsafe_material_preflight_checkbox.isChecked()), additional_supplemental_files=[] if _state.modify_original_clone_mode else list(_state.dialog_added_supplemental_files), custom_item_icon_override=custom_item_icon_override, prune_unmapped_original_texture_parameters=bool(False if _state.modify_original_clone_mode else _state.prune_unmapped_original_dds_checkbox.isChecked() or complete_swap_enabled))
+        if complete_swap_enabled and material_state_ready:
+            options.material_authority_fingerprint = str(getattr(resolved_material_state, 'fingerprint', '') or '')
+            options.material_authority_revision = int(getattr(resolved_material_state, 'revision', 0) or 0)
+            options.material_authority_resolved_bindings = [
+                dict(binding) for binding in tuple(getattr(resolved_material_state, 'dds_bindings', ()) or ())
+            ]
+            options.material_authority_residual_parameter_groups = [
+                dict(group) for group in tuple(getattr(resolved_material_state, 'residual_parameter_groups', ()) or ())
+            ]
         if bool(_state.context.get('full_import_model_replacement')):
             from cdmw.services.mesh_workflow_service import apply_full_import_model_replacement_preset
             return apply_full_import_model_replacement_preset(options)

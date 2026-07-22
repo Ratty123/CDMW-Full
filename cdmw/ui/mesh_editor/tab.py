@@ -128,6 +128,7 @@ _LAZY_EXPORT_GROUPS = (
             "MeshEditablePackageImportWorker",
             "MeshDotNetExperimentOutputImportWorker",
             "MeshDotNetExperimentPackageWorker",
+            "MeshDotNetMaterialUpdateWorker",
             "MeshDotNetSceneFrameWorker",
             "MeshExportValidationWorker",
             "MeshFileSessionLoadWorker",

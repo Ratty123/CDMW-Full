@@ -314,6 +314,12 @@ The paired material audit keeps phase orchestration in `visual_audit_cli.py`,
 production package/checkpoint preparation in `visual_audit_corpus.py`, and the
 resident process, per-asset, and per-view capture contracts in
 `visual_audit_capture.py`; direct verdict finalization remains a separate step.
+Verdict v2 requires separate inspection/observation records for every angle,
+contact sheet, source board, and submesh review sheet, requires a verdict for
+each rendered image, and fixes the asset result to the worst rendered verdict;
+source evidence cannot issue visual PASS. It rebinds each evidence hash to its
+frozen corpus/package state and recomputes capture integrity before acceptance
+instead of trusting a stored success flag.
 Paired Archive Browser/.NET images prove renderer-to-renderer agreement only.
 PAC-source fidelity additionally requires exact PAC XML wrapper, material-owner,
 parameter, and DDS-binding conservation through Archive resolution, Modify

@@ -441,11 +441,11 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         float declaredHeight = MaterialSurfaceOverrideFlags.w > 0.5f
             ? MaterialSurfaceOverrides.w
             : 0.0f;
-        heightStrength = saturate((MaterialHeightScale + declaredHeight * 0.04f) * 8.0f);
+        heightStrength = saturate(MaterialHeightScale + declaredHeight * 0.04f);
         float3 heightNormal = normalize(
             normal
-            - normalize(input.Tangent) * heightX * heightStrength * 2.4f
-            + normalize(input.Bitangent) * heightY * heightStrength * 2.4f);
+            - normalize(input.Tangent) * heightX * 2.4f
+            + normalize(input.Bitangent) * heightY * 2.4f);
         normal = normalize(lerp(normal, heightNormal, heightStrength));
     }
     float3 lightDirection = normalize(LightDirection);
@@ -695,7 +695,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             flattenedMaterial * 0.88f + 0.018f.xxx,
             mattePreview * 0.58f);
     }
-    if (categoryMetal)
+    if (categoryMetal && MaterialBaseTintPolicy.x > 0.001f)
     {
         float3 metalTint = saturate(MaterialBaseTint.rgb);
         float metalTintLuma = max(
@@ -708,7 +708,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         materialReferenceAlbedo = saturate(lerp(
             materialReferenceAlbedo,
             materialReferenceAlbedo * metalTintBias,
-            0.34f));
+            0.34f * saturate(MaterialBaseTintPolicy.x)));
     }
     float categoryMetalFallback = categoryMetal
         ? saturate(lerp(0.28f, 0.62f, materialCategoryConfidence)
@@ -738,7 +738,7 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     if (MaterialHasHeight > 0.5f)
     {
         float heightRelief = (heightValue - 0.5f)
-            * saturate(MaterialHeightScale * 10.0f);
+            * saturate(MaterialHeightScale);
         roughness = saturate(roughness - heightRelief * 0.10f);
     }
     if (conservativeNonmetal)

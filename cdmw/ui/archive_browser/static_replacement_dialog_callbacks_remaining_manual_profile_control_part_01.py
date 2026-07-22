@@ -20,6 +20,7 @@ def _remaining_manual_profile_control_step_001(_state):
     _state._alignment_mesh_edit_tab_active = _state.context.get('_alignment_mesh_edit_tab_active')
     _state._make_int_spin_helper = _state.context.get('_make_int_spin_helper')
     _state._modify_original_texture_tuning_enabled = _state.context.get('_modify_original_texture_tuning_enabled')
+    _state._ensure_material_authority_route_active = _state.context.get('_ensure_material_authority_route_active')
     _state._queue_material_authority_adjustment_preview_refresh = _state.context.get('_queue_material_authority_adjustment_preview_refresh')
     _state._queue_texture_preview_refresh = _state.context.get('_queue_texture_preview_refresh')
     _state._refresh_manual_profile_control_effects = _state.context.get('_refresh_manual_profile_control_effects')
@@ -93,6 +94,8 @@ def _remaining_manual_profile_control_step_003(_state):
     def _manual_profile_mark_changed(resource_key: str = "") -> None:
         if not _state.manual_profile_ready.get('ready'):
             return
+        if not _state.modify_original_clone_mode and callable(_state._ensure_material_authority_route_active):
+            _state._ensure_material_authority_route_active(f"manual_{resource_key or 'control'}")
         values = _state._current_manual_material_profile_values()
         _state.self.settings.setValue(_state.manual_profile_settings_key, _state.json.dumps(values, sort_keys=True, separators=(',', ':')))
         _state._save_complete_swap_material_profile()

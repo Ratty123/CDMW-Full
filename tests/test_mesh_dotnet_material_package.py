@@ -205,14 +205,17 @@ def test_package_only_replaces_base_for_authoritative_combiner_layer_graphs(
     binding = payload["submeshes"][0]
 
     assert payload["material_signature"] == "stable-material-signature"
-    assert "shader_family_layer_graph" in binding["unsupported_features"]
     assert binding["raw_material_contract"]["layer_bindings"]
     if not authoritative_layer_graph:
+        assert "shader_family_layer_graph" in binding["unsupported_features"]
+        assert binding["synthesis_evidence"]["required_graph_compiled"] is False
         assert binding["material_synthesis"]["succeeded"] is False
         assert binding["material_synthesis"]["generated_channels"] == []
         assert binding["resolved_channels"] == binding["raw_resolved_channels"]
         assert binding["resolved_features"] == []
         return
+    assert "shader_family_layer_graph" not in binding["unsupported_features"]
+    assert binding["synthesis_evidence"]["required_graph_compiled"] is True
     assert binding["material_synthesis"]["succeeded"] is True
     assert "base" in binding["material_synthesis"]["generated_channels"]
     assert "preview_material_graph_baked" in binding["resolved_features"]
@@ -226,6 +229,86 @@ def test_package_only_replaces_base_for_authoritative_combiner_layer_graphs(
     )
     assert generated_resource["semantic_authority"] == "synthesized_shared_combiner"
     assert (tmp_path / "package" / generated_resource["path"]).is_file()
+
+
+def test_promoted_base_role_does_not_create_a_layer_graph(tmp_path: Path) -> None:
+    base = _image(tmp_path / "hair_base.png", (96, 84, 72, 255))
+    submesh = _submesh("hair")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_baseColorTexture",
+            preview_texture_path=str(base),
+            semantic_type="color",
+            semantic_subtype="albedo",
+            shader_family="Hair",
+            layer_role="base",
+            binding_disposition="promoted",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    binding = payload["submeshes"][0]
+
+    assert binding["raw_material_contract"]["layer_bindings"] == []
+    assert "shader_family_layer_graph" not in binding["unsupported_features"]
+    assert binding["material_synthesis"]["attempted"] is False
+
+
+def test_package_resolves_layer_graph_when_every_layer_reuses_its_base_source(
+    tmp_path: Path,
+) -> None:
+    blackoil = _image(tmp_path / "blackoil.png", (0, 0, 0, 255))
+    mask = _image(tmp_path / "mask.png", (255, 0, 0, 255))
+    submesh = _submesh("identity_graph")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_baseColorTexture",
+            source_texture_path="character/texture/blackoil.dds",
+            preview_texture_path=str(blackoil),
+            semantic_type="base",
+            shader_family="SkinnedMeshStandard",
+            layer_role="base",
+            binding_disposition="promoted",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="base",
+            parameter_name="_detailDiffuseMaskR",
+            source_texture_path="character/texture/blackoil.dds",
+            preview_texture_path=str(blackoil),
+            semantic_type="base",
+            shader_family="SkinnedMeshStandard",
+            layer_role="detail",
+            layer_channel="r",
+            binding_disposition="layer_only",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="detail",
+            parameter_name="_maskTexture",
+            source_texture_path="character/texture/cd_temp_r_m.dds",
+            preview_texture_path=str(mask),
+            semantic_type="mask",
+            shader_family="SkinnedMeshStandard",
+            layer_role="material_response",
+            binding_disposition="layer_only",
+            visualized=True,
+        ),
+    )
+
+    binding = _write_manifest(tmp_path / "package", [submesh])["submeshes"][0]
+
+    assert binding["material_synthesis"]["attempted"] is True
+    assert binding["material_synthesis"]["succeeded"] is True
+    assert binding["material_synthesis"]["identity_noop"] is True
+    assert binding["material_synthesis"]["generated_channels"] == []
+    assert binding["resolved_channels"] == binding["raw_resolved_channels"]
+    assert binding["resolved_features"] == ["preview_material_graph_identity"]
+    assert "shader_family_layer_graph" not in binding["unsupported_features"]
+    assert binding["synthesis_evidence"]["required_graph_compiled"] is True
 
 
 def test_package_expands_generic_packed_mask_without_losing_source_v_orientation(
@@ -591,14 +674,23 @@ def test_package_carries_archive_base_tint_and_texture_tint_separately(tmp_path:
 
 
 @pytest.mark.parametrize("shader_family", ["standard", "standard_v2"])
-def test_synthesized_contract_requires_dominant_decoded_metal_for_armor(
+@pytest.mark.parametrize(
+    "family_reason",
+    [
+        "metal:armor_family_material_response",
+        "metal:equipment_family_material_response",
+        "metal:weapon_family_material_response",
+    ],
+)
+def test_synthesized_contract_requires_dominant_decoded_metal_for_equipment(
     shader_family: str,
+    family_reason: str,
 ) -> None:
     source_contract = {
         "shader_family": shader_family,
         "material_category": "metal",
         "material_category_confidence": 0.9,
-        "material_category_reason": "metal:armor_family_material_response",
+        "material_category_reason": family_reason,
         "material_response_promoted": True,
         "alpha_mode": "opaque",
         "alpha_authority": "guess",
@@ -634,18 +726,85 @@ def test_synthesized_contract_requires_dominant_decoded_metal_for_armor(
     assert soft["material_category"] == "generic"
     assert soft["material_response_promoted"] is False
     assert soft["material_category_reason"] == (
-        "generic:armor_material_response_without_decoded_metal_channel"
+        "generic:equipment_material_response_without_decoded_metal_channel"
     )
     assert mixed["material_category"] == "generic"
     assert mixed["material_response_promoted"] is False
     assert mixed["material_category_reason"] == (
-        "generic:armor_material_response_without_dominant_decoded_metal_channel"
+        "generic:equipment_material_response_without_dominant_decoded_metal_channel"
     )
     assert metal["material_category"] == "metal"
     assert metal["material_response_promoted"] is True
     assert metal["material_category_reason"] == (
-        "metal:dominant_decoded_armor_metal_channel"
+        "metal:dominant_decoded_equipment_metal_channel"
     )
+    assert metal["material_category_pre_synthesis_reason"] == family_reason
+
+
+def test_dense_standard_v2_equipment_metal_response_survives_refinement() -> None:
+    refined = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        {
+            "shader_family": "standard_v2",
+            "material_category": "metal",
+            "material_category_confidence": 0.9,
+            "material_category_reason": "metal:weapon_family_material_response",
+            "material_response_promoted": True,
+        },
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "q50": 0.353,
+                "q90": 0.408,
+                "coverage_above_0_25": 0.964,
+            },
+        },
+    )
+
+    assert refined["material_category"] == "metal"
+    assert refined["material_response_promoted"] is True
+    assert refined["material_category_reason"] == (
+        "metal:dominant_decoded_equipment_metal_channel"
+    )
+
+
+def test_dense_standard_v2_generic_weapon_part_promotes_only_in_equipment_path() -> None:
+    contract = {
+        "shader_family": "standard_v2",
+        "material_category": "generic",
+        "material_category_confidence": 0.35,
+        "material_category_reason": "generic:no_strong_material_token",
+        "material_response_promoted": False,
+    }
+    synthesis = {
+        "generated_channels": ["metallic", "roughness", "specular"],
+        "metallic_summary": {
+            "q50": 0.494,
+            "q90": 0.494,
+            "coverage_above_0_25": 1.0,
+        },
+    }
+
+    weapon = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        contract,
+        synthesis,
+        source_asset_path=(
+            "character/model/1_pc/1_phm/weapon/2_twohandweapon/"
+            "cd_phm_02_sword_0036.pac"
+        ),
+    )
+    unrelated = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        contract,
+        synthesis,
+        source_asset_path="character/model/monster/example.pac",
+    )
+
+    assert weapon["material_category"] == "metal"
+    assert weapon["material_response_promoted"] is True
+    assert weapon["material_category_pre_synthesis_reason"] == (
+        "generic:no_strong_material_token"
+    )
+    assert unrelated["material_category"] == "generic"
+    assert unrelated["material_response_promoted"] is False
 
 
 def test_sparse_inferred_hair_alpha_uses_opaque_card_fallback(tmp_path: Path) -> None:
@@ -782,6 +941,78 @@ def test_native_batch_tint_preserves_prepared_typed_inputs_for_package_synthesis
     assert binding["parameters"]["texture_tint"] == [0.73, 0.44, 0.24]
 
 
+def test_native_batch_rebases_matching_prepared_graph_inputs_to_durable_paths(
+    tmp_path: Path,
+) -> None:
+    stale = tmp_path / "expired-cache" / "layer.dds"
+    durable = tmp_path / "package" / "textures" / "layer.dds"
+    durable.parent.mkdir(parents=True)
+    durable.write_bytes(b"durable-dds")
+    prepared = PreviewMaterialTextureInput(
+        slot_kind="material",
+        parameter_name="_detailMaterialMaskG",
+        source_texture_path="character/texture/layer.dds",
+        source_dds_path=str(stale),
+        preview_texture_path=str(stale.with_suffix(".png")),
+        semantic_type="material",
+        semantic_subtype="specular",
+        material_name="gauntlet_17",
+        shader_family="SkinnedMeshStandard_Ver2",
+        confidence="pac_exact",
+        visualized=True,
+        layer_role="detail",
+        layer_channel="g",
+        owner_slot_index=13,
+        owner_wrapper_item_id="3825",
+        binding_authority="authoritative",
+        binding_disposition="layer_only",
+        source_kind="crimson_layer_material",
+    )
+    submesh = _submesh("gauntlet_17")
+    submesh.preview_material_texture_inputs = (prepared,)
+    mesh = ParsedMesh(path="archive/gauntlet.pac", format="pac", submeshes=[submesh])
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "dds_textures": {
+                    "material_inputs": [
+                        {
+                            "slot": "material",
+                            "source_path": str(durable),
+                            "parameter_name": "_detailMaterialMaskG",
+                            "semantic_type": "material",
+                            "semantic_subtype": "specular",
+                            "material_name": "gauntlet_17",
+                            "shader_family": "SkinnedMeshStandard_Ver2",
+                            "layer_role": "detail",
+                            "layer_channel": "g",
+                            "owner_slot_index": 13,
+                            "owner_wrapper_item_id": "3825",
+                            "binding_authority": "authoritative",
+                            "binding_disposition": "layer_only",
+                            "source_kind": "crimson_layer_material",
+                        }
+                    ]
+                },
+            },
+        ),
+    ) == 1
+
+    (rebased,) = submesh.preview_material_texture_inputs
+    assert rebased is not prepared
+    assert rebased.source_dds_path == str(durable)
+    assert rebased.source_texture_path == "character/texture/layer.dds"
+    assert rebased.preview_texture_path == str(durable)
+    assert rebased.owner_slot_index == 13
+    assert rebased.owner_wrapper_item_id == "3825"
+    assert rebased.parameter_name == "_detailMaterialMaskG"
+    assert rebased.confidence == "pac_exact"
+    assert rebased.visualized is True
+
+
 def test_native_batch_explicit_no_base_suppresses_stale_color_fallbacks(
     tmp_path: Path,
 ) -> None:
@@ -866,3 +1097,70 @@ def test_native_batch_explicit_no_base_suppresses_stale_color_fallbacks(
         assert not {"albedo", "base", "diffuse"}.intersection(channels)
     assert binding["parameters"]["base_tint_color"] == [0.58, 0.44, 0.65]
     assert "material" in binding["raw_resolved_channels"]
+
+
+def test_native_batch_rejects_layer_mask_mislabeled_as_base_descriptor(
+    tmp_path: Path,
+) -> None:
+    mask = _image(tmp_path / "color_blending_mask.png", (255, 0, 0, 255))
+    submesh = _submesh("guard")
+    submesh.texture = str(mask)
+    submesh.preview_texture_path = str(mask)
+    submesh.preview_texture_dds_path = str(mask)
+    submesh.preview_base_texture_default_path = str(mask)
+    submesh.preview_base_texture_default_name = mask.name
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="material",
+            parameter_name="_colorBlendingMaskTexture",
+            source_texture_path="character/texture/guard_ma.dds",
+            source_dds_path=str(mask),
+            preview_texture_path=str(mask),
+            semantic_type="material",
+            layer_role="mask",
+            owner_slot_index=0,
+            owner_wrapper_item_id="2001",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_color_blending_mask",
+        ),
+    )
+    mesh = ParsedMesh(path="archive/guard.pac", format="pac", submeshes=[submesh])
+
+    assert apply_dotnet_native_material_batch_bindings(
+        mesh,
+        (
+            {
+                "editor_identity": {"source_local_submesh_index": 0},
+                "textures": {"base": "textures/combined/guard_albedo.png"},
+                "dds_textures": {
+                    "base": {"slot": "base", "source_path": str(mask)},
+                    "material_inputs": [
+                        {
+                            "slot": "material",
+                            "source_path": str(mask),
+                            "parameter_name": "_colorBlendingMaskTexture",
+                            "semantic_type": "material",
+                            "layer_role": "mask",
+                            "owner_slot_index": 0,
+                            "owner_wrapper_item_id": "2001",
+                            "binding_authority": "authoritative",
+                            "binding_disposition": "layer_only",
+                            "source_kind": "crimson_color_blending_mask",
+                        }
+                    ],
+                },
+            },
+        ),
+    ) == 1
+
+    assert submesh.texture == ""
+    assert submesh.preview_texture_path == ""
+    assert submesh.preview_texture_dds_path == ""
+    assert submesh.preview_base_texture_default_path == ""
+    assert submesh.preview_base_texture_default_name == ""
+    assert submesh.preview_native_material_overrides["base_tint_only_fallback"] is True
+    assert len(submesh.preview_material_texture_inputs) == 1
+    assert submesh.preview_material_texture_inputs[0].parameter_name == (
+        "_colorBlendingMaskTexture"
+    )

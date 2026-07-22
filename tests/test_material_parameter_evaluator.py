@@ -274,6 +274,31 @@ def test_preview_slots_prune_disabled_base_emissive_and_mask_resources(tmp_path:
     }
 
 
+def test_explicit_glow_color_tints_an_existing_emissive_artifact(tmp_path: Path) -> None:
+    source = tmp_path / "emissive.png"
+    Image.new("RGBA", (2, 2), (160, 160, 160, 255)).save(source)
+    texture_set = ReplacementTextureSet(
+        "glow_part",
+        slots={"emissive": ReplacementTextureSlot("glow_part", "emissive", source)},
+        source_role_tags=("glow",),
+        accent_glow_color_rgb=(1.0, 0.0, 0.0),
+        emissive_strength=2.0,
+    )
+    profile = get_complete_swap_material_profile(
+        serialize_complete_swap_manual_material_profile({"emissive_mode": "intensity"})
+    )
+
+    output = material_authority_preview_texture_slots(
+        texture_set,
+        profile,
+        output_root=tmp_path / "generated",
+    )["emissive"].source_path
+
+    assert output != source
+    with Image.open(output) as image:
+        assert image.convert("RGBA").getpixel((0, 0)) == (160, 0, 0, 255)
+
+
 @pytest.mark.parametrize(
     ("tone_contrast", "base_color_scale", "expected"),
     (

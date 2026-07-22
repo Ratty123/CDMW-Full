@@ -214,6 +214,10 @@ class StaticMeshReplacementOptions:
     prune_unmapped_original_texture_parameters: bool = False
     pac_xml_corpus_root: str = ""
     pac_xml_profile_cache_path: str = ""
+    material_authority_fingerprint: str = ""
+    material_authority_revision: int = 0
+    material_authority_resolved_bindings: list[dict[str, object]] = field(default_factory=list)
+    material_authority_residual_parameter_groups: list[dict[str, object]] = field(default_factory=list)
 
 
 @dataclass

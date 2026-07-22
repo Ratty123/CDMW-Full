@@ -243,12 +243,16 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         while (
             self.standalone_dotnet_sent_material_resource_payload is not None
             or self.standalone_dotnet_sent_material_parameter_payload is not None
+            or self._dotnet_material_compile_active()
+            or self.standalone_dotnet_material_update_pending is not None
         ) and time.monotonic() < deadline:
             time.sleep(min(0.005, max(0.0, deadline - time.monotonic())))
         return bool(
             self.standalone_texture_region_queue.idle()
             and self.standalone_dotnet_sent_material_resource_payload is None
             and self.standalone_dotnet_sent_material_parameter_payload is None
+            and not self._dotnet_material_compile_active()
+            and self.standalone_dotnet_material_update_pending is None
         )
     def _handle_texture_region_queue_applied(self, payload: Mapping[str, object]) -> None:
         self.standalone_dotnet_lifecycle_counts["texture_region_applied_count"] = (
@@ -279,12 +283,14 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             ("standalone_rebuild_report", self.standalone_rebuild_report_thread, self.standalone_rebuild_report_worker),
             ("standalone_report_write", self.standalone_report_write_thread, self.standalone_report_write_worker),
             ("standalone_dotnet_package", self.standalone_dotnet_package_thread, self.standalone_dotnet_package_worker),
+            ("standalone_dotnet_material_update", self.standalone_dotnet_material_update_thread, self.standalone_dotnet_material_update_worker),
             ("standalone_dotnet_scene", self.standalone_dotnet_scene_thread, self.standalone_dotnet_scene_worker),
             ("standalone_dotnet_import", self.standalone_dotnet_import_thread, self.standalone_dotnet_import_worker),
             ("standalone_editable_export", self.standalone_editable_export_thread, self.standalone_editable_export_worker),
             ("standalone_editable_import", self.standalone_editable_import_thread, self.standalone_editable_import_worker),
         )
     def request_shutdown(self) -> None:
+        self._cancel_dotnet_material_compile()
         self.close_standalone_session()
         self.standalone_texture_region_queue.shutdown()
         dispatcher = self.standalone_live_stroke_dispatcher

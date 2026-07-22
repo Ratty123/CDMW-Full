@@ -660,6 +660,30 @@ static std::pair<std::string, std::string> find_descriptor_names(
     size_t region_start,
     size_t desc_start
 ) {
+    // Current equipment PACs may store one shared name/material record as
+    // ``length + ASCII + NUL + descriptor``. Keep the older two-record layout
+    // below, but decode this unambiguous form before treating the NUL as a gap.
+    if (desc_start > region_start + 1
+        && static_cast<unsigned char>(data[desc_start - 1]) == 0) {
+        const size_t cursor = desc_start - 1;
+        for (size_t back = 1; back < 256 && cursor >= region_start + back; ++back) {
+            const size_t pos = cursor - back;
+            const unsigned char candidate_len = static_cast<unsigned char>(data[pos]);
+            if (candidate_len == 0 || candidate_len != back - 1) continue;
+            bool ascii = true;
+            for (size_t index = pos + 1; index < cursor; ++index) {
+                const unsigned char ch = static_cast<unsigned char>(data[index]);
+                if (ch < 32 || ch >= 127) {
+                    ascii = false;
+                    break;
+                }
+            }
+            if (!ascii || cursor <= pos + 1) continue;
+            const std::string name(data.data() + pos + 1, data.data() + cursor);
+            return {name, name};
+        }
+    }
+
     std::vector<std::string> names;
     size_t cursor = desc_start;
     for (int n = 0; n < 2; ++n) {

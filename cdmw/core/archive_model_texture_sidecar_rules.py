@@ -26,6 +26,15 @@ from cdmw.core.archive_model_texture_semantics import (
 )
 
 
+_AUTHORITATIVE_BASE_SOURCE_KINDS = {
+    "crimson_albedo",
+    "crimson_base_color",
+    "crimson_color",
+    "crimson_diffuse",
+    "crimson_overlay_color",
+}
+
+
 def _sidecar_parameter_field(parameter: object, name: str, fallback: object = "") -> object:
     if isinstance(parameter, Mapping):
         return parameter.get(name, fallback)
@@ -209,6 +218,45 @@ def _mesh_existing_base_is_sidecar_identity(
     )
     return any(candidate in sidecar_candidate_set for candidate in mesh_candidates)
 
+
+def _model_sidecar_binding_can_supply_full_base(
+    binding: _ArchiveModelSidecarTextureBinding,
+) -> bool:
+    """Reject PAC layer/control inputs before visible-base candidate scoring.
+
+    Older sidecars do not carry the PAC authority fields, so they retain the
+    historical preview path.  A PAC/PAMI binding with an owner contract must
+    prove that it is an exact, promoted color parameter owned by a concrete
+    wrapper.  This makes detail, grime, dye, mask, and suffix-only textures
+    structurally unable to replace the complete albedo.
+    """
+
+    owner_slot_index = int(getattr(binding, "owner_slot_index", -1))
+    binding_disposition = str(
+        getattr(binding, "binding_disposition", "") or ""
+    ).strip().casefold()
+    binding_authority = str(
+        getattr(binding, "binding_authority", "") or ""
+    ).strip().casefold()
+    source_kind = str(getattr(binding, "source_kind", "") or "").strip().casefold()
+    has_pac_contract = bool(
+        owner_slot_index >= 0
+        or str(getattr(binding, "owner_wrapper_item_id", "") or "").strip()
+        or binding_authority
+        or binding_disposition
+        or source_kind
+    )
+    if not has_pac_contract:
+        return True
+    return bool(
+        owner_slot_index >= 0
+        and str(getattr(binding, "owner_wrapper_item_id", "") or "").strip()
+        and str(getattr(binding, "shader_family", "") or "").strip()
+        and binding_authority == "authoritative"
+        and binding_disposition == "promoted"
+        and source_kind in _AUTHORITATIVE_BASE_SOURCE_KINDS
+    )
+
 def _apply_model_sidecar_base_preview(
     mesh: ModelPreviewMesh,
     *,
@@ -255,6 +303,11 @@ def _apply_model_sidecar_base_preview(
             layer_role=str(getattr(binding, "layer_role", "") or "").strip(),
             layer_channel=str(getattr(binding, "layer_channel", "") or "").strip(),
             blend_flags=tuple(str(value) for value in tuple(getattr(binding, "blend_flags", ()) or ()) if str(value)),
+            owner_slot_index=int(getattr(binding, "owner_slot_index", -1)),
+            owner_wrapper_item_id=str(getattr(binding, "owner_wrapper_item_id", "") or ""),
+            binding_authority=str(getattr(binding, "binding_authority", "") or ""),
+            binding_disposition=str(getattr(binding, "binding_disposition", "") or ""),
+            source_kind=str(getattr(binding, "source_kind", "") or ""),
             material_parameters=tuple(getattr(binding, "material_parameters", ()) or ()),
         ),
     )

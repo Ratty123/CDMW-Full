@@ -504,6 +504,11 @@ def _dds_textures_for_batch(
         entry["layer_role"] = str(getattr(texture_input, "layer_role", "") or "")
         entry["layer_channel"] = str(getattr(texture_input, "layer_channel", "") or "")
         entry["blend_flags"] = list(tuple(getattr(texture_input, "blend_flags", ()) or ()))
+        entry["owner_slot_index"] = int(getattr(texture_input, "owner_slot_index", -1))
+        entry["owner_wrapper_item_id"] = str(getattr(texture_input, "owner_wrapper_item_id", "") or "")
+        entry["binding_authority"] = str(getattr(texture_input, "binding_authority", "") or "")
+        entry["binding_disposition"] = str(getattr(texture_input, "binding_disposition", "") or "")
+        entry["source_kind"] = str(getattr(texture_input, "source_kind", "") or "")
         registry_decode = decode_crimson_texture_binding(
             shader_family=entry["shader_family"],
             parameter_name=entry["parameter_name"],
@@ -516,9 +521,9 @@ def _dds_textures_for_batch(
             sidecar_kind=entry["sidecar_kind"],
             parameter_declared_by=entry["parameter_declared_by"],
         )
-        entry["authority"] = str(registry_decode.get("authority", "") or AUTHORITY_GUESS)
-        entry["disposition"] = str(registry_decode.get("disposition", "") or "")
-        entry["registry_source_kind"] = str(registry_decode.get("source_kind", "") or "")
+        entry["authority"] = entry["binding_authority"] or str(registry_decode.get("authority", "") or AUTHORITY_GUESS)
+        entry["disposition"] = entry["binding_disposition"] or str(registry_decode.get("disposition", "") or "")
+        entry["registry_source_kind"] = entry["source_kind"] or str(registry_decode.get("source_kind", "") or "")
         entry["promoted_channels"] = dict(registry_decode.get("promoted_channels", {}) or {})
         if registry_decode.get("layer_channel"):
             entry["layer_channel"] = str(registry_decode.get("layer_channel", "") or "")

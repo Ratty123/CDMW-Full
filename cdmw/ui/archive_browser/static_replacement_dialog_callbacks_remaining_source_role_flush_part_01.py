@@ -15,6 +15,8 @@ def _remaining_source_role_flush_step_001(_state):
     _state._ensure_source_part_adjustment = _state.context.get('_ensure_source_part_adjustment')
     _state._parse_mapping_edit = _state.context.get('_parse_mapping_edit')
     _state._selected_part_glow_rgb_from_controls = _state.context.get('_selected_part_glow_rgb_from_controls')
+    _state._selected_part_glow_strength_from_controls = _state.context.get('_selected_part_glow_strength_from_controls')
+    _state._selected_glow_source_indices = _state.context.get('_selected_glow_source_indices')
     _state._source_assigned_target_indices_helper = _state.context.get('_source_assigned_target_indices_helper')
     _state._source_part_glow_emissive_update_states_helper = _state.context.get('_source_part_glow_emissive_update_states_helper')
     _state._source_part_role_export_flush_states_helper = _state.context.get('_source_part_role_export_flush_states_helper')
@@ -25,6 +27,7 @@ def _remaining_source_role_flush_step_001(_state):
     _state.group_replacement_texture_sets = _state.context.get('group_replacement_texture_sets')
     _state.mapping_edits = _state.context.get('mapping_edits')
     _state.part_glow_color_checkbox = _state.context.get('part_glow_color_checkbox')
+    _state.part_glow_strength_checkbox = _state.context.get('part_glow_strength_checkbox')
     _state.source_index = _state.context.get('source_index')
     _state.source_part_adjustments = _state.context.get('source_part_adjustments')
     _state.source_role_overrides = _state.context.get('source_role_overrides')
@@ -47,6 +50,10 @@ def _remaining_source_role_flush_step_003(_state):
     def _part_glow_color_checkbox() -> object:
         return _state._prompt_context_value('part_glow_color_checkbox')
     _state._part_glow_color_checkbox = _part_glow_color_checkbox
+
+    def _part_glow_strength_checkbox() -> object:
+        return _state._prompt_context_value('part_glow_strength_checkbox')
+    _state._part_glow_strength_checkbox = _part_glow_strength_checkbox
 
 def _remaining_source_role_flush_step_004(_state):
 
@@ -83,16 +90,42 @@ def _remaining_source_role_flush_step_005(_state):
     _state._resident_role_group = _resident_role_group
 
     def _apply_current_glow_color_to_role_overrides() -> None:
+        selected_indices = (
+            tuple(_state._selected_glow_source_indices())
+            if callable(_state._selected_glow_source_indices)
+            else ()
+        )
+        if len(selected_indices) != 1:
+            return
         checkbox = _state._part_glow_color_checkbox()
+        strength_checkbox = _state._part_glow_strength_checkbox()
         use_color = bool(checkbox is not None and callable(getattr(checkbox, 'isChecked', None)) and checkbox.isChecked())
+        use_strength = bool(
+            strength_checkbox is not None
+            and callable(getattr(strength_checkbox, 'isChecked', None))
+            and strength_checkbox.isChecked()
+        )
         rgb = _state._selected_part_glow_rgb_from_controls() if callable(_state._selected_part_glow_rgb_from_controls) else ()
-        update_states = _state._source_part_glow_emissive_update_states_helper(_state.source_part_adjustments, rgb=rgb, use_color=use_color)
+        strength = (
+            _state._selected_part_glow_strength_from_controls()
+            if callable(_state._selected_part_glow_strength_from_controls)
+            else 1.0
+        )
+        update_states = _state._source_part_glow_emissive_update_states_helper(
+            _state.source_part_adjustments,
+            source_index=selected_indices[0],
+            rgb=rgb,
+            use_color=use_color,
+            strength=strength,
+            use_strength=use_strength,
+        )
         if update_states and _state._active_mesh_edit_source_glow_mutation_blocked():
             return
         for update_state in update_states:
             adjustment = _state.source_part_adjustments.get(update_state.source_index)
             if adjustment is not None:
                 adjustment.emissive_color_rgb = update_state.emissive_color_rgb
+                adjustment.emissive_strength = update_state.emissive_strength
         send_resident_material_parameters(
             _state.dialog,
             tuple(
@@ -116,10 +149,6 @@ def _remaining_source_role_flush_step_006(_state):
             adjustment = _state._ensure_source_part_adjustment(flush_state.source_index)
             if flush_state.material_role_changed:
                 adjustment.material_role = flush_state.normalized_role
-                if flush_state.normalized_role != 'glow':
-                    adjustment.emissive_strength = None
-            if flush_state.clear_emissive_color:
-                adjustment.emissive_color_rgb = ()
             changed = changed or flush_state.changed
             if flush_state.changed:
                 changed_adjustments.append((flush_state.source_index, adjustment))

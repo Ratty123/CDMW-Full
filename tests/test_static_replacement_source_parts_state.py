@@ -599,31 +599,42 @@ def test_source_part_adjustment_apply_state_normalizes_controls_and_detects_chan
 
 def test_source_part_glow_emissive_update_states_updates_only_changed_glow_roles() -> None:
     adjustments = {
-        1: SimpleNamespace(material_role="glow", emissive_color_rgb=(1, 2, 3)),
-        2: SimpleNamespace(material_role="geometry", emissive_color_rgb=(9, 9, 9)),
-        3: SimpleNamespace(material_role="glow", emissive_color_rgb=(255, 0, 0)),
-        -1: SimpleNamespace(material_role="glow", emissive_color_rgb=()),
+        1: SimpleNamespace(material_role="glow", emissive_color_rgb=(1, 2, 3), emissive_strength=None),
+        2: SimpleNamespace(material_role="geometry", emissive_color_rgb=(9, 9, 9), emissive_strength=None),
+        3: SimpleNamespace(material_role="glow", emissive_color_rgb=(255, 0, 0), emissive_strength=2.0),
+        -1: SimpleNamespace(material_role="glow", emissive_color_rgb=(), emissive_strength=None),
     }
 
     updates = source_part_glow_emissive_update_states(
         adjustments,
+        source_index=1,
         rgb=(300, -1, "bad"),
         use_color=True,
+        strength=25.0,
+        use_strength=True,
     )
 
-    assert tuple((state.source_index, state.emissive_color_rgb) for state in updates) == (
-        (1, (255, 0, 0)),
+    assert tuple((state.source_index, state.emissive_color_rgb, state.emissive_strength) for state in updates) == (
+        (1, (255, 0, 0), 20.0),
     )
 
     clear_updates = source_part_glow_emissive_update_states(
         adjustments,
+        source_index=3,
         rgb=(255, 255, 255),
         use_color=False,
+        use_strength=False,
     )
-    assert tuple((state.source_index, state.emissive_color_rgb) for state in clear_updates) == (
-        (1, ()),
-        (3, ()),
+    assert tuple((state.source_index, state.emissive_color_rgb, state.emissive_strength) for state in clear_updates) == (
+        (3, (), None),
     )
+
+    assert source_part_glow_emissive_update_states(
+        adjustments,
+        source_index=2,
+        rgb=(1, 2, 3),
+        use_color=True,
+    ) == ()
 
 
 def test_source_part_role_override_state_normalizes_role_and_glow_rgb() -> None:
@@ -725,7 +736,7 @@ def test_source_part_role_export_flush_states_detect_role_and_emissive_changes()
         )
         for state in states
     ) == (
-        (1, "cloth", True, True, True),
+        (1, "cloth", True, False, True),
         (2, "glow", False, False, False),
         (3, "cloth", False, False, False),
     )

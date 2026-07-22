@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterator, MutableMapping, Sequence
+from collections.abc import Iterator, Mapping, MutableMapping, Sequence
 import hashlib
 import json
 import os
@@ -120,3 +120,138 @@ def stabilize_visual_audit_archive_package(package_dir: Path) -> dict[str, objec
         "hardlink_count": linked_count,
         "copy_count": copied_count,
     }
+
+
+def fingerprint_visual_audit_prepared_packages(
+    runtime_assets: Sequence[Mapping[str, object]],
+    *,
+    run_id: str,
+    corpus_sha256: str,
+    temporary_root: Path,
+) -> dict[str, object]:
+    """Fingerprint every prepared native/.NET package file without mutating it."""
+
+    temporary_root = Path(temporary_root).resolve()
+    if not temporary_root.is_dir():
+        raise ValueError("Visual-audit temporary package root is missing.")
+    content_hash_cache: dict[tuple[object, ...], str] = {}
+    asset_rows: list[dict[str, object]] = []
+    seen_ids: set[str] = set()
+    seen_roots: set[str] = set()
+    for runtime_asset in runtime_assets:
+        asset_id = str(runtime_asset.get("id", "") or "")
+        if not asset_id or asset_id in seen_ids:
+            raise ValueError("Prepared package fingerprints require unique non-empty asset IDs.")
+        seen_ids.add(asset_id)
+        package_rows: dict[str, object] = {}
+        for key in ("archive_package_dir", "dotnet_package_dir"):
+            package_root = Path(str(runtime_asset.get(key, "") or "")).resolve()
+            root_key = str(package_root).casefold()
+            if (
+                not package_root.is_dir()
+                or not package_root.is_relative_to(temporary_root)
+                or root_key in seen_roots
+            ):
+                raise ValueError(f"Prepared package fingerprint root is invalid or reused: {key}")
+            seen_roots.add(root_key)
+            package_rows[key] = _fingerprint_visual_audit_tree(
+                package_root,
+                content_hash_cache=content_hash_cache,
+            )
+        asset_rows.append({"id": asset_id, **package_rows})
+    if not asset_rows:
+        raise ValueError("Prepared package fingerprints require at least one runtime asset.")
+    aggregate_payload = json.dumps(
+        asset_rows,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+    ).encode("utf-8")
+    return {
+        "schema": "cdmw_mesh_visual_audit_prepared_package_fingerprints_v1",
+        "run_id": str(run_id),
+        "corpus_sha256": str(corpus_sha256),
+        "asset_count": len(asset_rows),
+        "assets": asset_rows,
+        "aggregate_sha256": hashlib.sha256(aggregate_payload).hexdigest(),
+    }
+
+
+def _fingerprint_visual_audit_tree(
+    package_root: Path,
+    *,
+    content_hash_cache: MutableMapping[tuple[object, ...], str],
+) -> dict[str, object]:
+    package_root = Path(package_root).resolve()
+    file_rows: list[tuple[str, int, str]] = []
+    seen_relative_paths: set[str] = set()
+    paths = sorted(
+        (path for path in package_root.rglob("*") if path.is_file()),
+        key=lambda path: (
+            path.relative_to(package_root).as_posix().casefold(),
+            path.relative_to(package_root).as_posix(),
+        ),
+    )
+    for path in paths:
+        resolved = path.resolve()
+        if not resolved.is_relative_to(package_root):
+            raise ValueError(f"Prepared package file escapes its package root: {path}")
+        relative = path.relative_to(package_root).as_posix()
+        relative_key = relative.casefold()
+        if not relative or relative_key in seen_relative_paths:
+            raise ValueError(f"Prepared package has a duplicate case-insensitive path: {relative}")
+        seen_relative_paths.add(relative_key)
+        stat_before = path.stat()
+        inode = int(getattr(stat_before, "st_ino", 0) or 0)
+        identity: tuple[object, ...]
+        if inode:
+            identity = (
+                int(getattr(stat_before, "st_dev", 0) or 0),
+                inode,
+                int(stat_before.st_size),
+                int(stat_before.st_mtime_ns),
+            )
+        else:
+            identity = (
+                str(resolved).casefold(),
+                int(stat_before.st_size),
+                int(stat_before.st_mtime_ns),
+            )
+        content_sha256 = content_hash_cache.get(identity)
+        if content_sha256 is None:
+            content_sha256 = _stable_file_sha256(path, stat_before)
+            content_hash_cache[identity] = content_sha256
+        file_rows.append((relative, int(stat_before.st_size), content_sha256))
+    if not file_rows:
+        raise ValueError(f"Prepared package contains no files: {package_root}")
+    digest = hashlib.sha256()
+    for relative, size, content_sha256 in file_rows:
+        digest.update(
+            json.dumps(
+                [relative, size, content_sha256],
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ).encode("utf-8")
+        )
+        digest.update(b"\n")
+    return {
+        "file_count": len(file_rows),
+        "total_bytes": sum(row[1] for row in file_rows),
+        "tree_sha256": digest.hexdigest(),
+    }
+
+
+def _stable_file_sha256(path: Path, stat_before: os.stat_result) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    stat_after = path.stat()
+    if (
+        int(stat_after.st_size) != int(stat_before.st_size)
+        or int(stat_after.st_mtime_ns) != int(stat_before.st_mtime_ns)
+        or int(getattr(stat_after, "st_ino", 0) or 0)
+        != int(getattr(stat_before, "st_ino", 0) or 0)
+    ):
+        raise ValueError(f"Prepared package file changed while hashing: {path}")
+    return digest.hexdigest()

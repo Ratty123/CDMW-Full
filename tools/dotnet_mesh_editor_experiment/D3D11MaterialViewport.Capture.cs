@@ -93,7 +93,10 @@ internal sealed partial class D3D11MaterialViewport
         var previousHeight = _renderHeight;
         var visibleCamera = _camera;
         var cameraForCapture = CameraForCaptureViewport(visibleCamera, width, height);
-        var solidDrawCountBefore = _texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount;
+        var solidDrawCountBefore =
+            _texturedSolidBatchDrawCount
+            + _untexturedSolidBatchDrawCount
+            + _transparentSolidBatchDrawCount;
         var mapped = false;
         var multisampleResolved = false;
         try
@@ -169,7 +172,10 @@ internal sealed partial class D3D11MaterialViewport
                 width,
                 height,
                 cameraForCapture.WorldViewProjectionRowMajorArray(),
-                (_texturedSolidBatchDrawCount + _untexturedSolidBatchDrawCount) - solidDrawCountBefore,
+                (_texturedSolidBatchDrawCount
+                    + _untexturedSolidBatchDrawCount
+                    + _transparentSolidBatchDrawCount)
+                - solidDrawCountBefore,
                 _renderSampleCount,
                 _renderSampleQuality,
                 multisampleResolved);

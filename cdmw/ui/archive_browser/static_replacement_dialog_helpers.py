@@ -576,6 +576,11 @@ def native_manifest_input_from_descriptor(
         blend_flags=tuple(
             part for part in re.split(r"[,;\s]+", str(descriptor.get("blend_flags", "") or "")) if part
         ),
+        owner_slot_index=int(str(descriptor.get("owner_slot_index", -1) or "-1")),
+        owner_wrapper_item_id=str(descriptor.get("owner_wrapper_item_id", "") or ""),
+        binding_authority=str(descriptor.get("binding_authority", descriptor.get("authority", "")) or ""),
+        binding_disposition=str(descriptor.get("binding_disposition", descriptor.get("disposition", "")) or ""),
+        source_kind=str(descriptor.get("source_kind", descriptor.get("registry_source_kind", "")) or ""),
     )
 
 

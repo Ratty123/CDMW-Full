@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import tempfile
 import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -55,46 +56,147 @@ def _copy_cancellable(source: Path, target: Path, stop_event: threading.Event) -
             target_handle.write(chunk)
 
 
-def _encode_owned_dds(source: Path, target: Path, channel: str, stop_event: threading.Event) -> None:
+def _channel_preset_key(channel: str) -> str:
+    return {
+        "base": "base_color",
+        "normal": "normal",
+        "height": "height_scalar",
+        "material_mask": "mask_packed",
+        "emissive": "emissive",
+    }.get(str(channel or "").strip().lower(), "mask_packed")
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        while chunk := handle.read(1024 * 1024):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _publish_content_addressed_dds(
+    source: Path,
+    content_sha256: str,
+    stop_event: threading.Event,
+) -> Path:
+    root = Path(tempfile.gettempdir()) / "cdmw-material-authority-artifacts-v1"
+    root.mkdir(parents=True, exist_ok=True)
+    target = root / f"{content_sha256}.dds"
+    if target.is_file():
+        if _file_sha256(target) != content_sha256:
+            raise ValueError("Content-addressed Material Authority DDS cache hash mismatch.")
+        return target
+    _copy_cancellable(source, target, stop_event)
+    if _file_sha256(target) != content_sha256:
+        target.unlink(missing_ok=True)
+        raise ValueError("Published Material Authority DDS failed hash readback.")
+    return target
+
+
+def _encode_owned_dds(
+    source: Path,
+    target: Path,
+    channel: str,
+    stop_event: threading.Event,
+) -> dict[str, object]:
     from cdmw.core.dds_native import inspect_dds_native_path
-    from cdmw.core.texture_native import encode_dds_with_directxtex
+    from cdmw.core.texture_native import (
+        decode_dds_preview_with_directxtex,
+        encode_dds_with_directxtex,
+    )
     from cdmw.domain.cancellation import raise_if_cancelled
     from cdmw.domain.textures.editor_presets import resolve_texture_editor_dds_preset
     from PIL import Image
 
+    decoded_source: Path | None = None
     if source.suffix.lower() == ".dds":
-        _copy_cancellable(source, target, stop_event)
+        source_info = inspect_dds_native_path(source)
+        if source_info.width <= 0 or source_info.height <= 0 or source_info.reason:
+            raise ValueError(
+                f"Source {channel} DDS failed readback: {source_info.reason or 'invalid DDS metadata'}"
+            )
+        width, height = int(source_info.width), int(source_info.height)
+        preset = resolve_texture_editor_dds_preset(
+            _channel_preset_key(channel),
+            width=width,
+            height=height,
+        )
+        canonical_source = (
+            str(source_info.format_name or "").strip().upper() == preset.dds_format
+            and int(source_info.mip_count) == int(preset.mip_count)
+            and bool(source_info.srgb) == bool(preset.srgb)
+        )
+        if canonical_source:
+            _copy_cancellable(source, target, stop_event)
+        else:
+            decoded_source = target.with_name(f".{target.stem}.decoded.png")
+            report = decode_dds_preview_with_directxtex(
+                source,
+                decoded_source,
+                max_dimension=max(width, height),
+                slot_kind=channel,
+                requested_mip=0,
+                output_pixel_type="rgba8",
+                timeout_seconds=60.0,
+                stop_event=stop_event,
+            )
+            if not report or not decoded_source.is_file():
+                raise RuntimeError(f"Native DirectXTex DDS decode failed for {channel}.")
     else:
         raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
         with Image.open(source) as image:
             width, height = int(image.width), int(image.height)
-        preset_key = {
-            "base": "base_color",
-            "normal": "normal",
-            "height": "height_scalar",
-            "material_mask": "mask_packed",
-            "emissive": "emissive",
-        }.get(channel, "mask_packed")
-        preset = resolve_texture_editor_dds_preset(preset_key, width=width, height=height)
-        staged = target.with_name(f".{target.stem}.encoding.dds")
-        report = encode_dds_with_directxtex(
-            source,
-            staged,
-            dds_format=preset.dds_format,
+        preset = resolve_texture_editor_dds_preset(
+            _channel_preset_key(channel),
             width=width,
             height=height,
-            mip_count=preset.mip_count,
-            overwrite=True,
-            timeout_seconds=60.0,
-            stop_event=stop_event,
         )
-        if not report or not staged.is_file():
-            raise RuntimeError(f"Native DirectXTex DDS encode failed for {channel}.")
-        raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
-        os.replace(staged, target)
+        decoded_source = source
+    if decoded_source is not None:
+        staged = target.with_name(f".{target.stem}.encoding.dds")
+        try:
+            report = encode_dds_with_directxtex(
+                decoded_source,
+                staged,
+                dds_format=preset.dds_format,
+                width=width,
+                height=height,
+                mip_count=preset.mip_count,
+                overwrite=True,
+                timeout_seconds=60.0,
+                stop_event=stop_event,
+            )
+            if not report or not staged.is_file():
+                raise RuntimeError(f"Native DirectXTex DDS encode failed for {channel}.")
+            raise_if_cancelled(stop_event, "Material DDS generation cancelled.")
+            os.replace(staged, target)
+        finally:
+            staged.unlink(missing_ok=True)
+            if decoded_source != source:
+                decoded_source.unlink(missing_ok=True)
     info = inspect_dds_native_path(target)
     if info.width <= 0 or info.height <= 0 or info.mip_count <= 0 or info.reason:
         raise ValueError(f"Generated {channel} DDS failed readback: {info.reason or 'invalid DDS metadata'}")
+    if (
+        str(info.format_name or "").strip().upper() != preset.dds_format
+        or int(info.mip_count) != int(preset.mip_count)
+        or bool(info.srgb) != bool(preset.srgb)
+    ):
+        raise ValueError(
+            f"Generated {channel} DDS is not canonical: expected {preset.dds_format}/"
+            f"{preset.mip_count} mips/{preset.preset.colorspace}, got "
+            f"{info.format_name}/{info.mip_count} mips/{'srgb' if info.srgb else 'linear'}"
+        )
+    return {
+        "content_sha256": _file_sha256(target),
+        "byte_count": int(target.stat().st_size),
+        "dds_format": str(info.format_name or preset.dds_format),
+        "width": int(info.width),
+        "height": int(info.height),
+        "mip_count": int(info.mip_count),
+        "color_space": "srgb" if info.srgb else "linear",
+        "preset": preset.preset.key,
+    }
 
 
 def generate_material_authority_resource_bindings(
@@ -134,12 +236,18 @@ def generate_material_authority_resource_bindings(
                 bindings.append({**common, "path": "", "source_dds_path": "", "remove": True})
                 continue
             owned = output_root / _owned_name(index, material_name, slot_kind)
-            _encode_owned_dds(source, owned, slot_kind, stop_event)
+            artifact = _encode_owned_dds(source, owned, slot_kind, stop_event)
+            artifact_path = _publish_content_addressed_dds(
+                owned,
+                str(artifact["content_sha256"]),
+                stop_event,
+            )
             bindings.append(
                 {
                     **common,
-                    "path": str(owned),
-                    "source_dds_path": str(owned),
+                    **artifact,
+                    "path": str(artifact_path),
+                    "source_dds_path": str(artifact_path),
                     "logical_path": str(source),
                     "semantic_type": str(getattr(slot, "semantic_type", "") or ""),
                     "semantic_subtype": str(getattr(slot, "semantic_subtype", "") or ""),

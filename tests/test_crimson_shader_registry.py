@@ -63,7 +63,7 @@ class CrimsonShaderRegistryTests(unittest.TestCase):
         self.assertEqual(AUTHORITY_AUTHORITATIVE, contract["authority"])
         self.assertEqual("declared_shader_family", contract["source"])
 
-    def test_color_blending_mask_promotes_with_authority(self) -> None:
+    def test_color_blending_mask_is_authoritative_layer_control_not_global_pbr(self) -> None:
         decode = decode_crimson_texture_binding(
             shader_family="SkinnedMeshStandard_Ver2",
             parameter_name="_colorBlendingMaskTexture",
@@ -74,8 +74,9 @@ class CrimsonShaderRegistryTests(unittest.TestCase):
 
         self.assertEqual(AUTHORITY_AUTHORITATIVE, decode["authority"])
         self.assertEqual("crimson_color_blending_mask", decode["source_kind"])
-        self.assertEqual("promoted", decode["disposition"])
-        self.assertEqual({"ao": "r", "roughness": "g", "metalness": "b"}, decode["promoted_channels"])
+        self.assertEqual("layer_only", decode["disposition"])
+        self.assertEqual({}, decode["promoted_channels"])
+        self.assertIn("R/G/B color layers", decode["reason"])
 
     def test_unknown_crimson_material_map_stays_diagnostic_guess(self) -> None:
         decode = decode_crimson_texture_binding(

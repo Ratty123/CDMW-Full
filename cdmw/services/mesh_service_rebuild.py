@@ -405,6 +405,8 @@ class MeshRebuildServiceMixin:
                 requires_edit_operations=bool(session.requires_edit_operations),
                 texture_resources=texture_resources,
                 material_parameter_groups=self.resident_material_parameter_groups(session.session_id),
+                material_authority_fingerprint=str(session.material_authority_fingerprint or ""),
+                material_authority_revision=int(session.material_authority_revision),
             )
 
     def _capture_texture_resources(
@@ -595,10 +597,15 @@ class MeshRebuildServiceMixin:
                     "width": int(resource.width),
                     "height": int(resource.height),
                     "source_kind": "raw_bgra" if resource.bgra_data else "dds",
+                    "content_sha256": hashlib.sha256(
+                        resource.dds_data if resource.dds_data else resource.bgra_data
+                    ).hexdigest(),
                 }
                 for resource in snapshot.texture_resources
             ],
             "material_parameter_groups": [dict(group) for group in snapshot.material_parameter_groups],
+            "material_authority_fingerprint": snapshot.material_authority_fingerprint,
+            "material_authority_revision": int(snapshot.material_authority_revision),
             "artifacts": [dict(artifact) for artifact in artifacts],
             "output_reparse": dict(output_reparse or {"status": "not_run"}),
         }

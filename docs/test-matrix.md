@@ -143,9 +143,10 @@ The direct harness CLI resolves the game root from `--game-root`, then
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --material-resource-policy-report "$env:TEMP\cdmw-material-resource-policy-runtime.json"
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-sparse-soak --gpu-soak-report "$env:TEMP\cdmw-dotnet-gpu-sparse-soak.json"
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-material-authority-parity --material-authority-parity-report "$env:TEMP\cdmw-material-authority-parity.json"
 dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_preview_performance_contract.py tests/test_mesh_harness_performance_contract.py tests/test_dotnet_texture_region_protocol.py tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
-.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_dds_synthesis.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_dds_synthesis.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_mesh_visual_audit_v2.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_scene_import_uv_contract.py tests/test_scene_import_normalization.py tests/test_scene_importer_gltf.py
 .\scripts\codex_check.ps1 -Area mesh -GameRoot "C:\games\Steam\steamapps\common\Crimson Desert"
@@ -167,6 +168,45 @@ not a substitute for the explicit real-PAC visual gate. For a fast environment c
 use `--gpu-soak-smoke --gpu-soak-vertices 30000 --gpu-soak-updates 100
 --gpu-soak-warmup 16 --gpu-soak-no-cadence`; smoke JSON is explicitly marked
 `release_gate_eligible=false`.
+
+The hidden Material Authority parity report covers every enabled normal
+Automatic/Manual registry key once. It records DDS hashes, final parameters,
+regional pixel deltas, unaffected-part isolation, revisions/fingerprints, and
+renderer/device/geometry stability. It proves resident .NET artifact response,
+not proprietary in-game shader, lighting, layer-graph, or post-processing parity.
+
+The older paired 120-PAC visual-audit verdicts compare prepared Archive Browser
+and .NET/Vortice renderer outputs; they do not prove that the prepared package
+preserved the correct PAC XML owner, every declared parameter, or exact DDS
+bindings. A PAC-source fidelity gate must separately show zero dropped
+parameters, zero cross-owner or layer-as-base bindings, exact initial/resident
+material equivalence, unchanged source archives, and direct review of every
+full model and visible submesh. Semantic or protocol `ok=true` cannot issue a
+visual PASS.
+
+For `cdmw_mesh_visual_audit_verdict_v2`, final acceptance additionally requires
+all six distinct full-model comparison files, every distinct submesh review
+sheet and source board with matching SHA-256, a separate direct-inspection and
+observation record for each source board and review image, an explicit visual
+verdict for every angle/contact/submesh review sheet, per-angle and per-submesh
+geometry coherence, a worst-visual-image asset verdict, equipment-reference
+disposition, the
+reported-sword target verdict, exact 120-PAC coverage, and successful capture
+batches. Finalization recomputes capture integrity instead of trusting its saved
+`ok`, binds every source board to the frozen corpus, rejects cross-lane evidence
+reuse, and validates the prepared package state plus before/after archive and
+package-tree fingerprints. Run `--phase seal` offline before a capture-only
+continuation. Repeating `--phase seal` only verifies an identical baseline and
+refuses to replace a changed or malformed existing seal; capture likewise
+refuses a missing or changed seal and writes the after-seal used by final
+acceptance. A completed review may still contain FAIL/CONCERN rows, but
+`acceptance_ok` must remain false.
+
+The focused v2 suite includes a complete 120-asset, production-style sorted-JSON
+round trip whose synthetic evidence reaches `acceptance_ok=true`. That test
+proves the finalizer composes every contract gate at full selection scale; its
+tiny generated PNGs are deliberately nonvisual and do not prove renderer or PAC
+appearance.
 
 The frame-pacing command keeps the hidden production renderer resident, warms
 300 frames by default, and writes `cdmw_dotnet_preview_performance_v1` outside

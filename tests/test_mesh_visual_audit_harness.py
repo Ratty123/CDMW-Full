@@ -26,6 +26,7 @@ from tools.mesh_harness.visual_audit_cli import (
     _dotnet_assembly_path,
     _load_preparation_resume,
     _load_specs,
+    _publish_or_verify_package_seal,
     _visual_audit_temporary_root,
     _write_commands,
     _write_preparation_checkpoint,
@@ -93,7 +94,43 @@ def test_visual_audit_rerun_commands_preserve_custom_manifest(tmp_path: Path) ->
 
     commands = (evidence / "commands.md").read_text(encoding="utf-8")
     assert f'--manifest "{manifest.resolve()}"' in commands
-    assert commands.count(f'--manifest "{manifest.resolve()}"') == 2
+    assert commands.count(f'--manifest "{manifest.resolve()}"') == 4
+    assert "--phase seal" in commands
+    assert "--phase capture" in commands
+
+
+def test_visual_audit_seal_is_idempotent_but_refuses_rebaseline(
+    tmp_path: Path,
+) -> None:
+    seal_path = tmp_path / "prepared-package-fingerprints.json"
+    baseline = {"schema": "seal", "aggregate_sha256": "a" * 64}
+
+    assert _publish_or_verify_package_seal(
+        seal_path,
+        baseline,
+        allow_replace=False,
+    ) == "Sealed prepared package trees"
+    baseline_bytes = seal_path.read_bytes()
+    assert _publish_or_verify_package_seal(
+        seal_path,
+        baseline,
+        allow_replace=False,
+    ) == "Verified prepared package seal"
+    assert seal_path.read_bytes() == baseline_bytes
+
+    with pytest.raises(ValueError, match="refuse resealing"):
+        _publish_or_verify_package_seal(
+            seal_path,
+            {"schema": "seal", "aggregate_sha256": "b" * 64},
+            allow_replace=False,
+        )
+    seal_path.write_text("not json", encoding="utf-8")
+    with pytest.raises(ValueError, match="unreadable"):
+        _publish_or_verify_package_seal(
+            seal_path,
+            baseline,
+            allow_replace=False,
+        )
 
 
 def test_dotnet_refresh_reuses_only_exactly_matching_source_assets() -> None:
@@ -827,6 +864,86 @@ def test_visual_audit_composites_preserve_source_pixels_without_resampling(tmp_p
         Path(str(path)).is_relative_to(tmp_path / "comparisons")
         for path in dict(row["candidate_comparisons"]).values()
     )
+
+
+def test_visual_audit_v2_composites_refuse_missing_capture_placeholders(
+    tmp_path: Path,
+) -> None:
+    with pytest.raises(ValueError, match="Archive Browser capture missing"):
+        build_visual_audit_composites(
+            {
+                "schema": "cdmw_mesh_visual_audit_corpus_v2",
+                "assets": [{"asset_id": "001-test", "virtual_path": "test.pac"}],
+            },
+            {"assets": [{"id": "001-test", "ok": False, "captures": []}]},
+            {"assets": [{"id": "001-test", "ok": False, "captures": []}]},
+            tmp_path,
+            tmp_path / "final",
+        )
+
+
+def test_visual_audit_v2_composites_refuse_missing_source_board_placeholders(
+    tmp_path: Path,
+) -> None:
+    capture_path = tmp_path / "capture.png"
+    Image.new("RGB", (8, 6), (20, 40, 60)).save(capture_path)
+    captures = [
+        {"name": str(view["name"]), "path": str(capture_path), "ok": True}
+        for view in VISUAL_AUDIT_VIEWS
+    ]
+    region_captures = [
+        {"angle": angle, "debug_mode": mode, "path": str(capture_path), "ok": True}
+        for angle, mode in (
+            ("front", "final"),
+            ("oblique", "final"),
+            ("oblique", "base"),
+            ("oblique", "normal"),
+            ("oblique", "roughness"),
+            ("oblique", "metallic"),
+            ("oblique", "specular"),
+            ("oblique", "layer_mask"),
+        )
+    ]
+    with pytest.raises(ValueError, match="Missing: PAC / DDS source board"):
+        build_visual_audit_composites(
+            {
+                "schema": "cdmw_mesh_visual_audit_corpus_v2",
+                "assets": [
+                    {
+                        "asset_id": "001-test",
+                        "virtual_path": "test.pac",
+                        "source_boards": {
+                            "boards": [
+                                {
+                                    "submesh_index": 0,
+                                    "path": str(tmp_path / "missing-source.png"),
+                                    "sha256": "0" * 64,
+                                }
+                            ]
+                        },
+                    }
+                ],
+            },
+            {"assets": [{"id": "001-test", "ok": True, "captures": captures}]},
+            {
+                "assets": [
+                    {
+                        "id": "001-test",
+                        "ok": True,
+                        "captures": captures,
+                        "material_regions": [
+                            {
+                                "source_submesh_index": 0,
+                                "submesh_name": "blade",
+                                "captures": region_captures,
+                            }
+                        ],
+                    }
+                ]
+            },
+            tmp_path,
+            tmp_path / "final",
+        )
 
 
 def test_visual_audit_review_rejects_missing_or_unknown_material_classification() -> None:

@@ -18,6 +18,7 @@ def _selected_part_control_step_001(_state):
     _state._copied_original_texture_tooltip = _state.context.get('_copied_original_texture_tooltip')
     _state._current_dialog_mappings_for_preview = _state.context.get('_current_dialog_mappings_for_preview')
     _state._ensure_source_part_adjustment = _state.context.get('_ensure_source_part_adjustment')
+    _state._ensure_material_authority_route_active = _state.context.get('_ensure_material_authority_route_active')
     _state._is_default_source_part_adjustment = _state.context.get('_is_default_source_part_adjustment')
     _state._alignment_d3d11_preview_active = _state.context.get('_alignment_d3d11_preview_active')
     _state._load_part_glow_color_controls = _state.context.get('_load_part_glow_color_controls')
@@ -26,6 +27,7 @@ def _selected_part_control_step_001(_state):
     _state._part_mapped_target_indices = _state.context.get('_part_mapped_target_indices')
     _state._push_geometry_undo_snapshot = _state.context.get('_push_geometry_undo_snapshot')
     _state._queue_material_edit_refresh = _state.context.get('_queue_material_edit_refresh')
+    _state._queue_material_authority_adjustment_preview_refresh = _state.context.get('_queue_material_authority_adjustment_preview_refresh')
     _state._queue_selection_preview_refresh = _state.context.get('_queue_selection_preview_refresh')
     _state._queue_static_preview_rebuild = _state.context.get('_queue_static_preview_rebuild')
     _state._queue_texture_preview_refresh = _state.context.get('_queue_texture_preview_refresh')
@@ -496,12 +498,24 @@ def _selected_part_control_step_018(_state):
             _state._refresh_parts_outliner()
         except NameError:
             pass
+        if callable(_state._queue_material_authority_adjustment_preview_refresh):
+            _state._queue_material_authority_adjustment_preview_refresh(
+                resource_keys=('part_glow_color', 'part_glow_strength'),
+            )
         _state._queue_material_edit_refresh(refresh_plan=action_state.refresh_plan, force_plan=action_state.force_plan, refresh_preview=action_state.refresh_preview and not resident_updated, reason=action_state.refresh_reason)
     _state._set_selected_source_role = _set_selected_source_role
 
 def _selected_part_control_step_019(_state):
 
     def _set_selected_source_glow_color() -> None:
+        try:
+            selected_indices = tuple(_state._selected_source_indices_from_tree())
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            selected_indices = ()
+        if len(selected_indices) != 1:
+            return
+        if callable(_state._ensure_material_authority_route_active):
+            _state._ensure_material_authority_route_active('source_part_glow_edit')
         action_state = _state._source_part_glow_color_action_state_helper()
         if _state._active_mesh_edit_source_part_output_mutation_blocked('glow override'):
             return
@@ -510,6 +524,10 @@ def _selected_part_control_step_019(_state):
         _state._refresh_ui_texture_sets_after_source_part_material_override()
         _state.texture_overrides_dirty['dirty'] = True
         _state._refresh_part_glow_color_controls_enabled()
+        if callable(_state._queue_material_authority_adjustment_preview_refresh):
+            _state._queue_material_authority_adjustment_preview_refresh(
+                resource_keys=('part_glow_color', 'part_glow_strength'),
+            )
         _state._queue_material_edit_refresh(refresh_plan=action_state.refresh_plan, force_plan=action_state.force_plan, refresh_preview=action_state.refresh_preview and not resident_material_parameters_available(_state.dialog), reason=action_state.refresh_reason)
     _state._set_selected_source_glow_color = _set_selected_source_glow_color
 

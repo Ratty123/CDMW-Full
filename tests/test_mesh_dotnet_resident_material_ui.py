@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -18,6 +19,41 @@ from cdmw.services.mesh_dotnet_experiment import (
 from cdmw.modding.static_mesh_scene_frame import static_scene_source_identity
 from cdmw.ui.mesh_editor import MeshEditorTab
 from tests.test_mesh_editor_action_bar import _EmbeddedMeshBuilder, _FakeProcess
+
+
+def _material_writes(
+    app: QApplication,
+    process: _FakeProcess,
+    *,
+    minimum: int = 1,
+    timeout: float = 3.0,
+) -> list[dict[str, object]]:
+    deadline = time.monotonic() + timeout
+    writes: list[dict[str, object]] = []
+    while time.monotonic() < deadline:
+        app.processEvents()
+        writes = [
+            json.loads(raw.decode("utf-8"))
+            for raw in process.stdin_writes
+            if b'"event":"material_state_update"' in raw
+        ]
+        if len(writes) >= minimum:
+            break
+        time.sleep(0.005)
+    return writes
+
+
+def _wait_for_material_compile_idle(
+    app: QApplication,
+    tab: MeshEditorTab,
+    *,
+    timeout: float = 3.0,
+) -> None:
+    deadline = time.monotonic() + timeout
+    while tab._dotnet_material_compile_active() and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.005)
+    app.processEvents()
 
 
 def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -> None:
@@ -59,14 +95,10 @@ def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -
     assert process is tab.standalone_dotnet_editor_process
     assert any(b'"event":"activate_request"' in write for write in process.stdin_writes)
     process.emit_stdout('{"event":"material_sync_required"}\n')
-    material_writes = [
-        json.loads(write.decode("utf-8"))
-        for write in process.stdin_writes
-        if b'"event":"material_state_update"' in write
-    ]
+    material_writes = _material_writes(app, process)
     assert len(material_writes) == 1
     material_state = material_writes[0]
-    assert material_state["schema"] == "cdmw_mesh_material_state_v2"
+    assert material_state["schema"] == "cdmw_mesh_material_state_v3"
     assert material_state["session_id"] == builder.controller.session_view().session_id
     assert material_state["generation"] == 1
     assert tab.standalone_dotnet_lifecycle_counts["material_state_update_count"] == 1
@@ -116,11 +148,7 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
     hook = getattr(builder, "_mesh_editor_embedded_apply_material_resources")
 
     assert hook(builder.controller.working_mesh(clone=False), (binding,), affected_submeshes=(0,))
-    payload = next(
-        json.loads(raw.decode("utf-8"))
-        for raw in process.stdin_writes
-        if b'"event":"material_state_update"' in raw
-    )
+    payload = _material_writes(app, process)[0]
     session_id = builder.controller.session_view().session_id
     assert builder.controller.mesh_service.capture_export_snapshot(session_id).texture_resources == ()
     applied = {
@@ -140,11 +168,7 @@ def test_generated_material_resource_commits_only_after_matching_renderer_ack(tm
         ({"resource_id": "authority/base", "channel": "base", "remove": True},),
         affected_submeshes=(0,),
     )
-    failed_payload = [
-        json.loads(raw.decode("utf-8"))
-        for raw in process.stdin_writes
-        if b'"event":"material_state_update"' in raw
-    ][-1]
+    failed_payload = _material_writes(app, process, minimum=2)[-1]
     assert not tab._handle_dotnet_protocol_event({
         "event": "material_state_failed",
         "generation": failed_payload["generation"],
@@ -195,11 +219,7 @@ def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp
     assert tab.standalone_dotnet_pending_reference_material_model is preview_model
     assert all(submesh.preview_texture_path == str(texture_path) for submesh in editable_mesh.submeshes)
 
-    material_writes = [
-        json.loads(raw.decode("utf-8"))
-        for raw in process.stdin_writes
-        if b'"event":"material_state_update"' in raw
-    ]
+    material_writes = _material_writes(app, process)
     assert len(material_writes) == 1
     assert material_writes[0]["reason"] == "late_exact_clone_resources"
     assert all(resource["role"] == "replacement" for resource in material_writes[0]["resources"])
@@ -210,11 +230,7 @@ def test_late_exact_clone_materials_update_editable_then_reference_resources(tmp
         "material_signature": material_writes[0]["material_signature"],
     })
     app.processEvents()
-    material_writes = [
-        json.loads(raw.decode("utf-8"))
-        for raw in process.stdin_writes
-        if b'"event":"material_state_update"' in raw
-    ]
+    material_writes = _material_writes(app, process, minimum=2)
     assert len(material_writes) == 2
     assert material_writes[1]["reason"] == "late_original_reference_resources"
     assert all(resource["role"] == "original_reference" for resource in material_writes[1]["resources"])
@@ -266,11 +282,7 @@ def test_late_unindexed_clone_materials_survive_original_only_supplemental_parts
         submesh.preview_texture_dds_path == str(texture_path)
         for submesh in editable_mesh.submeshes
     )
-    material_writes = [
-        json.loads(raw.decode("utf-8"))
-        for raw in process.stdin_writes
-        if b'"event":"material_state_update"' in raw
-    ]
+    material_writes = _material_writes(app, process)
     assert len(material_writes) == 1
     assert material_writes[0]["reason"] == "late_exact_clone_resources"
     assert len(material_writes[0]["submeshes"]) == len(editable_mesh.submeshes)
@@ -319,11 +331,7 @@ def test_pre_ready_clone_materials_replay_and_stale_pending_models_clear(tmp_pat
 
     tab._observe_dotnet_capabilities({"capabilities": ["resident_material_updates_v2"]})
     app.processEvents()
-    material_writes = [
-        json.loads(raw.decode("utf-8"))
-        for raw in process.stdin_writes
-        if b'"event":"material_state_update"' in raw
-    ]
+    material_writes = _material_writes(app, process)
     assert len(material_writes) == 1
     assert material_writes[0]["reason"] == "late_exact_clone_resources"
     assert tab.standalone_dotnet_pending_reference_material_model is preview_model
@@ -378,14 +386,16 @@ def test_failed_new_material_attempt_preserves_inflight_generation_and_commit(tm
         assert not tab._wait_for_dotnet_export_updates(0.0)
 
         with patch(
-            "cdmw.ui.mesh_editor.tab_dotnet_protocol._tab.mesh_dotnet_material_state_payload",
+            "cdmw.ui.mesh_editor.tab_dotnet_resources.snapshot_mesh_dotnet_material_inputs",
             side_effect=RuntimeError("injected snapshot failure"),
         ):
             assert not tab._send_dotnet_material_state(reason="injected_snapshot_failure")
 
         assert tab.standalone_dotnet_material_generation == first_generation
+        _material_writes(app, process)
         assert tab.standalone_dotnet_sent_material_resource_payload["generation"] == first_generation
         assert acknowledge(first_generation)
+        _wait_for_material_compile_idle(app, tab)
         assert tab._wait_for_dotnet_export_updates(0.0)
         assert builder.controller.mesh_service.capture_export_snapshot(session_id).texture_resources[0].dds_data == b"first"
 
@@ -393,10 +403,14 @@ def test_failed_new_material_attempt_preserves_inflight_generation_and_commit(tm
         assert hook(builder.controller.working_mesh(clone=False), (second,), affected_submeshes=(0,))
         second_generation = tab.standalone_dotnet_material_generation
         assert second_generation == 2
-        with patch.object(tab, "_send_dotnet_protocol_message", return_value=False):
-            assert not tab._send_dotnet_material_state(reason="injected_write_failure")
+        with patch(
+            "cdmw.ui.mesh_editor.tab_dotnet_resources.snapshot_mesh_dotnet_material_inputs",
+            side_effect=RuntimeError("injected second snapshot failure"),
+        ):
+            assert not tab._send_dotnet_material_state(reason="injected_snapshot_failure_2")
 
         assert tab.standalone_dotnet_material_generation == second_generation
+        _material_writes(app, process, minimum=2)
         assert tab.standalone_dotnet_sent_material_resource_payload["generation"] == second_generation
         assert acknowledge(second_generation)
         resources = {

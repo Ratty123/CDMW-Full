@@ -32,16 +32,18 @@ from PySide6.QtWidgets import (
 from cdmw.services.archive_extraction_service import find_available_output_path
 from cdmw.services.archive_read_service import read_archive_entry_data
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
-from cdmw.services.archive_workflow_service import export_archive_mesh
 from cdmw.services.preview_workflow_service import mesh_import_runtime_sibling_mesh_candidates
 from cdmw.domain.cancellation import raise_if_cancelled
-from cdmw.services.atomic_file_service import atomic_write_text
 from cdmw.services.mesh_workflow_service import read_archive_entry_baseline_data
 from cdmw.domain.mesh.session import MeshImportSetupSelection, ModifyOriginalWorkflowSelection
 from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_workflow_service import ParsedMesh, parse_mesh
-from cdmw.services.mesh_workflow_service import SceneImportResult, import_scene_mesh_with_report
+from cdmw.services.mesh_workflow_service import SceneImportResult
 from cdmw.services.mesh_workflow_service import StaticMeshReplacementOptions, StaticSubmeshMapping
+from cdmw.services.modify_original_workspace_service import (
+    ModifyOriginalWorkspacePreparationRequest,
+    prepare_modify_original_workspace,
+)
 from cdmw.services.diagnostics_service import process_is_alive as _process_is_alive
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.workers.directory_scan_workers import DirectoryScanRequest, scan_directory_files
@@ -441,131 +443,40 @@ class ArchiveMeshModifyOriginalMixin:
             cached_texture_references = tuple(getattr(self, "current_archive_model_texture_references", ()) or ())
         cached_family_graph = getattr(current_preview_result, "asset_family_graph", None) if preview_matches_entry else None
 
+        preparation_request = ModifyOriginalWorkspacePreparationRequest(
+            entry=entry,
+            workspace_dir=workspace_dir,
+            create_workspace=create_workspace,
+            include_family_files=include_family,
+            open_workspace_after_create=open_after,
+            cleanup_stale_sessions=cleanup_stale_sessions,
+            archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
+            archive_entries_by_basename=self.archive_entries_by_basename,
+            related_entries=related_entries,
+            model_texture_references=cached_texture_references,
+            asset_family_graph=cached_family_graph,
+        )
+
         def _task(
             log: Callable[[str], None],
             progress: Callable[[int, int, str], None],
             stop_event: threading.Event,
         ) -> dict[str, object]:
-            raise_if_cancelled(stop_event, "Modify Original preparation cancelled.")
-            total_steps = 5
-            progress(1, total_steps, "Modify Original: creating safe clone folder...")
-            if cleanup_stale_sessions:
-                self._cleanup_stale_modify_original_sessions(on_log=log)
-            workspace_dir.parent.mkdir(parents=True, exist_ok=True)
-            log(
-                f"Creating Modify Original workspace: {workspace_dir}"
-                if create_workspace
-                else f"Preparing Modify Original in-app session: {workspace_dir}"
-            )
-            if include_family and not create_workspace:
-                log(
-                    "Modify Original in-app session uses the archive material graph directly; "
-                    "resolved asset-family file copying is skipped to keep startup responsive."
-                )
-            progress(2, total_steps, "Modify Original: writing editable OBJ clone...")
-            result = export_archive_mesh(
-                entry,
-                workspace_dir,
-                "obj",
-                archive_entries_by_normalized_path=self.archive_entries_by_normalized_path,
-                archive_entries_by_basename=self.archive_entries_by_basename,
-                related_entries=related_entries,
-                allow_missing_skeleton=True,
-                resolve_skeleton_for_obj=create_workspace,
-                model_texture_references=cached_texture_references,
-                asset_family_graph=cached_family_graph,
-                build_preview_context=create_workspace,
-                on_log=log,
-            )
-            raise_if_cancelled(stop_event, "Modify Original preparation cancelled.")
-            obj_paths = [path for path in result.output_paths if path.suffix.lower() == ".obj"]
-            if not obj_paths:
-                raise ValueError("OBJ export did not produce an editable clone file.")
-            obj_path = obj_paths[0]
-            log("Preloading Modify Original clone geometry off the UI thread...")
-            progress(3, total_steps, "Modify Original: loading editable clone geometry...")
-            scene_import_result = import_scene_mesh_with_report(obj_path, stop_event=stop_event)
-            log("Preloading original archive mesh for Geometry alignment...")
-            progress(4, total_steps, "Modify Original: loading original archive mesh...")
-            original_data = read_archive_entry_baseline_data(
-                entry,
-                read_entry_data=lambda archive_entry: read_archive_entry_data(
-                    archive_entry,
-                    stop_event=stop_event,
-                ),
-            ).data
-            original_mesh = parse_mesh(original_data, entry.path)
-            source_skeleton = None
-            supplemental_files = self._modify_original_workspace_supplemental_files(
-                workspace_dir,
+            return prepare_modify_original_workspace(
+                preparation_request,
+                log=log,
+                progress=progress,
                 stop_event=stop_event,
-            )
-            readme_path: Optional[Path] = None
-            manifest_path = workspace_dir / "modify_original_workspace.json"
-            if create_workspace:
-                readme_path = workspace_dir / "MODIFY_ORIGINAL_README.txt"
-                atomic_write_text(
-                    readme_path,
-                    "\n".join(
-                        [
-                            "Crimson Desert Mod Workbench - Modify Original Workspace",
-                            "",
-                            f"Source archive mesh: {entry.path}",
-                            f"Editable OBJ clone: {obj_path.name}",
-                            "",
-                            "What this workspace is for:",
-                            "- The app opens this OBJ clone in Mesh Replacement Setup automatically.",
-                            "- Use Geometry in the alignment window to resize, move, or reshape existing mesh parts.",
-                            "- Keep topology, material names, and draw-part structure stable for the safest import.",
-                            "- Edit copied DDS/material sidecar files under referenced_files/ when you want texture/material context changes.",
-                            "",
-                            "What this workspace does not do:",
-                            "- It does not patch game archives directly.",
-                            "- It does not make arbitrary topology, skeleton, or animation edits safe.",
-                            "- It does not bypass the existing loose-mod export and validation path.",
-                            "",
-                            "Back in the app, use Mesh Replacement Setup and Geometry to review the clone and write a mod-ready loose package.",
-                        ]
-                    ),
-                )
-            atomic_write_text(
-                manifest_path,
-                json.dumps(
-                    {
-                        "format": "cdmw_modify_original_workspace_v1",
-                        "workspace_mode": "user_workspace" if create_workspace else "internal_app_session",
-                        "create_workspace": create_workspace,
-                        "source_archive_path": entry.path,
-                        "source_package": entry.package_label,
-                        "workspace_dir": str(workspace_dir),
-                        "editable_obj": str(obj_path),
-                        "related_file_count": len(related_entries),
-                        "supplemental_file_count": len(supplemental_files),
-                        "include_family_files": include_family,
-                        "open_workspace_after_create": open_after,
-                        "process_id": os.getpid(),
-                        "created_at": time.time(),
-                        "exported_files": [str(path) for path in result.output_paths],
-                        "policy": "safe_clone_workspace_imports_through_mesh_replacement_geometry_path",
-                    },
-                    indent=2,
+                cleanup_stale_sessions=lambda emit: self._cleanup_stale_modify_original_sessions(
+                    on_log=emit
+                ),
+                collect_supplemental_files=lambda root, stop: (
+                    self._modify_original_workspace_supplemental_files(
+                        root,
+                        stop_event=stop,
+                    )
                 ),
             )
-            progress(5, total_steps, "Modify Original: opening Geometry workspace...")
-            return {
-                "workspace_dir": workspace_dir,
-                "obj_path": obj_path,
-                "readme_path": readme_path,
-                "manifest_path": manifest_path,
-                "create_workspace": create_workspace,
-                "output_paths": tuple(result.output_paths),
-                "summary_lines": tuple(result.summary_lines),
-                "related_count": len(related_entries),
-                "supplemental_files": supplemental_files,
-                "scene_import_result": scene_import_result,
-                "source_skeleton": source_skeleton,
-                "original_mesh": original_mesh,
-            }
 
         def _handle_complete(result: object) -> None:
             if not isinstance(result, dict):

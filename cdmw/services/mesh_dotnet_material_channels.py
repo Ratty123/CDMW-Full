@@ -59,6 +59,44 @@ def _dotnet_crimson_material_input_decode(
     )
 
 
+def _dotnet_layer_mask_candidate_rank(
+    *,
+    semantic: str,
+    semantic_subtype: str,
+    parameter_name: str,
+    layer_role: str,
+    source_kind: str,
+) -> int:
+    """Rank actual selector masks without trusting the word ``Mask`` alone."""
+
+    key = "".join(character for character in parameter_name.casefold() if character.isalnum())
+    source_kind = source_kind.strip().casefold()
+    semantic = semantic.strip().casefold()
+    semantic_subtype = semantic_subtype.strip().casefold()
+    layer_role = layer_role.strip().casefold()
+    if source_kind == "crimson_color_blending_mask" and key == "colorblendingmasktexture":
+        return 100
+    if key == "colorblendingmasktexture":
+        return 95
+    if semantic == "layer_mask":
+        return 85
+    if key in {"layermasktexture", "layerblendmasktexture", "rgbtexture"}:
+        return 80
+    if source_kind == "crimson_detail_mask" or semantic == "detail_mask" or key == "detailmasktexture":
+        return 65
+    technical_parameter = any(
+        token in key
+        for token in ("diffuse", "normal", "material", "height", "displacement")
+    )
+    if technical_parameter:
+        return -1
+    if semantic == "mask" or layer_role == "mask":
+        return 45
+    if "mask" in semantic_subtype:
+        return 35
+    return -1
+
+
 def _dotnet_material_input_channels(source: object | None) -> dict[str, str]:
     result: dict[str, str] = {}
     if source is None:
@@ -68,6 +106,21 @@ def _dotnet_material_input_channels(source: object | None) -> dict[str, str]:
         isinstance(overrides, Mapping) and overrides.get("base_tint_only_fallback", False)
     )
     layer_only_roles = {"damage", "decal", "detail", "dye", "grime", "layer", "overlay"}
+    layer_mask_candidate = ""
+    layer_mask_candidate_rank = -1
+    source_owner_slot_index = getattr(
+        source,
+        "preview_pac_material_owner_slot_index",
+        getattr(
+            source,
+            "material_slot_index",
+            getattr(source, "source_submesh_index", getattr(source, "submesh_index", -1)),
+        ),
+    )
+    try:
+        source_owner_slot_index = int(source_owner_slot_index)
+    except (TypeError, ValueError, OverflowError):
+        source_owner_slot_index = -1
     for item in tuple(getattr(source, "preview_material_texture_inputs", ()) or ()):
         values = item if isinstance(item, Mapping) else vars(item) if hasattr(item, "__dict__") else {}
         semantic = str(
@@ -92,6 +145,20 @@ def _dotnet_material_input_channels(source: object | None) -> dict[str, str]:
             or getattr(item, "parameter_name", "")
             or ""
         ).strip().lower()
+        item_owner_slot_index = values.get(
+            "owner_slot_index",
+            getattr(item, "owner_slot_index", -1),
+        )
+        try:
+            item_owner_slot_index = int(item_owner_slot_index)
+        except (TypeError, ValueError, OverflowError):
+            item_owner_slot_index = -1
+        if (
+            source_owner_slot_index >= 0
+            and item_owner_slot_index >= 0
+            and source_owner_slot_index != item_owner_slot_index
+        ):
+            continue
         # Preserve the source DDS when one is available. Preview PNGs are useful
         # fallbacks, but selecting them first discards the source format, mip
         # chain, precision, and color-space view before Vortice sees the asset.
@@ -111,7 +178,23 @@ def _dotnet_material_input_channels(source: object | None) -> dict[str, str]:
             semantic, semantic
         )
         decode = _dotnet_crimson_material_input_decode(source, item, values)
+        disposition = str(
+            values.get("binding_disposition", "")
+            or getattr(item, "binding_disposition", "")
+            or decode.get("disposition", "")
+            or ""
+        ).strip().casefold()
         promoted_channels = decode.get("promoted_channels")
+        candidate_rank = _dotnet_layer_mask_candidate_rank(
+            semantic=semantic,
+            semantic_subtype=semantic_subtype,
+            parameter_name=parameter_name,
+            layer_role=layer_role,
+            source_kind=str(decode.get("source_kind", "") or ""),
+        )
+        if path and candidate_rank > layer_mask_candidate_rank:
+            layer_mask_candidate = path
+            layer_mask_candidate_rank = candidate_rank
         if (
             path
             and str(decode.get("disposition", "") or "") == "promoted"
@@ -121,17 +204,33 @@ def _dotnet_material_input_channels(source: object | None) -> dict[str, str]:
                 channel = canonical_material_channel(str(promoted_channel))
                 if channel:
                     result.setdefault(channel, path)
-        is_layer_only = layer_role in layer_only_roles
+        is_layer_only = layer_role in layer_only_roles or disposition == "layer_only"
         is_base_channel = semantic in {"albedo", "base", "diffuse"}
-        if semantic and path and semantic not in result and not is_layer_only and not (tint_only_base and is_base_channel):
-            result[semantic] = path
-        if path and (
-            semantic in {"mask", "layer_mask", "material_mask"}
-            or "mask" in semantic_subtype
-            or "mask" in layer_role
-            or "mask" in parameter_name
+        source_bound = bool(
+            values.get("binding_authority", "")
+            or getattr(item, "binding_authority", "")
+            or values.get("binding_disposition", "")
+            or getattr(item, "binding_disposition", "")
+            or values.get("sidecar_kind", "")
+            or getattr(item, "sidecar_kind", "")
+        )
+        globally_bindable = (
+            not source_bound
+            or disposition in {"promoted", "recorded"}
+            or semantic in {"detail_mask", "layer_mask", "mask", "material", "material_mask"}
+        )
+        if (
+            semantic
+            and path
+            and semantic not in result
+            and globally_bindable
+            and not is_layer_only
+            and not (tint_only_base and is_base_channel)
         ):
-            result.setdefault("layer_mask", path)
+            result[semantic] = path
+    if layer_mask_candidate:
+        result["layer_mask"] = layer_mask_candidate
+        result.setdefault("mask", layer_mask_candidate)
     return result
 
 
@@ -191,6 +290,8 @@ def _dotnet_material_channel_components(source: object | None) -> dict[str, str]
         for index, semantic in enumerate(normalized[:4]):
             if semantic in {"roughness", "metallic", "specular"}:
                 result.setdefault(semantic, _COMPONENT_NAMES[index])
+    layer_mask_component = ""
+    layer_mask_component_rank = -1
     for item in tuple(getattr(source, "preview_material_texture_inputs", ()) or ()):
         values = item if isinstance(item, Mapping) else vars(item) if hasattr(item, "__dict__") else {}
         decode = _dotnet_crimson_material_input_decode(source, item, values)
@@ -221,15 +322,28 @@ def _dotnet_material_channel_components(source: object | None) -> dict[str, str]
             or getattr(item, "parameter_name", "")
             or ""
         ).strip().lower()
-        if semantic not in {"mask", "layer_mask", "material_mask"} and "mask" not in subtype and "mask" not in parameter_name:
+        rank = _dotnet_layer_mask_candidate_rank(
+            semantic=semantic,
+            semantic_subtype=subtype,
+            parameter_name=parameter_name,
+            layer_role=str(
+                values.get("layer_role", "")
+                or getattr(item, "layer_role", "")
+                or ""
+            ),
+            source_kind=str(decode.get("source_kind", "") or ""),
+        )
+        if rank <= layer_mask_component_rank:
             continue
         component = str(
             values.get("layer_channel", "")
             or getattr(item, "layer_channel", "")
             or "r"
         ).strip().lower()
-        result["layer_mask"] = component if component in _COMPONENT_NAMES else "r"
-        break
+        layer_mask_component = component if component in _COMPONENT_NAMES else "r"
+        layer_mask_component_rank = rank
+    if layer_mask_component:
+        result["layer_mask"] = layer_mask_component
     return result
 
 
@@ -489,12 +603,111 @@ def _dotnet_resolved_texture_channels(source: object | None) -> dict[str, str]:
     if preferred_color:
         for channel in ("base", "albedo", "diffuse"):
             result[channel] = preferred_color
+    _remove_unpromoted_layer_color_fallbacks(source, result)
     _reroute_technical_color_fallback(source, result)
     material_path = result.get("material", "")
     if material_path:
         for channel in _dotnet_material_channel_components(source):
             result.setdefault(channel, material_path)
     return result
+
+
+def _remove_unpromoted_layer_color_fallbacks(
+    source: object,
+    channels: dict[str, str],
+) -> None:
+    """Keep authoritative PAC layer inputs out of legacy base aliases.
+
+    Archive preparation rebases source references into durable package paths.
+    A parser-level ``texture`` fallback can therefore point at the same
+    transport DDS as a PAC binding whose authoritative disposition is
+    ``layer_only``. Such a binding must not become whole-material color unless
+    another authoritative binding promotes that same resource as base color.
+    """
+
+    source_owner_slot_index = getattr(
+        source,
+        "preview_pac_material_owner_slot_index",
+        getattr(
+            source,
+            "material_slot_index",
+            getattr(source, "source_submesh_index", getattr(source, "submesh_index", -1)),
+        ),
+    )
+    try:
+        source_owner_slot_index = int(source_owner_slot_index)
+    except (TypeError, ValueError, OverflowError):
+        source_owner_slot_index = -1
+
+    layer_only_paths: set[str] = set()
+    promoted_base_paths: set[str] = set()
+    for item in tuple(getattr(source, "preview_material_texture_inputs", ()) or ()):
+        values = item if isinstance(item, Mapping) else vars(item) if hasattr(item, "__dict__") else {}
+        item_owner_slot_index = values.get(
+            "owner_slot_index",
+            getattr(item, "owner_slot_index", -1),
+        )
+        try:
+            item_owner_slot_index = int(item_owner_slot_index)
+        except (TypeError, ValueError, OverflowError):
+            item_owner_slot_index = -1
+        if (
+            source_owner_slot_index >= 0
+            and item_owner_slot_index >= 0
+            and source_owner_slot_index != item_owner_slot_index
+        ):
+            continue
+
+        decode = _dotnet_crimson_material_input_decode(source, item, values)
+        disposition = str(
+            values.get("binding_disposition", "")
+            or getattr(item, "binding_disposition", "")
+            or decode.get("disposition", "")
+            or ""
+        ).strip().casefold()
+        paths = {
+            str(values.get(name, "") or getattr(item, name, "") or "")
+            .replace("\\", "/")
+            .strip()
+            .casefold()
+            for name in (
+                "source_dds_path",
+                "source_texture_path",
+                "source_path",
+                "preview_texture_path",
+            )
+            if str(values.get(name, "") or getattr(item, name, "") or "").strip()
+        }
+        if not paths:
+            continue
+        if disposition == "layer_only":
+            layer_only_paths.update(paths)
+            continue
+        semantic = canonical_material_channel(
+            str(
+                values.get("semantic_type", "")
+                or values.get("slot_kind", "")
+                or getattr(item, "semantic_type", "")
+                or getattr(item, "slot_kind", "")
+                or ""
+            )
+        )
+        promoted_channels = {
+            canonical_material_channel(str(channel))
+            for channel in tuple(decode.get("promoted_channels", ()) or ())
+        }
+        if disposition == "promoted" and (
+            semantic == "base" or "base" in promoted_channels
+        ):
+            promoted_base_paths.update(paths)
+
+    forbidden_paths = layer_only_paths - promoted_base_paths
+    if not forbidden_paths:
+        return
+    for channel in ("base", "albedo", "diffuse"):
+        path = str(channels.get(channel, "") or "").replace("\\", "/").strip().casefold()
+        if path in forbidden_paths:
+            channels.pop(channel, None)
 
 
 def _reroute_technical_color_fallback(source: object, channels: dict[str, str]) -> None:

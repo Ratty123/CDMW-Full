@@ -6,6 +6,11 @@ import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from cdmw.domain.textures.material_authority_state import (
+    MaterialAuthorityCapability,
+    material_authority_control_spec,
+)
+
 
 MODIFY_ORIGINAL_ADVANCED_TEXTURE_TUNING_SETTINGS_KEY = "settings/modify_original_advanced_texture_tuning"
 MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_SETTINGS_KEY = "settings/modify_original_manual_texture_tuning"
@@ -48,30 +53,20 @@ MODIFY_ORIGINAL_MANUAL_TEXTURE_TUNING_KEYS = (
 
 MATERIAL_AUTHORITY_RESIDENT_MANUAL_PARAMETER_KEYS = frozenset(
     {
-        "base_color_lift",
-        "base_color_scale",
-        "base_color_gamma",
-        "base_color_saturation",
-        "base_color_value_max",
-        "roughness_min",
-        "roughness_scale",
-        "roughness_max",
-        "metallic_min",
-        "metallic_scale",
-        "metallic_max",
         "scratch_roughness",
         "scratch_metallic",
         "shine_scalar",
-        "displacement_scale_multiplier",
-        "roughness_inverted",
-        "metallic_inverted",
-        "force_nonmetal",
     }
 )
 
 MATERIAL_AUTHORITY_RESIDENT_RESOURCE_KEYS = frozenset(
     {
         "base_binding_mode",
+        "base_color_lift",
+        "base_color_scale",
+        "base_color_gamma",
+        "base_color_saturation",
+        "base_color_value_max",
         "mask_binding_mode",
         "support_policy",
         "emissive_mode",
@@ -79,9 +74,19 @@ MATERIAL_AUTHORITY_RESIDENT_RESOURCE_KEYS = frozenset(
         "emissive_color_saturation",
         "emissive_color_value_max",
         "roughness_default",
+        "roughness_min",
+        "roughness_scale",
+        "roughness_max",
         "metallic_default",
+        "metallic_min",
+        "metallic_scale",
+        "metallic_max",
         "ao_default",
-        "alpha_default",
+        "displacement_scale_multiplier",
+        "displacement_scale_max",
+        "roughness_inverted",
+        "metallic_inverted",
+        "force_nonmetal",
         "allow_factor_only_authority",
         "factor_only_material_mask",
         "force_neutral_layer_support",
@@ -91,7 +96,10 @@ MATERIAL_AUTHORITY_RESIDENT_RESOURCE_KEYS = frozenset(
 MATERIAL_AUTHORITY_RESIDENT_EXPORT_ONLY_KEYS = frozenset(
     {
         "authority_contract",
-        "displacement_scale_max",
+        "alpha_default",
+        "scratch_roughness",
+        "scratch_metallic",
+        "shine_scalar",
         "neutral_color_rgb",
         "preserve_scratch_alpha",
         "preserve_target_layer_response",
@@ -100,23 +108,44 @@ MATERIAL_AUTHORITY_RESIDENT_EXPORT_ONLY_KEYS = frozenset(
 )
 
 _MATERIAL_RESOURCE_CHANNELS = {
+    "global_gloss_reduction": ("material_mask",),
+    "auto_brightness": ("base",),
+    "source_brightness": ("base",),
+    "tone_contrast": ("base",),
     "base_binding_mode": ("base",),
+    "base_color_lift": ("base",),
+    "base_color_scale": ("base",),
+    "base_color_gamma": ("base",),
+    "base_color_saturation": ("base",),
+    "base_color_value_max": ("base",),
     "allow_factor_only_authority": ("base",),
     "mask_binding_mode": ("material_mask",),
     "roughness_default": ("material_mask",),
+    "roughness_min": ("material_mask",),
+    "roughness_scale": ("material_mask",),
+    "roughness_max": ("material_mask",),
     "metallic_default": ("material_mask",),
+    "metallic_min": ("material_mask",),
+    "metallic_scale": ("material_mask",),
+    "metallic_max": ("material_mask",),
     "ao_default": ("material_mask",),
-    "alpha_default": ("material_mask",),
+    "roughness_inverted": ("material_mask",),
+    "metallic_inverted": ("material_mask",),
+    "force_nonmetal": ("material_mask",),
     "factor_only_material_mask": ("material_mask",),
     "support_policy": ("normal", "height", "material_mask"),
     "force_neutral_layer_support": ("normal", "height", "material_mask"),
-    "edge_relief": ("height",),
-    "edge_relief_source": ("height",),
+    "edge_relief": ("normal", "height", "material_mask"),
+    "edge_relief_source": ("normal", "height", "material_mask"),
+    "displacement_scale_multiplier": ("height",),
+    "displacement_scale_max": ("height",),
     "emissive_mode": ("emissive",),
     "emissive_color_scale": ("emissive",),
     "emissive_color_saturation": ("emissive",),
     "emissive_color_value_max": ("emissive",),
     "accent_glow": ("emissive",),
+    "part_glow_color": ("emissive",),
+    "part_glow_strength": ("emissive",),
 }
 
 
@@ -534,6 +563,7 @@ def manual_material_profile_control_effect_states(
     resident_parameter_only: bool = False,
     resident_parameters_available: bool = True,
     resident_resources_available: bool = False,
+    include_expert: bool = False,
 ) -> dict[str, dict[str, object]]:
     inactive = manual_material_profile_inactive_reasons(values)
     if target_height_supported is False:
@@ -573,6 +603,15 @@ def manual_material_profile_control_effect_states(
     for raw_key in control_keys:
         key = str(raw_key)
         reason = inactive.get(key, "")
+        spec = material_authority_control_spec(key)
+        if (
+            spec is not None
+            and spec.capability is MaterialAuthorityCapability.EXPERT_ONLY
+            and not include_expert
+        ):
+            reason = "Unsafe Expert only: target-dependent or not trustworthy in the normal WYSIWYG preview."
+        elif spec is not None and str(values.get(key, "") or "").strip().lower() in spec.expert_values:
+            reason = "The selected routing value is an Unsafe Expert override and cannot receive the normal WYSIWYG badge."
         tooltip = str(control_tooltips.get(key, "") or "")
         if reason:
             tooltip = f"{tooltip}\n\n{reason}" if tooltip else reason

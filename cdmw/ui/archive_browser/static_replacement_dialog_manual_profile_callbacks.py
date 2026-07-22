@@ -5,6 +5,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from types import SimpleNamespace
 
+from cdmw.domain.textures.material_authority_state import (
+    MATERIAL_AUTHORITY_EXPERT_KEYS,
+    MaterialAuthorityCapability,
+    material_authority_control_spec,
+)
 from cdmw.ui.archive_browser.static_replacement_manual_material_profile import (
     material_authority_target_height_supported,
 )
@@ -71,6 +76,7 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
     _manual_material_profile_token_helper = context.get('_manual_material_profile_token_helper')
     _modify_original_manual_texture_tuning_values_helper = context.get('_modify_original_manual_texture_tuning_values_helper')
     _modify_original_texture_tuning_enabled = context.get('_modify_original_texture_tuning_enabled')
+    _ensure_material_authority_route_active = context.get('_ensure_material_authority_route_active')
     _queue_texture_preview_refresh = context.get('_queue_texture_preview_refresh')
     _refresh_output_impact_review = context.get('_refresh_output_impact_review')
     _save_manual_profile_presets = context.get('_save_manual_profile_presets')
@@ -89,6 +95,8 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
     manual_profile_dirty = context.get('manual_profile_dirty')
     manual_profile_effect_widgets = context.get('manual_profile_effect_widgets')
     manual_profile_group = context.get('manual_profile_group')
+    manual_profile_expert_group = context.get('manual_profile_expert_group')
+    manual_profile_expert_warning = context.get('manual_profile_expert_warning')
     manual_profile_preset_combo = context.get('manual_profile_preset_combo')
     manual_profile_preset_details_edit = context.get('manual_profile_preset_details_edit')
     manual_profile_preset_name_edit = context.get('manual_profile_preset_name_edit')
@@ -97,6 +105,7 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
     manual_profile_ready = context.get('manual_profile_ready')
     manual_profile_saved_values = context.get('manual_profile_saved_values')
     manual_profile_settings_key = context.get('manual_profile_settings_key')
+    unsafe_material_preflight_checkbox = context.get('unsafe_material_preflight_checkbox')
     modify_original_clone_mode = bool(context.get('modify_original_clone_mode'))
     self = context.get('self')
     serialize_complete_swap_manual_material_profile = context.get('serialize_complete_swap_manual_material_profile')
@@ -144,13 +153,79 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
             target_height_supported=material_authority_target_height_supported(context.get('sidecar_bindings')), resident_parameter_only=_editor_active(), resident_parameters_available=resident_material_parameters_available(dialog),
             resident_resources_available=resident_material_resources_available(dialog),
         )
+        resolved_states = getattr(dialog, '_material_authority_control_states_by_key', {})
+        if isinstance(resolved_states, Mapping):
+            for key, resolved in resolved_states.items():
+                if key in MATERIAL_AUTHORITY_EXPERT_KEYS or key not in control_states:
+                    continue
+                spec = material_authority_control_spec(key)
+                selected_expert_value = bool(
+                    spec is not None
+                    and str(current_values.get(key, '') or '').strip().lower() in spec.expert_values
+                )
+                capability = getattr(resolved, 'capability', None)
+                if capability is MaterialAuthorityCapability.ACTIVE or selected_expert_value:
+                    continue
+                reason = str(getattr(resolved, 'reason', '') or 'This control is not applicable to the resolved source/target route.')
+                base_tooltip = str(manual_profile_control_tooltips.get(key, '') or '')
+                control_states[key] = {
+                    'enabled': False,
+                    'tooltip': f'{base_tooltip}\n\n{reason}'.strip(),
+                }
+        unsafe_acknowledged = bool(
+            unsafe_material_preflight_checkbox is not None
+            and unsafe_material_preflight_checkbox.isChecked()
+        )
+        expert_overrides: list[str] = []
+        for key in MATERIAL_AUTHORITY_EXPERT_KEYS:
+            if key in current_values and current_values.get(key) != manual_profile_default_values.get(key):
+                expert_overrides.append(key)
+        for key, control in manual_profile_controls.items():
+            spec = material_authority_control_spec(key)
+            if not isinstance(control, QComboBox) or spec is None or not spec.expert_values:
+                continue
+            model = control.model()
+            item_getter = getattr(model, 'item', None)
+            for index in range(control.count()):
+                item = item_getter(index) if callable(item_getter) else None
+                if item is not None and str(control.itemData(index) or '').strip().lower() in spec.expert_values:
+                    item.setEnabled(unsafe_acknowledged)
+            if str(control.currentData() or '').strip().lower() in spec.expert_values:
+                expert_overrides.append(key)
+                control_states[key] = {
+                    'enabled': True,
+                    'tooltip': (
+                        f"{manual_profile_control_tooltips.get(key, '')}\n\n"
+                        "Expert override selected. Choose a normal routing value to restore exact WYSIWYG synchronization."
+                    ).strip(),
+                }
         for key, widgets in manual_profile_effect_widgets.items():
             state = control_states.get(key, {})
+            expert_control = key in MATERIAL_AUTHORITY_EXPERT_KEYS
             for widget in widgets:
                 if hasattr(widget, "setEnabled"):
-                    widget.setEnabled(bool(state.get("enabled", True)))
+                    widget.setEnabled(
+                        unsafe_acknowledged if expert_control and not modify_original_clone_mode else bool(state.get("enabled", True))
+                    )
                 if hasattr(widget, "setToolTip"):
-                    widget.setToolTip(str(state.get("tooltip", "")))
+                    tooltip = str(state.get("tooltip", ""))
+                    if expert_control and not modify_original_clone_mode:
+                        tooltip = (
+                            f"{manual_profile_control_tooltips.get(key, '')}\n\n"
+                            "Unsafe Expert: requires unsafe export acknowledgement and has no normal WYSIWYG badge."
+                        ).strip()
+                    widget.setToolTip(tooltip)
+        if manual_profile_expert_warning is not None:
+            if expert_overrides:
+                names = ', '.join(sorted(set(expert_overrides)))
+                manual_profile_expert_warning.setText(
+                    f"Expert overrides active: {names}. Normal WYSIWYG synchronization is unavailable."
+                )
+            else:
+                manual_profile_expert_warning.setText(
+                    "Expert overrides are inactive until unsafe export is acknowledged."
+                )
+            manual_profile_expert_warning.setProperty('expert_overrides_active', bool(expert_overrides))
 
     def _set_manual_profile_dirty(dirty: bool) -> None:
         state = _manual_material_profile_dirty_state_helper(dirty)
@@ -207,6 +282,8 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
                 _set_manual_profile_dirty(True)
 
     def _reset_manual_material_profile_to_material_authority() -> None:
+        if not modify_original_clone_mode and callable(_ensure_material_authority_route_active):
+            _ensure_material_authority_route_active("manual_reset")
         _apply_manual_material_profile_values(manual_profile_default_values, persist=True, refresh_preview=True)
 
     def _apply_current_manual_material_profile_to_preview() -> None:
@@ -215,6 +292,8 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
                 return
         elif str(complete_swap_material_profile_combo.currentData() or "") != "material_authority_manual":
             return
+        if not modify_original_clone_mode and callable(_ensure_material_authority_route_active):
+            _ensure_material_authority_route_active("manual_apply")
         values = _current_manual_material_profile_values()
         changed_keys = _changed_profile_keys(manual_profile_saved_values, values)
         self.settings.setValue(manual_profile_settings_key, json.dumps(values, sort_keys=True, separators=(",", ":")))
@@ -283,6 +362,8 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
                 manual_profile_control_text["load_missing_selection"],
             )
             return
+        if not modify_original_clone_mode and callable(_ensure_material_authority_route_active):
+            _ensure_material_authority_route_active("manual_preset_load")
         _show_selected_manual_profile_preset_metadata()
         _apply_manual_material_profile_values(_coerce_manual_profile_values(preset.get("values")), persist=True, refresh_preview=True)
 
@@ -336,6 +417,9 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
         )
         manual_profile_group.setVisible(bool(state["visible"]))
         manual_profile_group.setEnabled(bool(state["enabled"]))
+        if manual_profile_expert_group is not None:
+            manual_profile_expert_group.setVisible(bool(state["visible"]))
+            manual_profile_expert_group.setEnabled(bool(state["enabled"]))
         _refresh_manual_profile_control_effects()
 
     def _save_complete_swap_material_profile() -> None:

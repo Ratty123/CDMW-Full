@@ -43,6 +43,11 @@ internal static class Program
                 ApplicationConfiguration.Initialize();
                 return HeadlessGpuSparseSoak.Run(args);
             }
+            if (MaterialAuthorityParityReport.IsRequested(args))
+            {
+                ApplicationConfiguration.Initialize();
+                return MaterialAuthorityParityReport.Run(args);
+            }
             if (VisualAuditBatch.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();
@@ -89,6 +94,7 @@ internal static class Program
                 || string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--headless-material-authority-parity", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--visual-audit-batch", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--material-resource-policy-report", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--helper-provenance-report", StringComparison.OrdinalIgnoreCase));

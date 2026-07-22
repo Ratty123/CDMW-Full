@@ -64,6 +64,17 @@ def remember_sent_material_resources(
             "edit_revision": int(payload.get("edit_revision", 0) or 0),
             "generation": int(payload.get("generation", 0) or 0),
             "bindings": tuple(dict(binding) for binding in bindings if isinstance(binding, Mapping)),
+            "parameter_groups": tuple(
+                dict(group)
+                for group in tuple(payload.get("material_authority_parameter_groups", ()) or ())
+                if isinstance(group, Mapping)
+            ),
+            "material_authority_fingerprint": str(
+                payload.get("material_authority_fingerprint", "") or ""
+            ),
+            "material_authority_revision": int(
+                payload.get("material_authority_revision", 0) or 0
+            ),
         }
     setattr(tab, "standalone_dotnet_sent_material_resource_payload", staged)
 
@@ -75,11 +86,19 @@ def finish_sent_material_resources(tab: object, *, committed: bool) -> None:
     builder = tab.active_builder()
     callback = getattr(builder, "_mesh_editor_embedded_material_resources_finished", None)
     if callable(callback):
-        callback(
+        args = (
             int(staged.get("generation", 0) or 0),
             bool(committed),
             tuple(staged.get("bindings", ()) or ()),
         )
+        try:
+            callback(
+                *args,
+                str(staged.get("material_authority_fingerprint", "") or ""),
+                int(staged.get("material_authority_revision", 0) or 0),
+            )
+        except TypeError:
+            callback(*args)
 
 
 def commit_acknowledged_material_resources(tab: object, payload: Mapping[str, object]) -> bool:
@@ -92,16 +111,35 @@ def commit_acknowledged_material_resources(tab: object, payload: Mapping[str, ob
         return False
     if generation != staged.get("generation"):
         return False
+    staged_fingerprint = str(staged.get("material_authority_fingerprint", "") or "")
+    acknowledged_fingerprint = str(payload.get("material_authority_fingerprint", "") or "")
+    if staged_fingerprint and acknowledged_fingerprint != staged_fingerprint:
+        return False
     controller = tab._dotnet_target_controller()
-    commit = getattr(getattr(controller, "mesh_service", None), "commit_resident_material_resources", None)
+    service = getattr(controller, "mesh_service", None)
+    commit_state = getattr(service, "commit_resident_material_state", None)
+    commit_resources = getattr(service, "commit_resident_material_resources", None)
+    commit = commit_state if callable(commit_state) else commit_resources
     if not callable(commit):
         return False
     try:
-        commit(
-            str(staged.get("session_id", "") or ""),
-            tuple(staged.get("bindings", ()) or ()),
-            expected_mesh_revision=int(staged.get("edit_revision", 0) or 0),
-        )
+        if callable(commit_state):
+            commit_state(
+                str(staged.get("session_id", "") or ""),
+                tuple(staged.get("bindings", ()) or ()),
+                parameter_groups=tuple(staged.get("parameter_groups", ()) or ()),
+                material_authority_fingerprint=staged_fingerprint,
+                material_authority_revision=int(staged.get("material_authority_revision", 0) or 0),
+                expected_mesh_revision=int(staged.get("edit_revision", 0) or 0),
+            )
+        else:
+            if tuple(staged.get("parameter_groups", ()) or ()) or staged_fingerprint:
+                raise RuntimeError("atomic resident material state commit is unavailable")
+            commit_resources(
+                str(staged.get("session_id", "") or ""),
+                tuple(staged.get("bindings", ()) or ()),
+                expected_mesh_revision=int(staged.get("edit_revision", 0) or 0),
+            )
     except (AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         tab.standalone_dotnet_lifecycle_counts["material_state_failed_count"] += 1
         tab._set_dotnet_status(f"Could not commit resident material resources for export: {exc}", error=True)

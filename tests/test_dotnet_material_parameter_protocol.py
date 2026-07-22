@@ -47,7 +47,7 @@ def test_late_original_reference_completion_routes_to_resident_material_generati
     assert "_mesh_editor_embedded_apply_reference_material_resources" in helper_source
     assert "apply_reference(preview_model)" in helper_source
     assert 'role="original_reference"' in protocol_source
-    assert '"reason": "late_original_reference_resources"' in protocol_source
+    assert 'reason="late_original_reference_resources"' in protocol_source
     assert "standalone_dotnet_pending_reference_material_model" in protocol_source
 
 

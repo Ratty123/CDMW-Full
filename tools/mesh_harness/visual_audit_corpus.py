@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import gc
 import hashlib
+import json
 import re
 import time
 from dataclasses import asdict, dataclass
@@ -16,9 +18,15 @@ from cdmw.rendering.native_preview_package import (
 )
 from cdmw.services.mesh_dotnet_experiment import build_mesh_dotnet_experiment_package
 from cdmw.services.mesh_dotnet_material_bindings import apply_dotnet_native_material_batch_bindings
+from cdmw.services.mesh_dotnet_material_compiler import (
+    MeshDotNetMaterialCompileRequest,
+    compile_mesh_dotnet_material_update,
+    snapshot_mesh_dotnet_material_inputs,
+)
 from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
 from cdmw.services.mesh_dotnet_material_state import mesh_dotnet_material_state_payload
 from cdmw.services.mesh_service import MeshService
+from cdmw.services.atomic_file_service import atomic_write_text
 from tools.mesh_harness.archive_provenance import (
     _archive_content_fingerprints,
     _archive_entry_provenance,
@@ -31,6 +39,14 @@ from tools.mesh_harness.real_common import (
     _read_archive_payload,
 )
 from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
+from tools.mesh_harness.visual_audit_manifest_v2 import (
+    VISUAL_AUDIT_V2_CATEGORY_COUNTS,
+    VisualAuditV2Candidate,
+    build_visual_audit_v2_candidates,
+    select_visual_audit_v2_candidates,
+    validate_visual_audit_v2_selection,
+)
+from tools.mesh_harness.visual_audit_source_boards import build_source_material_boards
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,6 +57,10 @@ class VisualAuditAssetSpec:
     model_category: str
     coverage_tags: tuple[str, ...]
     selection_reason: str
+    graph_complexity: int = 0
+    graph_tags: tuple[str, ...] = ()
+    pac_xml_virtual_path: str = ""
+    pac_xml_sha256: str = ""
 
 
 VISUAL_AUDIT_VIEWS: tuple[dict[str, object], ...] = (
@@ -50,6 +70,20 @@ VISUAL_AUDIT_VIEWS: tuple[dict[str, object], ...] = (
     {"name": "back", "yaw": 180.0, "pitch": 0.0},
     {"name": "slightly-above", "yaw": -35.0, "pitch": -28.0},
     {"name": "slightly-below", "yaw": -35.0, "pitch": 28.0},
+)
+
+VISUAL_AUDIT_REGION_ANGLES: tuple[dict[str, object], ...] = (
+    {"name": "front", "yaw": 0.0, "pitch": 0.0},
+    {"name": "oblique", "yaw": -35.0, "pitch": 20.0},
+)
+
+VISUAL_AUDIT_REGION_DEBUG_MODES: tuple[str, ...] = (
+    "base",
+    "normal",
+    "roughness",
+    "metallic",
+    "specular",
+    "layer_mask",
 )
 
 
@@ -101,8 +135,56 @@ def default_visual_audit_specs() -> tuple[VisualAuditAssetSpec, ...]:
     )
 
 
+def default_visual_audit_v2_specs(game_root: Path) -> tuple[VisualAuditAssetSpec, ...]:
+    selected = select_visual_audit_v2_candidates(
+        build_visual_audit_v2_candidates(game_root)
+    )
+    validate_visual_audit_v2_selection(selected)
+    return tuple(
+        VisualAuditAssetSpec(
+            index=index,
+            asset_id=(
+                f"{index:03d}-{candidate.category}-"
+                f"{Path(candidate.virtual_path).stem.lower().replace('_', '-')}"
+            ),
+            virtual_path=candidate.virtual_path,
+            model_category=candidate.category,
+            coverage_tags=tuple(sorted({candidate.category, *candidate.graph_tags})),
+            selection_reason=(
+                "PAC-aware v2 deterministic selection by descending PAC XML graph "
+                "complexity, with virtual path as the tie-breaker."
+            ),
+            graph_complexity=candidate.graph_complexity,
+            graph_tags=candidate.graph_tags,
+            pac_xml_virtual_path=candidate.pac_xml_virtual_path,
+            pac_xml_sha256=candidate.pac_xml_sha256,
+        )
+        for index, candidate in enumerate(selected, 1)
+    )
+
+
 def validate_visual_audit_specs(specs: Sequence[VisualAuditAssetSpec]) -> dict[str, int]:
     _validate_visual_audit_identities(specs)
+    v2_categories = set(VISUAL_AUDIT_V2_CATEGORY_COUNTS)
+    selected_categories = {spec.model_category for spec in specs}
+    if selected_categories and selected_categories <= v2_categories:
+        validation = validate_visual_audit_v2_selection(
+            tuple(
+                VisualAuditV2Candidate(
+                    virtual_path=spec.virtual_path,
+                    category=spec.model_category,
+                    graph_complexity=spec.graph_complexity,
+                    graph_tags=spec.graph_tags,
+                    pac_xml_virtual_path=spec.pac_xml_virtual_path,
+                    pac_xml_sha256=spec.pac_xml_sha256,
+                )
+                for spec in specs
+            )
+        )
+        return {
+            **dict(validation["category_counts"]),
+            **dict(validation["graph_coverage"]),
+        }
     if len(specs) < 30:
         raise ValueError("Visual-audit corpus requires at least 30 unique PAC paths.")
     counts = {
@@ -138,6 +220,7 @@ def prepare_visual_audit_corpus(
     checkpoint: Callable[[Mapping[str, object]], None] | None = None,
     allow_partial: bool = False,
     resume_checkpoint: Mapping[str, object] | None = None,
+    source_board_root: Path | None = None,
 ) -> dict[str, object]:
     game_root = Path(game_root).resolve()
     temporary_root = Path(temporary_root).resolve()
@@ -210,6 +293,16 @@ def prepare_visual_audit_corpus(
             edit_revision=0,
             generation=1,
         )
+        source_boards = (
+            build_source_material_boards(
+                spec.asset_id,
+                resolved_textures,
+                material_state,
+                source_board_root,
+            )
+            if source_board_root is not None
+            else {"schema": "cdmw_mesh_visual_audit_source_board_v2", "boards": [], "textures": []}
+        )
         metadata_elapsed_ms = (time.perf_counter() - started) * 1000.0
         archive_package_ms = (time.perf_counter() - archive_package_started) * 1000.0
         dotnet_started = time.perf_counter()
@@ -220,6 +313,35 @@ def prepare_visual_audit_corpus(
             interaction_mode="placement",
             scene_session_id=spec.asset_id,
         )
+        resident_material_state = compile_mesh_dotnet_material_update(
+            MeshDotNetMaterialCompileRequest(
+                session_id=spec.asset_id,
+                edit_revision=0,
+                generation=1,
+                role="replacement",
+                mesh_snapshot=snapshot_mesh_dotnet_material_inputs(
+                    mesh,
+                    scene_material_slot_indices=dotnet_package.scene_material_slot_indices,
+                ),
+                output_root=temporary_root / "resident-material-cache",
+                reason="visual_audit_initial_resident_equivalence",
+            )
+        )
+        resident_material_state_path = dotnet_package.package_dir / "resident_material_state_v3.json"
+        initial_material_state_path = dotnet_package.package_dir / "net_materials.json"
+        atomic_write_text(
+            resident_material_state_path,
+            json.dumps(resident_material_state, indent=2, sort_keys=True),
+        )
+        initial_resident_equivalence = _initial_resident_material_equivalence(
+            initial_material_state_path,
+            resident_material_state,
+        )
+        if not initial_resident_equivalence["equivalent"]:
+            raise RuntimeError(
+                f"Initial/resident material compiler mismatch for {spec.virtual_path}: "
+                f"{initial_resident_equivalence['mismatches']}"
+            )
         dotnet_package_ms = (time.perf_counter() - dotnet_started) * 1000.0
         provenance = _archive_entry_provenance(entry)
         fingerprint_paths.update((Path(entry.pamt_path), Path(entry.paz_file)))
@@ -237,6 +359,7 @@ def prepare_visual_audit_corpus(
             material_state=material_state,
             resolved_textures=resolved_textures,
             material_diagnostics=material_diagnostics,
+            source_boards=source_boards,
             comparison_overlays=comparison_overlays,
             preview_timings=preview_result.timings,
             archive_prepare_ms=archive_prepare_ms,
@@ -245,6 +368,11 @@ def prepare_visual_audit_corpus(
             dotnet_package_ms=dotnet_package_ms,
             metadata_elapsed_ms=metadata_elapsed_ms,
             started=started,
+            initial_resident_equivalence=initial_resident_equivalence,
+            material_graph_evidence={
+                "initial": _file_evidence(initial_material_state_path),
+                "resident": _file_evidence(resident_material_state_path),
+            },
         )
         rows.append(row)
         runtime_assets.append(
@@ -253,7 +381,9 @@ def prepare_visual_audit_corpus(
                 "virtual_path": spec.virtual_path,
                 "archive_package_dir": str(archive_package_dir),
                 "dotnet_package_dir": str(dotnet_package.package_dir),
+                "resident_material_state_path": str(resident_material_state_path),
                 "views": [dict(view) for view in VISUAL_AUDIT_VIEWS],
+                "material_regions": _visual_audit_material_regions(mesh, material_state),
             }
         )
         if checkpoint is not None:
@@ -268,8 +398,25 @@ def prepare_visual_audit_corpus(
                     fingerprint_paths=fingerprint_paths,
                 )
             )
+        del (
+            archive_manifest,
+            archive_package,
+            dotnet_package,
+            entry,
+            material_state,
+            mesh,
+            payload,
+            prepared_model,
+            prepared_preview,
+            preview_result,
+            resident_material_state,
+            resolved_textures,
+            source_boards,
+        )
+        gc.collect()
     return {
-        "schema": "cdmw_mesh_visual_audit_corpus_v1",
+        "schema": "cdmw_mesh_visual_audit_corpus_v2",
+        "compatible_reader_schemas": ["cdmw_mesh_visual_audit_corpus_v1"],
         "game_root": str(game_root),
         "pamt_path": str(pamt_path),
         "coverage": coverage,
@@ -389,6 +536,7 @@ def _visual_audit_corpus_row(
     material_state: Mapping[str, object],
     resolved_textures: Sequence[Mapping[str, object]],
     material_diagnostics: Sequence[object],
+    source_boards: Mapping[str, object],
     comparison_overlays: Mapping[str, bool],
     preview_timings: Mapping[str, object] | None,
     archive_prepare_ms: float,
@@ -397,6 +545,8 @@ def _visual_audit_corpus_row(
     dotnet_package_ms: float,
     metadata_elapsed_ms: float,
     started: float,
+    initial_resident_equivalence: Mapping[str, object],
+    material_graph_evidence: Mapping[str, object],
 ) -> dict[str, object]:
     submeshes = [
         dict(value)
@@ -429,6 +579,18 @@ def _visual_audit_corpus_row(
         "resolved_texture_count": len(texture_rows),
         "resolved_textures": texture_rows,
         "material_resolution_diagnostics": list(material_diagnostics),
+        "pac_material_graphs": [
+            _pac_material_graph_summary(row.get("source_contract", {}) or {})
+            for row in submeshes
+            if isinstance(row.get("source_contract"), Mapping)
+        ],
+        "binding_conservation": [
+            dict(row.get("binding_conservation", {}) or {})
+            for row in submeshes
+            if isinstance(row.get("binding_conservation"), Mapping)
+        ],
+        "source_boards": _source_board_corpus_summary(source_boards),
+        "material_graph_evidence": dict(material_graph_evidence),
         "comparison_presentation": {
             "skeleton_overlay_disabled": comparison_overlays["skeleton_overlay_disabled"],
             "cloth_overlay_disabled": comparison_overlays["cloth_overlay_disabled"],
@@ -441,8 +603,160 @@ def _visual_audit_corpus_row(
         },
         "archive_package_stability": dict(archive_package_stability),
         "mesh_editor_package_ms": dotnet_package_ms,
+        "initial_resident_material_equivalence": dict(initial_resident_equivalence),
         "metadata_ms": metadata_elapsed_ms,
         "preparation_total_ms": (time.perf_counter() - started) * 1000.0,
+    }
+
+
+def _file_evidence(path: Path) -> dict[str, object]:
+    resolved = Path(path).resolve()
+    digest = hashlib.sha256()
+    size = 0
+    with resolved.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            size += len(chunk)
+            digest.update(chunk)
+    return {"path": str(resolved), "bytes": size, "sha256": digest.hexdigest()}
+
+
+def _pac_material_graph_summary(value: object) -> dict[str, object]:
+    graph = value if isinstance(value, Mapping) else {}
+    bindings = tuple(row for row in tuple(graph.get("bindings", ()) or ()) if isinstance(row, Mapping))
+    parameters = tuple(row for row in tuple(graph.get("parameters", ()) or ()) if isinstance(row, Mapping))
+    wrappers = tuple(row for row in tuple(graph.get("wrappers", ()) or ()) if isinstance(row, Mapping))
+    dispositions: dict[str, int] = {}
+    for binding in bindings:
+        disposition = str(binding.get("binding_disposition", "") or "unknown")
+        dispositions[disposition] = dispositions.get(disposition, 0) + 1
+    return {
+        "version": graph.get("version"),
+        "schema": str(graph.get("schema", "") or ""),
+        "source_kind": str(graph.get("source_kind", "") or ""),
+        "source_asset_path": str(graph.get("source_asset_path", "") or ""),
+        "source_submesh_index": graph.get("source_submesh_index"),
+        "graph_hash": str(graph.get("graph_hash", "") or ""),
+        "binding_count": len(bindings),
+        "binding_dispositions": dispositions,
+        "parameter_count": len(parameters),
+        "wrapper_count": len(wrappers),
+        "binding_conservation": dict(
+            graph.get("binding_conservation", {})
+            if isinstance(graph.get("binding_conservation"), Mapping)
+            else {}
+        ),
+        "unsupported_features": list(graph.get("unsupported_features", ()) or ()),
+    }
+
+
+def _source_board_corpus_summary(value: Mapping[str, object]) -> dict[str, object]:
+    manifest_path_text = str(value.get("manifest_path", "") or "")
+    manifest_evidence = _file_evidence(Path(manifest_path_text)) if manifest_path_text else {}
+    return {
+        "schema": str(value.get("schema", "") or ""),
+        "asset_id": str(value.get("asset_id", "") or ""),
+        "manifest_path": manifest_path_text,
+        "manifest_evidence": manifest_evidence,
+        "boards": [
+            dict(row)
+            for row in tuple(value.get("boards", ()) or ())
+            if isinstance(row, Mapping)
+        ],
+        "texture_count": len(tuple(value.get("textures", ()) or ())),
+    }
+
+
+def _initial_resident_material_equivalence(
+    initial_manifest_path: Path,
+    resident_payload: Mapping[str, object],
+) -> dict[str, object]:
+    """Compare canonical semantics while ignoring content-addressed output roots."""
+
+    try:
+        initial = json.loads(Path(initial_manifest_path).read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        return {"equivalent": False, "mismatches": [f"initial_manifest:{type(exc).__name__}"]}
+    if not isinstance(initial, Mapping):
+        return {"equivalent": False, "mismatches": ["initial_manifest:not_object"]}
+    initial_rows = {
+        int(row.get("submesh_index", -1)): row
+        for row in tuple(initial.get("submeshes", ()) or ())
+        if isinstance(row, Mapping)
+    }
+    resident_rows = {
+        int(row.get("submesh_index", -1)): row
+        for row in tuple(resident_payload.get("submeshes", ()) or ())
+        if isinstance(row, Mapping)
+    }
+    mismatches: list[str] = []
+    if set(initial_rows) != set(resident_rows):
+        mismatches.append("submesh_indices")
+    compared_fields = (
+        "material_slot_index",
+        "material",
+        "texture",
+        "resource_channels",
+        "channel_components",
+        "shader_family",
+        "shader_technique",
+        "shader_authority",
+        "material_category",
+        "material_category_reason",
+        "material_response_promoted",
+        "channel_color_spaces",
+        "channel_authorities",
+        "alpha_mode",
+        "alpha_cutoff",
+        "opacity_factor",
+        "double_sided",
+        "source_contract",
+        "binding_conservation",
+        "unsupported_features",
+        "material_synthesis",
+        "parameters",
+    )
+    for index in sorted(set(initial_rows) | set(resident_rows)):
+        left = initial_rows.get(index, {})
+        right = resident_rows.get(index, {})
+        for field in compared_fields:
+            if left.get(field) != right.get(field):
+                mismatches.append(f"submesh_{index}:{field}")
+    initial_resources = {
+        str(row.get("resource_id", "")): (
+            str(row.get("fingerprint", "")),
+            str(row.get("material_channel", "")),
+            str(row.get("semantic", "")),
+            str(row.get("color_space", "")),
+            bool(row.get("required", False)),
+        )
+        for row in tuple(initial.get("resources", ()) or ())
+        if isinstance(row, Mapping)
+    }
+    resident_resources = {
+        str(row.get("resource_id", "")): (
+            str(row.get("fingerprint", "")),
+            str(row.get("material_channel", "")),
+            str(row.get("semantic", "")),
+            str(row.get("color_space", "")),
+            bool(row.get("required", False)),
+        )
+        for row in tuple(resident_payload.get("resources", ()) or ())
+        if isinstance(row, Mapping)
+    }
+    if initial_resources != resident_resources:
+        mismatches.append("resource_fingerprints")
+    if str(initial.get("material_signature", "")) != str(
+        resident_payload.get("material_signature", "")
+    ):
+        mismatches.append("material_signature")
+    return {
+        "schema": "cdmw_mesh_initial_resident_material_equivalence_v1",
+        "equivalent": not mismatches,
+        "mismatches": mismatches,
+        "submesh_count": len(initial_rows),
+        "resource_count": len(initial_resources),
+        "initial_material_signature": str(initial.get("material_signature", "")),
+        "resident_material_signature": str(resident_payload.get("material_signature", "")),
     }
 
 
@@ -506,6 +820,32 @@ def _archive_package_key(spec: VisualAuditAssetSpec) -> str:
     return f"{int(spec.index):03d}-{asset_key}"
 
 
+def _visual_audit_material_regions(
+    mesh: object,
+    material_state: Mapping[str, object],
+) -> list[dict[str, object]]:
+    material_rows = {
+        int(row.get("submesh_index", index) if row.get("submesh_index") is not None else index): row
+        for index, row in enumerate(tuple(material_state.get("submeshes", ()) or ()))
+        if isinstance(row, Mapping)
+    }
+    regions: list[dict[str, object]] = []
+    for index, submesh in enumerate(tuple(getattr(mesh, "submeshes", ()) or ())):
+        if not tuple(getattr(submesh, "vertices", ()) or ()) or not tuple(getattr(submesh, "faces", ()) or ()):
+            continue
+        material = material_rows.get(index, {})
+        regions.append(
+            {
+                "source_submesh_index": index,
+                "submesh_name": str(getattr(submesh, "name", "") or f"submesh_{index}"),
+                "material_name": str(material.get("material_name", "") or ""),
+                "capture_angles": [dict(angle) for angle in VISUAL_AUDIT_REGION_ANGLES],
+                "debug_modes": list(VISUAL_AUDIT_REGION_DEBUG_MODES),
+            }
+        )
+    return regions
+
+
 def _remove_visual_audit_overlays(model: object) -> dict[str, bool]:
     """Remove cloned, non-material overlays from comparison-only packages."""
 
@@ -550,8 +890,11 @@ def _texture_rows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object
 
 __all__ = [
     "VISUAL_AUDIT_VIEWS",
+    "VISUAL_AUDIT_REGION_ANGLES",
+    "VISUAL_AUDIT_REGION_DEBUG_MODES",
     "VisualAuditAssetSpec",
     "default_visual_audit_specs",
+    "default_visual_audit_v2_specs",
     "prepare_visual_audit_corpus",
     "validate_visual_audit_specs",
 ]

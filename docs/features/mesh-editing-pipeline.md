@@ -749,12 +749,58 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   dimensions, warnings, and output evidence. Missing, incomplete, sparse,
   compressed, or unsupported inputs block safely with an exact remedy.
 - Active Material Authority uses one evaluator for live/export values and one
-  revisioned resident parameter bridge. Automatic and Manual are the normal
-  profiles; obsolete aliases migrate to Automatic. Controls without a live
-  target resource-rebind or height path disable during the active editor with
-  a precise reason instead of becoming enabled no-ops. Parts selection,
-  routing, roles, visibility, duplicate/delete, and metadata-aware undo/redo
-  share the resident session and atomic all-part material packets.
+  revisioned resolved state shared by resident preview and Build Mod. Automatic
+  and Manual are the normal profiles; obsolete aliases migrate to Automatic.
+  The first user edit, preset/profile load, or glow assignment activates the
+  established complete-source route once, while passive dialog initialization
+  remains output-neutral. Controls report Active, Inapplicable, Expert only, or
+  Blocked capability plus Inactive, Fast preview, Exact synchronized, or
+  Blocked synchronization. Controls without a live resource route, readable
+  height path, or safe sidecar binding disable with a precise reason instead of
+  becoming enabled no-ops.
+- Exact Material Authority state fingerprints canonical base/emissive sRGB DDS,
+  linear mask/normal/height DDS, affected submeshes, and identity-safe residual
+  parameters. The .NET material-state update commits resources and parameters
+  atomically; Build Mod reuses the acknowledged DDS bytes and reads canonical
+  residual emissive/height values back from generated sidecars. Pending, stale,
+  failed, hash-mismatched, or unrepresentable state fails closed. The exactness
+  claim covers those artifacts and canonical parameters only, not proprietary
+  Crimson Desert lighting, shader-family layer graphs, or post-processing.
+- The older 120/120 paired Archive Browser/.NET visual verdict is
+  renderer-to-renderer compatibility evidence for its prepared packages, not
+  PAC-source fidelity. Source-fidelity proof additionally conserves each exact
+  PAC XML wrapper/material owner/parameter and DDS binding through Modify
+  Original, initial packaging, and resident delivery, then directly reviews
+  the full model and every visible submesh. Binding conservation and
+  initial/resident signature equality remain transport evidence only; neither
+  can override broken geometry or an incorrect visible material region.
+- Visual-audit verdict v2 records separate direct inspection and observations
+  for each of the six full-model comparisons, the contact sheet, every source
+  board, and every isolated-submesh review sheet. Each rendered comparison/sheet
+  has PASS/CONCERN/FAIL, and the asset verdict must equal the worst rendered
+  image; source evidence alone cannot issue a visual PASS. It verifies globally
+  distinct owned evidence paths and hashes, binds source boards back to the
+  frozen corpus, requires per-angle/per-submesh geometry verdicts, and records
+  exact/shared/candidate/unavailable equipment-reference status. Finalization
+  recomputes capture integrity instead of trusting a stored `ok`. Global
+  acceptance stays false unless the exact 120-PAC selection, source-board and
+  semantic lanes, capture batches/integrity, reported-sword target, resident
+  lifecycle, valid prepared-package state, before/after archive fingerprints,
+  and exact before/after Archive Browser/.NET package-tree fingerprints all
+  pass. An offline `--phase seal` supports capture-only continuation; capture
+  refuses a missing or changed package seal before either renderer starts.
+  Repeating the seal phase verifies an identical existing baseline but refuses
+  to overwrite a changed or malformed one.
+  A 120-asset sorted-JSON synthetic finalizer test proves those acceptance gates
+  compose at the full selection scale, but is contract evidence only and never
+  substitutes for fresh renderer images or their direct review.
+- Selected-part glow requires exactly one source part. Glow role enables
+  independent color and 0-20 strength overrides for that part; switching parts
+  reloads their stored values with signals blocked, and duplicate material
+  identities clone before emissive routing so adjacent parts do not inherit the
+  edit. Leaving Glow removes effective emissive output while retaining dormant
+  override values. These edits retain the resident process, mesh, viewport, and
+  camera.
 - Hiding a part never recomputes the alignment basis or camera center; surviving
   parts retain exact placement. Duplicate/Delete are visible beside the compact
   Parts list and route through the same resident mutations as context actions.

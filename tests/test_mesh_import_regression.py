@@ -23,12 +23,30 @@ from cdmw.modding.mesh_parser import (
     PacDescriptor,
     ParsedMesh,
     SubMesh,
+    _find_name_strings,
     _validated_pac_descriptor_prefix,
     parse_pac,
 )
 
 
 class MeshImportRegressionTests(unittest.TestCase):
+    def test_pac_descriptor_names_support_both_real_record_layouts(self) -> None:
+        shared_name = b"CD_PHM_02_Sword_Blade_0033"
+        shared_prefix = bytes([len(shared_name)]) + shared_name + b"\x00"
+
+        self.assertEqual(
+            (shared_name.decode("ascii"), shared_name.decode("ascii")),
+            _find_name_strings(shared_prefix + b"\x01", len(shared_prefix)),
+        )
+
+        name = b"mesh_part"
+        material = b"material_slot"
+        legacy_prefix = bytes([len(name)]) + name + bytes([len(material)]) + material
+        self.assertEqual(
+            (name.decode("ascii"), material.decode("ascii")),
+            _find_name_strings(legacy_prefix + b"\x01", len(legacy_prefix)),
+        )
+
     def test_pac_descriptor_validation_drops_only_exact_trailing_false_match(self) -> None:
         real_descriptors = [
             PacDescriptor(

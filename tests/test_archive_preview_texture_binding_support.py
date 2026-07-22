@@ -1132,6 +1132,165 @@ class ArchivePreviewTextureBindingSupportTests(unittest.TestCase):
         self.assertFalse(material_input.visualized)
         self.assertIn("material diagnostics and preview", "\n".join(lines))
 
+    def test_owner_qualified_detail_diffuse_mask_resolves_as_layer_color_not_material_map(self) -> None:
+        source_entry = _entry("character/model/cd_test_model.pac")
+        texture_path = "character/texture/cd_texturelayer_003_0016.dds"
+        by_normalized, by_basename = _texture_maps(texture_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Part_A", texture_name="Part_A")],
+        )
+        binding = _ArchiveModelSidecarTextureBinding(
+            texture_path=texture_path,
+            parameter_name="_detailDiffuseMaskR",
+            submesh_name="Part_A",
+            material_name="Part_A",
+            shader_family="SkinnedMeshStandard_Ver2",
+            sidecar_kind="pac_xml",
+            parameter_declared_by="pac_xml",
+            owner_slot_index=0,
+            owner_wrapper_item_id="1189",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_color",
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=(binding,),
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        material_input = next(
+            item
+            for item in model.meshes[0].preview_material_texture_inputs
+            if item.parameter_name == "_detailDiffuseMaskR"
+        )
+        self.assertEqual("base", material_input.slot_kind)
+        self.assertEqual("layer_only", material_input.binding_disposition)
+        self.assertEqual(0, material_input.owner_slot_index)
+        self.assertEqual("", model.meshes[0].preview_texture_path)
+
+    def test_owner_qualified_torn_pattern_survives_unknown_suffix_heuristics(self) -> None:
+        source_entry = _entry("character/model/cd_test_cloak.pac")
+        texture_path = "character/texture/cd_texturelayer_endpattern_0001_tp.dds"
+        by_normalized, by_basename = _texture_maps(texture_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Cloth", texture_name="Cloth")],
+        )
+        binding = _ArchiveModelSidecarTextureBinding(
+            texture_path=texture_path,
+            parameter_name="_tornPatternTexture",
+            submesh_name="Cloth",
+            material_name="Cloth",
+            shader_family="SkinnedMeshTornCloth_Ver2",
+            sidecar_kind="pac_xml",
+            parameter_declared_by="pac_xml",
+            owner_slot_index=0,
+            owner_wrapper_item_id="1343",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_detail_mask",
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=(binding,),
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        material_input = next(
+            item
+            for item in model.meshes[0].preview_material_texture_inputs
+            if item.parameter_name == "_tornPatternTexture"
+        )
+        self.assertEqual("detail", material_input.slot_kind)
+        self.assertEqual(texture_path, material_input.source_dds_path)
+        self.assertEqual("layer_only", material_input.binding_disposition)
+        self.assertEqual(0, material_input.owner_slot_index)
+
+    def test_owner_qualified_pac_parameters_override_conflicting_filename_suffix(self) -> None:
+        source_entry = _entry("character/model/cd_test_vest.pac")
+        base_path = "character/texture/cd_test_vest.dds"
+        texture_path = "character/texture/cd_test_vest_emi.dds"
+        by_normalized, by_basename = _texture_maps(base_path, texture_path)
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[
+                ModelPreviewMesh(
+                    material_name="cd_test_vest",
+                    texture_name="cd_test_vest",
+                )
+            ],
+        )
+        common = {
+            "texture_path": texture_path,
+            "submesh_name": "cd_test_vest",
+            "material_name": "cd_test_vest",
+            "shader_family": "SkinnedMeshEmissive_Ver2",
+            "sidecar_kind": "pac_xml",
+            "parameter_declared_by": "pac_xml",
+            "owner_slot_index": 0,
+            "owner_wrapper_item_id": "8910",
+            "binding_authority": "authoritative",
+        }
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                **common,
+                parameter_name="_colorBlendingMaskTexture",
+                binding_disposition="layer_only",
+                source_kind="crimson_color_blending_mask",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                **common,
+                parameter_name="_heightTexture",
+                binding_disposition="recorded",
+                source_kind="crimson_height",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        inputs = {
+            item.parameter_name: item
+            for item in model.meshes[0].preview_material_texture_inputs
+            if item.parameter_name
+        }
+        self.assertEqual(
+            {"_colorBlendingMaskTexture", "_heightTexture"},
+            set(inputs),
+        )
+        self.assertEqual("material", inputs["_colorBlendingMaskTexture"].slot_kind)
+        self.assertEqual("height", inputs["_heightTexture"].slot_kind)
+        self.assertEqual(texture_path, inputs["_colorBlendingMaskTexture"].source_dds_path)
+        self.assertEqual(texture_path, inputs["_heightTexture"].source_dds_path)
+
     def test_exact_sidecar_material_inputs_are_capped_before_preview_conversion(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
         texture_paths = tuple(

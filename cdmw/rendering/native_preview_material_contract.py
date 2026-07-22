@@ -211,6 +211,11 @@ def _texture_slot_state(slot_name: str, textures: Mapping[str, str], dds_texture
             "layer_role",
             "layer_channel",
             "blend_flags",
+            "owner_slot_index",
+            "owner_wrapper_item_id",
+            "binding_authority",
+            "binding_disposition",
+            "source_kind",
             "authority",
             "disposition",
             "registry_source_kind",
@@ -1159,12 +1164,33 @@ def _batch_weapon_masked_base_tint_should_stay_masked(batch: PreparedModelPrevie
     return False
 
 
+def _batch_has_authoritative_pac_material_graph(batch: PreparedModelPreviewBatch) -> bool:
+    for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
+        if not isinstance(texture_input, PreviewMaterialTextureInput):
+            continue
+        try:
+            owner_slot_index = int(getattr(texture_input, "owner_slot_index", -1))
+        except (TypeError, ValueError, OverflowError):
+            owner_slot_index = -1
+        if (
+            owner_slot_index >= 0
+            and str(getattr(texture_input, "owner_wrapper_item_id", "") or "").strip()
+            and str(getattr(texture_input, "binding_authority", "") or "").strip().casefold()
+            == "authoritative"
+            and str(getattr(texture_input, "sidecar_kind", "") or "").strip().casefold()
+            in {"pac_xml", "pami"}
+        ):
+            return True
+    return False
+
+
 def sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, source_path: object = "") -> Tuple[float, float, float]:
     descriptor = _material_input_descriptor(batch)
     if not _descriptor_prefers_sidecar_tint(source_path, descriptor):
         return ()
     if _batch_weapon_masked_base_tint_should_stay_masked(batch, source_path=source_path):
         return ()
+    authoritative_pac_graph = _batch_has_authoritative_pac_material_graph(batch)
     best_color: Tuple[float, float, float] = ()
     best_score = -1.0
     for texture_input in tuple(getattr(batch, "preview_material_texture_inputs", ()) or ()):
@@ -1183,13 +1209,24 @@ def sidecar_preview_texture_tint_for_batch(batch: PreparedModelPreviewBatch, *, 
         ).lower()
         for parameter in tuple(getattr(texture_input, "material_parameters", ()) or ()):
             parameter_name = _normalized_material_key(getattr(parameter, "parameter_name", ""))
-            if not any(token in parameter_name for token in ("tintcolor", "dyeingdetaillayercolormask", "layercolor", "basecolor")):
+            if authoritative_pac_graph:
+                # Channel-qualified PAC tint/dye colors are consumed by the
+                # canonical material compiler with their R/G/B layer masks.
+                # Promoting one of them here would tint the complete submesh.
+                if parameter_name not in {
+                    "albedocolor",
+                    "basecolor",
+                    "baseheighttintcolor",
+                    "tintcolor",
+                }:
+                    continue
+            elif not any(token in parameter_name for token in ("tintcolor", "dyeingdetaillayercolormask", "layercolor", "basecolor")):
                 continue
             color = tuple(_safe_float(value, 1.0) for value in tuple(getattr(parameter, "color_value", ()) or ())[:3])
             if len(color) < 3:
                 continue
             score = _preview_tint_color_score(color)
-            if "dyeingdetail" in parameter_name or "detail" in input_descriptor:
+            if not authoritative_pac_graph and ("dyeingdetail" in parameter_name or "detail" in input_descriptor):
                 score += 0.18
             if "grime" in input_descriptor:
                 score += 0.06
@@ -1298,6 +1335,43 @@ def _source_or_descriptor_has_weapon_surface(source_path: object, descriptor: st
         "/weapon/" in text
         or "/2_twohandweapon/" in text
         or any(_descriptor_contains_token(text, token) for token in ("weapon", "sword", "blade", "guard", "hilt", "pommel"))
+    )
+
+
+def _source_or_descriptor_has_other_equipment(source_path: object, descriptor: str) -> bool:
+    text = " ".join((str(source_path or ""), str(descriptor or ""))).replace("\\", "/").lower()
+    return (
+        any(
+            marker in text
+            for marker in (
+                "/shield/",
+                "/11_hand/",
+                "/12_foot/",
+                "/14_lowerbody/",
+                "/15_cloak/",
+            )
+        )
+        or any(
+            _descriptor_contains_token(text, token)
+            for token in ("shield", "buckler", "gauntlet", "glove", "boot", "greave")
+        )
+    )
+
+
+_MIXED_SOFT_ACCESSORY_TOKENS = (
+    "jacket",
+    "pouch",
+    "bag",
+    "satchel",
+    "holster",
+)
+
+
+def _descriptor_has_mixed_soft_accessory(value: object) -> bool:
+    descriptor = str(value or "").replace("\\", "/").lower()
+    return any(
+        _descriptor_contains_token(descriptor, token)
+        for token in _MIXED_SOFT_ACCESSORY_TOKENS
     )
 
 
@@ -1411,6 +1485,11 @@ def _resolved_batch_material_category(
         and not local_strong_nonmetal_descriptor
     ):
         return "metal", 0.90 if _batch_has_explicit_metalness_slot(batch) else 0.78
+    if _descriptor_has_mixed_soft_accessory(local_descriptor):
+        # Soft accessories commonly contain a few metal fasteners. Keep their
+        # synthesized per-pixel map, but do not turn the whole leather/fabric
+        # object metallic merely because it lives in an equipment family.
+        return "generic", 0.72
     if any(_descriptor_contains_token(descriptor, token) for token in ("leather", "hide", "strap", "belt", "grip", "wrap", "handle")):
         return "leather", 0.72
     if any(_descriptor_contains_token(descriptor, token) for token in ("wood", "timber", "stick", "shaft", "haft")):
@@ -1433,6 +1512,8 @@ def _resolved_batch_material_category(
         _descriptor_has_apparel_cloth_slot(" ".join((str(source_path or ""), descriptor, local_descriptor)))
         and not _descriptor_has_structural_metal_slot(local_descriptor)
     )
+
+
     strong_nonmetal_descriptor = any(_descriptor_contains_token(descriptor, token) for token in nonmetal_tokens) or apparel_cloth_descriptor
     if any(
         _descriptor_contains_token(descriptor, token)
@@ -1487,6 +1568,13 @@ def _resolved_batch_material_category(
         )
     ):
         return "metal", 0.90
+    if (
+        _source_or_descriptor_has_other_equipment(source_path, descriptor)
+        and _batch_has_authoritative_family_material_response(batch, source_path=source_path)
+        and not local_strong_nonmetal_descriptor
+        and not strong_nonmetal_descriptor
+    ):
+        return "metal", 0.90
     if strong_token_metal:
         return "metal", 0.90 if _batch_has_explicit_metalness_slot(batch) else 0.78
     if color_token_metal:
@@ -1505,6 +1593,14 @@ def _resolved_batch_material_category_reason(
     source_path: object = "",
 ) -> str:
     descriptor = _material_input_descriptor(batch)
+    local_descriptor = " ".join(
+        part.replace("\\", "/")
+        for part in (
+            str(getattr(batch, "material_name", "") or ""),
+            str(getattr(batch, "preview_role", "") or ""),
+        )
+        if part.strip()
+    ).lower()
     if category == "metal":
         if (
             _source_or_descriptor_has_armor_equipment(source_path, descriptor)
@@ -1516,6 +1612,11 @@ def _resolved_batch_material_category_reason(
             and _batch_has_authoritative_family_material_response(batch, source_path=source_path)
         ):
             return "metal:weapon_family_material_response"
+        if (
+            _source_or_descriptor_has_other_equipment(source_path, descriptor)
+            and _batch_has_authoritative_family_material_response(batch, source_path=source_path)
+        ):
+            return "metal:equipment_family_material_response"
         for token in ("gold", "silver", "copper", "bronze", "brass", "chrome"):
             if _descriptor_contains_token(descriptor, token):
                 return "metal:color_token"
@@ -1532,6 +1633,8 @@ def _resolved_batch_material_category_reason(
         return f"nonmetal:{category}_token"
     if category in {"glass", "gem", "eye"}:
         return f"glossy_nonmetal:{category}_token"
+    if category == "generic" and _descriptor_has_mixed_soft_accessory(local_descriptor):
+        return "generic:mixed_soft_accessory_token"
     return "generic:no_strong_material_token"
 
 
@@ -1860,6 +1963,7 @@ __all__ = [
     "sidecar_preview_texture_tint_for_batch",
     "_slot_has_resolved_texture",
     "_source_or_descriptor_has_armor_equipment",
+    "_source_or_descriptor_has_other_equipment",
     "_source_or_descriptor_has_weapon_surface",
     "_texture_quality_summary",
     "_texture_slot_state",

@@ -6,6 +6,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
+from functools import lru_cache
 from pathlib import Path
 
 from cdmw.domain.mesh.material_resource_policy import canonical_material_channel
@@ -15,6 +16,7 @@ from cdmw.rendering.crimson_shader_registry import (
     normalize_shader_family,
 )
 from cdmw.services.mesh_dotnet_material_bindings import (
+    _canonical_dotnet_material_source,
     _dotnet_material_name,
     _dotnet_material_sources,
     _dotnet_texture_name,
@@ -29,6 +31,7 @@ from cdmw.services.mesh_dotnet_material_channels import (
     _finite_float,
     _normalized_color_space,
 )
+from cdmw.services.pac_material_graph import build_pac_material_graph_v1
 
 
 _PAC_INFERRED_HAIR_CUTOUT_ALPHA_CUTOFF = 0.12
@@ -160,7 +163,27 @@ def _dotnet_material_channel_contract(
         layer_channel = str(
             values.get("layer_channel", "") or getattr(item, "layer_channel", "") or ""
         ).strip()
-        if layer_role or layer_channel or str(decode.get("disposition", "")) == "layer_only":
+        binding_disposition = str(
+            values.get("binding_disposition", "")
+            or getattr(item, "binding_disposition", "")
+            or decode.get("disposition", "")
+            or ""
+        ).strip().casefold()
+        direct_dispositions = {
+            "diagnostic_only",
+            "fallback_black",
+            "fallback_flat_normal",
+            "promoted",
+            "recorded",
+            "scalar_hint",
+        }
+        is_layer_binding = bool(
+            layer_channel
+            or binding_disposition
+            in {"layer_direction", "layer_flow", "layer_material_response", "layer_only"}
+            or (layer_role and binding_disposition not in direct_dispositions)
+        )
+        if is_layer_binding:
             layer_bindings.append(
                 {
                     "parameter": parameter_name,
@@ -168,7 +191,22 @@ def _dotnet_material_channel_contract(
                     "channel": layer_channel,
                     "slot": str(decode.get("slot", "") or semantic),
                     "authority": str(decode.get("authority", "") or "guess"),
-                    "disposition": str(decode.get("disposition", "") or ""),
+                    "disposition": binding_disposition,
+                    "owner_slot_index": _safe_int(
+                        values.get("owner_slot_index", getattr(item, "owner_slot_index", -1)),
+                        -1,
+                    ),
+                    "owner_wrapper_item_id": str(
+                        values.get("owner_wrapper_item_id", "")
+                        or getattr(item, "owner_wrapper_item_id", "")
+                        or ""
+                    ),
+                    "source_kind": str(
+                        values.get("source_kind", "")
+                        or getattr(item, "source_kind", "")
+                        or decode.get("source_kind", "")
+                        or ""
+                    ),
                 }
             )
     return channel_color_spaces, channel_authorities, layer_bindings
@@ -346,6 +384,17 @@ def _dotnet_material_semantic_contract(
         if isinstance(raw_material_response_promoted, str)
         else bool(raw_material_response_promoted)
     )
+    source_contract = build_pac_material_graph_v1(
+        source,
+        channels,
+        source_asset_path=source_asset_path,
+    )
+    source_unsupported = list(source_contract.get("unsupported_features", ()) or ())
+    unsupported_features = _dotnet_material_unsupported_features(
+        alpha_contract["alpha_mode"], layer_bindings, shader_family
+    )
+    if source_unsupported:
+        unsupported_features.append("unsupported_pac_material_parameters")
     return {
         "shader_family": shader_family,
         "shader_technique": raw_family,
@@ -365,9 +414,9 @@ def _dotnet_material_semantic_contract(
         **alpha_contract,
         **double_sided_contract,
         "layer_bindings": layer_bindings,
-        "unsupported_features": _dotnet_material_unsupported_features(
-            alpha_contract["alpha_mode"], layer_bindings, shader_family
-        ),
+        "source_contract": source_contract,
+        "binding_conservation": dict(source_contract.get("binding_conservation", {}) or {}),
+        "unsupported_features": sorted(set(unsupported_features)),
         "vertex_color": {
             "count": max(0, _safe_int(getattr(source, "preview_vertex_color_count", 0), 0)),
             "mean": list(tuple(getattr(source, "preview_vertex_color_mean", ()) or ())[:3]),
@@ -383,17 +432,48 @@ def _source_file_stat_key(source: Path) -> str:
     return f"{resolved}|size:{stat.st_size}|mtime:{stat.st_mtime_ns}".casefold()
 
 
+@lru_cache(maxsize=4096)
+def _source_file_content_fingerprint_cached(
+    resolved_path: str,
+    size: int,
+    mtime_ns: int,
+) -> str:
+    """Hash one immutable stat revision while keeping identity path-independent."""
+
+    del size, mtime_ns
+    digest = hashlib.sha256()
+    with Path(resolved_path).open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _source_file_content_fingerprint(source: Path) -> str:
+    resolved = source.resolve()
+    stat = resolved.stat()
+    return _source_file_content_fingerprint_cached(
+        str(resolved),
+        int(stat.st_size),
+        int(stat.st_mtime_ns),
+    )
+
+
 def mesh_dotnet_material_input_signature(mesh: object) -> str:
     rows: list[dict[str, object]] = []
     source_asset_path = str(getattr(mesh, "path", "") or "").strip()
-    for submesh in _dotnet_material_sources(mesh):
+    for fallback_index, raw_submesh in enumerate(_dotnet_material_sources(mesh)):
+        submesh = _canonical_dotnet_material_source(raw_submesh, fallback_index)
         channels: list[tuple[str, str]] = []
         resolved_channels = _dotnet_resolved_texture_channels(submesh)
         for channel, value in sorted(resolved_channels.items()):
             raw_path = str(value or "").strip()
             source = Path(raw_path).expanduser()
             try:
-                identity = _source_file_stat_key(source) if source.is_file() else raw_path
+                identity = (
+                    f"sha256:{_source_file_content_fingerprint(source)}"
+                    if source.is_file()
+                    else raw_path
+                )
             except OSError:
                 identity = raw_path
             channels.append((channel, identity))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 from collections.abc import Mapping, Sequence
+from dataclasses import replace
 
 from cdmw.models import PreviewMaterialParameterInput, PreviewMaterialTextureInput
 from cdmw.services.mesh_dotnet_material_channels import _color3
@@ -67,6 +68,7 @@ _DOTNET_PREVIEW_MATERIAL_ATTRS = (
     "preview_vertex_color_count",
     "preview_role",
     "preview_source_asset_path",
+    "preview_pac_material_owner_slot_index",
     "texture_wrap_repeat",
     "cdmw_material_authority_profile",
     "material_authority_profile",
@@ -138,6 +140,128 @@ def _dotnet_texture_name(source: object) -> str:
     )
 
 
+def _dotnet_material_slot_index(
+    source: object,
+    sources: Sequence[object],
+    fallback_index: int,
+) -> int:
+    """Match the exporter-owned first material/texture slot deterministically."""
+
+    scene_slot = getattr(source, "preview_dotnet_scene_material_slot_index", None)
+    if scene_slot is not None:
+        scene_slot_index = _safe_int(scene_slot, -1)
+        if scene_slot_index >= 0:
+            return scene_slot_index
+    explicit = getattr(source, "material_slot_index", None)
+    if explicit is not None:
+        explicit_index = _safe_int(explicit, -1)
+        if explicit_index >= 0:
+            return explicit_index
+    names = {
+        value
+        for value in (
+            _dotnet_material_name(source).strip(),
+            str(getattr(source, "name", "") or "").strip(),
+        )
+        if value
+    }
+    for index, candidate in enumerate(sources):
+        slot_name = (
+            _dotnet_material_name(candidate).strip()
+            or str(getattr(candidate, "name", "") or "").strip()
+        )
+        slot_texture = _dotnet_texture_name(candidate).strip()
+        if slot_name in names or slot_texture in names:
+            return index
+    return fallback_index
+
+
+def _dotnet_pac_material_owner_slot_index(source: object, fallback_index: int) -> int:
+    """Keep PAC wrapper ownership distinct from a deduplicated scene slot."""
+
+    explicit_owner = getattr(source, "preview_pac_material_owner_slot_index", None)
+    if explicit_owner is not None:
+        owner_index = _safe_int(explicit_owner, -1)
+        if owner_index >= 0:
+            return owner_index
+    explicit_material_slot = getattr(source, "material_slot_index", None)
+    if explicit_material_slot is not None:
+        slot_index = _safe_int(explicit_material_slot, -1)
+        if slot_index >= 0:
+            return slot_index
+    binding_owners = {
+        _safe_int(getattr(item, "owner_slot_index", -1), -1)
+        for item in tuple(getattr(source, "preview_material_texture_inputs", ()) or ())
+        if _safe_int(getattr(item, "owner_slot_index", -1), -1) >= 0
+    }
+    if len(binding_owners) == 1:
+        return next(iter(binding_owners))
+    fallback_owner = _safe_int(
+        getattr(
+            source,
+            "source_submesh_index",
+            getattr(source, "submesh_index", fallback_index),
+        ),
+        fallback_index,
+    )
+    return fallback_owner if fallback_owner >= 0 else fallback_index
+
+
+class _CanonicalDotNetMaterialSource:
+    """Read-only view that replaces importer ``-1`` identity sentinels."""
+
+    __slots__ = (
+        "_source",
+        "submesh_index",
+        "source_submesh_index",
+        "preview_pac_material_owner_slot_index",
+    )
+
+    def __init__(
+        self,
+        source: object,
+        *,
+        source_submesh_index: int,
+        owner_slot_index: int,
+    ) -> None:
+        self._source = source
+        self.submesh_index = source_submesh_index
+        self.source_submesh_index = source_submesh_index
+        self.preview_pac_material_owner_slot_index = owner_slot_index
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._source, name)
+
+
+def _canonical_dotnet_material_source(source: object, fallback_index: int) -> object:
+    """Give initial and resident compilation one deterministic source identity."""
+
+    source_index = _safe_int(getattr(source, "submesh_index", -1), -1)
+    if source_index < 0:
+        source_index = _safe_int(getattr(source, "source_submesh_index", -1), -1)
+    if source_index < 0:
+        source_index = max(0, int(fallback_index))
+    owner_index = _dotnet_pac_material_owner_slot_index(source, source_index)
+    if owner_index < 0:
+        owner_index = source_index
+    if (
+        _safe_int(getattr(source, "submesh_index", -1), -1) == source_index
+        and _safe_int(getattr(source, "source_submesh_index", source_index), source_index)
+        == source_index
+        and _safe_int(
+            getattr(source, "preview_pac_material_owner_slot_index", owner_index),
+            owner_index,
+        )
+        == owner_index
+    ):
+        return source
+    return _CanonicalDotNetMaterialSource(
+        source,
+        source_submesh_index=source_index,
+        owner_slot_index=owner_index,
+    )
+
+
 def _normalized_dotnet_material_name(source: object) -> str:
     return _dotnet_material_name(source).strip().casefold()
 
@@ -176,6 +300,11 @@ def _copy_dotnet_preview_material_binding(
         except (TypeError, RuntimeError):
             value = getattr(preview_mesh, attr)
         setattr(target, attr, value)
+    setattr(
+        target,
+        "preview_pac_material_owner_slot_index",
+        _dotnet_pac_material_owner_slot_index(preview_mesh, -1),
+    )
     if source_asset_path:
         setattr(target, "preview_source_asset_path", source_asset_path)
 
@@ -400,6 +529,87 @@ def _native_material_texture_input(value: object) -> PreviewMaterialTextureInput
     return PreviewMaterialTextureInput(**payload)
 
 
+def _native_material_input_identity(value: PreviewMaterialTextureInput) -> tuple[object, ...]:
+    """Identify one PAC graph edge without depending on its transient path."""
+
+    return (
+        _safe_int(value.owner_slot_index, -1),
+        str(value.owner_wrapper_item_id or "").strip().casefold(),
+        str(value.parameter_name or "").strip().casefold(),
+        str(value.material_name or "").strip().casefold(),
+        str(value.shader_family or "").strip().casefold(),
+        str(value.slot_kind or "").strip().casefold(),
+        str(value.semantic_type or "").strip().casefold(),
+        str(value.semantic_subtype or "").strip().casefold(),
+        str(value.layer_role or "").strip().casefold(),
+        str(value.layer_channel or "").strip().casefold(),
+        str(value.binding_authority or "").strip().casefold(),
+        str(value.binding_disposition or "").strip().casefold(),
+        str(value.source_kind or "").strip().casefold(),
+    )
+
+
+def _native_material_input_identity_is_specific(identity: tuple[object, ...]) -> bool:
+    owner_slot_index = _safe_int(identity[0], -1)
+    owner_wrapper_item_id = str(identity[1] or "")
+    parameter_name = str(identity[2] or "")
+    material_name = str(identity[3] or "")
+    slot_kind = str(identity[5] or "")
+    semantic_type = str(identity[6] or "")
+    return bool(
+        owner_slot_index >= 0
+        or owner_wrapper_item_id
+        or parameter_name
+        or (material_name and (slot_kind or semantic_type))
+    )
+
+
+def _rebase_prepared_material_input_paths(
+    prepared_inputs: tuple[object, ...],
+    transported_inputs: tuple[PreviewMaterialTextureInput, ...],
+) -> tuple[object, ...]:
+    """Keep prepared graph semantics while adopting durable transport paths."""
+
+    transported_by_identity: dict[
+        tuple[object, ...], list[PreviewMaterialTextureInput]
+    ] = {}
+    for transported in transported_inputs:
+        identity = _native_material_input_identity(transported)
+        if not _native_material_input_identity_is_specific(identity):
+            continue
+        transported_by_identity.setdefault(identity, []).append(transported)
+
+    changed = False
+    rebased: list[object] = []
+    for prepared in prepared_inputs:
+        if not isinstance(prepared, PreviewMaterialTextureInput):
+            rebased.append(prepared)
+            continue
+        identity = _native_material_input_identity(prepared)
+        matches = transported_by_identity.get(identity, ())
+        if len(matches) != 1:
+            rebased.append(prepared)
+            continue
+        transported = matches[0]
+        path_updates = {
+            field_name: str(getattr(transported, field_name, "") or "").strip()
+            for field_name in (
+                "source_dds_path",
+                "preview_texture_path",
+            )
+            if str(getattr(transported, field_name, "") or "").strip()
+        }
+        if not path_updates or all(
+            str(getattr(prepared, field_name, "") or "").strip() == path
+            for field_name, path in path_updates.items()
+        ):
+            rebased.append(prepared)
+            continue
+        rebased.append(replace(prepared, **path_updates))
+        changed = True
+    return tuple(rebased) if changed else prepared_inputs
+
+
 def _native_material_input_is_primary_base(value: object) -> bool:
     values = (
         value
@@ -479,6 +689,42 @@ def _native_batch_explicitly_omits_base_source(
     return True
 
 
+def _native_batch_base_descriptor_is_layer_only(
+    dds_textures: Mapping[str, object],
+) -> bool:
+    """Reject a technical/layer DDS mislabeled as the batch's visible base."""
+
+    base_path = _native_material_descriptor_path(dds_textures.get("base"))
+    raw_inputs = dds_textures.get("material_inputs")
+    if not base_path or not isinstance(raw_inputs, Sequence) or isinstance(
+        raw_inputs,
+        (str, bytes, bytearray),
+    ):
+        return False
+    normalized_base = base_path.replace("\\", "/").strip().casefold()
+    matching = [
+        item
+        for item in raw_inputs
+        if isinstance(item, Mapping)
+        and _native_material_descriptor_path(item)
+        .replace("\\", "/")
+        .strip()
+        .casefold()
+        == normalized_base
+    ]
+    if not matching or any(_native_material_input_is_primary_base(item) for item in matching):
+        return False
+    return any(
+        str(item.get("binding_disposition", item.get("disposition", "")) or "")
+        .strip()
+        .casefold()
+        == "layer_only"
+        or str(item.get("layer_role", "") or "").strip().casefold()
+        in (_DOTNET_LAYER_ONLY_MATERIAL_ROLES | {"mask"})
+        for item in matching
+    )
+
+
 def _clear_dotnet_primary_base_bindings(target: object) -> None:
     for attr in (
         "texture",
@@ -514,8 +760,22 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         return False
     raw_dds = batch.get("dds_textures")
     dds_textures = raw_dds if isinstance(raw_dds, Mapping) else {}
+    layer_only_base_descriptor = _native_batch_base_descriptor_is_layer_only(
+        dds_textures
+    )
+    raw_material_inputs = dds_textures.get("material_inputs")
+    has_primary_base_input = bool(
+        isinstance(raw_material_inputs, Sequence)
+        and not isinstance(raw_material_inputs, (str, bytes, bytearray))
+        and any(
+            _native_material_input_has_primary_base_source(item)
+            for item in raw_material_inputs
+        )
+    )
     tint_only_base = bool(batch.get("base_tint_only_fallback", False)) or (
         _native_batch_explicitly_omits_base_source(batch, dds_textures)
+    ) or (
+        layer_only_base_descriptor and not has_primary_base_input
     )
     slot_attrs = {
         "base": ("preview_texture_path", "preview_texture_dds_path"),
@@ -525,6 +785,8 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         "emissive": ("preview_emissive_texture_path", "preview_emissive_texture_dds_path"),
     }
     for slot, attrs in slot_attrs.items():
+        if slot == "base" and layer_only_base_descriptor:
+            continue
         path = _native_material_descriptor_path(dds_textures.get(slot))
         if not path:
             continue
@@ -558,10 +820,19 @@ def apply_dotnet_native_material_batch_binding(target: object, batch: object) ->
         )
     # Prepared preview inputs own the source material graph. Native-manifest
     # descriptors are post-package transport evidence and must not replace it.
+    # They can, however, point the same identity-checked graph edges at durable
+    # package copies after transient archive-cache files have expired.
     existing_material_inputs = tuple(
         getattr(target, "preview_material_texture_inputs", ()) or ()
     )
-    if material_inputs and not existing_material_inputs:
+    if material_inputs and existing_material_inputs:
+        rebased_material_inputs = _rebase_prepared_material_input_paths(
+            existing_material_inputs,
+            material_inputs,
+        )
+        if rebased_material_inputs is not existing_material_inputs:
+            setattr(target, "preview_material_texture_inputs", rebased_material_inputs)
+    elif material_inputs:
         setattr(target, "preview_material_texture_inputs", material_inputs)
 
     material_descriptor = dds_textures.get("material")

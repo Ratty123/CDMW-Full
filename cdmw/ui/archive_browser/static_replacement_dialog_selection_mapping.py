@@ -130,6 +130,7 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
     _refresh_parts_outliner = context.get("_refresh_parts_outliner")
     _refresh_source_material_plan = context.get("_refresh_source_material_plan")
     _refresh_ui_texture_sets_after_source_part_material_override = context.get("_refresh_ui_texture_sets_after_source_part_material_override")
+    _ensure_material_authority_route_active = context.get("_ensure_material_authority_route_active")
     _selected_part_glow_rgb_from_controls = context.get("_selected_part_glow_rgb_from_controls")
 
     copied_original_texture_intents_by_source = context.get("copied_original_texture_intents_by_source")
@@ -451,6 +452,8 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
         )
         if role_state.source_index < 0:
             return ""
+        if role_state.normalized_role == "glow" and callable(_ensure_material_authority_route_active):
+            _ensure_material_authority_route_active("source_part_glow_assignment")
         if _active_mesh_edit_material_override_mutation_blocked():
             return ""
         if role_state.store_override:
@@ -459,9 +462,8 @@ def create_alignment_selection_mapping_helpers(context: dict[str, object]) -> Si
             source_role_overrides.pop(role_state.source_index, None)
         adjustment = _ensure_source_part_adjustment(role_state.source_index)
         adjustment.material_role = role_state.normalized_role
-        adjustment.emissive_color_rgb = role_state.emissive_color_rgb
-        if role_state.normalized_role != "glow":
-            adjustment.emissive_strength = None
+        if role_state.normalized_role == "glow" and role_state.emissive_color_rgb:
+            adjustment.emissive_color_rgb = role_state.emissive_color_rgb
         _send_source_role_update(dialog, _replacement_mesh(), role_state.source_index, role_state.normalized_role, adjustment)
         if _is_default_source_part_adjustment(adjustment):
             source_part_adjustments.pop(role_state.source_index, None)

@@ -131,6 +131,11 @@ def _build_selected_sidecar_texture_bindings(
                         for value in tuple(getattr(binding, "blend_flags", ()) or ())
                         if str(value)
                     ),
+                    owner_slot_index=int(getattr(binding, "owner_slot_index", -1)),
+                    owner_wrapper_item_id=str(getattr(binding, "owner_wrapper_item_id", "") or ""),
+                    binding_authority=str(getattr(binding, "binding_authority", "") or ""),
+                    binding_disposition=str(getattr(binding, "binding_disposition", "") or ""),
+                    source_kind=str(getattr(binding, "source_kind", "") or ""),
                 )
             )
     return (

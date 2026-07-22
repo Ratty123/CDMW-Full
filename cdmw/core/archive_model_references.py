@@ -22,6 +22,7 @@ from cdmw.core.upscale_profiles import (
     parse_material_sidecar_profile,
     parse_texture_sidecar_bindings,
 )
+from cdmw.rendering.crimson_shader_registry import decode_crimson_texture_binding
 from cdmw.modding.skeleton_parser import iter_pab_candidate_basenames
 from cdmw.models import (
     ArchiveEntry,
@@ -174,6 +175,11 @@ class _ArchiveModelSidecarTextureBinding:
     layer_role: str = ""
     layer_channel: str = ""
     blend_flags: Tuple[str, ...] = ()
+    owner_slot_index: int = -1
+    owner_wrapper_item_id: str = ""
+    binding_authority: str = ""
+    binding_disposition: str = ""
+    source_kind: str = ""
     material_parameters: Tuple[PreviewMaterialParameterInput, ...] = ()
 
 
@@ -1484,6 +1490,7 @@ def _parse_archive_model_sidecar_texture_bindings(
     parsed_bindings = parse_texture_sidecar_bindings(sidecar_text, sidecar_path=sidecar_path)
     material_profile = parse_material_sidecar_profile(sidecar_text, sidecar_path=sidecar_path)
     slot_parameters_by_key: Dict[Tuple[str, str, str, str], Tuple[PreviewMaterialParameterInput, ...]] = {}
+    slot_parameters_by_owner: Dict[Tuple[int, str], Tuple[PreviewMaterialParameterInput, ...]] = {}
 
     def _sidecar_parameter_input(kind: str, parameter: object) -> PreviewMaterialParameterInput:
         return PreviewMaterialParameterInput(
@@ -1525,6 +1532,10 @@ def _parse_archive_model_sidecar_texture_bindings(
             parameters.extend(_sidecar_parameter_input(kind, parameter) for parameter in tuple(values or ()))
         if not parameters:
             continue
+        owner_slot_index = int(getattr(slot, "owner_slot_index", -1))
+        owner_wrapper_item_id = str(getattr(slot, "wrapper_item_id", "") or "").strip().casefold()
+        if owner_slot_index >= 0 or owner_wrapper_item_id:
+            slot_parameters_by_owner[(owner_slot_index, owner_wrapper_item_id)] = tuple(parameters)
         keys = {
             _binding_slot_key(
                 part_name=getattr(slot, "part_name", ""),
@@ -1547,6 +1558,15 @@ def _parse_archive_model_sidecar_texture_bindings(
                 slot_parameters_by_key[key] = tuple(parameters)
 
     def _parameters_for_binding(binding: object) -> Tuple[PreviewMaterialParameterInput, ...]:
+        owner_slot_index = int(getattr(binding, "owner_slot_index", -1))
+        owner_wrapper_item_id = str(
+            getattr(binding, "owner_wrapper_item_id", "") or ""
+        ).strip().casefold()
+        if owner_slot_index >= 0 or owner_wrapper_item_id:
+            return slot_parameters_by_owner.get(
+                (owner_slot_index, owner_wrapper_item_id),
+                (),
+            )
         keys = (
             _binding_slot_key(
                 part_name=getattr(binding, "part_name", ""),
@@ -1616,9 +1636,94 @@ def _parse_archive_model_sidecar_texture_bindings(
                 layer_role=str(getattr(binding, "layer_role", "") or ""),
                 layer_channel=str(getattr(binding, "layer_channel", "") or ""),
                 blend_flags=tuple(str(value) for value in tuple(getattr(binding, "blend_flags", ()) or ()) if str(value)),
+                owner_slot_index=int(getattr(binding, "owner_slot_index", -1)),
+                owner_wrapper_item_id=str(getattr(binding, "owner_wrapper_item_id", "") or ""),
+                binding_authority=str(getattr(binding, "binding_authority", "") or ""),
+                binding_disposition=str(getattr(binding, "binding_disposition", "") or ""),
+                source_kind=str(getattr(binding, "source_kind", "") or ""),
                 material_parameters=_parameters_for_binding(binding),
             )
         )
+    existing_parameter_bindings = {
+        (
+            int(getattr(binding, "owner_slot_index", -1)),
+            str(getattr(binding, "owner_wrapper_item_id", "") or "").strip().casefold(),
+            str(getattr(binding, "parameter_name", "") or "").strip().casefold(),
+            normalize_texture_reference_for_sidecar_lookup(
+                getattr(binding, "texture_path", "")
+            ),
+        )
+        for binding in archive_bindings
+    }
+    for slot in tuple(getattr(material_profile, "materials", ()) or ()):
+        owner_slot_index = int(getattr(slot, "owner_slot_index", -1))
+        owner_wrapper_item_id = str(getattr(slot, "wrapper_item_id", "") or "").strip()
+        material_parameters = slot_parameters_by_owner.get(
+            (owner_slot_index, owner_wrapper_item_id.casefold()),
+            (),
+        )
+        for parameter in tuple(getattr(slot, "texture_parameters", ()) or ()):
+            texture_path = str(getattr(parameter, "texture_path", "") or "").strip()
+            parameter_name = str(getattr(parameter, "parameter_name", "") or "").strip()
+            key = (
+                owner_slot_index,
+                owner_wrapper_item_id.casefold(),
+                parameter_name.casefold(),
+                normalize_texture_reference_for_sidecar_lookup(texture_path),
+            )
+            if not texture_path or key in existing_parameter_bindings:
+                continue
+            decode = decode_crimson_texture_binding(
+                shader_family=getattr(slot, "shader_family", ""),
+                parameter_name=parameter_name,
+                source_path=texture_path,
+                slot_name="material",
+                sidecar_kind=getattr(material_profile, "sidecar_kind", ""),
+                parameter_declared_by="pac_xml_material_profile",
+            )
+            parameter_key = re.sub(r"[^a-z0-9]+", "", parameter_name.casefold())
+            layer_role = next(
+                (
+                    role
+                    for token, role in (
+                        ("grime", "grime"),
+                        ("detail", "detail"),
+                        ("dye", "dye"),
+                        ("damage", "damage"),
+                        ("wrinkle", "wrinkle"),
+                    )
+                    if token in parameter_key
+                ),
+                "",
+            )
+            archive_bindings.append(
+                _ArchiveModelSidecarTextureBinding(
+                    texture_path=texture_path,
+                    parameter_name=parameter_name,
+                    submesh_name=str(getattr(slot, "part_name", "") or ""),
+                    sidecar_path=sidecar_path,
+                    sidecar_kind=str(getattr(material_profile, "sidecar_kind", "") or ""),
+                    linked_mesh_path=str(getattr(material_profile, "linked_mesh_path", "") or ""),
+                    part_name=str(getattr(slot, "part_name", "") or ""),
+                    material_name=str(getattr(slot, "material_name", "") or ""),
+                    shader_family=str(getattr(slot, "shader_family", "") or ""),
+                    texture_role=str(decode.get("slot", "") or "material"),
+                    visualization_state="source_graph",
+                    srgb_mode=str(decode.get("srgb", "") or ""),
+                    parameter_declared_by="pac_xml_material_profile",
+                    material_output_quality="exact",
+                    layer_role=layer_role,
+                    layer_channel=str(decode.get("layer_channel", "") or ""),
+                    blend_flags=tuple(str(value) for value in tuple(decode.get("blend_flags", ()) or ())),
+                    owner_slot_index=owner_slot_index,
+                    owner_wrapper_item_id=owner_wrapper_item_id,
+                    binding_authority=str(decode.get("authority", "") or ""),
+                    binding_disposition=str(decode.get("disposition", "") or ""),
+                    source_kind=str(decode.get("source_kind", "") or ""),
+                    material_parameters=tuple(material_parameters),
+                )
+            )
+            existing_parameter_bindings.add(key)
     return tuple(archive_bindings)
 
 

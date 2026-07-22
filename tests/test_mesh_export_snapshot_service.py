@@ -224,6 +224,69 @@ def test_acknowledged_material_resources_publish_as_one_authoritative_batch(tmp_
     assert service.capture_export_snapshot(session_id).texture_resources == ()
 
 
+def test_acknowledged_material_state_commits_resources_parameters_and_fingerprint_atomically(
+    tmp_path: Path,
+) -> None:
+    service, session_id = _open_service(tmp_path, session_id="material-authority-atomic")
+    source = tmp_path / "resolved.dds"
+    source.write_bytes(b"resolved material authority DDS")
+    content_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+
+    assert service.commit_resident_material_state(
+        session_id,
+        (
+            {
+                "resource_id": "material-authority/base",
+                "channel": "base",
+                "source_dds_path": source,
+                "affected_submeshes": [0],
+                "logical_path": "source/base.dds",
+                "content_sha256": content_hash,
+            },
+        ),
+        parameter_groups=(
+            {"source_submesh_indices": [0], "texture_brightness": 1.0, "roughness_scale": 1.0},
+        ),
+        material_authority_fingerprint="fingerprint-1",
+        material_authority_revision=7,
+        expected_mesh_revision=0,
+    ) == 1
+    snapshot = service.capture_export_snapshot(session_id)
+    assert snapshot.material_generation == 1
+    assert snapshot.texture_resources[0].dds_data == source.read_bytes()
+    assert snapshot.material_parameter_groups == (
+        {"source_submesh_indices": [0], "roughness_scale": 1.0, "texture_brightness": 1.0},
+    )
+    assert snapshot.material_authority_fingerprint == "fingerprint-1"
+    assert snapshot.material_authority_revision == 7
+    report = service.export_snapshot_report(snapshot)
+    assert report["material_authority_fingerprint"] == "fingerprint-1"
+    assert report["texture_resources"][0]["content_sha256"] == content_hash
+
+    replacement = tmp_path / "replacement.dds"
+    replacement.write_bytes(b"replacement material authority DDS")
+    with pytest.raises(ValueError, match="hash does not match"):
+        service.commit_resident_material_state(
+            session_id,
+            (
+                {
+                    "resource_id": "material-authority/base",
+                    "channel": "base",
+                    "source_dds_path": replacement,
+                    "affected_submeshes": [0],
+                    "content_sha256": "0" * 64,
+                },
+            ),
+            parameter_groups=({"source_submesh_indices": [0], "roughness": 0.2},),
+            material_authority_fingerprint="fingerprint-2",
+            material_authority_revision=8,
+        )
+    rolled_back = service.capture_export_snapshot(session_id)
+    assert rolled_back.material_generation == 1
+    assert rolled_back.texture_resources[0].dds_data == source.read_bytes()
+    assert rolled_back.material_authority_fingerprint == "fingerprint-1"
+
+
 def test_resident_texture_region_rejects_stale_or_invalid_payloads(tmp_path: Path) -> None:
     service, session_id = _open_service(tmp_path)
     service.commit_texture_snapshot(

@@ -31,11 +31,13 @@ ARCHIVE_APPEARANCE_SWAP = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "appea
 ARCHIVE_HKX_DOCUMENT_ACTIONS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "hkx_document_actions.py"
 ARCHIVE_HKX_EDITOR_DIALOG = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "hkx_editor_dialog.py"
 ARCHIVE_MESH_MODIFY_ORIGINAL = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "mesh_modify_original.py"
+MODIFY_ORIGINAL_WORKSPACE_SERVICE = REPO_ROOT / "cdmw" / "services" / "modify_original_workspace_service.py"
 ARCHIVE_MESH_PATCH_FLOW = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "mesh_patch_flow.py"
 ARCHIVE_MESH_SETUP_HELPERS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "mesh_setup_helpers.py"
 ARCHIVE_MATERIAL_SIDECAR_ACTIONS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "material_sidecar_actions.py"
 ARCHIVE_MATERIAL_SIDECAR_EDITOR_DIALOG = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "material_sidecar_editor_dialog.py"
 ARCHIVE_MATERIAL_SIDECAR_EDITOR_HELPERS = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "material_sidecar_editor_helpers.py"
+ARCHIVE_PAC_XML_EDITOR_COMPOSITION = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "pac_xml_editor_composition.py"
 MATERIAL_SIDECAR_PREVIEW_SERVICE = REPO_ROOT / "cdmw" / "services" / "material_sidecar_preview_service.py"
 ARCHIVE_MOD_READY_EXPORT = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "mod_ready_export.py"
 ARCHIVE_RENDER_LIFECYCLE = REPO_ROOT / "cdmw" / "ui" / "archive_browser" / "render_lifecycle.py"
@@ -309,6 +311,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + "\n"
             + ARCHIVE_MATERIAL_SIDECAR_EDITOR_HELPERS.read_text(encoding="utf-8")
             + "\n"
+            + ARCHIVE_PAC_XML_EDITOR_COMPOSITION.read_text(encoding="utf-8")
+            + "\n"
             + MATERIAL_SIDECAR_PREVIEW_SERVICE.read_text(encoding="utf-8")
         )
 
@@ -341,8 +345,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("def material_editor_color_from_value", source)
         self.assertIn("def material_value_swatch_icon", source)
         self.assertIn("blocker = QSignalBlocker(tree)", source)
-        self.assertIn("item.setIcon(3, material_value_swatch_icon(color, material_value_swatch_icons))", source)
-        self.assertIn('selected_value_swatch.setObjectName("SelectedMaterialValueColorSwatch")', source)
+        self.assertIn("item.setIcon(3, material_value_swatch_icon(color, swatch_icons))", source)
+        self.assertIn('selected_swatch.setObjectName("SelectedMaterialValueColorSwatch")', source)
         self.assertIn("def _update_selected_value_swatch", source)
         self.assertIn("selected_value_live_refresh_timer = QTimer(dialog)", source)
         self.assertIn("def selected_value_ready_for_live_refresh", source)
@@ -453,6 +457,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
                 ARCHIVE_PREVIEW_LAYOUT.read_text(encoding="utf-8"),
                 MESH_EDITOR_SHELL_BRIDGE.read_text(encoding="utf-8"),
                 ARCHIVE_MESH_MODIFY_ORIGINAL.read_text(encoding="utf-8"),
+                MODIFY_ORIGINAL_WORKSPACE_SERVICE.read_text(encoding="utf-8"),
                 ARCHIVE_MESH_SETUP_HELPERS.read_text(encoding="utf-8"),
                 ARCHIVE_SCAN_LIFECYCLE.read_text(encoding="utf-8"),
                 ARCHIVE_INDEX_WORKERS_UI.read_text(encoding="utf-8"),
@@ -512,7 +517,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         task_body = modify_source[task_start:modify_source.index("        def _handle_complete(", task_start)]
         self.assertIn("cleanup_stale_sessions = True", pre_task)
         self.assertNotIn("self._cleanup_stale_modify_original_sessions()", pre_task)
-        self.assertIn("self._cleanup_stale_modify_original_sessions(on_log=log)", task_body)
+        self.assertIn("self._cleanup_stale_modify_original_sessions(", task_body)
+        self.assertIn("on_log=emit", task_body)
 
     def test_modify_original_in_app_clone_skips_obj_skeleton_resolution(self) -> None:
         archive_modding_source = (
@@ -520,7 +526,13 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             + "\n"
             + (REPO_ROOT / "cdmw" / "core" / "archive_mesh_export.py").read_text(encoding="utf-8")
         )
-        main_window_source = MAIN_WINDOW.read_text(encoding="utf-8") + "\n" + ARCHIVE_MESH_MODIFY_ORIGINAL.read_text(encoding="utf-8")
+        main_window_source = "\n".join(
+            (
+                MAIN_WINDOW.read_text(encoding="utf-8"),
+                ARCHIVE_MESH_MODIFY_ORIGINAL.read_text(encoding="utf-8"),
+                MODIFY_ORIGINAL_WORKSPACE_SERVICE.read_text(encoding="utf-8"),
+            )
+        )
 
         self.assertIn("resolve_skeleton_for_obj: bool = True", archive_modding_source)
         self.assertIn('export_kind == "fbx" or bool(resolve_skeleton_for_obj)', archive_modding_source)

@@ -35,6 +35,7 @@ from cdmw.workers.mesh_editor_aux_workers import (
     MeshTextureSourceResolveWorker,
 )
 from cdmw.workers.mesh_export_readback import readback_editable_package_metadata
+from cdmw.workers.mesh_dotnet_material_update_worker import MeshDotNetMaterialUpdateWorker
 
 _LEGACY_DISPLAY_CLEANUP_ACTIONS = frozenset({"triangulate_display", "quadrangulate_display"})
 _BASE_TEXTURE_CHANNELS = frozenset({"base", "base_color", "albedo", "diffuse"})
@@ -789,6 +790,7 @@ __all__ = [
     "MeshEditablePackageExportWorker",
     "MeshEditablePackageImportWorker",
     "MeshDotNetExperimentPackageWorker",
+    "MeshDotNetMaterialUpdateWorker",
     "MeshDotNetSceneFrameWorker",
     "MeshDotNetExperimentOutputImportWorker",
     "MeshEditCommandWorker",

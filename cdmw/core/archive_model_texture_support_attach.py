@@ -13,6 +13,7 @@ from cdmw.models import (
     ModelPreviewMesh,
     PreviewMaterialTextureInput,
 )
+from cdmw.rendering.crimson_shader_registry import decode_crimson_texture_binding
 from cdmw.core.common import RunCancelled, raise_if_cancelled
 from cdmw.core.archive_model_references import (
     _ArchiveModelSidecarTextureBinding,
@@ -148,12 +149,51 @@ def _remember_material_input(state: _SupportAttachmentState, key: str, candidate
     state.material_inputs[normalized_key].append(candidate)
 
 
+def _binding_registry_slot(
+    binding: _ArchiveModelSidecarTextureBinding,
+    parameter: str,
+    source_path: str,
+    *,
+    slot_name: str = "material",
+    semantic_subtype: str = "",
+) -> str:
+    decode = decode_crimson_texture_binding(
+        shader_family=getattr(binding, "shader_family", ""),
+        parameter_name=parameter,
+        source_path=source_path,
+        slot_name=slot_name,
+        semantic_subtype=semantic_subtype,
+        layer_channel=getattr(binding, "layer_channel", ""),
+        blend_flags=tuple(getattr(binding, "blend_flags", ()) or ()),
+        sidecar_kind=getattr(binding, "sidecar_kind", ""),
+        parameter_declared_by=getattr(binding, "parameter_declared_by", ""),
+    )
+    return str(decode.get("slot", "") or "material").strip().casefold()
+
+
+def _binding_registry_preview_slot(
+    binding: _ArchiveModelSidecarTextureBinding,
+    parameter: str,
+    source_path: str,
+) -> str:
+    slot = _binding_registry_slot(binding, parameter, source_path)
+    return slot if slot in {"base", "normal", "height", "emissive"} else "material"
+
+
 def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMesh, candidate: _MaterialInputBinding) -> bool:
     _key, entry, parameter, binding = candidate
     semantic_type, subtype, _confidence, channels = _resolve_model_texture_semantic_details(entry.path, sidecar_texts=_support_sidecar_texts(state, entry.path))
     semantic_type, subtype = _refine_model_texture_semantic_from_hint(semantic_type, subtype, parameter)
+    registry_slot = _binding_registry_slot(
+        binding,
+        parameter,
+        entry.path,
+        slot_name=semantic_type or "material",
+        semantic_subtype=subtype,
+    )
+    preview_slot = registry_slot if registry_slot in {"base", "normal", "height", "emissive"} else "material"
     try:
-        preview_path = _support_preview_path(state, entry, "material")
+        preview_path = _support_preview_path(state, entry, preview_slot)
     except RunCancelled:
         raise
     except Exception:
@@ -164,13 +204,13 @@ def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMes
     return _append_model_preview_material_input(
         mesh,
         PreviewMaterialTextureInput(
-            slot_kind="material",
+            slot_kind=registry_slot,
             parameter_name=str(parameter or "").strip(),
             source_texture_path=entry.path,
             source_dds_path=entry.path,
             texture_name=PurePosixPath(entry.path.replace("\\", "/")).name,
             preview_texture_path=preview_path,
-            semantic_type=str(semantic_type or "material").strip().lower(),
+            semantic_type=registry_slot or str(semantic_type or "material").strip().lower(),
             semantic_subtype=str(subtype or "").strip().lower(),
             packed_channels=tuple(str(channel or "").strip().lower() for channel in channels if str(channel or "").strip()),
             material_name=str(getattr(binding, "material_name", "") or getattr(binding, "submesh_name", "") or getattr(mesh, "material_name", "") or "").strip(),
@@ -187,6 +227,11 @@ def _append_material_input(state: _SupportAttachmentState, mesh: ModelPreviewMes
             layer_role=str(getattr(binding, "layer_role", "") or "").strip(),
             layer_channel=str(getattr(binding, "layer_channel", "") or "").strip(),
             blend_flags=tuple(str(value) for value in tuple(getattr(binding, "blend_flags", ()) or ()) if str(value)),
+            owner_slot_index=int(getattr(binding, "owner_slot_index", -1)),
+            owner_wrapper_item_id=str(getattr(binding, "owner_wrapper_item_id", "") or ""),
+            binding_authority=str(getattr(binding, "binding_authority", "") or ""),
+            binding_disposition=str(getattr(binding, "binding_disposition", "") or ""),
+            source_kind=str(getattr(binding, "source_kind", "") or ""),
             material_parameters=tuple(getattr(binding, "material_parameters", ()) or ()),
         ),
     )
@@ -222,6 +267,25 @@ def _preserve_visible_material_input(parameter: str) -> bool:
 
 def _select_material_inputs(candidates: Sequence[_MaterialInputBinding]) -> Tuple[_MaterialInputBinding, ...]:
     ordered = sorted(candidates, key=lambda item: item[0], reverse=True)
+    authoritative_pac_graph = any(
+        str(getattr(candidate[3], "sidecar_kind", "") or "").strip().casefold()
+        in {"pac_xml", "pami"}
+        and int(getattr(candidate[3], "owner_slot_index", -1)) >= 0
+        for candidate in ordered
+    )
+    if authoritative_pac_graph:
+        selected: List[_MaterialInputBinding] = []
+        identities: set[Tuple[str, str]] = set()
+        for candidate in ordered:
+            identity = (
+                _normalize_model_texture_reference(candidate[1].path),
+                str(candidate[2] or "").strip().lower(),
+            )
+            if identity in identities:
+                continue
+            identities.add(identity)
+            selected.append(candidate)
+        return tuple(selected)
     selected: List[_MaterialInputBinding] = []
     identities: set[Tuple[str, str]] = set()
     groups: set[str] = set()
@@ -245,16 +309,36 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
     if not _model_sidecar_binding_matches_source_component(state.source_entry, binding):
         return
     parameter = str(binding.parameter_name or "").strip()
-    slot = _infer_model_preview_texture_slot("", semantic_hint=parameter)
+    owner_qualified_pac = (
+        str(getattr(binding, "sidecar_kind", "") or "").strip().casefold()
+        in {"pac_xml", "pami"}
+        and int(getattr(binding, "owner_slot_index", -1)) >= 0
+    )
+    slot = (
+        _binding_registry_preview_slot(binding, parameter, binding.texture_path)
+        if owner_qualified_pac
+        else _infer_model_preview_texture_slot("", semantic_hint=parameter)
+    )
     preserve_visible = slot == "base" and _preserve_visible_material_input(parameter)
-    if slot not in state.support_slots and not preserve_visible:
+    preserve_pac_graph = owner_qualified_pac
+    if slot not in state.support_slots and not preserve_visible and not preserve_pac_graph:
         return
     exact_submesh_keys = _iter_model_sidecar_binding_exact_submesh_keys(binding)
     entry, status = _resolve_model_texture_archive_entry(
-        state.source_entry, binding.texture_path, binding.submesh_name,
+        state.source_entry,
+        binding.texture_path,
+        # A PAC wrapper already names its exact DDS.  Supplying the material
+        # name as a second texture candidate can make semantic scoring replace
+        # a declared ``*_sp``/``*_m``/``*_f`` map with the base-color sibling.
+        # Keep that fallback only for legacy or inferred bindings.
+        "" if owner_qualified_pac else binding.submesh_name,
         state.texture_entries_by_normalized_path, state.texture_entries_by_basename,
         semantic_hint=parameter, expand_family_candidates=False, allow_technical_match=True,
-        preferred_slot=slot,
+        # An owner-qualified PAC parameter is the semantic authority for its
+        # exact DDS reference.  Filename families remain useful for legacy and
+        # inferred bindings, but must not reject cases where (for example) an
+        # ``*_emi.dds`` is explicitly bound as a color mask or height input.
+        preferred_slot="" if owner_qualified_pac else slot,
         sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
         sidecar_texts_by_basename=state.sidecar_texts_by_basename,
     )
@@ -263,6 +347,13 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
     texts = _support_sidecar_texts(state, entry.path)
     _texture_type, _subtype, confidence = _resolve_model_texture_semantics(entry.path, sidecar_texts=texts)
     priority = (8, 0) if preserve_visible else (_model_texture_slot_hint_priority(slot, parameter) or _model_texture_candidate_slot_priority(slot, entry.path, sidecar_texts=texts))
+    if priority is None and preserve_pac_graph:
+        # Exact owner-qualified PAC inputs are part of the source graph even
+        # when a shader-specific suffix (for example ``*_tp`` torn-cloth
+        # patterns) has no legacy preview-slot heuristic. Keep the binding at
+        # the lowest priority so it reaches the graph compiler without being
+        # preferred as a direct support map.
+        priority = (1, 0)
     if priority is None:
         return
     candidate_key = (priority[0], priority[1], confidence, -len(entry.path))
@@ -271,12 +362,12 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
         primary = exact_submesh_keys[0]
         if primary:
             state.ordered_keys.setdefault(slot, {}).setdefault(primary, len(state.ordered_keys.setdefault(slot, {})))
-        if slot == "material" or preserve_visible:
+        if slot == "material" or preserve_visible or preserve_pac_graph:
             state.material_input_candidates.append(candidate)
         if not preserve_visible:
             state.support_candidates[slot].append(candidate)
         for key in exact_submesh_keys:
-            if slot == "material" or preserve_visible:
+            if slot == "material" or preserve_visible or preserve_pac_graph:
                 _remember_material_input(state, key, candidate)
             if not preserve_visible:
                 current = state.exact_resolved.get((slot, key))
@@ -299,8 +390,21 @@ def _collect_and_prefetch_support_bindings(state: _SupportAttachmentState, bindi
     dimension = int(_config.MODEL_SUPPORT_TEXTURE_DISPLAY_PREVIEW_MAX_DIMENSION)
     requests = [(item[1], slot, dimension) for (slot, _key), item in state.exact_resolved.items()]
     requests.extend((item[1], slot, dimension) for slot, values in state.global_bindings.items() for item in values)
-    requests.extend((item[1], "material", dimension) for values in state.material_inputs.values() for item in _select_material_inputs(values))
+    requests.extend(
+        (
+            item[1],
+            _material_input_preview_slot(item),
+            dimension,
+        )
+        for values in state.material_inputs.values()
+        for item in _select_material_inputs(values)
+    )
     _prefetch_archive_model_texture_preview_paths(requests, state.preview_cache, stop_event=state.stop_event)
+
+
+def _material_input_preview_slot(candidate: _MaterialInputBinding) -> str:
+    _key, entry, parameter, binding = candidate
+    return _binding_registry_preview_slot(binding, parameter, entry.path)
 
 
 def _support_mesh_candidates(state: _SupportAttachmentState, index: int, mesh: ModelPreviewMesh) -> Tuple[str, ...]:

@@ -449,7 +449,7 @@ static std::string packed_channels_for_role(const std::string& role, const std::
         if (lower.find("mra") != std::string::npos) return "r=metalness,g=roughness,b=occlusion";
         if (lower.find("arm") != std::string::npos) return "r=occlusion,g=roughness,b=metalness";
         if (parameter_key == "colorblendingmasktexture" && lower.find("_ma") != std::string::npos) {
-            return "r=occlusion,g=roughness,b=metalness,a=specular_response";
+            return "layer:color_blending_mask";
         }
         if (parameter_key == "detailmasktexture" || lower.find("_mg") != std::string::npos) {
             return "layer:detail_grime_dye_mask";

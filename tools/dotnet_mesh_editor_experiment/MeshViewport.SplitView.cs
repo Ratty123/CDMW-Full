@@ -375,6 +375,10 @@ internal sealed partial class MeshViewport
 
     private bool ActivePaneIncludesForPicking(int submeshIndex)
     {
+        if (!_scene.IsPresentationVisible(submeshIndex))
+        {
+            return false;
+        }
         if (!HasSimultaneousRolePanes)
         {
             return _scene.IsVisible(submeshIndex);

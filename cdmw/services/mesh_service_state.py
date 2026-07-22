@@ -119,6 +119,8 @@ class MeshExportSnapshot:
     requires_edit_operations: bool = False
     texture_resources: tuple[MeshExportTextureSnapshot, ...] = ()
     material_parameter_groups: tuple[Mapping[str, object], ...] = ()
+    material_authority_fingerprint: str = ""
+    material_authority_revision: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +178,8 @@ class _MeshEditSession:
     material_generation: int = 0
     committed_texture_resources: dict[tuple[str, str], _MeshCommittedTextureResource] = field(default_factory=dict)
     resident_material_parameters: dict[int, dict[str, object]] = field(default_factory=dict)
+    material_authority_fingerprint: str = ""
+    material_authority_revision: int = 0
     texture_resource_root: Path | None = None
     export_lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
     closed: bool = False

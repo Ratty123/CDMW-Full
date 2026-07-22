@@ -203,6 +203,20 @@ _METALLIC_SURFACE_TOKENS = (
     "chain",
 )
 
+_STRUCTURAL_ANATOMY_TOKENS = (
+    "robot",
+    "golem",
+    "automaton",
+    "machine",
+    "mechanical",
+    "mech",
+    "armor",
+    "armour",
+    "plate",
+)
+
+_AMBIGUOUS_ANATOMY_TOKENS = {"body", "hand", "foot"}
+
 _NONMETAL_RESPONSE_LIMITS = {
     "cloth": (0.0, 0.28, 0.48),
     "leather": (0.0, 0.36, 0.38),
@@ -304,8 +318,22 @@ def _material_surface_category(input_item: Optional[PreviewMaterialTextureInput]
         if shader_rule in {"cloth", "cloth_v2"}:
             return "cloth"
     descriptor = _material_surface_descriptor(input_item, payload)
+    structural_anatomy = any(
+        _descriptor_contains_token(descriptor, token)
+        for token in _STRUCTURAL_ANATOMY_TOKENS
+    )
     for category, tokens in _NONMETAL_SURFACE_TOKENS.items():
-        if any(_descriptor_contains_token(descriptor, token) for token in tokens):
+        matched_tokens = tokens
+        if category == "skin" and structural_anatomy:
+            # ``body``, ``hand``, and ``foot`` are anatomical only in context.
+            # Robot, golem, and armor part names use the same tokens for rigid
+            # pieces whose exact PAC material maps must remain eligible for
+            # metallic response. Explicit skin/face/nude tokens still win.
+            matched_tokens = tuple(
+                token for token in tokens
+                if token not in _AMBIGUOUS_ANATOMY_TOKENS
+            )
+        if any(_descriptor_contains_token(descriptor, token) for token in matched_tokens):
             return category
     if any(_descriptor_contains_token(descriptor, token) for token in _METALLIC_SURFACE_TOKENS):
         return "metal"
@@ -519,6 +547,29 @@ def _material_parameter_color(input_item: PreviewMaterialTextureInput, *tokens: 
     return ()
 
 
+def _material_parameter_color_exact(
+    input_item: PreviewMaterialTextureInput,
+    parameter_name: str,
+) -> Tuple[float, float, float]:
+    wanted = _normalized_key(parameter_name)
+    if not wanted:
+        return ()
+    for parameter in _material_parameters(input_item):
+        if _normalized_key(getattr(parameter, "parameter_name", "")) != wanted:
+            continue
+        color = tuple(getattr(parameter, "color_value", ()) or ())
+        if len(color) >= 3:
+            return tuple(
+                _clamp(_finite_float(value, 1.0), 0.0, 2.0)
+                for value in color[:3]
+            )  # type: ignore[return-value]
+        channels = _byte4_channels(getattr(parameter, "value", ""))
+        if len(channels) >= 3:
+            return tuple(_clamp(value) for value in channels[:3])  # type: ignore[return-value]
+        return ()
+    return ()
+
+
 def _material_parameter_channels(input_item: PreviewMaterialTextureInput, *tokens: str) -> Tuple[float, float, float, float]:
     parameter = _material_parameter_record_for_key(input_item, *tokens)
     if parameter is None:
@@ -729,8 +780,8 @@ def _registry_decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> 
         return ""
     if source_kind in {"crimson_overlay_color", "crimson_base_color", "crimson_diffuse", "crimson_albedo", "crimson_color"}:
         return "visible_color"
-    if source_kind == "crimson_color_blending_mask" and isinstance(promoted, dict) and promoted:
-        return "standard_v2_mask"
+    if source_kind == "crimson_color_blending_mask":
+        return "color_blending_mask"
     if disposition == "layer_material_response" or source_kind == "crimson_layer_material_response":
         if family == "skin":
             return "skin_material"
@@ -884,6 +935,10 @@ def _select_visible_layer_inputs(
     for index, item in enumerate(inputs):
         if not _is_visible_color_input(item):
             continue
+        # Emissive and intensity maps are additive shader inputs. Treating one
+        # as albedo turns its scalar mask into the full surface color.
+        if _visible_layer_role(item) == "emissive":
+            continue
         current_key = (
             str(getattr(item, "preview_texture_path", "") or "").strip().lower(),
             str(getattr(item, "source_texture_path", "") or "").strip().lower(),
@@ -905,20 +960,47 @@ def _select_visible_layer_inputs(
         ranked.append((priority + min(match_score, 40), -index, item))
     ranked.sort(key=lambda row: (row[0], row[1]), reverse=True)
     result: list[PreviewMaterialTextureInput] = []
-    seen_paths: set[str] = set()
+    seen_bindings: set[Tuple[str, str, str, str, str, str]] = set()
     for _priority, _index, item in ranked:
-        key = str(getattr(item, "preview_texture_path", "") or getattr(item, "source_texture_path", "") or "").strip().lower()
-        if not key or key in seen_paths:
+        preview_path = str(getattr(item, "preview_texture_path", "") or "").strip().lower()
+        source_path = str(getattr(item, "source_texture_path", "") or "").strip().lower()
+        key = (
+            preview_path,
+            source_path,
+            _parameter_key(item),
+            _visible_layer_role(item),
+            _layer_channel(item),
+            str(getattr(item, "owner_wrapper_item_id", "") or "").strip().lower(),
+        )
+        if not (preview_path or source_path) or key in seen_bindings:
             continue
-        seen_paths.add(key)
+        seen_bindings.add(key)
         result.append(item)
-        if len(result) >= 4:
-            break
     return tuple(result)
 
 
 def _mask_inputs_for_albedo(inputs: Sequence[PreviewMaterialTextureInput]) -> dict[str, PreviewMaterialTextureInput]:
     result: dict[str, PreviewMaterialTextureInput] = {}
+    authoritative_color_region_mask = next(
+        (
+            item
+            for item in inputs
+            if _parameter_key(item) == "colorblendingmasktexture"
+            and str(getattr(item, "sidecar_kind", "") or "").strip().lower() == "pac_xml"
+            and str(getattr(item, "binding_authority", "") or "").strip().lower() == "authoritative"
+            and str(getattr(item, "binding_disposition", "") or "").strip().lower() == "layer_only"
+            and str(getattr(item, "source_kind", "") or "").strip().lower()
+            == "crimson_color_blending_mask"
+        ),
+        None,
+    )
+    if authoritative_color_region_mask is not None:
+        # PAC suffixes are color-region ownership: _detailDiffuseMaskR/G/B and
+        # their dye colors belong to the matching R/G/B area of the authored
+        # _colorBlendingMaskTexture. _detailMaskTexture is a separate technical
+        # detail input; using it as the color-layer selector assigns the wrong
+        # material to otherwise correctly authored regions.
+        result["detail"] = authoritative_color_region_mask
     for item in inputs:
         key = _parameter_key(item)
         if "colorblendingmask" in key:
@@ -988,6 +1070,22 @@ def _layer_weight_from_parameters(
         channels = _material_parameter_channels(input_item, "dyeingglobalopacity")
         channel_index = _LAYER_CHANNEL_INDEX.get(channel, 0)
         opacity = channels[channel_index] if len(channels) > channel_index else 0.42
+        authoritative_pac_layer = bool(
+            str(getattr(input_item, "sidecar_kind", "") or "").strip().lower() == "pac_xml"
+            and str(getattr(input_item, "binding_authority", "") or "").strip().lower()
+            == "authoritative"
+            and str(getattr(input_item, "binding_disposition", "") or "").strip().lower()
+            in {"layer_only", "layer_material_response"}
+            and str(getattr(input_item, "source_kind", "") or "").strip().lower()
+            in {"crimson_layer_color", "crimson_layer_material_response"}
+        )
+        if authoritative_pac_layer:
+            # ``_dyeingGlobalOpacity`` owns the RGB layer opacity. The packed
+            # ``_dyeingPropertyBlend`` controls material properties and is not
+            # another color/response opacity multiplier. Applying it here and
+            # then imposing the legacy 0.62 cap muted authored dye colors and
+            # metal response even when the PAC explicitly requested 255.
+            return _clamp(opacity, 0.04, 1.0)
         property_channels = _material_parameter_channels(input_item, "dyeingpropertyblend")
         if property_channels:
             opacity *= max(0.25, max(property_channels[:3]))
@@ -1006,7 +1104,7 @@ def _layer_tint(input_item: PreviewMaterialTextureInput) -> Tuple[float, float, 
     elif role == "layer":
         candidates = ("baseheighttintcolor", "tintcolor")
     elif role == "grime" and channel:
-        candidates = (f"tintcolor{channel}", f"dyeingdetaillayercolormask{channel}", f"scratchtintcolor{channel}")
+        candidates = (f"scratchtintcolor{channel}", f"tintcolor{channel}", f"dyeingdetaillayercolormask{channel}")
     elif channel:
         candidates = (f"tintcolor{channel}", f"dyeingcolormask{channel}", f"dyeingdetaillayercolormask{channel}")
     else:
@@ -1061,23 +1159,112 @@ def _neutral_metal_tint_from_tokens(descriptor: str) -> Tuple[float, float, floa
 
 
 def _global_material_base_tint(inputs: Sequence[PreviewMaterialTextureInput]) -> Tuple[float, float, float]:
+    # PAC layer tints such as _scratchTintColorR or _tintColorB are scoped to a
+    # packed selector channel. Substring matching them as a global tint paints
+    # the entire material gold/brown. Only an exact unsuffixed base parameter
+    # may affect the full neutral seed.
     for item in inputs:
-        role = _visible_layer_role(item)
-        if role not in {"base", "overlay", "color"}:
-            continue
         for token in ("basecolor", "tintcolor", "albedocolor"):
-            color = _material_parameter_color(item, token)
+            color = _material_parameter_color_exact(item, token)
             if len(color) >= 3:
                 return color
     return ()
 
 
+def _authoritative_color_blending_tint_seed(
+    inputs: Sequence[PreviewMaterialTextureInput],
+) -> Tuple[
+    Optional[PreviewMaterialTextureInput],
+    Tuple[Tuple[float, float, float], ...],
+    str,
+]:
+    """Return the PAC RGB selector, channel-local colors, and palette source.
+
+    Crimson's ``_colorBlendingMaskTexture`` is a selector, not a PBR packed
+    map. A seed is only emitted when the shader registry and PAC binding agree
+    on that exact role and all three channel colors are present. This keeps an
+    incomplete or filename-only guess from recoloring a whole submesh.
+    """
+
+    mask_item: Optional[PreviewMaterialTextureInput] = None
+    for candidate in inputs:
+        if _parameter_key(candidate) != "colorblendingmasktexture":
+            continue
+        decode = _registry_decode_for_input(candidate)
+        if (
+            str(getattr(candidate, "sidecar_kind", "") or "").strip().lower()
+            == "pac_xml"
+            and str(getattr(candidate, "binding_authority", "") or "").strip().lower()
+            == "authoritative"
+            and str(getattr(candidate, "binding_disposition", "") or "").strip().lower()
+            == "layer_only"
+            and str(getattr(candidate, "source_kind", "") or "").strip().lower()
+            == "crimson_color_blending_mask"
+            and str(decode.get("authority", "") or "") == "authoritative"
+            and str(decode.get("source_kind", "") or "")
+            == "crimson_color_blending_mask"
+            and str(decode.get("disposition", "") or "") == "layer_only"
+        ):
+            mask_item = candidate
+            break
+    if mask_item is None:
+        return None, (), ""
+
+    scratch_tints: list[Tuple[float, float, float]] = []
+    primary_tints: list[Tuple[float, float, float]] = []
+    for channel in "rgb":
+        scratch_tints.append(_material_parameter_color_exact(mask_item, f"scratchtintcolor{channel}"))
+        primary_tints.append(_material_parameter_color_exact(mask_item, f"tintcolor{channel}"))
+
+    # PACs commonly store neutral scratch defaults as black, white, 0.8 gray,
+    # or a byte-close warm gray while their primary tint palette carries the
+    # authored color. Treat up to 16/255 channel spread as neutral, but only
+    # switch when the primary palette contains clear chroma. This preserves
+    # intentionally silver/gold scratch palettes and avoids guessing when both
+    # palettes are neutral.
+    neutral_chroma_epsilon = 16.0 / 255.0
+
+    def _palette_has_chroma(palette: Sequence[Tuple[float, float, float]]) -> bool:
+        return any(
+            len(color) >= 3 and max(color[:3]) - min(color[:3]) > neutral_chroma_epsilon
+            for color in palette
+        )
+
+    scratch_present = any(len(color) >= 3 for color in scratch_tints)
+    prefer_primary = bool(
+        scratch_present
+        and not _palette_has_chroma(scratch_tints)
+        and _palette_has_chroma(primary_tints)
+    )
+    preferred_tints = primary_tints if prefer_primary else scratch_tints
+    fallback_tints = scratch_tints if prefer_primary else primary_tints
+
+    tints: list[Tuple[float, float, float]] = []
+    used_fallback = False
+    for preferred, fallback in zip(preferred_tints, fallback_tints):
+        color = preferred
+        if len(color) < 3:
+            color = fallback
+            used_fallback = len(color) >= 3
+        if len(color) < 3:
+            return None, (), ""
+        tints.append(color)
+
+    if prefer_primary:
+        palette_source = "primary_neutral_scratch"
+        if used_fallback:
+            palette_source += "_fallback"
+    elif scratch_present:
+        palette_source = "scratch"
+        if used_fallback:
+            palette_source += "_primary_fallback"
+    else:
+        palette_source = "primary"
+    return mask_item, tuple(tints), palette_source
+
+
 def _neutral_metal_base_color(payload: object, inputs: Sequence[PreviewMaterialTextureInput]) -> Tuple[float, float, float]:
-    descriptor = _material_surface_descriptor(None, payload)
     color = _payload_vertex_base_color(payload) or (0.60, 0.61, 0.62)
-    token_tint = _neutral_metal_tint_from_tokens(descriptor)
-    if token_tint:
-        color = tuple(_clamp((color[index] * 0.55) + (token_tint[index] * 0.45), 0.22, 0.86) for index in range(3))
     material_tint = _global_material_base_tint(inputs)
     if material_tint:
         tint_luma = max(0.08, (0.299 * material_tint[0]) + (0.587 * material_tint[1]) + (0.114 * material_tint[2]))

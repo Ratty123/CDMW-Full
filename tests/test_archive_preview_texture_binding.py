@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from pathlib import Path
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -15,7 +16,7 @@ from cdmw.core.archive import (
     _iter_model_sidecar_binding_submesh_keys,
     normalize_texture_reference_for_sidecar_lookup,
 )
-from cdmw.core.upscale_profiles import parse_texture_sidecar_bindings
+from cdmw.core.upscale_profiles import parse_material_sidecar_profile, parse_texture_sidecar_bindings
 from cdmw.models import (
     ArchiveEntry,
     ModelPreviewData,
@@ -230,6 +231,74 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         self.assertEqual("character/body_a.dds", model.meshes[0].texture_name)
         self.assertEqual("preview://character/body_a.dds", model.meshes[0].preview_texture_path)
 
+    def test_selected_pac_wrapper_does_not_borrow_sibling_owner_base(self) -> None:
+        source_entry = _entry("character/model/cloth_variants.pac")
+        base_path = "character/texture/cloth.dds"
+        normal_path = "character/texture/cloth_n.dds"
+        by_normalized, by_basename = _texture_maps(base_path, normal_path)
+        mesh = ModelPreviewMesh(
+            material_name="Cloth",
+            texture_name=base_path,
+            preview_texture_path=f"preview://{base_path}",
+        )
+        model = ModelPreviewData(path=source_entry.path, meshes=[mesh])
+        parsed_mesh = SimpleNamespace(
+            submeshes=(
+                SimpleNamespace(
+                    name="Cloth_01",
+                    material="Cloth",
+                    texture=base_path,
+                ),
+            )
+        )
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=normal_path,
+                parameter_name="_normalTexture",
+                submesh_name="Cloth_01",
+                material_name="Cloth_01",
+                sidecar_kind="pac_xml",
+                shader_family="SkinnedMeshCloth_Ver2",
+                owner_slot_index=0,
+                owner_wrapper_item_id="100",
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=base_path,
+                parameter_name="_overlayColorTexture",
+                submesh_name="Cloth",
+                material_name="Cloth",
+                sidecar_kind="pac_xml",
+                shader_family="SkinnedMeshCloth_Ver2",
+                owner_slot_index=2,
+                owner_wrapper_item_id="102",
+                binding_authority="authoritative",
+                binding_disposition="promoted",
+                source_kind="crimson_overlay_color",
+            ),
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_sidecar_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=parsed_mesh,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        self.assertEqual("Cloth_01", mesh.preview_sidecar_material_primitive)
+        self.assertEqual(f"preview://{base_path}", mesh.preview_texture_path)
+        self.assertFalse(
+            any(
+                item.owner_slot_index == 2
+                for item in mesh.preview_material_texture_inputs
+            )
+        )
+
     def test_cross_component_sidecar_binding_does_not_replace_current_pac_mesh(self) -> None:
         source_entry = _entry("character/model/1_pc/1_phm/nude/cd_phm_00_nude_00_0001.pac")
         by_normalized, by_basename = _texture_maps("character/texture/cd_texturelayer_001_0101.dds")
@@ -304,6 +373,95 @@ class ArchivePreviewTextureBindingTests(unittest.TestCase):
         self.assertEqual("pac_xml", bindings[0].parameter_declared_by)
         self.assertEqual("exact", bindings[0].material_output_quality)
         self.assertIn("role:base", bindings[0].blend_flags)
+
+    def test_malformed_pac_xml_recovers_first_material_group_with_owner_and_parameters(self) -> None:
+        sidecar_text = (
+            "<Broken><Inner></Broken>"
+            '<ModelProperty Index="0">'
+            '<SkinnedMeshMaterialWrapper ItemID="4964" _subMeshName="Armor_Belt">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            '<MaterialParameterTexture StringItemID="_normalTexture" ItemID="6" '
+            '_name="_normalTexture" Index="0"><ResourceReferencePath_ITexture '
+            '_path="character/texture/armor_belt_n.dds"/></MaterialParameterTexture>'
+            '<MaterialParameterColor StringItemID="_scratchTintColorR" ItemID="7" '
+            '_name="_scratchTintColorR" _value="#ff950003" Index="1"/>'
+            '<MaterialParameterBitflag32 StringItemID="_colorBlendingFlag" ItemID="8" '
+            '_name="_colorBlendingFlag" _value="4095" Index="2"/>'
+            "</Vector></Material></SkinnedMeshMaterialWrapper></ModelProperty>"
+            '<ModelProperty Index="1"><SkinnedMeshMaterialWrapper ItemID="9999" '
+            '_subMeshName="Wrong_Variant"><Material _materialName="SkinnedMeshStandard_Ver2">'
+            '<MaterialParameterTexture _name="_normalTexture" '
+            '_value="character/texture/wrong_n.dds"/></Material></SkinnedMeshMaterialWrapper></ModelProperty>'
+        )
+
+        bindings = parse_texture_sidecar_bindings(
+            sidecar_text,
+            sidecar_path="character/modelproperty/armor_belt.pac_xml",
+        )
+        profile = parse_material_sidecar_profile(
+            sidecar_text,
+            sidecar_path="character/modelproperty/armor_belt.pac_xml",
+        )
+
+        self.assertEqual(1, len(bindings))
+        self.assertEqual("Armor_Belt", bindings[0].submesh_name)
+        self.assertEqual("SkinnedMeshStandard_Ver2", bindings[0].shader_family)
+        self.assertEqual(0, bindings[0].owner_slot_index)
+        self.assertEqual("4964", bindings[0].owner_wrapper_item_id)
+        self.assertEqual("authoritative", bindings[0].binding_authority)
+        self.assertEqual(1, len(profile.materials))
+        self.assertEqual(0, profile.materials[0].owner_slot_index)
+        self.assertEqual("4964", profile.materials[0].wrapper_item_id)
+        self.assertEqual("#ff950003", profile.materials[0].color_parameters[0].value)
+        self.assertEqual("4095", profile.materials[0].flag_parameters[0].value)
+
+    def test_malformed_pac_xml_preserves_parameter_bucket_semantics(self) -> None:
+        parameter_specs = (
+            ("Texture", "texture", "character/texture/base.dds"),
+            ("Color", "color", "#112233ff"),
+            ("Byte4", "byte4", "1 2 3 4"),
+            ("Bool", "bool", "1"),
+            ("Int", "int", "-2"),
+            ("UInt", "uint", "3"),
+            ("Bitflag32", "bitflag32", "4"),
+            ("Enum", "enum", "5"),
+            ("ClothCategory", "clothcategory", "Velvet"),
+            ("LightPreset", "lightpreset", "6"),
+            ("HeightBlendType", "heightblendtype", "7"),
+            ("SystemEffect", "systemeffect", "8"),
+            ("Float", "float", "0.5"),
+            ("Float2", "float2", "0.1 0.2"),
+            ("Float3", "float3", "0.1 0.2 0.3"),
+            ("Half2", "half2", "0.4 0.5"),
+        )
+        parameters = "".join(
+            f'<MaterialParameter{parameter_type} _name="{name}" _value="{value}" Index="{index}"/>'
+            for index, (parameter_type, name, value) in enumerate(parameter_specs)
+        )
+        sidecar_text = (
+            "<Broken><Inner></Broken>"
+            '<ModelProperty Index="0"><SkinnedMeshMaterialWrapper ItemID="7" _subMeshName="Armor">'
+            '<Material _materialName="SkinnedMeshStandard_Ver2"><Vector Name="_parameters">'
+            f"{parameters}</Vector></Material></SkinnedMeshMaterialWrapper></ModelProperty>"
+        )
+
+        profile = parse_material_sidecar_profile(
+            sidecar_text,
+            sidecar_path="character/modelproperty/armor.pac_xml",
+        )
+
+        material = profile.materials[0]
+        self.assertEqual(["texture"], [record.parameter_name for record in material.texture_parameters])
+        self.assertEqual(["color"], [record.parameter_name for record in material.color_parameters])
+        self.assertEqual(["byte4"], [record.parameter_name for record in material.byte4_parameters])
+        self.assertEqual(
+            ["bool", "int", "uint", "bitflag32", "enum", "clothcategory", "lightpreset", "heightblendtype", "systemeffect"],
+            [record.parameter_name for record in material.flag_parameters],
+        )
+        self.assertEqual(
+            ["float", "float2", "float3", "half2"],
+            [record.parameter_name for record in material.float_parameters],
+        )
 
     def test_cross_family_sidecar_texture_notice_is_explicit_but_nonfatal(self) -> None:
         notice = _archive_texture_family_mismatch_summary(

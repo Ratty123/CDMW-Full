@@ -289,6 +289,7 @@ def test_dotnet_preview_settings_have_distinct_support_outdoor_and_layer_mask_pa
 
 def test_dotnet_alpha_blend_uses_a_sorted_depth_read_only_material_pass() -> None:
     renderer_source = _source("D3D11MaterialViewport.cs")
+    capture_source = _source("D3D11MaterialViewport.Capture.cs")
     geometry_source = _source("D3D11MaterialViewport.Geometry.cs")
     metrics_source = _source("D3D11MaterialViewport.Metrics.cs")
     settings_source = _source("D3D11MaterialViewport.PresentationSettings.cs")
@@ -300,6 +301,7 @@ def test_dotnet_alpha_blend_uses_a_sorted_depth_read_only_material_pass() -> Non
     assert "SortTransparentBatchesBackToFront();" in renderer_source
     assert "_context.OMSetBlendState(_transparentBlendState ?? _overlayBlendState);" in renderer_source
     assert "_transparentSolidBatchDrawCount++" in renderer_source
+    assert capture_source.count("+ _transparentSolidBatchDrawCount") == 2
     assert "public Vector3 Center { get; }" in geometry_source
     assert '"back_to_front_submesh_depth_read_no_write"' in metrics_source
     assert "var materialSubmeshIndex = batch.MaterialSubmeshIndex;" in settings_source
@@ -500,9 +502,11 @@ def test_resident_role_views_share_resources_and_keep_normal_cameras_independent
     assert "var panes = PanesForFrame(replacementOnly, out var paneCount);" in d3d_renderer_source
     assert "for (var paneIndex = 0; paneIndex < paneCount; paneIndex++)" in d3d_renderer_source
     assert "ActivePaneIncludes(batch.SubmeshIndex)" in d3d_renderer_source
+    assert "_scene.IsPresentationVisible(submeshIndex)" in pane_renderer_source
     assert "HasRenderedBothRolePanes" in pane_renderer_source
     assert "ActivePaneIncludesForPicking(submeshIndex)" in picking_source
     assert "ActivePaneIncludesForPicking(submeshIndex)" in occlusion_source
+    assert "_scene.IsPresentationVisible(submeshIndex)" in split_view_source
     assert "RoleViewModelMatrix" in scene_source
     assert "EditablePresentationMatrix(includeSideBySideOffset)" in scene_source
     assert "RoleViewGizmoPivot" in scene_source

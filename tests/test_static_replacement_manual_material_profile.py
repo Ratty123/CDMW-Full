@@ -260,11 +260,11 @@ def test_resident_resource_controls_enable_only_with_live_resource_channels() ->
     assert material_authority_resource_channels(("ao_default",)) == ("material_mask",)
     assert material_authority_resource_channels(("support_policy",)) == ("normal", "height", "material_mask")
     assert material_authority_resource_channels(("emissive_mode",)) == ("emissive",)
-    assert material_authority_resource_channels(("base_color_scale",)) == ()
+    assert material_authority_resource_channels(("base_color_scale",)) == ("base",)
     assert "detail_mask" not in material_authority_resource_channels(("*",))
     assert all(states[key]["enabled"] for key in keys[:5])
     assert states["neutral_color_rgb"]["enabled"] is False
-    assert "export/sidecar structure only" in states["neutral_color_rgb"]["tooltip"]
+    assert "unsafe expert" in states["neutral_color_rgb"]["tooltip"].lower()
 
     unavailable = manual_material_profile_control_effect_states(
         values,
@@ -282,7 +282,7 @@ def test_manual_profile_live_refresh_routes_only_changed_resource_controls() -> 
         {"roughness_scale": 1.0, "ao_default": 255, "emissive_mode": "disabled"},
         {"roughness_scale": 0.8, "ao_default": 128, "emissive_mode": "intensity"},
     ) == ("roughness_scale", "ao_default", "emissive_mode")
-    assert material_authority_resource_channels(("roughness_scale",)) == ()
+    assert material_authority_resource_channels(("roughness_scale",)) == ("material_mask",)
     assert material_authority_resource_channels(("ao_default",)) == ("material_mask",)
     assert material_authority_resource_channels(("emissive_mode",)) == ("emissive",)
 

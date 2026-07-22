@@ -21,10 +21,12 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
 
 from cdmw.core.dds_native import dds_native_report_dict, dds_source_path_from_report, inspect_dds_native_path
+from cdmw.core.atomic_file import atomic_write_text
 from cdmw.core.model_preview_orientation import resolve_preview_texture_flip_vertical
 from cdmw.core.texture_native import read_native_texture_report_sidecar
 from cdmw.domain.mesh.normal_y_policy import resolve_preview_normal_y_policy
 from cdmw.modding.mesh_native_core import write_native_preview_identity_blob
+from cdmw.modding.mesh_native_core import shutdown_native_mesh_core_service
 from cdmw.models import (
     ClothPreviewBatch,
     ClothPreviewConstraint,
@@ -160,6 +162,20 @@ CLOTH_RUNTIME_SCHEMA_VERSION = 1
 PREVIEW_OVERLAY_SCHEMA_VERSION = 1
 _IDENTITY_STRUCT = struct.Struct("<iii")
 MESH_EDITOR_LOAD_TRACE_ENV = "CDMW_MESH_EDITOR_LOAD_TRACE"
+
+
+def _write_verified_preview_manifest(path: Path, manifest: Mapping[str, object]) -> None:
+    serialized = json.dumps(manifest, separators=(",", ":"))
+    failure: OSError | None = None
+    for _attempt in range(2):
+        try:
+            atomic_write_text(path, serialized, encoding="utf-8")
+            if path.read_text(encoding="utf-8") == serialized:
+                return
+            failure = OSError(f"isolated preview manifest readback mismatch: {path}")
+        except OSError as exc:
+            failure = exc
+    raise OSError(f"isolated preview manifest publication failed after retry: {path}") from failure
 
 
 def _mesh_editor_load_trace_enabled() -> bool:
@@ -450,23 +466,43 @@ def _write_editor_identity_blob_native(
             _cleanup_identity_sidecars(sidecar_paths)
             return None
     try:
-        report = write_native_preview_identity_blob(
-            identity_path,
-            source_submesh_index=source_submesh_index,
-            vertex_count=vertex_count,
-            source_vertex_indices=(),
-            source_face_indices=(),
-            source_vertex_indices_binary=source_vertex_indices_binary,
-            source_face_indices_binary=source_face_indices_binary,
-            source_vertex_start=None if source_vertex_range is None else source_vertex_range[0],
-            source_vertex_count=0 if source_vertex_range is None else source_vertex_range[1],
-            source_face_start=None if source_face_range is None else source_face_range[0],
-            source_face_count=0 if source_face_range is None else source_face_range[1],
-            role=role,
-            part_name=str(getattr(batch, "editor_part_name", "") or ""),
-            editable=bool(getattr(batch, "editor_editable", source_submesh_index >= 0)),
-            append=True,
-        )
+        def write_identity() -> Dict[str, object] | None:
+            return write_native_preview_identity_blob(
+                identity_path,
+                source_submesh_index=source_submesh_index,
+                vertex_count=vertex_count,
+                source_vertex_indices=(),
+                source_face_indices=(),
+                source_vertex_indices_binary=source_vertex_indices_binary,
+                source_face_indices_binary=source_face_indices_binary,
+                source_vertex_start=None if source_vertex_range is None else source_vertex_range[0],
+                source_vertex_count=0 if source_vertex_range is None else source_vertex_range[1],
+                source_face_start=None if source_face_range is None else source_face_range[0],
+                source_face_count=0 if source_face_range is None else source_face_range[1],
+                role=role,
+                part_name=str(getattr(batch, "editor_part_name", "") or ""),
+                editable=bool(getattr(batch, "editor_editable", source_submesh_index >= 0)),
+                append=True,
+            )
+
+        try:
+            identity_size_before = identity_path.stat().st_size
+        except FileNotFoundError:
+            identity_size_before = 0
+        except OSError:
+            return None
+        report = write_identity()
+        if not isinstance(report, Mapping):
+            try:
+                if identity_path.is_file():
+                    with identity_path.open("r+b") as identity_stream:
+                        identity_stream.truncate(identity_size_before)
+                elif identity_size_before:
+                    return None
+            except OSError:
+                return None
+            shutdown_native_mesh_core_service()
+            report = write_identity()
     finally:
         _cleanup_identity_sidecars(sidecar_paths)
     if not isinstance(report, Mapping):
@@ -1533,7 +1569,7 @@ def write_isolated_d3d11_preview_package(
     manifest["normal_y_policy"] = asset_preflight.get("normal_y_policy", {})
     manifest["renderdoc_truth_pass"] = asset_preflight.get("renderdoc_truth_pass", {})
     manifest["shader_asset_fidelity_status"] = asset_preflight.get("shader_asset_fidelity_status", {})
-    (package_dir / "manifest.json").write_text(json.dumps(manifest, separators=(",", ":")), encoding="utf-8")
+    _write_verified_preview_manifest(package_dir / "manifest.json", manifest)
     _emit_progress(progress_total, progress_total, "D3D11 preview package manifest written.")
     return package_dir
 

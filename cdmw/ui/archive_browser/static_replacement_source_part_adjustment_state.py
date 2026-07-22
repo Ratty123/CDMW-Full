@@ -37,6 +37,7 @@ class SourcePartGlowColorActionState:
 class SourcePartGlowEmissiveUpdateState:
     source_index: int
     emissive_color_rgb: tuple[int, ...]
+    emissive_strength: float | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -321,30 +322,38 @@ def source_part_material_adjustment_values_changed(
 def source_part_glow_emissive_update_states(
     source_part_adjustments: Mapping[int, object],
     *,
+    source_index: object,
     rgb: Sequence[object],
     use_color: bool,
+    strength: object = 1.0,
+    use_strength: bool = False,
 ) -> tuple[SourcePartGlowEmissiveUpdateState, ...]:
+    try:
+        normalized_source_index = int(source_index)
+    except (TypeError, ValueError, OverflowError):
+        return ()
+    if normalized_source_index < 0:
+        return ()
+    adjustment = source_part_adjustments.get(normalized_source_index)
+    if adjustment is None or str(getattr(adjustment, "material_role", "") or "").strip().lower() != "glow":
+        return ()
     normalized_rgb = _source_part_rgb(rgb)
     next_rgb = normalized_rgb if use_color else ()
-    updates: list[SourcePartGlowEmissiveUpdateState] = []
-    for raw_source_index, adjustment in tuple(source_part_adjustments.items()):
-        try:
-            source_index = int(raw_source_index)
-        except (TypeError, ValueError):
-            continue
-        if source_index < 0:
-            continue
-        if str(getattr(adjustment, "material_role", "") or "").strip() != "glow":
-            continue
-        if tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()) == next_rgb:
-            continue
-        updates.append(
-            SourcePartGlowEmissiveUpdateState(
-                source_index=source_index,
-                emissive_color_rgb=next_rgb,
-            )
-        )
-    return tuple(updates)
+    try:
+        normalized_strength = max(0.0, min(20.0, float(strength))) if use_strength else None
+    except (TypeError, ValueError, OverflowError):
+        normalized_strength = 1.0 if use_strength else None
+    current_rgb = tuple(getattr(adjustment, "emissive_color_rgb", ()) or ())
+    current_strength = getattr(adjustment, "emissive_strength", None)
+    if current_rgb == next_rgb and current_strength == normalized_strength:
+        return ()
+    return (
+        SourcePartGlowEmissiveUpdateState(
+            source_index=normalized_source_index,
+            emissive_color_rgb=next_rgb,
+            emissive_strength=normalized_strength,
+        ),
+    )
 
 
 def source_part_glow_color_action_state() -> SourcePartGlowColorActionState:
@@ -406,10 +415,9 @@ def source_part_role_export_flush_states(
         material_role_changed = (
             str(getattr(adjustment, "material_role", "") or "").strip() != role_state.normalized_role
         )
-        clear_emissive = (
-            role_state.normalized_role != "glow"
-            and bool(tuple(getattr(adjustment, "emissive_color_rgb", ()) or ()))
-        )
+        # Color/strength are dormant metadata outside the glow role. Keeping them
+        # lets each part restore its independent override when glow is reselected.
+        clear_emissive = False
         states.append(
             SourcePartRoleExportFlushState(
                 source_index=role_state.source_index,

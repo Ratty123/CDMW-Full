@@ -256,13 +256,18 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "float3 heightNormal = normalize(" in shader
     assert "float reliefEdge = saturate(" in shader
     assert "float heightRelief = (heightValue - 0.5f)" in shader
-    assert "saturate(MaterialHeightScale * 10.0f)" in shader
+    assert "heightStrength = saturate(MaterialHeightScale + declaredHeight * 0.04f);" in shader
+    assert "* saturate(MaterialHeightScale);" in shader
+    assert "heightX * heightStrength" not in shader
     assert "uv += viewDirection.xy * height * MaterialHeightScale;" not in shader
     assert "float3 metalTintBias = clamp(" in shader
     assert "materialReferenceAlbedo * metalTintBias" in shader
     assert "lerp(0.05f, 1.25f, neutralMetalTint)" in shader
     assert "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);" in shader
-    assert "materialReferenceAlbedo * metalTintBias,\n            0.34f));" in shader
+    assert (
+        "materialReferenceAlbedo * metalTintBias,\n"
+        "            0.34f * saturate(MaterialBaseTintPolicy.x)));"
+    ) in shader
     assert "float metalTintBlend = lerp(" not in shader
     assert "float ambientFloor = categoryMetal ? 0.24f" in shader
     assert "float diffuseDepth = saturate(" in shader
@@ -349,9 +354,9 @@ def test_untextured_faces_use_angle_safe_two_sided_workbench_lighting() -> None:
     assert "Matrix4x4.Transpose(inverseWorld)" in settings
     assert "WorkbenchGeometryColor(input)" in shader
     assert "normal = dot(normal, viewDirection) < 0.0f ? -normal : normal;" in shader
-    assert "const float minimumIllumination = 0.48f;" in shader
-    assert "max(PresentationLightingTuning.y, 0.58f)" in shader
-    assert "rimShape * 0.10f" in shader
+    assert "const float minimumIllumination = 0.38f;" in shader
+    assert "keyLight * 0.48f" in shader
+    assert "rimShape * 0.025f" in shader
     assert "MathF.Sin(azimuth) * cosElevation" in settings
     assert "-MathF.Cos(azimuth) * cosElevation" in settings
     assert "float3 lightDirection = normalize(LightDirection);" in shader

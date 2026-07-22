@@ -58,6 +58,10 @@ def test_texture_editor_dds_updates_resident_dotnet_resource_without_legacy_pack
             assert tab.apply_texture_editor_dds_preview(str(preview_path), binding)
 
         legacy_preview.assert_not_called()
+        assert _wait_for(
+            app,
+            lambda: any(b'"event":"material_state_update"' in raw for raw in process.stdin_writes),
+        )
         payload = next(
             json.loads(raw.decode("utf-8"))
             for raw in process.stdin_writes
@@ -67,7 +71,8 @@ def test_texture_editor_dds_updates_resident_dotnet_resource_without_legacy_pack
         assert payload["reason"] == "texture_editor_preview"
         resources = {item["resource_id"]: item for item in payload["resources"]}
         base_resource = payload["submeshes"][0]["channels"]["base"]
-        assert Path(resources[base_resource]["path"]) == preview_path.resolve()
+        assert Path(resources[base_resource]["path"]).is_file()
+        assert Path(resources[base_resource]["source_reference"]) == preview_path.resolve()
     finally:
         tab.deleteLater()
         app.processEvents()
@@ -112,6 +117,10 @@ def test_texture_editor_export_assigns_undoable_resident_texture_and_obj_export(
         controller = tab.standalone_controller
         assert controller.working_mesh().submeshes[0].texture == str(assigned_path.resolve())
         assert controller.session_view().revision == 1
+        assert _wait_for(
+            app,
+            lambda: any(b'"event":"material_state_update"' in raw for raw in process.stdin_writes),
+        )
         payload = next(
             json.loads(raw.decode("utf-8"))
             for raw in process.stdin_writes
@@ -133,7 +142,8 @@ def test_texture_editor_export_assigns_undoable_resident_texture_and_obj_export(
         assert session_index < material_index
         resources = {item["resource_id"]: item for item in payload["resources"]}
         base_resource = payload["submeshes"][0]["channels"]["base"]
-        assert Path(resources[base_resource]["path"]) == assigned_path.resolve()
+        assert Path(resources[base_resource]["path"]).is_file()
+        assert Path(resources[base_resource]["source_reference"]) == assigned_path.resolve()
         assigned_snapshot = controller.mesh_service.capture_export_snapshot(controller.active_session_id)
         assert assigned_snapshot.texture_revisions == ((base_resource, "base", 1),)
         assert assigned_snapshot.texture_resources[0].dds_data == b"dds assigned"
@@ -187,6 +197,10 @@ def test_texture_editor_assignment_uses_embedded_dotnet_target_controller(tmp_pa
 
         assert tab.apply_texture_editor_dds_result(str(assigned_path), binding)
         assert controller.working_mesh().submeshes[0].texture == str(assigned_path.resolve())
+        assert _wait_for(
+            app,
+            lambda: any(b'"reason":"texture_editor_assign"' in raw for raw in process.stdin_writes),
+        )
         assert any(b'"reason":"texture_editor_assign"' in raw for raw in process.stdin_writes)
     finally:
         if controller is not None:

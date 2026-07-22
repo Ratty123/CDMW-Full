@@ -47,6 +47,7 @@ from cdmw.core.archive_model_texture_semantics import (
 from cdmw.core.archive_model_texture_sidecar_rules import (
     _apply_model_sidecar_base_preview,
     _is_low_authority_model_base_texture,
+    _model_sidecar_binding_can_supply_full_base,
     _mesh_existing_base_is_sidecar_identity,
     _mesh_preview_base_is_low_authority,
     _model_sidecar_binding_alpha_cutoff,
@@ -135,6 +136,8 @@ def _collect_sidecar_binding(
             if color_key not in seen_colors:
                 seen_colors.add(color_key)
                 state.global_material_colors.append((color_priority, color, binding))
+    if not _model_sidecar_binding_can_supply_full_base(binding):
+        return
     entry, status = _resolve_model_texture_archive_entry(
         state.source_entry,
         binding.texture_path,
@@ -215,6 +218,30 @@ def _mesh_sidecar_exact_candidates(
     )
 
 
+def _binding_matches_assigned_material_contract(
+    mesh: ModelPreviewMesh,
+    binding: _ArchiveModelSidecarTextureBinding,
+) -> bool:
+    """Keep PAC texture/color fallbacks inside the selected wrapper owner."""
+
+    if (
+        str(getattr(binding, "sidecar_kind", "") or "").strip().casefold()
+        not in {"pac_xml", "pami"}
+        or int(getattr(binding, "owner_slot_index", -1)) < 0
+    ):
+        return True
+    material_primitive = str(
+        getattr(mesh, "preview_sidecar_material_primitive", "") or ""
+    ).strip()
+    if not material_primitive:
+        return True
+    selected_keys = set(
+        _iter_model_submesh_exact_reference_candidates(material_primitive)
+    )
+    binding_keys = set(_iter_model_sidecar_binding_exact_submesh_keys(binding))
+    return not selected_keys or not binding_keys or bool(selected_keys.intersection(binding_keys))
+
+
 def _matched_visible_bindings(
     state: _SidecarAttachmentState,
     index: int,
@@ -225,7 +252,11 @@ def _matched_visible_bindings(
     candidates = tuple(
         item
         for item in state.fallback_visible_bindings
-        if not exclude_low_authority or not _is_low_authority_model_base_texture(item[1].path)
+        if _binding_matches_assigned_material_contract(mesh, item[4])
+        and (
+            not exclude_low_authority
+            or not _is_low_authority_model_base_texture(item[1].path)
+        )
     )
     selected_bindings = _select_model_sidecar_bindings_for_submesh(
         tuple(item[4] for item in candidates),
@@ -399,14 +430,19 @@ def _assign_sidecar_material_colors(state: _SidecarAttachmentState) -> None:
         raise_if_cancelled(state.stop_event)
         existing_color = tuple(getattr(mesh, "preview_color", ()) or ())
         existing_path = str(getattr(mesh, "preview_texture_path", "") or "").strip()
+        eligible_color_bindings = tuple(
+            item
+            for item in state.material_color_bindings
+            if _binding_matches_assigned_material_contract(mesh, item[2])
+        )
         selected_bindings = _select_model_sidecar_bindings_for_submesh(
-            tuple(item[2] for item in state.material_color_bindings),
+            tuple(item[2] for item in eligible_color_bindings),
             exact_candidates=_mesh_sidecar_exact_candidates(state, index, mesh),
             fuzzy_candidates=_mesh_sidecar_candidates(state, index, mesh),
         )
         selected_ids = {id(binding) for binding in selected_bindings}
         best = max(
-            (item for item in state.material_color_bindings if id(item[2]) in selected_ids),
+            (item for item in eligible_color_bindings if id(item[2]) in selected_ids),
             key=lambda item: item[0],
             default=None,
         )

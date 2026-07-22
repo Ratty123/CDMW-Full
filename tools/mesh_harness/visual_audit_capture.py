@@ -357,7 +357,8 @@ def run_dotnet_capture_batch(
     report_path = runtime_root / "dotnet-batch-report.json"
     report_path.unlink(missing_ok=True)
     manifest = {
-        "schema": "cdmw_mesh_visual_audit_dotnet_batch_v1",
+        "schema": "cdmw_mesh_visual_audit_dotnet_batch_v2",
+        "compatible_reader_schemas": ["cdmw_mesh_visual_audit_dotnet_batch_v1"],
         "run_id": run_id,
         "output_root": str(output_root),
         "width": 768,
@@ -366,7 +367,15 @@ def run_dotnet_capture_batch(
             {
                 "id": str(asset["id"]),
                 "package_dir": str(asset["dotnet_package_dir"]),
+                "resident_material_state_path": str(
+                    asset.get("resident_material_state_path", "") or ""
+                ),
                 "views": [dict(view) for view in tuple(asset.get("views", ()) or ())],
+                "material_regions": [
+                    dict(region)
+                    for region in tuple(asset.get("material_regions", ()) or ())
+                    if isinstance(region, Mapping)
+                ],
             }
             for asset in runtime_assets
         ],
@@ -421,7 +430,7 @@ def run_dotnet_capture_batch(
         }
     except subprocess.TimeoutExpired as exc:
         return {
-            "schema": "cdmw_mesh_visual_audit_dotnet_batch_v1",
+            "schema": "cdmw_mesh_visual_audit_dotnet_batch_v2",
             "run_id": run_id,
             "ok": False,
             "command": command,

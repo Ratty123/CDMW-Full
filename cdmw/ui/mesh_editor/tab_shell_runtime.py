@@ -117,6 +117,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_material_signature = ""
         self.standalone_dotnet_pending_clone_material_model: object | None = None
         self.standalone_dotnet_pending_reference_material_model: object | None = None
+        self.standalone_dotnet_material_update_thread: _tab.QThread | None = None
+        self.standalone_dotnet_material_update_worker: _tab.MeshDotNetMaterialUpdateWorker | None = None
+        self.standalone_dotnet_material_update_pending: tuple[object, tuple[dict[str, object], ...]] | None = None
+        self.standalone_dotnet_material_update_active_resources: tuple[dict[str, object], ...] = ()
+        self.standalone_dotnet_material_update_cancelled = False
         self.standalone_dotnet_capture_request_id = 0
         self.standalone_dotnet_capture_callbacks: dict[int, tuple[object, object, object]] = {}
         self.standalone_dotnet_provenance_verified = False
@@ -136,6 +141,11 @@ class MeshEditorTabShellRuntimeMixin:
             "material_state_update_count": 0,
             "material_state_applied_count": 0,
             "material_state_failed_count": 0,
+            "material_compile_start_count": 0,
+            "material_compile_completed_count": 0,
+            "material_compile_failed_count": 0,
+            "material_compile_replaced_count": 0,
+            "material_compile_stale_count": 0,
         }
         self._initialize_runtime_objects()
 

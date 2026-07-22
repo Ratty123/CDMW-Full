@@ -81,6 +81,7 @@ class MeshDotNetExperimentPackage:
     reference_submesh_count: int = 0
     scene_frame: StaticMeshSceneFrame | None = None
     scene_session_id: str = ""
+    scene_material_slot_indices: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -310,6 +311,41 @@ def find_mesh_dotnet_experiment_editor() -> Path | None:
     return Path(resolution.resolved_path) if resolution.is_file and resolution.resolved_path else None
 
 
+def _scene_material_slot_indices(
+    sidecar_payload: Mapping[str, object],
+) -> tuple[int, ...]:
+    """Extract the exporter-owned scene-submesh to material-slot mapping."""
+
+    rows: object = ()
+    lods = sidecar_payload.get("lods")
+    if isinstance(lods, Sequence) and not isinstance(lods, (str, bytes, bytearray)) and lods:
+        first_lod = lods[0]
+        if isinstance(first_lod, Mapping):
+            rows = first_lod.get("submeshes", ())
+    if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes, bytearray)):
+        rows = sidecar_payload.get("submeshes", ())
+    if not isinstance(rows, Sequence) or isinstance(rows, (str, bytes, bytearray)):
+        return ()
+
+    indexed: list[tuple[int, int]] = []
+    for fallback_index, row in enumerate(rows):
+        if not isinstance(row, Mapping):
+            continue
+        try:
+            submesh_index = int(row.get("submesh_index", fallback_index))
+            material_slot_index = int(row.get("material_slot_index", fallback_index))
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if submesh_index >= 0 and material_slot_index >= 0:
+            indexed.append((submesh_index, material_slot_index))
+    if not indexed:
+        return ()
+    result = [-1] * (max(index for index, _slot in indexed) + 1)
+    for submesh_index, material_slot_index in indexed:
+        result[submesh_index] = material_slot_index
+    return tuple(result)
+
+
 def build_mesh_dotnet_experiment_package(
     mesh: ParsedMesh,
     *,
@@ -373,6 +409,20 @@ def build_mesh_dotnet_experiment_package(
         scene_sidecar_payload = json.loads(scene_sidecar_path.read_text(encoding="utf-8"))
     if not isinstance(scene_sidecar_payload, dict):
         raise RuntimeError("Mesh .NET experiment scene sidecar is not a JSON object.")
+    scene_material_slot_indices = _scene_material_slot_indices(scene_sidecar_payload)
+    for scene_submesh_index, source in enumerate(
+        tuple(getattr(scene_mesh, "submeshes", ()) or ())
+    ):
+        if (
+            scene_submesh_index < len(scene_material_slot_indices)
+            and scene_material_slot_indices[scene_submesh_index] >= 0
+        ):
+            setattr(
+                source,
+                "preview_dotnet_scene_material_slot_index",
+                scene_material_slot_indices[scene_submesh_index],
+            )
+    material_signature = mesh_dotnet_material_input_signature(scene_mesh)
     try:
         _write_dotnet_material_manifest(
             net_materials_path,
@@ -449,6 +499,7 @@ def build_mesh_dotnet_experiment_package(
         reference_submesh_count=reference_submesh_count,
         scene_frame=scene_frame,
         scene_session_id=str(scene_session_id or ""),
+        scene_material_slot_indices=scene_material_slot_indices,
     )
     _write_initial_dotnet_launch_manifest(package, net_materials_path, scene_mesh_path, scene_manifest_path)
     return package

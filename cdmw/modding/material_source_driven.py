@@ -162,10 +162,14 @@ def _source_driven_slots(
             scale = _profile_optional_scale(profile, "emissive_color_scale")
             saturation = _profile_optional_scale(profile, "emissive_color_saturation")
             value_max = _profile_optional_byte(profile, "emissive_color_value_max")
-            if scale is None and saturation is None and value_max is None:
+            override_rgb = _normalized_accent_glow_rgb(
+                getattr(texture_set, "accent_glow_color_rgb", ())
+            )
+            if scale is None and saturation is None and value_max is None and not override_rgb:
                 return source_slot
             return replace(
                 source_slot,
+                base_color_factor=override_rgb or tuple(source_slot.base_color_factor or ()),
                 base_color_scale=scale if scale is not None else 1.0,
                 base_color_lift=0,
                 base_color_gamma=1.0,
@@ -1382,8 +1386,24 @@ def _complete_swap_accent_emissive_slot(
         return None
     base_slot = texture_set.slots.get("base")
     if base_slot is not None:
-        if _source_slot_is_real_texture(base_slot) and not _texture_set_has_explicit_glow_authority(texture_set):
-            return None
+        if _source_slot_is_real_texture(base_slot):
+            if not _texture_set_has_explicit_glow_authority(texture_set):
+                return None
+            color = override_rgb or tuple(texture_set.base_color_factor or ()) or (1.0, 1.0, 1.0)
+            try:
+                rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])
+            except (TypeError, ValueError, OverflowError):
+                rgb = (1.0, 1.0, 1.0)
+            return ReplacementTextureSlot(
+                material_name=texture_set.material_name,
+                slot_kind="emissive",
+                source_path=_solid_material_factor_png_path(
+                    texture_set.material_name,
+                    "explicit_part_emissive",
+                    rgb if len(rgb) >= 3 else (1.0, 1.0, 1.0),
+                ),
+                source_authority="explicit_part_glow",
+            )
         return replace(
             base_slot,
             slot_kind="emissive",
@@ -1398,6 +1418,8 @@ def _complete_swap_accent_emissive_slot(
             base_color_factor=override_rgb or tuple(base_slot.base_color_factor or ()),
         )
     color = override_rgb or tuple(texture_set.base_color_factor or ())
+    if not color and _texture_set_has_explicit_glow_authority(texture_set):
+        color = (1.0, 1.0, 1.0)
     if len(color) >= 3:
         try:
             rgb = tuple(max(0.0, min(1.0, float(component))) for component in color[:3])

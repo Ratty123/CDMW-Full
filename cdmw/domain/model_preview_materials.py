@@ -44,6 +44,11 @@ class PreviewMaterialTextureInput:
     layer_role: str = ""
     layer_channel: str = ""
     blend_flags: Tuple[str, ...] = ()
+    owner_slot_index: int = -1
+    owner_wrapper_item_id: str = ""
+    binding_authority: str = ""
+    binding_disposition: str = ""
+    source_kind: str = ""
     material_parameters: Tuple[PreviewMaterialParameterInput, ...] = ()
 
 

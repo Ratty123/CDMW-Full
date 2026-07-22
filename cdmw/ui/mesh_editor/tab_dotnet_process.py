@@ -170,6 +170,7 @@ class MeshEditorDotNetProcessMixin:
         except RuntimeError:
             return False
     def _stop_standalone_dotnet_editor_process(self, *, embedded_state: str = "closed") -> None:
+        self._cancel_dotnet_material_compile()
         self.standalone_dotnet_ready_timer.stop()
         self.standalone_dotnet_deactivate_timer.stop()
         process = self.standalone_dotnet_editor_process
@@ -204,6 +205,7 @@ class MeshEditorDotNetProcessMixin:
         self._record_mesh_dotnet_event("mesh_dotnet_process_finished", **process_payload)
         self.standalone_dotnet_ready_timer.stop()
         self.standalone_dotnet_editor_process = None
+        self._cancel_dotnet_material_compile()
         self.standalone_dotnet_update_ack_timer.stop()
         self.standalone_dotnet_update_queue.reset()
         self._cancel_pending_dotnet_captures()

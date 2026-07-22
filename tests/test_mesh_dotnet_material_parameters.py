@@ -51,6 +51,28 @@ def _parameter_writes(process: _FakeProcess) -> list[dict[str, object]]:
     ]
 
 
+def _material_state_writes(
+    app: QApplication,
+    process: _FakeProcess,
+    *,
+    minimum: int = 1,
+) -> list[dict[str, object]]:
+    deadline = time.monotonic() + 3.0
+    writes: list[dict[str, object]] = []
+    while time.monotonic() < deadline:
+        app.processEvents()
+        writes = [
+            payload
+            for raw in process.stdin_writes
+            if (payload := json.loads(raw.decode("utf-8"))).get("event")
+            == "material_state_update"
+        ]
+        if len(writes) >= minimum:
+            break
+        time.sleep(0.005)
+    return writes
+
+
 def _flush_parameter_update(tab: MeshEditorTab) -> bool:
     tab.standalone_dotnet_material_parameter_timer.stop()
     return tab._flush_dotnet_material_parameter_update()
@@ -59,7 +81,7 @@ def _flush_parameter_update(tab: MeshEditorTab) -> bool:
 def test_embedded_hook_coalesces_latest_unsent_parameter_groups(
     resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
 ) -> None:
-    _app, tab, builder, process = resident_parameter_tab
+    app, tab, builder, process = resident_parameter_tab
     hook = getattr(builder, "_mesh_editor_embedded_apply_material_parameters")
     capability = getattr(builder, "_mesh_editor_embedded_resident_material_parameters_supported")
     revision = builder.controller.session_view().revision
@@ -247,7 +269,7 @@ def test_native_material_override_update_uses_separate_parameter_event(
 def test_material_state_can_target_affected_submeshes_and_snapshot(
     resident_parameter_tab: tuple[QApplication, MeshEditorTab, _EmbeddedMeshBuilder, _FakeProcess],
 ) -> None:
-    _app, tab, builder, process = resident_parameter_tab
+    app, tab, builder, process = resident_parameter_tab
     tab.standalone_dotnet_capabilities.add("resident_material_updates_v2")
     mesh = builder.controller.working_mesh(clone=True)
 
@@ -257,11 +279,7 @@ def test_material_state_can_target_affected_submeshes_and_snapshot(
         mesh_snapshot=mesh,
     )
 
-    payload = next(
-        json.loads(raw.decode("utf-8"))
-        for raw in process.stdin_writes
-        if b'"event":"material_state_update"' in raw
-    )
+    payload = _material_state_writes(app, process)[0]
     assert payload["affected_submeshes"] == [1]
     assert payload["reason"] == "texture_replaced"
 

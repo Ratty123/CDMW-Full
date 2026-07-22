@@ -44,15 +44,6 @@ _FAMILY_DISPLAY_NAMES = {
     "environment_water": "Environment Water",
 }
 
-_SUPPORTED_GLOBAL_MASK_FAMILIES = {
-    "standard",
-    "standard_v2",
-    "static_standard",
-    "static_multitextured",
-    "emissive",
-    "emissive_v2",
-}
-
 _CHANNEL_SUFFIXES = {
     "r": "r",
     "red": "r",
@@ -71,8 +62,6 @@ _DIRECT_SLOT_RULES = {
     "albedotexture": ("base", "crimson_albedo", {"base_color": "rgb"}, "sRGB color texture"),
     "colortexture": ("base", "crimson_color", {"base_color": "rgb"}, "sRGB color texture"),
     "normaltexture": ("normal", "crimson_normal", {"normal": "rgb"}, "normal map"),
-    "detailnormaltexture": ("normal", "crimson_detail_normal", {"normal": "rgb"}, "layer normal map"),
-    "wrinklenormaltexture": ("normal", "crimson_wrinkle_normal", {"normal": "rgb"}, "layer normal map"),
     "emissivetexture": ("emissive", "crimson_emissive", {"emissive": "rgb"}, "sRGB emissive texture"),
     "emissivecolortexture": ("emissive", "crimson_emissive", {"emissive": "rgb"}, "sRGB emissive texture"),
     "heighttexture": ("height", "crimson_height", {}, "height/displacement map"),
@@ -396,27 +385,25 @@ def decode_crimson_texture_binding(
         return decode
 
     if parameter_key in {"colorblendingmasktexture", "blendingmasktexture"}:
-        promoted = {"ao": "r", "roughness": "g", "metalness": "b"} if family in _SUPPORTED_GLOBAL_MASK_FAMILIES else {}
         decode.update(
             {
                 "slot": "material",
                 "source_kind": "crimson_color_blending_mask",
                 "authority": _authority_from_source(
-                    exact_rule=bool(promoted),
+                    exact_rule=True,
                     sidecar_kind=sidecar_kind,
                     parameter_declared_by=parameter_declared_by,
                     capture_inferred=capture_inferred,
                     fallback_guess=fallback_guess,
                 ),
-                "disposition": "promoted" if promoted else "diagnostic_only",
-                "promoted_channels": dict(promoted),
-                "source_channels": dict(promoted),
+                "disposition": "layer_only",
+                "promoted_channels": {},
+                "source_channels": {},
                 "srgb": "false",
                 "known_slot": True,
                 "reason": (
-                    "Crimson _colorBlendingMaskTexture: R=AO, G=roughness, B=metalness"
-                    if promoted
-                    else "Crimson color blending mask family not yet proven for global PBR promotion"
+                    "Crimson _colorBlendingMaskTexture selects PAC-owned R/G/B color layers; "
+                    "dedicated grime/detail material textures own material response"
                 ),
             }
         )
@@ -428,7 +415,6 @@ def decode_crimson_texture_binding(
         or "hairanisotropydetailmask" in parameter_key
         or "wrinklemask" in parameter_key
         or "tornpattern" in parameter_key
-        or suffix == "mg"
         or subtype == "detail_mask"
     ):
         source_kind = "crimson_detail_mask"
@@ -482,7 +468,7 @@ def decode_crimson_texture_binding(
 
     if (
         "grimenormal" in parameter_key
-        or "detailnormalmask" in parameter_key
+        or "detailnormal" in parameter_key
         or "damageblendingnormal" in parameter_key
         or "wrinklenormal" in parameter_key
         or "hairanisotropydetailnormal" in parameter_key
@@ -607,7 +593,6 @@ def decode_crimson_texture_binding(
         or parameter_key.startswith("layerspeculartexture")
         or "materialtexture" == parameter_key
         or "speculartexture" == parameter_key
-        or suffix == "sp"
     ):
         source_kind = "crimson_layer_material_response"
         if family == "skin" or "skin" in parameter_key:
@@ -712,7 +697,7 @@ def decode_crimson_texture_binding(
         )
         return decode
 
-    if parameter_key == "flowtexture" or suffix == "flow":
+    if parameter_key == "flowtexture":
         decode.update(
             {
                 "slot": "layer",
@@ -854,8 +839,9 @@ def decode_profile_for_family(shader_family: object) -> Dict[str, object]:
         "family": family,
         "family_display": shader_family_display_name(family),
         "authority": AUTHORITY_AUTHORITATIVE if family in CRIMSON_SHADER_FAMILIES or family in {"standard", "static_standard"} else AUTHORITY_GUESS,
-        "global_material_promotions": ["_colorBlendingMaskTexture"] if family in _SUPPORTED_GLOBAL_MASK_FAMILIES else [],
+        "global_material_promotions": [],
         "layer_only_parameters": [
+            "_colorBlendingMaskTexture",
             "_detailMaskTexture",
             "_grimeMaterialTextureR/G/B/A",
             "_detailMaterialTextureR/G/B/A",

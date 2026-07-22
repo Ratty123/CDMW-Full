@@ -200,10 +200,11 @@ internal sealed class NetSceneState
 
     public bool IsEditable(int submeshIndex) => submeshIndex >= 0 && submeshIndex < EditableSubmeshCount;
     public bool IsReference(int submeshIndex) => submeshIndex >= EditableSubmeshCount && submeshIndex < EditableSubmeshCount + ReferenceSubmeshCount;
+    public bool IsPresentationVisible(int submeshIndex) => !_presentationHiddenSubmeshes.Contains(submeshIndex);
 
     public bool IsVisible(int submeshIndex)
     {
-        if (_presentationHiddenSubmeshes.Contains(submeshIndex))
+        if (!IsPresentationVisible(submeshIndex))
         {
             return false;
         }

@@ -113,6 +113,10 @@ internal sealed partial class D3D11MaterialViewport
 
     private bool ActivePaneIncludes(int submeshIndex)
     {
+        if (!_scene.IsPresentationVisible(submeshIndex))
+        {
+            return false;
+        }
         var role = _activeRenderPane?.Role ?? "comparison";
         return role switch
         {

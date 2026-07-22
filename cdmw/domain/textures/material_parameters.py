@@ -300,9 +300,12 @@ def evaluate_material_parameters(
     metalness = _optional_float(getattr(profile, "scratch_metallic", None), 0.0, 1.0) if scalar_surface_mode else None
     specular = _optional_float(getattr(profile, "shine_scalar", None), 0.0, 1.0)
     displacement = _optional_float(getattr(profile, "displacement_scale_multiplier", None), 0.0, 1.0)
+    displacement_cap = _optional_float(getattr(profile, "displacement_scale_max", None), 0.0, 1.0)
     edge_present = profile is not None and hasattr(profile, "edge_relief_strength")
     edge_relief = normalize_basic_control_percent(getattr(profile, "edge_relief_strength", 0.0)) / 100.0
     height_scale = max(displacement or 0.0, edge_relief) if displacement is not None or edge_present else None
+    if height_scale is not None and displacement_cap is not None:
+        height_scale = min(height_scale, displacement_cap)
 
     raw_role = str(getattr(part_adjustment, "material_role", "") or "").strip().lower()
     role_enabled = bool(emissive_role) if emissive_role is not None else raw_role in {"glow", "emissive", "emission"}

@@ -230,6 +230,23 @@ def test_visual_audit_integrity_requires_same_six_archive_and_dotnet_views() -> 
     assert complete["rendered_camera_views_match"] is True
     assert complete["ok"] is True
 
+    changed_package = _capture_integrity(
+        run_id="camera-run",
+        expected_ids=["001-camera"],
+        archive_report=archive_report,
+        dotnet_report=_dotnet_camera_report(),
+        composite_rows=[
+            {
+                "id": "001-camera",
+                "archive_browser_capture_ok": True,
+                "mesh_editor_capture_ok": True,
+            }
+        ],
+        prepared_packages_unchanged=False,
+    )
+    assert changed_package["prepared_packages_unchanged"] is False
+    assert changed_package["ok"] is False
+
     opposite_side = _capture_integrity(
         run_id="camera-run",
         expected_ids=["001-camera"],

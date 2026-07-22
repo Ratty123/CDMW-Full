@@ -16,9 +16,12 @@ def _capture_integrity(
     archive_report: Mapping[str, object],
     dotnet_report: Mapping[str, object],
     composite_rows: Sequence[Mapping[str, object]],
+    prepared_packages_unchanged: bool = True,
 ) -> dict[str, object]:
+    dotnet_v2 = str(dotnet_report.get("schema", "") or "").endswith("_v2")
     integrity = {
-        "schema": "cdmw_mesh_visual_audit_integrity_v1",
+        "schema": "cdmw_mesh_visual_audit_integrity_v2",
+        "compatible_reader_schemas": ["cdmw_mesh_visual_audit_integrity_v1"],
         "run_id": run_id,
         "expected_asset_ids": expected_ids,
         "archive_asset_ids": _report_asset_ids(archive_report),
@@ -37,11 +40,18 @@ def _capture_integrity(
             archive_report,
             dotnet_report,
         ),
+        "material_region_captures_complete": (
+            _material_region_captures_complete(dotnet_report) if dotnet_v2 else True
+        ),
+        "resident_renderer_unchanged": (
+            _resident_renderer_unchanged(dotnet_report) if dotnet_v2 else True
+        ),
         "composites_complete": all(
             row.get("archive_browser_capture_ok") is True
             and row.get("mesh_editor_capture_ok") is True
             for row in composite_rows
         ),
+        "prepared_packages_unchanged": prepared_packages_unchanged is True,
     }
     integrity["ok"] = (
         integrity["archive_run_matches"]
@@ -49,10 +59,13 @@ def _capture_integrity(
         and integrity["dotnet_camera_mapping_matches"]
         and integrity["paired_camera_views_match"]
         and integrity["rendered_camera_views_match"]
+        and integrity["material_region_captures_complete"]
+        and integrity["resident_renderer_unchanged"]
         and integrity["archive_asset_ids"] == expected_ids
         and integrity["dotnet_asset_ids"] == expected_ids
         and integrity["composite_asset_ids"] == expected_ids
         and integrity["composites_complete"]
+        and integrity["prepared_packages_unchanged"]
     )
     return integrity
 
@@ -85,7 +98,117 @@ def _dotnet_camera_mapping_matches(report: Mapping[str, object]) -> bool:
                 return False
             if abs(renderer_pitch - pitch) > 0.05:
                 return False
+        for region in tuple(asset.get("material_regions", ()) or ()):
+            if not isinstance(region, Mapping):
+                return False
+            for capture in tuple(region.get("captures", ()) or ()):
+                if not isinstance(capture, Mapping):
+                    return False
+                capture_count += 1
+                if str(capture.get("camera_mapping", "")) != expected_mapping:
+                    return False
+                angles = _finite_yaw_pitch(capture)
+                if angles is None:
+                    return False
+                try:
+                    renderer_angles = (
+                        float(capture.get("renderer_yaw")),
+                        float(capture.get("renderer_pitch")),
+                    )
+                except (TypeError, ValueError):
+                    return False
+                if not _angles_match(renderer_angles, angles):
+                    return False
     return capture_count > 0
+
+
+def _material_region_captures_complete(report: Mapping[str, object]) -> bool:
+    expected = (
+        ("front", "final"),
+        ("oblique", "final"),
+        ("oblique", "base"),
+        ("oblique", "normal"),
+        ("oblique", "roughness"),
+        ("oblique", "metallic"),
+        ("oblique", "specular"),
+        ("oblique", "layer_mask"),
+    )
+    region_count = 0
+    for asset in tuple(report.get("assets", ()) or ()):
+        if not isinstance(asset, Mapping):
+            return False
+        try:
+            source_submesh_count = int(asset.get("source_submesh_count", 0))
+        except (TypeError, ValueError, OverflowError):
+            return False
+        if source_submesh_count <= 0:
+            return False
+        regions = tuple(asset.get("material_regions", ()) or ())
+        if not regions:
+            return False
+        seen_indices: set[int] = set()
+        for region in regions:
+            if not isinstance(region, Mapping) or region.get("ok") is not True:
+                return False
+            try:
+                submesh_index = int(region.get("source_submesh_index"))
+            except (TypeError, ValueError, OverflowError):
+                return False
+            if submesh_index < 0 or submesh_index in seen_indices:
+                return False
+            seen_indices.add(submesh_index)
+            captures = tuple(region.get("captures", ()) or ())
+            for capture in captures:
+                if not isinstance(capture, Mapping) or capture.get("ok") is not True:
+                    return False
+                rendered_camera = capture.get("rendered_camera", {})
+                if not isinstance(rendered_camera, Mapping):
+                    return False
+                try:
+                    solid_draw_count = int(rendered_camera.get("solid_draw_count"))
+                except (TypeError, ValueError, OverflowError):
+                    return False
+                if solid_draw_count != 1:
+                    return False
+            actual = tuple(
+                (str(row.get("angle", "")), str(row.get("debug_mode", "")))
+                for row in captures
+                if isinstance(row, Mapping) and row.get("ok") is True
+            )
+            if actual != expected:
+                return False
+            try:
+                hidden = tuple(int(value) for value in tuple(region.get("hidden_submesh_indices", ()) or ()))
+            except (TypeError, ValueError, OverflowError):
+                return False
+            expected_hidden = tuple(index for index in range(source_submesh_count) if index != submesh_index)
+            if hidden != expected_hidden:
+                return False
+            region_count += 1
+        if seen_indices != set(range(source_submesh_count)):
+            return False
+    return region_count > 0
+
+
+def _resident_renderer_unchanged(report: Mapping[str, object]) -> bool:
+    session = report.get("renderer_session", {})
+    if not isinstance(session, Mapping):
+        return False
+    try:
+        return (
+            int(report.get("requested_asset_count", 0)) > 0
+            and int(report.get("resident_material_update_count", -1))
+            == int(report.get("requested_asset_count", 0))
+            and int(report.get("resident_material_update_failure_count", -1)) == 0
+            and int(report.get("process_start_count", 0)) == 1
+            and int(report.get("process_restart_count", -1)) == 0
+            and int(session.get("viewport_create_count", 0)) == 1
+            and int(session.get("device_initialization_count", 0)) == 1
+            and int(session.get("device_reset_attempt_count", -1)) == 0
+            and int(session.get("device_reset_count", -1)) == 0
+        )
+    except (TypeError, ValueError, OverflowError):
+        return False
 
 
 def _paired_camera_views_match(

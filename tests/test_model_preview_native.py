@@ -593,6 +593,83 @@ class NativePreviewPayloadTests(unittest.TestCase):
         self.assertTrue(sidecar_paths)
         self.assertTrue(all(not path.exists() for path in sidecar_paths))
 
+    def test_editor_identity_restarts_native_service_and_retries_without_duplicate_bytes(self) -> None:
+        from cdmw.rendering.native_preview_package_writer import _write_editor_identity_blob_native
+
+        batch = PreparedModelPreviewBatch(
+            vertex_blob=_vertex(0.0, 0.0, 0.0) * 3,
+            index_count=3,
+            source_submesh_index=5,
+            source_vertex_indices=(10, 11, 12),
+            source_face_indices=(20,),
+        )
+        calls = 0
+
+        def _flaky_identity_writer(output_path: object, **_kwargs: object) -> dict[str, object] | None:
+            nonlocal calls
+            calls += 1
+            path = Path(str(output_path))
+            with path.open("ab") as identity_stream:
+                identity_stream.write(bytes([calls]) * (3 * 12))
+            if calls == 1:
+                return None
+            return {
+                "source_submesh_index": 5,
+                "source_vertex_count": 13,
+                "source_face_count": 21,
+                "identity_stride_bytes": 12,
+                "identity_size": 3 * 12,
+                "role": "",
+                "part_name": "",
+                "editable": True,
+            }
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            identity_path = Path(temp_dir) / "identity.bin"
+            identity_path.write_bytes(b"prefix")
+            with patch(
+                "cdmw.rendering.native_preview_package_writer.write_native_preview_identity_blob",
+                side_effect=_flaky_identity_writer,
+            ):
+                with patch(
+                    "cdmw.rendering.native_preview_package_writer.shutdown_native_mesh_core_service"
+                ) as shutdown_service:
+                    metadata = _write_editor_identity_blob_native(identity_path, batch, 3)
+
+            self.assertEqual(b"prefix" + bytes([2]) * (3 * 12), identity_path.read_bytes())
+
+        self.assertEqual(2, calls)
+        shutdown_service.assert_called_once_with()
+        self.assertEqual(3 * 12, metadata["identity_size"])  # type: ignore[index]
+
+    def test_preview_manifest_rewrites_a_corrupt_atomic_readback(self) -> None:
+        from cdmw.core.atomic_file import atomic_write_text as real_atomic_write_text
+        from cdmw.rendering.native_preview_package_writer import _write_verified_preview_manifest
+
+        calls = 0
+
+        def _corrupt_first_write(path: object, text: str, *, encoding: str) -> None:
+            nonlocal calls
+            calls += 1
+            if calls == 1:
+                text = text.replace("parameter_name", "parameter_na\0e", 1)
+            real_atomic_write_text(path, text, encoding=encoding)
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            manifest_path = Path(temp_dir) / "manifest.json"
+            with patch(
+                "cdmw.rendering.native_preview_package_writer.atomic_write_text",
+                side_effect=_corrupt_first_write,
+            ):
+                _write_verified_preview_manifest(
+                    manifest_path,
+                    {"parameter_name": "_tintColorB", "schema_version": 10},
+                )
+            payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(2, calls)
+        self.assertEqual("_tintColorB", payload["parameter_name"])
+
     def test_skeleton_overlay_manifest_includes_bone_positions(self) -> None:
         model = ModelPreviewData(
             path="body.pac",
@@ -1652,11 +1729,11 @@ class NativePreviewPayloadTests(unittest.TestCase):
                 settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
             )
 
-            self.assertIn("standard_v2_mask", combined.decode_modes)
             self.assertIn("standard_v2_specular", combined.decode_modes)
+            self.assertNotIn("color_blending_mask", combined.decode_modes)
             self.assertIn("roughness", combined.material_slots)
             self.assertIn("specular", combined.material_slots)
-            self.assertNotIn("metalness", combined.material_slots)
+            self.assertIn("metalness", combined.material_slots)
             self.assertTrue(Path(QUrl(combined.legacy_material_source).toLocalFile()).is_file())
             self.assertEqual("pbr_combined", combined.legacy_material_decode_mode)
             self.assertIn("shader rule:standard_v2", "; ".join(combined.notes))
@@ -1762,8 +1839,7 @@ class NativePreviewPayloadTests(unittest.TestCase):
             )
 
             self.assertTrue(combined.base_source)
-            self.assertIn("standard_v2_mask", combined.decode_modes)
-            self.assertIn("standard_v2_detail", combined.decode_modes)
+            self.assertEqual((), combined.decode_modes)
             self.assertNotIn("visible_color", combined.decode_modes)
             self.assertIn("albedo synthesized:detail:r", "; ".join(combined.notes))
             self.assertIn("registry:standard_v2", "; ".join(combined.notes))
@@ -1881,8 +1957,8 @@ class NativePreviewPayloadTests(unittest.TestCase):
                 settings=MaterialPreviewCombinerSettings(support_map_max_dimension=96),
             )
 
-            self.assertIn("standard_v2_detail", combined.decode_modes)
             self.assertIn("standard_v2_material", combined.decode_modes)
+            self.assertNotIn("standard_v2_detail", combined.decode_modes)
             self.assertEqual((), combined.material_slots)
             self.assertEqual("", combined.legacy_material_source)
             self.assertIn("material layer mask applied:detail:r", "; ".join(combined.notes))
@@ -2414,12 +2490,11 @@ class NativePreviewPayloadTests(unittest.TestCase):
             )
 
             self.assertIn("shader rule:emissive_v2", "; ".join(combined.notes))
-            self.assertEqual(("standard_v2_mask",), combined.decode_modes)
+            self.assertEqual((), combined.decode_modes)
             self.assertEqual((), combined.material_slots)
             self.assertEqual("", combined.legacy_material_source)
-            albedo = QImage(QUrl(combined.base_source).toLocalFile())
-            self.assertFalse(albedo.isNull())
-            self.assertGreater(albedo.pixelColor(0, 0).red(), albedo.pixelColor(0, 0).blue())
+            self.assertEqual("", combined.base_source)
+            self.assertNotIn("albedo", combined.outputs)
 
     def test_material_combiner_treats_sp_as_specular_and_caps_support_maps(self) -> None:
         from PySide6.QtCore import QUrl

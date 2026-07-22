@@ -127,7 +127,7 @@ class MaterialChannelContractTests(unittest.TestCase):
         self.assertIsNone(contract.channel("metalness"))
         self.assertTrue(any(item.get("slot") == "material" for item in contract.unresolved))
 
-    def test_crimson_ma_material_map_promotes_ao_roughness_and_metalness(self) -> None:
+    def test_crimson_ma_color_blending_mask_stays_layer_only(self) -> None:
         contract = resolve_preview_batch_material_channels(
             {
                 "material_name": "crimson_material",
@@ -145,14 +145,17 @@ class MaterialChannelContractTests(unittest.TestCase):
             }
         )
 
-        self.assertEqual("r", contract.channel("ao").source_channel)
-        self.assertEqual("g", contract.channel("roughness").source_channel)
-        self.assertEqual("b", contract.channel("metalness").source_channel)
-        self.assertEqual("crimson_color_blending_mask", contract.channel("metalness").source_kind)
-        self.assertEqual("authoritative", contract.channel("metalness").authority)
-        self.assertEqual("shader_parameter_rule", contract.channel("roughness").confidence)
-        self.assertEqual("_colorBlendingMaskTexture", contract.channel("metalness").parameter_name)
-        self.assertFalse(contract.unresolved)
+        self.assertIsNone(contract.channel("ao"))
+        self.assertIsNone(contract.channel("roughness"))
+        self.assertIsNone(contract.channel("metalness"))
+        unresolved = next(
+            row
+            for row in contract.unresolved
+            if row.get("parameter_name") == "_colorBlendingMaskTexture"
+        )
+        self.assertEqual("crimson_color_blending_mask", unresolved["source_kind"])
+        self.assertEqual("authoritative", unresolved["authority"])
+        self.assertEqual("layer_only", unresolved["disposition"])
 
     def test_bare_crimson_ma_material_map_stays_unresolved_without_parameter_rule(self) -> None:
         contract = resolve_preview_batch_material_channels(

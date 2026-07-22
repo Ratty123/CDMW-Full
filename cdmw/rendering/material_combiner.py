@@ -17,6 +17,7 @@ from cdmw.rendering.material_combiner_rules import (
     _VISIBLE_BASE_TOKENS,
     _apply_nonmetal_response_limits,
     _apply_sidecar_material_hints,
+    _authoritative_color_blending_tint_seed,
     _byte4_channels,
     _clamp,
     _color_blending_channel_enabled,
@@ -335,7 +336,14 @@ def combine_preview_material(
     selected_base_item: Optional[PreviewMaterialTextureInput] = None
     selected_base_image = QImage()
     selected_base_low_authority = False
-    base_candidates = [item for item in inputs if str(item.slot_kind or "").strip().lower() in {"base", "color", "emissive"}]
+    # PAC emissive/intensity inputs are additive controls, never full albedo.
+    # Only exact color/base bindings may seed the whole base surface.
+    base_candidates = [
+        item
+        for item in inputs
+        if str(item.slot_kind or "").strip().lower() in {"base", "color"}
+        and _visible_layer_role(item) != "emissive"
+    ]
     for item in base_candidates:
         _raise_if_material_combiner_cancelled(cancelled)
         if _is_layer_only_base_color(item):
@@ -397,6 +405,13 @@ def combine_preview_material(
                 channel = _layer_channel(layer_item)
                 role_label = role if not channel else f"{role}:{channel}"
                 notes.append(f"texturelayer_kept_masked:{role_label}:{label}")
+        (
+            color_blending_mask,
+            color_blending_tints,
+            color_blending_palette_source,
+        ) = _authoritative_color_blending_tint_seed(inputs)
+        if color_blending_palette_source:
+            notes.append(f"pac color blending palette:{color_blending_palette_source}")
         synthesized_source, synthesized_note = _generate_synthesized_albedo_map(
             QImage() if neutral_metal_base else selected_base_image,
             visible_layer_inputs,
@@ -406,6 +421,8 @@ def combine_preview_material(
             flip_vertical=prepare_flip_vertical,
             max_dimension=min(base_map_max_dimension, 512),
             neutral_base_color=neutral_base_color,
+            color_blending_mask_input=color_blending_mask,
+            color_blending_tints=color_blending_tints,
             preserve_base_alpha=preserve_base_alpha,
             cancelled=cancelled,
         )

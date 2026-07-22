@@ -33,6 +33,9 @@ from cdmw.rendering.native_preview_package import (
     read_isolated_d3d11_preview_manifest,
     write_isolated_d3d11_preview_package,
 )
+from cdmw.rendering.native_preview_material_contract import (
+    sidecar_preview_texture_tint_for_batch,
+)
 from cdmw.workers.d3d11_package_workers import AlignmentD3D11PackageWorker
 
 
@@ -2501,6 +2504,48 @@ class IsolatedD3D11PreviewPackageTests(unittest.TestCase):
         self.assertEqual([], batch["texture_tint"])
         self.assertEqual(0.0, batch["base_tint_strength"])
         self.assertNotIn("sidecar tint promoted to preview base tint", batch["notes"])
+
+    def test_authoritative_pac_handle_layer_dye_tint_stays_masked_not_global(self) -> None:
+        batch = PreparedModelPreviewBatch(
+            material_name="CD_PHM_02_Handle_0014",
+            texture_name="CD_PHM_02_Sword_Handle_0014",
+            preview_material_texture_inputs=(
+                PreviewMaterialTextureInput(
+                    slot_kind="base",
+                    parameter_name="_detailDiffuseMaskG",
+                    material_name="CD_PHM_02_Handle_0014",
+                    shader_family="SkinnedMeshStandard_Ver2",
+                    sidecar_kind="pac_xml",
+                    owner_slot_index=2,
+                    owner_wrapper_item_id="1191",
+                    binding_authority="authoritative",
+                    binding_disposition="layer_only",
+                    source_kind="crimson_layer_color",
+                    layer_role="detail",
+                    layer_channel="g",
+                    material_parameters=(
+                        PreviewMaterialParameterInput(
+                            parameter_kind="color",
+                            parameter_name="_tintColorR",
+                            color_value=(0.301961, 0.231373, 0.172549),
+                        ),
+                        PreviewMaterialParameterInput(
+                            parameter_kind="color",
+                            parameter_name="_dyeingDetailLayerColorMaskG",
+                            color_value=(1.0, 0.733333, 0.501961),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            (),
+            sidecar_preview_texture_tint_for_batch(
+                batch,
+                source_path="character/model/1_pc/1_phm/weapon/2_twohandweapon/cd_phm_02_sword_0014.pac",
+            ),
+        )
 
     def test_material_category_uses_standalone_tinted_metal_tokens(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

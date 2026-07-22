@@ -1564,6 +1564,11 @@ def material_combiner_cache_dir(model: ModelPreviewData) -> Path:
                 "material_output_quality",
                 "layer_role",
                 "layer_channel",
+                "owner_slot_index",
+                "owner_wrapper_item_id",
+                "binding_authority",
+                "binding_disposition",
+                "source_kind",
             ):
                 digest.update(str(getattr(texture_input, field_name, "") or "").encode("utf-8", errors="replace"))
             for value in tuple(getattr(texture_input, "packed_channels", ()) or ()):

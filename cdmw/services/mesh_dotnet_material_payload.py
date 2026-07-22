@@ -13,6 +13,7 @@ from cdmw.domain.mesh.material_resource_policy import (
 )
 from cdmw.services.mesh_dotnet_material_bindings import (
     _dotnet_material_name,
+    _dotnet_material_slot_index,
     _dotnet_material_sources,
     _dotnet_texture_name,
     _safe_int,
@@ -25,6 +26,7 @@ from cdmw.services.mesh_dotnet_material_channels import (
 )
 from cdmw.services.mesh_dotnet_material_semantics import (
     _dotnet_material_semantic_contract,
+    _source_file_content_fingerprint,
     mesh_dotnet_material_input_signature,
 )
 
@@ -33,13 +35,14 @@ def _dotnet_material_resource(raw_path: str) -> tuple[str, str]:
     source = Path(raw_path).expanduser()
     try:
         resolved = source.resolve()
-        stat = resolved.stat()
         normalized_path = resolved.as_posix()
-        identity = f"{normalized_path.casefold()}|size:{stat.st_size}|mtime_ns:{stat.st_mtime_ns}"
+        fingerprint = _source_file_content_fingerprint(resolved)
     except OSError:
         normalized_path = os.path.normpath(raw_path).replace("\\", "/")
-        identity = f"raw:{normalized_path.casefold()}"
-    return normalized_path, hashlib.sha256(identity.encode("utf-8")).hexdigest()
+        fingerprint = hashlib.sha256(
+            f"raw:{normalized_path.casefold()}".encode("utf-8")
+        ).hexdigest()
+    return normalized_path, fingerprint
 
 
 def mesh_dotnet_texture_resource_id(raw_path: str | Path) -> str:
@@ -174,7 +177,8 @@ def mesh_dotnet_material_state_payload(
     submesh_payloads: list[dict[str, object]] = []
     all_indices: list[int] = []
     source_asset_path = str(getattr(mesh, "path", "") or "").strip()
-    for fallback_index, submesh in enumerate(_dotnet_material_sources(mesh)):
+    source_submeshes = _dotnet_material_sources(mesh)
+    for fallback_index, submesh in enumerate(source_submeshes):
         local_index = _safe_int(
             getattr(
                 submesh,
@@ -209,8 +213,10 @@ def mesh_dotnet_material_state_payload(
         submesh_payloads.append(
             {
                 "submesh_index": submesh_index,
-                "material_slot_index": _safe_int(
-                    getattr(submesh, "material_slot_index", fallback_index), fallback_index
+                "material_slot_index": _dotnet_material_slot_index(
+                    submesh,
+                    source_submeshes,
+                    fallback_index,
                 ),
                 "material": _dotnet_material_name(submesh),
                 "texture": _dotnet_texture_name(submesh),
@@ -235,8 +241,8 @@ def mesh_dotnet_material_state_payload(
         }
     )
     return {
-        "schema": "cdmw_mesh_material_state_v2",
-        "version": 2,
+        "schema": "cdmw_mesh_material_state_v3",
+        "version": 3,
         "event": "material_state_update",
         "session_id": str(session_id or ""),
         "edit_revision": max(0, _safe_int(edit_revision, 0)),

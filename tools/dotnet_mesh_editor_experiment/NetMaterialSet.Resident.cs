@@ -361,11 +361,13 @@ internal sealed partial class NetMaterialSet
             format = JsonText(root, "format");
         }
         var version = JsonLong(root, "version", 0);
-        if (!string.IsNullOrWhiteSpace(format) && !string.Equals(format, "cdmw_mesh_material_state_v2", StringComparison.Ordinal))
+        if (!string.IsNullOrWhiteSpace(format)
+            && !string.Equals(format, "cdmw_mesh_material_state_v2", StringComparison.Ordinal)
+            && !string.Equals(format, "cdmw_mesh_material_state_v3", StringComparison.Ordinal))
         {
             throw new InvalidDataException($"Unsupported material state format: {format}");
         }
-        if (version is not 0 and not 2)
+        if (version is not 0 and not 2 and not 3)
         {
             throw new InvalidDataException($"Unsupported material state version: {version}");
         }

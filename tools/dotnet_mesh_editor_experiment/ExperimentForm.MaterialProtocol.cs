@@ -371,6 +371,8 @@ internal sealed partial class ExperimentForm
             ["edit_revision"] = update.EditRevision,
             ["generation"] = update.Generation,
             ["material_signature"] = _materials.Signature,
+            ["material_authority_fingerprint"] = JsonString(request, "material_authority_fingerprint"),
+            ["material_authority_revision"] = JsonLongValue(request, "material_authority_revision"),
             ["affected_submeshes"] = update.AffectedSubmeshes,
             ["decoded_resources"] = decode.Decoded,
             ["reused_resources"] = decode.Reused,

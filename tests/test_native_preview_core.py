@@ -947,6 +947,8 @@ class NativePreviewCoreTests(unittest.TestCase):
     def test_native_material_index_trusts_exact_wrapper_order_for_single_and_unknown_batches(self) -> None:
         source = preview_core_source()
 
+        self.assertIn("data[desc_start - 1]) == 0", source)
+        self.assertIn("return {name, name};", source)
         self.assertIn("parsed->material_wrapper_count > 0", source)
         self.assertIn("parsed->material_wrapper_count == scoped_count", source)
         self.assertIn("ref.material_wrapper_index < scoped_mesh_count", source)

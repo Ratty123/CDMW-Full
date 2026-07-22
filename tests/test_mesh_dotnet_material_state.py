@@ -21,6 +21,7 @@ from cdmw.services import (
 from cdmw.services.mesh_dotnet_material_state import (
     copy_dotnet_preview_material_bindings,
     defer_dotnet_preview_material_synthesis,
+    mesh_dotnet_texture_resource_id,
 )
 from cdmw.services.mesh_dotnet_experiment import (
     build_mesh_dotnet_experiment_package,
@@ -94,8 +95,8 @@ def test_dotnet_material_state_payload_is_deterministic_and_does_not_build_packa
         affected_submeshes=[8, 8, 99],
     )
 
-    assert payload["schema"] == "cdmw_mesh_material_state_v2"
-    assert payload["version"] == 2
+    assert payload["schema"] == "cdmw_mesh_material_state_v3"
+    assert payload["version"] == 3
     assert payload["event"] == "material_state_update"
     assert payload["session_id"] == "session-1"
     assert payload["edit_revision"] == 9
@@ -107,9 +108,7 @@ def test_dotnet_material_state_payload_is_deterministic_and_does_not_build_packa
     assert payload["submeshes"][0]["material"] == "skin"
 
     resources = {item["path"]: item for item in payload["resources"]}
-    base_stat = base.stat()
-    base_identity = f"{base.resolve().as_posix().casefold()}|size:{base_stat.st_size}|mtime_ns:{base_stat.st_mtime_ns}"
-    expected_base_fingerprint = hashlib.sha256(base_identity.encode("utf-8")).hexdigest()
+    expected_base_fingerprint = hashlib.sha256(base.read_bytes()).hexdigest()
     assert resources[base.resolve().as_posix()]["fingerprint"] == expected_base_fingerprint
     assert resources["missing/eyes.dds"]["fingerprint"] == hashlib.sha256(
         b"raw:missing/eyes.dds"
@@ -149,6 +148,22 @@ def test_dotnet_material_state_payload_is_deterministic_and_does_not_build_packa
     )
     assert repeat["affected_submeshes"] == [3, 8]
     assert repeat | {"affected_submeshes": [8]} == payload
+
+
+def test_texture_resource_identity_depends_on_content_not_temporary_path(
+    tmp_path: Path,
+) -> None:
+    first = tmp_path / "first" / "generated.png"
+    second = tmp_path / "second" / "generated.png"
+    first.parent.mkdir()
+    second.parent.mkdir()
+    first.write_bytes(b"same synthesized texture")
+    second.write_bytes(first.read_bytes())
+
+    assert mesh_dotnet_texture_resource_id(first) == mesh_dotnet_texture_resource_id(second)
+
+    second.write_bytes(b"changed synthesized texture")
+    assert mesh_dotnet_texture_resource_id(first) != mesh_dotnet_texture_resource_id(second)
 
 
 def test_initial_manifest_and_resident_update_share_resource_fingerprint(tmp_path: Path) -> None:
@@ -681,7 +696,9 @@ def test_gltf_packed_channels_and_source_factors_survive_resident_snapshot(tmp_p
     assert mesh_dotnet_material_input_signature(mesh) != signature
 
 
-def test_layer_mask_input_gets_a_distinct_resident_shader_binding(tmp_path: Path) -> None:
+def test_layer_mask_input_gets_distinct_binding_without_material_promotion(
+    tmp_path: Path,
+) -> None:
     mask = tmp_path / "blade_layer_mask.dds"
     mask.write_bytes(b"mask")
     mesh = _mesh()
@@ -703,12 +720,13 @@ def test_layer_mask_input_gets_a_distinct_resident_shader_binding(tmp_path: Path
     )
     binding = payload["submeshes"][0]
 
-    assert binding["channels"]["layer_mask"] == binding["channels"]["material"]
+    assert binding["channels"]["layer_mask"] == binding["channels"]["mask"]
+    assert "material" not in binding["channels"]
     assert binding["channel_components"]["layer_mask"] == "g"
     assert any(resource["path"] == mask.resolve().as_posix() for resource in payload["resources"])
 
 
-def test_authoritative_crimson_color_mask_promotes_pbr_components(tmp_path: Path) -> None:
+def test_authoritative_crimson_color_mask_stays_layer_only(tmp_path: Path) -> None:
     mask = tmp_path / "blade_ma.dds"
     mask.write_bytes(b"packed-mask")
     mesh = _mesh()
@@ -733,14 +751,12 @@ def test_authoritative_crimson_color_mask_promotes_pbr_components(tmp_path: Path
     )
     binding = payload["submeshes"][0]
 
-    for channel in ("ao", "roughness", "metallic"):
-        assert binding["channels"][channel] == binding["channels"]["layer_mask"]
-    assert binding["channel_components"] | {"layer_mask": "r"} == {
-        "ao": "r",
-        "roughness": "g",
-        "metallic": "b",
-        "layer_mask": "r",
-    }
+    assert binding["channels"]["layer_mask"] == binding["channels"]["mask"]
+    assert {"ao", "roughness", "metallic", "material"}.isdisjoint(
+        binding["channels"]
+    )
+    assert binding["channel_components"]["layer_mask"] == "r"
+    assert any(resource["path"] == mask.resolve().as_posix() for resource in payload["resources"])
 
 
 def test_layer_only_albedo_is_not_promoted_over_native_tint_fallback(tmp_path: Path) -> None:

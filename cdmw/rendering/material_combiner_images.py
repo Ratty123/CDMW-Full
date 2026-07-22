@@ -82,6 +82,7 @@ def _mask_alpha(
 def _initialize_synthesized_albedo_target(
     prepared_base: QImage,
     source_layers: Sequence[Tuple[PreviewMaterialTextureInput, QImage]],
+    fallback_image: QImage,
     neutral_base_color: Tuple[float, float, float],
     *,
     preserve_base_alpha: bool,
@@ -95,7 +96,9 @@ def _initialize_synthesized_albedo_target(
             int(prepared_base.height()),
             0,
         )
-    _first_item, first_image = source_layers[0]
+    color_seed_available = not fallback_image.isNull()
+    first_item = source_layers[0][0] if source_layers else None
+    first_image = source_layers[0][1] if source_layers else fallback_image
     width = int(first_image.width())
     height = int(first_image.height())
     target = QImage(width, height, target_format)
@@ -103,7 +106,13 @@ def _initialize_synthesized_albedo_target(
         red, green, blue = (_byte(float(value)) for value in neutral_base_color[:3])
         target.fill(QColor(red, green, blue))
         return target, width, height, 0
-    tint = _layer_tint(_first_item)
+    if color_seed_available and not source_layers:
+        target.fill(QColor(153, 156, 158, 255))
+        return target, width, height, 0
+    # When the PAC RGB selector will seed the base, the first visible layer is
+    # only a fallback surface for selector gaps. Its channel-local dye remains
+    # masked and is applied in the normal layer loop below.
+    tint = _layer_tint(first_item) if first_item is not None and not color_seed_available else ()
     for y in range(height):
         _raise_if_material_combiner_cancelled(cancelled)
         for x in range(width):
@@ -123,7 +132,7 @@ def _initialize_synthesized_albedo_target(
                     color.alpha() if preserve_base_alpha else 255,
                 ),
             )
-    return target, width, height, 1
+    return target, width, height, 0 if color_seed_available else 1
 
 
 def _generate_synthesized_albedo_map(
@@ -136,6 +145,8 @@ def _generate_synthesized_albedo_map(
     flip_vertical: bool,
     max_dimension: int,
     neutral_base_color: Tuple[float, float, float] = (),
+    color_blending_mask_input: Optional[PreviewMaterialTextureInput] = None,
+    color_blending_tints: Sequence[Tuple[float, float, float]] = (),
     preserve_base_alpha: bool = False,
     cancelled: Callable[[], bool] | None = None,
 ) -> Tuple[str, str]:
@@ -155,16 +166,68 @@ def _generate_synthesized_albedo_map(
         if prepared.isNull():
             continue
         source_layers.append((item, prepared.convertToFormat(QImage.Format.Format_RGBA8888)))
-    if prepared_base.isNull() and not source_layers:
+    color_blending_mask = QImage()
+    if color_blending_mask_input is not None and len(color_blending_tints) >= 3:
+        color_blending_mask = _image_reader(
+            str(getattr(color_blending_mask_input, "preview_texture_path", "") or ""),
+            max_dimension=max_dimension,
+        )
+        if not color_blending_mask.isNull():
+            color_blending_mask = _support_source_image(
+                color_blending_mask,
+                flip_vertical=flip_vertical,
+                max_dimension=max_dimension,
+            ).convertToFormat(QImage.Format.Format_RGBA8888)
+    if prepared_base.isNull() and not source_layers and color_blending_mask.isNull():
         return "", ""
 
     target, width, height, layer_start = _initialize_synthesized_albedo_target(
         prepared_base,
         source_layers,
+        color_blending_mask,
         neutral_base_color,
         preserve_base_alpha=preserve_base_alpha,
         cancelled=cancelled,
     )
+
+    color_blending_seed_applied = False
+    if not color_blending_mask.isNull() and len(color_blending_tints) >= 3:
+        if int(color_blending_mask.width()) != width or int(color_blending_mask.height()) != height:
+            color_blending_mask = color_blending_mask.scaled(
+                width,
+                height,
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation,
+            )
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                selector = color_blending_mask.pixelColor(x, y)
+                weights = (selector.redF(), selector.greenF(), selector.blueF())
+                total = sum(weights)
+                if total <= 0.001:
+                    continue
+                normalized = tuple(weight / total for weight in weights)
+                seeded = tuple(
+                    sum(
+                        float(color_blending_tints[channel][component]) * normalized[channel]
+                        for channel in range(3)
+                    )
+                    for component in range(3)
+                )
+                coverage = _clamp(total)
+                base = target.pixelColor(x, y)
+                target.setPixelColor(
+                    x,
+                    y,
+                    QColor(
+                        _byte((base.redF() * (1.0 - coverage)) + (seeded[0] * coverage)),
+                        _byte((base.greenF() * (1.0 - coverage)) + (seeded[1] * coverage)),
+                        _byte((base.blueF() * (1.0 - coverage)) + (seeded[2] * coverage)),
+                        base.alpha() if preserve_base_alpha else 255,
+                    ),
+                )
+        color_blending_seed_applied = True
 
     prepared_masks: dict[str, QImage] = {}
     for role, item in mask_inputs.items():
@@ -180,7 +243,12 @@ def _generate_synthesized_albedo_map(
         prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
 
     roles_used: list[str] = []
-    has_base = not prepared_base.isNull()
+    masked_detail_dye_tint_applied = False
+    has_base = bool(
+        not prepared_base.isNull()
+        or len(neutral_base_color) >= 3
+        or color_blending_seed_applied
+    )
     for item, image in source_layers[layer_start:]:
         _raise_if_material_combiner_cancelled(cancelled)
         layer = image
@@ -202,13 +270,37 @@ def _generate_synthesized_albedo_map(
                 red = overlay.redF()
                 green = overlay.greenF()
                 blue = overlay.blueF()
-                if tint:
-                    red *= tint[0]
-                    green *= tint[1]
-                    blue *= tint[2]
-                out_r = (base.redF() * (1.0 - alpha)) + (_clamp(red) * alpha)
-                out_g = (base.greenF() * (1.0 - alpha)) + (_clamp(green) * alpha)
-                out_b = (base.blueF() * (1.0 - alpha)) + (_clamp(blue) * alpha)
+                if color_blending_seed_applied and role == "detail" and tint:
+                    # Detail dye colors are channel-local PAC authority.  Keep
+                    # them behind the detail-mask channel instead of promoting
+                    # them to a global tint or discarding them after the RGB
+                    # selector seeds the base surface.
+                    luma = _clamp((0.299 * red) + (0.587 * green) + (0.114 * blue))
+                    modulation = 0.82 + (0.36 * luma)
+                    tinted = tuple(_clamp(float(component) * modulation) for component in tint[:3])
+                    out_r = (base.redF() * (1.0 - alpha)) + (tinted[0] * alpha)
+                    out_g = (base.greenF() * (1.0 - alpha)) + (tinted[1] * alpha)
+                    out_b = (base.blueF() * (1.0 - alpha)) + (tinted[2] * alpha)
+                    masked_detail_dye_tint_applied = True
+                elif color_blending_seed_applied and role in {"detail", "grime", "layer", "damage"}:
+                    # The RGB PAC selector and its channel-local tint own the
+                    # surface color. Detail/grime DDS inputs add micro-variation;
+                    # alpha-replacing the tint with their brown/grey pixels is
+                    # what turned silver blades and dyed cloth into muddy albedo.
+                    luma = _clamp((0.299 * red) + (0.587 * green) + (0.114 * blue))
+                    modulation = 0.82 + (0.36 * luma)
+                    factor = (1.0 - alpha) + (modulation * alpha)
+                    out_r = _clamp(base.redF() * factor)
+                    out_g = _clamp(base.greenF() * factor)
+                    out_b = _clamp(base.blueF() * factor)
+                else:
+                    if tint:
+                        red *= tint[0]
+                        green *= tint[1]
+                        blue *= tint[2]
+                    out_r = (base.redF() * (1.0 - alpha)) + (_clamp(red) * alpha)
+                    out_g = (base.greenF() * (1.0 - alpha)) + (_clamp(green) * alpha)
+                    out_b = (base.blueF() * (1.0 - alpha)) + (_clamp(blue) * alpha)
                 target.setPixelColor(
                     x,
                     y,
@@ -234,6 +326,10 @@ def _generate_synthesized_albedo_map(
         note = "albedo synthesized:visible layer"
     if len(neutral_base_color) >= 3:
         note += "; neutral_metal_base_synthesized"
+    if color_blending_seed_applied:
+        note += "; pac_color_blending_tint_seed:r,g,b; pac_color_layers_modulated"
+    if masked_detail_dye_tint_applied:
+        note += "; pac_detail_dye_tints_masked"
     if prepared_base.isNull():
         note += "; no reliable base DDS; no_reliable_full_base_albedo"
     return _local_file_url(output_path), note
@@ -456,6 +552,28 @@ def _image_exceeds_dimension(image: QImage, max_dimension: int) -> bool:
     return max(int(image.width()), int(image.height())) > int(max_dimension)
 
 
+def _has_authoritative_pac_layer_metal_response(
+    input_item: Optional[PreviewMaterialTextureInput],
+    decode_mode: str,
+) -> bool:
+    if input_item is None:
+        return False
+    return bool(
+        str(getattr(input_item, "sidecar_kind", "") or "").strip().lower()
+        == "pac_xml"
+        and str(getattr(input_item, "binding_authority", "") or "").strip().lower()
+        == "authoritative"
+        and str(getattr(input_item, "binding_disposition", "") or "").strip().lower()
+        == "layer_material_response"
+        and str(getattr(input_item, "source_kind", "") or "").strip().lower()
+        == "crimson_layer_material_response"
+        and str(decode_mode or "").strip().lower()
+        in {"standard_v2_material", "standard_v2_specular"}
+        and _texture_rule_for_input(input_item)
+        in {"standard", "standard_v2", "emissive_v2"}
+    )
+
+
 def _generate_material_maps(
     image: QImage,
     output_dir: Path,
@@ -538,6 +656,10 @@ def _generate_material_maps(
         )
     force_nonmetal_surface = resolved_force_nonmetal_surface
     surface_category = resolved_surface_category
+    preserve_authored_metal_islands = _has_authoritative_pac_layer_metal_response(
+        input_item,
+        decode_mode,
+    )
     apply_sidecar_hints = bool(
         input_item is not None
         and not force_nonmetal_skin
@@ -574,6 +696,7 @@ def _generate_material_maps(
                 metalness,
                 specular,
             )
+            source_metalness = metalness
             if force_nonmetal_skin:
                 metalness = 0.0
                 specular = min(specular, 0.42)
@@ -589,7 +712,13 @@ def _generate_material_maps(
                 roughness = _clamp(roughness, 0.04, 1.0)
                 metalness = _clamp(metalness)
                 specular = _clamp(specular)
-            if force_nonmetal_surface:
+            if (
+                force_nonmetal_surface
+                and not (
+                    preserve_authored_metal_islands
+                    and source_metalness >= 0.35
+                )
+            ):
                 metalness, specular, roughness = _apply_nonmetal_response_limits(
                     surface_category,
                     metalness,

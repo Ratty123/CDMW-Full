@@ -76,14 +76,12 @@ def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
     if any(marker in shader_key for marker in ("skinnedmeshstandardver2", "skinnedmeshemissivever2", "skinnedmeshemissive", "skinnedmeshclothver2", "skinnedmeshcloth")):
         if parameter_key in {"materialtexture", "materialmap"} and last_token in {"sp", "spec", "specular"}:
             return "standard_v2_specular"
-        if parameter_key in {"colorblendingmasktexture", "blendingmasktexture"}:
-            return "standard_v2_mask"
         if parameter_key in {"detailmasktexture", "detailmask"}:
             return "standard_v2_detail"
         if "grimematerial" in parameter_key or "detailmaterial" in parameter_key or parameter_key == "materialtexture":
             return "standard_v2_material"
         if parameter_key == "masktexture":
-            return "standard_v2_mask"
+            return "standard_v2_detail"
     if "multitextured" in shader_key:
         if parameter_key in {"rgbtexture", "layermasktexture", "layerblendmasktexture"}:
             return "blend_mask"
@@ -174,6 +172,8 @@ def _material_decode_output_flags(decode_mode: str) -> Tuple[bool, bool, bool, b
     if mode == "visible_color":
         return False, False, False, False
     if mode == "blend_mask":
+        return False, False, False, False
+    if mode == "color_blending_mask":
         return False, False, False, False
     if mode == "ao":
         return True, False, False, False
@@ -369,21 +369,67 @@ def _material_candidate_group(decode_mode: str) -> str:
     return "primary"
 
 
+def _authoritative_layer_material_response_key(
+    input_item: PreviewMaterialTextureInput,
+    decode_mode: str,
+) -> Optional[Tuple[object, ...]]:
+    if not any(_material_decode_output_flags(decode_mode)):
+        return None
+    authority = str(getattr(input_item, "binding_authority", "") or "").strip().lower()
+    disposition = str(getattr(input_item, "binding_disposition", "") or "").strip().lower()
+    source_kind = str(getattr(input_item, "source_kind", "") or "").strip().lower()
+    if authority != "authoritative" or (
+        disposition != "layer_material_response"
+        and source_kind != "crimson_layer_material_response"
+    ):
+        return None
+    try:
+        owner_slot_index = int(getattr(input_item, "owner_slot_index", -1))
+    except (TypeError, ValueError, OverflowError):
+        owner_slot_index = -1
+    return (
+        "authoritative_layer_material_response",
+        owner_slot_index,
+        str(getattr(input_item, "owner_wrapper_item_id", "") or "").strip(),
+        _normalized_key(getattr(input_item, "material_name", "")),
+        _normalized_key(getattr(input_item, "part_name", "")),
+        _normalized_key(getattr(input_item, "parameter_name", "")),
+        str(getattr(input_item, "layer_role", "") or "").strip().lower(),
+        str(getattr(input_item, "layer_channel", "") or "").strip().lower(),
+        _normalize_texture_key(
+            getattr(input_item, "source_texture_path", "")
+            or getattr(input_item, "source_dds_path", "")
+            or getattr(input_item, "preview_texture_path", "")
+        ),
+        str(decode_mode or "").strip().lower(),
+    )
+
+
 def _select_material_candidates_for_payload(
     material_candidates: Sequence[PreviewMaterialTextureInput],
     payload: object,
 ) -> Tuple[Tuple[PreviewMaterialTextureInput, ...], int]:
     rule = _shader_rule_for_inputs(material_candidates, payload)
     ranked: list[Tuple[str, int, int, PreviewMaterialTextureInput]] = []
+    pinned_ids: set[int] = set()
+    pinned_keys: set[Tuple[object, ...]] = set()
     for index, item in enumerate(material_candidates):
         mode = _decode_mode_for_input(item)
         if mode == "opacity":
             ranked.append(("opacity", 0, index, item))
             continue
+        if not any(_material_decode_output_flags(mode)):
+            continue
+        pinned_key = _authoritative_layer_material_response_key(item, mode)
+        if pinned_key is not None:
+            if pinned_key in pinned_keys:
+                continue
+            pinned_keys.add(pinned_key)
+            pinned_ids.add(id(item))
         score = _material_candidate_match_score(item, payload)
         ranked.append((_material_candidate_group(mode), score, index, item))
-    selected: list[PreviewMaterialTextureInput] = []
-    selected_ids: set[int] = set()
+    selected = [item for _group, _score, _index, item in ranked if id(item) in pinned_ids]
+    selected_ids = {id(item) for item in selected}
     if rule in {"standard_v2", "emissive_v2", "cloth_v2", "cloth", "static_multitextured"}:
         group_limits = (
             ("primary", 4, 0),
@@ -409,12 +455,22 @@ def _select_material_candidates_for_payload(
         group_items = [
             (score, index, item)
             for group, score, index, item in ranked
-            if group == group_name and (score >= minimum_score or group_name == "opacity")
+            if group == group_name
+            and id(item) not in selected_ids
+            and (score >= minimum_score or group_name == "opacity")
         ]
         if not group_items:
             continue
+        pinned_group_count = sum(
+            1
+            for group, _score, _index, item in ranked
+            if group == group_name and id(item) in selected_ids
+        )
+        remaining_limit = max(0, limit - pinned_group_count)
+        if remaining_limit <= 0:
+            continue
         group_items.sort(key=lambda row: (row[0], -row[1]), reverse=True)
-        for _score, index, item in group_items[:limit]:
+        for _score, index, item in group_items[:remaining_limit]:
             if id(item) in selected_ids:
                 continue
             selected.append(item)
