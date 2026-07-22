@@ -88,6 +88,24 @@ def _pab_payload(name: str = "Root", name_hash: int = 0x00123456) -> bytes:
     return bytes(data)
 
 
+def _rgba_dds_payload() -> bytes:
+    header = bytearray(124)
+    struct.pack_into("<I", header, 0, 124)
+    struct.pack_into("<I", header, 4, 0x100F)
+    struct.pack_into("<I", header, 8, 1)
+    struct.pack_into("<I", header, 12, 1)
+    struct.pack_into("<I", header, 16, 4)
+    struct.pack_into("<I", header, 72, 32)
+    struct.pack_into("<I", header, 76, 0x41)
+    struct.pack_into("<I", header, 84, 32)
+    struct.pack_into("<I", header, 88, 0x00FF0000)
+    struct.pack_into("<I", header, 92, 0x0000FF00)
+    struct.pack_into("<I", header, 96, 0x000000FF)
+    struct.pack_into("<I", header, 100, 0xFF000000)
+    struct.pack_into("<I", header, 104, 0x1000)
+    return b"DDS " + bytes(header) + b"\x00\x00\xff\xff"
+
+
 class ReleaseInspiredImprovementTests(unittest.TestCase):
     def test_archive_query_parser_and_filter_supports_qualifiers_boolean_and_prefix_tokens(self) -> None:
         query = parse_archive_search_query('name:"Canta Plate" ext:pac NOT path:cloak OR size:>1kb')
@@ -365,7 +383,7 @@ class ReleaseInspiredImprovementTests(unittest.TestCase):
                 "</MaterialParameterTexture></Vector></SkinnedMeshMaterialWrapper></Root>",
                 encoding="utf-8",
             )
-            texture_path.write_bytes(b"DDS final package payload")
+            texture_path.write_bytes(_rgba_dds_payload())
             (package_root / "manifest.json").write_text(
                 json.dumps(
                     {

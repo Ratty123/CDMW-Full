@@ -11,6 +11,7 @@ def create_alignment_mesh_diagnostics_callbacks(context: dict[str, object]) -> S
     Path = context.get('Path')
     QApplication = context.get('QApplication')
     QPlainTextEdit = context.get('QPlainTextEdit')
+    QProcess = context.get('QProcess')
     _alignment_d3d11_preview_active = context.get('_alignment_d3d11_preview_active')
     _alignment_mesh_edit_tab_active = context.get('_alignment_mesh_edit_tab_active')
     _alignment_preview_source_face_limit = context.get('_alignment_preview_source_face_limit')

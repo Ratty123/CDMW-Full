@@ -141,10 +141,7 @@ class NativeTextureBackendTests(unittest.TestCase):
         self.assertNotIn("DirectX::LoadFromWICFile", main)
 
     def test_directxtex_fetchcontent_builds_from_cached_source_offline(self) -> None:
-        for relative in (
-            "native/cd_texture_dx/CMakeLists.txt",
-            "native/cdmw_d3d11_preview/CMakeLists.txt",
-        ):
+        for relative in ("native/cd_texture_dx/CMakeLists.txt",):
             with self.subTest(relative=relative):
                 source = Path(relative).read_text(encoding="utf-8")
 

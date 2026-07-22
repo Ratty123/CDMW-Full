@@ -377,6 +377,55 @@ void set_mesh_edit_result_output_paths(
     );
 }
 
+void prepare_appended_mesh_edit_result(
+    SubmeshMeshEditResult& result,
+    const JsonValue& item
+) {
+    if (!result.append_submesh) {
+        return;
+    }
+    const std::string source_name = string_or(item.get("name"), "");
+    const std::string base_name = source_name.empty()
+        ? std::string("part_") + std::to_string(result.source_index >= 0 ? result.source_index : result.index)
+        : source_name;
+    if (result.name.empty()) {
+        result.name = base_name + result.name_suffix;
+    }
+    if (result.material.empty()) {
+        result.material = string_or(item.get("material"), "");
+    }
+    if (result.texture.empty()) {
+        result.texture = string_or(item.get("texture"), "");
+    }
+    if (result.extra_attrs.type != JsonValue::Type::Object) {
+        if (const JsonValue* extra_attrs = item.get("extra_attrs")) {
+            if (extra_attrs->type == JsonValue::Type::Object) {
+                result.extra_attrs = *extra_attrs;
+            }
+        }
+    }
+    const std::string suffix = ".append";
+    result.changed_positions_path = suffixed_output_path(result.changed_positions_path, suffix);
+    result.before_positions_path = suffixed_output_path(result.before_positions_path, suffix);
+    result.changed_vertices_path = suffixed_output_path(result.changed_vertices_path, suffix);
+    result.vertices_path = suffixed_output_path(result.vertices_path, suffix);
+    result.faces_path = suffixed_output_path(result.faces_path, suffix);
+    result.normals_path = suffixed_output_path(result.normals_path, suffix);
+    result.uvs_path = suffixed_output_path(result.uvs_path, suffix);
+    result.tangents_path = suffixed_output_path(result.tangents_path, suffix);
+    result.tangent_signs_path = suffixed_output_path(result.tangent_signs_path, suffix);
+    result.bone_counts_path = suffixed_output_path(result.bone_counts_path, suffix);
+    result.bone_indices_path = suffixed_output_path(result.bone_indices_path, suffix);
+    result.bone_weights_path = suffixed_output_path(result.bone_weights_path, suffix);
+    result.source_vertex_map_path = suffixed_output_path(result.source_vertex_map_path, suffix);
+    result.source_vertex_offsets_path = suffixed_output_path(result.source_vertex_offsets_path, suffix);
+    result.preview_triangle_path = suffixed_output_path(result.preview_triangle_path, suffix);
+    result.copy_vertex_indices_path = suffixed_output_path(result.copy_vertex_indices_path, suffix);
+    result.vertex_blend_indices_path = suffixed_output_path(result.vertex_blend_indices_path, suffix);
+    result.vertex_blend_factors_path = suffixed_output_path(result.vertex_blend_factors_path, suffix);
+    result.index_map_path = suffixed_output_path(result.index_map_path, suffix);
+}
+
 std::vector<SubmeshMeshEditResult> run_mesh_edit(const JsonValue& root) {
     const JsonValue* submeshes = root.get("submeshes");
     if (submeshes == nullptr || submeshes->type != JsonValue::Type::Array) {
@@ -417,48 +466,7 @@ std::vector<SubmeshMeshEditResult> run_mesh_edit(const JsonValue& root) {
         );
         for (SubmeshMeshEditResult& result : item_results) {
             set_mesh_edit_result_output_paths(result, item, *edit);
-            if (result.append_submesh) {
-                const std::string source_name = string_or(item.get("name"), "");
-                const std::string base_name = source_name.empty()
-                    ? std::string("part_") + std::to_string(result.source_index >= 0 ? result.source_index : result.index)
-                    : source_name;
-                if (result.name.empty()) {
-                    result.name = base_name + result.name_suffix;
-                }
-                if (result.material.empty()) {
-                    result.material = string_or(item.get("material"), "");
-                }
-                if (result.texture.empty()) {
-                    result.texture = string_or(item.get("texture"), "");
-                }
-                if (result.extra_attrs.type != JsonValue::Type::Object) {
-                    if (const JsonValue* extra_attrs = item.get("extra_attrs")) {
-                        if (extra_attrs->type == JsonValue::Type::Object) {
-                            result.extra_attrs = *extra_attrs;
-                        }
-                    }
-                }
-                const std::string suffix = ".append";
-                result.changed_positions_path = suffixed_output_path(result.changed_positions_path, suffix);
-                result.before_positions_path = suffixed_output_path(result.before_positions_path, suffix);
-                result.changed_vertices_path = suffixed_output_path(result.changed_vertices_path, suffix);
-                result.vertices_path = suffixed_output_path(result.vertices_path, suffix);
-                result.faces_path = suffixed_output_path(result.faces_path, suffix);
-                result.normals_path = suffixed_output_path(result.normals_path, suffix);
-                result.uvs_path = suffixed_output_path(result.uvs_path, suffix);
-                result.tangents_path = suffixed_output_path(result.tangents_path, suffix);
-                result.tangent_signs_path = suffixed_output_path(result.tangent_signs_path, suffix);
-                result.bone_counts_path = suffixed_output_path(result.bone_counts_path, suffix);
-                result.bone_indices_path = suffixed_output_path(result.bone_indices_path, suffix);
-                result.bone_weights_path = suffixed_output_path(result.bone_weights_path, suffix);
-                result.source_vertex_map_path = suffixed_output_path(result.source_vertex_map_path, suffix);
-                result.source_vertex_offsets_path = suffixed_output_path(result.source_vertex_offsets_path, suffix);
-                result.preview_triangle_path = suffixed_output_path(result.preview_triangle_path, suffix);
-                result.copy_vertex_indices_path = suffixed_output_path(result.copy_vertex_indices_path, suffix);
-                result.vertex_blend_indices_path = suffixed_output_path(result.vertex_blend_indices_path, suffix);
-                result.vertex_blend_factors_path = suffixed_output_path(result.vertex_blend_factors_path, suffix);
-                result.index_map_path = suffixed_output_path(result.index_map_path, suffix);
-            }
+            prepare_appended_mesh_edit_result(result, item);
             if (result.index >= 0 && (result.topology_changed || !result.vertices.empty() || !result.faces.empty() || !result.changed_vertices.empty())) {
                 if (result.topology_changed) {
                     if (!result.normals_path.empty()) {

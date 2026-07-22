@@ -337,7 +337,7 @@ class ModelLibraryTab(
         self._results_filter_timer.stop()
         self._results_population_timer.stop()
         self._pending_inline_preview_request = None
-        pending_capture = self._pending_dotnet_icon_capture
+        pending_capture = getattr(self, "_pending_dotnet_icon_capture", None)
         self._pending_dotnet_icon_capture = None
         if pending_capture is not None:
             try:

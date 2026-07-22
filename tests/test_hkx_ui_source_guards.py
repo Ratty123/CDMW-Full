@@ -720,7 +720,7 @@ class HkxUiSourceGuardTests(unittest.TestCase):
         self.assertIn("HKX is physics/collision; body mesh loaded from", archive_source)
         self.assertIn("Body + Physics", archive_source)
         self.assertIn('_state.hkx_preview_skeleton_checkbox = _state.QCheckBox("Show skeleton context")', ui_source)
-        self.assertIn("model_preview_widget.set_physics_overlay_bones_visible(False)", ui_source)
+        self.assertIn("hkx_link_preview_widget.set_physics_overlay_bones_visible(False)", ui_source)
 
 
 if __name__ == "__main__":

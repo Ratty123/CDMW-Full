@@ -409,10 +409,11 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("runtime_event_tail", source)
         self.assertIn("native_diagnostic_event_tail", source)
         self.assertIn("last_active_operation", source)
-        self.assertIn("d3d11_status_payload", source)
-        self.assertIn("d3d11_process_state", source)
-        self.assertIn("d3d11_process_memory", source)
-        self.assertIn("archive_isolated_package_worker_active", source)
+        self.assertIn("active_dotnet_package", source)
+        self.assertIn("dotnet_preview_process_state", source)
+        self.assertIn("dotnet_preview_process_memory", source)
+        self.assertIn("dotnet_preview_process_generation", source)
+        self.assertIn("archive_preview_worker_active", source)
 
     def test_runtime_events_include_performance_stability_fields(self) -> None:
         source = _main_window_source() + "\n"
@@ -565,22 +566,19 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("persisted_runtime_event_tail", diagnostics_service_source)
         self.assertIn("persisted_native_event_tail", diagnostics_service_source)
 
-    def test_d3d11_qprocess_cleanup_is_runtime_guarded(self) -> None:
+    def test_dotnet_preview_qprocess_cleanup_is_runtime_guarded(self) -> None:
         source = (
-            MAIN_WINDOW.read_text(encoding="utf-8")
+            (ROOT / "cdmw" / "ui" / "preview" / "dotnet_session.py").read_text(encoding="utf-8")
             + "\n"
-            + (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_d3d11_process.py").read_text(encoding="utf-8")
-            + "\n"
-            + (ROOT / "cdmw" / "ui" / "archive_browser" / "preview_d3d11_runtime.py").read_text(encoding="utf-8")
+            + (ROOT / "cdmw" / "ui" / "mesh_editor" / "process_io.py").read_text(encoding="utf-8")
         )
-        self.assertIn("def _archive_qprocess_state", source)
-        self.assertIn("def _delete_archive_qprocess_later", source)
-        self.assertIn("def _cleanup_finished_archive_isolated_renderer_process", source)
-        self.assertIn("_archive_qprocess_pid", source)
-        self.assertIn("cleanup_finished_process", source)
-        self.assertIn("kill_process_if_still_running", source)
-        self.assertIn("d3d11_process_shutdown_begin", source)
-        self.assertNotIn("lambda *_args, package_dir=package_dir, process=process: (", source)
+        self.assertIn("def shutdown(self) -> None:", source)
+        self.assertIn('self._send_json_to_process(process, {"event": "close_request"})', source)
+        self.assertIn("stop_qprocess_async(process)", source)
+        self.assertIn("def stop_qprocess_async", source)
+        self.assertIn("force_stop_windows_process_tree", source)
+        self.assertIn("process.terminate()", source)
+        self.assertIn("process.kill()", source)
         self.assertNotIn("process.finished.connect(process.deleteLater)", source)
 
     def test_texture_workflow_workers_write_breadcrumbs_from_callbacks(self) -> None:

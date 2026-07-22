@@ -103,7 +103,7 @@ def _mesh_edit_control_runtime_state(_state, _callbacks):
             classic_toolbar_visible=classic_toolbar_visible,
             classic_toolbar_enabled=classic_toolbar_enabled,
             legacy_preview_rows_visible=legacy_preview_rows_visible,
-            native_d3d11_process_active=_callbacks._alignment_d3d11_process_active(),
+            dotnet_vortice_process_active=_callbacks._alignment_d3d11_process_active(),
         )
     _state.mesh_edit_enabled_checkbox.setEnabled(_state.mesh_edit_supported and not topology_busy)
     if not _state.mesh_edit_supported:

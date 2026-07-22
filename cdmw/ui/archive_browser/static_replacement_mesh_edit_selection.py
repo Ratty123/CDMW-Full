@@ -369,29 +369,6 @@ def _mesh_edit_control_tab_changed(_state, _callbacks, index: int) -> None:
     _callbacks._refresh_mesh_edit_controls()
     _state._apply_alignment_dialog_responsive_layout()
 
-def _stop_legacy_native_preview_for_dotnet(_state, _callbacks, ) -> bool:
-    dialog = _state.dialog
-    if dialog is None or bool(getattr(dialog, "_mesh_editor_embedded_native_preview_stopped_for_dotnet", False)):
-        return False
-    stop_native_preview = getattr(dialog, "_mesh_editor_embedded_stop_native_d3d11_preview", None)
-    if not callable(stop_native_preview):
-        return False
-    try:
-        stop_native_preview()
-    except Exception as exc:
-        _callbacks._record_mesh_edit_event(
-            "mesh_edit_legacy_native_preview_stop_failed",
-            reason="dotnet_authoritative",
-            message=f"{type(exc).__name__}: {exc}",
-        )
-        return False
-    setattr(dialog, "_mesh_editor_embedded_native_preview_stopped_for_dotnet", True)
-    _callbacks._record_mesh_edit_event(
-        "mesh_edit_legacy_native_preview_stopped",
-        reason="dotnet_authoritative",
-    )
-    return True
-
 def _mesh_editor_embedded_dotnet_ready(_state, _callbacks, ) -> None:
     if getattr(_state, "controls_panel", None) is not None:
         checkbox = getattr(_state, "mesh_edit_enabled_checkbox", None)
@@ -400,7 +377,6 @@ def _mesh_editor_embedded_dotnet_ready(_state, _callbacks, ) -> None:
     if _state.dialog is not None:
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_state", "ready")
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_active", True)
-    _callbacks._stop_legacy_native_preview_for_dotnet()
     _callbacks._record_mesh_edit_event("mesh_dotnet_process_ready", reason="embedded_callback")
     _callbacks._refresh_mesh_edit_controls()
 
@@ -408,7 +384,6 @@ def _mesh_editor_embedded_dotnet_failed(_state, _callbacks, reason: str = "", di
     if _state.dialog is not None:
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_state", "failed")
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_active", False)
-    _callbacks._stop_legacy_native_preview_for_dotnet()
     summary = str(diagnostics or "").strip()
     if summary:
         _state.self.set_status_message(f"Mesh .NET preview failed: {summary}", error=True)
@@ -465,10 +440,8 @@ def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> No
     if dotnet_enabled and callable(start_dotnet):
         if getattr(_state, "controls_panel", None) is not None:
             _state.controls_panel.setVisible(False)
-        setattr(_state.dialog, "_mesh_editor_embedded_native_preview_stopped_for_dotnet", False)
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_state", "launching")
         setattr(_state.dialog, "_mesh_editor_embedded_dotnet_active", False)
-        _callbacks._stop_legacy_native_preview_for_dotnet()
         _state.self.set_status_message("Launching embedded Mesh .NET editor...", error=False)
         _callbacks._refresh_mesh_edit_controls()
         _callbacks._record_mesh_edit_event(
@@ -479,7 +452,7 @@ def _mesh_edit_enabled_toggled(_state, _callbacks, _checked: bool = False) -> No
             dotnet_available=dotnet_available,
             parent_hwnd=_callbacks._embedded_dotnet_parent_hwnd(),
             classic_toolbar_visible=False,
-            native_d3d11_process_active=_callbacks._alignment_d3d11_process_active(),
+            dotnet_vortice_process_active=_callbacks._alignment_d3d11_process_active(),
         )
         start_dotnet()
         return
@@ -517,7 +490,6 @@ _CALLBACKS = (
     _mesh_edit_selection_changed,
     _mesh_edit_surface_tab_active,
     _mesh_edit_control_tab_changed,
-    _stop_legacy_native_preview_for_dotnet,
     _mesh_editor_embedded_dotnet_ready,
     _mesh_editor_embedded_dotnet_failed,
     _mesh_edit_enabled_toggled,

@@ -131,7 +131,11 @@ def _history_selection_smoke() -> dict[str, object]:
     )
     service.apply_command(
         view.session_id,
-        MeshEditCommand("select", selection=MeshEditSelection.from_maps(faces_by_submesh={1: (0,)}, source_indices=(1,))),
+        MeshEditCommand(
+            "select",
+            selection=MeshEditSelection.from_maps(faces_by_submesh={1: (0,)}, source_indices=(1,)),
+            params={"record_history": False},
+        ),
     )
     before_undo = _selection_snapshot(service.session_view(view.session_id).selection)
     undo = service.undo(view.session_id)

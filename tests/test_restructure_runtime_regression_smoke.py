@@ -132,6 +132,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             self.window._previous_session_unclean = False
             self.window.worker_thread = None
             self.window.archive_entries = []
+            self.window.archive_remote_bridge = None
             self.window._check_archive_cache_health = lambda _root: {}  # type: ignore[method-assign]
             self.window._warn_if_archive_cache_stale = lambda *_args: None  # type: ignore[method-assign]
             self.window._set_archive_cache_health = stop_before_worker  # type: ignore[method-assign]

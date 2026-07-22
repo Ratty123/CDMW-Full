@@ -21,7 +21,8 @@ def test_dotnet_material_channels_and_embedded_panel_source_contracts() -> None:
     assert "ChannelComponentIndexForSubmesh" in source
     assert all(key in source for key in ('"BC4" or "BC4U" or "ATI1"', '"BC5" or "BC5U" or "ATI2"'))
     assert "if (!options.Embedded)" not in source
-    assert "DotNetMeshEditorToolScroll" in source
+    assert "DotNetMeshEditorLeftToolScroll" in source
+    assert "DotNetMeshEditorRightToolScroll" in source
     assert 'SetWindowTheme(control.Handle, "DarkMode_Explorer", null)' in source
     assert source.index("_ = _textureSet.LoadAsync(_materials);") < source.index("_viewport = new MeshViewport")
     assert 'AddSection(stack, "Clipboard"' not in source

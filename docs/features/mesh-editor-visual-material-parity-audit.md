@@ -172,7 +172,7 @@ the fresh `corpus.json` hashes to
 and the prepared-package aggregate remained
 `10e4d05c267e716f8730a293087af641bf9efc59f4d241e8165928ef3b400eca`
 before and after capture. The local evidence root is
-`C:\Users\Ratrider\AppData\Local\Temp\cdmw-material-parity-final-120-20260720-111535`.
+`%TEMP%\cdmw-material-parity-final-120-20260720-111535`.
 Generated images, licensed asset data, and the temporary JSONL ledgers are not
 versioned.
 
@@ -520,7 +520,7 @@ global x-ray behavior or texture downscaling.
 
 The PAC-source final acceptance is complete for the frozen CDMW corpus. Future
 texture/material-parity work should start from evidence root
-`C:\Users\Ratrider\AppData\Local\Temp\cdmw-material-parity-final-120-20260720-111535`
+`%TEMP%\cdmw-material-parity-final-120-20260720-111535`
 and its `complete_visual_review` summary. The finalized fifth and repaired
 fourth 120-PAC roots, the 50-PAC post-fix root, and the two 162-PAC discovery
 roots remain historical coverage. Do not use mirrored or

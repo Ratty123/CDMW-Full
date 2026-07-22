@@ -44,7 +44,8 @@ class RenderDocTruthPassTests(unittest.TestCase):
         self.assertEqual("capture_imported", report["status"])
         srv = report["srv_slots"][0]
         self.assertEqual("capture_inferred", srv["registry_decode"]["authority"])
-        self.assertEqual({"ao": "r", "roughness": "g", "metalness": "b"}, srv["registry_decode"]["promoted_channels"])
+        self.assertEqual("layer_only", srv["registry_decode"]["disposition"])
+        self.assertEqual({}, srv["registry_decode"]["promoted_channels"])
         self.assertIn("capture inferred crimson_color_blending_mask at SRV 3", report["findings"])
         self.assertEqual("t3,space1", srv["hlsl_bind"])
         self.assertEqual("s0,space1", report["sampler_states"][0]["hlsl_bind"])

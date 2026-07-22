@@ -233,7 +233,6 @@ ARCHIVE_EXPORTS_0: dict[str, tuple[str, str]] = {
     'SUPPORTED_DDS_FORMAT_CHOICES': ('cdmw.constants', 'SUPPORTED_DDS_FORMAT_CHOICES'),
     'ScanResult': ('cdmw.models', 'ScanResult'),
     'Sequence': ('cdmw.core.common', 'Sequence'),
-    'TEXTURE_BACKEND_PATH': ('cdmw.models', 'TEXTURE_BACKEND_PATH'),
     'TEXTURE_EDITOR_PNG_ROOT': ('cdmw.models', 'TEXTURE_EDITOR_PNG_ROOT'),
     'TEXTURE_RULES_TEXT': ('cdmw.models', 'TEXTURE_RULES_TEXT'),
     'TYPE_CHECKING': ('cdmw.models', 'TYPE_CHECKING'),

@@ -57,15 +57,23 @@ def test_preview_services_are_lazy_and_keep_owner_identity() -> None:
 
 
 def test_production_preview_packages_use_canonical_dotnet_cache_imports() -> None:
-    production_paths = (
+    direct_owner_paths = (
         "cdmw/workers/archive_preview_native.py",
         "cdmw/workers/archive_preview_workers.py",
         "cdmw/services/mesh_dotnet_preview_package.py",
         "cdmw/services/material_sidecar_preview_service.py",
+    )
+    for relative_path in direct_owner_paths:
+        source = (ROOT / relative_path).read_text(encoding="utf-8")
+        assert "from cdmw.rendering.dotnet_preview_package_cache import" in source, relative_path
+        assert "from cdmw.rendering.native_preview_package_cache import" not in source, relative_path
+
+    ui_paths = (
         "cdmw/ui/archive_browser/preview_cache.py",
         "cdmw/ui/archive_browser/preview_settings.py",
     )
-    for relative_path in production_paths:
+    for relative_path in ui_paths:
         source = (ROOT / relative_path).read_text(encoding="utf-8")
-        assert "from cdmw.rendering.dotnet_preview_package_cache import" in source, relative_path
+        assert "from cdmw.services.preview_rendering_service import" in source, relative_path
+        assert "from cdmw.rendering.dotnet_preview_package_cache import" not in source, relative_path
         assert "from cdmw.rendering.native_preview_package_cache import" not in source, relative_path

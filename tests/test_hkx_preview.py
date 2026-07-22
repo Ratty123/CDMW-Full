@@ -1344,7 +1344,6 @@ class HkxPreviewTests(unittest.TestCase):
 
         with mock.patch("cdmw.core.archive_mesh_import_preview.build_mesh_preview_from_bytes", side_effect=_preview_stub):
             result = build_archive_preview_result(
-                None,
                 hkx_entry,
                 texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
                 texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -1375,7 +1374,6 @@ class HkxPreviewTests(unittest.TestCase):
             mock.patch("cdmw.core.archive_hkx.build_hkx_model_preview_from_document") as visual_mock,
         ):
             result = build_archive_preview_result(
-                None,
                 entries[0],
                 texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
                 texture_entries_by_basename=build_archive_entry_basename_index(entries),
@@ -1411,13 +1409,11 @@ class HkxPreviewTests(unittest.TestCase):
 
         with mock.patch("cdmw.core.archive_mesh_import_preview.build_mesh_preview_from_bytes", side_effect=_preview_stub):
             first = build_archive_preview_result(
-                None,
                 entries[0],
                 texture_entries_by_normalized_path=path_index,
                 texture_entries_by_basename=basename_index,
             )
             second = build_archive_preview_result(
-                None,
                 entries[1],
                 texture_entries_by_normalized_path=path_index,
                 texture_entries_by_basename=basename_index,
@@ -1438,7 +1434,6 @@ class HkxPreviewTests(unittest.TestCase):
         entries = self._archive_entries((("character/bin__/meshphysics/body.hkx", hkx_data),))
 
         result = build_archive_preview_result(
-            None,
             entries[0],
             texture_entries_by_normalized_path=build_archive_entry_path_index(entries),
             texture_entries_by_basename=build_archive_entry_basename_index(entries),

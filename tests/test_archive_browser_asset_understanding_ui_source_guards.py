@@ -303,7 +303,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
             self.assertIn(token, source)
         self.assertNotIn('("Show Only This File", self.archive_action_show_only_file_button)', source)
 
-    def test_material_values_preview_uses_embedded_d3d11_renderer(self) -> None:
+    def test_material_values_preview_uses_embedded_vortice_renderer(self) -> None:
         source = (
             MAIN_WINDOW.read_text(encoding="utf-8")
             + "\n"
@@ -336,7 +336,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("manifest-only material update", source)
         self.assertIn("manifest updated in", source)
         self.assertIn("cache_root=self._native_preview_package_cache_root()", source)
-        self.assertIn("create_native_preview_package_staging_dir(cache_root)", source)
+        self.assertIn("create_dotnet_preview_package_staging_dir(cache_root)", source)
         self.assertIn("texture_edits_active = bool(_edited_values({\"texture\"}))", source)
         self.assertIn("edited material colors shown as solid preview overlay", source)
         self.assertIn("selected_value_edit.textChanged.connect(_sync_tree_from_selected_value)", source)
@@ -389,7 +389,7 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         self.assertIn("build_appearance_composite_model", source)
         self.assertIn("find_appearance_composite_candidates", source)
         self.assertIn("model_overrides=model_overrides", source)
-        self.assertIn("Preparing composite appearance preview for D3D11", source)
+        self.assertIn("Preparing composite appearance preview for .NET/Vortice", source)
         self.assertIn("prepared_preview_model=prepared_preview_model", source)
         self.assertIn("What-if model override", source)
         self.assertIn("Display-only preview: no archive or game files are modified.", source)

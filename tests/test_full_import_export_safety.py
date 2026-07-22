@@ -131,10 +131,12 @@ def test_final_preview_blocks_unproven_blend_and_preserves_unsafe_override_polic
     compatible = _final_preview(tmp_path, alpha_blend=True)
 
     safety = tuple(error for error in blocked.preflight_errors if "Corpus-proven target wrapper support missing" in error)
+    hard = material_preflight_hard_blockers(blocked.preflight_errors)
     assert len(safety) == 1
+    assert any("Visible color texture is not package-resolved" in error for error in hard)
     assert not any("Corpus-proven target wrapper support missing" in error for error in compatible.preflight_errors)
     assert material_preflight_hard_blockers(safety) == safety
-    assert apply_material_preflight_override(blocked) == safety
+    assert apply_material_preflight_override(blocked) == hard
     assert safety[0] in blocked.preflight_errors
     assert apply_material_preflight_override(blocked, include_hard=True) == ()
 

@@ -185,7 +185,7 @@ def test_mesh_editor_diagnostics_uses_late_prompt_context_values() -> None:
             "preview_mode_combo": _FakeValueWidget("side_by_side"),
             "preview_performance_label": _FakeValueWidget("ready in 1 ms"),
             "preview_render_mode_combo": _FakeValueWidget("lit"),
-            "preview_renderer_combo": _FakeValueWidget("d3d11"),
+            "preview_renderer_combo": _FakeValueWidget("d3d11_vortice_shader"),
             "preview_visible_mode_combo": _FakeValueWidget("mesh_base_first"),
             "replacement_mesh_base_for_mapping": "base-mesh",
             "replacement_mesh_for_mapping": "live-mesh",
@@ -199,7 +199,7 @@ def test_mesh_editor_diagnostics_uses_late_prompt_context_values() -> None:
     text = diagnostics_state["text_widget"].toPlainText()
 
     assert "<error:" not in text
-    assert "d3d11_active: True" in text
+    assert "dotnet_vortice_active: True" in text
     assert "preview_timing_label: ready in 1 ms" in text
     assert "source_face_limit: 456" in text
     assert "selected_source: 3" in text

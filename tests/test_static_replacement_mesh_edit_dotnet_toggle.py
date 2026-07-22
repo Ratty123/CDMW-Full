@@ -8,7 +8,6 @@ from cdmw.ui.archive_browser.static_replacement_mesh_edit_selection import (
     _mesh_edit_enabled_toggled,
     _mesh_editor_embedded_dotnet_failed,
     _mesh_editor_embedded_dotnet_ready,
-    _stop_legacy_native_preview_for_dotnet,
 )
 from cdmw.ui.archive_browser.static_replacement_mesh_edit_session import (
     _mesh_editor_finalize_edit_mode_exit,
@@ -43,7 +42,7 @@ def test_edit_mesh_toggle_has_no_legacy_preview_fallback() -> None:
 
     assert "start_dotnet()" in toggle_source
     assert '"_mesh_editor_embedded_stop_native_d3d11_preview"' not in toggle_source
-    assert "_stop_legacy_native_preview_for_dotnet()" in toggle_source
+    assert "_stop_legacy_native_preview_for_dotnet" not in toggle_source
     assert "_start_mesh_edit_fallback" not in toggle_source
     assert "preview cannot start" in toggle_source
     assert "preview is disabled by configuration" in toggle_source
@@ -154,11 +153,12 @@ def test_dotnet_toolbar_ownership_does_not_require_qprocess_symbol() -> None:
     assert "int(process_state) != 0" in helper_source
 
 
-def test_dotnet_launch_can_stop_native_d3d11_preview_process() -> None:
+def test_dotnet_launch_exposes_only_shared_vortice_shutdown() -> None:
     source = static_replacement_callback_implementation_source(ROOT)
 
     assert "_alignment_d3d11_stop_process" in source
-    assert "setattr(_state.dialog, '_mesh_editor_embedded_stop_native_d3d11_preview', _state._alignment_d3d11_stop_process)" in source
+    assert "setattr(_state.dialog, '_mesh_editor_embedded_stop_dotnet_preview', _state._alignment_d3d11_stop_process)" in source
+    assert "_mesh_editor_embedded_stop_native_d3d11_preview" not in source
 
 
 def test_alignment_native_preview_queue_is_unconditionally_disabled() -> None:
@@ -309,38 +309,27 @@ def test_dotnet_ready_and_failed_callbacks_own_embedded_state() -> None:
     assert "Launching embedded Mesh .NET editor" in source
 
 
-def test_dotnet_ready_stops_legacy_native_preview_once() -> None:
-    stopped: list[str] = []
+def test_dotnet_ready_marks_resident_renderer_active() -> None:
     events: list[str] = []
-    dialog = SimpleNamespace(
-        _mesh_editor_embedded_stop_native_d3d11_preview=lambda: stopped.append("stopped")
-    )
+    dialog = SimpleNamespace()
     state = SimpleNamespace(dialog=dialog)
     callbacks = SimpleNamespace(
         _record_mesh_edit_event=lambda event, **_payload: events.append(event),
         _refresh_mesh_edit_controls=lambda: None,
     )
-    callbacks._stop_legacy_native_preview_for_dotnet = lambda: (
-        _stop_legacy_native_preview_for_dotnet(state, callbacks)
-    )
-
     _mesh_editor_embedded_dotnet_ready(state, callbacks)
     _mesh_editor_embedded_dotnet_ready(state, callbacks)
 
-    assert stopped == ["stopped"]
-    assert events.count("mesh_edit_legacy_native_preview_stopped") == 1
+    assert events.count("mesh_dotnet_process_ready") == 2
     assert dialog._mesh_editor_embedded_dotnet_active is True
     assert dialog._mesh_editor_embedded_dotnet_state == "ready"
 
 
 def test_dotnet_failure_keeps_preview_unavailable_without_legacy_fallback() -> None:
-    stopped: list[str] = []
     visibility: list[bool] = []
     statuses: list[tuple[str, bool]] = []
     events: list[tuple[str, dict[str, object]]] = []
-    dialog = SimpleNamespace(
-        _mesh_editor_embedded_stop_native_d3d11_preview=lambda: stopped.append("stopped")
-    )
+    dialog = SimpleNamespace()
     state = SimpleNamespace(
         dialog=dialog,
         controls_panel=SimpleNamespace(setVisible=lambda value: visibility.append(bool(value))),
@@ -352,17 +341,11 @@ def test_dotnet_failure_keeps_preview_unavailable_without_legacy_fallback() -> N
         _record_mesh_edit_event=lambda event, **payload: events.append((str(event), dict(payload))),
         _refresh_mesh_edit_controls=lambda: None,
     )
-    callbacks._stop_legacy_native_preview_for_dotnet = lambda: (
-        _stop_legacy_native_preview_for_dotnet(state, callbacks)
-    )
-
     _mesh_editor_embedded_dotnet_failed(state, callbacks, "launch_failed", "boom")
 
-    assert stopped == ["stopped"]
     assert visibility == [True]
     assert statuses == [("Mesh .NET preview failed: boom", True)]
     assert events == [
-        ("mesh_edit_legacy_native_preview_stopped", {"reason": "dotnet_authoritative"}),
         ("mesh_edit_dotnet_failed", {"reason": "launch_failed", "diagnostics": "boom"}),
     ]
     assert dialog._mesh_editor_embedded_dotnet_active is False
@@ -377,7 +360,6 @@ def test_dotnet_edit_uses_full_width_then_failure_restores_setup_panel() -> None
         _mesh_edit_apply_preview_mode_transition=lambda _reason: None,
     )
     callbacks = SimpleNamespace(
-        _stop_legacy_native_preview_for_dotnet=lambda: None,
         _record_mesh_edit_event=lambda *_args, **_kwargs: None,
         _refresh_mesh_edit_controls=lambda: None,
     )
@@ -392,7 +374,6 @@ def test_dotnet_edit_uses_full_width_then_failure_restores_setup_panel() -> None
 def test_edit_mesh_launch_hides_builder_controls_for_dotnet_panel() -> None:
     visibility: list[bool] = []
     launches: list[str] = []
-    stopped: list[str] = []
     events: list[str] = []
     dialog = SimpleNamespace(
         _mesh_editor_embedded_dotnet_active=False,
@@ -411,14 +392,12 @@ def test_edit_mesh_launch_hides_builder_controls_for_dotnet_panel() -> None:
         _record_mesh_edit_event=lambda event, **_payload: events.append(str(event)),
         _embedded_dotnet_parent_hwnd=lambda: 123,
         _alignment_d3d11_process_active=lambda: False,
-        _stop_legacy_native_preview_for_dotnet=lambda: stopped.append("stopped"),
     )
 
     _mesh_edit_enabled_toggled(state, callbacks, True)
 
     assert visibility == [False]
     assert launches == ["started"]
-    assert stopped == ["stopped"]
     assert events == ["mesh_edit_dotnet_launch_requested"]
     assert dialog._mesh_editor_embedded_dotnet_state == "launching"
     assert dialog._mesh_editor_embedded_dotnet_active is False

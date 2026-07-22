@@ -364,6 +364,27 @@ fn extract_collision_shapes(
         }
     }
 
+    append_convex_shapes(
+        data,
+        &spans,
+        records,
+        &mut shapes,
+        &mut vertex_total,
+        &mut triangle_total,
+        warnings,
+    );
+    shapes
+}
+
+fn append_convex_shapes(
+    data: &[u8],
+    spans: &[(usize, usize, usize)],
+    records: &[ItemRecord],
+    shapes: &mut Vec<HkxPreviewShape>,
+    vertex_total: &mut usize,
+    triangle_total: &mut usize,
+    warnings: &mut Vec<String>,
+) {
     let convex_records = records
         .iter()
         .filter(|record| record.type_name == "hknpConvexShape")
@@ -385,28 +406,27 @@ fn extract_collision_shapes(
                 .get(group_index)
                 .map(|record| record.index)
                 .unwrap_or(records[start].index);
-            if let Some(shape) = convex_shape(data, &spans, &records[start..end], record_index) {
+            if let Some(shape) = convex_shape(data, spans, &records[start..end], record_index) {
                 append_shape(
-                    &mut shapes,
-                    &mut vertex_total,
-                    &mut triangle_total,
+                    shapes,
+                    vertex_total,
+                    triangle_total,
                     shape,
                     warnings,
                 );
             }
         }
     } else if let Some(record) = convex_records.first() {
-        if let Some(shape) = convex_shape(data, &spans, records, record.index) {
+        if let Some(shape) = convex_shape(data, spans, records, record.index) {
             append_shape(
-                &mut shapes,
-                &mut vertex_total,
-                &mut triangle_total,
+                shapes,
+                vertex_total,
+                triangle_total,
                 shape,
                 warnings,
             );
         }
     }
-    shapes
 }
 
 fn append_shape(

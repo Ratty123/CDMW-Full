@@ -2,6 +2,23 @@
   "functions": {
     "build_gui.py::BuilderGui._build_layout": 238,
     "tools/calibrate_crimson_startup.py::run_startup_calibration": 183,
-    "tools/run_crimson_renderdoc_hotkey_capture.py::run_renderdoc_hotkey_capture": 169
+    "tools/dotnet_archive_backend/probe_full_archive_backend.py::run_probe": 240,
+    "tools/mesh_editor_visual_audit_refresh_dotnet.py::main": 168,
+    "tools/mesh_harness/archive_provenance.py::_hydrate_real_archive_mesh_materials": 171,
+    "tools/mesh_harness/modify_original_audit.py::run_modify_original_material_subset": 270,
+    "tools/mesh_harness/real_dotnet.py::_run_performance_interactions": 312,
+    "tools/mesh_harness/real_dotnet.py::run_real_archive_mesh_editor_dotnet_edit_smoke": 156,
+    "tools/mesh_harness/real_dotnet_flow.py::exercise_linked_texture_strokes": 170,
+    "tools/mesh_harness/real_dotnet_input.py::exercise_side_by_side_wheel_zoom": 304,
+    "tools/mesh_harness/visual_audit_cli.py::_write_draft_review": 153,
+    "tools/mesh_harness/visual_audit_cli.py::main": 179,
+    "tools/mesh_harness/visual_audit_corpus.py::prepare_visual_audit_corpus": 201,
+    "tools/mesh_harness/visual_audit_review.py::_validate_v2_asset_verdict": 159,
+    "tools/mesh_harness/visual_audit_review.py::finalize_visual_audit_review": 306,
+    "tools/run_crimson_renderdoc_hotkey_capture.py::run_renderdoc_hotkey_capture": 169,
+    "tools/texture_replacer_headless_harness.py::_scenario_consumer_matrix": 226,
+    "tools/texture_replacer_headless_harness.py::_scenario_failure_lifecycle": 198,
+    "tools/texture_replacer_headless_harness.py::_scenario_policy_matrix": 214,
+    "tools/texture_replacer_headless_harness.py::main": 162
   }
 }
