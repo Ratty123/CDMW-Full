@@ -190,6 +190,35 @@ def test_helper_command_selects_explicit_profiles(tmp_path: Path) -> None:
     assert authoring[-2:] == ["--profile", "authoring"]
 
 
+def test_renderer_ready_keeps_process_for_nonfatal_material_audit_gaps(tmp_path: Path) -> None:
+    controller, process, _package_a = _start_controller(tmp_path)
+    ready_payloads: list[object] = []
+    controller.renderer_ready.connect(ready_payloads.append)
+
+    controller._handle_renderer_ready(  # noqa: SLF001 - focused readiness contract test
+        {
+            "event": "ready",
+            "profile": "preview",
+            "renderer": {
+                "backend": "d3d11_vortice_shader",
+                "gpu_backed": True,
+                "renderer_blocked": False,
+                "dds_resources": 24,
+                "native_dds_parity": False,
+                "dds_native_dxgi_upload": True,
+                "dds_upload_mode": "native_dds_mip_chain_with_bitmap_generated_mips",
+                "material_contract_gap": ["profile-specific material graphs without capture evidence"],
+            },
+        }
+    )
+
+    assert controller.process is process
+    assert controller._renderer_ready is True  # noqa: SLF001
+    assert not controller._retry_timer.isActive()  # noqa: SLF001
+    assert len(ready_payloads) == 1
+    controller.shutdown()
+
+
 def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     controller, process, first = _start_controller(tmp_path)
     assert controller.process_id == 4242

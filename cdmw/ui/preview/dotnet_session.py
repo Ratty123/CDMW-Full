@@ -645,7 +645,6 @@ class DotNetPreviewSessionController(QObject):
         blockers = mesh_dotnet_renderer_blockers(
             payload,
             embedded=True,
-            require_material_parity=True,
         )
         if blockers:
             self._fail_current_process(
