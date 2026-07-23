@@ -1,6 +1,6 @@
 # Archive Decoder Parity And Archive Lite Item Finder
 
-Updated: 2026-07-21
+Updated: 2026-07-23
 
 Status: IMPLEMENTED - SYNTHETIC FULL/LITE GATES PASS; REAL-CORPUS, VISIBLE, AND RELEASE GATES DEFERRED
 
@@ -59,6 +59,11 @@ than importing the other product's source:
   generations, and cancels outstanding requests and conversions on a newer
   search or dialog close. Material-specific browsing remains outside this Item
   Finder surface.
+- Full's resident catalogue now also uses Lite's ordered category/group
+  taxonomy rather than its earlier coarse `Equipment` classifier.
+  Classification considers internal, display, localized, model, PAC, and icon
+  naming evidence, preserves the `Item / Unclassified` fallback, and uses token
+  boundaries so embedded text such as `password` does not become a `sword`.
 - Full now starts the catalogue and icon warmup immediately after archive
   publication instead of on the first Item Finder click. The restored 72-row
   page is cached for immediate open, selected/visible requests preempt the
@@ -92,6 +97,15 @@ Focused validation for the Item Finder/classification follow-up on 2026-07-21:
   Full item-catalog protocol work (`ArchiveItemCatalogBuildService.cs` source
   independence and worker ping compatibility); those unrelated owners were not
   changed by this follow-up.
+
+Focused Full classifier parity validation on 2026-07-23:
+
+- Full archive backend Release gate: PASS, 14 managed scenarios including the
+  new Lite category-parity fixture, plus the native self-test and headless
+  worker/protocol probe.
+- Full remote finder, Lite-parity UI, catalogue-service, and backend-contract
+  tests: PASS, 24 tests.
+- Licensed real-corpus and visible UI validation remained deferred.
 
 Standalone-repository extraction validation on 2026-07-21:
 

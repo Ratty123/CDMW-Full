@@ -23,6 +23,7 @@ internal static class FullArchiveTestRunner
             ("duplicate_override_state", DuplicateOverrideStateAsync),
             ("archive_name_index", ArchiveNameIndexAsync),
             ("item_catalogue_paging_and_bounded_scope", ItemCataloguePagingAndBoundedScopeAsync),
+            ("item_catalogue_lite_category_parity", ItemCatalogueLiteCategoryParityAsync),
             ("texture_usage_classification", TextureUsageClassificationAsync),
             ("bounded_protocol_reader", BoundedProtocolReaderAsync),
             ("source_independence_and_baseline", SourceIndependenceAndBaselineAsync),
@@ -173,6 +174,59 @@ internal static class FullArchiveTestRunner
         {
             DeleteDirectory(cacheRoot);
         }
+    }
+
+    private static Task ItemCatalogueLiteCategoryParityAsync()
+    {
+        var cases = new (string InternalName, string DisplayName, string LocalizedName, string ModelStem, string Category, string Group)[]
+        {
+            ("OneHandSword_Gilded", "Gilded Longsword", "", "", "Weapon", "Sword"),
+            ("Marni_Laser_Helm", "Marni Laser Helm", "", "", "Armor", "Head"),
+            ("Bilibili_Earring", "Bilibili Earring", "", "", "Accessory", "Earrings"),
+            ("Sungrovemanor_Homekey", "Sungrovemanor Homekey", "", "", "Quest / Document", "Key / Permit"),
+            ("Bookcase_0001", "Bookcase 0001", "", "", "Housing / Prop", "Furniture"),
+            ("Warrobot_Repairtool_01_L", "Warrobot Repairtool 01 L", "", "", "Tool", "Gathering Tool"),
+            ("Charactercustomize_Damian_Tiehair", "Charactercustomize Damian Tiehair", "", "", "Character Customization", "Hair"),
+            ("Uniform_Cat_Outfit", "Uniform Cat Outfit", "", "", "Mount / Pet", "Pet Gear"),
+            ("Guard_Lantern_Hat", "Guard Lantern Hat", "", "", "Tool", "Light / Lantern"),
+            ("Artisans_Hand", "Artisan's Hand", "", "", "Weapon", "Axe / Mace / Hammer"),
+            ("Unknown_Localized_Item", "Unknown Localized Item", "Silver Earring", "", "Accessory", "Earrings"),
+            ("Unknown_Fishing_Item", "The Claw", "", "itemcatch_fishingrod_01", "Tool", "Fishing"),
+            ("Password_Token", "Password Token", "", "", "Quest / Document", "Token / Seal"),
+            ("Opaque_Entry", "Opaque Entry", "", "", "Item", "Unclassified"),
+        };
+        var catalog = ArchiveItemCatalog.FromRecords(cases.Select(
+            static (testCase, index) => new ArchiveItemCatalogRecord(
+                1000 + index,
+                testCase.InternalName,
+                testCase.DisplayName,
+                string.IsNullOrWhiteSpace(testCase.LocalizedName) ? [] : [testCase.LocalizedName],
+                [],
+                string.IsNullOrWhiteSpace(testCase.ModelStem) ? [] : [testCase.ModelStem],
+                [],
+                [],
+                [])));
+
+        for (var index = 0; index < cases.Length; index++)
+        {
+            var testCase = cases[index];
+            Require(
+                catalog.TryGet(1000 + index, out var item)
+                && item is not null
+                && item.Category == testCase.Category
+                && item.Group == testCase.Group,
+                $"Full Item Finder categorized '{testCase.DisplayName}' as "
+                + $"'{item?.Category} / {item?.Group}' instead of Lite's "
+                + $"'{testCase.Category} / {testCase.Group}'");
+        }
+        Require(
+            !catalog.CategoryFacets.Any(static facet => facet.Category == "Equipment"),
+            "the obsolete coarse Full-only Equipment taxonomy is still present");
+        Require(
+            catalog.Items.Where(static item => item.Group != "Unclassified")
+                .All(static item => item.CategoryEvidence.Contains("Recovered", StringComparison.Ordinal)),
+            "Lite-parity category evidence was not published for classified items");
+        return Task.CompletedTask;
     }
 
     private static async Task NativeAndGenerationCacheAsync()

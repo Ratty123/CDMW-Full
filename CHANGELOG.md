@@ -17,6 +17,9 @@ The format is intentionally simple:
 - Broadened Archive Browser item-name recovery across shifted ItemInfo layouts, larger prefab-reference lists, semantic StringInfo icon links, and derived icon/texture/sidecar filenames; related Name Evidence cells now show the recovered item name without a redundant `Name hint:` prefix.
 - Merged Archive Browser's Exact Name and Name Evidence columns into one Item Name column. Direct names take priority, inferred names fill the same column, and the tooltip retains the exact-versus-related confidence distinction.
 
+### Fixed
+- Fixed CDMW Full Item Finder categories lagging behind CDMW Lite by applying Lite's ordered category/group taxonomy and token-safe naming rules in the resident Full archive backend.
+
 ## [0.10.0-alpha.2] - 2026-06-06
 
 ### Added
