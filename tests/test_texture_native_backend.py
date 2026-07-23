@@ -336,11 +336,21 @@ class NativeTextureBackendTests(unittest.TestCase):
     def test_directxtex_batch_preview_waits_for_recent_helper_replacement(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            binary_path = root / "cd-texture-dx.exe"
-            binary_path.write_bytes(b"fake")
+            binary_path = root / "Release" / "cd-texture-dx.exe"
             dds_path = root / "replacement.dds"
             dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
             logs = []
+
+            find_calls = 0
+
+            def find_binary():
+                nonlocal find_calls
+                find_calls += 1
+                if find_calls == 1:
+                    return None
+                binary_path.parent.mkdir()
+                binary_path.write_bytes(b"fake")
+                return binary_path
 
             def fake_run(command, **_kwargs):
                 job_path = Path(command[2])
@@ -357,10 +367,8 @@ class NativeTextureBackendTests(unittest.TestCase):
 
             with (
                 patch.object(texture_native, "_last_directxtex_binary_path", binary_path),
-                patch(
-                    "cdmw.core.texture_native.find_directxtex_texture_binary",
-                    side_effect=(None, binary_path),
-                ) as find_binary,
+                patch.object(texture_native, "_directxtex_texture_binary_candidates", return_value=(binary_path,)),
+                patch("cdmw.core.texture_native.find_directxtex_texture_binary", side_effect=find_binary),
                 patch("cdmw.core.texture_native.time.sleep", return_value=None),
                 patch("cdmw.core.texture_native.run_process_with_cancellation", side_effect=fake_run),
             ):
@@ -369,7 +377,7 @@ class NativeTextureBackendTests(unittest.TestCase):
                     on_log=logs.append,
                 )
 
-        self.assertEqual(2, find_binary.call_count)
+        self.assertEqual(2, find_calls)
         self.assertEqual({str(dds_path.resolve())}, set(results))
         self.assertTrue(any("temporarily unavailable" in line for line in logs))
         self.assertTrue(any("replacement is ready" in line for line in logs))

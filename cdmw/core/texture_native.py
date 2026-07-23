@@ -120,7 +120,7 @@ def default_directxtex_texture_binary_path(*, release: bool = True) -> Path:
     return _repo_root() / "native" / "cd_texture_dx" / "build" / config / exe_name
 
 
-def find_directxtex_texture_binary() -> Optional[Path]:
+def _directxtex_texture_binary_candidates() -> tuple[Path, ...]:
     env_path = os.environ.get("CDMW_DIRECTXTEX_TEXTURE_BIN", "").strip()
     candidates = [Path(env_path)] if env_path else []
     frozen_root = Path(str(getattr(sys, "_MEIPASS", ""))) if getattr(sys, "_MEIPASS", "") else None
@@ -136,10 +136,30 @@ def find_directxtex_texture_binary() -> Optional[Path]:
             _repo_root() / "native" / "cd_texture_dx" / "bin" / "cd-texture-dx.exe",
         ]
     )
+    return tuple(candidates)
+
+
+def find_directxtex_texture_binary() -> Optional[Path]:
+    candidates = _directxtex_texture_binary_candidates()
     for candidate in candidates:
         if candidate.is_file():
             return candidate
     return None
+
+
+def _is_configured_directxtex_binary_path(path: Path) -> bool:
+    try:
+        resolved = path.expanduser().resolve()
+    except OSError:
+        resolved = path.expanduser().absolute()
+    for candidate in _directxtex_texture_binary_candidates():
+        try:
+            candidate_resolved = candidate.expanduser().resolve()
+        except OSError:
+            candidate_resolved = candidate.expanduser().absolute()
+        if candidate_resolved == resolved:
+            return True
+    return False
 
 
 def _resolve_directxtex_texture_binary(
@@ -155,7 +175,9 @@ def _resolve_directxtex_texture_binary(
         return binary
     with _DIRECTXTEX_BINARY_STATE_LOCK:
         previous = _last_directxtex_binary_path
-    if previous is None or not previous.parent.is_dir():
+    if previous is None:
+        return None
+    if not previous.parent.is_dir() and not _is_configured_directxtex_binary_path(previous):
         return None
     timeout_seconds = max(0.0, float(DIRECTXTEX_BINARY_REAPPEAR_TIMEOUT_SECONDS))
     if callable(on_log):
