@@ -10,6 +10,7 @@ def _mesh_geometry_preview_step_001(_state):
     _state.Dict = _state.context.get('Dict')
     _state.original_mesh_for_mapping = _state.context.get('original_mesh_for_mapping')
     _state.preview_mode_combo = _state.context.get('preview_mode_combo')
+    _state.preview_mesh_view_combo = _state.context.get('preview_mesh_view_combo')
     _state.MESH_EDIT_DELETE_MODE_OPTIONS = _state.context.get('MESH_EDIT_DELETE_MODE_OPTIONS')
     _state.MESH_EDIT_FALLOFF_OPTIONS = _state.context.get('MESH_EDIT_FALLOFF_OPTIONS')
     _state.MESH_EDIT_SCOPE_OPTIONS = _state.context.get('MESH_EDIT_SCOPE_OPTIONS')
@@ -383,6 +384,7 @@ def _bind_embedded_mesh_editor_preview(_state):
         )
         return builder_presentation_state(
             comparison_mode=comparison_mode,
+            display_mode=_state.preview_mesh_view_combo.currentData(),
             camera=camera,
             render_settings=settings,
             grid_visible=True,

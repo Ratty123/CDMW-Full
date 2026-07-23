@@ -259,7 +259,7 @@ def test_dotnet_experiment_headless_smoke_reports_metrics() -> None:
     assert "BuildPresentationViewportRegion()" in source
     assert "Mesh Edit Session" in source
     assert "Preview mode" in source
-    assert "_previewMode.SelectedIndex = 5;" in source
+    assert "_previewMode.SelectedIndex = 6;" in source
     assert "ShowXRay" in source
     assert "ApplySelectionUpdate" in source
     assert "UpdateSelection" in source

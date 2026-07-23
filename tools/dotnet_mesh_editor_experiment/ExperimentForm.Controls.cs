@@ -108,6 +108,7 @@ internal sealed partial class ExperimentForm
         {
             "textured",
             "untextured_faces",
+            "untextured_wire",
             "textured_wire",
             "wire",
             "vertices",
@@ -120,15 +121,16 @@ internal sealed partial class ExperimentForm
             {
                 "Solid (Textured)",
                 "Faces (No Textures)",
+                "Faces + Wire",
                 "Solid + Wire",
                 "Wire",
                 "Vertices",
                 "Wire + Vertices",
                 "X-Ray",
             },
-            selectedIndex: HasResidentTextureResources() ? 0 : 1);
+            selectedIndex: HasResidentTextureResources() ? 3 : 2);
         _ = _viewport.TrySetSynchronizedDisplayMode(
-            HasResidentTextureResources() ? "textured" : "untextured_faces",
+            HasResidentTextureResources() ? "textured_wire" : "untextured_wire",
             out _);
         _previewMode.SelectedIndexChanged += (_, _) =>
         {
@@ -138,16 +140,24 @@ internal sealed partial class ExperimentForm
             }
             var index = Math.Clamp(_previewMode.SelectedIndex, 0, modes.Length - 1);
             var mode = modes[index];
-            if (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
+            if ((string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase))
                 && _options.Embedded
                 && !HasResidentTextureResources())
             {
-                _ = _viewport.TrySetDisplayMode("untextured_faces", out _);
+                var fallbackMode = string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)
+                    ? "untextured_wire"
+                    : "untextured_faces";
+                _ = _viewport.TrySetDisplayMode(fallbackMode, out _);
                 RequestResidentViewportDisplay(mode);
                 return;
             }
             if (_viewport.TrySetDisplayMode(mode, out var error))
             {
+                if (!_meshEditInteractionActive)
+                {
+                    _placementPreviewMode = mode;
+                }
                 _xray.Checked = _viewport.ShowXRay;
                 _statusLabel.Text = $"Preview mode: {_previewMode.SelectedItem}.";
             }
@@ -171,7 +181,10 @@ internal sealed partial class ExperimentForm
         if (string.IsNullOrWhiteSpace(_residentMaterialSessionId)
             || _residentProcessGeneration <= 0)
         {
-            SyncPreviewModeSelection("untextured_faces");
+            SyncPreviewModeSelection(
+                string.Equals(mode, "textured_wire", StringComparison.OrdinalIgnoreCase)
+                    ? "untextured_wire"
+                    : "untextured_faces");
             _statusLabel.Text = "Resident preview is not ready to load textures yet.";
             return;
         }
@@ -188,18 +201,28 @@ internal sealed partial class ExperimentForm
 
     private void SyncPreviewModeSelection(string mode)
     {
-        var index = mode.Trim().ToLowerInvariant() switch
+        var normalized = mode.Trim().ToLowerInvariant();
+        var index = normalized switch
         {
             "textured" => 0,
             "untextured_faces" => 1,
-            "textured_wire" => 2,
-            "wire" => 3,
-            "vertices" => 4,
-            "wire_vertices" => 5,
-            "xray" => 6,
+            "untextured_wire" => 2,
+            "textured_wire" => 3,
+            "wire" => 4,
+            "vertices" => 5,
+            "wire_vertices" => 6,
+            "xray" => 7,
             _ => -1,
         };
-        if (index < 0 || _previewMode.SelectedIndex == index)
+        if (index < 0)
+        {
+            return;
+        }
+        if (!_meshEditInteractionActive)
+        {
+            _placementPreviewMode = normalized;
+        }
+        if (_previewMode.SelectedIndex == index)
         {
             return;
         }
@@ -908,9 +931,9 @@ internal sealed partial class ExperimentForm
             if (enteringMeshEdit)
             {
                 _viewport.SuppressPlacementGizmoInteraction();
-                if (_previewMode.SelectedIndex != 5)
+                if (_previewMode.SelectedIndex != 6)
                 {
-                    _previewMode.SelectedIndex = 5;
+                    _previewMode.SelectedIndex = 6;
                 }
                 else if (_viewport.TrySetDisplayMode("wire_vertices", out var error))
                 {
@@ -925,14 +948,21 @@ internal sealed partial class ExperimentForm
         }
         else if (leavingMeshEdit)
         {
-            var mode = HasResidentTextureResources() ? "textured" : "untextured_faces";
+            var mode = _placementPreviewMode;
+            if (!HasResidentTextureResources())
+            {
+                mode = mode switch
+                {
+                    "textured" => "untextured_faces",
+                    "textured_wire" => "untextured_wire",
+                    _ => mode,
+                };
+            }
             SyncPreviewModeSelection(mode);
             if (_viewport.TrySetSynchronizedDisplayMode(mode, out var error))
             {
-                _xray.Checked = false;
-                _statusLabel.Text = HasResidentTextureResources()
-                    ? "Preview mode: Solid (Textured)."
-                    : "Preview mode: Faces (No Textures).";
+                _xray.Checked = _viewport.ShowXRay;
+                _statusLabel.Text = $"Preview mode: {_previewMode.SelectedItem}.";
             }
             else
             {

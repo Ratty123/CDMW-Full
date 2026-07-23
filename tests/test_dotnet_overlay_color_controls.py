@@ -56,7 +56,7 @@ def test_xray_state_reaches_each_render_pane_and_refreshes_the_gpu_viewport() ->
     panes = _source("D3D11MaterialViewport.Panes.cs")
 
     assert "_viewport.SetXRayEnabled(_xray.Checked)" in program
-    assert "if (!_xray.Checked && _previewMode.SelectedIndex == 6)" in program
+    assert "if (!_xray.Checked && _previewMode.SelectedIndex == 7)" in program
     assert "public void SetXRayEnabled(bool enabled)" in display_modes
     assert "context.XRay = enabled;" in display_modes
     assert "UpdateGpuViewport();" in display_modes

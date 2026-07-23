@@ -17,6 +17,9 @@ from cdmw.ui.archive_browser.static_replacement_combo_options import (
     MESH_EDIT_SELECTION_MODE_OPTIONS,
     MESH_EDIT_TOOL_BUTTON_OPTIONS,
     MESH_EDIT_TOOL_OPTIONS,
+    MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
+    MESH_PREVIEW_DISPLAY_MODE_OPTIONS,
+    MESH_PREVIEW_DISPLAY_MODES,
     PARTS_OUTLINER_ROLE_OPTIONS,
     PREVIEW_MODE_OPTIONS,
     PREVIEW_RENDERER_OPTIONS,
@@ -25,6 +28,7 @@ from cdmw.ui.archive_browser.static_replacement_combo_options import (
     TEXTURE_OUTPUT_SIZE_OPTIONS,
     TEXTURE_UV_ROTATION_OPTIONS,
     d3d11_view_mode_options,
+    normalize_mesh_preview_display_mode,
     populate_combo_options,
 )
 
@@ -43,6 +47,22 @@ def test_static_combo_options_keep_expected_order_and_values() -> None:
         ("Replacement only", "replacement_only"),
         ("Original only", "original_only"),
     )
+    assert MESH_PREVIEW_DEFAULT_DISPLAY_MODE == "untextured_wire"
+    assert MESH_PREVIEW_DISPLAY_MODE_OPTIONS == (
+        ("Solid (Textured)", "textured"),
+        ("Faces (No Textures)", "untextured_faces"),
+        ("Faces + Wire", "untextured_wire"),
+        ("Solid + Wire", "textured_wire"),
+        ("Wire", "wire"),
+        ("Vertices", "vertices"),
+        ("Wire + Vertices", "wire_vertices"),
+        ("X-Ray", "xray"),
+    )
+    assert MESH_PREVIEW_DISPLAY_MODES == tuple(
+        value for _label, value in MESH_PREVIEW_DISPLAY_MODE_OPTIONS
+    )
+    assert normalize_mesh_preview_display_mode("UNtextured-Wire") == "untextured_wire"
+    assert normalize_mesh_preview_display_mode("unsupported") == "untextured_wire"
     assert TEXTURE_UV_ROTATION_OPTIONS == (
         ("0 deg", 0),
         ("90 deg", 90),

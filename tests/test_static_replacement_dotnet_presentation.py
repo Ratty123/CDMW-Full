@@ -80,7 +80,7 @@ def test_builder_presentation_state_carries_all_outer_control_families() -> None
     assert state["active_view"] == "comparison"
     assert state["side_by_side_split_ratio"] == 0.63
     assert state["camera"] == {"yaw": 30.0, "pitch": -10.0, "fit_to_view": True}
-    assert state["display"]["mode"] == "untextured_faces"  # type: ignore[index]
+    assert state["display"]["mode"] == "untextured_wire"  # type: ignore[index]
     assert state["display"]["material_debug_mode"] == 2  # type: ignore[index]
     assert state["display"]["quality"]["d3d11_normal_y_mode"] == "force_flip"  # type: ignore[index]
     assert state["display"]["quality"]["d3d11_texture_address_mode"] == "clamp"  # type: ignore[index]
@@ -109,7 +109,7 @@ def test_builder_presentation_state_defaults_mesh_edit_to_wire_vertices() -> Non
     assert state["display"]["gizmo_visible"] is False  # type: ignore[index]
 
 
-def test_builder_presentation_state_stays_untextured_until_resident_material_ack() -> None:
+def test_builder_presentation_state_starts_with_readable_untextured_wire() -> None:
     state = builder_presentation_state(
         comparison_mode="replacement_only",
         camera=None,
@@ -119,7 +119,62 @@ def test_builder_presentation_state_stays_untextured_until_resident_material_ack
         part_pick_enabled=False,
     )
 
-    assert state["display"]["mode"] == "untextured_faces"  # type: ignore[index]
+    assert state["display"]["mode"] == "untextured_wire"  # type: ignore[index]
+
+
+def test_builder_presentation_state_preserves_selected_mesh_view_mode() -> None:
+    state = builder_presentation_state(
+        comparison_mode="replacement_only",
+        display_mode="textured_wire",
+        camera=None,
+        render_settings=ModelPreviewRenderSettings(),
+        grid_visible=True,
+        gizmo_visible=False,
+        part_pick_enabled=False,
+    )
+
+    assert state["display"]["mode"] == "textured_wire"  # type: ignore[index]
+
+
+def test_builder_mesh_view_selector_uses_the_resident_presentation_lane() -> None:
+    shell = (
+        ROOT
+        / "cdmw"
+        / "ui"
+        / "archive_browser"
+        / "static_replacement_dialog_preview_shell.py"
+    ).read_text(encoding="utf-8")
+    callbacks = (
+        ROOT
+        / "cdmw"
+        / "ui"
+        / "archive_browser"
+        / "static_replacement_dialog_callbacks_preview_mode_part_01.py"
+    ).read_text(encoding="utf-8")
+    prompt_callbacks = (
+        ROOT
+        / "cdmw"
+        / "ui"
+        / "archive_browser"
+        / "static_replacement_dialog_prompt_state_callbacks.py"
+    ).read_text(encoding="utf-8")
+    presentation_getter = (
+        ROOT
+        / "cdmw"
+        / "ui"
+        / "archive_browser"
+        / "static_replacement_dialog_sections_mesh_geometry_preview_part_01.py"
+    ).read_text(encoding="utf-8")
+
+    assert 'setObjectName("MeshAlignmentViewportDisplayModeCombo")' in shell
+    assert "MESH_PREVIEW_DEFAULT_DISPLAY_MODE" in shell
+    assert (
+        "preview_mesh_view_combo.currentIndexChanged.connect(_set_preview_display_mode)"
+        in prompt_callbacks
+    )
+    assert '{"display": {"mode": mode}}' in callbacks
+    assert '"set_viewport_display_mode"' in callbacks
+    assert "display_mode=_state.preview_mesh_view_combo.currentData()" in presentation_getter
 
 
 def test_builder_part_highlight_state_uses_logical_scene_indices() -> None:
@@ -253,6 +308,7 @@ def test_embedded_builder_presentation_getter_reads_current_render_settings() ->
         ),
         self=SimpleNamespace(settings=SimpleNamespace(setValue=lambda *_args: None)),
         preview_mode_combo=_PreviewValueControl("replacement_only"),
+        preview_mesh_view_combo=_PreviewValueControl("untextured_wire"),
         preview_gizmo_checkbox=_PreviewValueControl(True),
         preview_part_pick_checkbox=_PreviewValueControl(True),
         mesh_edit_enabled_checkbox=_PreviewValueControl(False),
@@ -491,7 +547,7 @@ def test_legacy_diagnostic_mode_does_not_override_the_selected_dotnet_view() -> 
         gizmo_visible=False,
         part_pick_enabled=False,
     )
-    assert lit["display"]["mode"] == "untextured_faces"  # type: ignore[index]
+    assert lit["display"]["mode"] == "untextured_wire"  # type: ignore[index]
     assert lit["display"]["material_debug_mode"] == 0  # type: ignore[index]
     assert "render_diagnostic_mode" not in lit["display"]["quality"]  # type: ignore[index]
 

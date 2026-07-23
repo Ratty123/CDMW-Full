@@ -53,7 +53,7 @@ internal sealed partial class MeshViewport
             || textureSet.DecodedCount > 0
             || textureSet.NativeDdsResourceCount > 0;
         _ = TrySetSynchronizedDisplayMode(
-            hasTextureResources ? "textured" : "untextured_faces",
+            hasTextureResources ? "textured_wire" : "untextured_wire",
             out _);
         ApplySceneState();
     }

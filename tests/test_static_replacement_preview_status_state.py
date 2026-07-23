@@ -58,6 +58,9 @@ def test_alignment_preview_control_text_preserves_header_and_control_copy() -> N
     assert "hidden and inactive in Edit Mesh" in text["gizmo_tooltip"]
     assert text["part_pick"] == "Part Pick"
     assert "hover highlights source parts" in text["part_pick_tooltip"]
+    assert text["mesh_view_label"] == "Mesh view"
+    assert "Edit Mesh > Viewport" in text["mesh_view_tooltip"]
+    assert "Faces + Wire is the readable default" in text["mesh_view_tooltip"]
     assert text["dotnet_view_label"] == ".NET view"
     assert ".NET/Vortice" in text["dotnet_view_tooltip"]
     assert "Only renderer-backed modes" in text["dotnet_view_tooltip"]

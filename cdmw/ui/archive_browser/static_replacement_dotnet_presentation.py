@@ -10,6 +10,10 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_view_modes import (
     dotnet_preview_material_debug_mode,
     normalize_dotnet_preview_view_mode,
 )
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
+    normalize_mesh_preview_display_mode,
+)
 
 
 _RENDER_SETTING_FIELDS = (
@@ -93,6 +97,7 @@ def effective_builder_comparison_mode(
 def builder_presentation_state(
     *,
     comparison_mode: object,
+    display_mode: object = MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
     camera: Mapping[str, object] | None,
     render_settings: object,
     grid_visible: bool,
@@ -133,9 +138,9 @@ def builder_presentation_state(
     # while making the resident .NET field authoritative for current builds.
     settings["d3d11_view_mode"] = dotnet_view_mode
     settings["dotnet_view_mode"] = dotnet_view_mode
-    display_mode = "untextured_faces"
+    viewport_display_mode = normalize_mesh_preview_display_mode(display_mode)
     if mesh_edit_active:
-        display_mode = "wire_vertices"
+        viewport_display_mode = "wire_vertices"
     material_debug_mode = dotnet_preview_material_debug_mode(dotnet_view_mode)
     return {
         "active_view": active_view,
@@ -146,7 +151,7 @@ def builder_presentation_state(
         ),
         "camera": _json_value(dict(camera or {})),
         "display": {
-            "mode": display_mode,
+            "mode": viewport_display_mode,
             "material_debug_mode": material_debug_mode,
             "grid_visible": bool(grid_visible),
             "gizmo_visible": bool(gizmo_visible) and not bool(mesh_edit_active),

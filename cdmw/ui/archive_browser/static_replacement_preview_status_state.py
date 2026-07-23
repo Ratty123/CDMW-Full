@@ -95,6 +95,11 @@ def alignment_preview_control_text() -> dict[str, str]:
         "part_pick_tooltip": (
             "In the .NET/Vortice preview, hover highlights source parts and right-click opens the selected part menu."
         ),
+        "mesh_view_label": "Mesh view",
+        "mesh_view_tooltip": (
+            "Choose how the resident mesh geometry is drawn without reloading it. "
+            "These are the same modes as Edit Mesh > Viewport; Faces + Wire is the readable default."
+        ),
         "dotnet_view_tooltip": (
             ".NET/Vortice view mode for the resident Original and Replacement preview panes. "
             "Only renderer-backed modes are listed."

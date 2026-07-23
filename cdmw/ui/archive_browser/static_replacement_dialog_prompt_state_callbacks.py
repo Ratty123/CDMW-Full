@@ -340,6 +340,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     _sync_highlight_sets = alignment_preview_mode_callbacks._sync_highlight_sets
     _preview_mode_qt_widgets = alignment_preview_mode_callbacks._preview_mode_qt_widgets
     _preview_mode_needs_static_refresh = alignment_preview_mode_callbacks._preview_mode_needs_static_refresh
+    _set_preview_display_mode = alignment_preview_mode_callbacks._set_preview_display_mode
     _set_preview_mode = alignment_preview_mode_callbacks._set_preview_mode
 
     alignment_preview_render_settings_callbacks = create_alignment_preview_render_settings_callbacks({**context, **globals(), **locals()})
@@ -370,6 +371,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
 
     preview_renderer_combo.currentIndexChanged.connect(lambda _index: _set_preview_renderer())
     preview_mode_combo.currentIndexChanged.connect(_set_preview_mode)
+    preview_mesh_view_combo.currentIndexChanged.connect(_set_preview_display_mode)
     overlay_original_locked_checkbox.toggled.connect(_queue_static_preview_refresh)
     alignment_d3d11_reload_timer.timeout.connect(_flush_alignment_d3d11_preview_request)
 

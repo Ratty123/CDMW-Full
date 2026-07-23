@@ -5,6 +5,9 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
     effective_builder_comparison_mode,
     send_resident_presentation_state,
 )
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    normalize_mesh_preview_display_mode,
+)
 
 def _preview_mode_step_001(_state):
     _state.ModelPreviewData = _state.context.get('ModelPreviewData')
@@ -97,6 +100,7 @@ def _preview_mode_step_007(_state):
     _state.preview_part_pick_checkbox = _state.context.get('preview_part_pick_checkbox')
     _state.preview_help = _state.context.get('preview_help')
     _state.preview_mode_combo = _state.context.get('preview_mode_combo')
+    _state.preview_mesh_view_combo = _state.context.get('preview_mesh_view_combo')
     _state.preview_renderer_combo = _state.context.get('preview_renderer_combo')
     _state.preview_stack = _state.context.get('preview_stack')
     _state.mesh_edit_enabled_checkbox = _state.context.get('mesh_edit_enabled_checkbox')
@@ -218,6 +222,27 @@ def _preview_mode_step_011(_state):
 
 def _preview_mode_step_012(_state):
 
+    def _set_preview_display_mode(_index: int = 0) -> None:
+        del _index
+        if bool(_state.mesh_edit_enabled_checkbox.isChecked()):
+            return
+        mode = normalize_mesh_preview_display_mode(
+            _state.preview_mesh_view_combo.currentData()
+        )
+        if send_resident_presentation_state(
+            _state.dialog,
+            {"display": {"mode": mode}},
+        ):
+            return
+        setter = getattr(
+            _state.alignment_d3d11_preview_host,
+            "set_viewport_display_mode",
+            None,
+        )
+        if callable(setter):
+            setter(mode)
+    _state._set_preview_display_mode = _set_preview_display_mode
+
     def _set_preview_mode() -> None:
         mode = str(_state.preview_mode_combo.currentData() or 'side_by_side')
         previous_mode, mode = _state._alignment_preview_mode_record_helper(_state.alignment_preview_mode_state, mode)
@@ -265,7 +290,7 @@ def _preview_mode_step_012(_state):
     _state._set_preview_mode = _set_preview_mode
 
 def _preview_mode_step_013(_state):
-    _state._factory_result_values.update({'_set_preview_renderer': _state._set_preview_renderer, '_sync_highlight_sets': _state._sync_highlight_sets, '_preview_mode_qt_widgets': _state._preview_mode_qt_widgets, '_preview_mode_needs_static_refresh': _state._preview_mode_needs_static_refresh, '_set_preview_mode': _state._set_preview_mode})
+    _state._factory_result_values.update({'_set_preview_renderer': _state._set_preview_renderer, '_sync_highlight_sets': _state._sync_highlight_sets, '_preview_mode_qt_widgets': _state._preview_mode_qt_widgets, '_preview_mode_needs_static_refresh': _state._preview_mode_needs_static_refresh, '_set_preview_display_mode': _state._set_preview_display_mode, '_set_preview_mode': _state._set_preview_mode})
 
 STEPS = (
     _preview_mode_step_001,

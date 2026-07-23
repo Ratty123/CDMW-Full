@@ -7,6 +7,13 @@ from typing import TypeAlias
 
 from PySide6.QtWidgets import QComboBox
 
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
+    MESH_PREVIEW_DISPLAY_MODE_OPTIONS,
+    MESH_PREVIEW_DISPLAY_MODES,
+    normalize_mesh_preview_display_mode,
+)
+
 ComboOption: TypeAlias = tuple[str, object]
 ToolButtonOption: TypeAlias = tuple[str, str, str]
 
@@ -161,6 +168,9 @@ __all__ = [
     "MESH_EDIT_SELECTION_MODE_OPTIONS",
     "MESH_EDIT_TOOL_BUTTON_OPTIONS",
     "MESH_EDIT_TOOL_OPTIONS",
+    "MESH_PREVIEW_DEFAULT_DISPLAY_MODE",
+    "MESH_PREVIEW_DISPLAY_MODE_OPTIONS",
+    "MESH_PREVIEW_DISPLAY_MODES",
     "PARTS_OUTLINER_ROLE_OPTIONS",
     "PREVIEW_MODE_OPTIONS",
     "PREVIEW_RENDERER_OPTIONS",
@@ -169,5 +179,6 @@ __all__ = [
     "TEXTURE_OUTPUT_SIZE_OPTIONS",
     "TEXTURE_UV_ROTATION_OPTIONS",
     "d3d11_view_mode_options",
+    "normalize_mesh_preview_display_mode",
     "populate_combo_options",
 ]

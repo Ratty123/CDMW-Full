@@ -237,6 +237,7 @@ internal sealed partial class ExperimentForm
         }
         if (applied)
         {
+            SyncPreviewModeSelection(_viewport.DisplayMode);
             UpdatePresentationViewButtons();
             _statusLabel.Text = $"Resident presentation updated: {_viewport.ActivePresentationView}.";
         }

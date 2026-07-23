@@ -41,6 +41,7 @@ internal sealed partial class ExperimentForm : Form
     private readonly ComboBox _selectionOperation = new();
     private readonly ComboBox _previewMode = new();
     private bool _syncingPreviewModeSelection;
+    private string _placementPreviewMode = "untextured_wire";
     private readonly CheckBox _xray = new();
     private Button? _wireColorButton;
     private Button? _vertexColorButton;
@@ -186,9 +187,9 @@ internal sealed partial class ExperimentForm : Form
         ConfigureCheckBox(_xray, "X-Ray", isChecked: false);
         _xray.CheckedChanged += (_, _) =>
         {
-            if (!_xray.Checked && _previewMode.SelectedIndex == 6)
+            if (!_xray.Checked && _previewMode.SelectedIndex == 7)
             {
-                _previewMode.SelectedIndex = 3;
+                _previewMode.SelectedIndex = 4;
                 return;
             }
             _viewport.SetXRayEnabled(_xray.Checked);

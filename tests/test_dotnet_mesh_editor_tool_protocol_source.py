@@ -153,7 +153,13 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert '"Loading textures in the resident viewport..."' in controls_source
     assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in display_source
     assert 'texture_request_pending' in display_source
-    assert 'hasTextureResources ? "textured" : "untextured_faces"' in resident_package_source
+    assert 'hasTextureResources ? "textured_wire" : "untextured_wire"' in resident_package_source
+    assert '"Faces + Wire"' in controls_source
+    assert 'selectedIndex: HasResidentTextureResources() ? 3 : 2' in controls_source
+    assert 'var mode = _placementPreviewMode;' in controls_source
+    assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in _source(
+        "ExperimentForm.PresentationProtocol.cs"
+    )
     no_morph_finish = morph_source.split(
         "private void RequestFinishEditMesh()", maxsplit=1
     )[1].split("private void BeginFinishCommitOrSave()", maxsplit=1)[0]
@@ -603,7 +609,8 @@ def test_dotnet_input_precedence_depth_passes_and_mode_controls_are_explicit() -
     assert "section.Visible = meshEdit;" in controls_source
     assert "section.Visible = !meshEdit;" in controls_source
     assert "var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;" in controls_source
-    assert 'var mode = HasResidentTextureResources() ? "textured" : "untextured_faces";' in controls_source
+    assert "var mode = _placementPreviewMode;" in controls_source
+    assert '"textured_wire" => "untextured_wire"' in controls_source
     assert "_viewport.TrySetSynchronizedDisplayMode(mode, out var error)" in controls_source
     assert "SynchronizePresentationDisplaySettings();" in _source("MeshViewport.PresentationSettings.cs")
     assert 'phase == "begin" and isinstance(payload.get("local_selection"), Mapping)' not in host_commands

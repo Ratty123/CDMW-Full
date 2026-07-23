@@ -95,12 +95,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   - Durable archive preview packages are pinned from renderer launch through
     reload, process failure, cancellation, or close. A loaded reload retires the
     old pin; pruning and manual cache clearing skip every active package lease.
-  - Fast untextured geometry is the stable first display. Archive Preview uses
-    matte faces plus topology wire, while Mesh Editor keeps its readable
-    untextured-faces mode. Both keep the accepted scene and camera visible while
-    one latest-wins texture/material request prepares. A successful acknowledged
-    update changes the resident package or material generation once; failure
-    remains stably untextured and does not restart the helper.
+  - Fast untextured geometry is the stable first display. Archive Preview and
+    Mesh Editor both use matte faces plus topology wire so depth and part
+    boundaries remain legible before textures are ready. Both keep the accepted
+    scene and camera visible while one latest-wins texture/material request
+    prepares. A successful acknowledged update changes the resident package or
+    material generation once; failure remains stably untextured and does not
+    restart the helper.
 - .NET experiment handoff:
   - `cdmw.services.mesh_dotnet_experiment` exports the active Mesh Editor
     session as an OBJ package plus `mesh_roundtrip_manifest_v2` sidecar,
@@ -359,6 +360,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   Windows font so larger text does not clip. The editable
   viewport defaults to Wire + Vertices, with round vertex markers; the inert
   Material Debug control is not shown in the Viewport section.
+  Placement exposes the same geometry display family in the Builder's
+  `Mesh view` selector and defaults to Faces + Wire. The selected placement mode
+  remains resident while Edit Mesh temporarily uses Wire + Vertices, then is
+  restored without rebuilding geometry or textures.
   Its Original role selector is disabled during editing; Imported/Modify remains
   active with move/rotate/scale gizmo selection. In placement, the scene toolbar
   provides two-pane, overlay, focus-Imported/Modify, and focus-Original choices.
@@ -817,12 +822,14 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   parts retain exact placement. Duplicate/Delete are visible beside the compact
   Parts list and route through the same resident mutations as context actions.
 - Production viewport modes include textured solid plus untextured faces, wire,
-  vertices, and combinations without texture/SRV churn. `Faces (No Textures)`
-  uses a dedicated two-sided camera-relative workbench shader: inverse-transpose
-  normal transforms, safe zero-normal fallback, wrapped key/fill light, rim
-  shaping, and a fixed illumination floor keep projected faces distinct from
-  the dark viewport from front, back, and oblique cameras. It does not depend on
-  texture/material brightness settings and does not restart or reload the
+  vertices, and combinations without texture/SRV churn. The outer Builder and
+  Edit Mesh Viewport expose the same choices; the outer preview defaults to
+  `Faces + Wire`. `Faces (No Textures)` and `Faces + Wire` use a dedicated
+  two-sided camera-relative workbench shader: inverse-transpose normal
+  transforms, safe zero-normal fallback, wrapped key/fill light, rim shaping,
+  and a fixed illumination floor keep projected faces distinct from the dark
+  viewport from front, back, and oblique cameras. They do not depend on
+  texture/material brightness settings and do not restart or reload the
   resident scene. Wheel and programmatic zoom are clamped from `0.1x` through
   `64x` the pane's fitted zoom. Ordinary vertex dots and wire visual weight are
   pane-local and user-adjustable: wire width ranges from 1 to 6 pixels with a

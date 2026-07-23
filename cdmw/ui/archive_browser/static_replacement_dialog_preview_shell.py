@@ -26,6 +26,8 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS = context.get('MODEL_PREVIEW_RENDER_DIAGNOSTIC_MODE_LABELS')
     MODEL_PREVIEW_VISIBLE_TEXTURE_MODES = context.get('MODEL_PREVIEW_VISIBLE_TEXTURE_MODES')
     MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS = context.get('MODEL_PREVIEW_VISIBLE_TEXTURE_MODE_LABELS')
+    MESH_PREVIEW_DEFAULT_DISPLAY_MODE = context.get('MESH_PREVIEW_DEFAULT_DISPLAY_MODE')
+    MESH_PREVIEW_DISPLAY_MODE_OPTIONS = context.get('MESH_PREVIEW_DISPLAY_MODE_OPTIONS')
     DotNetPreviewHostFrame = context.get('DotNetPreviewHostFrame')
     DotNetPreviewProfile = context.get('DotNetPreviewProfile')
     NativePreviewPanel = context.get('NativePreviewPanel')
@@ -174,6 +176,29 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_mesh_edit_checkbox.setToolTip("Enable viewport mesh editing tools for the current replacement preview.")
     preview_controls_row.addWidget(preview_mesh_edit_checkbox)
     mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox
+    preview_mesh_view_combo = QComboBox()
+    preview_mesh_view_combo.setObjectName("MeshAlignmentViewportDisplayModeCombo")
+    _populate_combo_options_helper(
+        preview_mesh_view_combo,
+        MESH_PREVIEW_DISPLAY_MODE_OPTIONS,
+    )
+    mesh_view_index = preview_mesh_view_combo.findData(
+        MESH_PREVIEW_DEFAULT_DISPLAY_MODE
+    )
+    preview_mesh_view_combo.setCurrentIndex(max(0, mesh_view_index))
+    preview_mesh_view_combo.setToolTip(
+        alignment_preview_control_text["mesh_view_tooltip"]
+    )
+    preview_mesh_view_combo.setMinimumWidth(0)
+    preview_mesh_view_combo.setMinimumContentsLength(12)
+    preview_mesh_view_combo.setSizeAdjustPolicy(
+        QComboBox.AdjustToMinimumContentsLengthWithIcon
+    )
+    preview_mesh_view_combo.setMaximumWidth(190)
+    preview_controls_row.addWidget(
+        QLabel(alignment_preview_control_text["mesh_view_label"])
+    )
+    preview_controls_row.addWidget(preview_mesh_view_combo)
     mesh_dotnet_experiment_button = QPushButton(".NET", preview_panel)
     mesh_dotnet_experiment_button.setObjectName("MeshAlignmentDotNetExperimentButton")
     mesh_dotnet_experiment_button.setToolTip("Diagnostics-only .NET editor launch; Edit Mesh opens .NET automatically when available.")
@@ -432,6 +457,12 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     # native child creation can hard-crash when the alignment dialog is shown.
     alignment_d3d11_preview_host.setMinimumSize(300, 280)
     alignment_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    alignment_d3d11_preview_host.set_viewport_display_mode(
+        str(
+            preview_mesh_view_combo.currentData()
+            or MESH_PREVIEW_DEFAULT_DISPLAY_MODE
+        )
+    )
     # The Mesh Editor starts this prewarm after its authoritative edit-session
     # id is known.  Starting it here would bind the resident authoring helper
     # to a throwaway session before the real package can supersede it.
@@ -735,6 +766,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         preview_disable_uv_scale_checkbox=locals().get('preview_disable_uv_scale_checkbox'),
         preview_gizmo_checkbox=locals().get('preview_gizmo_checkbox'),
         preview_mesh_edit_checkbox=locals().get('preview_mesh_edit_checkbox'),
+        preview_mesh_view_combo=locals().get('preview_mesh_view_combo'),
         mesh_edit_enabled_checkbox=locals().get('mesh_edit_enabled_checkbox'),
         preview_part_pick_checkbox=locals().get('preview_part_pick_checkbox'),
         preview_help=locals().get('preview_help'),
