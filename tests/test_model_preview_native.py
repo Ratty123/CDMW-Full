@@ -3068,6 +3068,43 @@ class NativePreviewPayloadTests(unittest.TestCase):
             self.assertEqual(63, synthesized.pixelColor(0, 0).alpha())
             self.assertEqual(191, synthesized.pixelColor(1, 0).alpha())
 
+    def test_synthesized_albedo_uses_detailed_layer_resolution_over_default_base(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        from cdmw.rendering.material_combiner_images import _generate_synthesized_albedo_map
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            default_base = QImage(4, 4, QImage.Format_RGBA8888)
+            default_base.fill(QColor(190, 150, 120, 255))
+            detailed_layer_path = temp / "detail.png"
+            detailed_layer = QImage(64, 32, QImage.Format_RGBA8888)
+            detailed_layer.fill(QColor(70, 90, 110, 255))
+            self.assertTrue(detailed_layer.save(str(detailed_layer_path), "PNG"))
+
+            output, _note = _generate_synthesized_albedo_map(
+                default_base,
+                (
+                    PreviewMaterialTextureInput(
+                        slot_kind="base",
+                        preview_texture_path=str(detailed_layer_path),
+                        semantic_type="color",
+                        semantic_subtype="detail_diffuse",
+                        layer_role="detail",
+                        layer_channel="r",
+                    ),
+                ),
+                {},
+                temp / "out",
+                "layered",
+                flip_vertical=False,
+                max_dimension=128,
+            )
+
+            synthesized = QImage(QUrl(output).toLocalFile())
+            self.assertEqual(64, synthesized.width())
+            self.assertEqual(32, synthesized.height())
+
     def test_decode_material_sample_matches_channel_order_modes(self) -> None:
         orm = decode_material_sample(0.25, 0.50, 1.0, 1.0, "orm")
         rma = decode_material_sample(0.25, 0.50, 1.0, 1.0, "rma")

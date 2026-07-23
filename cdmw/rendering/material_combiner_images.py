@@ -93,18 +93,44 @@ def _initialize_synthesized_albedo_target(
     cancelled: Callable[[], bool] | None,
 ) -> tuple[QImage, int, int, int]:
     target_format = QImage.Format.Format_RGBA8888 if preserve_base_alpha else QImage.Format.Format_RGB888
+    # Default PAC overlay swatches can be only 4x4. They may seed color, but
+    # must not force authored layer textures and selector masks down to 4x4.
+    size_candidates = [
+        image
+        for image in (
+            prepared_base,
+            *(image for _item, image in source_layers),
+            fallback_image,
+        )
+        if not image.isNull() and int(image.width()) > 0 and int(image.height()) > 0
+    ]
+    target_size_source = max(
+        size_candidates,
+        key=lambda image: (
+            int(image.width()) * int(image.height()),
+            max(int(image.width()), int(image.height())),
+        ),
+    )
+    width = int(target_size_source.width())
+    height = int(target_size_source.height())
     if not prepared_base.isNull():
+        target_base = prepared_base
+        if int(target_base.width()) != width or int(target_base.height()) != height:
+            target_base = target_base.scaled(
+                width,
+                height,
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation,
+            )
         return (
-            prepared_base.convertToFormat(target_format),
-            int(prepared_base.width()),
-            int(prepared_base.height()),
+            target_base.convertToFormat(target_format),
+            width,
+            height,
             0,
         )
     color_seed_available = not fallback_image.isNull()
     first_item = source_layers[0][0] if source_layers else None
     first_image = source_layers[0][1] if source_layers else fallback_image
-    width = int(first_image.width())
-    height = int(first_image.height())
     target = QImage(width, height, target_format)
     if len(neutral_base_color) >= 3:
         red, green, blue = (_byte(float(value)) for value in neutral_base_color[:3])
@@ -117,6 +143,13 @@ def _initialize_synthesized_albedo_target(
     # only a fallback surface for selector gaps. Its channel-local dye remains
     # masked and is applied in the normal layer loop below.
     tint = _layer_tint(first_item) if first_item is not None and not color_seed_available else ()
+    if int(first_image.width()) != width or int(first_image.height()) != height:
+        first_image = first_image.scaled(
+            width,
+            height,
+            Qt.IgnoreAspectRatio,
+            Qt.SmoothTransformation,
+        )
     for y in range(height):
         _raise_if_material_combiner_cancelled(cancelled)
         for x in range(width):
