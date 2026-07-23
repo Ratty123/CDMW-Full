@@ -1209,6 +1209,91 @@ class ArchivePreviewTextureBindingSupportTests(unittest.TestCase):
         self.assertTrue(graph["binding_conservation"]["conserved"])
         self.assertEqual([], graph["binding_conservation"]["dropped_parameters"])
 
+    def test_owner_qualified_numbered_mask_variant_uses_shipped_family_transport(self) -> None:
+        source_entry = _entry("character/model/cd_ptm_01_hel_00_0354_03.pac")
+        declared_material = "character/texture/cd_phm_00_hel_00_0354_03_ma.dds"
+        declared_detail = "character/texture/cd_phm_00_hel_00_0354_03_mg.dds"
+        transport_material = "character/texture/cd_phm_00_hel_00_0354_ma.dds"
+        transport_detail = "character/texture/cd_phm_00_hel_00_0354_mg.dds"
+        by_normalized, by_basename = _texture_maps(transport_material, transport_detail)
+        parameters = (
+            PreviewMaterialParameterInput(
+                parameter_kind="texture",
+                parameter_name="_colorBlendingMaskTexture",
+                texture_path=declared_material,
+            ),
+            PreviewMaterialParameterInput(
+                parameter_kind="texture",
+                parameter_name="_detailMaskTexture",
+                texture_path=declared_detail,
+            ),
+        )
+        common = {
+            "submesh_name": "Helmet",
+            "material_name": "Helmet",
+            "shader_family": "SkinnedMeshEmissive_Ver2",
+            "sidecar_kind": "pac_xml",
+            "parameter_declared_by": "pac_xml",
+            "owner_slot_index": 0,
+            "owner_wrapper_item_id": "13",
+            "binding_authority": "authoritative",
+            "binding_disposition": "promoted",
+            "material_parameters": parameters,
+        }
+        bindings = (
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=declared_material,
+                parameter_name="_colorBlendingMaskTexture",
+                source_kind="crimson_material_mask",
+                **common,
+            ),
+            _ArchiveModelSidecarTextureBinding(
+                texture_path=declared_detail,
+                parameter_name="_detailMaskTexture",
+                source_kind="crimson_detail_mask",
+                **common,
+            ),
+        )
+        model = ModelPreviewData(
+            path=source_entry.path,
+            meshes=[ModelPreviewMesh(material_name="Helmet", texture_name="Helmet")],
+        )
+
+        with patch(
+            "cdmw.core.archive_model_textures._ensure_archive_model_texture_preview_path",
+            side_effect=lambda texture_entry, **_kwargs: f"preview://{texture_entry.path}",
+        ):
+            _attach_model_support_texture_preview_paths(
+                source_entry,
+                model,
+                parsed_mesh=None,
+                sidecar_texture_bindings=bindings,
+                texture_entries_by_normalized_path=by_normalized,
+                texture_entries_by_basename=by_basename,
+            )
+
+        inputs = {
+            item.parameter_name: item
+            for item in model.meshes[0].preview_material_texture_inputs
+        }
+        self.assertEqual(
+            declared_material,
+            inputs["_colorBlendingMaskTexture"].source_texture_path,
+        )
+        self.assertEqual(
+            transport_material,
+            inputs["_colorBlendingMaskTexture"].source_dds_path,
+        )
+        self.assertEqual(declared_detail, inputs["_detailMaskTexture"].source_texture_path)
+        self.assertEqual(transport_detail, inputs["_detailMaskTexture"].source_dds_path)
+        self.assertEqual(
+            "sidecar-family-transport",
+            inputs["_colorBlendingMaskTexture"].confidence,
+        )
+        graph = build_pac_material_graph_v1(model.meshes[0], {})
+        self.assertTrue(graph["binding_conservation"]["conserved"])
+        self.assertEqual([], graph["binding_conservation"]["dropped_parameters"])
+
     def test_owner_qualified_detail_diffuse_mask_resolves_as_layer_color_not_material_map(self) -> None:
         source_entry = _entry("character/model/cd_test_model.pac")
         texture_path = "character/texture/cd_texturelayer_003_0016.dds"

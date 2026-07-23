@@ -52,6 +52,10 @@ def _public_preview_path(*args, **kwargs):
 
 _SupportBinding = Tuple[Tuple[int, int, int, int], ArchiveEntry, str, str]
 _MaterialInputBinding = Tuple[Tuple[int, int, int, int], ArchiveEntry, str, _ArchiveModelSidecarTextureBinding]
+_PAC_NUMBERED_MASK_VARIANT_RE = re.compile(
+    r"^(?P<family>.+_\d{4})_\d{2}(?P<suffix>_(?:ma|mg)\.dds)$",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -315,6 +319,24 @@ def _select_material_inputs(candidates: Sequence[_MaterialInputBinding]) -> Tupl
     return tuple(selected)
 
 
+def _owner_qualified_pac_mask_transport_alias(
+    binding: _ArchiveModelSidecarTextureBinding,
+    parameter: str,
+) -> str:
+    if str(parameter or "").strip().casefold() not in {
+        "_colorblendingmasktexture",
+        "_detailmasktexture",
+    }:
+        return ""
+    declared = _normalize_model_texture_reference(
+        str(getattr(binding, "texture_path", "") or "")
+    )
+    match = _PAC_NUMBERED_MASK_VARIANT_RE.fullmatch(declared)
+    if match is None:
+        return ""
+    return f"{match.group('family')}{match.group('suffix')}"
+
+
 def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveModelSidecarTextureBinding, seen_global: set[Tuple[str, str, str]]) -> None:
     if not _model_sidecar_binding_matches_source_component(state.source_entry, binding):
         return
@@ -371,6 +393,26 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
             sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
             sidecar_texts_by_basename=state.sidecar_texts_by_basename,
         )
+    if owner_qualified_pac and (entry is None or status != "resolved"):
+        transport_alias = _owner_qualified_pac_mask_transport_alias(binding, parameter)
+        if transport_alias:
+            # Some numbered equipment appearances declare numbered _ma/_mg
+            # siblings that are represented by one unnumbered family pair in
+            # the archive. Preserve the declared binding and use that shipped
+            # pair only as transport for these two mask parameters.
+            entry, status = _resolve_model_texture_archive_entry(
+                state.source_entry,
+                transport_alias,
+                "",
+                state.texture_entries_by_normalized_path,
+                state.texture_entries_by_basename,
+                semantic_hint=parameter,
+                expand_family_candidates=False,
+                allow_technical_match=True,
+                preferred_slot="",
+                sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
+                sidecar_texts_by_basename=state.sidecar_texts_by_basename,
+            )
     if entry is None or status != "resolved":
         return
     texts = _support_sidecar_texts(state, entry.path)
