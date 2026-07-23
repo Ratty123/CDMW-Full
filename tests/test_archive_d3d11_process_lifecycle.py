@@ -49,6 +49,35 @@ class _FakeHost:
         return True
 
 
+class _FakeCheckbox:
+    def __init__(self) -> None:
+        self.checked = False
+        self.signals_blocked = False
+        self.enabled = True
+        self.text = ""
+        self.tooltip = ""
+
+    def blockSignals(self, blocked: bool) -> bool:
+        previous = self.signals_blocked
+        self.signals_blocked = bool(blocked)
+        return previous
+
+    def setChecked(self, checked: bool) -> None:
+        self.checked = bool(checked)
+
+    def isChecked(self) -> bool:
+        return self.checked
+
+    def setEnabled(self, enabled: bool) -> None:
+        self.enabled = bool(enabled)
+
+    def setText(self, text: str) -> None:
+        self.text = str(text)
+
+    def setToolTip(self, tooltip: str) -> None:
+        self.tooltip = str(tooltip)
+
+
 class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
     def __init__(self) -> None:
         self.archive_d3d11_preview_host = _FakeHost()
@@ -62,6 +91,7 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
         self.archive_preview_request_id = 0
         self.current_archive_preview_result = None
         self.details_refresh_count = 0
+        self.settings_changes: list[ModelPreviewRenderSettings] = []
 
     def _current_archive_entry(self) -> object:
         return self.entry
@@ -71,6 +101,10 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
 
     def _current_model_preview_render_settings(self) -> object:
         return self.settings
+
+    def _handle_model_preview_settings_changed(self, settings: ModelPreviewRenderSettings) -> None:
+        self.settings = settings
+        self.settings_changes.append(settings)
 
     def set_status_message(self, message: str, *, error: bool = False) -> None:
         self.messages.append((message, bool(error)))
@@ -201,6 +235,29 @@ def test_resident_texture_apply_commits_latest_generation_once(tmp_path: Path) -
     assert harness.archive_d3d11_preview_host.viewport_modes == ["textured"]
 
 
+def test_unchecked_preference_keeps_late_automatic_texture_result_hidden(tmp_path: Path) -> None:
+    package = tmp_path / "textured"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps({"resources": [{"resource_id": "texture:base", "path": "base.dds"}]}),
+        encoding="utf-8",
+    )
+    harness = _LifecycleHarness()
+    harness._archive_texture_request_id = 6
+    harness._archive_texture_request_loading = True
+    harness._archive_texture_request_automatic = True
+    harness._archive_texture_package_generation = 10
+    harness._archive_texture_package_path = str(package)
+    harness._archive_texture_render_settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    harness._archive_pending_texture_result = "textured-result"
+
+    harness._handle_archive_resident_package_applied(str(package), 10)
+
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["untextured_wire"]
+    assert harness._archive_textures_visible is False
+    assert harness.current_archive_preview_result == "textured-result"
+
+
 def test_reload_without_package_requests_canonical_preparation() -> None:
     harness = _LifecycleHarness()
     harness.archive_isolated_renderer_active_package = None
@@ -208,6 +265,22 @@ def test_reload_without_package_requests_canonical_preparation() -> None:
     harness._open_archive_isolated_d3d11_preview()
 
     assert harness.render_requests == [(harness.entry, True)]
+
+
+def test_archive_texture_checkbox_updates_the_persisted_preview_preference() -> None:
+    harness = _LifecycleHarness()
+    checkbox = _FakeCheckbox()
+    harness.archive_isolated_renderer_button = checkbox
+
+    checkbox.setChecked(True)
+    harness._open_archive_isolated_d3d11_preview()
+    harness._sync_archive_texture_action_state()
+
+    assert len(harness.settings_changes) == 1
+    assert harness.settings.use_textures_by_default is True
+    assert checkbox.checked is True
+    assert checkbox.text == "Load textures"
+    assert "kept after restart" in checkbox.tooltip
 
 
 def test_material_debug_reads_canonical_net_materials(tmp_path: Path) -> None:

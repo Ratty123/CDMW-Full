@@ -585,23 +585,30 @@ class ArchiveAssetFamilyPanelMixin:
             or self.current_archive_used_by_references
             or self.current_archive_family_member_rows
         )
+        panel_requested = bool(
+            has_asset_relationships
+            and getattr(self, "archive_asset_family_panel_requested", False)
+        )
+        self.archive_asset_family_panel_requested = panel_requested
         self.archive_texture_refs_group.setTitle("Asset Family")
-        self.archive_texture_refs_group.setVisible(has_asset_relationships)
+        self.archive_texture_refs_group.setVisible(panel_requested)
+        previous_blocked = self.archive_asset_family_button.blockSignals(True)
+        try:
+            self.archive_asset_family_button.setChecked(panel_requested)
+        finally:
+            self.archive_asset_family_button.blockSignals(previous_blocked)
         self.archive_asset_family_button.setVisible(has_asset_relationships)
         self.archive_asset_family_button.setEnabled(has_asset_relationships)
         if hasattr(self, "archive_preview_content_splitter"):
-            self.archive_preview_content_splitter.setCollapsible(1, not has_asset_relationships)
-        if has_asset_relationships:
+            self.archive_preview_content_splitter.setCollapsible(1, not panel_requested)
+        if panel_requested:
             self._refresh_archive_asset_family_panel_layout(prefer_default=True)
             self._schedule_archive_asset_family_panel_layout(prefer_default=True)
-        else:
-            # Preserve the user's Asset Family splitter width while loading or when a file
-            # has no relationships; hiding the group is enough and avoids progressive shrink.
-            pass
         self._update_archive_texture_reference_action_controls()
 
     def _clear_archive_texture_reference_views(self) -> None:
         self.pending_archive_texture_reference_update = None
+        self.archive_asset_family_panel_requested = False
         if hasattr(self, "archive_texture_reference_update_timer"):
             self.archive_texture_reference_update_timer.stop()
         self.current_archive_used_by_references = []
@@ -625,6 +632,11 @@ class ArchiveAssetFamilyPanelMixin:
             self.archive_texture_refs_group.setTitle("Asset Family")
             self.archive_texture_refs_group.setVisible(False)
         if hasattr(self, "archive_asset_family_button"):
+            previous_blocked = self.archive_asset_family_button.blockSignals(True)
+            try:
+                self.archive_asset_family_button.setChecked(False)
+            finally:
+                self.archive_asset_family_button.blockSignals(previous_blocked)
             self.archive_asset_family_button.setVisible(False)
             self.archive_asset_family_button.setEnabled(False)
         if hasattr(self, "archive_preview_content_splitter"):
@@ -639,21 +651,45 @@ class ArchiveAssetFamilyPanelMixin:
         request_id: Optional[int] = None,
     ) -> None:
         scheduled_request_id = self.archive_preview_request_id if request_id is None else int(request_id)
+        if int(scheduled_request_id) != int(self.archive_preview_request_id):
+            return
+        resolved_references = tuple(references or ())
+        self.current_archive_model_texture_references = list(resolved_references)
+        self.current_archive_asset_family_graph = asset_family_graph
+        self.current_archive_family_member_rows = list(
+            tuple(getattr(asset_family_graph, "member_rows", ()) or ())
+        )
+        current_entry = self._current_archive_entry()
+        if isinstance(current_entry, ArchiveEntry) and isinstance(
+            asset_family_graph,
+            AssetFamilyGraph,
+        ):
+            self._remember_archive_asset_family_graph(
+                current_entry,
+                asset_family_graph,
+                resolved_references,
+            )
         self.pending_archive_texture_reference_update = (
             scheduled_request_id,
-            tuple(references or ()),
+            resolved_references,
             asset_family_graph,
         )
-        self.archive_texture_reference_update_timer.start()
+        self.archive_texture_reference_update_timer.stop()
+        self._update_archive_texture_reference_action_controls()
+        if bool(getattr(self, "archive_asset_family_panel_requested", False)):
+            self.archive_texture_reference_update_timer.start()
 
     def _flush_archive_texture_reference_update(self) -> None:
         pending = self.pending_archive_texture_reference_update
-        self.pending_archive_texture_reference_update = None
         if pending is None:
             return
         request_id, references, asset_family_graph = pending
         if int(request_id) != int(self.archive_preview_request_id):
+            self.pending_archive_texture_reference_update = None
             return
+        if not bool(getattr(self, "archive_asset_family_panel_requested", False)):
+            return
+        self.pending_archive_texture_reference_update = None
         self._populate_archive_texture_reference_list(
             references,
             asset_family_graph,

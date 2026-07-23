@@ -451,10 +451,13 @@ metadata before full package generation. If a native model is already visible,
 quick metadata updates labels/details without stopping that renderer; the host
 stays resident until the replacement package is ready. Geometry is always the
 first usable Archive Preview result and uses matte faces with a topology wire
-overlay. `Load Textures` starts one latest-wins request while preserving the
-scene and camera; `Hide Textures` returns to that wire presentation without a
-package load. Automatic texture loading is an explicit opt-in and queues the
-same request after geometry rather than delaying first display.
+overlay. The persisted `Load textures` checkbox starts one latest-wins request
+while preserving the scene and camera; unchecking it returns to that wire
+presentation without a package load. A checked preference queues the same
+request after geometry rather than delaying first display. Asset Family
+relationship data remains available to actions, but its tree pane starts
+collapsed for every preview and is populated only after the user opens it, so
+the initial model viewport keeps the full preview width.
 Icon/thumbnail work must prioritize visible rows and run in background workers.
 Archive scan, conversion, rebuild, import/export, hashing, recursive IO, and
 package build work must stay off the UI thread.

@@ -315,7 +315,7 @@ class AboutDocumentationEnglishMixin:
                   <tr><th>Area</th><th>What it is for</th><th>Typical actions</th></tr>
                   <tr><td>Archive Files</td><td>Browsable index of package entries.</td><td>Filter, sort columns, resize columns, switch Flat/Folders/Categories, select files or folders, and read the <b>State</b> column for active mod/original/shadowed duplicate status.</td></tr>
                   <tr><td>Preview</td><td>Fast look at the selected asset.</td><td>View images, color-coded text/XML/HKX summaries, binary summaries, audio/video, 3D models, and sidecar-derived material context.</td></tr>
-                  <tr><td>Referenced Files</td><td>Connection map for the selected asset.</td><td>Find textures, material sidecars, skeletons, animations, metadata, packages, resolution status, and usage counts.</td></tr>
+                  <tr><td>Asset Family</td><td>On-demand connection map for the selected asset.</td><td>Click <b>Asset Family</b> to load or hide its relationship list of textures, material sidecars, skeletons, animations, metadata, packages, resolution status, and usage counts without reducing the initial preview width.</td></tr>
                   <tr><td>Details</td><td>Structured metadata and diagnostics.</td><td>Check sizes, compression, package labels, strings, import summaries, preview diagnostics, and warnings.</td></tr>
                   <tr><td>Item Finder</td><td>Visual item lookup backed by iteminfo, localization, icons, and archive relationships.</td><td>Search by item name/category, browse icons, jump back to archive entries, and choose a placement source from resolved item assets.</td></tr>
                   <tr><td>Mesh Actions</td><td>Model export/import, placement, and replacement workflow entry points.</td><td>Export OBJ/FBX, import OBJ/DAE/glTF/GLB preview, import DDS preview, import mesh replacement, swap with another in-game mesh, edit HKX placement context, Weapon Placement Batch, restore backups, edit material values.</td></tr>
@@ -353,14 +353,14 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>Filter by path fragments, package, file extension, role, size, and previewability.</li>
                   <li>Use inclusion filters for what you want and exclusion filters for noisy families.</li>
-                  <li>For meshes and sidecars, review <b>Referenced Files</b> to find related textures, XML, material sidecars, skeletons, and metadata.</li>
+                  <li>For meshes and sidecars, click <b>Asset Family</b> to load related textures, XML, material sidecars, skeletons, and metadata only when needed.</li>
                   <li>Use <b>Item Finder</b> for name/icon/category-based lookup when the archive path is unknown.</li>
                 </ul>
                 <table>
                   <tr><th>Goal</th><th>Use</th><th>Notes</th></tr>
                   <tr><td>Find a character or item model</td><td>Search by file stem, folder, or in-game name; use the <b>Item Name</b> column when available.</td><td>The tooltip identifies direct names and inferred navigation evidence without spending a second table column on confidence.</td></tr>
                   <tr><td>Tell which duplicate is active</td><td>Read the <b>State</b> column.</td><td><b>Active mod</b> is the replacement payload currently winning over an original; <b>Shadowed original</b> or <b>Shadowed mod</b> means another row with the same virtual path has priority.</td></tr>
-                  <tr><td>Find textures used by a model</td><td>Select the model and read <b>Referenced Files</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
+                  <tr><td>Find textures used by a model</td><td>Select the model and click <b>Asset Family</b>.</td><td>Resolved means the app found an archive entry; partial means metadata exists but some texture decoding or archive data is incomplete.</td></tr>
                   <tr><td>Choose a placement source</td><td>Use <b>Edit HKX</b>, then <b>Choose Placement Source</b>, or pick through <b>Item Finder</b>.</td><td>Choose the visible source <code>.pac</code> when possible. HKX is useful context, but placement usually resolves through prefab/socket data around the model family.</td></tr>
                   <tr><td>Find material values</td><td>Look for <code>.pac_xml</code>, <code>.pam_xml</code>, <code>.pamlod_xml</code>, or <code>.pami</code> sidecars.</td><td>Use <b>Edit Material Values</b> for source-ordered guided controls. A <code>.pac_xml</code> opens the PAC XML Editor with Parameters, Connections, and Source &amp; Changes tabs.</td></tr>
                   <tr><td>Understand a selected file</td><td>Open <b>Details</b>.</td><td>Details includes package, raw/stored size, compression, preview diagnostics, readable strings, and import summaries.</td></tr>
@@ -389,8 +389,9 @@ class AboutDocumentationEnglishMixin:
                 <h4>Model preview</h4>
                 <ul>
                   <li>Open supported <code>.pam</code>, <code>.pamlod</code>, and <code>.pac</code> entries in Archive Browser to inspect geometry, bounds, materials, sidecars, and referenced textures.</li>
-                  <li>Use <b>Preview Settings</b> when textures, support maps, lighting, or orientation need adjustment for inspection.</li>
-                  <li>Referenced files are discovery aids. Export them with the model when you need context for external tools.</li>
+                  <li>Check <b>Load textures</b> to resolve and display textures after geometry. The checkbox preference is kept after restart; uncheck it for the fastest initial model view.</li>
+                  <li>Use <b>Preview Settings</b> when support maps, lighting, or orientation need adjustment for inspection.</li>
+                  <li>Asset Family rows are discovery aids loaded on demand. Export them with the model when you need context for external tools.</li>
                 </ul>
                 <h4>Mesh export and import</h4>
                 <ul>

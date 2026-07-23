@@ -423,11 +423,24 @@ class ArchiveReferencePreviewMixin:
             else "open a file with recovered Asset Family relationships first"
         )
         has_family = self._archive_has_asset_family_workspace()
+        panel_requested = bool(
+            has_family
+            and getattr(self, "archive_asset_family_panel_requested", False)
+        )
+        previous_blocked = self.archive_asset_family_button.blockSignals(True)
+        try:
+            self.archive_asset_family_button.setChecked(panel_requested)
+        finally:
+            self.archive_asset_family_button.blockSignals(previous_blocked)
         self.archive_asset_family_button.setVisible(has_family)
         self._set_action_button_state(
             self.archive_asset_family_button,
             controls_enabled and has_family,
-            "Open the recovered file family for this selection: model, material, textures, HKX, meshinfo, prefab, rig, and animation links.",
+            (
+                "Hide the Asset Family panel and return its width to the model preview."
+                if panel_requested
+                else "Load and show the recovered Asset Family panel for this selection."
+            ),
             family_reason,
         )
 

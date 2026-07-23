@@ -300,7 +300,7 @@ class ArchiveBrowserActionControlsMixin:
         if callable(sync_texture_action):
             sync_texture_action()
         else:
-            self.archive_isolated_renderer_button.setText("Load Textures")
+            self.archive_isolated_renderer_button.setText("Load textures")
         self.archive_isolated_renderer_button.setVisible(
             bool(d3d11_backend_active and resident_texture_action_available)
         )

@@ -98,9 +98,9 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_disable_support_checkbox.setVisible(False)
         self.archive_model_preview_refresh_button = QPushButton("Refresh")
         self.archive_model_preview_refresh_button.setToolTip(archive_model_preview_refresh_tooltip())
-        self.archive_isolated_renderer_button = QPushButton("Load Textures")
+        self.archive_isolated_renderer_button = QCheckBox("Load textures")
         self.archive_isolated_renderer_button.setToolTip(
-            "Resolve and load textures after geometry is already usable."
+            "Resolve and display model textures on demand. This choice is kept after restart."
         )
         self.archive_isolated_renderer_button.setEnabled(False)
         self.archive_isolated_renderer_button.setVisible(False)
@@ -141,8 +141,9 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_settings_button.setMaximumHeight(28)
         self.archive_model_preview_settings_button.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         self.archive_asset_family_button = QPushButton("Asset Family")
+        self.archive_asset_family_button.setCheckable(True)
         self.archive_asset_family_button.setToolTip(
-            "Open the recovered file family for this selection: model, material, textures, HKX, meshinfo, prefab, rig, and animation links."
+            "Load and show the recovered file family for this selection without reducing the initial preview width."
         )
         self.archive_asset_family_button.setMinimumWidth(110)
         self.archive_asset_family_button.setMaximumWidth(150)

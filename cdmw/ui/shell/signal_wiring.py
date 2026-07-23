@@ -83,19 +83,25 @@ class ShellSignalWiringMixin:
             self._handle_archive_model_preview_disable_support_maps_toggled
         )
         self.archive_model_preview_refresh_button.clicked.connect(self._force_refresh_current_model_preview_assets)
-        self.archive_isolated_renderer_button.clicked.connect(self._open_archive_isolated_d3d11_preview)
+        self.archive_isolated_renderer_button.toggled.connect(
+            lambda _checked=False: self._open_archive_isolated_d3d11_preview()
+        )
         self.archive_model_preview_reset_overrides_button.clicked.connect(
             self._handle_archive_model_preview_reset_overrides
         )
         self.archive_model_preview_settings_button.clicked.connect(self._open_model_preview_settings_dialog)
-        self.archive_asset_family_button.clicked.connect(self._open_archive_asset_family_workspace_dialog)
+        self.archive_asset_family_button.toggled.connect(self._open_archive_asset_family_workspace_dialog)
         self.archive_action_preview_button.clicked.connect(self._preview_current_archive_entry)
         self.archive_action_open_preview_window_button.clicked.connect(self._open_current_archive_preview_window)
         self.archive_action_copy_filename_button.clicked.connect(self._copy_current_archive_filename)
         self.archive_action_export_file_button.clicked.connect(self._export_current_archive_file)
         self.archive_action_extract_file_button.clicked.connect(self._extract_current_archive_file)
         self.archive_action_show_only_file_button.clicked.connect(self._scope_current_archive_entry_only)
-        self.archive_action_asset_family_button.clicked.connect(self._open_archive_asset_family_workspace_dialog)
+        self.archive_action_asset_family_button.clicked.connect(
+            lambda _checked=False: self._open_archive_asset_family_workspace_dialog(
+                self._current_archive_entry()
+            )
+        )
         self.archive_action_filter_to_family_button.clicked.connect(self._scope_current_archive_asset_family)
         self.archive_action_export_family_button.clicked.connect(self._export_current_archive_asset_family)
         self.archive_action_source_mix_button.clicked.connect(self._open_current_archive_source_mix_package)

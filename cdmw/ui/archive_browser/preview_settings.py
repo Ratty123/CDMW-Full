@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -605,7 +606,18 @@ class ArchivePreviewSettingsMixin:
             widget.set_render_settings(preview_settings)
             widget.set_use_textures(bool(preview_settings.use_textures_by_default))
             widget.set_high_quality_textures(bool(preview_settings.high_quality_by_default))
-        change_flags = model_preview_settings_change_flags(previous_settings, preview_settings)
+        texture_preference_changed = (
+            previous_settings.use_textures_by_default
+            != preview_settings.use_textures_by_default
+        )
+        non_texture_settings = replace(
+            preview_settings,
+            use_textures_by_default=previous_settings.use_textures_by_default,
+        )
+        change_flags = model_preview_settings_change_flags(
+            previous_settings,
+            non_texture_settings,
+        )
         current_result = self.current_archive_preview_result
         dotnet_package_path = str(getattr(current_result, "dotnet_preview_package_path", "") or "").strip() if current_result is not None else ""
         d3d11_backend_active = (
@@ -620,8 +632,20 @@ class ArchivePreviewSettingsMixin:
                 or dotnet_package_path
             )
         )
+        package_refresh_required = bool(
+            change_flags.needs_asset_refresh
+            or change_flags.d3d11_package_affecting_changed
+        )
+        if (
+            d3d11_backend_active
+            and current_has_d3d11_preview_data
+            and texture_preference_changed
+            and not package_refresh_required
+        ):
+            self._sync_archive_texture_action_state()
+            self._open_archive_isolated_d3d11_preview()
         if d3d11_backend_active and current_has_d3d11_preview_data and (
-            change_flags.needs_asset_refresh or change_flags.d3d11_package_affecting_changed
+            package_refresh_required
         ):
             self._refresh_current_model_preview_assets()
         elif change_flags.needs_asset_refresh:

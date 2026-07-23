@@ -117,7 +117,7 @@ def test_pending_preview_settings_are_not_overwritten_by_save() -> None:
 def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
     writes: dict[str, object] = {}
     preview_settings = ModelPreviewRenderSettings(
-        use_textures_by_default=False,
+        use_textures_by_default=True,
         high_quality_by_default=True,
         preview_texture_max_dimension=2048,
         d3d11_tone_gamma=1.23,
@@ -135,7 +135,7 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
 
     assert saved is True
     assert len(writes) == 77
-    assert writes["archive/model_use_textures"] is False
+    assert writes["archive/model_use_textures"] is True
     assert writes["archive/model_high_quality"] is True
     assert writes["preview/texture_max_dimension"] == 2048
     assert writes["preview/d3d11_tone_gamma"] == 1.23
@@ -146,6 +146,7 @@ def test_loaded_preview_settings_keep_existing_persistence_keys() -> None:
 
 def test_gizmo_preview_settings_restore_from_main_preview_config() -> None:
     values: dict[str, object] = {
+        "archive/model_use_textures": True,
         "preview/d3d11_lighting_defaults_version": 6,
         "preview/gizmo_x_axis_color": "#123456",
         "preview/gizmo_y_axis_color": "#234567",
@@ -170,6 +171,7 @@ def test_gizmo_preview_settings_restore_from_main_preview_config() -> None:
 
     restored = ArchivePreviewSettingsMixin._read_model_preview_render_settings(reader)  # type: ignore[arg-type]
 
+    assert restored.use_textures_by_default is True
     assert restored.gizmo_x_axis_color == "#123456"
     assert restored.gizmo_y_axis_color == "#234567"
     assert restored.gizmo_z_axis_color == "#345678"

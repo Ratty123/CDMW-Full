@@ -70,22 +70,48 @@ class ArchivePreviewDotNetLifecycleMixin:
         self.archive_isolated_renderer_package_source = ""
 
     def _open_archive_isolated_d3d11_preview(self) -> None:
-        """Load, show, or hide textures without restarting the resident renderer."""
-        package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
+        """Apply the persisted texture checkbox without restarting the renderer."""
+        checkbox = getattr(self, "archive_isolated_renderer_button", None)
+        settings = self._current_model_preview_render_settings()
         host = getattr(self, "archive_d3d11_preview_host", None)
-        if package_dir is None or host is None:
-            self._request_archive_preview_textures()
+        package_dir = getattr(self, "archive_isolated_renderer_active_package", None)
+        if checkbox is not None and hasattr(checkbox, "isChecked"):
+            enabled = bool(checkbox.isChecked())
+            if bool(settings.use_textures_by_default) != enabled:
+                self._handle_model_preview_settings_changed(
+                    replace(settings, use_textures_by_default=enabled)
+                )
+                return
+        else:
+            enabled = bool(
+                package_dir is None
+                or not self._archive_active_package_has_textures()
+                or not bool(getattr(self, "_archive_textures_visible", True))
+            )
+        if host is None:
             return
         if bool(getattr(self, "_archive_texture_request_loading", False)):
-            return
-        if self._archive_active_package_has_textures():
-            visible = not bool(getattr(self, "_archive_textures_visible", True))
-            host.set_viewport_display_mode("textured" if visible else "untextured_wire")
-            self._archive_textures_visible = visible
             self._sync_archive_texture_action_state()
-            self.set_status_message("Textures shown." if visible else "Textures hidden; geometry remains resident.")
             return
-        self._request_archive_preview_textures()
+        if enabled:
+            if package_dir is None or not self._archive_active_package_has_textures():
+                self._request_archive_preview_textures(
+                    automatic=bool(checkbox is not None and hasattr(checkbox, "isChecked"))
+                )
+                return
+            if not bool(getattr(self, "_archive_textures_visible", False)):
+                host.set_viewport_display_mode("textured")
+                self._archive_textures_visible = True
+                self.set_status_message("Textures shown.")
+        elif (
+            package_dir is not None
+            and self._archive_active_package_has_textures()
+            and bool(getattr(self, "_archive_textures_visible", False))
+        ):
+            host.set_viewport_display_mode("untextured_wire")
+            self._archive_textures_visible = False
+            self.set_status_message("Textures hidden; geometry remains resident.")
+        self._sync_archive_texture_action_state()
 
     def _archive_preview_effective_render_settings(self, request_id: int | None = None):
         settings = self._current_model_preview_render_settings()
@@ -134,9 +160,14 @@ class ArchivePreviewDotNetLifecycleMixin:
         self.archive_isolated_renderer_package_source = "dotnet-canonical"
         render_settings = getattr(self, "_archive_texture_render_settings", None)
         host = getattr(self, "archive_d3d11_preview_host", None)
+        automatic_request = bool(getattr(self, "_archive_texture_request_automatic", False))
+        show_textures = bool(
+            not automatic_request
+            or self._current_model_preview_render_settings().use_textures_by_default
+        )
         if host is not None and render_settings is not None:
             host.set_render_tuning(render_settings)
-            host.set_viewport_display_mode("textured")
+            host.set_viewport_display_mode("textured" if show_textures else "untextured_wire")
         has_textures = self._archive_active_package_has_textures()
         request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
         pending_result = getattr(self, "_archive_pending_texture_result", None)
@@ -145,10 +176,17 @@ class ArchivePreviewDotNetLifecycleMixin:
             success=has_textures,
             message="The prepared package did not contain resolved DDS resources." if not has_textures else "",
         )
+        if has_textures and not show_textures:
+            self._archive_textures_visible = False
+            self._sync_archive_texture_action_state()
         if has_textures and pending_result is not None:
             self.current_archive_preview_result = pending_result
             self._refresh_archive_preview_details_text()
-            self.set_status_message("Textures loaded in the resident .NET/Vortice preview.")
+            self.set_status_message(
+                "Textures loaded in the resident .NET/Vortice preview."
+                if show_textures
+                else "Textures prepared; geometry remains untextured."
+            )
 
     def _handle_archive_resident_package_failed(
         self,
@@ -192,22 +230,35 @@ class ArchivePreviewDotNetLifecycleMixin:
         return True
 
     def _sync_archive_texture_action_state(self) -> None:
-        button = getattr(self, "archive_isolated_renderer_button", None)
-        if button is None:
+        checkbox = getattr(self, "archive_isolated_renderer_button", None)
+        if checkbox is None:
             return
+        preference_enabled = bool(
+            self._current_model_preview_render_settings().use_textures_by_default
+        )
+        previous_blocked = checkbox.blockSignals(True)
+        try:
+            checkbox.setChecked(preference_enabled)
+        finally:
+            checkbox.blockSignals(previous_blocked)
         loading = bool(getattr(self, "_archive_texture_request_loading", False))
         if loading:
-            button.setText("Loading Textures…")
-            button.setEnabled(False)
-            button.setToolTip("Resolving DDS materials while the current geometry remains visible.")
-        elif self._archive_active_package_has_textures() and bool(getattr(self, "_archive_textures_visible", False)):
-            button.setText("Hide Textures")
-            button.setEnabled(True)
-            button.setToolTip("Hide textures without unloading geometry or changing the camera.")
+            checkbox.setText("Loading textures...")
+            checkbox.setEnabled(False)
+            checkbox.setToolTip("Resolving DDS materials while the current geometry remains visible.")
         else:
-            button.setText("Load Textures")
-            button.setEnabled(True)
-            button.setToolTip("Resolve and load textures after geometry is already usable.")
+            checkbox.setText("Load textures")
+            checkbox.setEnabled(True)
+            if self._archive_active_package_has_textures() and bool(
+                getattr(self, "_archive_textures_visible", False)
+            ):
+                checkbox.setToolTip(
+                    "Uncheck to hide textures without unloading geometry. This choice is kept after restart."
+                )
+            else:
+                checkbox.setToolTip(
+                    "Check to resolve and display textures after geometry is usable. This choice is kept after restart."
+                )
 
     def _start_archive_native_preview_prefetch(self) -> None:
         """Compatibility no-op; canonical packages are cached by preview preparation."""

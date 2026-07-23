@@ -43,8 +43,10 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
         self.assertNotIn(".start(", source)
         self.assertNotIn("WM_COPYDATA", source)
 
-    def test_texture_action_accepts_direct_native_packages_without_python_model(self) -> None:
+    def test_texture_checkbox_accepts_direct_native_packages_without_python_model(self) -> None:
         source = _read("cdmw/ui/archive_browser/action_controls.py")
+        layout = _read("cdmw/ui/archive_browser/preview_layout.py")
+        wiring = _read("cdmw/ui/shell/signal_wiring.py")
 
         self.assertIn("resident_texture_action_available", source)
         self.assertIn('getattr(current_result, "dotnet_preview_package_path", "")', source)
@@ -54,9 +56,15 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
         )
 
         lifecycle = _read("cdmw/ui/archive_browser/preview_dotnet_lifecycle.py")
-        self.assertIn('button.setText("Hide Textures")', lifecycle)
-        self.assertIn('button.setText("Load Textures")', lifecycle)
-        self.assertGreaterEqual(lifecycle.count("button.setEnabled(True)"), 2)
+        self.assertIn('self.archive_isolated_renderer_button = QCheckBox("Load textures")', layout)
+        self.assertIn(
+            "lambda _checked=False: self._open_archive_isolated_d3d11_preview()",
+            wiring,
+        )
+        self.assertIn("checkbox.setChecked(preference_enabled)", lifecycle)
+        self.assertIn('checkbox.setText("Load textures")', lifecycle)
+        self.assertIn("replace(settings, use_textures_by_default=enabled)", lifecycle)
+        self.assertNotIn('setText("Hide Textures")', lifecycle)
 
     def test_settings_keep_legacy_keys_but_name_the_single_renderer(self) -> None:
         dialog = _read("cdmw/ui/model_preview_settings_dialog.py")

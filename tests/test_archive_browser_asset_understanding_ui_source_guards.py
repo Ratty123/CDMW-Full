@@ -145,7 +145,11 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
 
         self.assertIn("self.archive_asset_map_tabs = QTabWidget()", source)
         self.assertIn('self.archive_asset_family_button = QPushButton("Asset Family")', source)
-        self.assertIn("self.archive_asset_family_button.clicked.connect(self._open_archive_asset_family_workspace_dialog)", source)
+        self.assertIn("self.archive_asset_family_button.setCheckable(True)", source)
+        self.assertIn(
+            "self.archive_asset_family_button.toggled.connect(self._open_archive_asset_family_workspace_dialog)",
+            source,
+        )
         self.assertIn("self.archive_asset_family_summary_label = QLabel", source)
         self.assertIn('self.archive_asset_map_tabs.addTab(self.archive_asset_map_tree, "Asset Family")', source)
         self.assertIn('self.archive_asset_map_tabs.addTab(self.archive_asset_uses_tree, "Uses")', source)
@@ -1273,7 +1277,8 @@ class ArchiveBrowserAssetUnderstandingUiSourceGuards(unittest.TestCase):
         )
 
         self.assertIn("self.archive_asset_family_preferred_width = 420", source)
-        self.assertIn("Preserve the user's Asset Family splitter width while loading or when a file", source)
+        self.assertIn("self.archive_asset_family_panel_requested = False", source)
+        self.assertIn("self.archive_texture_refs_group.setVisible(panel_requested)", source)
         self.assertIn('getattr(self, "archive_asset_family_preferred_width", 420)', source)
         self.assertIn('not getattr(self, "_archive_preview_splitter_clamping", False)', source)
         self.assertIn("self.archive_asset_family_preferred_width = sizes[1]", source)

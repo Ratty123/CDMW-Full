@@ -154,6 +154,7 @@ class ShellWindowRuntimeStateMixin:
         self.current_archive_used_by_references: List[ArchiveModelTextureReference] = []
         self.current_archive_asset_family_graph: Optional[AssetFamilyGraph] = None
         self.current_archive_family_member_rows: List[AssetFamilyMember] = []
+        self.archive_asset_family_panel_requested = False
         self.archive_asset_family_preferred_width = 420
         self._tree_horizontal_wheel_guards: List[QObject] = []
         self.archive_preview_cache: OrderedDict[str, ArchivePreviewResult] = OrderedDict()

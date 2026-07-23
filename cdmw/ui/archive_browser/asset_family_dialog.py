@@ -31,10 +31,22 @@ class ArchiveAssetFamilyDialogMixin:
     """Asset Family graph caching and workspace dialog tree population."""
 
     def _archive_has_asset_family_workspace(self) -> bool:
-        return bool(
+        if bool(
             self.current_archive_model_texture_references
             or self.current_archive_used_by_references
             or self.current_archive_family_member_rows
+        ):
+            return True
+        pending = getattr(self, "pending_archive_texture_reference_update", None)
+        if pending is None:
+            return False
+        request_id, references, graph = pending
+        return bool(
+            int(request_id) == int(getattr(self, "archive_preview_request_id", 0))
+            and (
+                references
+                or tuple(getattr(graph, "member_rows", ()) or ())
+            )
         )
 
     def _clear_archive_asset_family_cache(self) -> None:
@@ -224,8 +236,30 @@ class ArchiveAssetFamilyDialogMixin:
 
     def _open_archive_asset_family_workspace_dialog(
         self,
-        entry: Optional[ArchiveEntry] = None,
+        entry: Optional[ArchiveEntry] | bool = None,
     ) -> None:
+        if isinstance(entry, bool):
+            requested = bool(entry and self._archive_has_asset_family_workspace())
+            self.archive_asset_family_panel_requested = requested
+            if not requested:
+                self.archive_texture_reference_update_timer.stop()
+                self.archive_texture_refs_group.setVisible(False)
+                self.archive_preview_content_splitter.setCollapsible(1, True)
+                self._update_archive_texture_reference_action_controls()
+                return
+            pending = getattr(self, "pending_archive_texture_reference_update", None)
+            if (
+                pending is not None
+                and int(pending[0]) == int(self.archive_preview_request_id)
+            ):
+                self.archive_texture_reference_update_timer.start()
+                return
+            self.archive_texture_refs_group.setVisible(True)
+            self.archive_preview_content_splitter.setCollapsible(1, False)
+            self._refresh_archive_asset_family_panel_layout(prefer_default=True)
+            self._schedule_archive_asset_family_panel_layout(prefer_default=True)
+            self._update_archive_texture_reference_action_controls()
+            return
         source_entry = entry if isinstance(entry, ArchiveEntry) else self._current_archive_entry()
         if not isinstance(source_entry, ArchiveEntry):
             self.set_status_message("Select an archive file first.", error=True)

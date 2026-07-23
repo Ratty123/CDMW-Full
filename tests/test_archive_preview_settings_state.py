@@ -147,7 +147,7 @@ class _FakePreviewSettingsWindow(ArchivePreviewSettingsMixin):
         self.current_archive_preview_result = ArchivePreviewResult(
             status="ok",
             preferred_view="model",
-            native_preview_package_path="native-package",
+            dotnet_preview_package_path="dotnet-package",
         )
         self.archive_preview_showing_loose = False
         self._settings_ready = True
@@ -158,6 +158,7 @@ class _FakePreviewSettingsWindow(ArchivePreviewSettingsMixin):
         self.synced_controls = 0
         self.refreshed_status = 0
         self.updated_preview_models: list[object] = []
+        self.applied_texture_preferences: list[bool] = []
 
     def findChildren(self, *_args: object, **_kwargs: object) -> list[object]:
         return []
@@ -170,6 +171,14 @@ class _FakePreviewSettingsWindow(ArchivePreviewSettingsMixin):
 
     def _schedule_current_model_preview_asset_refresh(self) -> None:
         self.scheduled_asset_refreshes += 1
+
+    def _sync_archive_texture_action_state(self) -> None:
+        return None
+
+    def _open_archive_isolated_d3d11_preview(self) -> None:
+        self.applied_texture_preferences.append(
+            bool(self._model_preview_render_settings.use_textures_by_default)
+        )
 
     def set_status_message(self, message: str, error: bool = False) -> None:
         self.status_messages.append((message, error))
@@ -330,4 +339,17 @@ def test_model_preview_settings_live_d3d11_tuning_failure_reloads_preview() -> N
     assert window.refreshed_assets == 1
     assert window.scheduled_asset_refreshes == 0
     assert window.status_messages == [("Reloading .NET/Vortice preview to apply render settings.", False)]
+    assert window.saved_settings == 1
+
+
+def test_texture_preference_uses_resident_display_path_and_persists_without_rebuild() -> None:
+    window = _FakePreviewSettingsWindow(live_tuning_result=True)
+    current = ModelPreviewRenderSettings(use_textures_by_default=True)
+
+    window._handle_model_preview_settings_changed(current)
+
+    assert window.applied_texture_preferences == [True]
+    assert window.refreshed_assets == 0
+    assert window.scheduled_asset_refreshes == 0
+    assert window._model_preview_render_settings.use_textures_by_default is True
     assert window.saved_settings == 1
