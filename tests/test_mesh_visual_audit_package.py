@@ -151,6 +151,24 @@ def test_visual_audit_prepared_package_fingerprint_detects_tree_changes(
     assert after["aggregate_sha256"] != before["aggregate_sha256"]
 
     runtime_assets[0]["dotnet_package_dir"] = str(archive_package)
+    shared = fingerprint_visual_audit_prepared_packages(
+        runtime_assets,
+        run_id="a" * 32,
+        corpus_sha256="b" * 64,
+        temporary_root=tmp_path,
+    )
+    assert (
+        shared["assets"][0]["archive_package_dir"]
+        == shared["assets"][0]["dotnet_package_dir"]
+    )
+
+    runtime_assets.append(
+        {
+            "id": "002-cross-asset-reuse",
+            "archive_package_dir": str(archive_package),
+            "dotnet_package_dir": str(dotnet_package),
+        }
+    )
     with pytest.raises(ValueError, match="invalid or reused"):
         fingerprint_visual_audit_prepared_packages(
             runtime_assets,

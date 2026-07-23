@@ -137,7 +137,7 @@ def fingerprint_visual_audit_prepared_packages(
     content_hash_cache: dict[tuple[object, ...], str] = {}
     asset_rows: list[dict[str, object]] = []
     seen_ids: set[str] = set()
-    seen_roots: set[str] = set()
+    root_owners: dict[str, str] = {}
     for runtime_asset in runtime_assets:
         asset_id = str(runtime_asset.get("id", "") or "")
         if not asset_id or asset_id in seen_ids:
@@ -147,13 +147,14 @@ def fingerprint_visual_audit_prepared_packages(
         for key in ("archive_package_dir", "dotnet_package_dir"):
             package_root = Path(str(runtime_asset.get(key, "") or "")).resolve()
             root_key = str(package_root).casefold()
+            existing_owner = root_owners.get(root_key)
             if (
                 not package_root.is_dir()
                 or not package_root.is_relative_to(temporary_root)
-                or root_key in seen_roots
+                or (existing_owner is not None and existing_owner != asset_id)
             ):
                 raise ValueError(f"Prepared package fingerprint root is invalid or reused: {key}")
-            seen_roots.add(root_key)
+            root_owners[root_key] = asset_id
             package_rows[key] = _fingerprint_visual_audit_tree(
                 package_root,
                 content_hash_cache=content_hash_cache,
