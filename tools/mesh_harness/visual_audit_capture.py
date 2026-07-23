@@ -37,6 +37,7 @@ _DOTNET_AUDIT_PRESENTATION_PROFILE: dict[str, object] = {
     "specular_max": 0.52,
     "color_pipeline": "srgb_srv_linear_shader_srgb_rtv",
 }
+_DOTNET_AUDIT_MAX_ASSETS_PER_BATCH = 128
 
 
 def run_archive_browser_capture_batch(
@@ -106,12 +107,54 @@ def run_dotnet_capture_batch(
     assembly_path: Path,
     timeout_seconds: float = 900.0,
 ) -> dict[str, object]:
+    assets = tuple(runtime_assets)
+    if not assets:
+        raise ValueError("Mesh Editor capture batch has no assets.")
+    chunks = tuple(
+        assets[index : index + _DOTNET_AUDIT_MAX_ASSETS_PER_BATCH]
+        for index in range(0, len(assets), _DOTNET_AUDIT_MAX_ASSETS_PER_BATCH)
+    )
+    reports = tuple(
+        _run_dotnet_capture_batch_once(
+            chunk,
+            output_root,
+            runtime_root,
+            run_id=run_id,
+            assembly_path=assembly_path,
+            timeout_seconds=timeout_seconds,
+            batch_index=batch_index,
+            batch_count=len(chunks),
+        )
+        for batch_index, chunk in enumerate(chunks, 1)
+    )
+    if len(reports) == 1:
+        return reports[0]
+    return _merge_dotnet_capture_batch_reports(
+        reports,
+        runtime_assets=assets,
+        output_root=output_root,
+        run_id=run_id,
+    )
+
+
+def _run_dotnet_capture_batch_once(
+    runtime_assets: Sequence[Mapping[str, object]],
+    output_root: Path,
+    runtime_root: Path,
+    *,
+    run_id: str,
+    assembly_path: Path,
+    timeout_seconds: float,
+    batch_index: int,
+    batch_count: int,
+) -> dict[str, object]:
     output_root = Path(output_root).resolve()
     runtime_root = Path(runtime_root).resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     runtime_root.mkdir(parents=True, exist_ok=True)
-    manifest_path = runtime_root / "dotnet-batch-manifest.json"
-    report_path = runtime_root / "dotnet-batch-report.json"
+    suffix = "" if batch_count == 1 else f"-{batch_index:03d}"
+    manifest_path = runtime_root / f"dotnet-batch{suffix}-manifest.json"
+    report_path = runtime_root / f"dotnet-batch{suffix}-report.json"
     report_path.unlink(missing_ok=True)
     manifest = {
         "schema": "cdmw_mesh_visual_audit_dotnet_batch_v2",
@@ -197,6 +240,87 @@ def run_dotnet_capture_batch(
             "stderr_tail": (exc.stderr or "")[-65536:] if isinstance(exc.stderr, str) else "",
             "fatal_error": "The resident .NET visual-audit batch timed out.",
         }
+
+
+def _merge_dotnet_capture_batch_reports(
+    reports: Sequence[Mapping[str, object]],
+    *,
+    runtime_assets: Sequence[Mapping[str, object]],
+    output_root: Path,
+    run_id: str,
+) -> dict[str, object]:
+    expected_ids = [str(asset["id"]) for asset in runtime_assets]
+    asset_rows = [
+        dict(row)
+        for report in reports
+        for row in tuple(report.get("assets", ()) or ())
+        if isinstance(row, Mapping)
+    ]
+    actual_ids = [str(row.get("id", "")) for row in asset_rows]
+    presentation_contract_ok = all(
+        _dotnet_audit_presentation_is_safe(report) for report in reports
+    )
+    batch_ok = all(
+        report.get("ok") is True and str(report.get("run_id", "")) == run_id
+        for report in reports
+    )
+    sessions = [
+        dict(report.get("renderer_session", {}) or {})
+        for report in reports
+        if isinstance(report.get("renderer_session"), Mapping)
+    ]
+    renderer_session = dict(sessions[0]) if sessions else {}
+    renderer_session.update({"batch_count": len(reports), "batch_sessions": sessions})
+    fatal_errors = [
+        str(report.get("fatal_error", "") or "").strip()
+        for report in reports
+        if str(report.get("fatal_error", "") or "").strip()
+    ]
+    merged_ok = batch_ok and actual_ids == expected_ids and presentation_contract_ok
+    return {
+        "schema": "cdmw_mesh_visual_audit_dotnet_batch_v2",
+        "compatible_reader_schemas": ["cdmw_mesh_visual_audit_dotnet_batch_v1"],
+        "run_id": run_id,
+        "ok": merged_ok,
+        "output_root": str(Path(output_root).resolve()),
+        "requested_asset_count": len(expected_ids),
+        "completed_asset_count": len(asset_rows),
+        "assets": asset_rows,
+        "renderer_session": renderer_session,
+        "presentation_contract_ok": presentation_contract_ok,
+        "presentation_contract_error": "" if presentation_contract_ok else (
+            "One or more bounded visual-audit batches did not prove the canonical "
+            "Mesh Editor presentation contract."
+        ),
+        "batch_count": len(reports),
+        "batch_asset_counts": [
+            int(report.get("requested_asset_count", 0) or 0) for report in reports
+        ],
+        "process_start_count": sum(
+            int(report.get("process_start_count", 0) or 0) for report in reports
+        ),
+        "process_restart_count": sum(
+            int(report.get("process_restart_count", 0) or 0) for report in reports
+        ),
+        "resident_material_update_count": sum(
+            int(report.get("resident_material_update_count", 0) or 0)
+            for report in reports
+        ),
+        "resident_material_update_failure_count": sum(
+            int(report.get("resident_material_update_failure_count", 0) or 0)
+            for report in reports
+        ),
+        "commands": [list(report.get("command", ()) or ()) for report in reports],
+        "exit_code": 0 if merged_ok else 1,
+        "wall_ms": sum(float(report.get("wall_ms", 0.0) or 0.0) for report in reports),
+        "stdout_tail": "\n".join(
+            str(report.get("stdout_tail", "") or "") for report in reports
+        )[-65536:],
+        "stderr_tail": "\n".join(
+            str(report.get("stderr_tail", "") or "") for report in reports
+        )[-65536:],
+        "fatal_error": "; ".join(fatal_errors),
+    }
 
 
 def _read_json(path: Path) -> dict[str, object]:

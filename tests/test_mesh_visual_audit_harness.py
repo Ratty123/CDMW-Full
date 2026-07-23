@@ -36,6 +36,7 @@ from tools.mesh_harness.visual_audit_cli import (
 from tools.mesh_harness.visual_audit_capture import (
     _DOTNET_AUDIT_PRESENTATION_PROFILE,
     _dotnet_audit_presentation_is_safe,
+    run_dotnet_capture_batch,
 )
 from tools.mesh_harness.visual_audit_report import build_visual_audit_composites
 from tools.mesh_harness.visual_audit_review import (
@@ -831,6 +832,104 @@ def test_visual_audit_rejects_missing_dotnet_presentation_evidence() -> None:
         )
         is False
     )
+
+
+def test_dotnet_visual_audit_chunks_large_corpus_and_merges_ordered_reports(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.mesh_harness import visual_audit_capture
+
+    assets = [
+        {
+            "id": f"{index:03d}-test",
+            "dotnet_package_dir": str(tmp_path / f"package-{index:03d}"),
+            "views": [],
+        }
+        for index in range(129)
+    ]
+    chunk_sizes: list[int] = []
+    corrupt_ids = {"enabled": False}
+
+    def fake_batch(
+        chunk,
+        _output_root,
+        _runtime_root,
+        *,
+        run_id,
+        assembly_path,
+        timeout_seconds,
+        batch_index,
+        batch_count,
+    ):
+        del assembly_path, timeout_seconds
+        chunk_sizes.append(len(chunk))
+        return {
+            "schema": "cdmw_mesh_visual_audit_dotnet_batch_v2",
+            "run_id": run_id,
+            "ok": True,
+            "requested_asset_count": len(chunk),
+            "completed_asset_count": len(chunk),
+            "assets": [
+                {
+                    "id": (
+                        "wrong-id"
+                        if corrupt_ids["enabled"] and index == 0
+                        else asset["id"]
+                    ),
+                    "ok": True,
+                    "captures": [],
+                }
+                for index, asset in enumerate(chunk)
+            ],
+            "renderer_session": {
+                "capture_mode": "hidden_hwnd_no_show",
+                "native_windows_remained_hidden": True,
+                "presentation": dict(_DOTNET_AUDIT_PRESENTATION_PROFILE),
+                "batch_index": batch_index,
+                "batch_count": batch_count,
+            },
+            "process_start_count": 1,
+            "process_restart_count": 0,
+            "resident_material_update_count": len(chunk),
+            "resident_material_update_failure_count": 0,
+            "command": ["dotnet", f"batch-{batch_index}"],
+            "exit_code": 0,
+            "wall_ms": 10.0,
+        }
+
+    monkeypatch.setattr(
+        visual_audit_capture,
+        "_run_dotnet_capture_batch_once",
+        fake_batch,
+    )
+
+    report = run_dotnet_capture_batch(
+        assets,
+        tmp_path / "output",
+        tmp_path / "runtime",
+        run_id="a" * 32,
+        assembly_path=tmp_path / "editor.dll",
+    )
+
+    assert chunk_sizes == [128, 1]
+    assert report["ok"] is True
+    assert report["batch_count"] == 2
+    assert report["batch_asset_counts"] == [128, 1]
+    assert report["process_start_count"] == 2
+    assert report["resident_material_update_count"] == 129
+    assert [row["id"] for row in report["assets"]] == [asset["id"] for asset in assets]
+
+    corrupt_ids["enabled"] = True
+    rejected = run_dotnet_capture_batch(
+        assets,
+        tmp_path / "output",
+        tmp_path / "runtime",
+        run_id="a" * 32,
+        assembly_path=tmp_path / "editor.dll",
+    )
+    assert rejected["ok"] is False
+    assert rejected["exit_code"] == 1
 
 
 def test_visual_audit_composites_preserve_source_pixels_without_resampling(tmp_path: Path) -> None:

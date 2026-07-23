@@ -7,6 +7,7 @@ from tools.mesh_harness.visual_audit_corpus import VISUAL_AUDIT_VIEWS
 
 
 _CAMERA_BASIS_COSINE_MIN = math.cos(math.radians(0.25))
+_MAX_RESIDENT_ASSETS_PER_BATCH = 128
 
 
 def _capture_integrity(
@@ -195,20 +196,101 @@ def _resident_renderer_unchanged(report: Mapping[str, object]) -> bool:
     if not isinstance(session, Mapping):
         return False
     try:
+        requested_count = int(report.get("requested_asset_count", 0))
+        batch_count = int(report.get("batch_count", 1) or 1)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    if requested_count <= 0 or batch_count <= 0:
+        return False
+
+    raw_batch_counts = report.get("batch_asset_counts")
+    explicit_batch_metadata = "batch_count" in report or raw_batch_counts is not None
+    if batch_count == 1 and raw_batch_counts is None:
+        batch_asset_counts = (requested_count,)
+        sessions = (session,)
+    else:
+        if not isinstance(raw_batch_counts, Sequence) or isinstance(
+            raw_batch_counts, (str, bytes, bytearray)
+        ):
+            return False
+        try:
+            batch_asset_counts = tuple(int(value) for value in raw_batch_counts)
+        except (TypeError, ValueError, OverflowError):
+            return False
+        raw_sessions = session.get("batch_sessions")
+        if not isinstance(raw_sessions, Sequence) or isinstance(
+            raw_sessions, (str, bytes, bytearray)
+        ):
+            return False
+        sessions = tuple(raw_sessions)
+
+    if (
+        len(batch_asset_counts) != batch_count
+        or sum(batch_asset_counts) != requested_count
+        or any(count <= 0 for count in batch_asset_counts)
+        or (
+            explicit_batch_metadata
+            and any(
+                count > _MAX_RESIDENT_ASSETS_PER_BATCH
+                for count in batch_asset_counts
+            )
+        )
+        or len(sessions) != batch_count
+        or any(not isinstance(batch_session, Mapping) for batch_session in sessions)
+    ):
+        return False
+    try:
         return (
-            int(report.get("requested_asset_count", 0)) > 0
+            int(report.get("completed_asset_count", requested_count))
+            == requested_count
             and int(report.get("resident_material_update_count", -1))
-            == int(report.get("requested_asset_count", 0))
+            == requested_count
             and int(report.get("resident_material_update_failure_count", -1)) == 0
-            and int(report.get("process_start_count", 0)) == 1
+            and int(report.get("process_start_count", 0)) == batch_count
             and int(report.get("process_restart_count", -1)) == 0
-            and int(session.get("viewport_create_count", 0)) == 1
-            and int(session.get("device_initialization_count", 0)) == 1
-            and int(session.get("device_reset_attempt_count", -1)) == 0
-            and int(session.get("device_reset_count", -1)) == 0
+            and all(
+                int(batch_session.get("viewport_create_count", 0)) == 1
+                and int(batch_session.get("device_initialization_count", 0)) == 1
+                and int(batch_session.get("device_reset_attempt_count", -1)) == 0
+                and int(batch_session.get("device_reset_count", -1)) == 0
+                for batch_session in sessions
+            )
         )
     except (TypeError, ValueError, OverflowError):
         return False
+
+
+def _uses_direct_archive_capture(report: Mapping[str, object]) -> bool:
+    return (
+        report.get("schema") == "cdmw_mesh_visual_audit_archive_browser_batch_v2"
+        and report.get("backend") == "d3d11_vortice_shader"
+        and report.get("surface") == "archive_browser"
+        and report.get("shared_package_artifacts") is True
+    )
+
+
+def _direct_archive_camera_matches(
+    capture: Mapping[str, object],
+    expected_angles: tuple[float, float],
+) -> bool:
+    if str(capture.get("camera_mapping", "")) != (
+        "archive_object_rotation_basis_orthographic_v1"
+    ):
+        return False
+    capture_angles = _finite_yaw_pitch(capture)
+    try:
+        renderer_angles = (
+            float(capture.get("renderer_yaw")),
+            float(capture.get("renderer_pitch")),
+        )
+    except (TypeError, ValueError):
+        return False
+    return (
+        capture_angles is not None
+        and all(math.isfinite(value) for value in renderer_angles)
+        and _angles_match(capture_angles, expected_angles)
+        and _angles_match(renderer_angles, expected_angles)
+    )
 
 
 def _paired_camera_views_match(
@@ -224,6 +306,7 @@ def _paired_camera_views_match(
         return False
 
     expected_views = tuple(VISUAL_AUDIT_VIEWS)
+    direct_archive_capture = _uses_direct_archive_capture(archive_report)
     for expected_id, archive_asset, dotnet_asset in zip(
         expected_ids,
         archive_assets,
@@ -274,14 +357,21 @@ def _paired_camera_views_match(
                 return False
             if not _angles_match(dotnet_angles, expected_angles):
                 return False
-            camera_ack = archive_capture.get("camera_ack")
-            if not isinstance(camera_ack, Mapping):
-                return False
-            archive_ack_angles = _finite_yaw_pitch(camera_ack)
-            if archive_ack_angles is None or not _angles_match(
-                archive_ack_angles, expected_angles
-            ):
-                return False
+            if direct_archive_capture:
+                if not _direct_archive_camera_matches(
+                    archive_capture,
+                    expected_angles,
+                ):
+                    return False
+            else:
+                camera_ack = archive_capture.get("camera_ack")
+                if not isinstance(camera_ack, Mapping):
+                    return False
+                archive_ack_angles = _finite_yaw_pitch(camera_ack)
+                if archive_ack_angles is None or not _angles_match(
+                    archive_ack_angles, expected_angles
+                ):
+                    return False
     return bool(expected_ids)
 
 
@@ -298,6 +388,7 @@ def _rendered_camera_views_match(
         return False
 
     expected_views = tuple(VISUAL_AUDIT_VIEWS)
+    direct_archive_capture = _uses_direct_archive_capture(archive_report)
     for expected_id, archive_asset, dotnet_asset in zip(
         expected_ids,
         archive_assets,
@@ -340,29 +431,43 @@ def _rendered_camera_views_match(
             if expected_angles is None:
                 return False
 
-            camera_ack = archive_capture.get("camera_ack")
-            if not isinstance(camera_ack, Mapping):
-                return False
-            if str(camera_ack.get("event", "")).casefold() != "view_state":
-                return False
-            if str(camera_ack.get("reason", "")).casefold() != "set_view":
-                return False
-            if str(camera_ack.get("role", "")).casefold() != "replacement":
-                return False
+            if direct_archive_capture:
+                if not _direct_archive_camera_matches(
+                    archive_capture,
+                    expected_angles,
+                ):
+                    return False
+                archive_camera = archive_capture.get("rendered_camera")
+            else:
+                camera_ack = archive_capture.get("camera_ack")
+                if not isinstance(camera_ack, Mapping):
+                    return False
+                if str(camera_ack.get("event", "")).casefold() != "view_state":
+                    return False
+                if str(camera_ack.get("reason", "")).casefold() != "set_view":
+                    return False
+                if str(camera_ack.get("role", "")).casefold() != "replacement":
+                    return False
 
-            capture_event = archive_capture.get("capture_event")
-            if not isinstance(capture_event, Mapping) or capture_event.get("ok") is not True:
-                return False
-            archive_camera = capture_event.get("rendered_camera")
+                capture_event = archive_capture.get("capture_event")
+                if (
+                    not isinstance(capture_event, Mapping)
+                    or capture_event.get("ok") is not True
+                ):
+                    return False
+                archive_camera = capture_event.get("rendered_camera")
             dotnet_camera = dotnet_capture.get("rendered_camera")
             if not isinstance(archive_camera, Mapping) or not isinstance(
                 dotnet_camera, Mapping
             ):
                 return False
-            if str(archive_camera.get("role", "")).casefold() not in {
-                "all",
-                "replacement",
-            }:
+            expected_archive_roles = (
+                {"editable"} if direct_archive_capture else {"all", "replacement"}
+            )
+            if (
+                str(archive_camera.get("role", "")).casefold()
+                not in expected_archive_roles
+            ):
                 return False
             if str(dotnet_camera.get("role", "")).casefold() != "editable":
                 return False

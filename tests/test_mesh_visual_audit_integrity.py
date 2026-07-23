@@ -8,6 +8,7 @@ from tools.mesh_harness.visual_audit_integrity import (
     _capture_integrity,
     _dotnet_camera_mapping_matches,
     _rendered_camera_views_match,
+    _resident_renderer_unchanged,
 )
 
 
@@ -185,6 +186,28 @@ def _dotnet_camera_report(
     }
 
 
+def _direct_archive_camera_report() -> dict[str, object]:
+    report = _dotnet_camera_report()
+    report.update(
+        {
+            "schema": "cdmw_mesh_visual_audit_archive_browser_batch_v2",
+            "backend": "d3d11_vortice_shader",
+            "surface": "archive_browser",
+            "shared_package_artifacts": True,
+        }
+    )
+    return report
+
+
+def _renderer_session() -> dict[str, object]:
+    return {
+        "viewport_create_count": 1,
+        "device_initialization_count": 1,
+        "device_reset_attempt_count": 0,
+        "device_reset_count": 0,
+    }
+
+
 def test_visual_audit_integrity_rejects_changed_dotnet_archive_angles() -> None:
     report = _dotnet_camera_report()
     assert _dotnet_camera_mapping_matches(report) is True
@@ -281,6 +304,93 @@ def test_visual_audit_integrity_requires_same_six_archive_and_dotnet_views() -> 
     )
     assert incomplete["paired_camera_views_match"] is False
     assert incomplete["ok"] is False
+
+
+def test_visual_audit_integrity_accepts_canonical_direct_archive_capture() -> None:
+    direct_archive = _direct_archive_camera_report()
+    complete = _capture_integrity(
+        run_id="camera-run",
+        expected_ids=["001-camera"],
+        archive_report=direct_archive,
+        dotnet_report=_dotnet_camera_report(),
+        composite_rows=[
+            {
+                "id": "001-camera",
+                "archive_browser_capture_ok": True,
+                "mesh_editor_capture_ok": True,
+            }
+        ],
+    )
+
+    assert complete["paired_camera_views_match"] is True
+    assert complete["rendered_camera_views_match"] is True
+    assert complete["ok"] is True
+
+    direct_archive["surface"] = "mesh_editor"
+    rejected = _capture_integrity(
+        run_id="camera-run",
+        expected_ids=["001-camera"],
+        archive_report=direct_archive,
+        dotnet_report=_dotnet_camera_report(),
+        composite_rows=[
+            {
+                "id": "001-camera",
+                "archive_browser_capture_ok": True,
+                "mesh_editor_capture_ok": True,
+            }
+        ],
+    )
+    assert rejected["paired_camera_views_match"] is False
+    assert rejected["rendered_camera_views_match"] is False
+    assert rejected["ok"] is False
+
+
+def test_visual_audit_integrity_accepts_bounded_resident_batches() -> None:
+    sessions = [_renderer_session() for _ in range(4)]
+    report = {
+        "requested_asset_count": 500,
+        "completed_asset_count": 500,
+        "resident_material_update_count": 500,
+        "resident_material_update_failure_count": 0,
+        "process_start_count": 4,
+        "process_restart_count": 0,
+        "batch_count": 4,
+        "batch_asset_counts": [128, 128, 128, 116],
+        "renderer_session": {
+            **sessions[0],
+            "batch_count": 4,
+            "batch_sessions": sessions,
+        },
+    }
+
+    assert _resident_renderer_unchanged(report) is True
+
+    sessions[2]["device_reset_count"] = 1
+    assert _resident_renderer_unchanged(report) is False
+
+
+def test_visual_audit_integrity_rejects_oversized_or_incomplete_batches() -> None:
+    sessions = [_renderer_session(), _renderer_session()]
+    report = {
+        "requested_asset_count": 257,
+        "completed_asset_count": 257,
+        "resident_material_update_count": 257,
+        "resident_material_update_failure_count": 0,
+        "process_start_count": 2,
+        "process_restart_count": 0,
+        "batch_count": 2,
+        "batch_asset_counts": [129, 128],
+        "renderer_session": {
+            **sessions[0],
+            "batch_count": 2,
+            "batch_sessions": sessions,
+        },
+    }
+
+    assert _resident_renderer_unchanged(report) is False
+
+    report["batch_asset_counts"] = [128, 128]
+    assert _resident_renderer_unchanged(report) is False
 
 
 def test_visual_audit_integrity_requires_angles_from_the_captured_render_camera() -> None:
