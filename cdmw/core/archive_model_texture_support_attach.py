@@ -56,6 +56,10 @@ _PAC_NUMBERED_MASK_VARIANT_RE = re.compile(
     r"^(?P<family>.+_\d{4})_\d{2}(?P<suffix>_(?:ma|mg)\.dds)$",
     re.IGNORECASE,
 )
+_PAC_FIST_MASK_TRANSPORT_RE = re.compile(
+    r"^(?:character/texture/)?cd_phm_13_fist_(?P<item>\d{4})(?P<suffix>_(?:ma|mg)\.dds)$",
+    re.IGNORECASE,
+)
 
 
 @dataclass
@@ -319,22 +323,31 @@ def _select_material_inputs(candidates: Sequence[_MaterialInputBinding]) -> Tupl
     return tuple(selected)
 
 
-def _owner_qualified_pac_mask_transport_alias(
+def _owner_qualified_pac_mask_transport_aliases(
     binding: _ArchiveModelSidecarTextureBinding,
     parameter: str,
-) -> str:
+) -> Tuple[str, ...]:
     if str(parameter or "").strip().casefold() not in {
         "_colorblendingmasktexture",
         "_detailmasktexture",
     }:
-        return ""
+        return ()
     declared = _normalize_model_texture_reference(
         str(getattr(binding, "texture_path", "") or "")
     )
-    match = _PAC_NUMBERED_MASK_VARIANT_RE.fullmatch(declared)
-    if match is None:
-        return ""
-    return f"{match.group('family')}{match.group('suffix')}"
+    aliases: List[str] = []
+    numbered_match = _PAC_NUMBERED_MASK_VARIANT_RE.fullmatch(declared)
+    if numbered_match is not None:
+        aliases.append(
+            f"{numbered_match.group('family')}{numbered_match.group('suffix')}"
+        )
+    fist_match = _PAC_FIST_MASK_TRANSPORT_RE.fullmatch(declared)
+    if fist_match is not None:
+        aliases.append(
+            f"object/texture/cd_phm_01_fist_{fist_match.group('item')}"
+            f"{fist_match.group('suffix')}"
+        )
+    return tuple(aliases)
 
 
 def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveModelSidecarTextureBinding, seen_global: set[Tuple[str, str, str]]) -> None:
@@ -394,12 +407,13 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
             sidecar_texts_by_basename=state.sidecar_texts_by_basename,
         )
     if owner_qualified_pac and (entry is None or status != "resolved"):
-        transport_alias = _owner_qualified_pac_mask_transport_alias(binding, parameter)
-        if transport_alias:
+        transport_aliases = _owner_qualified_pac_mask_transport_aliases(binding, parameter)
+        for transport_alias in transport_aliases:
             # Some numbered equipment appearances declare numbered _ma/_mg
-            # siblings that are represented by one unnumbered family pair in
-            # the archive. Preserve the declared binding and use that shipped
-            # pair only as transport for these two mask parameters.
+            # siblings represented by one unnumbered family pair. One fist
+            # family also retains a character/13 declaration while its only
+            # shipped pair is object/01. Preserve the declared binding and use
+            # these proven pairs only as transport for the two mask parameters.
             entry, status = _resolve_model_texture_archive_entry(
                 state.source_entry,
                 transport_alias,
@@ -413,6 +427,8 @@ def _collect_support_binding(state: _SupportAttachmentState, binding: _ArchiveMo
                 sidecar_texts_by_normalized_path=state.sidecar_texts_by_normalized_path,
                 sidecar_texts_by_basename=state.sidecar_texts_by_basename,
             )
+            if entry is not None and status == "resolved":
+                break
     if entry is None or status != "resolved":
         return
     texts = _support_sidecar_texts(state, entry.path)

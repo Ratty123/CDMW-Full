@@ -15,7 +15,10 @@ from cdmw.modding.material_profiles import complete_swap_material_runtime_profil
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.mesh_texture_sources import MeshTextureSourceResolution
 from tools.build_mesh_material_profile_corpus import _REPRESENTATIVE_REAL_PACS
-from tools.mesh_harness.archive_provenance import _hydrate_real_archive_mesh_materials
+from tools.mesh_harness.archive_provenance import (
+    _expanded_texture_entry_indexes,
+    _hydrate_real_archive_mesh_materials,
+)
 from tools.mesh_harness.material_profile_corpus import (
     material_asset_contract_row,
     material_profile_corpus_report,
@@ -265,6 +268,77 @@ def test_real_material_hydration_rebuilds_with_sibling_archive_texture(
     assert any(row["archive_path"] == texture_entry.path for row in rows)
     assert any("sibling PAMT" in line for line in diagnostics)
     assert texture_entry in build_preview.call_args.kwargs["texture_entries_by_basename"]["shared.dds"]
+
+
+def test_cross_archive_lookup_requests_owner_qualified_mask_transport_aliases(
+    tmp_path: Path,
+) -> None:
+    model_entry = ArchiveEntry(
+        path="character/model/cd_t0281_abyss_gauntlet_0001_l.pac",
+        pamt_path=tmp_path / "0009" / "0.pamt",
+        paz_file=tmp_path / "0009" / "0.paz",
+        offset=0,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
+    material_entry = ArchiveEntry(
+        path="object/texture/cd_phm_01_fist_0012_ma.dds",
+        pamt_path=tmp_path / "0000" / "0.pamt",
+        paz_file=tmp_path / "0000" / "18.paz",
+        offset=1,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=18,
+    )
+    detail_entry = ArchiveEntry(
+        path="object/texture/cd_phm_01_fist_0012_mg.dds",
+        pamt_path=tmp_path / "0000" / "0.pamt",
+        paz_file=tmp_path / "0000" / "18.paz",
+        offset=2,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=18,
+    )
+    common = {
+        "submesh_name": "Gauntlet",
+        "sidecar_kind": "pac_xml",
+        "owner_slot_index": 3,
+        "owner_wrapper_item_id": "283",
+    }
+    bindings = (
+        _ArchiveModelSidecarTextureBinding(
+            texture_path="character/texture/cd_phm_13_fist_0012_ma.dds",
+            parameter_name="_colorBlendingMaskTexture",
+            **common,
+        ),
+        _ArchiveModelSidecarTextureBinding(
+            texture_path="character/texture/cd_phm_13_fist_0012_mg.dds",
+            parameter_name="_detailMaskTexture",
+            **common,
+        ),
+    )
+
+    with patch(
+        "tools.mesh_harness.archive_provenance._cross_archive_texture_entries",
+        return_value=(material_entry, detail_entry),
+    ) as cross_archive:
+        _expanded_paths, expanded_names, added = _expanded_texture_entry_indexes(
+            model_entry,
+            bindings,
+            {},
+            {},
+        )
+
+    requested = set(cross_archive.call_args.args[1])
+    assert "cd_phm_01_fist_0012_ma.dds" in requested
+    assert "cd_phm_01_fist_0012_mg.dds" in requested
+    assert material_entry in expanded_names["cd_phm_01_fist_0012_ma.dds"]
+    assert detail_entry in expanded_names["cd_phm_01_fist_0012_mg.dds"]
+    assert added == 2
 
 
 def test_real_material_hydration_keeps_primary_base_ahead_of_sidecar_overlay(

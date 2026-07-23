@@ -5,6 +5,9 @@ from collections.abc import Mapping
 from collections import defaultdict
 from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 from cdmw.core.archive_format import parse_archive_pamt
+from cdmw.core.archive_model_texture_support_attach import (
+    _owner_qualified_pac_mask_transport_aliases,
+)
 from cdmw.modding.mesh_parser import ParsedMesh
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -79,6 +82,18 @@ def _expanded_texture_entry_indexes(
             (),
         )
     }
+    for binding in bindings:
+        if (
+            str(getattr(binding, "sidecar_kind", "") or "").strip().casefold()
+            not in {"pac_xml", "pami"}
+            or int(getattr(binding, "owner_slot_index", -1)) < 0
+        ):
+            continue
+        parameter = str(getattr(binding, "parameter_name", "") or "")
+        for alias in _owner_qualified_pac_mask_transport_aliases(binding, parameter):
+            alias_name = PurePosixPath(alias.replace("\\", "/").casefold()).name
+            if alias_name and not entries_by_basename.get(alias_name, ()):
+                missing_names.add(alias_name)
     cross_entries = _cross_archive_texture_entries(model_entry, tuple(missing_names))
     expanded_paths = {key: tuple(value) for key, value in entries_by_path.items()}
     expanded_names = {key: tuple(value) for key, value in entries_by_basename.items()}
