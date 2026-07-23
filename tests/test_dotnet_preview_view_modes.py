@@ -50,6 +50,7 @@ def test_builder_sends_the_selected_dotnet_mode_without_legacy_diagnostic_overri
             render_settings=ModelPreviewRenderSettings(
                 d3d11_view_mode=view_mode,
                 render_diagnostic_mode="wireframe",
+                use_textures_by_default=True,
             ),
             grid_visible=True,
             gizmo_visible=True,
@@ -57,7 +58,7 @@ def test_builder_sends_the_selected_dotnet_mode_without_legacy_diagnostic_overri
         )
         display = state["display"]
         quality = display["quality"]
-        assert display["mode"] == "textured"
+        assert display["mode"] == "untextured_faces"
         assert display["material_debug_mode"] == debug_mode
         assert quality["dotnet_view_mode"] == view_mode
         assert quality["d3d11_view_mode"] == view_mode

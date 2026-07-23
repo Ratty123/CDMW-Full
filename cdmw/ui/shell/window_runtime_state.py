@@ -117,6 +117,14 @@ class ShellWindowRuntimeStateMixin:
         self.archive_isolated_renderer_package_source = ""
 
     def _initialize_archive_runtime_state(self) -> None:
+        try:
+            self._record_runtime_event(
+                "archive_backend_client_configured",
+                cache_root=str(self.archive_cache_root),
+                stored_cache_root=str(self.__dict__.get("archive_cache_root", "")),
+            )
+        except Exception:
+            pass
         self.archive_backend_selection = resolve_archive_backend_mode()
         self.archive_backend_mode = self.archive_backend_selection.mode
         self.archive_backend_mode_warning_logged = False

@@ -915,6 +915,7 @@ def _dotnet_submesh_material_payload(
     texture_copy_cache: dict[str, str],
     resource_payloads: dict[str, dict[str, object]],
     role: str,
+    include_resources: bool,
     cancelled: Callable[[], bool] | None,
 ) -> dict[str, object]:
     submesh_map = submesh if isinstance(submesh, Mapping) else {}
@@ -925,27 +926,42 @@ def _dotnet_submesh_material_payload(
         raw_channels,
         source_asset_path=source_asset_path,
     )
-    resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
-        source_submesh,
-        raw_channels,
-        raw_contract,
-        output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
-        batch_index=fallback_index,
-        cancelled=cancelled,
-    )
-    if cancelled is not None and cancelled():
-        raise RunCancelled("Mesh .NET material package synthesis cancelled.")
-    semantic_contract = _dotnet_material_semantic_contract(
-        source_submesh,
-        resolved_channels,
-        source_asset_path=source_asset_path,
-    )
-    semantic_contract = _refine_synthesized_material_contract(
-        semantic_contract,
-        synthesis,
-        source_asset_path=source_asset_path,
-    )
-    resolved_features = _resolved_synthesis_features(generated, raw_contract, synthesis)
+    if include_resources:
+        resolved_channels, synthesis, generated = _synthesize_dotnet_material_channels(
+            source_submesh,
+            raw_channels,
+            raw_contract,
+            output_dir=package_dir / "material_synthesis" / f"submesh_{fallback_index:03d}",
+            batch_index=fallback_index,
+            cancelled=cancelled,
+        )
+        if cancelled is not None and cancelled():
+            raise RunCancelled("Mesh .NET material package synthesis cancelled.")
+        semantic_contract = _dotnet_material_semantic_contract(
+            source_submesh,
+            resolved_channels,
+            source_asset_path=source_asset_path,
+        )
+        semantic_contract = _refine_synthesized_material_contract(
+            semantic_contract,
+            synthesis,
+            source_asset_path=source_asset_path,
+        )
+        resolved_features = _resolved_synthesis_features(generated, raw_contract, synthesis)
+    else:
+        resolved_channels = {}
+        synthesis = {
+            "attempted": False,
+            "succeeded": False,
+            "reason": "textures_on_demand",
+        }
+        generated = ()
+        semantic_contract = _dotnet_material_semantic_contract(
+            source_submesh,
+            resolved_channels,
+            source_asset_path=source_asset_path,
+        )
+        resolved_features = ()
     remaining_unsupported = list(raw_contract["unsupported_features"])
     if (
         "shader_family_layer_graph" in remaining_unsupported
@@ -959,8 +975,8 @@ def _dotnet_submesh_material_payload(
         "compiler": "canonical_mesh_dotnet_material_compiler",
         "generated_channels": list(generated),
         "resolved_features": list(resolved_features),
-        "required_graph_compiled": (
-            "shader_family_layer_graph" not in remaining_unsupported
+        "required_graph_compiled": bool(
+            include_resources and "shader_family_layer_graph" not in remaining_unsupported
         ),
     }
     for channel in generated:
@@ -968,24 +984,28 @@ def _dotnet_submesh_material_payload(
         semantic_contract["channel_color_spaces"][channel] = (
             "srgb" if channel in _GENERATED_COLOR_CHANNELS else "linear"
         )
-    packaged_channels = _copy_dotnet_texture_channel_resources(
-        resolved_channels, package_dir, texture_copy_cache
-    )
     submesh_index = _safe_int(submesh_map.get("submesh_index"), fallback_index)
-    resource_channels, resources = _dotnet_manifest_resource_bindings(
-        resolved_channels,
-        packaged_channels,
-        source=source_submesh,
-        source_asset_path=source_asset_path,
-        submesh_index=submesh_index,
-        role=role,
-    )
-    generated_paths = {resolved_channels[channel] for channel in generated}
-    for resource in resources.values():
-        if str(resource.get("source_reference", "") or "") in generated_paths:
-            resource["semantic_authority"] = "synthesized_shared_combiner"
-    for resource_id, resource in resources.items():
-        resource_payloads.setdefault(resource_id, resource)
+    if include_resources:
+        packaged_channels = _copy_dotnet_texture_channel_resources(
+            resolved_channels, package_dir, texture_copy_cache
+        )
+        resource_channels, resources = _dotnet_manifest_resource_bindings(
+            resolved_channels,
+            packaged_channels,
+            source=source_submesh,
+            source_asset_path=source_asset_path,
+            submesh_index=submesh_index,
+            role=role,
+        )
+        generated_paths = {resolved_channels[channel] for channel in generated}
+        for resource in resources.values():
+            if str(resource.get("source_reference", "") or "") in generated_paths:
+                resource["semantic_authority"] = "synthesized_shared_combiner"
+        for resource_id, resource in resources.items():
+            resource_payloads.setdefault(resource_id, resource)
+    else:
+        packaged_channels = {}
+        resource_channels = {}
     components = _dotnet_material_channel_components(source_submesh)
     for channel in generated:
         if channel in _GENERATED_LINEAR_CHANNELS and channel != "normal":
@@ -1081,6 +1101,7 @@ def _write_dotnet_material_manifest(
     sidecar_payload: Mapping[str, object],
     material_signature: str,
     editable_submesh_count: int | None = None,
+    include_resources: bool = True,
     cancelled: Callable[[], bool] | None = None,
 ) -> None:
     payload = compile_mesh_dotnet_material_manifest(
@@ -1089,6 +1110,7 @@ def _write_dotnet_material_manifest(
         package_dir=path.parent,
         material_signature=material_signature,
         editable_submesh_count=editable_submesh_count,
+        include_resources=include_resources,
         cancelled=cancelled,
     )
     atomic_write_text(path, json.dumps(payload, indent=2))
@@ -1104,6 +1126,7 @@ def compile_mesh_dotnet_material_manifest(
     role: str | None = None,
     submesh_index_offset: int = 0,
     absolute_resource_paths: bool = False,
+    include_resources: bool = True,
     cancelled: Callable[[], bool] | None = None,
 ) -> dict[str, object]:
     """Compile the canonical initial/resident .NET material manifest."""
@@ -1139,6 +1162,7 @@ def compile_mesh_dotnet_material_manifest(
                 texture_copy_cache=texture_copy_cache,
                 resource_payloads=resource_payloads,
                 role=effective_role,
+                include_resources=include_resources,
                 cancelled=cancelled,
             )
         )

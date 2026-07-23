@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Dict, Optional, Sequence, Tuple
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QFrame,
@@ -98,9 +98,9 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_disable_support_checkbox.setVisible(False)
         self.archive_model_preview_refresh_button = QPushButton("Refresh")
         self.archive_model_preview_refresh_button.setToolTip(archive_model_preview_refresh_tooltip())
-        self.archive_isolated_renderer_button = QPushButton("Reload .NET/Vortice")
+        self.archive_isolated_renderer_button = QPushButton("Load Textures")
         self.archive_isolated_renderer_button.setToolTip(
-            "Rebuild and reload the active native Direct3D 11 preview package."
+            "Resolve and load textures after geometry is already usable."
         )
         self.archive_isolated_renderer_button.setEnabled(False)
         self.archive_isolated_renderer_button.setVisible(False)
@@ -632,6 +632,13 @@ class ArchivePreviewLayoutMixin:
         self.archive_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.archive_d3d11_preview_host.view_state_changed.connect(self._handle_archive_model_view_state_changed)
         self.archive_d3d11_preview_host.view_state_payload_changed.connect(self._handle_archive_d3d11_view_state_payload)
+        self.archive_d3d11_preview_host.controller.package_applied.connect(
+            self._handle_archive_resident_package_applied
+        )
+        self.archive_d3d11_preview_host.controller.package_failed.connect(
+            self._handle_archive_resident_package_failed
+        )
+        QTimer.singleShot(750, self._prewarm_archive_dotnet_preview)
         self.archive_d3d11_preview_status_label = QLabel(".NET/Vortice Preview")
         self.archive_d3d11_preview_status_label.setObjectName("HintLabel")
         self.archive_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)

@@ -509,6 +509,11 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         setattr(builder, "_mesh_editor_embedded_apply_material_resources", self.apply_resident_material_resources)
         setattr(
             builder,
+            "_mesh_editor_embedded_texture_request_failed",
+            self._handle_embedded_texture_request_failed,
+        )
+        setattr(
+            builder,
             "_mesh_editor_embedded_apply_clone_material_resources",
             self.apply_resident_clone_material_resources,
         )
@@ -578,6 +583,16 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         controller.state_changed.connect(
             lambda state, message, target=controller: self._handle_shared_dotnet_state(target, state, message)
         )
+        controller.package_applied.connect(
+            lambda path, generation, target=controller: self._handle_shared_dotnet_package_applied(
+                target, path, generation
+            )
+        )
+        controller.package_failed.connect(
+            lambda path, generation, message, target=controller: self._handle_shared_dotnet_package_failed(
+                target, path, generation, message
+            )
+        )
         controller.set_authoring_rehydrator(
             lambda target=controller: self._rehydrate_shared_dotnet_controller(target)
         )
@@ -589,6 +604,30 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         self.standalone_dotnet_editor_process = getattr(controller, "process", None)
         self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
         self.standalone_dotnet_capabilities.update(getattr(controller, "capabilities", ()) or ())
+        event = str(payload.get("event", "") or "").strip().lower()
+        if event in {
+            "material_state_started",
+            "material_state_applied",
+            "material_state_failed",
+            "viewport_display_request",
+            "viewport_display_applied",
+            "viewport_display_failed",
+        }:
+            self._record_mesh_dotnet_event(
+                "mesh_dotnet_shared_protocol_event",
+                helper_event=event,
+                request_id=payload.get("request_id", 0),
+                process_generation=payload.get("process_generation", 0),
+                generation=payload.get("generation", 0),
+                reason=payload.get("reason", ""),
+                message=payload.get("message", ""),
+                resource_count=payload.get("resource_count", 0),
+                decoded_resources=payload.get("decoded_resources", 0),
+                reused_resources=payload.get("reused_resources", 0),
+                optional_resource_failure_count=len(
+                    tuple(payload.get("optional_resource_failures", ()) or ())
+                ),
+            )
         self._handle_dotnet_protocol_event(payload)
 
     def _handle_shared_dotnet_state(self, controller: object, state: str, message: str) -> None:
@@ -596,6 +635,14 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             return
         self.standalone_dotnet_editor_process = getattr(controller, "process", None)
         self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_shared_host_state",
+            state=str(state or ""),
+            message=str(message or ""),
+            process_generation=self.standalone_dotnet_process_generation,
+            package_generation=int(getattr(controller, "package_generation", 0) or 0),
+            process_id=int(getattr(controller, "process_id", 0) or 0),
+        )
         if str(state) == "ready":
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("ready", active=True)
@@ -604,6 +651,49 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
             self._set_dotnet_status(str(message or ".NET/Vortice viewport failed."), error=True)
+        elif str(state) == "package_error":
+            has_resident_scene = bool(getattr(controller, "applied_package_path", ""))
+            if self.standalone_dotnet_target_embedded:
+                self._set_embedded_dotnet_state(
+                    "ready" if has_resident_scene else "failed",
+                    active=has_resident_scene,
+                )
+            self._finish_pending_textured_view(success=False)
+            self._set_dotnet_status(str(message or ".NET/Vortice package update failed."), error=True)
+
+    def _handle_shared_dotnet_package_applied(
+        self,
+        controller: object,
+        package_path: str,
+        generation: int,
+    ) -> None:
+        del package_path
+        if controller is not self._active_shared_dotnet_controller():
+            return
+        token = (
+            int(getattr(controller, "process_generation", 0) or 0),
+            int(generation or 0),
+        )
+        if token == self.standalone_dotnet_material_ready_flush_token:
+            return
+        self.standalone_dotnet_material_ready_flush_token = token
+        QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
+
+    def _handle_shared_dotnet_package_failed(
+        self,
+        controller: object,
+        package_path: str,
+        generation: int,
+        message: str,
+    ) -> None:
+        del package_path, generation
+        if controller is not self._active_shared_dotnet_controller():
+            return
+        self._finish_pending_textured_view(success=False)
+        self._set_dotnet_status(
+            f"Mesh Editor package update failed; the resident scene was kept: {message}",
+            error=True,
+        )
 
     def _rehydrate_shared_dotnet_controller(self, controller: object) -> bool:
         if controller is not self._active_shared_dotnet_controller():

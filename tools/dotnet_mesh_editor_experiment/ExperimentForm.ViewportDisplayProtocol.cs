@@ -10,26 +10,30 @@ internal sealed partial class ExperimentForm
         var mode = JsonString(root, "mode").Trim().ToLowerInvariant();
         if (!AcceptMaterialSession(sessionId, out var sessionError))
         {
-            WriteViewportDisplayResult("viewport_display_failed", sessionId, mode, "session_mismatch", sessionError);
+            WriteViewportDisplayResult(root, "viewport_display_failed", sessionId, mode, "session_mismatch", sessionError);
             return;
         }
         if (!_viewport.TrySetDisplayMode(mode, out var error))
         {
-            WriteViewportDisplayResult("viewport_display_failed", sessionId, mode, "invalid_mode", error);
+            WriteViewportDisplayResult(root, "viewport_display_failed", sessionId, mode, "invalid_mode", error);
             return;
         }
-        _statusLabel.Text = $"Viewport display: {_viewport.DisplayMode}.";
-        WriteViewportDisplayResult("viewport_display_applied", sessionId, _viewport.DisplayMode, string.Empty, string.Empty);
+        SyncPreviewModeSelection(_viewport.DisplayMode);
+        _statusLabel.Text = JsonBoolean(root, "texture_request_pending")
+            ? "Loading textures in the resident viewport..."
+            : $"Viewport display: {_viewport.DisplayMode}.";
+        WriteViewportDisplayResult(root, "viewport_display_applied", sessionId, _viewport.DisplayMode, string.Empty, string.Empty);
     }
 
     private void WriteViewportDisplayResult(
+        JsonElement request,
         string eventName,
         string sessionId,
         string mode,
         string reason,
         string message)
     {
-        WriteProtocolEvent(eventName, new Dictionary<string, object?>
+        var payload = new Dictionary<string, object?>
         {
             ["session_id"] = sessionId,
             ["mode"] = mode,
@@ -42,6 +46,8 @@ internal sealed partial class ExperimentForm
             ["textures_enabled"] = _viewport.TexturesEnabled,
             ["renderer"] = RendererCompactStatusWithLifecycle(),
             ["capabilities"] = new[] { ViewportDisplayModesCapability },
-        });
+        };
+        CopyMutationEnvelope(request, payload);
+        WriteProtocolEvent(eventName, payload);
     }
 }

@@ -432,6 +432,13 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     # native child creation can hard-crash when the alignment dialog is shown.
     alignment_d3d11_preview_host.setMinimumSize(300, 280)
     alignment_d3d11_preview_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+    # The Mesh Editor starts this prewarm after its authoritative edit-session
+    # id is known.  Starting it here would bind the resident authoring helper
+    # to a throwaway session before the real package can supersede it.
+    alignment_d3d11_preview_host.setProperty(
+        "cdmwPreviewPrewarmCacheRoot",
+        str(self._native_preview_package_cache_root()),
+    )
     alignment_d3d11_split_ratio_settings_key = "ui/mesh_alignment/d3d11_side_by_side_split_ratio"
     try:
         alignment_d3d11_preview_host.set_side_by_side_split_ratio(

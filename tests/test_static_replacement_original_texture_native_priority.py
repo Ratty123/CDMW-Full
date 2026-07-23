@@ -43,6 +43,7 @@ def _captured_original_texture_resolver(*, native_batches: int) -> tuple[object,
     captured: dict[str, object] = {}
     calls = {
         "native": 0,
+        "native_textures": 0,
         "python_preview": 0,
         "lookup": 0,
         "images": 0,
@@ -68,8 +69,15 @@ def _captured_original_texture_resolver(*, native_batches: int) -> tuple[object,
     def clone(model: _PreviewModel) -> _PreviewModel:
         return _PreviewModel(f"{model.name}-clone")
 
-    def native_manifest(_model: object, _package_root: str) -> int:
+    def native_manifest(
+        _model: object,
+        _package_root: str,
+        render_settings: object | None = None,
+    ) -> int:
         calls["native"] += 1
+        calls["native_textures"] += int(
+            bool(getattr(render_settings, "use_textures_by_default", False))
+        )
         return native_batches
 
     def build_python_preview(*_args: object, **_kwargs: object) -> object:
@@ -157,6 +165,7 @@ def test_native_manifest_success_skips_python_texture_preparation() -> None:
     assert preview_model.name == "original-clone"
     assert calls == {
         "native": 1,
+        "native_textures": 1,
         "python_preview": 0,
         "lookup": 0,
         "images": 0,
@@ -173,6 +182,7 @@ def test_native_manifest_unavailable_runs_existing_python_fallback_once() -> Non
     assert preview_model.name == "python-clone"
     assert calls == {
         "native": 1,
+        "native_textures": 1,
         "python_preview": 1,
         "lookup": 1,
         "images": 1,

@@ -109,7 +109,12 @@ class ArchivePreviewCacheMixin:
         dependency_digest = _archive_preview_dependency_digest(dependency_entries)
         if dependency_entries and not dependency_digest:
             return ""
-        preview_settings = self._current_model_preview_render_settings()
+        effective_settings = getattr(self, "_archive_preview_effective_render_settings", None)
+        preview_settings = (
+            effective_settings(getattr(self, "archive_preview_request_id", 0))
+            if callable(effective_settings)
+            else self._current_model_preview_render_settings()
+        )
         if enabled_prefab_component_paths is None:
             enabled_prefab_paths_getter = getattr(
                 self,

@@ -36,18 +36,17 @@ def mesh_edit_raw_preview_transition_route(
     *,
     raw_package_active_or_pending: bool,
 ) -> MeshEditRawPreviewTransitionRoute:
+    del raw_package_active_or_pending
     previous = bool(previous_raw)
     current = bool(current_raw)
     changed = previous != current
-    if not changed:
-        return MeshEditRawPreviewTransitionRoute(False, False, False, False, False, False)
     return MeshEditRawPreviewTransitionRoute(
-        changed=True,
-        should_clear_static_preview_caches=True,
-        should_invalidate_package_cache=True,
-        should_queue_static_preview_refresh=True,
-        should_stop_raw_package=(not current and bool(raw_package_active_or_pending)),
-        should_queue_texture_preview_refresh=not current,
+        changed=changed,
+        should_clear_static_preview_caches=False,
+        should_invalidate_package_cache=False,
+        should_queue_static_preview_refresh=False,
+        should_stop_raw_package=False,
+        should_queue_texture_preview_refresh=False,
     )
 
 

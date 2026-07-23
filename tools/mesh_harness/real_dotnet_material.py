@@ -141,7 +141,6 @@ def exercise_resident_material_update(
     )
     state.material_lifecycle_before = dict(state.tab.standalone_dotnet_lifecycle_counts)
     state.material_window_identity_before = renderer_identity(state.renderer)
-    state.material_resource_metrics_before = renderer_resource_metrics(state.renderer)
     state.material_process_pid_before = int(state.process.processId())
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     if not state.tab._send_dotnet_material_state(reason="real_archive_harness"):
@@ -149,6 +148,12 @@ def exercise_resident_material_update(
     first_applied = _protocol_result(state, pump_until, cursor, {"material_state_applied", "material_state_failed"})
     if first_applied.get("event") != "material_state_applied":
         return base_error(state, str(first_applied.get("message") or "First resident .NET material update was not acknowledged."))
+    first_renderer = first_applied.get("renderer")
+    first_renderer = dict(first_renderer) if isinstance(first_renderer, Mapping) else {}
+    state.material_resource_metrics_before = renderer_resource_metrics(first_renderer)
+    state.textures_event = first_applied
+    if first_renderer:
+        state.renderer = first_renderer
     current = state.controller.session_view()
     second_payload = mesh_dotnet_material_state_payload(
         state.controller.working_mesh(clone=False), session_id=current.session_id, edit_revision=current.revision,

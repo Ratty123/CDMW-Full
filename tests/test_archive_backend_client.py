@@ -66,6 +66,20 @@ def _shutdown(client: ArchiveBackendClient) -> None:
     assert _wait_until(lambda: client.state is ArchiveBackendClientState.STOPPED)
 
 
+def test_cache_root_preserves_an_absolute_junction_alias(tmp_path: Path, monkeypatch) -> None:
+    _app()
+    alias = tmp_path / "short-cache-alias"
+    expected = alias.absolute()
+
+    def fail_resolve(*_args, **_kwargs):
+        raise AssertionError("cache-root aliases must not be resolved")
+
+    monkeypatch.setattr(Path, "resolve", fail_resolve)
+    client = ArchiveBackendClient(cache_root=alias)
+
+    assert client._cache_root == expected
+
+
 def test_qprocess_client_handshakes_streams_and_bounds_diagnostics(tmp_path: Path) -> None:
     client = _client(tmp_path)
     ready: list[bool] = []

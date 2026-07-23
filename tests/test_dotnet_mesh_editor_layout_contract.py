@@ -52,6 +52,12 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert "_rightToolSplit.Panel2Collapsed = true;" in controls
     assert "_leftToolSplit.Panel1Collapsed = false;" in controls
     assert "_rightToolSplit.Panel2Collapsed = false;" in controls
+    collapsed = controls.split("private void ApplyEmbeddedToolPanelVisibility", 1)[1]
+    collapsed = collapsed.split("var applyingBeforeExpand", 1)[0]
+    assert "_leftToolSplit.Panel1MinSize = 0;" in collapsed
+    assert "_leftToolSplit.Panel2MinSize = 0;" in collapsed
+    assert "_rightToolSplit.Panel1MinSize = 0;" in collapsed
+    assert "_rightToolSplit.Panel2MinSize = 0;" in collapsed
 
 
 def test_both_tool_panel_widths_are_resizable_and_persisted() -> None:

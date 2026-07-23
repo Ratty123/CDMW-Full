@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import json
 import math
+import time
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal
 from PySide6.QtGui import QImage, QResizeEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
 from cdmw.services.mesh_dotnet_experiment import MeshDotNetExperimentPackage
+from cdmw.services.mesh_dotnet_preview_package import build_dotnet_preview_prewarm_package
 from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
 from cdmw.ui.preview.profile import DotNetPreviewProfile
 
@@ -37,6 +39,34 @@ def _triple(values: Sequence[object], fallback: tuple[float, float, float]) -> t
     except (TypeError, ValueError, OverflowError):
         return fallback
     return result if len(result) == 3 else fallback  # type: ignore[return-value]
+
+
+class _DotNetPreviewPrewarmSignals(QObject):
+    completed = Signal(object)
+
+
+class _DotNetPreviewPrewarmTask(QRunnable):
+    def __init__(self, cache_root: Path) -> None:
+        super().__init__()
+        self.cache_root = Path(cache_root)
+        self.signals = _DotNetPreviewPrewarmSignals()
+
+    def run(self) -> None:
+        started_at = time.perf_counter()
+        try:
+            package = build_dotnet_preview_prewarm_package(self.cache_root)
+            result = {
+                "package": package,
+                "package_ms": (time.perf_counter() - started_at) * 1000.0,
+                "error": "",
+            }
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            result = {
+                "package": None,
+                "package_ms": (time.perf_counter() - started_at) * 1000.0,
+                "error": str(exc),
+            }
+        self.signals.completed.emit(result)
 
 
 class DotNetPreviewHostFrame(QFrame):
@@ -87,6 +117,7 @@ class DotNetPreviewHostFrame(QFrame):
         self._icon_capture_mode = False
         self._last_capture_image = QImage()
         self._last_capture_path = Path()
+        self._prewarm_task: _DotNetPreviewPrewarmTask | None = None
         self._view_state: dict[str, object] = {
             "role": "replacement",
             "reason": "",
@@ -149,6 +180,22 @@ class DotNetPreviewHostFrame(QFrame):
         status_layout.addStretch(1)
         self._retry_button.setVisible(False)
 
+        self._resident_banner = QFrame(self)
+        self._resident_banner.setObjectName("DotNetPreviewResidentBanner")
+        self._resident_banner.setStyleSheet(
+            "QFrame#DotNetPreviewResidentBanner { background: rgba(23, 27, 34, 235); "
+            "border: 1px solid #4b5568; border-radius: 4px; }"
+            "QLabel { color: #e7ebf2; }"
+        )
+        banner_layout = QHBoxLayout(self._resident_banner)
+        banner_layout.setContentsMargins(10, 6, 8, 6)
+        self._resident_banner_label = QLabel("", self._resident_banner)
+        self._resident_banner_label.setWordWrap(True)
+        banner_layout.addWidget(self._resident_banner_label, 1)
+        self._resident_retry_button = QPushButton("Retry", self._resident_banner)
+        banner_layout.addWidget(self._resident_retry_button)
+        self._resident_banner.setVisible(False)
+
         self.controller = controller or DotNetPreviewSessionController(
             host_hwnd=self._host_hwnd,
             profile=self._profile,
@@ -163,6 +210,7 @@ class DotNetPreviewHostFrame(QFrame):
         self.controller.part_pick_result.connect(self._handle_part_pick_result)
         self.controller.capture_completed.connect(self._handle_capture_completed)
         self._retry_button.clicked.connect(self.controller.retry_now)
+        self._resident_retry_button.clicked.connect(self.controller.retry_now)
         self.destroyed.connect(self.controller.shutdown)
         self.controller.set_visible(False)
 
@@ -183,6 +231,7 @@ class DotNetPreviewHostFrame(QFrame):
         *,
         reset_view: bool = False,
         initial_view_state: Mapping[str, object] | None = None,
+        force_reload: bool = False,
     ) -> bool:
         package_path = (
             package_dir.package_dir
@@ -190,10 +239,56 @@ class DotNetPreviewHostFrame(QFrame):
             else Path(package_dir)
         )
         self._load_scene_state(package_path)
-        loaded = self.controller.load_package(package_dir, status_file, reset_view=reset_view)
+        loaded = self.controller.load_package(
+            package_dir,
+            status_file,
+            reset_view=reset_view,
+            force_reload=force_reload,
+        )
         if loaded and reset_view:
             self._reset_package_view_state(initial_view_state)
         return loaded
+
+    def prewarm(
+        self,
+        package_dir: MeshDotNetExperimentPackage | Path | str,
+        status_file: Path | str | None = None,
+    ) -> bool:
+        return self.controller.prewarm(package_dir, status_file)
+
+    def prewarm_from_cache(self, cache_root: Path | str) -> bool:
+        if self._prewarm_task is not None:
+            return False
+        if self.controller.is_running or self.controller.desired_package_path:
+            return False
+        task = _DotNetPreviewPrewarmTask(Path(cache_root))
+        task.signals.completed.connect(self._finish_background_prewarm)
+        self._prewarm_task = task
+        QThreadPool.globalInstance().start(task)
+        return True
+
+    def _finish_background_prewarm(self, result: object) -> None:
+        self._prewarm_task = None
+        if not isinstance(result, Mapping):
+            return
+        package_ms = float(result.get("package_ms", 0.0) or 0.0)
+        error = str(result.get("error", "") or "")
+        package = result.get("package")
+        queued = bool(
+            isinstance(package, MeshDotNetExperimentPackage)
+            and self.controller.prewarm(package)
+        )
+        self.debug_details_changed.emit(
+            json.dumps(
+                {
+                    "event": "preview_prewarm",
+                    "status": "queued" if queued else "superseded",
+                    "package_ms": round(package_ms, 3),
+                    "error": error,
+                },
+                separators=(",", ":"),
+            )
+        )
 
     def clear_preview(self, status_file: Optional[Path] = None) -> bool:
         del status_file
@@ -528,7 +623,14 @@ class DotNetPreviewHostFrame(QFrame):
     def set_mesh_edit_state(self, **payload: object) -> bool:
         if self._profile is DotNetPreviewProfile.PREVIEW:
             return self._reject_preview_mutation("tool_state")
-        return self.controller.remember_state("tool", "tool_state", payload)
+        normalized = dict(payload)
+        tool = str(normalized.get("tool", "") or "").strip().lower()
+        if tool in {"vertex", "remove"}:
+            # The classic editor calls its selection cursor "vertex" (and its
+            # delete cursor "remove"); protocol v1 names that interaction
+            # permission "select" and carries vertex/edge/face separately.
+            normalized["tool"] = "select"
+        return self.controller.remember_state("tool", "tool_state", normalized)
 
     def update_mesh_edit_vertices(
         self,
@@ -714,6 +816,7 @@ class DotNetPreviewHostFrame(QFrame):
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
         self._status_panel.setGeometry(self.rect())
+        self._resident_banner.setGeometry(8, 8, max(0, self.width() - 16), 58)
 
     def _remember_presentation_state(self) -> bool:
         return self.controller.remember_state(
@@ -735,10 +838,18 @@ class DotNetPreviewHostFrame(QFrame):
 
     def _handle_controller_state(self, state: str, message: str) -> None:
         self._status_label.setText(str(message))
+        has_resident_scene = bool(self.controller.applied_package_path)
+        resident_notice = state == "package_error" or (state == "preparing" and has_resident_scene)
+        self._resident_banner_label.setText(str(message))
+        self._resident_retry_button.setVisible(state == "package_error")
+        self._resident_banner.setVisible(resident_notice)
+        if resident_notice:
+            self._resident_banner.raise_()
         retrying = state in {"retrying", "error"}
         self._retry_button.setVisible(retrying)
-        self._status_panel.setVisible(state != "ready")
-        if state != "ready":
+        show_status_panel = state != "ready" and not resident_notice
+        self._status_panel.setVisible(show_status_panel)
+        if show_status_panel:
             self._status_panel.raise_()
 
     def _handle_protocol_event(self, payload: object) -> None:

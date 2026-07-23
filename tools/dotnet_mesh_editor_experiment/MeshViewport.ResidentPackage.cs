@@ -49,10 +49,12 @@ internal sealed partial class MeshViewport
         _presentationStateFingerprint = string.Empty;
         FrameMesh();
         InitializePresentationContexts();
-        if (_options.SimplePreview)
-        {
-            _ = TrySetSynchronizedDisplayMode("textured", out _);
-        }
+        var hasTextureResources = materials.TextureLoadResources().Any()
+            || textureSet.DecodedCount > 0
+            || textureSet.NativeDdsResourceCount > 0;
+        _ = TrySetSynchronizedDisplayMode(
+            hasTextureResources ? "textured" : "untextured_faces",
+            out _);
         ApplySceneState();
     }
 }

@@ -204,7 +204,7 @@ class ModelPreviewSettingsDialog(QDialog):
             ".NET/Vortice is the only Archive Browser model-preview path."
         )
         self.archive_renderer_backend_combo.setVisible(False)
-        self.use_textures_checkbox = QCheckBox("Use textures when available")
+        self.use_textures_checkbox = QCheckBox("Load textures automatically after geometry")
         self.high_quality_checkbox = QCheckBox("Use support-map preview shading")
         self.disable_all_support_maps_checkbox = QCheckBox("Ignore support maps")
         self.disable_all_support_maps_checkbox.setToolTip(
@@ -297,7 +297,7 @@ class ModelPreviewSettingsDialog(QDialog):
         general_form.addRow("", self.reset_tool_pbd_cloth_button)
         general_layout.addLayout(general_form)
         self.general_hint_label = QLabel(
-            "Use textures applies resolved preview DDS files when available. Support-map preview shading can sample resolved normal, material, or height maps for an approximate asset-dependent preview."
+            "When enabled, textures load after geometry is usable. Leave this off for the fastest first display; Load Textures remains available in Archive Preview."
         )
         self.general_hint_label.setObjectName("HintLabel")
         self.general_hint_label.setWordWrap(True)

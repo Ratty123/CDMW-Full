@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+
 def _texture_original_texture_material_step_001(_state):
     _state.ARCHIVE_MESH_EXTENSIONS = _state.context.get('ARCHIVE_MESH_EXTENSIONS')
     _state.AlignmentOriginalTexturePreviewWorker = _state.context.get('AlignmentOriginalTexturePreviewWorker')
@@ -276,8 +278,9 @@ def _texture_original_texture_material_step_007(_state):
         _state._set_alignment_d3d11_loading(False, error_state.message)
         _state._set_preview_performance_status(error_state.performance.summary, details=error_state.performance.details)
         _state._alignment_d3d11_clear_archive_parity_upgrade_helper(_state.alignment_d3d11_state)
-        _state._mark_alignment_d3d11_rebuild_reason('material')
-        _state._queue_static_preview_refresh()
+        notify_failure = getattr(_state.dialog, '_mesh_editor_embedded_texture_request_failed', None)
+        if callable(notify_failure):
+            notify_failure(error_state.message)
     _state._handle_original_reference_texture_preview_error = _handle_original_reference_texture_preview_error
 
 def _texture_original_texture_material_step_008(_state):
@@ -314,6 +317,8 @@ def _texture_original_texture_material_step_009(_state):
         try:
             package_root_text = _state.self.archive_package_root_edit.text().strip()
             current_preview_render_settings = _state._current_preview_render_settings()
+            textured_preview_render_settings = copy.copy(current_preview_render_settings)
+            setattr(textured_preview_render_settings, 'use_textures_by_default', True)
             normalized_visible_texture_mode = _state._normalize_model_visible_texture_mode(str(getattr(current_preview_render_settings, 'visible_texture_mode', '')))
             current_archive_preview_model = _state._current_archive_original_preview_model()
             companion_entry = _state.self._find_archive_preview_companion_entry(_state.entry) if callable(getattr(_state.self, '_find_archive_preview_companion_entry', None)) else None
@@ -333,7 +338,7 @@ def _texture_original_texture_material_step_009(_state):
                     native_preview_model = _state._clone_preview_model(_state.original_reference_preview_model)
                 native_manifest_attempted = native_preview_model is not None
                 if native_manifest_attempted:
-                    native_material_batches = _state._load_native_preview_core_material_manifest_for_alignment(native_preview_model, package_root_text)
+                    native_material_batches = _state._load_native_preview_core_material_manifest_for_alignment(native_preview_model, package_root_text, textured_preview_render_settings)
                     if stop_event.is_set():
                         raise _state.RunCancelled('Original texture preview cancelled.')
                     if native_material_batches:
@@ -362,7 +367,7 @@ def _texture_original_texture_material_step_009(_state):
                         raise _state.RunCancelled('Original texture preview cancelled.')
                     _state._attach_model_support_texture_preview_paths(_state.entry, preview_model, parsed_mesh=_state.original_mesh_for_mapping, sidecar_texture_bindings=_state.sidecar_bindings, texture_entries_by_normalized_path=texture_entries_by_normalized_path_for_alignment, texture_entries_by_basename=texture_entries_by_basename_for_alignment, sidecar_texts_by_normalized_path=_state.sidecar_texts_by_normalized_path, sidecar_texts_by_basename=_state.sidecar_texts_by_basename)
                 _state.self._attach_archive_model_preview_images(preview_model)
-                native_material_batches = 0 if native_manifest_attempted else _state._load_native_preview_core_material_manifest_for_alignment(preview_model, package_root_text)
+                native_material_batches = 0 if native_manifest_attempted else _state._load_native_preview_core_material_manifest_for_alignment(preview_model, package_root_text, textured_preview_render_settings)
                 return (preview_model, native_material_batches)
             _state._stop_original_reference_texture_worker()
             worker_request_id = _state._alignment_d3d11_next_original_texture_worker_request_id_helper(_state.alignment_d3d11_state)
@@ -388,7 +393,9 @@ def _texture_original_texture_material_step_009(_state):
             _state.original_dialog_preview.clear_model(exception_state.message)
             _state._set_alignment_d3d11_loading(False, exception_state.message)
             _state._set_preview_performance_status(exception_state.performance.summary, details=exception_state.performance.details)
-            _state._queue_static_preview_refresh()
+            notify_failure = getattr(_state.dialog, '_mesh_editor_embedded_texture_request_failed', None)
+            if callable(notify_failure):
+                notify_failure(exception_state.message)
             _state._original_reference_texture_preview_clear_loading_helper(_state.original_reference_texture_preview_state)
     _state._load_original_reference_texture_preview = _load_original_reference_texture_preview
 

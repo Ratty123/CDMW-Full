@@ -705,13 +705,63 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
         if "viewport_display_modes_v1" not in self.standalone_dotnet_capabilities:
             self.status_message_requested.emit("Embedded .NET viewport does not support display-mode updates.", True)
             return False
-        sent = self._send_dotnet_protocol_message(
-            {
-                "event": "viewport_display_update",
-                "session_id": self.standalone_dotnet_lifecycle_session_id,
-                "mode": normalized,
-            }
-        )
+        if normalized == "textured":
+            if not self._dotnet_resident_material_updates_supported():
+                self.status_message_requested.emit(
+                    "This .NET helper cannot load Mesh Editor textures in place. Update the helper; the untextured scene remains active.",
+                    True,
+                )
+                return False
+            if (
+                self.standalone_dotnet_applied_material_generation > 0
+                and self.standalone_dotnet_material_generation
+                <= self.standalone_dotnet_completed_material_generation
+            ):
+                return self._send_embedded_viewport_display_mode("textured")
+            builder = self.active_builder()
+            request_textures = getattr(
+                builder,
+                "_mesh_editor_embedded_request_material_resources",
+                None,
+            )
+            if not callable(request_textures):
+                self.status_message_requested.emit(
+                    "No texture resolver is available for this Mesh Editor session; the untextured scene remains active.",
+                    True,
+                )
+                return False
+            self.standalone_dotnet_pending_textured_view = True
+            self._send_embedded_viewport_display_mode(
+                "untextured_faces",
+                texture_request_pending=True,
+            )
+            request_textures()
+            self.status_message_requested.emit(
+                "Loading Mesh Editor textures in the resident viewport...",
+                False,
+            )
+            return True
+        self.standalone_dotnet_pending_textured_view = False
+        return self._send_embedded_viewport_display_mode(normalized)
+
+    def _send_embedded_viewport_display_mode(
+        self,
+        normalized: str,
+        *,
+        texture_request_pending: bool = False,
+    ) -> bool:
+        self.standalone_dotnet_viewport_display_request_id += 1
+        payload: dict[str, object] = {
+            "event": "viewport_display_update",
+            "session_id": self.standalone_dotnet_lifecycle_session_id,
+            "request_id": self.standalone_dotnet_viewport_display_request_id,
+            "process_generation": self.standalone_dotnet_process_generation,
+            "protocol_version": 2,
+            "mode": normalized,
+        }
+        if texture_request_pending:
+            payload["texture_request_pending"] = True
+        sent = self._send_dotnet_protocol_message(payload)
         if not sent:
             self.status_message_requested.emit("Could not update embedded .NET viewport display mode.", True)
         return sent

@@ -214,6 +214,15 @@ internal sealed partial class ExperimentForm
         _lastRequestedMaterialGeneration = update.Generation;
         var affectedResourceIds = update.ResourceIdsForAffectedSubmeshes();
         var resourcesToDecode = update.Resources.Where(resource => affectedResourceIds.Contains(resource.ResourceId)).ToArray();
+        var started = new Dictionary<string, object?>
+        {
+            ["session_id"] = update.SessionId,
+            ["generation"] = update.Generation,
+            ["affected_submesh_count"] = update.AffectedSubmeshes.Count,
+            ["resource_count"] = resourcesToDecode.Length,
+        };
+        CopyMutationEnvelope(request, started);
+        WriteProtocolEvent("material_state_started", started);
         _ = _textureSet.DecodeResourcesAsync(resourcesToDecode).ContinueWith(task =>
         {
             if (IsDisposed || Disposing || !IsHandleCreated)
@@ -326,6 +335,10 @@ internal sealed partial class ExperimentForm
             return;
         }
         var decode = task.Result;
+        var affectedResourceIds = update.ResourceIdsForAffectedSubmeshes();
+        var requestedResources = update.Resources
+            .Where(resource => affectedResourceIds.Contains(resource.ResourceId))
+            .ToArray();
         var resourcesById = update.Resources.ToDictionary(resource => resource.ResourceId, StringComparer.Ordinal);
         var requiredFailures = decode.Failures
             .Where(pair => resourcesById.TryGetValue(pair.Key, out var resource) && resource.Required)
@@ -334,6 +347,15 @@ internal sealed partial class ExperimentForm
         {
             var message = string.Join("; ", requiredFailures.Select(pair => $"{pair.Key}: {pair.Value}"));
             WriteMaterialStateFailed(request, update.Generation, update.SessionId, "required_texture_decode_failed", message);
+            return;
+        }
+        if (requestedResources.Length > 0
+            && decode.Decoded == 0
+            && decode.Reused == 0
+            && decode.Failures.Count > 0)
+        {
+            var message = string.Join("; ", decode.Failures.Select(pair => $"{pair.Key}: {pair.Value}"));
+            WriteMaterialStateFailed(request, update.Generation, update.SessionId, "texture_decode_failed", message);
             return;
         }
         var optionalFailures = decode.Failures

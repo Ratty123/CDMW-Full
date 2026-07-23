@@ -21,9 +21,9 @@ def test_alignment_d3d11_package_quality_keeps_loaded_material_frame_during_geom
         mesh_edit_raw_preview_active=False,
     )
 
-    assert result_settings.use_textures_by_default is True
-    assert high_quality is True
-    assert material_combiner is True
+    assert result_settings.use_textures_by_default is False
+    assert high_quality is False
+    assert material_combiner is False
     assert package_quality == "archive_parity"
 
 

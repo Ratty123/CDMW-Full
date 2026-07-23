@@ -1305,8 +1305,8 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("fast_settings.disable_material_map = True", source)
         self.assertNotIn("fast_settings.disable_height_map = True", source)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "archive_parity"', source)
+        self.assertIn('return clamp_model_preview_render_settings(geometry_settings), False, False, "material_refresh"', source)
+        self.assertIn('return clamp_model_preview_render_settings(geometry_settings), False, False, "archive_parity"', source)
         self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"', source)
         self.assertNotIn("raw_settings.disable_all_support_maps = True", source)
         self.assertNotIn("raw_settings.disable_normal_map = True", source)
@@ -1314,7 +1314,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("raw_settings.disable_height_map = True", source)
         self.assertIn("enable_material_combiner=bool(self.enable_material_combiner and self.use_textures)", worker_source)
         self.assertIn('package_quality_key = str(package_quality).strip().lower()', source)
-        self.assertIn("worker_use_textures = bool(getattr(settings, 'use_textures_by_default', True))", source)
+        self.assertIn("worker_use_textures = False", source)
         self.assertIn("high_quality_textures=worker_high_quality_textures", source)
         self.assertIn("enable_material_combiner=worker_enable_material_combiner", source)
         self.assertIn("mesh_edit_raw_package = _state._mesh_edit_raw_preview_active_value()", source)
@@ -4366,6 +4366,16 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("def original_reference_texture_preview_error_state", original_texture_preview_state_source)
         self.assertIn("def original_reference_texture_preview_exception_state", original_texture_preview_state_source)
         self.assertIn("def original_texture_preview_toggle_state", original_texture_preview_state_source)
+        texture_error_start = texture_callback_source.index(
+            "def _handle_original_reference_texture_preview_error("
+        )
+        texture_error_end = texture_callback_source.index(
+            "def _current_archive_original_preview_model(",
+            texture_error_start,
+        )
+        texture_error_block = texture_callback_source[texture_error_start:texture_error_end]
+        self.assertNotIn("_mark_alignment_d3d11_rebuild_reason", texture_error_block)
+        self.assertNotIn("_queue_static_preview_refresh", texture_error_block)
         self.assertIn("static_preview_geometry_cache.clear()", source)
         self.assertIn("static_preview_prepared_cache.clear()", source)
         reference_required_start = original_texture_preview_state_source.index(
@@ -4456,9 +4466,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn('str(label or "").strip().casefold() == "final test build preview"', source)
         self.assertNotIn("return not _alignment_auto_detail_uses_fast_package(label, model)", source)
         self.assertNotIn('return settings, True, True, "accurate"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "archive_parity"', source)
+        self.assertIn('return clamp_model_preview_render_settings(geometry_settings), False, False, "archive_parity"', source)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', source)
+        self.assertIn('return clamp_model_preview_render_settings(geometry_settings), False, False, "material_refresh"', source)
         self.assertIn("target_total_faces=35_000", source)
         self.assertNotIn('if _alignment_preview_detail_mode() == "full":\n                            return 0', source)
 
@@ -5730,9 +5740,39 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         resident_source = ARCHIVE_STATIC_REPLACEMENT_DIALOG_REMAINING_CALLBACKS.read_text(
             encoding="utf-8"
         )
-        self.assertIn("publish_resident_updates=not (", resident_source)
-        self.assertIn("int(native_material_batches or 0) > 0", resident_source)
+        self.assertIn("publish_resident_updates=True", resident_source)
+        self.assertNotIn("_alignment_d3d11_invalidate_package_cache('material')", resident_source)
         self.assertIn("'_mesh_editor_embedded_set_preview_loading'", source)
+        prompt_open_source = (
+            ROOT
+            / "cdmw"
+            / "ui"
+            / "archive_browser"
+            / "static_replacement_dialog_prompt_open.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn(
+            '"_mesh_editor_embedded_request_material_resources"',
+            prompt_open_source,
+        )
+        self.assertIn("if not embedded_alignment_builder:", prompt_open_source)
+
+    def test_authoring_prewarm_waits_for_the_authoritative_edit_session(self) -> None:
+        preview_shell_source = (
+            ROOT
+            / "cdmw"
+            / "ui"
+            / "archive_browser"
+            / "static_replacement_dialog_preview_shell.py"
+        ).read_text(encoding="utf-8")
+        launch_source = (
+            ROOT / "cdmw" / "ui" / "mesh_editor" / "tab_dotnet_launch.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('"cdmwPreviewPrewarmCacheRoot"', preview_shell_source)
+        self.assertNotIn("_prewarm_alignment_d3d11_host", preview_shell_source)
+        session_bind = launch_source.index("set_authoritative_session_id(session_id)")
+        prewarm_request = launch_source.index("prewarm(Path(str(cache_root)))")
+        self.assertLess(session_bind, prewarm_request)
 
 
 if __name__ == "__main__":

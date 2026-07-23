@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import uuid
@@ -100,10 +101,19 @@ class DotNetPreviewSessionController(QObject):
         self._process_generation = 0
         self._package_generation = 0
         self._package_request_id = 0
+        self._pending_package_generation = 0
         self._protocol_request_id = 0
         self._launch_package_generation = 0
         self._launch_package_path = ""
+        self._launch_is_prewarm = False
+        self._prewarm_package: MeshDotNetExperimentPackage | None = None
         self._desired_package: MeshDotNetExperimentPackage | None = None
+        self._desired_package_identity: tuple[str, str, str] | None = None
+        self._applied_package: MeshDotNetExperimentPackage | None = None
+        self._applied_package_identity: tuple[str, str, str] | None = None
+        self._invalid_retry_package_path = ""
+        self._invalid_retry_status_path = ""
+        self._invalid_retry_reset_view = False
         self._applied_package_path = ""
         self._applied_package_generation = 0
         self._visible = True
@@ -123,6 +133,8 @@ class DotNetPreviewSessionController(QObject):
         self._resident_state: OrderedDict[str, tuple[str, dict[str, object]]] = OrderedDict()
         self._package_leases: dict[str, object] = {}
         self._pending_captures: dict[int, tuple[Path, Path]] = {}
+        self._prewarm_capture_request_id = 0
+        self._prewarm_capture_path: Path | None = None
         self._last_event: dict[str, object] = {}
 
         self._retry_timer = QTimer(self)
@@ -172,9 +184,14 @@ class DotNetPreviewSessionController(QObject):
     def set_configured_executable(self, executable: Path | str | None) -> None:
         self._configured_executable = executable
 
-    def set_authoritative_session_id(self, session_id: str) -> None:
-        if self.profile is DotNetPreviewProfile.AUTHORING and str(session_id or "").strip():
-            self._session_id = str(session_id).strip()
+    def set_authoritative_session_id(self, session_id: str) -> bool:
+        normalized = str(session_id or "").strip()
+        if self.profile is not DotNetPreviewProfile.AUTHORING or not normalized:
+            return False
+        if self._session_established and normalized != self._session_id:
+            return False
+        self._session_id = normalized
+        return True
 
     def set_authoring_rehydrator(
         self,
@@ -210,6 +227,7 @@ class DotNetPreviewSessionController(QObject):
         status_path: Path | str | None = None,
         *,
         reset_view: bool = False,
+        force_reload: bool = False,
     ) -> bool:
         if self._closed:
             return False
@@ -220,18 +238,53 @@ class DotNetPreviewSessionController(QObject):
                 else mesh_dotnet_experiment_package_from_path(package, status_path=status_path)
             )
         except (OSError, TypeError, ValueError) as exc:
-            self._set_state("error", f".NET/Vortice preview package is invalid: {exc}")
+            self._invalid_retry_package_path = str(package)
+            self._invalid_retry_status_path = str(status_path or "")
+            self._invalid_retry_reset_view = bool(reset_view)
+            detail = f".NET/Vortice preview package is invalid: {exc}"
+            self.package_failed.emit(str(package), self._package_generation, detail)
+            self._set_state("package_error", detail)
             return False
+        self._invalid_retry_package_path = ""
+        self._invalid_retry_status_path = ""
+        self._invalid_retry_reset_view = False
+        identity = self._package_identity(resolved)
         if self.profile is DotNetPreviewProfile.AUTHORING:
             scene_session_id = str(
                 getattr(getattr(resolved, "scene_frame", None), "scene_session_id", "") or ""
             ).strip()
-            if scene_session_id:
-                self._session_id = scene_session_id
+            if scene_session_id and not self.set_authoritative_session_id(scene_session_id):
+                detail = (
+                    ".NET/Vortice authoring package belongs to a different active edit session. "
+                    "Close the current editor before opening another mesh."
+                )
+                self.package_failed.emit(str(resolved.package_dir), self._package_generation, detail)
+                self._set_state("package_error", detail)
+                return False
+        if not force_reload and identity == self._desired_package_identity:
+            if reset_view:
+                self._resident_state.pop("presentation", None)
+            if self._visible and identity == self._applied_package_identity:
+                self._activate()
+            elif (
+                self._visible
+                and self._can_send_protocol()
+                and self._protocol_ready
+                and self._renderer_ready
+                and self._session_established
+                and not self._package_timer.isActive()
+            ):
+                # A prior recoverable package failure leaves the desired identity
+                # intact. A repeated request is an explicit retry, not a new scene
+                # generation or process launch.
+                self._request_resident_package_load()
+            return True
+
         previous_desired = self.desired_package_path
         self._hold_package_lease(resolved.package_dir)
         self._package_generation += 1
         self._desired_package = resolved
+        self._desired_package_identity = identity
         if reset_view:
             self._resident_state.pop("presentation", None)
         if (
@@ -241,20 +294,62 @@ class DotNetPreviewSessionController(QObject):
         ):
             self._release_package_lease(previous_desired)
         self._set_state("preparing", ".NET/Vortice Preview is preparing the selected model…")
-        self._deactivate_for_replacement()
+        if not force_reload and identity == self._applied_package_identity:
+            self._package_timer.stop()
+            self._pending_package_generation = 0
+            self._applied_package = resolved
+            self._applied_package_path = str(resolved.package_dir)
+            self._applied_package_generation = self._package_generation
+            self._retain_package_leases({self._applied_package_path})
+            self._set_state("ready", ".NET/Vortice Preview")
+            if self._visible:
+                self._activate()
+            return True
         if self._visible:
-            if self._can_send_protocol():
+            if self._launch_is_prewarm and not self._renderer_ready:
+                if not self._request_resident_package_load():
+                    self._activate_prewarm()
+            elif self._can_send_protocol():
                 self._request_resident_package_load()
             else:
                 self.retry_now()
         return True
 
+    def prewarm(
+        self,
+        package: MeshDotNetExperimentPackage | Path | str,
+        status_path: Path | str | None = None,
+    ) -> bool:
+        """Start the resident helper without consuming a user package generation."""
+
+        if self._closed or self._desired_package is not None or self.is_running:
+            return False
+        try:
+            resolved = (
+                package
+                if isinstance(package, MeshDotNetExperimentPackage)
+                else mesh_dotnet_experiment_package_from_path(package, status_path=status_path)
+            )
+        except (OSError, TypeError, ValueError):
+            return False
+        self._prewarm_package = resolved
+        self._hold_package_lease(resolved.package_dir)
+        self._launch_if_needed()
+        return self.is_running
+
     def clear_preview(self) -> bool:
         self._package_generation += 1
         self._desired_package = None
+        self._desired_package_identity = None
+        self._applied_package = None
+        self._applied_package_identity = None
         self._applied_package_path = ""
         self._applied_package_generation = 0
+        self._invalid_retry_package_path = ""
+        self._invalid_retry_status_path = ""
+        self._invalid_retry_reset_view = False
         self._package_timer.stop()
+        self._pending_package_generation = 0
         self._deactivate_for_replacement()
         self._release_package_leases()
         self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
@@ -270,18 +365,35 @@ class DotNetPreviewSessionController(QObject):
             self._active = False
             self._set_state("inactive", ".NET/Vortice Preview paused while hidden.")
             return
+        if self._launch_is_prewarm and self._session_established and not self._renderer_ready:
+            if self._desired_package is None or not self._request_resident_package_load():
+                self._activate_prewarm()
+            if self._desired_package is None:
+                return
         if self._desired_package is None:
             self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
             return
         if self._process is None or not qprocess_is_running(self._process):
             self.retry_now()
-        elif self._applied_package_path == self.desired_package_path and self._session_established:
-            self._activate()
+        elif self._applied_package_path and self._session_established:
+            self._activate_applied()
+            if self._applied_package_identity != self._desired_package_identity:
+                self._request_resident_package_load()
         else:
             self._request_resident_package_load()
 
     def retry_now(self) -> None:
-        if self._closed or not self._visible or self._desired_package is None:
+        if self._closed or not self._visible:
+            return
+        if self._invalid_retry_package_path:
+            self.load_package(
+                self._invalid_retry_package_path,
+                self._invalid_retry_status_path or None,
+                reset_view=self._invalid_retry_reset_view,
+                force_reload=True,
+            )
+            return
+        if self._desired_package is None:
             return
         self._retry_timer.stop()
         if self._process is not None and qprocess_is_running(self._process):
@@ -380,6 +492,7 @@ class DotNetPreviewSessionController(QObject):
         self._retry_timer.stop()
         self._ready_timer.stop()
         self._package_timer.stop()
+        self._pending_package_generation = 0
         process = self._process
         self._process = None
         if process is not None:
@@ -387,10 +500,15 @@ class DotNetPreviewSessionController(QObject):
             stop_qprocess_async(process)
         self._release_package_leases()
         self._pending_captures.clear()
+        self._clear_prewarm_capture()
+        self._prewarm_package = None
+        self._launch_is_prewarm = False
         self._set_state("closed", ".NET/Vortice Preview closed.")
 
     def _launch_if_needed(self) -> None:
-        if self._closed or not self._visible or self._desired_package is None:
+        package = self._desired_package or self._prewarm_package
+        prewarm_launch = self._desired_package is None and self._prewarm_package is not None
+        if self._closed or package is None or (not self._visible and not prewarm_launch):
             return
         if self._process is not None and qprocess_is_running(self._process):
             return
@@ -413,7 +531,6 @@ class DotNetPreviewSessionController(QObject):
                 static_failure=True,
             )
             return
-        package = self._desired_package
         try:
             program, arguments = mesh_dotnet_experiment_command(
                 executable,
@@ -429,14 +546,17 @@ class DotNetPreviewSessionController(QObject):
         self._process_generation += 1
         generation = self._process_generation
         self._launch_package_generation = self._package_generation
-        self._launch_package_path = self.desired_package_path
+        self._launch_package_path = str(package.package_dir)
+        self._launch_is_prewarm = prewarm_launch
         self._process = process
         self._executable = Path(program)
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
+        self._pending_package_generation = 0
         self._active = False
         self._capabilities.clear()
+        self._clear_prewarm_capture()
         self._stdout_buffer = b""
         self._stdout_tail = ""
         self._stderr_tail = ""
@@ -484,10 +604,14 @@ class DotNetPreviewSessionController(QObject):
         self._process = None
         self._ready_timer.stop()
         self._package_timer.stop()
+        self._pending_package_generation = 0
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
+        self._clear_prewarm_capture()
         self._active = False
+        self._prewarm_package = None
+        self._launch_is_prewarm = False
         self._delete_process_later(process)
         self._retain_package_leases({self.desired_package_path})
         if not self._closed and self._visible and self._desired_package is not None:
@@ -553,12 +677,16 @@ class DotNetPreviewSessionController(QObject):
         event = str(payload.get("event", payload.get("type", "")) or "").strip().lower()
         if not event:
             return
+        if event == "ready":
+            if not self._handle_renderer_ready(payload):
+                return
+            self._last_event = dict(payload)
+            self.protocol_event.emit(dict(payload))
+            return
         self._last_event = dict(payload)
         self.protocol_event.emit(dict(payload))
         if event == "protocol_ready":
             self._handle_protocol_ready(payload)
-        elif event == "ready":
-            self._handle_renderer_ready(payload)
         elif event == "preview_session_state_ack":
             if str(payload.get("status", "") or "").lower() == "applied" and self._event_process_matches(payload):
                 self._session_established = True
@@ -580,12 +708,13 @@ class DotNetPreviewSessionController(QObject):
         elif event == "deactivated":
             self._active = False
         elif event == "error":
-            code = str(payload.get("code", "") or "").lower()
-            message = str(payload.get("message", code or "renderer error") or "renderer error")
-            self._fail_current_process(
-                f".NET/Vortice Preview error: {message}",
-                static_failure="provenance" in code,
-            )
+            # Helper-level request errors (invalid tool state, stale sessions,
+            # malformed commands, and similar protocol rejections) do not
+            # imply that the process or D3D device is unhealthy. Consumers get
+            # the original event above and can offer a retry without discarding
+            # the resident scene. An actual helper exit or QProcess/device
+            # failure still follows the process retry path.
+            return
 
     def _handle_protocol_ready(self, payload: Mapping[str, object]) -> None:
         if str(payload.get("profile", "") or "").strip().lower() != self.profile.value:
@@ -638,10 +767,12 @@ class DotNetPreviewSessionController(QObject):
                 return
             self._maybe_finish_launch()
 
-    def _handle_renderer_ready(self, payload: Mapping[str, object]) -> None:
+    def _handle_renderer_ready(self, payload: Mapping[str, object]) -> bool:
+        if self._renderer_ready:
+            return False
         if str(payload.get("profile", "") or "").strip().lower() != self.profile.value:
             self._fail_current_process(".NET/Vortice renderer reported the wrong profile.", static_failure=True)
-            return
+            return False
         blockers = mesh_dotnet_renderer_blockers(
             payload,
             embedded=True,
@@ -651,14 +782,42 @@ class DotNetPreviewSessionController(QObject):
                 ".NET/Vortice renderer was rejected: " + "; ".join(blockers),
                 static_failure=False,
             )
-            return
+            return False
         self._renderer_ready = True
         self._ready_timer.stop()
         self.renderer_ready.emit(dict(payload))
         self._maybe_finish_launch()
+        return True
 
     def _maybe_finish_launch(self) -> None:
+        if (
+            self._launch_is_prewarm
+            and self._protocol_ready
+            and self._session_established
+            and not self._renderer_ready
+        ):
+            # A hidden embedded HWND cannot present its first frame yet. The
+            # helper and D3D device are nevertheless resident after the
+            # protocol/session handshake, so keep them alive until a real
+            # request makes the host visible and the correlated Ready arrives.
+            self._request_prewarm_capture()
+            if self._visible and self._desired_package is not None:
+                if not self._request_resident_package_load():
+                    self._activate_prewarm()
+            else:
+                self._ready_timer.stop()
+                self._set_state("prewarmed", ".NET/Vortice Preview is ready for a model.")
+            return
         if not (self._protocol_ready and self._renderer_ready and self._session_established):
+            return
+        if self._launch_is_prewarm:
+            self._launch_is_prewarm = False
+            if self._desired_package is not None:
+                self._request_resident_package_load()
+            else:
+                self._send_json({"event": "deactivate_request"})
+                self._active = False
+                self._set_state("prewarmed", ".NET/Vortice Preview is ready for a model.")
             return
         if (
             self._launch_package_generation != self._package_generation
@@ -672,8 +831,20 @@ class DotNetPreviewSessionController(QObject):
         package = self._desired_package
         if package is None or not self._can_send_protocol():
             return False
-        if not (self._protocol_ready and self._renderer_ready and self._session_established):
+        if not (self._protocol_ready and self._session_established):
             return False
+        if not self._renderer_ready and not self._launch_is_prewarm:
+            return False
+        if (
+            self._applied_package_path == self.desired_package_path
+            and self._applied_package_generation == self._package_generation
+        ):
+            return True
+        if (
+            self._pending_package_generation == self._package_generation
+            and self._package_timer.isActive()
+        ):
+            return True
         self._package_request_id += 1
         request_id = self._package_request_id
         generation = self._package_generation
@@ -686,6 +857,7 @@ class DotNetPreviewSessionController(QObject):
             }
         )
         if sent:
+            self._pending_package_generation = generation
             self._package_timer.start(_PACKAGE_TIMEOUT_MS)
             self._set_state("preparing", ".NET/Vortice Preview is loading the selected model…")
         return sent
@@ -694,21 +866,22 @@ class DotNetPreviewSessionController(QObject):
         if not self._package_event_is_current(payload):
             return
         self._package_timer.stop()
+        self._pending_package_generation = 0
         self._accept_applied_package(self.desired_package_path, self._package_generation)
 
     def _handle_package_failed(self, payload: Mapping[str, object]) -> None:
         if not self._package_event_is_current(payload):
             return
-        self._package_timer.stop()
         message = str(payload.get("message", payload.get("reason", "Package load failed.")) or "Package load failed.")
-        self.package_failed.emit(self.desired_package_path, self._package_generation, message)
-        self._fail_current_process(f".NET/Vortice package load failed: {message}", static_failure=False)
+        self._fail_current_package(message)
 
     def _accept_applied_package(self, package_path: str, generation: int) -> None:
         if generation != self._package_generation or package_path != self.desired_package_path:
             return
         self._applied_package_path = package_path
         self._applied_package_generation = generation
+        self._applied_package = self._desired_package
+        self._applied_package_identity = self._desired_package_identity
         self._retain_package_leases({package_path})
         self._replay_resident_state()
         if self.profile is DotNetPreviewProfile.AUTHORING:
@@ -745,6 +918,39 @@ class DotNetPreviewSessionController(QObject):
             }
         )
 
+    def _activate_applied(self) -> bool:
+        if not self._visible or not self._applied_package_path:
+            return False
+        return self._send_json(
+            {
+                "event": "activate_request",
+                "material_signature": str(
+                    getattr(self._applied_package, "material_signature", "") or ""
+                ),
+            }
+        )
+
+    def _activate_prewarm(self) -> bool:
+        package = self._prewarm_package
+        if (
+            not self._visible
+            or package is None
+            or not self._launch_is_prewarm
+            or not self._protocol_ready
+            or not self._session_established
+        ):
+            return False
+        sent = self._send_json(
+            {
+                "event": "activate_request",
+                "material_signature": str(getattr(package, "material_signature", "") or ""),
+            }
+        )
+        if sent:
+            self._ready_timer.start(_READY_TIMEOUT_MS)
+            self._set_state("preparing", ".NET/Vortice Preview is activating the resident rendererâ€¦")
+        return sent
+
     def _deactivate_for_replacement(self) -> None:
         if self._process is not None and qprocess_is_running(self._process):
             self._send_json({"event": "deactivate_request"})
@@ -755,6 +961,12 @@ class DotNetPreviewSessionController(QObject):
             request_id = int(payload.get("request_id", 0) or 0)
         except (TypeError, ValueError, OverflowError):
             request_id = 0
+        if request_id == self._prewarm_capture_request_id:
+            self._clear_prewarm_capture()
+            if str(payload.get("status", "") or "").strip().lower() == "captured":
+                self._set_state("prewarmed", ".NET/Vortice Preview is GPU-warmed and ready for a model.")
+            self.capture_completed.emit(dict(payload))
+            return
         paths = self._pending_captures.pop(request_id, None)
         result = dict(payload)
         if paths is not None:
@@ -774,11 +986,58 @@ class DotNetPreviewSessionController(QObject):
                 pass
         self.capture_completed.emit(result)
 
+    def _request_prewarm_capture(self) -> bool:
+        package = self._prewarm_package
+        if package is None or not self._session_established:
+            return False
+        if self._prewarm_capture_request_id > 0:
+            return True
+        capture_dir = package.output_dir / "captures"
+        try:
+            capture_dir.mkdir(parents=True, exist_ok=True)
+        except OSError:
+            return False
+        capture_path = capture_dir / f"prewarm_{self._process_generation:08d}.png"
+        request_id = self.send_correlated(
+            "capture_request",
+            {
+                "output_path": str(capture_path),
+                "width": 64,
+                "height": 64,
+            },
+        )
+        if request_id <= 0:
+            return False
+        self._prewarm_capture_request_id = request_id
+        self._prewarm_capture_path = capture_path
+        return True
+
+    def _clear_prewarm_capture(self) -> None:
+        capture_path = self._prewarm_capture_path
+        self._prewarm_capture_request_id = 0
+        self._prewarm_capture_path = None
+        if capture_path is None:
+            return
+        try:
+            capture_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+
     def _handle_ready_timeout(self) -> None:
         self._fail_current_process(".NET/Vortice Preview did not become ready in time.", static_failure=False)
 
     def _handle_package_timeout(self) -> None:
-        self._fail_current_process(".NET/Vortice Preview package replacement timed out.", static_failure=False)
+        self._fail_current_package("Package replacement timed out.")
+
+    def _fail_current_package(self, message: str) -> None:
+        self._package_timer.stop()
+        self._pending_package_generation = 0
+        detail = str(message or "Package load failed.")
+        self.package_failed.emit(self.desired_package_path, self._package_generation, detail)
+        self._set_state(
+            "package_error",
+            f".NET/Vortice package load failed: {detail} The current model was kept; retry when ready.",
+        )
 
     def _fail_current_process(self, reason: str, *, static_failure: bool) -> None:
         process = self._process
@@ -788,7 +1047,11 @@ class DotNetPreviewSessionController(QObject):
         self._protocol_ready = False
         self._renderer_ready = False
         self._session_established = False
+        self._pending_package_generation = 0
+        self._clear_prewarm_capture()
         self._active = False
+        self._prewarm_package = None
+        self._launch_is_prewarm = False
         if process is not None:
             stop_qprocess_async(process)
         self._retain_package_leases({self.desired_package_path})
@@ -796,6 +1059,11 @@ class DotNetPreviewSessionController(QObject):
 
     def _schedule_retry(self, reason: str, *, static_failure: bool) -> None:
         self._retry_reason = str(reason or ".NET/Vortice Preview is unavailable.")
+        if self._desired_package is None and self._prewarm_package is not None:
+            prewarm_path = str(self._prewarm_package.package_dir)
+            self._prewarm_package = None
+            self._launch_is_prewarm = False
+            self._release_package_lease(prewarm_path)
         if self._closed or not self._visible or self._desired_package is None:
             self._set_state("inactive", self._retry_reason)
             return
@@ -873,6 +1141,24 @@ class DotNetPreviewSessionController(QObject):
             return str(Path(package_dir).expanduser().resolve()).casefold()
         except OSError:
             return str(package_dir).casefold()
+
+    @classmethod
+    def _package_identity(
+        cls,
+        package: MeshDotNetExperimentPackage,
+    ) -> tuple[str, str, str]:
+        scene_signature = ""
+        scene_path = getattr(package, "scene_manifest_path", None)
+        if scene_path:
+            try:
+                scene_signature = hashlib.sha256(Path(scene_path).read_bytes()).hexdigest()
+            except OSError:
+                scene_signature = str(scene_path)
+        return (
+            cls._package_key(package.package_dir),
+            str(getattr(package, "material_signature", "") or ""),
+            scene_signature,
+        )
 
     def _hold_package_lease(self, package_dir: Path) -> None:
         key = self._package_key(package_dir)

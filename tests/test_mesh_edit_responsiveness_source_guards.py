@@ -2859,20 +2859,14 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         )
         self.assertIn("def _mesh_edit_apply_preview_mode_transition(reason: str) -> None:", source)
         self.assertIn('"mesh_edit_preview_mode_transition"', source)
-        self.assertIn('_alignment_d3d11_invalidate_package_cache("mesh_edit_mode")', source)
         transition_start = source.index("def _mesh_edit_apply_preview_mode_transition(reason: str) -> None:")
         transition_body = source[transition_start: source.index("def _commit_spinbox_text", transition_start)]
-        self.assertIn("_alignment_d3d11_clear_active_package_helper(", transition_body)
         self.assertIn("context.get('alignment_d3d11_preview_host')", source)
-        self.assertIn("set_mesh_edit_state(enabled=False, source_submesh_indices=())", transition_body)
-        self.assertLess(
-            transition_body.index("_alignment_d3d11_clear_active_package_helper("),
-            transition_body.index("_queue_static_preview_refresh()"),
-        )
-        self.assertLess(
-            transition_body.index("_alignment_d3d11_clear_active_package_helper("),
-            transition_body.index("_queue_texture_preview_refresh()"),
-        )
+        self.assertIn("sync_mesh_edit_preview_settings()", transition_body)
+        self.assertNotIn("_alignment_d3d11_clear_active_package_helper(", transition_body)
+        self.assertNotIn('_alignment_d3d11_invalidate_package_cache("mesh_edit_mode")', transition_body)
+        self.assertNotIn("_queue_static_preview_refresh()", transition_body)
+        self.assertNotIn("_queue_texture_preview_refresh()", transition_body)
         finalize_body = _function_source(source, "_mesh_editor_finalize_edit_mode_exit")
         post_exit_body = _function_source(source, "_mesh_editor_queue_post_edit_textured_preview_rebuild")
         toggle_body = _function_source(source, "_mesh_edit_enabled_toggled")
@@ -2882,11 +2876,7 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_callbacks._mesh_editor_queue_post_edit_textured_preview_rebuild", finalize_body)
         self.assertIn("if not edit_enabled:", toggle_body)
         self.assertIn('_callbacks._mesh_editor_finalize_edit_mode_exit("mesh_edit_toggle", mesh_changed=True)', toggle_body)
-        self.assertIn("_queue_texture_preview_refresh()", post_exit_body)
-        self.assertLess(
-            post_exit_body.index("_mesh_edit_apply_preview_mode_transition"),
-            post_exit_body.index("_queue_texture_preview_refresh"),
-        )
+        self.assertNotIn("_queue_texture_preview_refresh()", post_exit_body)
         self.assertNotIn("_queue_static_preview_rebuild()", post_exit_body)
         self.assertNotIn("_restore_textured_preview_after_mesh_edit_surface_exit", source)
         self.assertIn("def alignment_d3d11_raw_package_active_or_pending(state: Mapping[str, object]) -> bool:", source)
@@ -2914,15 +2904,15 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn('_state._mark_alignment_d3d11_rebuild_reason("geometry")', commit_body)
         self.assertIn('_state._alignment_d3d11_invalidate_package_cache("geometry")', commit_body)
         self.assertNotIn('return _alignment_d3d11_fast_render_settings(settings), False, False, "fast_geometry"', source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"', d3d11_presentation_source)
-        self.assertIn('return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"', d3d11_presentation_source)
+        self.assertIn('return clamp_model_preview_render_settings(geometry_settings), False, False, "material_refresh"', d3d11_presentation_source)
+        self.assertIn('return clamp_model_preview_render_settings(geometry_settings), False, False, "mesh_edit_raw"', d3d11_presentation_source)
         self.assertNotIn("fast_settings.disable_all_support_maps = True", d3d11_presentation_source)
         self.assertNotIn("fast_settings.disable_normal_map = True", d3d11_presentation_source)
         self.assertNotIn("fast_settings.disable_material_map = True", d3d11_presentation_source)
         self.assertNotIn("fast_settings.disable_height_map = True", d3d11_presentation_source)
         self.assertIn("def _mesh_edit_raw_preview_active_value() -> bool:", source)
         self.assertIn("mesh_edit_raw_package = _state._mesh_edit_raw_preview_active_value()", source)
-        self.assertIn("worker_use_textures = bool(getattr(settings, 'use_textures_by_default', True))", source)
+        self.assertIn("worker_use_textures = False", source)
         self.assertIn("original_reference_material_parity=worker_original_reference_material_parity", source)
         self.assertIn("reuse_prepared_geometry=bool(geometry_signature)", source)
         self.assertIn("def _mesh_by_source_identity", worker_source)

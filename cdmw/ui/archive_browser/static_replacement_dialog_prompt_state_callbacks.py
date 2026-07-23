@@ -288,36 +288,6 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
             d3d11_active=bool(_alignment_d3d11_preview_active()),
             path=str(getattr(entry, "path", "") or ""),
         )
-        if transition_route.should_clear_static_preview_caches:
-            static_preview_geometry_cache.clear()
-            static_preview_prepared_cache.clear()
-        if previous_raw and not current_raw:
-            set_mesh_edit_state = getattr(alignment_d3d11_preview_host, "set_mesh_edit_state", None)
-            if callable(set_mesh_edit_state):
-                try:
-                    set_mesh_edit_state(enabled=False, source_submesh_indices=())
-                except Exception:
-                    pass
-        if transition_route.should_invalidate_package_cache:
-            _alignment_d3d11_invalidate_package_cache("mesh_edit_mode")
-        if transition_route.should_stop_raw_package:
-            _alignment_d3d11_reset_request_state_helper(
-                alignment_d3d11_state,
-                clear_active_request_id=False,
-            )
-            _alignment_d3d11_clear_active_package_helper(
-                alignment_d3d11_state,
-                clear_process=False,
-                clear_status=True,
-            )
-            _alignment_d3d11_reset_package_quality_helper(alignment_d3d11_state)
-            _alignment_d3d11_stop_worker()
-        if transition_route.should_queue_static_preview_refresh:
-            _queue_static_preview_refresh()
-        if transition_route.should_queue_texture_preview_refresh:
-            _queue_texture_preview_refresh()
-
-
     def _commit_spinbox_text(spin: QDoubleSpinBox, *, block_signals: bool = False) -> None:
         _commit_spinbox_text_helper(spin, block_signals=block_signals)
 

@@ -363,7 +363,7 @@ def test_original_reference_texture_preview_status_text() -> None:
         original_reference_texture_preview_loaded_progress_message()
         == "Preparing preview - original textures loaded."
     )
-    assert original_reference_texture_preview_loaded_detail() == "Original textures loaded; refreshing preview."
+    assert original_reference_texture_preview_loaded_detail() == "Original textures loaded; applying resident materials."
 
     loading = original_reference_texture_preview_loading_performance("material")
     assert loading.summary == "Loading original textures: base/sidecar/support maps..."
@@ -375,7 +375,7 @@ def test_original_reference_texture_preview_status_text() -> None:
     assert manifest.details == ""
 
     loaded = original_reference_texture_preview_loaded_performance(12.25)
-    assert loaded.summary == "Original textures loaded; refreshing preview."
+    assert loaded.summary == "Original textures loaded; applying resident materials."
     assert loaded.details == "worker_elapsed_ms=12.2"
 
     assert (
@@ -419,7 +419,7 @@ def test_original_reference_texture_preview_ready_result_state_handles_current_l
     assert active.manifest_performance.summary == "Original native material manifest applied: 3 batch(es)."
     assert active.loaded_performance.details == "worker_elapsed_ms=7.5"
     assert active.progress_message == "Preparing preview - original textures loaded."
-    assert active.progress_detail == "Original textures loaded; refreshing preview."
+    assert active.progress_detail == "Original textures loaded; applying resident materials."
     assert state["loaded"] is True
     assert state["loading"] is False
 

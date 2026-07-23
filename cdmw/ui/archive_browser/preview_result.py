@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 from typing import Dict, Optional
 
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QTreeWidgetItem
 
 from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
@@ -111,12 +112,21 @@ class ArchivePreviewResultMixin:
             return 0.0
 
         dotnet_package_path = str(getattr(result, "dotnet_preview_package_path", "") or "").strip()
+        texture_request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
+        texture_request = bool(
+            texture_request_id
+            and int(request_id or 0) == texture_request_id
+        )
+        if texture_request and (preferred_view != "model" or not dotnet_package_path):
+            finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
+            if callable(finish_texture_request):
+                finish_texture_request(
+                    texture_request_id,
+                    success=False,
+                    message="Texture preparation did not produce a resident preview package.",
+                )
+            return -1.0
         if preferred_view == "model" and not self.archive_preview_showing_loose:
-            requested_package = Path(dotnet_package_path) if dotnet_package_path else None
-            active_package = getattr(self, "archive_isolated_renderer_active_package", None)
-            if requested_package is None or requested_package != active_package:
-                self.archive_d3d11_preview_host.clear_preview()
-                self.archive_isolated_renderer_active_package = None
             self.archive_preview_stack.setCurrentWidget(self.archive_d3d11_preview_host)
         if preferred_view == "model" and dotnet_package_path and not self.archive_preview_showing_loose:
             if request_id is not None and request_id != self.archive_preview_request_id:
@@ -140,10 +150,13 @@ class ArchivePreviewResultMixin:
                 )
                 self.set_status_message(message, error=True)
                 self.archive_d3d11_preview_status_label.setText(".NET/Vortice package validation failed.")
+                if texture_request:
+                    finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
+                    if callable(finish_texture_request):
+                        finish_texture_request(texture_request_id, success=False, message=message)
+                    return -1.0
                 return 0.0
             same_model = package_dir == getattr(self, "archive_isolated_renderer_active_package", None)
-            self.archive_isolated_renderer_active_package = package_dir
-            self.archive_isolated_renderer_package_source = "dotnet-canonical"
             detail_text = self._detail_text_with_renderer_note(detail_text, None)
             self._set_archive_preview_base_detail_text(detail_text, include_current_model_debug=False)
             self.archive_media_preview.clear_media("No media preview available.")
@@ -163,17 +176,50 @@ class ArchivePreviewResultMixin:
                 )
             if not self.archive_d3d11_preview_host.load_package(
                 package_dir,
-                reset_view=not same_model,
+                reset_view=not same_model and not texture_request,
                 initial_view_state=initial_view_state,
             ):
                 message = ".NET/Vortice Preview rejected the prepared package."
                 self.set_status_message(message, error=True)
+                if texture_request:
+                    finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
+                    if callable(finish_texture_request):
+                        finish_texture_request(texture_request_id, success=False, message=message)
+                    return -1.0
                 return 0.0
-            self.archive_d3d11_preview_host.set_render_tuning(
-                self._current_model_preview_render_settings()
+            effective_settings = getattr(self, "_archive_preview_effective_render_settings", None)
+            render_settings = (
+                effective_settings(request_id)
+                if callable(effective_settings)
+                else self._current_model_preview_render_settings()
             )
+            if texture_request:
+                controller = self.archive_d3d11_preview_host.controller
+                self._archive_texture_package_generation = int(controller.package_generation)
+                self._archive_texture_package_path = str(package_dir)
+                self._archive_texture_render_settings = render_settings
+                if (
+                    int(controller.applied_package_generation) == int(controller.package_generation)
+                    and self._archive_package_key(controller.applied_package_path)
+                    == self._archive_package_key(package_dir)
+                ):
+                    QTimer.singleShot(
+                        0,
+                        lambda path=str(package_dir), generation=int(controller.package_generation): (
+                            self._handle_archive_resident_package_applied(path, generation)
+                        ),
+                    )
+            else:
+                self.archive_isolated_renderer_active_package = package_dir
+                self.archive_isolated_renderer_package_source = "dotnet-canonical"
+                self.archive_d3d11_preview_host.set_render_tuning(render_settings)
+                self._archive_textures_visible = False
+                sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
+                if callable(sync_texture_action):
+                    sync_texture_action()
             self.archive_d3d11_preview_status_label.setText(".NET/Vortice Preview")
-            self.set_status_message("Opening resident .NET/Vortice Preview.")
+            if not texture_request:
+                self.set_status_message("Opening resident .NET/Vortice Preview.")
             self._set_archive_isolated_renderer_debug(
                 ".NET/Vortice Preview: resident canonical package requested."
             )
@@ -256,6 +302,12 @@ class ArchivePreviewResultMixin:
         base_timings: Optional[Dict[str, float]] = None,
         request_started_at: Optional[float] = None,
     ) -> None:
+        texture_request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
+        texture_request = bool(
+            texture_request_id
+            and int(request_id or 0) == texture_request_id
+        )
+        previous_result = getattr(self, "current_archive_preview_result", None)
         try:
             if request_id is not None and request_id != self.archive_preview_request_id:
                 return
@@ -266,6 +318,10 @@ class ArchivePreviewResultMixin:
                 use_loose=self.archive_preview_requested_loose,
                 request_id=request_id,
             )
+            if texture_request and model_apply_s < 0.0:
+                self.current_archive_preview_result = previous_result
+                self._refresh_archive_preview_details_text()
+                return
             ui_apply_s = max(0.0, float(time.perf_counter() - ui_apply_started_at))
             result_timings = getattr(result, "timings", None) if source != "preview_cache" else {}
             timings = _merge_timing_maps(
@@ -285,7 +341,25 @@ class ArchivePreviewResultMixin:
                 timing_summary=timing_summary,
             )
             self.current_archive_preview_result = finalized_result
+            if texture_request:
+                self._archive_pending_texture_result = finalized_result
+                self.current_archive_preview_result = previous_result
+                self._refresh_archive_preview_details_text()
+                return
             self._refresh_archive_preview_details_text()
+            if (
+                not texture_request
+                and str(getattr(finalized_result, "preferred_view", "") or "").strip().lower() == "model"
+                and str(getattr(finalized_result, "dotnet_preview_package_path", "") or "").strip()
+                and self._current_model_preview_render_settings().use_textures_by_default
+                and not bool(
+                    getattr(self, "_archive_active_package_has_textures", lambda: False)()
+                )
+                and not bool(getattr(self, "_archive_texture_request_loading", False))
+            ):
+                request_textures = getattr(self, "_request_archive_preview_textures", None)
+                if callable(request_textures):
+                    QTimer.singleShot(0, lambda callback=request_textures: callback(automatic=True))
             entry_name = finalized_result.title or getattr(self._current_archive_entry(), "basename", "") or "selected entry"
             self._log_archive_preview_timing_if_needed(entry_name, source, timings, timing_summary)
         except Exception as exc:
@@ -295,6 +369,18 @@ class ArchivePreviewResultMixin:
                 str(exc),
                 context=self._collect_crash_context(),
             )
+            if texture_request:
+                self.current_archive_preview_result = previous_result
+                finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
+                if callable(finish_texture_request):
+                    finish_texture_request(texture_request_id, success=False, message=str(exc))
+                self._refresh_archive_preview_details_text()
+                return
+            self.current_archive_preview_result = previous_result
+            preserve_resident = getattr(self, "_preserve_archive_resident_scene_error", None)
+            if callable(preserve_resident) and preserve_resident(str(exc)):
+                self._refresh_archive_preview_details_text()
+                return
             self._clear_archive_preview(f"Preview failed: {exc}")
             self.set_status_message(f"Archive preview failed: {exc}", error=True)
 

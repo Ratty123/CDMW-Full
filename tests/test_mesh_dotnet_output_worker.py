@@ -35,6 +35,7 @@ def test_dotnet_package_worker_keeps_modify_original_graph_for_shared_synthesis(
     def capture_package(mesh: ParsedMesh, **kwargs: object) -> object:
         captured["mesh"] = mesh
         captured["reference_mesh"] = kwargs["reference_mesh"]
+        captured["include_material_resources"] = kwargs["include_material_resources"]
         return SimpleNamespace(package_dir=tmp_path)
 
     monkeypatch.setattr(
@@ -48,6 +49,7 @@ def test_dotnet_package_worker_keeps_modify_original_graph_for_shared_synthesis(
         "session",
         reference_mesh=reference,
         mirror_reference_materials_to_editable=True,
+        include_material_resources=False,
     )
     errors: list[str] = []
     worker.error.connect(lambda _request_id, message: errors.append(str(message)))
@@ -59,6 +61,7 @@ def test_dotnet_package_worker_keeps_modify_original_graph_for_shared_synthesis(
     packaged_reference = captured["reference_mesh"]
     assert isinstance(packaged_editable, ParsedMesh)
     assert isinstance(packaged_reference, ParsedMesh)
+    assert captured["include_material_resources"] is False
     assert packaged_editable.submeshes[0].preview_material_texture_inputs
     assert packaged_reference.submeshes[0].preview_material_texture_inputs
     assert (

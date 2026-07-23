@@ -180,6 +180,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
         interaction_mode: str = "placement",
         scene_transform: StaticReplacementTransform | None = None,
         scene_generation: int = 1,
+        include_material_resources: bool = True,
     ) -> None:
         super().__init__()
         self.request_id = int(request_id)
@@ -196,6 +197,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
         self.interaction_mode = str(interaction_mode or "placement")
         self.scene_transform = scene_transform
         self.scene_generation = max(1, int(scene_generation))
+        self.include_material_resources = bool(include_material_resources)
         self.stop_event = threading.Event()
 
     def stop(self) -> None:
@@ -241,6 +243,7 @@ class MeshDotNetExperimentPackageWorker(QObject):
                 scene_generation=self.scene_generation,
                 scene_session_id=self.session_id,
                 selection_pivot_source=selection_pivot,
+                include_material_resources=self.include_material_resources,
                 cancelled=self.stop_event.is_set,
             )
             elapsed_ms = max(0.0, (time.perf_counter() - started) * 1000.0)

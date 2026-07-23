@@ -18,6 +18,7 @@ from cdmw.services.mesh_dotnet_experiment import (
 )
 from cdmw.modding.static_mesh_scene_frame import static_scene_source_identity
 from cdmw.ui.mesh_editor import MeshEditorTab
+from cdmw.ui.mesh_editor.tab_dotnet_protocol import _dotnet_event_requires_correlation
 from tests.test_mesh_editor_action_bar import (
     _EmbeddedMeshBuilder,
     _FakeProcess,
@@ -45,6 +46,17 @@ def _material_writes(
             break
         time.sleep(0.005)
     return writes
+
+
+def test_shared_package_lifecycle_is_correlated_by_the_resident_controller() -> None:
+    assert not _dotnet_event_requires_correlation(
+        "package_load_applied",
+        {"request_id": 7, "generation": 3},
+    )
+    assert _dotnet_event_requires_correlation(
+        "material_state_applied",
+        {"session_id": "mesh-a", "request_id": 9, "process_generation": 2},
+    )
 
 
 def _wait_for_material_compile_idle(
@@ -124,6 +136,133 @@ def test_mesh_editor_reactivation_syncs_changed_materials_without_restart_v2() -
     assert not process.terminated
     app.processEvents()
     tab.deleteLater()
+
+
+def test_textured_view_waits_for_resident_material_ack_without_reload() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorTexturedViewResidentAck"))
+    builder = _EmbeddedMeshBuilder()
+    texture_requests: list[str] = []
+    setattr(
+        builder,
+        "_mesh_editor_embedded_request_material_resources",
+        lambda: texture_requests.append("requested"),
+    )
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=("resident_material_updates_v2", "viewport_display_modes_v1"),
+    )
+    setattr(builder, "_mesh_editor_embedded_dotnet_active", True)
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
+    display_modes = [
+        payload.get("mode")
+        for payload in writes
+        if payload.get("event") == "viewport_display_update"
+    ]
+    pending_updates = [
+        payload
+        for payload in writes
+        if payload.get("event") == "viewport_display_update"
+        and payload.get("mode") == "untextured_faces"
+    ]
+    assert texture_requests == ["requested"]
+    assert display_modes[-1] == "untextured_faces"
+    assert pending_updates[-1]["texture_request_pending"] is True
+    assert "textured" not in display_modes
+    assert tab.standalone_dotnet_pending_textured_view is True
+
+    tab._finish_pending_textured_view(success=True)
+    writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
+    display_modes = [
+        payload.get("mode")
+        for payload in writes
+        if payload.get("event") == "viewport_display_update"
+    ]
+    assert display_modes[-1] == "textured"
+    assert tab.standalone_dotnet_lifecycle_counts["full_reload_count"] == 0
+    assert tab.standalone_dotnet_lifecycle_counts["process_restart_count"] == 0
+    assert not process.terminated
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_native_textured_selector_routes_through_resident_material_request() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeTexturedRequest"))
+    builder = _EmbeddedMeshBuilder()
+    texture_requests: list[str] = []
+    setattr(
+        builder,
+        "_mesh_editor_embedded_request_material_resources",
+        lambda: texture_requests.append("requested"),
+    )
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        generation=3,
+        capabilities=("resident_material_updates_v2", "viewport_display_modes_v1"),
+    )
+    setattr(builder, "_mesh_editor_embedded_dotnet_active", True)
+    session_id = builder.controller.session_view().session_id
+    tab.standalone_dotnet_lifecycle_session_id = session_id
+
+    assert tab._handle_dotnet_protocol_event(
+        {
+            "event": "viewport_display_request",
+            "session_id": session_id,
+            "request_id": 41,
+            "process_generation": 3,
+            "mode": "textured",
+        }
+    )
+
+    writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
+    pending = [
+        payload
+        for payload in writes
+        if payload.get("event") == "viewport_display_update"
+    ][-1]
+    assert texture_requests == ["requested"]
+    assert {
+        key: pending[key]
+        for key in (
+            "event",
+            "session_id",
+            "request_id",
+            "process_generation",
+            "mode",
+            "texture_request_pending",
+        )
+    } == {
+        "event": "viewport_display_update",
+        "session_id": session_id,
+        "request_id": 1,
+        "process_generation": 3,
+        "mode": "untextured_faces",
+        "texture_request_pending": True,
+    }
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert tab.standalone_dotnet_lifecycle_counts["process_restart_count"] == 0
+    assert not process.terminated
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
 
 
 def test_generated_material_resource_commits_only_after_matching_renderer_ack(tmp_path: Path) -> None:

@@ -72,6 +72,13 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'WriteProtocolEvent("protocol_ready"' in protocol_source
     assert 'case "tool_state": ApplyHostToolState' in protocol_source
     assert 'WriteProtocolEvent("tool_state_applied"' in host_state_source
+    assert 'tool is "vertex" or "remove"' in host_state_source
+    assert 'enabledElement.ValueKind != JsonValueKind.False' in host_state_source
+    disabled_tool = host_state_source.split('if (!enabled)', maxsplit=1)[1].split(
+        'if (!HostTools.Contains(tool))', maxsplit=1
+    )[0]
+    assert 'ActivateTool("orbit", "Orbit");' in disabled_tool
+    assert '["enabled"] = false' in disabled_tool
     assert '"host_tool_state_v1"' in provenance_source
     assert '["viewport"] = RenderSurfaceStatusPayload()' in selection_source
     for field in ('["hwnd"]', '["form_hwnd"]', '["screen_x"]', '["screen_y"]', '["width"]', '["height"]'):
@@ -131,11 +138,27 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert "public bool TryApplyMaterialState(IReadOnlyCollection<int> affectedSubmeshes" in d3d_source
     display_source = _source("ExperimentForm.ViewportDisplayProtocol.cs")
     display_modes = _source("MeshViewport.DisplayModes.cs")
+    controls_source = _source("ExperimentForm.Controls.cs")
+    resident_package_source = _source("MeshViewport.ResidentPackage.cs")
+    morph_source = _source("ExperimentForm.MorphRefit.cs")
     shader_source = _source("D3D11MaterialShaders.hlsl")
     assert 'case "viewport_display_update":' in protocol_source
     assert 'ViewportDisplayModesCapability = "viewport_display_modes_v1"' in protocol_source
-    assert 'WriteViewportDisplayResult("viewport_display_applied"' in display_source
-    assert 'WriteViewportDisplayResult("viewport_display_failed"' in display_source
+    assert 'WriteViewportDisplayResult(root, "viewport_display_applied"' in display_source
+    assert 'WriteViewportDisplayResult(root, "viewport_display_failed"' in display_source
+    assert "CopyMutationEnvelope(request, payload);" in display_source
+    assert 'WriteProtocolEvent("material_state_started"' in material_protocol_source
+    assert '&& decode.Failures.Count > 0)' in material_protocol_source
+    assert 'WriteProtocolEvent("viewport_display_request"' in controls_source
+    assert '"Loading textures in the resident viewport..."' in controls_source
+    assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in display_source
+    assert 'texture_request_pending' in display_source
+    assert 'hasTextureResources ? "textured" : "untextured_faces"' in resident_package_source
+    no_morph_finish = morph_source.split(
+        "private void RequestFinishEditMesh()", maxsplit=1
+    )[1].split("private void BeginFinishCommitOrSave()", maxsplit=1)[0]
+    assert "if (!_morphStateReceived)" in no_morph_finish
+    assert 'WriteProtocolEvent("save_request");' in no_morph_finish
     for mode in ("textured", "untextured_faces", "wire", "vertices", "wire_vertices", "xray"):
         assert f'"{mode}"' in display_modes
     assert "if (ShowSolid)" in d3d_source
@@ -146,7 +169,6 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'ActiveTool is "grab" or "smooth" or "inflate" or "pinch"' in all_source
     assert "DrawBrushCursorOverlay();" in d3d_source
     assert '_statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"' in _source("ExperimentForm.Controls.cs")
-    controls_source = _source("ExperimentForm.Controls.cs")
     toggle_source = controls_source.split("private void ToggleTool", maxsplit=1)[1].split(
         "private void ActivateTool", maxsplit=1
     )[0]
@@ -581,7 +603,8 @@ def test_dotnet_input_precedence_depth_passes_and_mode_controls_are_explicit() -
     assert "section.Visible = meshEdit;" in controls_source
     assert "section.Visible = !meshEdit;" in controls_source
     assert "var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;" in controls_source
-    assert '_viewport.TrySetSynchronizedDisplayMode("textured", out var error)' in controls_source
+    assert 'var mode = HasResidentTextureResources() ? "textured" : "untextured_faces";' in controls_source
+    assert "_viewport.TrySetSynchronizedDisplayMode(mode, out var error)" in controls_source
     assert "SynchronizePresentationDisplaySettings();" in _source("MeshViewport.PresentationSettings.cs")
     assert 'phase == "begin" and isinstance(payload.get("local_selection"), Mapping)' not in host_commands
     assert "includeLocalSelection" not in input_source

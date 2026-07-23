@@ -69,7 +69,13 @@ behind compatibility wrappers.
   Mesh Editor mutation protocol and rehydrates from authoritative MeshService
   state after recovery. Long-lived tabs deactivate and retain their process;
   modal owners terminate it on close. No surface falls back to another visual
-  renderer.
+  renderer. Package identity is resolved path plus material and scene
+  signatures: repeating it is an activation-only no-op, duplicate `Ready`
+  events are consumed once per process, and a replacement prepares while the
+  accepted scene remains visible. Package/material failures are retryable and
+  never recycle a healthy process; only process, device, provenance, or
+  protocol failure enters process recovery. Idle procedural prewarm starts the
+  helper asynchronously without consuming a user package generation.
 - `tools/dotnet_mesh_editor_experiment/`: production presentation and input
   host for Archive Browser, reference/material/attachment previews, Model
   Library, static replacement/alignment, icon capture, and Mesh Editor. Its
@@ -87,10 +93,13 @@ behind compatibility wrappers.
   authority. Their normal cameras remain independent; explicit Overlay is the
   single-surface comparison exception. `Edit Mesh` changes mutation permission;
   it does not choose or restart the renderer.
-  Initial .NET material packages translate layered and packed source inputs in
-  `cdmw/services/mesh_dotnet_material_package.py` by calling the shared preview
-  material combiner from `MeshDotNetExperimentPackageWorker`. Generated preview base and
-  support maps are packaged with their raw source diagnostics; lightweight
+  Initial Archive and Mesh Editor packages are geometry-only. Schema-8 Preview
+  Core packages are validated and adapted in place with atomic versioned
+  `net_materials.json`, `dotnet_scene.json`, `mesh.cdmeta.json`, and marker
+  sidecars; the base manifest and geometry buffers are never rewritten or
+  quarantined for corrupt adapter data. Unsupported schemas alone use the
+  compatibility OBJ/PNG converter. Texture resolution and material compilation
+  happen later through the resident material/package protocols; lightweight
   resident material-state snapshots never run image synthesis or package I/O.
   Archive and editor surfaces consume the same `dotnet_scene.json`,
   `net_materials.json`, exact DDS resources, canonical material compiler, and
@@ -437,7 +446,11 @@ navigation does not start expensive previews; other previewable files retain the
 90 ms debounce. After that dwell, cold native model requests publish quick
 metadata before full package generation. If a native model is already visible,
 quick metadata updates labels/details without stopping that renderer; the host
-stays resident until the replacement package is ready.
+stays resident until the replacement package is ready. Geometry is always the
+first usable Archive Preview result. `Load Textures` starts one latest-wins
+request while preserving the scene and camera; `Hide Textures` is presentation
+only. Automatic texture loading is an explicit opt-in and queues the same
+request after geometry rather than delaying first display.
 Icon/thumbnail work must prioritize visible rows and run in background workers.
 Archive scan, conversion, rebuild, import/export, hashing, recursive IO, and
 package build work must stay off the UI thread.

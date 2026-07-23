@@ -5,14 +5,17 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 import math
 import os
 import struct
 import tempfile
+import time
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from cdmw.domain.cancellation import RunCancelled
+from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
 from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
@@ -30,6 +33,11 @@ from cdmw.services.mesh_dotnet_experiment import (
 )
 from cdmw.services.mesh_dotnet_material_compiler import MESH_DOTNET_MATERIAL_COMPILER_VERSION
 from cdmw.services.mesh_dotnet_reference_composite import decode_dotnet_native_preview_package
+from cdmw.services.native_dotnet_preview_adapter import (
+    adapt_native_dotnet_preview_package,
+    native_dotnet_preview_adapter_is_current,
+    validate_native_dotnet_preview_package,
+)
 
 
 DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA = 1
@@ -39,6 +47,7 @@ _CLOTH_PIN = struct.Struct("<f")
 _CLOTH_CONSTRAINT = struct.Struct("<2i2f")
 _MAX_CLOTH_PARTICLES = 2_000_000
 _MAX_CLOTH_CONSTRAINTS = 4_000_000
+_LOGGER = logging.getLogger(__name__)
 
 
 def _cancelled(callback: Callable[[], bool] | None) -> bool:
@@ -420,6 +429,9 @@ def validate_dotnet_preview_package(package_dir: Path) -> tuple[bool, tuple[str,
     """Validate the derived package without touching its authoritative source."""
 
     package_dir = Path(package_dir)
+    source_manifest = _source_manifest(package_dir)
+    if _safe_int(source_manifest.get("schema_version"), 0) == 8:
+        return validate_native_dotnet_preview_package(package_dir)
     missing: list[str] = []
     try:
         mesh_dotnet_experiment_package_from_path(package_dir)
@@ -457,6 +469,72 @@ def _source_manifest(package_dir: Path) -> Mapping[str, object]:
 
 
 def build_or_lookup_dotnet_preview_package(
+    preview_core_package_dir: Path | str,
+    *,
+    cache_root: Path,
+    archive_identity: str,
+    sidecar_generation: int = 0,
+    cache_mode: str = "balanced",
+    max_bytes: int = 0,
+    target_bytes: int = 0,
+    cancelled: Callable[[], bool] | None = None,
+    metadata: Mapping[str, object] | None = None,
+) -> MeshDotNetExperimentPackage:
+    """Adapt schema-8 packages in place; use the converter only for older schemas."""
+
+    source_package = Path(preview_core_package_dir).expanduser().resolve()
+    source_manifest = _source_manifest(source_package)
+    if not source_manifest:
+        raise ValueError("Preview-core package manifest is missing or invalid.")
+    if _safe_int(source_manifest.get("schema_version"), 0) == 8:
+        adapter_lock_key = hashlib.sha256(
+            str(source_package).casefold().encode("utf-8", errors="surrogatepass")
+        ).hexdigest()
+        adapter_lock_root = Path(cache_root) / "dotnet_vortice_adapter"
+        started = time.perf_counter()
+        with dotnet_preview_package_cache_build_lock(adapter_lock_root, adapter_lock_key):
+            _check_cancelled(cancelled)
+            rebuilt = False
+            if not native_dotnet_preview_adapter_is_current(source_package):
+                overlays = dotnet_preview_overlays_from_preview_core_package(source_package, cancelled=cancelled)
+                adapt_native_dotnet_preview_package(
+                    source_package,
+                    source_identity=str(archive_identity or source_manifest.get("source_path", "") or ""),
+                    preview_overlays=overlays,
+                    cancelled=cancelled,
+                )
+                rebuilt = True
+            package = mesh_dotnet_experiment_package_from_path(source_package)
+        _LOGGER.info(
+            "dotnet_preview_native_path source=%s adapter_rebuilt=%s elapsed_ms=%.3f",
+            source_package,
+            rebuilt,
+            max(0.0, (time.perf_counter() - started) * 1000.0),
+        )
+        return package
+
+    started = time.perf_counter()
+    package = _build_or_lookup_legacy_dotnet_preview_package(
+        source_package,
+        cache_root=cache_root,
+        archive_identity=archive_identity,
+        sidecar_generation=sidecar_generation,
+        cache_mode=cache_mode,
+        max_bytes=max_bytes,
+        target_bytes=target_bytes,
+        cancelled=cancelled,
+        metadata=metadata,
+    )
+    _LOGGER.info(
+        "dotnet_preview_compatibility_fallback source=%s schema=%d elapsed_ms=%.3f",
+        source_package,
+        _safe_int(source_manifest.get("schema_version"), 0),
+        max(0.0, (time.perf_counter() - started) * 1000.0),
+    )
+    return package
+
+
+def _build_or_lookup_legacy_dotnet_preview_package(
     preview_core_package_dir: Path | str,
     *,
     cache_root: Path,
@@ -634,11 +712,49 @@ def build_or_lookup_dotnet_preview_package_from_model(
     )
 
 
+def build_dotnet_preview_prewarm_package(cache_root: Path) -> MeshDotNetExperimentPackage:
+    """Build or reuse the tiny procedural package used only to start the resident helper."""
+
+    model = ModelPreviewData(
+        path="procedural://vortice-prewarm",
+        format="procedural",
+        summary="Resident Vortice procedural prewarm triangle",
+        mesh_count=1,
+        vertex_count=3,
+        face_count=1,
+        meshes=[
+            ModelPreviewMesh(
+                material_name="prewarm",
+                preview_color=(0.35, 0.45, 0.65),
+                positions=[(-0.5, -0.5, 0.0), (0.5, -0.5, 0.0), (0.0, 0.5, 0.0)],
+                texture_coordinates=[(0.0, 1.0), (1.0, 1.0), (0.5, 0.0)],
+                normals=[(0.0, 0.0, 1.0)] * 3,
+                indices=[0, 1, 2],
+                source_submesh_index=0,
+                source_vertex_indices=[0, 1, 2],
+                source_face_indices=[0],
+                preview_role="procedural_prewarm",
+            )
+        ],
+    )
+    return build_or_lookup_dotnet_preview_package_from_model(
+        model,
+        cache_root=Path(cache_root),
+        archive_identity="procedural-vortice-prewarm-v1",
+        sidecar_generation=1,
+        cache_mode="balanced",
+        max_bytes=16 * 1024 * 1024,
+        target_bytes=12 * 1024 * 1024,
+        metadata={"purpose": "resident_vortice_prewarm", "user_visible": False},
+    )
+
+
 __all__ = [
     "DOTNET_PREVIEW_PACKAGE_CACHE_SCHEMA",
     "DOTNET_PREVIEW_PACKAGE_COMPILER_SCHEMA",
     "build_or_lookup_dotnet_preview_package",
     "build_or_lookup_dotnet_preview_package_from_model",
+    "build_dotnet_preview_prewarm_package",
     "dotnet_preview_overlays_from_model",
     "dotnet_preview_overlays_from_preview_core_package",
     "dotnet_preview_package_cache_key",

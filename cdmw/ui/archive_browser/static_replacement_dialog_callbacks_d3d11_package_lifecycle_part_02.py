@@ -142,7 +142,9 @@ def _d3d11_package_lifecycle_step_050(_state):
         _state._alignment_d3d11_record_cache_lookup_result_helper(_state.alignment_d3d11_state, cache_key)
         mesh_edit_raw_package = _state._mesh_edit_raw_preview_active_value()
         package_quality_key = str(package_quality).strip().lower()
-        worker_use_textures = bool(getattr(settings, 'use_textures_by_default', True))
+        # Authoring geometry is always first-useable and untextured. The existing
+        # resolver publishes DDS bindings later through resident material v2.
+        worker_use_textures = False
         worker_high_quality_textures = bool(worker_use_textures and high_quality_textures)
         worker_enable_material_combiner = bool(worker_use_textures and enable_material_combiner)
         worker_original_reference_material_parity = bool(worker_use_textures)

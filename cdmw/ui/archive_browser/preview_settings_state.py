@@ -80,7 +80,7 @@ def model_preview_settings_status(settings: ModelPreviewRenderSettings) -> tuple
     )
     detail_lines = [
         f".NET/Vortice view: {view_label}",
-        f"Use textures when available: {'enabled' if settings.use_textures_by_default else 'disabled'}",
+        f"Load textures automatically after geometry: {'enabled' if settings.use_textures_by_default else 'disabled'}",
         f"Support-map preview shading: {'enabled' if settings.high_quality_by_default else 'disabled'}",
         f"Alpha handling: {alpha_label}",
         f"Texture source probe: {probe_label}",

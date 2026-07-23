@@ -55,6 +55,15 @@ class ShellWindowBootstrapStateMixin:
             if archive_cache_root_override
             else workspace_paths(self.settings_file_path.parent)["archive_cache_root"]
         )
+        try:
+            record_runtime_event(
+                "archive_cache_root_resolved",
+                cache_root=str(self.archive_cache_root),
+                override_present=bool(archive_cache_root_override),
+                settings_file_path=str(self.settings_file_path),
+            )
+        except Exception:
+            pass
         if archive_cache_root_override:
             os.environ["CDMW_TEMP_CACHE_ROOT"] = str(self.archive_cache_root)
         cache_migration = migrate_runtime_cache_layout(self.archive_cache_root)

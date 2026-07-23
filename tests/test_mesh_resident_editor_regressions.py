@@ -46,7 +46,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
 
         tab._set_embedded_dotnet_preview_loading(
             True,
-            "Preparing Mesh Editor geometry and preview materials...",
+            "Preparing Mesh Editor geometry...",
             detail="background",
         )
         with (
@@ -58,7 +58,7 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
             self.assertTrue(tab._handle_dotnet_lifecycle_event({}, "activated"))
 
         self.assertEqual(
-            (True, "Preparing Mesh Editor geometry and preview materials...", "background"),
+            (True, "Preparing Mesh Editor geometry...", "background"),
             updates[0],
         )
         self.assertEqual((False, "Preview ready.", ""), updates[-1])
@@ -333,6 +333,8 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         sent: list[dict[str, object]] = []
         with patch.object(tab, "_send_dotnet_protocol_message", side_effect=lambda payload: sent.append(dict(payload)) or True):
             tab._set_embedded_dotnet_state("ready", active=True)
+            display_combo.setCurrentText("Wire")
+            sent.clear()
             display_combo.setCurrentText("Faces")
             _APP.processEvents()
 
@@ -341,6 +343,9 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
             {
                 "event": "viewport_display_update",
                 "session_id": "right-workspace-session",
+                "request_id": 2,
+                "process_generation": 0,
+                "protocol_version": 2,
                 "mode": "untextured_faces",
             },
             sent[-1],

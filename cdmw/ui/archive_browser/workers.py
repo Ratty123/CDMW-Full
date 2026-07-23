@@ -105,6 +105,15 @@ class ArchivePreviewWorkerMixin:
         if remote_bridge is not None and remote_bridge.displays_v2:
             remote_bridge.cancel_preview_dependencies(clear_snapshot=True)
         request_id = self.archive_preview_request_id + 1
+        texture_request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
+        if texture_request_id and texture_request_id != request_id:
+            self._archive_texture_request_loading = False
+            self._archive_texture_request_id = 0
+            self._archive_texture_request_automatic = False
+            self._archive_texture_package_generation = 0
+            self._archive_texture_package_path = ""
+            self._archive_texture_render_settings = None
+            self._archive_pending_texture_result = None
         self.archive_preview_request_id = request_id
         self.append_archive_log(
             f"Archive Browser activation timing | cause=preview_start | path={getattr(entry, 'path', '')}",
@@ -388,7 +397,12 @@ class ArchivePreviewWorkerMixin:
                 entry,
                 entries_by_normalized_path=texture_entries_by_normalized_path,
             )
-        preview_settings = self._current_model_preview_render_settings()
+        effective_settings = getattr(self, "_archive_preview_effective_render_settings", None)
+        preview_settings = (
+            effective_settings(request_id)
+            if callable(effective_settings)
+            else self._current_model_preview_render_settings()
+        )
         enabled_prefab_component_paths = self._archive_d3d11_enabled_prefab_component_paths(entry)
         native_cache_mode = self._native_preview_package_cache_mode()
         native_cache_max_bytes, native_cache_target_bytes = self._native_preview_package_cache_budget()
@@ -572,6 +586,9 @@ class ArchivePreviewWorkerMixin:
                 str(exc),
                 context=self._collect_crash_context(),
             )
+            preserve_resident = getattr(self, "_preserve_archive_resident_scene_error", None)
+            if callable(preserve_resident) and preserve_resident(str(exc)):
+                return
             self._clear_archive_preview(f"Preview failed: {exc}")
             self.set_status_message(f"Archive preview failed: {exc}", error=True)
 
@@ -596,6 +613,14 @@ class ArchivePreviewWorkerMixin:
                 message=str(message),
             )
             return
+        finish_texture_request = getattr(self, "_finish_archive_texture_request", None)
+        if callable(finish_texture_request) and finish_texture_request(
+            request_id,
+            success=False,
+            message=message,
+        ):
+            self._stop_archive_preview_loading_indicator(success=False)
+            return
         self._stop_archive_preview_loading_indicator(success=False)
         self._write_crash_report(
             "archive_preview_error",
@@ -607,6 +632,9 @@ class ArchivePreviewWorkerMixin:
         if current_quality in {"fast", "quick"}:
             label = "fast" if current_quality == "fast" else "quick"
             self.set_status_message(f"Full preview failed after {label} preview: {message}", error=True)
+            return
+        preserve_resident = getattr(self, "_preserve_archive_resident_scene_error", None)
+        if callable(preserve_resident) and preserve_resident(message):
             return
         self._clear_archive_preview(f"Preview failed: {message}")
 

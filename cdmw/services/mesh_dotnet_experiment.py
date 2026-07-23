@@ -375,21 +375,26 @@ def mesh_dotnet_experiment_package_from_path(
     """Open a canonical .NET preview package without rebuilding derived assets."""
 
     root = Path(package_dir).expanduser().resolve()
-    mesh_path = root / "mesh.obj"
+    native_manifest_path = root / "manifest.json"
+    native_schema = 0
+    if native_manifest_path.is_file():
+        try:
+            native_payload = json.loads(native_manifest_path.read_text(encoding="utf-8-sig"))
+            if isinstance(native_payload, Mapping):
+                native_schema = int(native_payload.get("schema_version", 0) or 0)
+        except (OSError, TypeError, ValueError, OverflowError):
+            native_schema = 0
+    native_package = native_schema == 8
+    mesh_path = native_manifest_path if native_package else root / "mesh.obj"
     scene_mesh_path = root / "scene.obj"
-    obj_sidecar_path = root / "mesh.obj.meta.json"
+    obj_sidecar_path = root / ("mesh.cdmeta.json" if native_package else "mesh.obj.meta.json")
     cdmeta_path = root / "mesh.cdmeta.json"
-    original_asset_hash_path = root / "original_asset_hash.txt"
+    original_asset_hash_path = native_manifest_path if native_package else root / "original_asset_hash.txt"
     scene_manifest_path = root / "dotnet_scene.json"
     materials_path = root / "net_materials.json"
-    required = (
-        mesh_path,
-        obj_sidecar_path,
-        cdmeta_path,
-        original_asset_hash_path,
-        scene_manifest_path,
-        materials_path,
-    )
+    required = (mesh_path, cdmeta_path, scene_manifest_path, materials_path)
+    if not native_package:
+        required = (*required, obj_sidecar_path, original_asset_hash_path)
     missing = tuple(path.name for path in required if not path.is_file())
     if missing:
         raise ValueError(".NET preview package is incomplete: " + ", ".join(missing))
@@ -419,7 +424,11 @@ def mesh_dotnet_experiment_package_from_path(
         edit_operations_path=output_dir / "edit_operations.json",
         launch_manifest_path=root / "dotnet_launch.json",
         material_signature=material_signature,
-        scene_mesh_path=scene_mesh_path if scene_mesh_path.is_file() else mesh_path,
+        scene_mesh_path=(
+            mesh_path
+            if native_package
+            else scene_mesh_path if scene_mesh_path.is_file() else mesh_path
+        ),
         scene_manifest_path=scene_manifest_path,
     )
 
@@ -473,6 +482,7 @@ def build_mesh_dotnet_experiment_package(
     cancelled: Callable[[], bool] | None = None,
     output_package_dir: Path | str | None = None,
     preview_overlays: Mapping[str, object] | None = None,
+    include_material_resources: bool = True,
 ) -> MeshDotNetExperimentPackage:
     material_signature = mesh_dotnet_material_input_signature(mesh)
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_mesh_dotnet_experiment"
@@ -549,6 +559,7 @@ def build_mesh_dotnet_experiment_package(
             sidecar_payload=scene_sidecar_payload,
             material_signature=material_signature,
             editable_submesh_count=editable_submesh_count,
+            include_resources=include_material_resources,
             cancelled=cancelled,
         )
     except RunCancelled:

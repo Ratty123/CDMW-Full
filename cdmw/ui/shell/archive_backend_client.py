@@ -91,7 +91,10 @@ class ArchiveBackendClient(QObject):
         super().__init__(parent)
         if worker_executable is not None and worker_program is not None:
             raise ValueError("Specify worker_executable or worker_program, not both.")
-        self._cache_root = Path(cache_root).expanduser().resolve()
+        # Keep a caller-provided junction/symlink alias intact. Resolving it can
+        # expand a short workspace path past Win32's legacy path limit before a
+        # prepared archive entry reaches the native preview core.
+        self._cache_root = Path(cache_root).expanduser().absolute()
         self._explicit_worker = worker_executable
         self._worker_program = Path(worker_program).expanduser().resolve() if worker_program else None
         self._worker_arguments = tuple(str(argument) for argument in worker_arguments)

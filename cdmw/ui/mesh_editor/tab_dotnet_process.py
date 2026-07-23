@@ -44,9 +44,19 @@ class MeshEditorDotNetProcessMixin:
         target = self._dotnet_target_controller()
         if target is not None:
             try:
-                controller.set_authoritative_session_id(target.session_view().session_id)
+                session_bound = bool(
+                    controller.set_authoritative_session_id(target.session_view().session_id)
+                )
             except (AttributeError, RuntimeError, TypeError, ValueError):
-                pass
+                session_bound = False
+            if not session_bound:
+                self._set_dotnet_status(
+                    "Mesh Editor authoring session changed while the resident helper was active. Close the current editor before opening another mesh.",
+                    error=True,
+                )
+                if self.standalone_dotnet_target_embedded:
+                    self._set_embedded_dotnet_state("failed", active=False)
+                return False
         controller.set_configured_executable(executable)
         self.standalone_dotnet_stdout_tail = ""
         self.standalone_dotnet_stderr_tail = ""

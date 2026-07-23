@@ -191,13 +191,13 @@ def test_model_preview_settings_status_preserves_default_summary_and_details() -
     status, details = model_preview_settings_status(ModelPreviewRenderSettings())
 
     assert status == (
-        "3D Preview: .NET/Vortice Lit | ON: Textures yes, "
+        "3D Preview: .NET/Vortice Lit | ON: Textures no, "
         "Support-map shading yes | Checked disables: Brightness, UV scale, HKX physics overlay"
     )
     assert ".NET/Vortice view: Lit" in details
     assert "Visible texture mode" not in details
     assert "Diagnostic render mode" not in details
-    assert "Use textures when available: enabled" in details
+    assert "Load textures automatically after geometry: disabled" in details
     assert "Support-map preview shading: enabled" in details
     assert "Alpha handling: Default Discard" in details
     assert "Texture source probe: Base" in details

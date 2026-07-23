@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -250,6 +251,341 @@ def test_latest_package_generation_rejects_stale_apply(tmp_path: Path) -> None:
     assert controller.applied_package_path == str(third.package_dir)
     controller.shutdown()
     assert controller.process_id == 0
+
+
+def test_prewarm_uses_no_package_generation_and_real_request_supersedes_it(tmp_path: Path) -> None:
+    executable = tmp_path / "helper.exe"
+    executable.write_bytes(b"test")
+    processes: list[_FakeProcess] = []
+
+    def process_factory(parent: QObject) -> _FakeProcess:
+        process = _FakeProcess(parent)
+        processes.append(process)
+        return process
+
+    controller = DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.PREVIEW,
+        configured_executable=executable,
+        terminate_on_close=True,
+        process_factory=process_factory,
+    )
+    warmup = _package(tmp_path, "prewarm")
+    released: list[bool] = []
+    lease = SimpleNamespace(release=lambda: released.append(True))
+    with (
+        patch("cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor", return_value=_resolution(executable)),
+        patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers", return_value=()),
+        patch(
+            "cdmw.ui.preview.dotnet_session.acquire_dotnet_preview_package_cache_lease_for_path",
+            return_value=lease,
+        ),
+    ):
+        assert controller.prewarm(warmup)
+
+    process = processes[-1]
+    assert controller.package_generation == 0
+    assert controller.applied_package_path == ""
+    generation = controller.process_generation
+    with patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers", return_value=()):
+        controller._handle_protocol_event(  # noqa: SLF001
+            {"event": "protocol_ready", "profile": "preview", "capabilities": []},
+            generation,
+        )
+    controller._handle_protocol_event(  # noqa: SLF001
+        {
+            "event": "preview_session_state_ack",
+            "status": "applied",
+            "process_generation": generation,
+        },
+        generation,
+    )
+    assert controller.package_generation == 0
+    assert controller.applied_package_path == ""
+    assert not controller._ready_timer.isActive()  # noqa: SLF001
+    prewarm_capture = next(
+        payload for payload in reversed(process.writes) if payload.get("event") == "capture_request"
+    )
+    assert prewarm_capture["width"] == 64
+    assert prewarm_capture["height"] == 64
+    assert str(prewarm_capture["output_path"]).startswith(str(warmup.output_dir))
+    controller._handle_protocol_event(  # noqa: SLF001
+        {**prewarm_capture, "event": "capture_result", "status": "captured"},
+        generation,
+    )
+    assert controller._prewarm_capture_request_id == 0  # noqa: SLF001
+    assert controller.process is process
+    assert controller._prewarm_package is warmup  # noqa: SLF001
+    assert controller._package_key(warmup.package_dir) in controller._package_leases  # noqa: SLF001
+    assert released == []
+    controller.set_visible(False)
+
+    real_package = _package(tmp_path, "real-package")
+    assert controller.load_package(real_package)
+    assert not any(payload.get("event") == "package_load_request" for payload in process.writes)
+    controller.set_visible(True)
+    request = next(
+        payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request"
+    )
+    assert request["generation"] == 1
+    assert request["package_path"] == str(real_package.package_dir)
+    controller._handle_protocol_event(  # noqa: SLF001
+        {**request, "event": "package_load_applied"},
+        generation,
+    )
+    assert process.writes[-1]["event"] == "activate_request"
+    assert process.writes[-1]["material_signature"] == real_package.material_signature
+    with patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers", return_value=()):
+        controller._handle_protocol_event(  # noqa: SLF001
+            {"event": "ready", "profile": "preview", "renderer": {"backend": "d3d11_vortice_shader"}},
+            generation,
+        )
+    assert request["generation"] == 1
+    assert request["package_path"] == str(real_package.package_dir)
+    assert sum(payload.get("event") == "package_load_request" for payload in process.writes) == 1
+    assert controller.process_generation == 1
+    controller.shutdown()
+
+
+def test_authoring_prewarm_binds_the_real_edit_session_before_package_switch(
+    tmp_path: Path,
+) -> None:
+    executable = tmp_path / "helper.exe"
+    executable.write_bytes(b"test")
+    processes: list[_FakeProcess] = []
+
+    def process_factory(parent: QObject) -> _FakeProcess:
+        process = _FakeProcess(parent)
+        processes.append(process)
+        return process
+
+    controller = DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        configured_executable=executable,
+        terminate_on_close=True,
+        process_factory=process_factory,
+    )
+    assert controller.set_authoritative_session_id("edit-session-a")
+    warmup = _package(tmp_path, "authoring-prewarm")
+    with (
+        patch(
+            "cdmw.ui.preview.dotnet_session.resolve_mesh_dotnet_experiment_editor",
+            return_value=_resolution(executable),
+        ),
+        patch(
+            "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_static_provenance_blockers",
+            return_value=(),
+        ),
+    ):
+        assert controller.prewarm(warmup)
+
+    process = processes[-1]
+    with patch(
+        "cdmw.ui.preview.dotnet_session.mesh_dotnet_helper_provenance_blockers",
+        return_value=(),
+    ):
+        controller._handle_protocol_event(  # noqa: SLF001
+            {"event": "protocol_ready", "profile": "authoring", "capabilities": []},
+            controller.process_generation,
+        )
+    session_message = next(
+        payload for payload in process.writes if payload.get("event") == "session_state"
+    )
+    assert session_message["session_id"] == "edit-session-a"
+
+    real_package = replace(
+        _package(tmp_path, "authoring-real"),
+        scene_frame=SimpleNamespace(scene_session_id="edit-session-a"),
+    )
+    assert controller.load_package(real_package)
+    request = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "package_load_request"
+    )
+    assert request["generation"] == 1
+    assert controller.process is process
+
+    wrong_session = replace(
+        _package(tmp_path, "authoring-wrong-session"),
+        scene_frame=SimpleNamespace(scene_session_id="edit-session-b"),
+    )
+    generation = controller.package_generation
+    assert not controller.set_authoritative_session_id("edit-session-b")
+    assert not controller.load_package(wrong_session)
+    assert controller.package_generation == generation
+    assert controller.process is process
+    controller.shutdown()
+
+
+def test_same_package_identity_is_an_idempotent_resident_activation(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    _make_ready(controller)
+    generation = controller.package_generation
+    load_count = sum(payload.get("event") == "package_load_request" for payload in process.writes)
+    write_offset = len(process.writes)
+
+    assert controller.load_package(package)
+
+    assert controller.package_generation == generation
+    assert sum(payload.get("event") == "package_load_request" for payload in process.writes) == load_count
+    assert [payload.get("event") for payload in process.writes[write_offset:]] == ["activate_request"]
+    controller.shutdown()
+
+
+def test_same_path_with_changed_scene_signature_creates_one_new_generation(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    _make_ready(controller)
+    generation = controller.package_generation
+    package.scene_manifest_path.write_text(
+        json.dumps({"source_identity": "package-a", "scene_generation": 2}),
+        encoding="utf-8",
+    )
+
+    assert controller.load_package(package)
+
+    request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
+    assert controller.package_generation == generation + 1
+    assert request["generation"] == generation + 1
+    controller.shutdown()
+
+
+def test_duplicate_ready_is_filtered_before_shared_consumers(tmp_path: Path) -> None:
+    controller, _process, _package_a = _start_controller(tmp_path)
+    protocol_events: list[dict[str, object]] = []
+    ready_events: list[dict[str, object]] = []
+    controller.protocol_event.connect(protocol_events.append)
+    controller.renderer_ready.connect(ready_events.append)
+    _make_ready(controller)
+    ready_payload = {
+        "event": "ready",
+        "profile": "preview",
+        "renderer": {"backend": "d3d11_vortice_shader"},
+    }
+
+    with patch("cdmw.ui.preview.dotnet_session.mesh_dotnet_renderer_blockers", return_value=()):
+        controller._handle_protocol_event(ready_payload, controller.process_generation)  # noqa: SLF001
+
+    assert len(ready_events) == 1
+    assert sum(payload.get("event") == "ready" for payload in protocol_events) == 1
+    controller.shutdown()
+
+
+def test_protocol_request_error_keeps_resident_process_without_retry(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    _make_ready(controller)
+    protocol_events: list[dict[str, object]] = []
+    controller.protocol_event.connect(protocol_events.append)
+
+    controller._handle_protocol_event(  # noqa: SLF001 - focused process-failure boundary
+        {
+            "event": "error",
+            "code": "invalid_tool_state",
+            "message": "Unsupported Mesh .NET tool: vertex",
+        },
+        controller.process_generation,
+    )
+
+    assert controller.process is process
+    assert controller.applied_package_path == str(package.package_dir)
+    assert not controller._retry_timer.isActive()  # noqa: SLF001
+    assert protocol_events[-1]["code"] == "invalid_tool_state"
+    controller.shutdown()
+
+
+def test_authoring_host_normalizes_legacy_selection_tool() -> None:
+    controller = DotNetPreviewSessionController(
+        host_hwnd=lambda: 1,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+        process_factory=lambda parent: _FakeProcess(parent),
+    )
+    host = DotNetPreviewHostFrame(
+        profile=DotNetPreviewProfile.AUTHORING,
+        controller=controller,
+    )
+
+    assert host.set_mesh_edit_state(
+        enabled=False,
+        tool="vertex",
+        selection_mode="vertex",
+    )
+
+    event, payload = controller._resident_state["tool"]  # noqa: SLF001
+    assert event == "tool_state"
+    assert payload["tool"] == "select"
+    assert payload["enabled"] is False
+    controller.shutdown()
+    host.deleteLater()
+
+
+def test_package_failure_keeps_resident_scene_and_process_retryable(tmp_path: Path) -> None:
+    controller, process, first = _start_controller(tmp_path)
+    _make_ready(controller)
+    states: list[tuple[str, str]] = []
+    failures: list[tuple[str, int, str]] = []
+    controller.state_changed.connect(lambda state, message: states.append((state, message)))
+    controller.package_failed.connect(lambda path, generation, message: failures.append((path, generation, message)))
+    second = _package(tmp_path, "package-b")
+    write_offset = len(process.writes)
+    assert controller.load_package(second)
+    request = next(payload for payload in reversed(process.writes) if payload.get("event") == "package_load_request")
+    controller._handle_protocol_event(  # noqa: SLF001
+        {**request, "event": "package_load_failed", "message": "missing texture"},
+        controller.process_generation,
+    )
+
+    assert controller.process is process
+    assert controller.applied_package_path == str(first.package_dir)
+    assert not controller._retry_timer.isActive()  # noqa: SLF001
+    assert failures[-1] == (str(second.package_dir), 2, "missing texture")
+    assert states[-1][0] == "package_error"
+    assert "deactivate_request" not in {
+        str(payload.get("event", "")) for payload in process.writes[write_offset:]
+    }
+    failed_generation = controller.package_generation
+    failed_request_id = int(request["request_id"])
+
+    assert controller.load_package(second)
+
+    retry_request = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "package_load_request"
+    )
+    assert controller.package_generation == failed_generation
+    assert int(retry_request["request_id"]) == failed_request_id + 1
+    assert retry_request["package_path"] == str(second.package_dir)
+    controller.shutdown()
+
+
+def test_invalid_replacement_is_recoverable_and_keeps_resident_scene(tmp_path: Path) -> None:
+    controller, process, package = _start_controller(tmp_path)
+    _make_ready(controller)
+    states: list[str] = []
+    controller.state_changed.connect(lambda state, _message: states.append(state))
+
+    missing_package = tmp_path / "missing-package"
+    assert not controller.load_package(missing_package)
+
+    assert controller.process is process
+    assert controller.applied_package_path == str(package.package_dir)
+    assert states[-1] == "package_error"
+    assert not controller._retry_timer.isActive()  # noqa: SLF001
+
+    repaired = _package(tmp_path, "missing-package")
+    generation = controller.package_generation
+    controller.retry_now()
+
+    retry_request = next(
+        payload
+        for payload in reversed(process.writes)
+        if payload.get("event") == "package_load_request"
+    )
+    assert retry_request["package_path"] == str(repaired.package_dir)
+    assert controller.package_generation == generation + 1
+    controller.shutdown()
 
 
 def test_preview_host_restores_absolute_camera_and_rejects_mutation(tmp_path: Path) -> None:

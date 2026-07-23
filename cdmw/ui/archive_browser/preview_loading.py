@@ -69,7 +69,13 @@ class ArchivePreviewLoadingMixin:
         )
 
     def _show_archive_preview_loading_state(self, entry: Optional[ArchiveEntry]) -> None:
-        keep_d3d11_visible = False
+        host = getattr(self, "archive_d3d11_preview_host", None)
+        controller = getattr(host, "controller", None)
+        keep_d3d11_visible = bool(
+            self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
+            and controller is not None
+            and getattr(controller, "applied_package_path", "")
+        )
         self.archive_preview_title_label.setText(entry.basename if entry is not None else "Select an archive file")
         self.archive_preview_meta_label.setText("Loading preview...")
         role_label = self._archive_entry_role_label(entry)
@@ -100,7 +106,7 @@ class ArchivePreviewLoadingMixin:
             self.archive_preview_stack.setCurrentWidget(self.archive_preview_info_edit)
         self.archive_preview_tabs.setCurrentIndex(0)
         self._set_archive_preview_image_controls_enabled(False)
-        if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11:
+        if self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11 and not keep_d3d11_visible:
             self._clear_archive_isolated_renderer_surface_for_request()
         self._start_archive_preview_loading_indicator(entry)
 

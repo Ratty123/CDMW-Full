@@ -126,11 +126,27 @@ internal sealed partial class ExperimentForm
                 "Wire + Vertices",
                 "X-Ray",
             },
-            selectedIndex: 0);
+            selectedIndex: HasResidentTextureResources() ? 0 : 1);
+        _ = _viewport.TrySetSynchronizedDisplayMode(
+            HasResidentTextureResources() ? "textured" : "untextured_faces",
+            out _);
         _previewMode.SelectedIndexChanged += (_, _) =>
         {
+            if (_syncingPreviewModeSelection)
+            {
+                return;
+            }
             var index = Math.Clamp(_previewMode.SelectedIndex, 0, modes.Length - 1);
-            if (_viewport.TrySetDisplayMode(modes[index], out var error))
+            var mode = modes[index];
+            if (string.Equals(mode, "textured", StringComparison.OrdinalIgnoreCase)
+                && _options.Embedded
+                && !HasResidentTextureResources())
+            {
+                _ = _viewport.TrySetDisplayMode("untextured_faces", out _);
+                RequestResidentViewportDisplay(mode);
+                return;
+            }
+            if (_viewport.TrySetDisplayMode(mode, out var error))
             {
                 _xray.Checked = _viewport.ShowXRay;
                 _statusLabel.Text = $"Preview mode: {_previewMode.SelectedItem}.";
@@ -141,6 +157,61 @@ internal sealed partial class ExperimentForm
             }
         };
         return LabeledControl("Preview mode", _previewMode);
+    }
+
+    private bool HasResidentTextureResources()
+    {
+        return _materials.TextureLoadResources().Any()
+            || _textureSet.DecodedCount > 0
+            || _textureSet.NativeDdsResourceCount > 0;
+    }
+
+    private void RequestResidentViewportDisplay(string mode)
+    {
+        if (string.IsNullOrWhiteSpace(_residentMaterialSessionId)
+            || _residentProcessGeneration <= 0)
+        {
+            SyncPreviewModeSelection("untextured_faces");
+            _statusLabel.Text = "Resident preview is not ready to load textures yet.";
+            return;
+        }
+        WriteProtocolEvent("viewport_display_request", new Dictionary<string, object?>
+        {
+            ["session_id"] = _residentMaterialSessionId,
+            ["request_id"] = ++_outgoingMutationRequestSequence,
+            ["process_generation"] = _residentProcessGeneration,
+            ["protocol_version"] = 2,
+            ["mode"] = mode,
+        });
+        _statusLabel.Text = "Loading textures in the resident viewport...";
+    }
+
+    private void SyncPreviewModeSelection(string mode)
+    {
+        var index = mode.Trim().ToLowerInvariant() switch
+        {
+            "textured" => 0,
+            "untextured_faces" => 1,
+            "textured_wire" => 2,
+            "wire" => 3,
+            "vertices" => 4,
+            "wire_vertices" => 5,
+            "xray" => 6,
+            _ => -1,
+        };
+        if (index < 0 || _previewMode.SelectedIndex == index)
+        {
+            return;
+        }
+        _syncingPreviewModeSelection = true;
+        try
+        {
+            _previewMode.SelectedIndex = index;
+        }
+        finally
+        {
+            _syncingPreviewModeSelection = false;
+        }
     }
 
     private Control OverlayAppearanceControls()
@@ -828,14 +899,14 @@ internal sealed partial class ExperimentForm
         }
         else if (leavingMeshEdit)
         {
-            if (_previewMode.SelectedIndex != 0)
-            {
-                _previewMode.SelectedIndex = 0;
-            }
-            if (_viewport.TrySetSynchronizedDisplayMode("textured", out var error))
+            var mode = HasResidentTextureResources() ? "textured" : "untextured_faces";
+            SyncPreviewModeSelection(mode);
+            if (_viewport.TrySetSynchronizedDisplayMode(mode, out var error))
             {
                 _xray.Checked = false;
-                _statusLabel.Text = "Preview mode: Solid (Textured).";
+                _statusLabel.Text = HasResidentTextureResources()
+                    ? "Preview mode: Solid (Textured)."
+                    : "Preview mode: Faces (No Textures).";
             }
             else
             {
@@ -865,8 +936,18 @@ internal sealed partial class ExperimentForm
             _applyingToolPanelLayout = true;
             try
             {
+                // Preview hosts can be much narrower than the authoring form's
+                // startup width. SplitContainer keeps its previous panel
+                // minimums even after collapse, which otherwise leaves the
+                // D3D viewport at 1180 px and clips its centered model.
+                _leftToolSplit.Panel1MinSize = 0;
+                _leftToolSplit.Panel2MinSize = 0;
+                _rightToolSplit.Panel1MinSize = 0;
+                _rightToolSplit.Panel2MinSize = 0;
                 _rightToolSplit.Panel2Collapsed = true;
                 _leftToolSplit.Panel1Collapsed = true;
+                _rightToolSplit.PerformLayout();
+                _leftToolSplit.PerformLayout();
             }
             finally
             {

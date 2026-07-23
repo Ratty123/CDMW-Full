@@ -170,6 +170,19 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
     }
 
 
+def _has_real_archive_texture_provenance(row: Mapping[str, object]) -> bool:
+    provenance = row.get("archive_provenance")
+    if not isinstance(provenance, Mapping):
+        return False
+    return bool(
+        str(row.get("source_sha256", "")).strip()
+        and str(row.get("archive_path", "")).strip()
+        and str(provenance.get("pamt_path", "")).strip()
+        and str(provenance.get("paz_path", "")).strip()
+        and str(provenance.get("virtual_path", "")).strip()
+    )
+
+
 def _prepare_real_asset(
     game_root: Path,
     output_dir: Path,
@@ -222,10 +235,7 @@ def _prepare_real_asset(
         state.entries_by_basename,
     )
     state.real_texture_provenance_ok = bool(state.resolved_textures) and all(
-        row.get("source_kind") == "archive"
-        and bool(row.get("source_sha256"))
-        and isinstance(row.get("archive_provenance"), Mapping)
-        for row in state.resolved_textures
+        _has_real_archive_texture_provenance(row) for row in state.resolved_textures
     )
     state.no_synthetic_fallback = state.real_texture_provenance_ok and all(
         "checker" not in str(row.get("source_path", "")).casefold() for row in state.resolved_textures
@@ -769,10 +779,13 @@ def _start_embedded_editor(
     start()
     state.protocol_ready = _wait_protocol_event(state, "protocol_ready", 0)
     state.ready_event = _wait_protocol_event(state, "ready", 0)
-    state.textures_event = _wait_protocol_event(state, "textures_ready", 0)
-    if not state.protocol_ready or not state.ready_event or not state.textures_event or not state.dotnet_ready_callback:
-        return _base_error(state, state.dotnet_failed or "Embedded .NET editor did not report protocol, renderer, and texture readiness.")
-    state.renderer = dict(state.textures_event.get("renderer", state.ready_event.get("renderer", {})) or {})
+    state.textures_event = {}
+    if not state.protocol_ready or not state.ready_event or not state.dotnet_ready_callback:
+        return _base_error(
+            state,
+            state.dotnet_failed or "Embedded .NET editor did not report protocol and renderer readiness.",
+        )
+    state.renderer = dict(state.ready_event.get("renderer", {}) or {})
     initial_selection = state.ready_event.get("local_selection", {})
     initial_selection = initial_selection if isinstance(initial_selection, Mapping) else {}
     state.initial_part_selection_empty = bool(
@@ -1175,6 +1188,12 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
             performance_completed = not bool(message)
             if message:
                 return _base_error(state, message)
+        state.process = state.tab.standalone_dotnet_editor_process
+        error = exercise_resident_material_update(
+            state, base_error=_base_error, pump_until=_pump_until, wait_protocol_event=_wait_protocol_event
+        )
+        if error is not None:
+            return error
         state.offscreen_capture_evidence = exercise_deterministic_offscreen_capture(
             state,
             pump_until=_pump_until,
@@ -1182,12 +1201,6 @@ def run_real_archive_mesh_editor_dotnet_edit_smoke(
         )
         if not state.offscreen_capture_evidence.get("ok"):
             return _base_error(state, "Deterministic production offscreen icon capture failed.")
-        state.process = state.tab.standalone_dotnet_editor_process
-        error = exercise_resident_material_update(
-            state, base_error=_base_error, pump_until=_pump_until, wait_protocol_event=_wait_protocol_event
-        )
-        if error is not None:
-            return error
         message = exercise_builder_presentation_controls(
             state,
             pump_until=_pump_until,

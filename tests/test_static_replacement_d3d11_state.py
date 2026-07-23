@@ -1404,7 +1404,7 @@ def test_alignment_d3d11_raw_package_active_or_pending_checks_active_queued_pend
     assert alignment_d3d11_raw_package_active_or_pending({"request_package_qualities": {2: "normal"}}) is False
 
 
-def test_mesh_edit_raw_preview_transition_routes_texture_restore_and_raw_refresh() -> None:
+def test_mesh_edit_raw_preview_transition_changes_interaction_without_package_work() -> None:
     unchanged = mesh_edit_raw_preview_transition_route(
         False,
         False,
@@ -1421,9 +1421,9 @@ def test_mesh_edit_raw_preview_transition_routes_texture_restore_and_raw_refresh
         raw_package_active_or_pending=False,
     )
     assert enabled.changed is True
-    assert enabled.should_clear_static_preview_caches is True
-    assert enabled.should_invalidate_package_cache is True
-    assert enabled.should_queue_static_preview_refresh is True
+    assert enabled.should_clear_static_preview_caches is False
+    assert enabled.should_invalidate_package_cache is False
+    assert enabled.should_queue_static_preview_refresh is False
     assert enabled.should_stop_raw_package is False
     assert enabled.should_queue_texture_preview_refresh is False
 
@@ -1433,11 +1433,11 @@ def test_mesh_edit_raw_preview_transition_routes_texture_restore_and_raw_refresh
         raw_package_active_or_pending=True,
     )
     assert disabled.changed is True
-    assert disabled.should_clear_static_preview_caches is True
-    assert disabled.should_invalidate_package_cache is True
-    assert disabled.should_queue_static_preview_refresh is True
-    assert disabled.should_stop_raw_package is True
-    assert disabled.should_queue_texture_preview_refresh is True
+    assert disabled.should_clear_static_preview_caches is False
+    assert disabled.should_invalidate_package_cache is False
+    assert disabled.should_queue_static_preview_refresh is False
+    assert disabled.should_stop_raw_package is False
+    assert disabled.should_queue_texture_preview_refresh is False
 
     disabled_without_raw = mesh_edit_raw_preview_transition_route(
         True,
@@ -1445,8 +1445,8 @@ def test_mesh_edit_raw_preview_transition_routes_texture_restore_and_raw_refresh
         raw_package_active_or_pending=False,
     )
     assert disabled_without_raw.should_stop_raw_package is False
-    assert disabled_without_raw.should_queue_static_preview_refresh is True
-    assert disabled_without_raw.should_queue_texture_preview_refresh is True
+    assert disabled_without_raw.should_queue_static_preview_refresh is False
+    assert disabled_without_raw.should_queue_texture_preview_refresh is False
 
 
 def test_alignment_d3d11_mark_transform_changed_advances_generation_and_clears_pending_work() -> None:
@@ -2629,9 +2629,9 @@ def test_alignment_d3d11_package_quality_prefers_mesh_edit_raw_package() -> None
         mesh_edit_raw_preview_active=True,
     )
 
-    assert result_settings.use_textures_by_default is True
-    assert high_quality is True
-    assert material_combiner is True
+    assert result_settings.use_textures_by_default is False
+    assert high_quality is False
+    assert material_combiner is False
     assert package_quality == "mesh_edit_raw"
 
 
@@ -2770,7 +2770,7 @@ def test_alignment_d3d11_package_quality_uses_material_refresh_when_geometry_cle
     )
 
     assert high_quality is False
-    assert material_combiner is True
+    assert material_combiner is False
     assert package_quality == "material_refresh"
 
 

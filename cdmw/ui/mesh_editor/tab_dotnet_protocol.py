@@ -20,14 +20,27 @@ _CORRELATED_HELPER_REQUEST_EVENTS = frozenset(
         "command_request",
         "command_requested",
         "placement_transform_request",
+        "viewport_display_request",
         "capture_request",
         "save_request",
     }
 )
 _CORRELATION_FIELDS = ("session_id", "request_id", "process_generation")
+_SHARED_CONTROLLER_LIFECYCLE_EVENTS = frozenset(
+    {
+        "package_load_received",
+        "package_load_started",
+        "package_load_applied",
+        "package_load_failed",
+    }
+)
 
 
 def _dotnet_event_requires_correlation(event: str, payload: Mapping[str, object]) -> bool:
+    # The shared resident controller owns request/generation correlation for
+    # package lifecycle events before forwarding them to Mesh Editor consumers.
+    if event in _SHARED_CONTROLLER_LIFECYCLE_EVENTS:
+        return False
     return event in _CORRELATED_HELPER_REQUEST_EVENTS or any(field in payload for field in _CORRELATION_FIELDS)
 
 
@@ -210,6 +223,10 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
             return self._handle_dotnet_stroke_event(payload, event.removeprefix("stroke_"))
         if event in {"command_request", "command_requested"}:
             return self._handle_dotnet_command_request(payload)
+        if event == "viewport_display_request":
+            return self._handle_embedded_viewport_display_mode(
+                str(payload.get("mode", "") or "")
+            )
         if event == "placement_transform_request":
             handler = getattr(self.active_builder(), "_mesh_editor_apply_dotnet_placement_state", None)
             placement = payload.get("placement")

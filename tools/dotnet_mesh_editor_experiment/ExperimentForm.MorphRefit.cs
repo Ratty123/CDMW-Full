@@ -188,8 +188,18 @@ internal sealed partial class ExperimentForm
     private void RequestFinishEditMesh()
     {
         _morphFinishPending = true;
+        if (!_morphStateReceived)
+        {
+            // A helper that never received Morph & Refit state cannot have
+            // authored a resident morph change. Finishing that no-op edit
+            // session must only return interaction to placement mode; waiting
+            // for a state refresh here can strand the otherwise healthy host.
+            _morphFinishPending = false;
+            WriteProtocolEvent("save_request");
+            return;
+        }
         if (_residentMaterialSessionId.Length > 0
-            && (!_morphStateReceived || !string.Equals(_morphSessionId, _residentMaterialSessionId, StringComparison.Ordinal)))
+            && !string.Equals(_morphSessionId, _residentMaterialSessionId, StringComparison.Ordinal))
         {
             RequestMorphStateRefresh();
             _statusLabel.Text = "Waiting for resident Morph & Refit state before Finish Edit Mesh...";

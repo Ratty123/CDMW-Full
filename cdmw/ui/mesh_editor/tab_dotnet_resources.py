@@ -59,6 +59,7 @@ class MeshEditorDotNetResourceProtocolMixin(
             self._set_dotnet_status(
                 f"Mesh materials updated in the resident .NET session (generation {generation})."
             )
+            self._finish_pending_textured_view(success=True)
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return True
         if event == "material_state_failed":
@@ -80,30 +81,42 @@ class MeshEditorDotNetResourceProtocolMixin(
                 f"Mesh material update failed; keeping last valid resources: {message}",
                 error=True,
             )
+            self._finish_pending_textured_view(success=False)
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return False
         if event == "material_reload_required":
-            if self._dotnet_resident_material_updates_supported():
-                self._set_dotnet_status(
-                    "Resident .NET helper attempted a forbidden material reload.",
-                    error=True,
-                )
-                return False
-            controller = self._dotnet_target_controller()
-            if not self.standalone_dotnet_target_embedded or controller is None:
-                return False
-            self.standalone_dotnet_lifecycle_counts["full_reload_count"] += 1
-            self._set_dotnet_status("Legacy protocol-v1 helper requires a material package reload.")
-            self._stop_standalone_dotnet_editor_process(embedded_state="launching")
-            QTimer.singleShot(
-                0,
-                lambda target=controller: self._start_dotnet_editor_requested(
-                    target,
-                    embedded=True,
-                ),
+            self._finish_pending_textured_view(success=False)
+            self._set_dotnet_status(
+                "This .NET helper cannot update materials in place. Update the helper to enable Textured view; the current untextured scene remains active.",
+                error=True,
             )
-            return True
+            return False
         return False
+
+    def _finish_pending_textured_view(self, *, success: bool) -> None:
+        if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
+            return
+        self.standalone_dotnet_pending_textured_view = False
+        workspace = getattr(self, "embedded_workspace", None)
+        combo = getattr(workspace, "viewport_display_combo", None)
+        if success:
+            self._send_embedded_viewport_display_mode("textured")
+            if combo is not None:
+                combo.blockSignals(True)
+                combo.setCurrentText("Textured")
+                combo.blockSignals(False)
+            return
+        if combo is not None:
+            combo.blockSignals(True)
+            combo.setCurrentText("Faces")
+            combo.blockSignals(False)
+
+    def _handle_embedded_texture_request_failed(self, message: str) -> None:
+        self._finish_pending_textured_view(success=False)
+        self._set_dotnet_status(
+            f"Mesh Editor texture loading failed; the untextured scene remains active: {message}",
+            error=True,
+        )
 
     def _request_or_stop_blocked_embedded_dotnet(self, reason: str) -> None:
         if not self.standalone_dotnet_target_embedded:
@@ -258,7 +271,6 @@ class MeshEditorDotNetResourceProtocolMixin(
         controller = self._dotnet_target_controller()
         if controller is None or not self._dotnet_resident_material_updates_supported():
             return False
-        generation = self.standalone_dotnet_material_generation + 1
         try:
             view = controller.session_view()
             mesh = mesh_snapshot if mesh_snapshot is not None else controller.working_mesh(clone=False)
@@ -270,6 +282,20 @@ class MeshEditorDotNetResourceProtocolMixin(
                 ),
                 submesh_index_offset=max(0, int(submesh_index_offset)),
             )
+            effective_material_signature = str(
+                material_signature
+                or _tab.mesh_dotnet_material_input_signature(immutable_inputs)
+                or ""
+            )
+            if (
+                effective_material_signature
+                and effective_material_signature == self.standalone_dotnet_material_signature
+                and self.standalone_dotnet_material_generation
+                <= self.standalone_dotnet_completed_material_generation
+            ):
+                self.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] += 1
+                return True
+            generation = self.standalone_dotnet_material_generation + 1
             request = MeshDotNetMaterialCompileRequest(
                 session_id=view.session_id,
                 edit_revision=view.revision,
@@ -278,7 +304,7 @@ class MeshEditorDotNetResourceProtocolMixin(
                 mesh_snapshot=immutable_inputs,
                 affected_submeshes=tuple(int(value) for value in tuple(affected_submeshes or ())),
                 submesh_index_offset=max(0, int(submesh_index_offset)),
-                material_signature=str(material_signature or ""),
+                material_signature=effective_material_signature,
                 reason=str(reason or "changed"),
                 process_generation=int(self.standalone_dotnet_process_generation),
                 parameter_groups=tuple(
@@ -332,7 +358,6 @@ class MeshEditorDotNetResourceProtocolMixin(
             mesh_snapshot=preview_model,
             role="original_reference",
             submesh_index_offset=editable_count,
-            material_signature=self.standalone_dotnet_material_signature,
         )
 
     def apply_resident_clone_material_resources(self, preview_model: object) -> bool:

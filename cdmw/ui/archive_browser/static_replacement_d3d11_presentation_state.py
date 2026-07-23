@@ -614,20 +614,22 @@ def alignment_d3d11_package_quality(
     reason: str,
     mesh_edit_raw_preview_active: bool,
 ) -> tuple[object, bool, bool, str]:
-    use_textures = bool(getattr(settings, "use_textures_by_default", True))
-    high_quality_textures = bool(use_textures and getattr(settings, "high_quality_by_default", True))
-    enable_material_combiner = bool(use_textures)
+    geometry_settings = dataclasses.replace(
+        settings,
+        use_textures_by_default=False,
+        high_quality_by_default=False,
+    )
     normalized_reason = str(reason or state.get("next_rebuild_reason", "") or "").strip().lower()
     dirty_flags = alignment_d3d11_dirty_flags_for_reason(normalized_reason)
     loaded_material_frame = bool(state.get("material_complete_preview_seen"))
     if mesh_edit_raw_preview_active:
-        return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "mesh_edit_raw"
+        return clamp_model_preview_render_settings(geometry_settings), False, False, "mesh_edit_raw"
     if (
         bool(state.get("archive_parity_ready"))
         and dirty_flags.affects_material()
         and not dirty_flags.affects_geometry()
     ):
-        return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "material_refresh"
+        return clamp_model_preview_render_settings(geometry_settings), False, False, "material_refresh"
     if (
         dirty_flags.affects_geometry()
         and not bool(state.get("fast_geometry_loaded"))
@@ -635,12 +637,12 @@ def alignment_d3d11_package_quality(
         and not loaded_material_frame
     ):
         fast_settings = dataclasses.replace(
-            settings,
+            geometry_settings,
             use_textures_by_default=False,
             high_quality_by_default=False,
         )
         return clamp_model_preview_render_settings(fast_settings), False, False, "fast_geometry"
-    return clamp_model_preview_render_settings(settings), high_quality_textures, enable_material_combiner, "archive_parity"
+    return clamp_model_preview_render_settings(geometry_settings), False, False, "archive_parity"
 
 
 def alignment_preview_quality_label(state: Mapping[str, object]) -> str:

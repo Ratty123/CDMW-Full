@@ -49,10 +49,16 @@ def finish_static_replacement_prompt_open(context: dict[str, object]) -> None:
     )
 
     dialog.finished.connect(_modeless_alignment_dialog_finished)
+    setattr(
+        dialog,
+        "_mesh_editor_embedded_request_material_resources",
+        _load_original_reference_texture_preview,
+    )
     _queue_alignment_post_open_task(_set_preview_renderer)
     _queue_alignment_post_open_task(_capture_initial_geometry_snapshot)
     _queue_alignment_post_open_task(_queue_static_preview_refresh)
-    _queue_alignment_post_open_task(_load_original_reference_texture_preview)
+    if not embedded_alignment_builder:
+        _queue_alignment_post_open_task(_load_original_reference_texture_preview)
     _queue_alignment_post_open_task(_clear_all_part_selections)
     _queue_alignment_post_open_task(_refresh_mesh_editor_diagnostics)
 

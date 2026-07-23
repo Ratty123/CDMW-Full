@@ -4,12 +4,14 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.archive_browser.preview_dotnet_lifecycle import ArchivePreviewDotNetLifecycleMixin
 
 
 class _FakeController:
     def __init__(self) -> None:
         self.is_running = True
+        self.applied_package_path = ""
         self.clear_count = 0
         self.shutdown_count = 0
 
@@ -51,7 +53,10 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
         self.messages: list[tuple[str, bool]] = []
         self.render_requests: list[tuple[object, bool]] = []
         self.entry = SimpleNamespace(path="character/body.pac")
-        self.settings = object()
+        self.settings = ModelPreviewRenderSettings()
+        self.archive_preview_request_id = 0
+        self.current_archive_preview_result = None
+        self.details_refresh_count = 0
 
     def _current_archive_entry(self) -> object:
         return self.entry
@@ -65,6 +70,9 @@ class _LifecycleHarness(ArchivePreviewDotNetLifecycleMixin):
     def set_status_message(self, message: str, *, error: bool = False) -> None:
         self.messages.append((message, bool(error)))
 
+    def _refresh_archive_preview_details_text(self) -> None:
+        self.details_refresh_count += 1
+
 
 def test_archive_lifecycle_reads_shared_controller_process_state() -> None:
     harness = _LifecycleHarness()
@@ -72,6 +80,19 @@ def test_archive_lifecycle_reads_shared_controller_process_state() -> None:
     assert harness._archive_isolated_renderer_process_running() is True
     harness.archive_d3d11_preview_host.controller.is_running = False
     assert harness._archive_isolated_renderer_process_running() is False
+
+
+def test_resident_scene_failure_keeps_previous_model_visible() -> None:
+    harness = _LifecycleHarness()
+    harness.archive_d3d11_preview_host.controller.applied_package_path = "resident-package"
+
+    assert harness._preserve_archive_resident_scene_error("replacement package failed") is True
+
+    assert harness.archive_d3d11_preview_host.clear_count == 0
+    assert harness.messages[-1] == (
+        "Preview update failed; the previous model remains visible: replacement package failed",
+        True,
+    )
 
 
 def test_clear_request_never_leaves_previous_package_visible() -> None:
@@ -97,14 +118,81 @@ def test_long_lived_archive_host_clears_normally_and_shuts_down_with_app() -> No
     assert harness.archive_d3d11_preview_host.controller.shutdown_count == 1
 
 
-def test_compatibility_reload_uses_resident_vortice_package() -> None:
+def test_archive_texture_action_starts_one_latest_wins_texture_request() -> None:
     harness = _LifecycleHarness()
 
     harness._open_archive_isolated_d3d11_preview()
 
-    assert harness.archive_d3d11_preview_host.loads == [(Path("preview-package"), False)]
-    assert harness.archive_d3d11_preview_host.tuning == [harness.settings]
-    assert harness.messages[-1] == ("Reloaded .NET/Vortice Preview.", False)
+    assert harness.render_requests == [(harness.entry, True)]
+    assert harness._archive_texture_request_id == 1
+    assert harness._archive_texture_request_loading is True
+    harness._open_archive_isolated_d3d11_preview()
+    assert harness.render_requests == [(harness.entry, True)]
+
+
+def test_archive_texture_action_hides_and_shows_loaded_textures_without_package_reload(tmp_path: Path) -> None:
+    package = tmp_path / "textured-package"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps({"resources": [{"resource_id": "texture:base", "path": "base.dds"}]}),
+        encoding="utf-8",
+    )
+    harness = _LifecycleHarness()
+    harness.archive_isolated_renderer_active_package = package
+    harness._archive_textures_visible = True
+
+    harness._open_archive_isolated_d3d11_preview()
+    harness._open_archive_isolated_d3d11_preview()
+
+    assert harness.archive_d3d11_preview_host.loads == []
+    assert [settings.use_textures_by_default for settings in harness.archive_d3d11_preview_host.tuning] == [False, True]
+    assert harness._archive_textures_visible is True
+
+
+def test_resident_texture_failure_preserves_existing_scene_and_clears_request(tmp_path: Path) -> None:
+    old_package = tmp_path / "geometry"
+    old_package.mkdir()
+    (old_package / "net_materials.json").write_text('{"resources":[]}', encoding="utf-8")
+    harness = _LifecycleHarness()
+    harness.archive_isolated_renderer_active_package = old_package
+    harness.current_archive_preview_result = "geometry-result"
+    harness._archive_texture_request_id = 4
+    harness._archive_texture_request_loading = True
+    harness._archive_texture_package_generation = 7
+    harness._archive_texture_package_path = str(tmp_path / "textured")
+    harness._archive_pending_texture_result = "textured-result"
+
+    harness._handle_archive_resident_package_failed(str(tmp_path / "textured"), 7, "DDS decode failed")
+
+    assert harness.archive_isolated_renderer_active_package == old_package
+    assert harness.current_archive_preview_result == "geometry-result"
+    assert harness._archive_texture_request_loading is False
+    assert harness.messages[-1][1] is True
+
+
+def test_resident_texture_apply_commits_latest_generation_once(tmp_path: Path) -> None:
+    package = tmp_path / "textured"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps({"resources": [{"resource_id": "texture:base", "path": "base.dds"}]}),
+        encoding="utf-8",
+    )
+    harness = _LifecycleHarness()
+    harness._archive_texture_request_id = 5
+    harness._archive_texture_request_loading = True
+    harness._archive_texture_package_generation = 9
+    harness._archive_texture_package_path = str(package)
+    harness._archive_texture_render_settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    harness._archive_pending_texture_result = "textured-result"
+
+    harness._handle_archive_resident_package_applied(str(package), 8)
+    assert harness._archive_texture_request_loading is True
+    harness._handle_archive_resident_package_applied(str(package), 9)
+
+    assert harness.archive_isolated_renderer_active_package == package
+    assert harness.current_archive_preview_result == "textured-result"
+    assert harness._archive_texture_request_loading is False
+    assert len(harness.archive_d3d11_preview_host.tuning) == 1
 
 
 def test_reload_without_package_requests_canonical_preparation() -> None:

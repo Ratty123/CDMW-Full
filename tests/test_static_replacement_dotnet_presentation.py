@@ -80,7 +80,7 @@ def test_builder_presentation_state_carries_all_outer_control_families() -> None
     assert state["active_view"] == "comparison"
     assert state["side_by_side_split_ratio"] == 0.63
     assert state["camera"] == {"yaw": 30.0, "pitch": -10.0, "fit_to_view": True}
-    assert state["display"]["mode"] == "textured"  # type: ignore[index]
+    assert state["display"]["mode"] == "untextured_faces"  # type: ignore[index]
     assert state["display"]["material_debug_mode"] == 2  # type: ignore[index]
     assert state["display"]["quality"]["d3d11_normal_y_mode"] == "force_flip"  # type: ignore[index]
     assert state["display"]["quality"]["d3d11_texture_address_mode"] == "clamp"  # type: ignore[index]
@@ -107,6 +107,19 @@ def test_builder_presentation_state_defaults_mesh_edit_to_wire_vertices() -> Non
 
     assert state["display"]["mode"] == "wire_vertices"  # type: ignore[index]
     assert state["display"]["gizmo_visible"] is False  # type: ignore[index]
+
+
+def test_builder_presentation_state_stays_untextured_until_resident_material_ack() -> None:
+    state = builder_presentation_state(
+        comparison_mode="replacement_only",
+        camera=None,
+        render_settings=ModelPreviewRenderSettings(use_textures_by_default=True),
+        grid_visible=True,
+        gizmo_visible=False,
+        part_pick_enabled=False,
+    )
+
+    assert state["display"]["mode"] == "untextured_faces"  # type: ignore[index]
 
 
 def test_builder_part_highlight_state_uses_logical_scene_indices() -> None:
@@ -478,7 +491,7 @@ def test_legacy_diagnostic_mode_does_not_override_the_selected_dotnet_view() -> 
         gizmo_visible=False,
         part_pick_enabled=False,
     )
-    assert lit["display"]["mode"] == "textured"  # type: ignore[index]
+    assert lit["display"]["mode"] == "untextured_faces"  # type: ignore[index]
     assert lit["display"]["material_debug_mode"] == 0  # type: ignore[index]
     assert "render_diagnostic_mode" not in lit["display"]["quality"]  # type: ignore[index]
 

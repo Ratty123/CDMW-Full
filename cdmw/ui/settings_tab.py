@@ -635,7 +635,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         preview_layout.setContentsMargins(12, 14, 12, 12)
         preview_layout.setHorizontalSpacing(12)
         preview_layout.setVerticalSpacing(10)
-        self.model_preview_use_textures_checkbox = QCheckBox("Use textures by default when available")
+        self.model_preview_use_textures_checkbox = QCheckBox("Load textures automatically after geometry")
         self.model_preview_high_quality_checkbox = QCheckBox("Use support-map preview shading by default")
         preview_layout.addRow("", self.model_preview_use_textures_checkbox)
         preview_layout.addRow("", self.model_preview_high_quality_checkbox)

@@ -375,15 +375,12 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
                 replacement_mesh=state.replacement_mesh_for_mapping,
                 preview_model=preview_model_object,
                 modify_original_clone_mode=bool(modify_original_clone_mode),
-                publish_resident_updates=not (
-                    bool(modify_original_clone_mode) and int(native_material_batches or 0) > 0
-                ),
+                publish_resident_updates=True,
             )
         if ready_state.should_apply_manifest_performance:
             _set_preview_performance_status(ready_state.manifest_performance.summary, details=ready_state.manifest_performance.details)
         _alignment_d3d11_reset_request_state_helper(alignment_d3d11_state, clear_active_request_id=False)
         _alignment_d3d11_stop_worker()
-        _alignment_d3d11_invalidate_package_cache('material')
         if ready_state.should_update_d3d11_progress:
             _set_alignment_d3d11_progress(15, ready_state.progress_message, stage='source_textures', detail=ready_state.progress_detail)
         elif ready_state.should_apply_model:
@@ -392,8 +389,6 @@ def create_alignment_original_texture_worker_callbacks(context: dict[str, object
             original_dialog_preview.set_high_quality_textures(True)
         _alignment_d3d11_clear_archive_parity_upgrade_helper(alignment_d3d11_state)
         _set_preview_performance_status(ready_state.loaded_performance.summary, details=ready_state.loaded_performance.details)
-        _mark_alignment_d3d11_rebuild_reason('material')
-        _queue_static_preview_refresh()
     class _OriginalTexturePreviewWorkerReceiver(QObject):
         def __init__(self, *args: object, **kwargs: object) -> None:
             super().__init__(*args, **kwargs)

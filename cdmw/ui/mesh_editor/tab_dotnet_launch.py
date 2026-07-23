@@ -14,8 +14,15 @@ class MeshEditorDotNetLaunchMixin:
         if not event_name:
             return
         normalized = {str(key): self._json_safe_runtime_value(value) for key, value in payload.items()}
-        builder = self.active_builder()
-        for target in (builder, self.parent()):
+        try:
+            builder = self.active_builder()
+        except RuntimeError:
+            builder = None
+        try:
+            parent = self.parent()
+        except RuntimeError:
+            parent = None
+        for target in (builder, parent):
             recorder = getattr(target, "_record_runtime_event", None) if target is not None else None
             if callable(recorder):
                 try:
@@ -33,7 +40,7 @@ class MeshEditorDotNetLaunchMixin:
                     pass
         try:
             self.runtime_event_requested.emit(event_name, normalized)
-        except RuntimeError:
+        except (RuntimeError, TypeError):
             pass
     @staticmethod
     def _json_safe_runtime_value(value: object) -> object:
@@ -226,9 +233,37 @@ class MeshEditorDotNetLaunchMixin:
             self.standalone_dotnet_applied_material_generation = 0
             self.standalone_dotnet_completed_material_generation = 0
             self.standalone_dotnet_material_signature = ""
+            self.standalone_dotnet_viewport_display_request_id = 0
         self.standalone_dotnet_package_request_id += 1
         request_id = self.standalone_dotnet_package_request_id
         self.standalone_dotnet_target_controller = controller
+        host = (
+            self.standalone_native_host
+            if embedded
+            else getattr(self, "standalone_native_host_frame", None)
+        )
+        shared_controller = getattr(host, "controller", None)
+        if shared_controller is not None:
+            shared_controller.set_configured_executable(executable)
+            session_bound = bool(shared_controller.set_authoritative_session_id(session_id))
+            self.standalone_dotnet_last_program = str(executable)
+            prewarm = getattr(host, "prewarm_from_cache", None)
+            cache_root = None
+            try:
+                cache_root = host.property("cdmwPreviewPrewarmCacheRoot")
+            except (AttributeError, RuntimeError):
+                pass
+            if session_bound and callable(prewarm) and cache_root:
+                try:
+                    queued = bool(prewarm(Path(str(cache_root))))
+                except (OSError, RuntimeError, TypeError, ValueError):
+                    queued = False
+                self._record_mesh_dotnet_event(
+                    "mesh_dotnet_prewarm_requested",
+                    request_id=request_id,
+                    session_id=session_id,
+                    queued=queued,
+                )
         if embedded:
             self._set_embedded_dotnet_state("launching", active=False)
         mirror_reference_materials_to_editable = (
@@ -263,6 +298,7 @@ class MeshEditorDotNetLaunchMixin:
             interaction_mode=interaction_mode,
             scene_transform=scene_transform,
             scene_generation=1,
+            include_material_resources=False,
         )
         thread = QThread(self)
         worker.moveToThread(thread)
@@ -275,7 +311,7 @@ class MeshEditorDotNetLaunchMixin:
         thread.finished.connect(lambda target_thread=thread, target_worker=worker: self._cleanup_standalone_dotnet_package_worker(target_thread, target_worker))
         self.standalone_dotnet_package_thread = thread
         self.standalone_dotnet_package_worker = worker
-        loading_message = "Preparing Mesh Editor geometry and preview materials..."
+        loading_message = "Preparing Mesh Editor geometry..."
         self._set_dotnet_status(loading_message)
         self._set_embedded_dotnet_preview_loading(
             True,

@@ -287,11 +287,27 @@ class ArchiveBrowserActionControlsMixin:
         self._sync_archive_model_action_menu_buttons()
         self.archive_model_preview_settings_button.setEnabled(True)
         d3d11_backend_active = self._archive_model_renderer_backend() == ARCHIVE_MODEL_RENDERER_D3D11
-        self.archive_isolated_renderer_button.setText("Reload .NET/Vortice")
-        self.archive_isolated_renderer_button.setVisible(bool(d3d11_backend_active and can_export_preview))
-        self.archive_isolated_renderer_button.setEnabled(
-            bool(d3d11_backend_active and can_export_preview and controls_enabled)
+        current_result = getattr(self, "current_archive_preview_result", None)
+        resident_texture_action_available = bool(
+            not self.archive_preview_showing_loose
+            and mesh_entry is not None
+            and (
+                str(getattr(current_result, "dotnet_preview_package_path", "") or "").strip()
+                or getattr(self, "archive_isolated_renderer_active_package", None) is not None
+            )
         )
+        sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
+        if callable(sync_texture_action):
+            sync_texture_action()
+        else:
+            self.archive_isolated_renderer_button.setText("Load Textures")
+        self.archive_isolated_renderer_button.setVisible(
+            bool(d3d11_backend_active and resident_texture_action_available)
+        )
+        if not bool(getattr(self, "_archive_texture_request_loading", False)):
+            self.archive_isolated_renderer_button.setEnabled(
+                bool(d3d11_backend_active and resident_texture_action_available and controls_enabled)
+            )
         preview_settings = self._current_model_preview_render_settings()
         for widget in self._archive_model_preview_widgets():
             if hasattr(widget, "set_use_textures"):

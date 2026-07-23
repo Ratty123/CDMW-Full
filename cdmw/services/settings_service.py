@@ -11,6 +11,29 @@ from cdmw.core.classification_registry import configure_texture_classification_r
 from cdmw.services.workspace_layout import WORKSPACE_MIGRATION_SETTINGS_KEY, migrate_legacy_workspace_layout
 
 
+MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY = "archive/model_texture_on_demand_migration_v1"
+
+
+def migrate_model_texture_setting_to_on_demand(settings: object) -> bool:
+    """Migrate every pre-v1 profile once while preserving later user opt-in."""
+
+    try:
+        marker = str(settings.value(MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY, "") or "").strip().lower()
+    except Exception:
+        return False
+    if marker in {"1", "true", "yes", "on"}:
+        return False
+    try:
+        settings.setValue("archive/model_use_textures", False)
+        settings.setValue(MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY, True)
+        sync = getattr(settings, "sync", None)
+        if callable(sync):
+            sync()
+    except Exception:
+        return False
+    return True
+
+
 @dataclass(slots=True)
 class SettingsService:
     settings: object | None = None
@@ -65,12 +88,15 @@ def create_settings(
         already_migrated = ""
     if already_migrated not in {"1", "true", "yes", "on"}:
         migrate_legacy_workspace_layout(resolved_path.parent, settings)
+    migrate_model_texture_setting_to_on_demand(settings)
     return settings
 
 
 __all__ = [
     "SettingsService",
     "create_settings",
+    "migrate_model_texture_setting_to_on_demand",
+    "MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY",
     "prepare_settings_file",
     "resolve_settings_file_path",
 ]

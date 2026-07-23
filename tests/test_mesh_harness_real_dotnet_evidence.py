@@ -79,6 +79,39 @@ def test_real_game_evidence_reads_top_level_gate_aliases() -> None:
     assert evidence["gates"]["archive_source_content_unchanged"] is True
 
 
+def test_real_texture_provenance_accepts_semantic_source_kinds() -> None:
+    from tools.mesh_harness.real_dotnet import _has_real_archive_texture_provenance
+
+    row = {
+        "source_kind": "crimson_base_color",
+        "source_sha256": "abc123",
+        "archive_path": "character/texture/body.dds",
+        "archive_provenance": {
+            "pamt_path": r"C:\game\0009\0.pamt",
+            "paz_path": r"C:\game\0009\33.paz",
+            "virtual_path": "character/texture/body.dds",
+        },
+    }
+
+    assert _has_real_archive_texture_provenance(row) is True
+    row["archive_provenance"] = {"virtual_path": "character/texture/body.dds"}
+    assert _has_real_archive_texture_provenance(row) is False
+
+
+def test_real_dotnet_harness_waits_for_geometry_before_resident_materials() -> None:
+    root = Path(__file__).resolve().parents[1]
+    flow_source = (root / "tools" / "mesh_harness" / "real_dotnet.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert '_wait_protocol_event(state, "textures_ready", 0)' not in flow_source
+    material_update = flow_source.index("error = exercise_resident_material_update(")
+    offscreen_capture = flow_source.index(
+        "state.offscreen_capture_evidence = exercise_deterministic_offscreen_capture("
+    )
+    assert material_update < offscreen_capture
+
+
 def test_real_dotnet_capture_rejects_an_unowned_visible_window(tmp_path: Path) -> None:
     from tools.mesh_harness.real_dotnet_capture import capture_dotnet_viewport
 
@@ -293,7 +326,7 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     texture_update = run.index("exercise_linked_texture_strokes(")
     topology = run.index("exercise_assignment_and_mesh_edits(")
     export = run.index("exercise_coherent_export(")
-    assert offscreen_capture < state_update < builder_presentation < geometry_display < selection < transform < parameter_update < texture_update < topology < export
+    assert state_update < offscreen_capture < builder_presentation < geometry_display < selection < transform < parameter_update < texture_update < topology < export
     capture_source = (
         Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet_capture.py"
     ).read_text(encoding="utf-8")
@@ -543,8 +576,8 @@ def test_canonical_real_dotnet_runner_drives_extended_flow_without_legacy_render
     assert result["ok"] is True
     assert calls == [
         "ready",
-        "offscreen_capture",
         "resident_material",
+        "offscreen_capture",
         "builder_presentation",
         "geometry_display",
         "select",

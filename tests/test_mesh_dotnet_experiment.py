@@ -18,6 +18,7 @@ from cdmw.services.mesh_dotnet_reference_composite import (
     decode_dotnet_native_preview_package,
 )
 from cdmw.services.mesh_dotnet_preview_package import (
+    build_dotnet_preview_prewarm_package,
     build_or_lookup_dotnet_preview_package,
     build_or_lookup_dotnet_preview_package_from_model,
     validate_dotnet_preview_package,
@@ -407,6 +408,22 @@ def test_dotnet_experiment_package_reuses_obj_sidecar_contract(tmp_path: Path, m
     assert material_payload["submeshes"][0]["packaged_texture_count"] >= 3
     assert "emissive" in material_payload["texture_channels"]
     assert len(tuple((package.package_dir / "textures").iterdir())) == 3
+
+    geometry_package = build_mesh_dotnet_experiment_package(
+        mesh,
+        output_root=tmp_path,
+        include_material_resources=False,
+    )
+    geometry_materials = json.loads(
+        (geometry_package.package_dir / "net_materials.json").read_text(encoding="utf-8")
+    )
+    assert geometry_materials["resources"] == []
+    assert geometry_materials["submeshes"][0]["resolved_channels"] == {}
+    assert geometry_materials["submeshes"][0]["packaged_channels"] == {}
+    assert geometry_materials["submeshes"][0]["resource_channels"] == {}
+    assert geometry_materials["submeshes"][0]["material_synthesis"]["reason"] == "textures_on_demand"
+    assert not (geometry_package.package_dir / "textures").exists()
+    assert not (geometry_package.package_dir / "material_synthesis").exists()
 
     program, args = mesh_dotnet_experiment_command("C:/tools/MeshEditorExperiment.exe", package)
     assert Path(program) == Path("C:/tools/MeshEditorExperiment.exe")
@@ -839,6 +856,107 @@ def test_preview_core_batches_build_one_cached_canonical_dotnet_package(tmp_path
     assert validate_dotnet_preview_package(rebuilt.package_dir)[0] is True
 
 
+def test_schema8_native_package_is_adapted_directly_without_obj_or_png_conversion(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source_package = _write_native_reference_composite_fixture(tmp_path)
+    manifest_path = source_package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.update({"schema_version": 8, "source_path": "character/helmet.pac", "use_textures": True})
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    geometry_fingerprints = {
+        path.name: (path.stat().st_size, path.stat().st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
+        for path in (source_package / "geometry").glob("*.bin")
+    }
+
+    def reject_legacy_decode(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("schema-8 package must not enter the Python geometry decoder")
+
+    monkeypatch.setattr(
+        "cdmw.services.mesh_dotnet_preview_package.decode_dotnet_native_preview_package",
+        reject_legacy_decode,
+    )
+    package = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=tmp_path / "preview-cache",
+        archive_identity="helmet-entry",
+        cache_mode="balanced",
+        max_bytes=64 * 1024 * 1024,
+        target_bytes=48 * 1024 * 1024,
+    )
+
+    assert package.package_dir == source_package.resolve()
+    assert package.mesh_path == manifest_path.resolve()
+    assert package.scene_mesh_path == manifest_path.resolve()
+    assert not (source_package / "mesh.obj").exists()
+    assert not tuple(source_package.rglob("*.png"))
+    assert validate_dotnet_preview_package(source_package) == (True, ())
+    materials = json.loads((source_package / "net_materials.json").read_text(encoding="utf-8"))
+    assert materials["adapter"] == "cdmw_native_dotnet_adapter_v1"
+    assert {Path(resource["path"]).suffix.casefold() for resource in materials["resources"]} == {".dds"}
+    assert len(materials["submeshes"]) == 2
+    scene = json.loads((source_package / "dotnet_scene.json").read_text(encoding="utf-8"))
+    assert scene["renderer_authority"] == "dotnet_vortice_resident_scene"
+    assert scene["cloth_overlay"]["constraints"] == [[0, 1], [1, 2]]
+    assert geometry_fingerprints == {
+        path.name: (path.stat().st_size, path.stat().st_mtime_ns, hashlib.sha256(path.read_bytes()).hexdigest())
+        for path in (source_package / "geometry").glob("*.bin")
+    }
+
+
+def test_schema8_corrupt_adapter_sidecar_is_rebuilt_without_touching_base_geometry(tmp_path: Path) -> None:
+    source_package = _write_native_reference_composite_fixture(tmp_path)
+    manifest_path = source_package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 8
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    cache_root = tmp_path / "preview-cache"
+    first = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=cache_root,
+        archive_identity="schema8-recovery",
+    )
+    geometry_hashes = {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in (source_package / "geometry").glob("*.bin")
+    }
+    first.scene_manifest_path.write_text("corrupt", encoding="utf-8")
+
+    rebuilt = build_or_lookup_dotnet_preview_package(
+        source_package,
+        cache_root=cache_root,
+        archive_identity="schema8-recovery",
+    )
+
+    assert rebuilt.package_dir == source_package.resolve()
+    assert validate_dotnet_preview_package(source_package) == (True, ())
+    assert geometry_hashes == {
+        path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in (source_package / "geometry").glob("*.bin")
+    }
+
+
+def test_schema8_adapter_validates_available_dds_even_when_not_upload_candidate(tmp_path: Path) -> None:
+    source_package = _write_native_reference_composite_fixture(tmp_path)
+    manifest_path = source_package / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["schema_version"] = 8
+    manifest["batches"][0]["dds_textures"]["diagnostic"] = {
+        "available": True,
+        "direct_upload_candidate": False,
+        "source_path": str(tmp_path / "missing-diagnostic.dds"),
+    }
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="missing"):
+        build_or_lookup_dotnet_preview_package(
+            source_package,
+            cache_root=tmp_path / "preview-cache",
+            archive_identity="schema8-dds-validation",
+        )
+
+
 def test_python_preview_model_uses_the_same_canonical_package_contract(tmp_path: Path) -> None:
     base = tmp_path / "python_base.dds"
     base.write_bytes(b"python-base-dds")
@@ -880,3 +998,14 @@ def test_python_preview_model_uses_the_same_canonical_package_contract(tmp_path:
     assert materials["submeshes"][0]["shader_family"] == "skin"
     resource_paths = [package.package_dir / resource["path"] for resource in materials["resources"]]
     assert any(path.read_bytes() == b"python-base-dds" for path in resource_paths)
+
+
+def test_procedural_prewarm_package_is_valid_geometry_only_and_reused(tmp_path: Path) -> None:
+    first = build_dotnet_preview_prewarm_package(tmp_path / "cache")
+    second = build_dotnet_preview_prewarm_package(tmp_path / "cache")
+
+    assert validate_dotnet_preview_package(first.package_dir)[0] is True
+    assert second.package_dir == first.package_dir
+    assert first.material_signature == second.material_signature
+    materials = json.loads((first.package_dir / "net_materials.json").read_text(encoding="utf-8"))
+    assert materials.get("resources", []) == []

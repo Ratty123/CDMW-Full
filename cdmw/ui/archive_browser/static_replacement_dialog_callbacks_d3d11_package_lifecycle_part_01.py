@@ -607,6 +607,17 @@ def _d3d11_package_lifecycle_step_044(_state):
     def _queue_alignment_archive_parity_upgrade(reason: str='fast preview ready') -> None:
         if not _state._alignment_dialog_widgets_live() or not _state._alignment_d3d11_preview_active():
             return
+        settings = _state._current_alignment_preview_render_settings()
+        if not bool(getattr(settings, 'use_textures_by_default', False)):
+            _state._alignment_d3d11_clear_archive_parity_upgrade_helper(_state.alignment_d3d11_state)
+            _state._record_runtime_event(
+                'mesh_alignment_material_on_demand',
+                path=getattr(_state.entry, 'path', ''),
+                dialog_title=_state.dialog_title,
+                reason=str(reason or 'geometry ready'),
+                modify_original_clone=_state.modify_original_clone_mode,
+            )
+            return
         if not _state._alignment_d3d11_begin_archive_parity_upgrade_helper(_state.alignment_d3d11_state):
             return
         _state._set_alignment_d3d11_pipeline_stage('material_loading', reason)
@@ -622,8 +633,6 @@ def _d3d11_package_lifecycle_step_044(_state):
                     _state._load_original_reference_texture_preview()
                 return
             _state._alignment_d3d11_clear_archive_parity_upgrade_helper(_state.alignment_d3d11_state)
-            _state._mark_alignment_d3d11_rebuild_reason('material')
-            _state._queue_static_preview_refresh()
         _state.QTimer.singleShot(120, _upgrade)
     _state._queue_alignment_archive_parity_upgrade = _queue_alignment_archive_parity_upgrade
 

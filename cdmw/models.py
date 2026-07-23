@@ -1710,7 +1710,7 @@ D3D11_TEXTURE_ADDRESS_MODE_LABELS: Dict[str, str] = {
 
 @dataclass(slots=True)
 class ModelPreviewRenderSettings:
-    use_textures_by_default: bool = True
+    use_textures_by_default: bool = False
     high_quality_by_default: bool = True
     alignment_use_final_output_preview: bool = False
     visible_texture_mode: str = "mesh_base_first"

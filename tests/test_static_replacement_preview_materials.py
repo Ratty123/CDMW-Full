@@ -177,7 +177,7 @@ def test_copy_exact_clone_original_preview_materials_requires_clone_preview_stat
     assert [mesh.material_name for mesh in preview_model.meshes] == ["A", "B"]
 
 
-def test_baked_modify_original_package_keeps_late_raw_bindings_out_of_resident_roles() -> None:
+def test_modify_original_late_bindings_publish_one_resident_clone_snapshot() -> None:
     preview_model = SimpleNamespace(
         meshes=[_mesh(preview_texture_path="C:/cache/original.dds")]
     )
@@ -199,12 +199,12 @@ def test_baked_modify_original_package_keeps_late_raw_bindings_out_of_resident_r
         replacement_mesh=replacement_mesh,
         preview_model=preview_model,
         modify_original_clone_mode=True,
-        publish_resident_updates=False,
+        publish_resident_updates=True,
     )
 
     assert replacement_mesh_base.submeshes[0].preview_texture_path == "C:/cache/original.dds"
     assert replacement_mesh.submeshes[0].preview_texture_path == "C:/cache/original.dds"
-    assert resident_updates == []
+    assert resident_updates == ["clone"]
 
 
 def test_apply_original_material_preview_uses_direct_source_preview_map() -> None:

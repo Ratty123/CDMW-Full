@@ -8,7 +8,13 @@ from pathlib import Path
 from cdmw.core.classification_registry import texture_classification_registry_path
 from cdmw.services.archive_mutation_service import ArchiveMutationService
 from cdmw.services.service_container import ServiceContainer
-from cdmw.services.settings_service import create_settings, prepare_settings_file, resolve_settings_file_path
+from cdmw.services.settings_service import (
+    MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY,
+    create_settings,
+    migrate_model_texture_setting_to_on_demand,
+    prepare_settings_file,
+    resolve_settings_file_path,
+)
 from cdmw.services.workspace_layout import (
     migrate_legacy_workspace_layout,
     workspace_paths,
@@ -89,6 +95,18 @@ class ServiceLayerTests(unittest.TestCase):
             self.assertEqual(str(settings_path), settings.path)
             self.assertEqual(_QSettingsStub.Format.IniFormat, settings.file_format)
             self.assertFalse(settings.fallbacks_enabled)
+
+    def test_texture_default_migration_runs_once_and_preserves_later_opt_in(self) -> None:
+        settings = _SettingsDict({"archive/model_use_textures": True})
+
+        self.assertTrue(migrate_model_texture_setting_to_on_demand(settings))
+        self.assertFalse(settings.values["archive/model_use_textures"])
+        self.assertTrue(settings.values[MODEL_TEXTURE_ON_DEMAND_MIGRATION_SETTINGS_KEY])
+        self.assertTrue(settings.synced)
+
+        settings.values["archive/model_use_textures"] = True
+        self.assertFalse(migrate_model_texture_setting_to_on_demand(settings))
+        self.assertTrue(settings.values["archive/model_use_textures"])
 
     def test_workspace_paths_use_simple_app_workspace(self) -> None:
         root = Path("C:/Workbench")

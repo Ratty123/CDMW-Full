@@ -116,6 +116,8 @@ class WorkspaceShellBuilderMixin:
         self.viewport_display_combo.setToolTip(
             "Change the resident .NET viewport without reloading geometry or textures."
         )
+        if self._embedded_controls_only:
+            self.viewport_display_combo.setCurrentText("Faces")
         controls = [
             ("Mode", self.mode_combo),
             ("Select", self.selection_combo),

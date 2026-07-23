@@ -40,6 +40,7 @@ internal sealed partial class ExperimentForm : Form
     private readonly ComboBox _selectionTarget = new();
     private readonly ComboBox _selectionOperation = new();
     private readonly ComboBox _previewMode = new();
+    private bool _syncingPreviewModeSelection;
     private readonly CheckBox _xray = new();
     private Button? _wireColorButton;
     private Button? _vertexColorButton;

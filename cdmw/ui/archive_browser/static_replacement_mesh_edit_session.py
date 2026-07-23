@@ -318,7 +318,6 @@ def _mesh_editor_queue_post_edit_textured_preview_rebuild(_state, _callbacks, re
             )
             _state.mesh_edit_preview_model_dirty["value"] = True
     _state._mesh_edit_apply_preview_mode_transition(str(reason or "mesh_edit.finalize"))
-    _state._queue_texture_preview_refresh()
 
 def _mesh_editor_finalize_edit_mode_exit(_state, _callbacks, reason: str, mesh_changed: bool = True) -> bool:
     was_checked = bool(_state.mesh_edit_enabled_checkbox.isChecked())

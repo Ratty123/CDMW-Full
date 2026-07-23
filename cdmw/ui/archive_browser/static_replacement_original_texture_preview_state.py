@@ -324,7 +324,7 @@ def original_reference_texture_preview_loaded_progress_message() -> str:
 
 
 def original_reference_texture_preview_loaded_detail() -> str:
-    return "Original textures loaded; refreshing preview."
+    return "Original textures loaded; applying resident materials."
 
 
 def original_reference_texture_preview_loading_performance(reason: str = "") -> OriginalReferenceTexturePreviewPerformance:

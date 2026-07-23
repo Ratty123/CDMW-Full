@@ -95,9 +95,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   - Durable archive preview packages are pinned from renderer launch through
     reload, process failure, cancellation, or close. A loaded reload retires the
     old pin; pruning and manual cache clearing skip every active package lease.
-  - Fast untextured geometry is first-load-only. Once a material-complete frame
-    is loaded, geometry rebuilds keep it visible until the next coherent
-    archive-parity package is ready.
+  - Fast untextured geometry is the stable first display. Archive Preview and
+    Mesh Editor keep the accepted scene and camera visible while one
+    latest-wins texture/material request prepares. A successful acknowledged
+    update changes the resident package or material generation once; failure
+    remains stably untextured and does not restart the helper.
 - .NET experiment handoff:
   - `cdmw.services.mesh_dotnet_experiment` exports the active Mesh Editor
     session as an OBJ package plus `mesh_roundtrip_manifest_v2` sidecar,
@@ -542,9 +544,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   plus packed-channel selectors; glTF metallic-roughness reuses one decoded image
   while sampling roughness from G and metallic from B. A Python-owned resource
   policy declares role, scene submesh, channel, profile, criticality, and
-  fallback for every texture. Initial Ready waits for resource resolution and a
-  presented frame: a missing declared-required base blocks Ready, while optional
-  channels retain their declared fallback and diagnostic. Late original archive
+  fallback for every texture. Initial Ready requires the geometry-only package
+  and one presented frame; texture resolution is not on the first-display
+  critical path. Selecting `Textured` starts the cancellable resolver, leaves
+  readable untextured faces active, and changes display only after the correlated
+  resident material generation is acknowledged. A missing declared-required
+  base fails that material request while the last valid scene remains visible;
+  optional channels retain their declared fallback and diagnostic. Late original archive
   resources enter the existing reference-role material generation without an
   export commit, package rebuild, camera change, or process restart. Normal-map
   space is also explicit per submesh; glTF/green-up inputs invert green in the
