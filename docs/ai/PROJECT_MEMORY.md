@@ -130,7 +130,7 @@ Last updated: 2026-07-23
 - The real nude-PAC gate must leave archives unchanged. Mesh Edit starts with no
   selected part; face/vertex modes can render without textures. Parts visibility
   never changes the alignment basis, and duplicate/delete are resident actions.
-- Embedded .NET Preview Settings expose only fields with Python transport and a .NET renderer/camera consumer; their getter must read the live Builder accessor, not the setup factory's initial object.
+- Resident .NET Preview Settings expose only Camera Input in Archive Browser and Camera Input plus placement-Gizmo appearance in Mesh Editor; hidden renderer settings remain preserved. The embedded getter must read the live Builder accessor, not the setup factory's initial object.
   Side by Side alone creates two role panes; Overlay is one comparison surface, and each Only mode is one full-viewport role. Texture/view state syncs across roles while cameras stay independent.
   An equal-size child resize must still refresh GPU pane rectangles/cameras; mode toggling is not a layout initialization mechanism.
   Wheel zoom uses Archive Browser's exact `0.1..64x` fit-relative ladder,

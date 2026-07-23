@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QApplication, QLabel
 from cdmw.models import ArchivePerformanceSettings, ModelPreviewRenderSettings
 from cdmw.ui.model_preview_settings_dialog import ModelPreviewSettingsDialog
 from cdmw.ui.model_preview_settings_visibility import (
+    ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB,
     DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB,
     preview_setting_widgets_by_tab,
 )
@@ -23,7 +24,7 @@ def _app() -> QApplication:
     return app
 
 
-class _CapturingD3D11HostFrame(DotNetPreviewHostFrame):
+class _CapturingVorticeHostFrame(DotNetPreviewHostFrame):
     def __init__(self) -> None:
         super().__init__(profile=DotNetPreviewProfile.PREVIEW)
         self.commands: list[dict[str, object]] = []
@@ -37,7 +38,7 @@ class _CapturingD3D11HostFrame(DotNetPreviewHostFrame):
 
 
 class ModelPreviewSettingsDialogTests(unittest.TestCase):
-    def test_rich_lit_mode_is_available_in_settings_dialog(self) -> None:
+    def test_hidden_legacy_diagnostic_value_roundtrips_without_being_exposed(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings(render_diagnostic_mode="rich_lit"))
 
@@ -47,11 +48,13 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertGreaterEqual(rich_index, 0)
         self.assertEqual("Enhanced Relief Preview", dialog.render_diagnostic_mode_combo.itemText(rich_index))
         self.assertEqual("rich_lit", dialog.current_settings().render_diagnostic_mode)
+        self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
+        self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._diagnostics_tab)))
 
         dialog.close()
         dialog.deleteLater()
 
-    def test_material_quality_sliders_are_available_in_settings_dialog(self) -> None:
+    def test_legacy_material_quality_values_are_preserved_but_not_exposed(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings(render_diagnostic_mode="lit"))
 
@@ -64,36 +67,30 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
             ModelPreviewRenderSettings().height_effect_max,
             dialog.current_settings().height_effect_max,
         )
+        self.assertTrue(dialog._slider_controls["normal_strength_cap"].isHidden())
+        self.assertTrue(dialog._slider_controls["height_effect_max"].isHidden())
+        self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._quality_tab)))
 
         dialog.close()
         dialog.deleteLater()
 
-    def test_settings_dialog_warns_that_diagnostics_are_advanced(self) -> None:
+    def test_archive_dotnet_context_hides_advanced_diagnostics_and_pbd_controls(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(settings=ModelPreviewRenderSettings())
 
-        dialog_text = " ".join(label.text() for label in dialog.findChildren(QLabel))
-        self.assertIn("Advanced diagnostics", dialog_text)
-        self.assertIn("no visible effect", dialog_text)
+        self.assertTrue(dialog.advanced_warning_label.isHidden())
+        self.assertTrue(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._controls_tab)))
+        self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._general_tab)))
+        self.assertFalse(dialog.tabs.isTabVisible(dialog.tabs.indexOf(dialog._quality_tab)))
         self.assertTrue(dialog.show_physics_overlay_checkbox.isChecked())
-        self.assertIn("HKX physics overlay", dialog.show_physics_overlay_checkbox.text())
         self.assertFalse(dialog.show_physics_simulation_preview_checkbox.isChecked())
-        self.assertIn("legacy HKX guide motion", dialog.show_physics_simulation_preview_checkbox.text())
-        self.assertIn("spring/sway diagnostic", dialog.show_physics_simulation_preview_checkbox.toolTip())
-        self.assertIn("Skeleton context stays fixed", dialog.show_physics_simulation_preview_checkbox.toolTip())
         self.assertFalse(dialog.enable_tool_pbd_cloth_preview_checkbox.isChecked())
-        self.assertIn("tool-side PBD physics preview", dialog.enable_tool_pbd_cloth_preview_checkbox.text())
-        self.assertIn("cloth, leather, hair, and ropes", dialog.enable_tool_pbd_cloth_preview_checkbox.toolTip())
+        self.assertTrue(dialog.show_physics_overlay_checkbox.isHidden())
+        self.assertTrue(dialog.show_physics_simulation_preview_checkbox.isHidden())
+        self.assertTrue(dialog.enable_tool_pbd_cloth_preview_checkbox.isHidden())
         self.assertFalse(dialog.pause_tool_pbd_cloth_preview_checkbox.isEnabled())
         self.assertFalse(dialog.show_tool_pbd_cloth_pins_checkbox.isEnabled())
         self.assertFalse(dialog.show_tool_pbd_cloth_colliders_checkbox.isEnabled())
-
-        dialog.enable_tool_pbd_cloth_preview_checkbox.setChecked(True)
-        current = dialog.current_settings()
-        self.assertTrue(current.enable_tool_pbd_cloth_preview)
-        self.assertTrue(dialog.pause_tool_pbd_cloth_preview_checkbox.isEnabled())
-        self.assertTrue(dialog.show_tool_pbd_cloth_pins_checkbox.isEnabled())
-        self.assertTrue(dialog.show_tool_pbd_cloth_colliders_checkbox.isEnabled())
 
         dialog.close()
         dialog.deleteLater()
@@ -137,13 +134,14 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog_text = " ".join(label.text() for label in dialog.findChildren(QLabel))
         self.assertIn("left-drag orbits", dialog_text)
         self.assertIn("Shift+left-drag pans", dialog_text)
-        self.assertIn("These controls only move the preview camera/view", dialog_text)
-        self.assertIn("Invert orbit X reverses horizontal orbit", dialog_text)
-        self.assertIn("never edits the asset", dialog_text)
-        self.assertIn("Reverse horizontal orbit", dialog.invert_orbit_x_checkbox.toolTip())
-        self.assertIn("Reverse vertical orbit", dialog.invert_orbit_y_checkbox.toolTip())
-        self.assertIn("screen-space preview navigation", dialog.invert_pan_x_checkbox.toolTip())
-        self.assertIn("screen-space preview navigation", dialog.invert_pan_y_checkbox.toolTip())
+        self.assertIn("Fit resets framing", dialog_text)
+        self.assertIn("consumed directly by resident .NET pointer handling", dialog_text)
+        self.assertIn("never edit mesh placement or export data", dialog_text)
+        self.assertIn(".NET/Vortice", dialog.invert_orbit_x_checkbox.toolTip())
+        self.assertIn("horizontal resident-camera orbit", dialog.invert_orbit_x_checkbox.toolTip())
+        self.assertIn("vertical resident-camera orbit", dialog.invert_orbit_y_checkbox.toolTip())
+        self.assertIn("horizontal resident-camera pan", dialog.invert_pan_x_checkbox.toolTip())
+        self.assertIn("vertical resident-camera pan", dialog.invert_pan_y_checkbox.toolTip())
 
         dialog.close()
         dialog.deleteLater()
@@ -166,7 +164,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_d3d11_backend_hides_legacy_only_diagnostics(self) -> None:
+    def test_archive_dotnet_context_exposes_only_resident_camera_input(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(
             settings=ModelPreviewRenderSettings(render_diagnostic_mode="lit"),
@@ -175,64 +173,61 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
 
         self.assertEqual("d3d11_native", dialog.current_archive_renderer_backend())
         self.assertTrue(dialog.archive_renderer_backend_combo.isHidden())
-        self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
-        self.assertFalse(dialog.d3d11_view_mode_combo.isHidden())
-        self.assertFalse(dialog.d3d11_normal_y_mode_combo.isHidden())
-        self.assertFalse(dialog.d3d11_texture_address_mode_combo.isHidden())
-        self.assertFalse(dialog.d3d11_cull_back_faces_checkbox.isHidden())
-        self.assertTrue(dialog.disable_depth_test_checkbox.isHidden())
-        self.assertFalse(dialog.disable_all_support_maps_checkbox.isHidden())
-        self.assertEqual("Ignore support maps", dialog.disable_all_support_maps_checkbox.text())
-        self.assertFalse(dialog.disable_normal_map_checkbox.isHidden())
-        self.assertEqual("Ignore normal map", dialog.disable_normal_map_checkbox.text())
-        self.assertFalse(dialog.flip_texture_v_checkbox.isHidden())
-        self.assertFalse(dialog._slider_controls["max_anisotropy"].isHidden())
-        self.assertFalse(dialog._slider_controls["ambient_strength"].isHidden())
-        self.assertFalse(dialog.d3d11_hint_label.isHidden())
-        self.assertIn("Flip texture V", dialog.d3d11_hint_label.text())
-        self.assertIn("tool-side PBD physics preview", dialog.d3d11_hint_label.text())
-        self.assertIn("static HKX context", dialog.d3d11_hint_label.text())
-        self.assertFalse(dialog.current_settings().flip_texture_v)
-        dialog.flip_texture_v_checkbox.setChecked(True)
-        self.assertTrue(dialog.current_settings().flip_texture_v)
-        view_index = dialog.d3d11_view_mode_combo.findData("normal")
-        self.assertGreaterEqual(view_index, 0)
-        dialog.d3d11_view_mode_combo.setCurrentIndex(view_index)
-        outdoor_index = dialog.d3d11_view_mode_combo.findData("game_outdoor")
-        self.assertGreaterEqual(outdoor_index, 0)
-        self.assertEqual("Game Outdoor Approx", dialog.d3d11_view_mode_combo.itemText(outdoor_index))
-        normal_y_index = dialog.d3d11_normal_y_mode_combo.findData("force_no_flip")
-        self.assertGreaterEqual(normal_y_index, 0)
-        dialog.d3d11_normal_y_mode_combo.setCurrentIndex(normal_y_index)
-        address_index = dialog.d3d11_texture_address_mode_combo.findData("clamp")
-        self.assertGreaterEqual(address_index, 0)
-        dialog.d3d11_texture_address_mode_combo.setCurrentIndex(address_index)
-        dialog.d3d11_cull_back_faces_checkbox.setChecked(True)
-        current = dialog.current_settings()
-        self.assertEqual("normal", current.d3d11_view_mode)
-        self.assertEqual("force_no_flip", current.d3d11_normal_y_mode)
-        self.assertEqual("clamp", current.d3d11_texture_address_mode)
-        self.assertTrue(current.d3d11_cull_back_faces)
-
-        self.assertEqual(-1, dialog.archive_renderer_backend_combo.findData("legacy_green_up"))
-        dialog.set_archive_renderer_backend("legacy_green_up")
-        self.assertEqual("d3d11_native", dialog.current_archive_renderer_backend())
-        self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
-        self.assertFalse(dialog.d3d11_view_mode_combo.isHidden())
-        self.assertTrue(dialog.disable_depth_test_checkbox.isHidden())
-        self.assertFalse(dialog.flip_texture_v_checkbox.isHidden())
+        visible_tabs = [
+            dialog.tabs.tabText(index)
+            for index in range(dialog.tabs.count())
+            if dialog.tabs.isTabVisible(index)
+        ]
+        self.assertEqual(["Camera Input"], visible_tabs)
+        widgets_by_tab = preview_setting_widgets_by_tab(dialog)
+        for tab_name, widgets in widgets_by_tab.items():
+            supported = set(ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB[tab_name])
+            visible = {field for field, widget in widgets.items() if not widget.isHidden()}
+            self.assertEqual(supported, visible, tab_name)
+        self.assertIn("Archive Browser", dialog.intro_label.text())
+        self.assertIn(".NET/Vortice", dialog.intro_label.text())
+        self.assertTrue(dialog.advanced_warning_label.isHidden())
+        self.assertEqual("Reset Camera Input", dialog.reset_button.text())
 
         dialog.close()
         dialog.deleteLater()
 
-    def test_game_outdoor_d3d11_view_mode_survives_settings_dialog(self) -> None:
+    def test_hidden_renderer_settings_survive_archive_dotnet_dialog(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(
-            settings=ModelPreviewRenderSettings(d3d11_view_mode="game_outdoor"),
+            settings=ModelPreviewRenderSettings(
+                use_textures_by_default=False,
+                d3d11_view_mode="game_outdoor",
+                disable_lighting=True,
+                d3d11_tone_exposure=0.35,
+                orbit_sensitivity=0.91,
+                pan_sensitivity=2.10,
+                invert_orbit_x=True,
+                invert_orbit_y=True,
+                invert_pan_x=True,
+                invert_pan_y=True,
+            ),
             archive_renderer_backend="d3d11_native",
+            preview_target="native_d3d11",
         )
 
-        self.assertEqual("game_outdoor", dialog.current_settings().d3d11_view_mode)
+        self.assertEqual(
+            ModelPreviewSettingsDialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
+            dialog._preview_target,
+        )
+        dialog._reset_defaults()
+        current = dialog.current_settings()
+        defaults = ModelPreviewRenderSettings()
+        self.assertEqual(defaults.orbit_sensitivity, current.orbit_sensitivity)
+        self.assertEqual(defaults.pan_sensitivity, current.pan_sensitivity)
+        self.assertFalse(current.use_textures_by_default)
+        self.assertEqual("game_outdoor", current.d3d11_view_mode)
+        self.assertTrue(current.disable_lighting)
+        self.assertEqual(0.35, current.d3d11_tone_exposure)
+        self.assertTrue(current.invert_orbit_x)
+        self.assertTrue(current.invert_orbit_y)
+        self.assertTrue(current.invert_pan_x)
+        self.assertTrue(current.invert_pan_y)
 
         dialog.close()
         dialog.deleteLater()
@@ -350,9 +345,9 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         dialog.close()
         dialog.deleteLater()
 
-    def test_native_d3d11_render_tuning_payload_contains_visible_3d_settings(self) -> None:
+    def test_vortice_render_tuning_payload_preserves_renderer_owned_settings(self) -> None:
         _app()
-        host = _CapturingD3D11HostFrame()
+        host = _CapturingVorticeHostFrame()
         settings = ModelPreviewRenderSettings(
             max_anisotropy=8,
             d3d11_view_mode="normal",
@@ -428,7 +423,7 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
             host.close()
             host.deleteLater()
 
-    def test_removed_webgl_backend_normalizes_to_d3d11(self) -> None:
+    def test_removed_webgl_backend_normalizes_without_restoring_legacy_controls(self) -> None:
         _app()
         dialog = ModelPreviewSettingsDialog(
             settings=ModelPreviewRenderSettings(render_diagnostic_mode="lit"),
@@ -438,12 +433,15 @@ class ModelPreviewSettingsDialogTests(unittest.TestCase):
         self.assertEqual("d3d11_native", dialog.current_archive_renderer_backend())
         self.assertEqual(-1, dialog.archive_renderer_backend_combo.findData("webgl_pbr_reference"))
         self.assertTrue(dialog.render_diagnostic_mode_combo.isHidden())
-        self.assertFalse(dialog.d3d11_view_mode_combo.isHidden())
-        self.assertFalse(dialog.disable_all_support_maps_checkbox.isHidden())
-        self.assertFalse(dialog.disable_normal_map_checkbox.isHidden())
-        self.assertFalse(dialog.flip_texture_v_checkbox.isHidden())
-        self.assertFalse(dialog.d3d11_hint_label.isHidden())
-        self.assertIn(".NET/Vortice packages", dialog.high_quality_checkbox.toolTip())
+        self.assertTrue(dialog.d3d11_view_mode_combo.isHidden())
+        self.assertTrue(dialog.disable_all_support_maps_checkbox.isHidden())
+        self.assertTrue(dialog.disable_normal_map_checkbox.isHidden())
+        self.assertTrue(dialog.flip_texture_v_checkbox.isHidden())
+        self.assertTrue(dialog.d3d11_hint_label.isHidden())
+        self.assertEqual(
+            ModelPreviewSettingsDialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
+            dialog._preview_target,
+        )
 
         dialog.close()
         dialog.deleteLater()

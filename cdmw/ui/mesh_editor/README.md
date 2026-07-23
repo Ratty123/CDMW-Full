@@ -116,13 +116,14 @@ font/label size, and handle size. Those values apply live through the resident
 presentation payload and persist with the main Preview Settings config.
 Display, topology, X-Ray, grid, material, texture, and lighting controls stay
 on their owning .NET/Builder viewport surfaces instead of being duplicated in
-this modal. General and Quality / Lighting remain available only to the Archive
-Browser/native preview context. Reset Camera Input restores the two sensitivity
-values while preserving the inversion choices, Gizmo appearance, and every
-hidden renderer setting. Each role pane keeps its own camera, and wheel zoom
-uses reciprocal steps with fit-relative bounds so a large mesh whose fitted
-zoom is below `1.0` can always zoom back out. The same wheel path is used in
-placement and Edit Mesh.
+this modal. Archive Browser Preview Settings use a separate resident .NET target
+and likewise show only Camera Input; texture loading remains on the Archive
+Preview toolbar. Reset Camera Input restores the two sensitivity values while
+preserving the inversion choices, Gizmo appearance, and every hidden renderer
+setting. Each role pane keeps its own camera, and wheel zoom uses reciprocal
+steps with fit-relative bounds so a large mesh whose fitted zoom is below `1.0`
+can always zoom back out. The same wheel path is used in placement and Edit
+Mesh.
 Embedded .NET Mesh Edit screen payloads pair the active camera with a
 per-editable-submesh WVP built from the exact model matrix used to render that
 submesh. Brush, click, drag, and region selection therefore stay aligned with
@@ -132,13 +133,14 @@ overlay expands vertex points to round 7-pixel screen-space markers. Smooth defa
 to three iterations per dab, while Inflate and Pinch include native
 `screen_radius` amount context; brush tools paint under the cursor without a
 selection prerequisite.
-The .NET Preview Settings support registry contains the six resident
-camera-input fields and nine placement-Gizmo appearance fields. Each field has
-a Python presentation payload key, a .NET parser, and a resident runtime
-consumer. Renderer settings may still travel through the correlated
-presentation state from their owning viewport surface, but that transport alone
-does not make them appropriate modal controls. Texture and view-mode choices
-synchronize across both role panes without merging their independent cameras.
+The Archive Browser .NET Preview Settings registry contains only the six
+resident camera-input fields. The Mesh Editor registry adds nine
+placement-Gizmo appearance fields. Each visible field has a Python presentation
+payload key, a .NET parser, and a resident runtime consumer. Renderer settings
+may still travel through the correlated presentation state from their owning
+viewport surface, but that transport alone does not make them appropriate modal
+controls. Texture and view-mode choices synchronize across both role panes
+without merging their independent cameras.
 The Gizmo is a placement aid: entering Edit Mesh suppresses both its renderer
 overlay and its pointer interaction, while leaving Edit Mesh restores the saved
 placement visibility preference. In Edit Mesh, clicking the currently active

@@ -42,6 +42,16 @@ DOTNET_CAMERA_INPUT_SETTING_FIELDS = (
 
 DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS = GIZMO_APPEARANCE_SETTING_FIELDS
 
+# Archive Browser and embedded Mesh Editor previews share the resident camera
+# input contract. Archive Browser has no placement Gizmo, so its modal exposes
+# only camera input; renderer and texture actions stay on their owning surfaces.
+ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
+    "General": (),
+    "Quality / Lighting": (),
+    "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
+    "Gizmo": (),
+}
+
 # The shared dialog owns camera input and placement-Gizmo preferences. Material,
 # sampler, lighting, topology, and display controls stay on their resident
 # .NET/Builder surfaces.
@@ -55,6 +65,12 @@ DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB = {
 DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS = frozenset(
     field
     for fields in DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB.values()
+    for field in fields
+)
+
+ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS = frozenset(
+    field
+    for fields in ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB.values()
     for field in fields
 )
 
@@ -130,6 +146,12 @@ def preview_setting_widgets_by_tab(dialog: object) -> dict[str, dict[str, object
     }
 
 
+def supported_preview_settings_by_tab(dialog: object) -> dict[str, tuple[str, ...]]:
+    if dialog._preview_target == dialog.PREVIEW_TARGET_DOTNET_VORTICE:
+        return DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB
+    return ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB
+
+
 def initialize_preview_settings_state(
     dialog: object,
     settings: object,
@@ -141,32 +163,36 @@ def initialize_preview_settings_state(
     dialog._archive_performance_settings = clamp_archive_performance_settings(archive_performance_settings)
     dialog._archive_renderer_backend = dialog._normalize_archive_renderer_backend(archive_renderer_backend)
     normalized_target = str(preview_target or "").strip().lower()
-    # This value now selects a settings layout, not a renderer.  The historical
-    # native value preserves the full Archive Browser presentation controls.
-    dialog._preview_target = (
-        dialog.PREVIEW_TARGET_DOTNET_VORTICE
-        if normalized_target == dialog.PREVIEW_TARGET_DOTNET_VORTICE
-        else dialog.PREVIEW_TARGET_NATIVE_D3D11
-    )
+    # This selects a settings layout, not a renderer. The retired native target
+    # remains accepted as an alias for the resident Archive Browser layout.
+    if normalized_target == dialog.PREVIEW_TARGET_DOTNET_VORTICE:
+        dialog._preview_target = dialog.PREVIEW_TARGET_DOTNET_VORTICE
+    else:
+        dialog._preview_target = dialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE
     dialog._slider_controls = {}
 
 
 def sync_renderer_specific_controls(dialog: object) -> None:
     d3d11 = dialog.current_archive_renderer_backend() == dialog.ARCHIVE_RENDERER_D3D11
-    dotnet = dialog._preview_target == dialog.PREVIEW_TARGET_DOTNET_VORTICE
+    mesh_editor_dotnet = dialog._preview_target == dialog.PREVIEW_TARGET_DOTNET_VORTICE
+    archive_dotnet = (
+        dialog._preview_target == dialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE
+    )
+    dotnet = mesh_editor_dotnet or archive_dotnet
     legacy = False
+    supported_by_tab = supported_preview_settings_by_tab(dialog)
     diagnostics_index = dialog.tabs.indexOf(dialog._diagnostics_tab)
     if diagnostics_index >= 0:
         dialog.tabs.setTabVisible(diagnostics_index, legacy)
-    for tab, visible in (
-        (dialog._general_tab, not dotnet),
-        (dialog._quality_tab, not dotnet),
-        (dialog._controls_tab, True),
-        (dialog._gizmo_tab, dotnet),
+    for tab_name, tab in (
+        ("General", dialog._general_tab),
+        ("Quality / Lighting", dialog._quality_tab),
+        ("Controls", dialog._controls_tab),
+        ("Gizmo", dialog._gizmo_tab),
     ):
         tab_index = dialog.tabs.indexOf(tab)
         if tab_index >= 0:
-            dialog.tabs.setTabVisible(tab_index, visible)
+            dialog.tabs.setTabVisible(tab_index, bool(supported_by_tab[tab_name]))
     controls_index = dialog.tabs.indexOf(dialog._controls_tab)
     if controls_index >= 0:
         dialog.tabs.setTabText(controls_index, "Camera Input" if dotnet else "Controls")
@@ -214,9 +240,10 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         widget.setVisible(legacy)
     setting_widgets = preview_setting_widgets_by_tab(dialog)
     if dotnet:
-        for widgets in setting_widgets.values():
+        for tab_name, widgets in setting_widgets.items():
+            supported_fields = frozenset(supported_by_tab[tab_name])
             for field, widget in widgets.items():
-                supported = field in DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS
+                supported = field in supported_fields
                 dialog._set_form_field_visible(widget, supported)
                 widget.setProperty("previewSettingKey", field)
                 if supported:
@@ -237,7 +264,7 @@ def sync_renderer_specific_controls(dialog: object) -> None:
             dialog._set_form_field_visible(widget, True)
         for key in ("tool_pbd_cloth_wind_strength", "tool_pbd_cloth_wind_direction_degrees"):
             dialog._set_form_field_visible(dialog._slider_controls[key], True)
-    dialog.d3d11_hint_label.setVisible(d3d11)
+    dialog.d3d11_hint_label.setVisible(d3d11 and not dotnet)
     dialog.advanced_warning_label.setVisible(not dotnet)
     if dotnet:
         dialog.disable_tint_checkbox.setText("Ignore material tint")
@@ -245,6 +272,8 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         dialog.disable_uv_scale_checkbox.setText("Ignore preview UV scale")
         dialog.intro_label.setText(
             "Camera input and placement-Gizmo settings for the embedded .NET/Vortice Mesh Editor preview. Changes are sent live and saved with Preview Settings."
+            if mesh_editor_dotnet
+            else "Camera input settings for the resident .NET/Vortice Archive Browser preview. Changes are sent live and saved with Preview Settings."
         )
         dialog.general_hint_label.setText(
             "Renderer appearance is controlled directly from the Mesh Editor viewport."
@@ -257,6 +286,8 @@ def sync_renderer_specific_controls(dialog: object) -> None:
         )
         dialog.controls_usage_hint_label.setText(
             ".NET/Vortice camera controls: left-drag orbits; middle-drag, right-drag, or Shift+left-drag pans; the mouse wheel zooms; Fit resets framing. Each role pane keeps its own camera."
+            if mesh_editor_dotnet
+            else ".NET/Vortice camera controls: left-drag orbits; middle-drag, right-drag, or Shift+left-drag pans; the mouse wheel zooms; Fit resets framing."
         )
         dialog.inversion_hint_label.setText(
             "Orbit and pan inversion are consumed directly by resident .NET pointer handling and never edit mesh placement or export data."
@@ -314,11 +345,14 @@ def sync_renderer_specific_controls(dialog: object) -> None:
 
 
 __all__ = [
+    "ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS",
+    "ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB",
     "DOTNET_CAMERA_INPUT_SETTING_FIELDS",
     "DOTNET_GIZMO_APPEARANCE_SETTING_FIELDS",
     "DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS",
     "DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB",
     "initialize_preview_settings_state",
     "preview_setting_widgets_by_tab",
+    "supported_preview_settings_by_tab",
     "sync_renderer_specific_controls",
 ]

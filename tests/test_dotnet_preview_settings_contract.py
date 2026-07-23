@@ -4,6 +4,9 @@ from pathlib import Path
 
 from cdmw.models import ModelPreviewRenderSettings
 from cdmw.ui.model_preview_settings_visibility import (
+    ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS,
+    ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB,
+    DOTNET_CAMERA_INPUT_SETTING_FIELDS,
     DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS,
 )
 from tools.mesh_harness.visual_audit_capture import _DOTNET_AUDIT_PRESENTATION_PROFILE
@@ -15,6 +18,18 @@ DOTNET = ROOT / "tools" / "dotnet_mesh_editor_experiment"
 
 def _source(name: str) -> str:
     return (DOTNET / name).read_text(encoding="utf-8")
+
+
+def test_archive_preview_modal_exposes_only_resident_camera_input() -> None:
+    assert ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTING_FIELDS == frozenset(
+        DOTNET_CAMERA_INPUT_SETTING_FIELDS
+    )
+    assert ARCHIVE_DOTNET_SUPPORTED_PREVIEW_SETTINGS_BY_TAB == {
+        "General": (),
+        "Quality / Lighting": (),
+        "Controls": DOTNET_CAMERA_INPUT_SETTING_FIELDS,
+        "Gizmo": (),
+    }
 
 
 def test_every_visible_dotnet_setting_has_transport_parser_and_runtime_consumer() -> None:

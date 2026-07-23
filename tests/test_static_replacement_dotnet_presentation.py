@@ -255,6 +255,9 @@ def test_preview_settings_dotnet_target_covers_the_whole_embedded_mesh_editor() 
     assert "_mesh_editor_embedded_dotnet_active" in target_selection
     assert "mesh_edit_enabled_checkbox" not in target_selection
     assert "mesh_edit_active" not in target_selection
+    assert "'dotnet_vortice'" in target_selection
+    assert "'archive_dotnet_vortice'" in target_selection
+    assert "'native_d3d11'" not in target_selection
 
 
 def test_builder_presentation_state_maps_every_preview_mode_to_its_resident_view() -> None:
@@ -390,6 +393,7 @@ def test_resident_visible_texture_mode_change_reloads_reference_materials_before
     assert "preview_target=preview_target" in source
     assert "'_mesh_editor_embedded_dotnet_active'" in source
     assert "'dotnet_vortice'" in source
+    assert "'archive_dotnet_vortice'" in source
 
 
 def test_builder_presentation_state_clamps_role_pane_split_ratio() -> None:

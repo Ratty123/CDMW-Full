@@ -130,6 +130,7 @@ class ModelPreviewSettingsDialog(QDialog):
     cloth_preview_reset_requested = Signal()
 
     ARCHIVE_RENDERER_D3D11 = "d3d11_native"
+    PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE = "archive_dotnet_vortice"
     PREVIEW_TARGET_NATIVE_D3D11 = "native_d3d11"
     PREVIEW_TARGET_DOTNET_VORTICE = "dotnet_vortice"
 
@@ -139,7 +140,7 @@ class ModelPreviewSettingsDialog(QDialog):
         settings: Optional[ModelPreviewRenderSettings] = None,
         archive_performance_settings: Optional[ArchivePerformanceSettings] = None,
         archive_renderer_backend: str = ARCHIVE_RENDERER_D3D11,
-        preview_target: str = PREVIEW_TARGET_NATIVE_D3D11,
+        preview_target: str = PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
         parent: Optional[QWidget] = None,
     ) -> None:
         super().__init__(parent)
@@ -524,21 +525,6 @@ class ModelPreviewSettingsDialog(QDialog):
         self.solo_batch_spin.setSingleStep(1)
         self.solo_batch_spin.setToolTip("-1 draws all batches. Any other value draws only that batch index.")
         diagnostics_form.addRow("Solo batch index", self.solo_batch_spin)
-        if self._preview_target == self.PREVIEW_TARGET_DOTNET_VORTICE:
-            for widget in (
-                self.disable_tint_checkbox,
-                self.disable_brightness_checkbox,
-                self.disable_uv_scale_checkbox,
-                self.disable_depth_test_checkbox,
-            ):
-                diagnostics_form.removeWidget(widget)
-                general_form.addRow("", widget)
-            for widget in (
-                self.force_nearest_no_mipmaps_checkbox,
-                self.disable_lighting_checkbox,
-            ):
-                diagnostics_form.removeWidget(widget)
-                quality_form.addRow("", widget)
         diagnostics_layout.addLayout(diagnostics_form)
         diagnostics_hint = QLabel(
             "Use Selected Texture Probe with Probe texture to inspect Base, Normal, Material, or Height bindings directly. Base Texture Raw always samples the base/color binding. Normal, material, and height toggles only change previews with resolved support-map slots."
@@ -1032,7 +1018,10 @@ class ModelPreviewSettingsDialog(QDialog):
                 "Selecting a value switches Diagnostic render mode to Selected Texture Probe, where this control directly changes the preview."
             )
         relief_control_modes = {"rich_lit", "height_calibrated", "relief_control_test"}
-        dotnet = self._preview_target == self.PREVIEW_TARGET_DOTNET_VORTICE
+        dotnet = self._preview_target in (
+            self.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
+            self.PREVIEW_TARGET_DOTNET_VORTICE,
+        )
         textures_enabled = self.use_textures_checkbox.isChecked()
         relief_controls_enabled = bool(
             textures_enabled
@@ -1136,7 +1125,10 @@ class ModelPreviewSettingsDialog(QDialog):
     def _reset_defaults(self) -> None:
         current = self.current_settings()
         defaults = clamp_model_preview_render_settings()
-        if self._preview_target == self.PREVIEW_TARGET_DOTNET_VORTICE:
+        if self._preview_target in (
+            self.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
+            self.PREVIEW_TARGET_DOTNET_VORTICE,
+        ):
             current.orbit_sensitivity = defaults.orbit_sensitivity
             current.pan_sensitivity = defaults.pan_sensitivity
             self.set_settings(current)

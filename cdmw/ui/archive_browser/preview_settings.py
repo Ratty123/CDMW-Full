@@ -417,6 +417,7 @@ class ArchivePreviewSettingsMixin:
                 settings=self._current_model_preview_render_settings(),
                 archive_performance_settings=self._current_archive_performance_settings(),
                 archive_renderer_backend=self._archive_model_renderer_backend(),
+                preview_target=ModelPreviewSettingsDialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
                 parent=self,
             )
             dialog.settings_changed.connect(self._handle_model_preview_settings_changed)
@@ -443,7 +444,7 @@ class ArchivePreviewSettingsMixin:
         archive_renderer_backend_changed_handler: Optional[Callable[[str], None]] = None,
         settings_changed_handler: Optional[Callable[[object], None]] = None,
         preview_settings: Optional[ModelPreviewRenderSettings] = None,
-        preview_target: str = ModelPreviewSettingsDialog.PREVIEW_TARGET_NATIVE_D3D11,
+        preview_target: str = ModelPreviewSettingsDialog.PREVIEW_TARGET_ARCHIVE_DOTNET_VORTICE,
     ) -> QDialog:
         self._ensure_archive_preview_startup_state()
         dialog = ModelPreviewSettingsDialog(

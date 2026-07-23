@@ -133,7 +133,7 @@ class ArchivePreviewLayoutMixin:
         self.archive_model_preview_reset_overrides_button.setVisible(False)
         self.archive_model_preview_settings_button = QPushButton("Preview Settings")
         self.archive_model_preview_settings_button.setToolTip(
-            "Open preview controls for textures, quality, orbit, pan, and inversion."
+            "Open .NET/Vortice camera input settings for orbit, pan, and inversion."
         )
         self.archive_model_preview_settings_button.setMinimumWidth(142)
         self.archive_model_preview_settings_button.setMaximumWidth(180)

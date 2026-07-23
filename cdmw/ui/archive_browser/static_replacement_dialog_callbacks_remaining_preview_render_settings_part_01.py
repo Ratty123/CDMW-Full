@@ -225,7 +225,7 @@ def _remaining_preview_render_settings_step_009(_state):
         preview_target = (
             'dotnet_vortice'
             if bool(getattr(_state.dialog, '_mesh_editor_embedded_dotnet_active', False))
-            else 'native_d3d11'
+            else 'archive_dotnet_vortice'
         )
         _state.self._open_modal_model_preview_settings_dialog(
             _state.dialog,
