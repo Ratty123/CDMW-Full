@@ -168,6 +168,7 @@ def test_builder_mesh_view_selector_uses_the_resident_presentation_lane() -> Non
 
     assert 'setObjectName("MeshAlignmentViewportDisplayModeCombo")' in shell
     assert "MESH_PREVIEW_DEFAULT_DISPLAY_MODE" in shell
+    assert "preview_mesh_view_combo = context['preview_mesh_view_combo']" in prompt_callbacks
     assert (
         "preview_mesh_view_combo.currentIndexChanged.connect(_set_preview_display_mode)"
         in prompt_callbacks

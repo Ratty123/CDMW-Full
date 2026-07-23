@@ -28,6 +28,7 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
     preview_disable_brightness_checkbox = context['preview_disable_brightness_checkbox']
     preview_disable_tint_checkbox = context['preview_disable_tint_checkbox']
     preview_disable_uv_scale_checkbox = context['preview_disable_uv_scale_checkbox']
+    preview_mesh_view_combo = context['preview_mesh_view_combo']
     preview_mode_combo = context['preview_mode_combo']
     preview_render_mode_combo = context['preview_render_mode_combo']
     preview_renderer_combo = context['preview_renderer_combo']
