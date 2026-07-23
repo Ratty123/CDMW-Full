@@ -134,6 +134,12 @@ def _ensure_preview_batch_leased(
                     reason=type(exc).__name__,
                 )
                 if retry_available:
+                    replacement = backend._resolve_directxtex_texture_binary(
+                        stop_event=stop_event,
+                        on_log=on_log,
+                    )
+                    if replacement is not None:
+                        binary = replacement
                     _log_retry(on_log, len(pending))
                     continue
                 break

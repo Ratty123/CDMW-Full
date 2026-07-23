@@ -333,6 +333,68 @@ class NativeTextureBackendTests(unittest.TestCase):
         self.assertFalse(reports[-1]["retry_available"])
         self.assertNotIn("fallback_available", reports[-1])
 
+    def test_directxtex_batch_preview_waits_for_recent_helper_replacement(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
+            binary_path.write_bytes(b"fake")
+            dds_path = root / "replacement.dds"
+            dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
+            logs = []
+
+            def fake_run(command, **_kwargs):
+                job_path = Path(command[2])
+                report_path = Path(command[3])
+                job = json.loads(job_path.read_text(encoding="utf-8"))
+                item = job["jobs"][0]
+                output = Path(item["output"])
+                output.write_bytes(_MINIMAL_PNG)
+                report_path.write_text(
+                    json.dumps({"status": "ok", "items": [{"status": "decoded", "output_path": str(output)}]}),
+                    encoding="utf-8",
+                )
+                return 0, "{}", ""
+
+            with (
+                patch.object(texture_native, "_last_directxtex_binary_path", binary_path),
+                patch(
+                    "cdmw.core.texture_native.find_directxtex_texture_binary",
+                    side_effect=(None, binary_path),
+                ) as find_binary,
+                patch("cdmw.core.texture_native.time.sleep", return_value=None),
+                patch("cdmw.core.texture_native.run_process_with_cancellation", side_effect=fake_run),
+            ):
+                results = texture_native.ensure_directxtex_dds_preview_pngs(
+                    ({"dds_path": str(dds_path), "slot_kind": "base"},),
+                    on_log=logs.append,
+                )
+
+        self.assertEqual(2, find_binary.call_count)
+        self.assertEqual({str(dds_path.resolve())}, set(results))
+        self.assertTrue(any("temporarily unavailable" in line for line in logs))
+        self.assertTrue(any("replacement is ready" in line for line in logs))
+
+    def test_directxtex_batch_preview_missing_without_prior_helper_fails_immediately(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            dds_path = root / "missing-helper.dds"
+            dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
+            texture_native.directxtex_texture_failure_reports(clear=True)
+
+            with (
+                patch.object(texture_native, "_last_directxtex_binary_path", None),
+                patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=None),
+                patch("cdmw.core.texture_native.time.sleep") as sleep,
+            ):
+                results = texture_native.ensure_directxtex_dds_preview_pngs(
+                    ({"dds_path": str(dds_path), "slot_kind": "base"},)
+                )
+            reports = texture_native.directxtex_texture_failure_reports(clear=True)
+
+        self.assertEqual({}, results)
+        sleep.assert_not_called()
+        self.assertEqual("native_helper_missing", reports[-1]["reason"])
+
     def test_directxtex_batch_preview_retries_one_transient_batch_failure(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

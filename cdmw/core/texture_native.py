@@ -40,8 +40,11 @@ from cdmw.models import RunCancelled
 
 DIRECTXTEX_TEXTURE_BACKEND_ID = "directxtex_native_0.2"
 NATIVE_TEXTURE_PROTOCOL_VERSION = 2
+DIRECTXTEX_BINARY_REAPPEAR_TIMEOUT_SECONDS = 60.0
 _DIRECTXTEX_FAILURE_REPORTS: deque[Dict[str, Any]] = deque(maxlen=128)
 _DIRECTXTEX_FAILURE_REPORTS_LOCK = threading.Lock()
+_DIRECTXTEX_BINARY_STATE_LOCK = threading.Lock()
+_last_directxtex_binary_path: Optional[Path] = None
 _UNSUPPORTED_NATIVE_DDS_REASON = "DDS format is not a supported 2D texture format"
 
 _SOURCE_COLOR_POLICIES = frozenset({"auto", "ignore_srgb_metadata"})
@@ -136,6 +139,45 @@ def find_directxtex_texture_binary() -> Optional[Path]:
     for candidate in candidates:
         if candidate.is_file():
             return candidate
+    return None
+
+
+def _resolve_directxtex_texture_binary(
+    *,
+    stop_event: Optional[threading.Event] = None,
+    on_log: Optional[Any] = None,
+) -> Optional[Path]:
+    global _last_directxtex_binary_path
+    binary = find_directxtex_texture_binary()
+    if binary is not None:
+        with _DIRECTXTEX_BINARY_STATE_LOCK:
+            _last_directxtex_binary_path = binary
+        return binary
+    with _DIRECTXTEX_BINARY_STATE_LOCK:
+        previous = _last_directxtex_binary_path
+    if previous is None or not previous.parent.is_dir():
+        return None
+    timeout_seconds = max(0.0, float(DIRECTXTEX_BINARY_REAPPEAR_TIMEOUT_SECONDS))
+    if callable(on_log):
+        on_log(
+            "Native texture helper is temporarily unavailable; "
+            f"waiting up to {timeout_seconds:.0f}s for replacement."
+        )
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
+        time.sleep(min(0.25, max(0.0, deadline - time.monotonic())))
+        binary = find_directxtex_texture_binary()
+        if binary is None:
+            continue
+        with _DIRECTXTEX_BINARY_STATE_LOCK:
+            _last_directxtex_binary_path = binary
+        if callable(on_log):
+            on_log(f"Native texture helper replacement is ready: {binary.name}.")
+        return binary
+    with _DIRECTXTEX_BINARY_STATE_LOCK:
+        if _last_directxtex_binary_path == previous:
+            _last_directxtex_binary_path = None
     return None
 
 
@@ -489,7 +531,10 @@ def ensure_directxtex_dds_preview_pngs(
     raise_if_cancelled(stop_event, "DirectXTex preview conversion cancelled.")
     if os.environ.get("CDMW_DEFER_TEXTURE_PREVIEW", "").strip():
         return {}
-    binary = find_directxtex_texture_binary()
+    binary = _resolve_directxtex_texture_binary(
+        stop_event=stop_event,
+        on_log=on_log,
+    )
     if binary is None:
         _record_directxtex_failure(
             binary=None,
