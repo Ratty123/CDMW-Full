@@ -665,6 +665,14 @@ def _generated_channels(
     raw_contract: Mapping[str, object],
 ) -> dict[str, str]:
     generated: dict[str, str] = {}
+    synthesis_notes = tuple(
+        str(note or "").strip().casefold()
+        for note in tuple(getattr(combined, "notes", ()) or ())
+    )
+    layered_normal_is_authoritative = any(
+        note.startswith("normal layers synthesized:")
+        for note in synthesis_notes
+    )
     base = _local_combiner_path(getattr(combined, "base_source", ""))
     raw_color_available = any(
         str(raw_channels.get(channel, "") or "").strip()
@@ -693,7 +701,11 @@ def _generated_channels(
         raw_channel_available = bool(str(raw_channels.get(channel, "") or "").strip())
         if not path:
             continue
-        if channel == "normal" and raw_channel_available:
+        if (
+            channel == "normal"
+            and raw_channel_available
+            and not layered_normal_is_authoritative
+        ):
             continue
         if channel == "height" and _local_synthesis_dds_path(
             {"source_dds_path": raw_channels.get(channel, "")}
@@ -922,6 +934,70 @@ def _resolved_synthesis_features(
     return features
 
 
+def _apply_dark_neutral_pac_readability(
+    parameters: dict[str, object],
+    raw_contract: Mapping[str, object],
+    generated_channels: tuple[str, ...],
+) -> int:
+    """Keep conserved dark-neutral PAC materials readable on the workbench."""
+
+    if "base" not in generated_channels:
+        return 0
+    source_contract_value = raw_contract.get("source_contract")
+    source_contract = (
+        source_contract_value
+        if isinstance(source_contract_value, Mapping)
+        else {}
+    )
+    conservation_value = source_contract.get("binding_conservation")
+    conservation = (
+        conservation_value
+        if isinstance(conservation_value, Mapping)
+        else {}
+    )
+    if (
+        str(source_contract.get("source_kind", "") or "").strip().casefold()
+        != "pac_xml"
+        or conservation.get("conserved") is not True
+    ):
+        return 0
+
+    def color3(value: object) -> tuple[float, float, float]:
+        if not isinstance(value, (list, tuple)) or len(value) < 3:
+            return ()
+        try:
+            return tuple(max(0.0, min(2.0, float(component))) for component in value[:3])
+        except (TypeError, ValueError, OverflowError):
+            return ()
+
+    base_tint = color3(parameters.get("base_tint_color"))
+    texture_tint = color3(parameters.get("texture_tint"))
+    if not base_tint or not texture_tint:
+        return 0
+    if max(abs(base_tint[index] - texture_tint[index]) for index in range(3)) > 0.015:
+        return 0
+    tint_luma = (
+        (base_tint[0] * 0.299)
+        + (base_tint[1] * 0.587)
+        + (base_tint[2] * 0.114)
+    )
+    tint_chroma = max(base_tint) - min(base_tint)
+    if tint_luma >= 0.44 or tint_chroma > 0.045:
+        return 0
+    try:
+        tint_strength = float(parameters.get("base_tint_strength", 0.0) or 0.0)
+    except (TypeError, ValueError, OverflowError):
+        tint_strength = 0.0
+    if tint_strength <= 0.001:
+        return 0
+    severity = max(0.0, min(1.0, (0.44 - tint_luma) / 0.20))
+    shadow_lift = max(0, min(65, int(round(severity * 65.0))))
+    if shadow_lift < 8:
+        return 0
+    parameters.setdefault("shadow_lift", shadow_lift)
+    return int(parameters.get("shadow_lift", 0) or 0)
+
+
 def _dotnet_submesh_material_payload(
     submesh: object,
     fallback_index: int,
@@ -1028,6 +1104,15 @@ def _dotnet_submesh_material_payload(
         if channel in _GENERATED_LINEAR_CHANNELS and channel != "normal":
             components[channel] = "r"
     parameters = _dotnet_initial_material_parameters(source_submesh, resolved_channels)
+    dark_neutral_shadow_lift = _apply_dark_neutral_pac_readability(
+        parameters,
+        raw_contract,
+        generated,
+    )
+    if dark_neutral_shadow_lift > 0:
+        synthesis.setdefault("notes", []).append(
+            f"pac dark-neutral readability:shadow_lift={dark_neutral_shadow_lift}"
+        )
     if "base_tint_metallic" in parameters:
         parameters["base_tint_metallic"] = (
             str(semantic_contract.get("material_category", "") or "").strip().casefold()

@@ -4,20 +4,28 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Callable, Tuple
+from typing import Callable, Sequence, Tuple
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
 
+from cdmw.models import PreviewMaterialTextureInput
 from cdmw.rendering.material_combiner_images import (
     _byte,
+    _image_reader,
     _image_luma_range,
     _local_file_url,
+    _mask_alpha,
     _raise_if_material_combiner_cancelled,
     _read_generated_map,
     _support_source_image,
 )
-from cdmw.rendering.material_combiner_rules import _clamp
+from cdmw.rendering.material_combiner_rules import (
+    _clamp,
+    _layer_channel,
+    _layer_weight_from_parameters,
+    _visible_layer_role,
+)
 
 
 def _generate_legacy_pbr_response_map(
@@ -125,6 +133,223 @@ def _generate_normal_map(
     return _local_file_url(output_path), average_strength
 
 
+def _is_layer_normal_input(input_item: PreviewMaterialTextureInput) -> bool:
+    disposition = str(getattr(input_item, "binding_disposition", "") or "").strip().lower()
+    source_kind = str(getattr(input_item, "source_kind", "") or "").strip().lower()
+    role = _visible_layer_role(input_item)
+    return bool(
+        disposition in {"layer_only", "layer_material_response"}
+        or source_kind == "crimson_layer_normal"
+        or role in {"damage", "detail", "grime", "layer"}
+    )
+
+
+def _generate_synthesized_normal_map(
+    normal_inputs: Sequence[PreviewMaterialTextureInput],
+    mask_inputs: dict[str, PreviewMaterialTextureInput],
+    output_dir: Path,
+    stem: str,
+    *,
+    flip_vertical: bool,
+    max_dimension: int,
+    cancelled: Callable[[], bool] | None = None,
+) -> Tuple[str, float, Tuple[str, ...]]:
+    """Combine a macro normal with masked PAC detail normals.
+
+    PAC material graphs bind grime/detail normals separately from the primary
+    tangent-space normal. Whiteout composition retains the macro shape while
+    adding each authored layer behind its role/channel selector.
+    """
+
+    _raise_if_material_combiner_cancelled(cancelled)
+    layer_items = tuple(item for item in normal_inputs if _is_layer_normal_input(item))
+    if not layer_items:
+        return "", 0.0, ()
+
+    prepared_normals: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
+    for item in normal_inputs:
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(
+            str(getattr(item, "preview_texture_path", "") or ""),
+            max_dimension=max_dimension,
+        )
+        if image.isNull():
+            continue
+        prepared = _support_source_image(
+            image,
+            flip_vertical=flip_vertical,
+            max_dimension=max_dimension,
+        )
+        if not prepared.isNull():
+            prepared_normals.append(
+                (item, prepared.convertToFormat(QImage.Format.Format_RGBA8888))
+            )
+    if not prepared_normals:
+        return "", 0.0, ()
+
+    prepared_masks: dict[str, QImage] = {}
+    for role, item in mask_inputs.items():
+        _raise_if_material_combiner_cancelled(cancelled)
+        image = _image_reader(
+            str(getattr(item, "preview_texture_path", "") or ""),
+            max_dimension=max_dimension,
+        )
+        if image.isNull():
+            continue
+        prepared = _support_source_image(
+            image,
+            flip_vertical=flip_vertical,
+            max_dimension=max_dimension,
+        )
+        if not prepared.isNull():
+            prepared_masks[role] = prepared.convertToFormat(QImage.Format.Format_RGBA8888)
+
+    size_candidates = [
+        image
+        for _item, image in prepared_normals
+        if int(image.width()) > 0 and int(image.height()) > 0
+    ]
+    size_candidates.extend(
+        image
+        for image in prepared_masks.values()
+        if int(image.width()) > 0 and int(image.height()) > 0
+    )
+    if not size_candidates:
+        return "", 0.0, ()
+    target_size_source = max(
+        size_candidates,
+        key=lambda image: (
+            int(image.width()) * int(image.height()),
+            max(int(image.width()), int(image.height())),
+        ),
+    )
+    width = int(target_size_source.width())
+    height = int(target_size_source.height())
+    if width <= 0 or height <= 0:
+        return "", 0.0, ()
+
+    base_entry = next(
+        (
+            (item, image)
+            for item, image in prepared_normals
+            if not _is_layer_normal_input(item)
+        ),
+        None,
+    )
+    target = QImage(width, height, QImage.Format.Format_RGBA8888)
+    if base_entry is None:
+        target.fill(QColor(128, 127, 255, 255))
+    else:
+        base_image = base_entry[1]
+        if int(base_image.width()) != width or int(base_image.height()) != height:
+            base_image = base_image.scaled(
+                width,
+                height,
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation,
+            )
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                color = base_image.pixelColor(x, y)
+                target.setPixelColor(
+                    x,
+                    y,
+                    QColor(color.red(), 255 - color.green(), color.blue(), 255),
+                )
+
+    for role, image in tuple(prepared_masks.items()):
+        if int(image.width()) != width or int(image.height()) != height:
+            prepared_masks[role] = image.scaled(
+                width,
+                height,
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation,
+            ).convertToFormat(QImage.Format.Format_RGBA8888)
+
+    roles_used: list[str] = []
+    has_base = base_entry is not None
+    for item, source_image in prepared_normals:
+        if not _is_layer_normal_input(item):
+            continue
+        _raise_if_material_combiner_cancelled(cancelled)
+        layer = source_image
+        if int(layer.width()) != width or int(layer.height()) != height:
+            layer = layer.scaled(
+                width,
+                height,
+                Qt.IgnoreAspectRatio,
+                Qt.SmoothTransformation,
+            ).convertToFormat(QImage.Format.Format_RGBA8888)
+        role = _visible_layer_role(item)
+        channel = _layer_channel(item)
+        mask = prepared_masks.get(role) or prepared_masks.get("color") or QImage()
+        weight = _layer_weight_from_parameters(item, has_base=has_base)
+        if weight <= 0.001:
+            continue
+        layer_applied = False
+        for y in range(height):
+            _raise_if_material_combiner_cancelled(cancelled)
+            for x in range(width):
+                alpha = _clamp(weight * _mask_alpha(mask, x, y, channel=channel))
+                if alpha <= 0.001:
+                    continue
+                base_color = target.pixelColor(x, y)
+                layer_color = layer.pixelColor(x, y)
+                base_x = (base_color.redF() * 2.0) - 1.0
+                base_y = (base_color.greenF() * 2.0) - 1.0
+                base_z = (base_color.blueF() * 2.0) - 1.0
+                layer_x = (layer_color.redF() * 2.0) - 1.0
+                layer_y = (((255 - layer_color.green()) / 255.0) * 2.0) - 1.0
+                layer_z = (layer_color.blueF() * 2.0) - 1.0
+                detail_x = layer_x * alpha
+                detail_y = layer_y * alpha
+                detail_z = (1.0 - alpha) + (layer_z * alpha)
+                out_x = base_x + detail_x
+                out_y = base_y + detail_y
+                out_z = base_z * detail_z
+                length = max(
+                    0.001,
+                    math.sqrt((out_x * out_x) + (out_y * out_y) + (out_z * out_z)),
+                )
+                target.setPixelColor(
+                    x,
+                    y,
+                    QColor(
+                        _byte(((out_x / length) * 0.5) + 0.5),
+                        _byte(((out_y / length) * 0.5) + 0.5),
+                        _byte(((out_z / length) * 0.5) + 0.5),
+                        255,
+                    ),
+                )
+                layer_applied = True
+        if layer_applied:
+            role_label = role if not channel else f"{role}:{channel}"
+            if role_label not in roles_used:
+                roles_used.append(role_label)
+
+    strength_total = 0.0
+    sample_count = 0
+    for y in range(height):
+        _raise_if_material_combiner_cancelled(cancelled)
+        for x in range(width):
+            color = target.pixelColor(x, y)
+            nx = (color.redF() * 2.0) - 1.0
+            ny = (color.greenF() * 2.0) - 1.0
+            strength_total += min(1.0, math.sqrt((nx * nx) + (ny * ny)))
+            sample_count += 1
+    average_strength = strength_total / float(max(1, sample_count))
+    if average_strength <= 0.012 or not roles_used:
+        return "", 0.0, ()
+
+    _raise_if_material_combiner_cancelled(cancelled)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{stem}_normal.png"
+    if not target.save(str(output_path), "PNG"):
+        return "", 0.0, ()
+    return _local_file_url(output_path), average_strength, tuple(roles_used)
+
+
 def _generate_height_map(
     image: QImage,
     output_dir: Path,
@@ -224,4 +449,6 @@ __all__ = [
     "_generate_height_map",
     "_generate_legacy_pbr_response_map",
     "_generate_normal_map",
+    "_generate_synthesized_normal_map",
+    "_is_layer_normal_input",
 ]

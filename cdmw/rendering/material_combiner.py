@@ -108,6 +108,8 @@ from cdmw.rendering.material_combiner_support_maps import (
     _generate_height_map,
     _generate_legacy_pbr_response_map,
     _generate_normal_map,
+    _generate_synthesized_normal_map,
+    _is_layer_normal_input,
 )
 
 
@@ -256,7 +258,29 @@ def _prepare_normal_source(
         notes.append("missing tangents")
     if not tangents_usable:
         return "", 0.0
-    for item in candidates:
+    synthesized_source, synthesized_average_strength, synthesized_roles = (
+        _generate_synthesized_normal_map(
+            candidates,
+            _mask_inputs_for_albedo(inputs),
+            output_dir,
+            f"batch_{batch_index:03d}",
+            flip_vertical=flip_vertical,
+            max_dimension=support_map_max_dimension,
+            cancelled=cancelled,
+        )
+    )
+    if synthesized_source:
+        configured_strength = _finite_float(getattr(payload, "normal_texture_strength", 0.0), 0.0)
+        if configured_strength <= 0.0:
+            configured_strength = max(settings.normal_strength_floor, synthesized_average_strength)
+        strength = _clamp(configured_strength, settings.normal_strength_floor, settings.normal_strength_cap)
+        outputs.append("normal")
+        notes.append("normal green inverted")
+        notes.append("normal layers synthesized:" + ",".join(synthesized_roles[:6]))
+        return synthesized_source, strength
+    # A layer-only normal is not a valid whole-surface fallback when its mask
+    # disables synthesis or its base normal is missing.
+    for item in (candidate for candidate in candidates if not _is_layer_normal_input(candidate)):
         _raise_if_material_combiner_cancelled(cancelled)
         image = _image_reader(str(item.preview_texture_path or ""), max_dimension=support_map_max_dimension)
         if image.isNull():

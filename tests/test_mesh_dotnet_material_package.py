@@ -473,6 +473,129 @@ def test_package_expands_generic_packed_mask_without_losing_source_v_orientation
         assert (tmp_path / "package" / resource["path"]).is_file()
 
 
+def test_package_replaces_base_normal_with_masked_pac_normal_layers(
+    tmp_path: Path,
+) -> None:
+    base_normal = _image(tmp_path / "base_normal.png", (128, 128, 255, 255))
+    detail_normal = _image(tmp_path / "detail_normal.png", (200, 128, 240, 255))
+    selector = _image(tmp_path / "color_blending_mask.png", (255, 0, 0, 255))
+    submesh = _submesh("layered_normal")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_normalTexture",
+            preview_texture_path=str(base_normal),
+            source_dds_path=str(base_normal),
+            semantic_type="normal",
+            layer_role="normal",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="promoted",
+            source_kind="crimson_normal",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_detailNormalMaskR",
+            preview_texture_path=str(detail_normal),
+            source_dds_path=str(detail_normal),
+            semantic_type="normal",
+            layer_role="detail",
+            layer_channel="r",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_normal",
+            visualized=True,
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="mask",
+            parameter_name="_colorBlendingMaskTexture",
+            preview_texture_path=str(selector),
+            source_dds_path=str(selector),
+            semantic_type="mask",
+            layer_role="color",
+            sidecar_kind="pac_xml",
+            binding_authority="authoritative",
+            binding_disposition="layer_only",
+            source_kind="crimson_color_blending_mask",
+            visualized=True,
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    binding = payload["submeshes"][0]
+
+    assert "normal" in binding["material_synthesis"]["generated_channels"]
+    assert "normal layers synthesized:detail:r" in binding["material_synthesis"]["notes"]
+    assert binding["resolved_channels"]["normal"] != binding["raw_resolved_channels"]["normal"]
+    normal_resource = next(
+        resource
+        for resource in payload["resources"]
+        if resource["resource_id"] == binding["resource_channels"]["normal"]
+    )
+    assert normal_resource["semantic_authority"] == "synthesized_shared_combiner"
+    packaged_normal = QImage(str(tmp_path / "package" / normal_resource["path"]))
+    assert not packaged_normal.isNull()
+    assert packaged_normal.pixelColor(0, 0).red() > 145
+
+
+def test_dark_neutral_pac_readability_lifts_only_conserved_generated_albedo() -> None:
+    raw_contract = {
+        "source_contract": {
+            "source_kind": "pac_xml",
+            "binding_conservation": {"conserved": True},
+        }
+    }
+    parameters = {
+        "base_tint_color": [0.305882, 0.305882, 0.305882],
+        "base_tint_strength": 0.85,
+        "texture_tint": [0.305882, 0.305882, 0.305882],
+    }
+
+    assert mesh_dotnet_material_package._apply_dark_neutral_pac_readability(
+        parameters,
+        raw_contract,
+        ("base", "normal"),
+    ) == 44
+    assert parameters["shadow_lift"] == 44
+
+    chromatic_parameters = {
+        "base_tint_color": [0.28, 0.18, 0.14],
+        "base_tint_strength": 0.85,
+        "texture_tint": [0.28, 0.18, 0.14],
+    }
+    assert mesh_dotnet_material_package._apply_dark_neutral_pac_readability(
+        chromatic_parameters,
+        raw_contract,
+        ("base",),
+    ) == 0
+    assert "shadow_lift" not in chromatic_parameters
+
+    no_generated_base = dict(parameters)
+    no_generated_base.pop("shadow_lift")
+    assert mesh_dotnet_material_package._apply_dark_neutral_pac_readability(
+        no_generated_base,
+        raw_contract,
+        ("normal",),
+    ) == 0
+    assert "shadow_lift" not in no_generated_base
+
+    nonconserved_contract = {
+        "source_contract": {
+            "source_kind": "pac_xml",
+            "binding_conservation": {"conserved": False},
+        }
+    }
+    nonconserved_parameters = dict(no_generated_base)
+    assert mesh_dotnet_material_package._apply_dark_neutral_pac_readability(
+        nonconserved_parameters,
+        nonconserved_contract,
+        ("base",),
+    ) == 0
+    assert "shadow_lift" not in nonconserved_parameters
+
+
 def test_package_combiner_failure_preserves_raw_channels_and_unsupported_reporting(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

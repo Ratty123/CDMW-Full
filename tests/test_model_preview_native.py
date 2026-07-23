@@ -2944,6 +2944,155 @@ class NativePreviewPayloadTests(unittest.TestCase):
             self.assertEqual("", combined.height_source)
             self.assertIn("height flat", "; ".join(combined.notes))
 
+    def test_material_combiner_synthesizes_masked_pac_normal_layers(self) -> None:
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            base_normal_path = temp / "base_normal.png"
+            base_normal = QImage(1, 1, QImage.Format_RGBA8888)
+            base_normal.fill(QColor(128, 128, 255, 255))
+            self.assertTrue(base_normal.save(str(base_normal_path), "PNG"))
+            grime_normal_path = temp / "grime_normal.png"
+            grime_normal = QImage(2, 2, QImage.Format_RGBA8888)
+            grime_normal.fill(QColor(200, 128, 240, 255))
+            self.assertTrue(grime_normal.save(str(grime_normal_path), "PNG"))
+            selector_path = temp / "color_blending_mask.png"
+            selector = QImage(4, 4, QImage.Format_RGBA8888)
+            for y in range(4):
+                for x in range(4):
+                    selector.setPixelColor(
+                        x,
+                        y,
+                        QColor(255 if x < 2 else 0, 0, 0, 255),
+                    )
+            self.assertTrue(selector.save(str(selector_path), "PNG"))
+            prepared = PreparedModelPreviewData(
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=b"".join((_vertex(0, 0, 0), _vertex(1, 0, 0), _vertex(0, 1, 0))),
+                        index_count=3,
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="normal",
+                                parameter_name="_normalTexture",
+                                preview_texture_path=str(base_normal_path),
+                                semantic_type="normal",
+                                layer_role="normal",
+                                sidecar_kind="pac_xml",
+                                binding_authority="authoritative",
+                                binding_disposition="promoted",
+                                source_kind="crimson_normal",
+                                visualized=True,
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="normal",
+                                parameter_name="_grimeNormalTextureR",
+                                preview_texture_path=str(grime_normal_path),
+                                semantic_type="normal",
+                                layer_role="grime",
+                                layer_channel="r",
+                                sidecar_kind="pac_xml",
+                                binding_authority="authoritative",
+                                binding_disposition="layer_only",
+                                source_kind="crimson_layer_normal",
+                                visualized=True,
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="mask",
+                                parameter_name="_colorBlendingMaskTexture",
+                                preview_texture_path=str(selector_path),
+                                semantic_type="mask",
+                                layer_role="color",
+                                sidecar_kind="pac_xml",
+                                binding_authority="authoritative",
+                                binding_disposition="layer_only",
+                                source_kind="crimson_color_blending_mask",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                )
+            )
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
+                payload,
+                temp / "out",
+                0,
+                settings=MaterialPreviewCombinerSettings(),
+            )
+
+            prepared_normal = QImage(QUrl(combined.normal_source).toLocalFile())
+            self.assertFalse(prepared_normal.isNull())
+            self.assertEqual((4, 4), (prepared_normal.width(), prepared_normal.height()))
+            self.assertGreater(prepared_normal.pixelColor(0, 0).red(), 145)
+            self.assertAlmostEqual(128, prepared_normal.pixelColor(3, 0).red(), delta=1)
+            self.assertAlmostEqual(127, prepared_normal.pixelColor(3, 0).green(), delta=1)
+            self.assertIn(
+                "normal layers synthesized:grime:r",
+                "; ".join(combined.notes),
+            )
+
+    def test_material_combiner_does_not_promote_disabled_layer_normal_to_surface(self) -> None:
+        from PySide6.QtGui import QColor, QImage
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp = Path(temp_dir)
+            detail_normal_path = temp / "detail_normal.png"
+            detail_normal = QImage(2, 2, QImage.Format_RGBA8888)
+            detail_normal.fill(QColor(200, 128, 240, 255))
+            self.assertTrue(detail_normal.save(str(detail_normal_path), "PNG"))
+            selector_path = temp / "disabled_mask.png"
+            selector = QImage(2, 2, QImage.Format_RGBA8888)
+            selector.fill(QColor(0, 0, 0, 255))
+            self.assertTrue(selector.save(str(selector_path), "PNG"))
+            prepared = PreparedModelPreviewData(
+                batches=(
+                    PreparedModelPreviewBatch(
+                        vertex_blob=b"".join((_vertex(0, 0, 0), _vertex(1, 0, 0), _vertex(0, 1, 0))),
+                        index_count=3,
+                        preview_material_texture_inputs=(
+                            PreviewMaterialTextureInput(
+                                slot_kind="normal",
+                                parameter_name="_detailNormalMaskR",
+                                preview_texture_path=str(detail_normal_path),
+                                semantic_type="normal",
+                                layer_role="detail",
+                                layer_channel="r",
+                                binding_disposition="layer_only",
+                                source_kind="crimson_layer_normal",
+                                visualized=True,
+                            ),
+                            PreviewMaterialTextureInput(
+                                slot_kind="mask",
+                                parameter_name="_colorBlendingMaskTexture",
+                                preview_texture_path=str(selector_path),
+                                semantic_type="mask",
+                                layer_role="color",
+                                sidecar_kind="pac_xml",
+                                binding_authority="authoritative",
+                                binding_disposition="layer_only",
+                                source_kind="crimson_color_blending_mask",
+                                visualized=True,
+                            ),
+                        ),
+                        has_texture_coordinates=True,
+                    ),
+                )
+            )
+            payload = build_native_preview_payloads(prepared)[0]
+            combined = combine_preview_material(
+                payload,
+                temp / "out",
+                0,
+                settings=MaterialPreviewCombinerSettings(),
+            )
+
+            self.assertEqual("", combined.normal_source)
+            self.assertNotIn("normal", combined.outputs)
+
     def test_material_combiner_preserves_cutout_base_alpha(self) -> None:
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QColor, QImage
