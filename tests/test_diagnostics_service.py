@@ -21,18 +21,24 @@ from cdmw.services.diagnostics_service import (
     format_issue_summary,
     format_timing_summary,
     format_thread_dump,
+    find_duplicate_crash_report,
     heartbeat_payload,
     is_expected_cancellation_message,
     latest_diagnostic_report_files,
+    latest_issue_report_file,
     merge_timing_maps,
     parse_crash_report_header,
     process_is_alive,
+    prune_crash_reports,
     read_crash_json_context_file,
     read_jsonl_tail,
+    read_text_tail,
+    reset_runtime_event_logs,
     rotate_runtime_event_logs,
     runtime_event_child_memory,
     runtime_event_log_sibling,
     sanitize_runtime_event_value,
+    should_persist_runtime_event,
     should_write_crash_report,
     start_hang_watchdog,
     thread_exception_report,
@@ -103,6 +109,30 @@ class DiagnosticsServiceTests(unittest.TestCase):
 
             self.assertEqual([{"new": True}, {"last": 2}], read_jsonl_tail(path, limit=3))
 
+    def test_default_runtime_persistence_keeps_issues_and_recovery_breadcrumbs_only(self) -> None:
+        self.assertTrue(should_persist_runtime_event("session_start"))
+        self.assertTrue(should_persist_runtime_event("last_active_operation"))
+        self.assertTrue(should_persist_runtime_event("mesh_alignment_preview_refresh_failed"))
+        self.assertTrue(should_persist_runtime_event("renderer_device_lost"))
+        self.assertFalse(should_persist_runtime_event("responsive_resize_applied"))
+        self.assertFalse(should_persist_runtime_event("archive_memory_audit"))
+        self.assertFalse(should_persist_runtime_event("batch_preview_complete"))
+
+    def test_runtime_event_reset_removes_current_and_rotated_streams_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            path = root / "diagnostics_current.jsonl"
+            path.write_text("current\n", encoding="utf-8")
+            runtime_event_log_sibling(path, 1).write_text("old\n", encoding="utf-8")
+            keep = root / "issue.log"
+            keep.write_text("keep\n", encoding="utf-8")
+
+            reset_runtime_event_logs(path)
+
+            self.assertFalse(path.exists())
+            self.assertFalse(runtime_event_log_sibling(path, 1).exists())
+            self.assertEqual("keep\n", keep.read_text(encoding="utf-8"))
+
     def test_runtime_event_recorder_composes_memory_fields_ring_and_log(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "runtime_events_current.jsonl"
@@ -122,7 +152,8 @@ class DiagnosticsServiceTests(unittest.TestCase):
             )
 
             first = recorder.record("preview", process_pid=11, path=Path("archive") / "entry.dds")
-            second = recorder.record("scan")
+            second = recorder.record("preview_failed")
+            recorder.set_verbose_persistence(True)
             third = recorder.record("build")
 
             self.assertEqual([10, 11, 10, 10], calls)
@@ -134,7 +165,7 @@ class DiagnosticsServiceTests(unittest.TestCase):
             self.assertEqual({"11": {"private_bytes": 1100}}, first["child_process_memory"])
             self.assertEqual(2100, first["memory_total_private_bytes"])
             self.assertEqual([second, third], recorder.tail(limit=10))
-            self.assertEqual([first, second, third], read_jsonl_tail(path, limit=10))
+            self.assertEqual([second, third], read_jsonl_tail(path, limit=10))
 
     def test_persisted_crash_breadcrumbs_collect_json_context_and_event_tails(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -146,6 +177,10 @@ class DiagnosticsServiceTests(unittest.TestCase):
             (reports_dir / "texture_workflow_breadcrumb.json").write_text('{"phase":"texture"}', encoding="utf-8")
             runtime_log.write_text('{"event":"runtime"}\n', encoding="utf-8")
             native_log.write_text('{"event":"native"}\n', encoding="utf-8")
+            (reports_dir / "native_fault_current.log").write_text(
+                "old line\nnative fault detail\n",
+                encoding="utf-8",
+            )
 
             context: dict[str, object] = {}
             add_persisted_crash_breadcrumbs(
@@ -160,7 +195,12 @@ class DiagnosticsServiceTests(unittest.TestCase):
             self.assertEqual({"phase": "texture"}, context["texture_workflow_breadcrumb"])
             self.assertEqual([{"event": "runtime"}], context["persisted_runtime_event_tail"])
             self.assertEqual([{"event": "native"}], context["persisted_native_event_tail"])
+            self.assertEqual(["old line", "native fault detail"], context["persisted_native_fault_tail"])
             self.assertEqual({"phase": "ui"}, read_crash_json_context_file(reports_dir, "ui_breadcrumb.json"))
+            self.assertEqual(
+                ["native fault detail"],
+                read_text_tail(reports_dir / "native_fault_current.log", limit=1),
+            )
 
     def test_ui_breadcrumb_report_and_heartbeat_writers_are_atomic_file_helpers(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -366,32 +406,96 @@ class DiagnosticsServiceTests(unittest.TestCase):
             )
             self.assertFalse(crash_report_kind_already_covers_session(reports_dir, "", "abc-123"))
 
+    def test_crash_reports_dedupe_per_session_and_prune_only_issue_reports(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reports_dir = Path(temp_dir)
+            first = write_crash_report(
+                reports_dir,
+                "worker_error",
+                "Worker error",
+                "same failure",
+                app_title="Workbench",
+                app_version="1.0",
+                session_id="session-1",
+                pid=123,
+            )
+            duplicate = write_crash_report(
+                reports_dir,
+                "worker_error",
+                "Worker error",
+                "same failure",
+                app_title="Workbench",
+                app_version="1.0",
+                session_id="session-1",
+                pid=123,
+            )
+
+            self.assertEqual(first, duplicate)
+            self.assertEqual(
+                first,
+                find_duplicate_crash_report(
+                    reports_dir,
+                    kind="worker_error",
+                    fingerprint=parse_crash_report_header(first.read_text(encoding="utf-8"))["Fingerprint"],
+                    session_id="session-1",
+                ),
+            )
+            self.assertEqual(1, len(tuple(reports_dir.glob("worker_error_*.log"))))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            reports_dir = Path(temp_dir)
+            state_log = reports_dir / "native_fault_current.log"
+            state_log.write_text("state\n", encoding="utf-8")
+            for index in range(7):
+                write_crash_report(
+                    reports_dir,
+                    f"issue_{index}",
+                    "Issue",
+                    f"failure {index}",
+                    app_title="Workbench",
+                    app_version="1.0",
+                    session_id="session-1",
+                    pid=123,
+                    retention_limit=100,
+                )
+
+            removed = prune_crash_reports(reports_dir, limit=3)
+
+            self.assertEqual(4, len(removed))
+            self.assertEqual(3, len(tuple(path for path in reports_dir.glob("*.log") if path != state_log)))
+            self.assertEqual("state\n", state_log.read_text(encoding="utf-8"))
+
     def test_latest_diagnostic_report_files_are_bounded_newest_first_and_indexed(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             reports_dir = Path(temp_dir)
             old = reports_dir / "old.log"
             middle = reports_dir / "middle.json"
             new = reports_dir / "new.log"
+            native_fault = reports_dir / "native_fault_current.log"
             old.write_text("App report\nKind: old\nReport ID: old\n\n", encoding="utf-8")
             middle.write_text("{}", encoding="utf-8")
             new.write_text(
                 "App report\nKind: new\nReport ID: new\nLikely Location: cdmw/app.py:1 in main\nException: RuntimeError: bad\nFingerprint: abc123abc123\n\n",
                 encoding="utf-8",
             )
+            native_fault.write_text("faulthandler session output\n", encoding="utf-8")
             ignored = reports_dir / "ignored.txt"
             ignored.write_text("ignore", encoding="utf-8")
             os.utime(old, (100.0, 100.0))
             os.utime(middle, (200.0, 200.0))
             os.utime(new, (300.0, 300.0))
+            os.utime(native_fault, (400.0, 400.0))
 
-            latest = latest_diagnostic_report_files(reports_dir, limit=2)
+            latest = latest_diagnostic_report_files(reports_dir, limit=3)
 
-            self.assertEqual([new, middle], latest)
+            self.assertEqual([native_fault, new, middle], latest)
+            self.assertEqual(new, latest_issue_report_file(latest))
             index = diagnostic_report_index(latest)
-            self.assertEqual("new.log", index[0]["name"])
-            self.assertEqual("new", index[0]["report_id"])
-            self.assertEqual("cdmw/app.py:1 in main", index[0]["likely_location"])
-            self.assertEqual("middle.json", index[1]["name"])
+            self.assertEqual("native_fault_current.log", index[0]["name"])
+            self.assertEqual("new.log", index[1]["name"])
+            self.assertEqual("new", index[1]["report_id"])
+            self.assertEqual("cdmw/app.py:1 in main", index[1]["likely_location"])
+            self.assertEqual("middle.json", index[2]["name"])
 
     def test_issue_summary_uses_report_header_context_and_repro_prompts(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

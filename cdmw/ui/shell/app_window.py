@@ -20,7 +20,9 @@ from cdmw.services.diagnostics_service import (
     enable_native_fault_log as _enable_native_fault_log_file,
     format_thread_dump as _format_thread_dump,
     process_is_alive as _process_is_alive,
+    prune_crash_reports as _prune_crash_reports,
     read_jsonl_tail as _read_jsonl_tail,
+    reset_runtime_event_logs as _reset_runtime_event_logs,
     should_write_crash_report as _should_write_crash_report,
     start_hang_watchdog as _start_hang_watchdog_service,
     thread_exception_report as _thread_exception_report,
@@ -155,8 +157,27 @@ def run_gui() -> int:
     _fault_log_handle = None
     _cached_crash_context: Dict[str, object] = {}
     _previous_session_unclean = False
-    _runtime_event_log_path = crash_reports_dir / "runtime_events_current.jsonl"
-    _native_diagnostic_log_path = crash_reports_dir / "native_events_current.jsonl"
+    _runtime_event_log_path = crash_reports_dir / "diagnostics_current.jsonl"
+    _legacy_runtime_event_log_path = crash_reports_dir / "runtime_events_current.jsonl"
+    _legacy_native_diagnostic_log_path = crash_reports_dir / "native_events_current.jsonl"
+    _managed_native_diagnostic_log_path = crash_reports_dir / "native_diagnostics_verbose.jsonl"
+    _external_native_diagnostic_log = str(os.environ.get("CDMW_NATIVE_DIAGNOSTIC_LOG", "") or "").strip()
+    _native_diagnostic_log_managed = not bool(_external_native_diagnostic_log)
+    _native_diagnostic_log_path = (
+        Path(_external_native_diagnostic_log)
+        if _external_native_diagnostic_log
+        else _managed_native_diagnostic_log_path
+    )
+    _persisted_runtime_event_log_path = (
+        _runtime_event_log_path
+        if _runtime_event_log_path.is_file()
+        else _legacy_runtime_event_log_path
+    )
+    _persisted_native_diagnostic_log_path = (
+        _native_diagnostic_log_path
+        if _native_diagnostic_log_path.is_file()
+        else _legacy_native_diagnostic_log_path
+    )
     _runtime_event_recorder = RuntimeEventRecorder(
         _runtime_event_log_path, session_id=_session_id, memory_snapshot=_windows_process_memory_snapshot
     )
@@ -164,12 +185,17 @@ def run_gui() -> int:
         "operation": "startup", "timestamp": time.time(), "pid": os.getpid(), "session_id": _session_id,
     }
     os.environ.setdefault("CDMW_CRASH_DIR", str(crash_reports_dir))
-    os.environ.setdefault("CDMW_NATIVE_DIAGNOSTIC_LOG", str(_native_diagnostic_log_path))
     os.environ.setdefault("CDMW_TEMP_CACHE_ROOT", str(_workspace_paths["archive_cache_root"]))
 
     def _set_crash_capture_enabled(enabled: bool) -> None:
         nonlocal _capture_crash_details_enabled
         _capture_crash_details_enabled = bool(enabled)
+        _runtime_event_recorder.set_verbose_persistence(_capture_crash_details_enabled)
+        if _native_diagnostic_log_managed:
+            if _capture_crash_details_enabled:
+                os.environ["CDMW_NATIVE_DIAGNOSTIC_LOG"] = str(_managed_native_diagnostic_log_path)
+            else:
+                os.environ.pop("CDMW_NATIVE_DIAGNOSTIC_LOG", None)
 
     def _record_runtime_event(event: str, **fields: object) -> Dict[str, object]:
         return _runtime_event_recorder.record(event, **fields)
@@ -184,8 +210,8 @@ def run_gui() -> int:
         _add_persisted_crash_breadcrumbs_service(
             context,
             reports_dir=crash_reports_dir,
-            runtime_event_log_path=_runtime_event_log_path,
-            native_diagnostic_log_path=_native_diagnostic_log_path,
+            runtime_event_log_path=_persisted_runtime_event_log_path,
+            native_diagnostic_log_path=_persisted_native_diagnostic_log_path,
         )
 
     def _write_ui_breadcrumb(payload: Mapping[str, object]) -> None:
@@ -227,12 +253,16 @@ def run_gui() -> int:
         except Exception:
             pass
         try:
-            context["runtime_event_tail"] = _runtime_event_recorder.tail(limit=120)
+            context["runtime_event_tail"] = _runtime_event_recorder.tail(limit=40)
         except Exception:
             pass
         try:
-            context["native_diagnostic_log_path"] = str(_native_diagnostic_log_path)
-            context["native_diagnostic_event_tail"] = _read_jsonl_tail(_native_diagnostic_log_path, limit=120)
+            if _native_diagnostic_log_path.is_file():
+                context["native_diagnostic_log_path"] = str(_native_diagnostic_log_path)
+                context["native_diagnostic_event_tail"] = _read_jsonl_tail(
+                    _native_diagnostic_log_path,
+                    limit=40,
+                )
         except Exception:
             pass
         try:
@@ -271,12 +301,12 @@ def run_gui() -> int:
         _add_persisted_crash_breadcrumbs(context)
         try:
             log_lines = window.log_view.toPlainText().splitlines()
-            context["recent_log_tail"] = log_lines[-80:]
+            context["recent_log_tail"] = log_lines[-40:]
         except Exception:
             pass
         try:
             archive_log_lines = window.archive_log_view.toPlainText().splitlines()
-            context["recent_archive_log_tail"] = archive_log_lines[-80:]
+            context["recent_archive_log_tail"] = archive_log_lines[-40:]
         except Exception:
             pass
         _cached_crash_context = dict(context)
@@ -381,8 +411,19 @@ def run_gui() -> int:
         _default_threading_excepthook,
         _default_unraisablehook,
     )
-    _enable_native_fault_log()
     _previous_session_unclean = _check_previous_unclean_exit()
+    _prune_crash_reports(crash_reports_dir, limit=20)
+    _reset_runtime_event_logs(
+        _runtime_event_log_path,
+        _legacy_runtime_event_log_path,
+        _legacy_native_diagnostic_log_path,
+        crash_reports_dir / "native_fault_current.log",
+    )
+    if _native_diagnostic_log_managed:
+        _reset_runtime_event_logs(_managed_native_diagnostic_log_path)
+    _persisted_runtime_event_log_path = _runtime_event_log_path
+    _persisted_native_diagnostic_log_path = _native_diagnostic_log_path
+    _enable_native_fault_log()
     _record_runtime_event(
         "session_start",
         crash_reports_dir=str(crash_reports_dir),

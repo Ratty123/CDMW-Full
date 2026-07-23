@@ -155,6 +155,10 @@ Last updated: 2026-07-23
   after grace, and publishes the final closed heartbeat last. A finished
   parentless Python worker returns to the UI thread before its QThread quits;
   UI-side cleanup then defer-deletes both objects after that same fence.
+- Full diagnostics persist only recovery breadcrumbs and issue-class events by
+  default; the existing extra-context preference enables verbose Python/native
+  streams. Same-session fingerprint duplicates collapse to one report, the
+  newest 20 issue reports are retained, and support actions ignore state logs.
 - Release builds regenerate and verify provider metadata before PyInstaller. The
   configured-archive gate loads 1.67M entries, paints, filters, and requires a clean shutdown.
 - Release packaging carries the full archive worker plus native DLL under `archive_backend/` in onedir and onefile. The published and exact packaged bundles must pass the headless synthetic protocol/ABI, open/query/page, cancellation, and no-orphan shutdown probe; that does not substitute for separately authorized real-corpus evidence.

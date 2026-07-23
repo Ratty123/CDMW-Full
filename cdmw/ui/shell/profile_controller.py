@@ -50,6 +50,7 @@ from cdmw.services.diagnostic_bundle_service import (
 from cdmw.services.diagnostics_service import (
     format_issue_summary,
     latest_diagnostic_report_files,
+    latest_issue_report_file,
 )
 from cdmw.services.workspace_layout import workspace_paths
 from cdmw.ui.shell.lazy_tool_tab import created_tool_widget
@@ -593,16 +594,12 @@ class ProfileControllerMixin:
     def copy_latest_problem_summary(self) -> None:
         try:
             crash_reports_dir = self._crash_reports_dir()
-            latest_log = next(
-                (
-                    path
-                    for path in latest_diagnostic_report_files(
-                        crash_reports_dir,
-                        limit=20,
-                        suffixes=frozenset({".log"}),
-                    )
-                ),
-                None,
+            latest_log = latest_issue_report_file(
+                latest_diagnostic_report_files(
+                    crash_reports_dir,
+                    limit=20,
+                    suffixes=frozenset({".log"}),
+                )
             )
             summary = format_issue_summary(
                 app_title=APP_TITLE,

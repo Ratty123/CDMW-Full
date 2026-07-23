@@ -21,6 +21,7 @@ from cdmw.services.diagnostics_service import (
     diagnostic_report_index,
     format_issue_summary,
     latest_diagnostic_report_files,
+    latest_issue_report_file,
 )
 
 
@@ -163,7 +164,7 @@ def build_diagnostic_bundle(
             )
 
     crash_reports = latest_diagnostic_report_files(request.crash_reports_dir, limit=20)
-    latest_log = next((path for path in crash_reports if path.suffix.lower() == ".log"), None)
+    latest_log = latest_issue_report_file(crash_reports)
     context = None
     if latest_log is None:
         try:

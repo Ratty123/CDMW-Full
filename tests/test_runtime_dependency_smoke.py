@@ -117,6 +117,8 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
             settings_path = root / "smoke.cfg"
             result_path = root / "gui-startup-result.json"
             heartbeat_path = root / "workspace" / "logs" / "app_heartbeat.json"
+            diagnostics_path = root / "workspace" / "logs" / "diagnostics_current.jsonl"
+            native_verbose_path = root / "workspace" / "logs" / "native_diagnostics_verbose.jsonl"
             script = "\n".join(
                 (
                     "import json, os, sys",
@@ -130,6 +132,10 @@ class RuntimeDependencySmokeTests(unittest.TestCase):
                     f"heartbeat = json.loads(Path({str(heartbeat_path)!r}).read_text(encoding='utf-8'))",
                     "assert heartbeat['clean_shutdown'] is True",
                     "assert heartbeat['phase'] == 'closed'",
+                    f"events = [json.loads(line) for line in Path({str(diagnostics_path)!r}).read_text(encoding='utf-8').splitlines()]",
+                    "assert events and events[0]['event'] == 'session_start'",
+                    "assert not {'main_window_constructed', 'responsive_resize_applied', 'archive_memory_audit'} & {event['event'] for event in events}",
+                    f"assert not Path({str(native_verbose_path)!r}).exists()",
                     "raise SystemExit(exit_code)",
                 )
             )

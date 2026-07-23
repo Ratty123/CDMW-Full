@@ -154,6 +154,21 @@ def latest_diagnostic_report_files(
         return []
 
 
+def latest_issue_report_file(report_paths: Sequence[Path]) -> Path | None:
+    for report_path in report_paths:
+        path = Path(report_path)
+        if path.suffix.lower() != ".log":
+            continue
+        try:
+            with path.open("r", encoding="utf-8", errors="replace") as stream:
+                header = parse_crash_report_header(stream.read(16 * 1024))
+        except OSError:
+            continue
+        if header.get("Kind") and header.get("Report ID"):
+            return path
+    return None
+
+
 def diagnostic_report_index(report_paths: Sequence[Path]) -> list[dict[str, object]]:
     index: list[dict[str, object]] = []
     for report_path in report_paths:
@@ -284,6 +299,21 @@ def rotate_runtime_event_logs(
         pass
 
 
+def reset_runtime_event_logs(*paths: Path, rotation_limit: int = 8) -> None:
+    for source_path in paths:
+        path = Path(source_path)
+        candidates = [path]
+        candidates.extend(
+            runtime_event_log_sibling(path, index)
+            for index in range(1, max(0, int(rotation_limit)) + 1)
+        )
+        for candidate in candidates:
+            try:
+                candidate.unlink()
+            except OSError:
+                pass
+
+
 def sanitize_runtime_event_value(value: object, *, depth: int = 0) -> object:
     if depth > 3:
         return str(type(value).__name__)
@@ -350,23 +380,67 @@ def runtime_event_child_memory(
     return snapshots
 
 
+PERSISTED_RUNTIME_EVENT_NAMES = frozenset(
+    {
+        "session_start",
+        "last_active_operation",
+    }
+)
+PERSISTED_RUNTIME_EVENT_MARKERS = frozenset(
+    {
+        "aborted",
+        "blocked",
+        "corrupt",
+        "crash",
+        "device_lost",
+        "error",
+        "exception",
+        "fail",
+        "fault",
+        "hang",
+        "invalid",
+        "mismatch",
+        "rejected",
+        "timeout",
+        "unclean",
+        "unexpected",
+        "unavailable",
+        "unresponsive",
+        "warning",
+    }
+)
+
+
+def should_persist_runtime_event(event: str) -> bool:
+    normalized = str(event or "event").strip().lower()
+    if normalized in PERSISTED_RUNTIME_EVENT_NAMES:
+        return True
+    return any(marker in normalized for marker in PERSISTED_RUNTIME_EVENT_MARKERS)
+
+
 class RuntimeEventRecorder:
     def __init__(
         self,
         log_path: Path,
         *,
         session_id: str,
-        ring_size: int = 500,
+        ring_size: int = 200,
         current_pid_fn: Callable[[], int] = os.getpid,
         memory_snapshot: Callable[[int], Mapping[str, int]] | None = None,
         clock: Callable[[], float] = time.time,
+        persist_event_fn: Callable[[str], bool] = should_persist_runtime_event,
     ) -> None:
         self.log_path = Path(log_path)
         self.session_id = str(session_id)
         self.current_pid_fn = current_pid_fn
         self.memory_snapshot = memory_snapshot
         self.clock = clock
+        self.persist_event_fn = persist_event_fn
+        self._verbose_persistence = False
         self._runtime_event_ring = deque(maxlen=max(1, int(ring_size)))
+
+    def set_verbose_persistence(self, enabled: bool) -> None:
+        self._verbose_persistence = bool(enabled)
 
     def record(self, event: str, **fields: object) -> dict[str, object]:
         timestamp = float(self.clock())
@@ -398,7 +472,12 @@ class RuntimeEventRecorder:
         for key, value in fields.items():
             payload[str(key)] = sanitize_runtime_event_value(value)
         self._runtime_event_ring.append(payload)
-        append_runtime_event_log(self.log_path, payload)
+        try:
+            persist = self._verbose_persistence or bool(self.persist_event_fn(str(payload["event"])))
+        except Exception:
+            persist = True
+        if persist:
+            append_runtime_event_log(self.log_path, payload)
         return payload
 
     def tail(self, *, limit: int = 120) -> list[dict[str, object]]:
@@ -423,6 +502,23 @@ def read_jsonl_tail(path: Path, *, limit: int = 80) -> list[dict[str, object]]:
     return payloads
 
 
+def read_text_tail(path: Path, *, limit: int = 40, max_bytes: int = 64 * 1024) -> list[str]:
+    try:
+        path = Path(path)
+        if not path.is_file():
+            return []
+        with path.open("rb") as stream:
+            size = stream.seek(0, os.SEEK_END)
+            offset = max(0, size - max(1, int(max_bytes)))
+            stream.seek(offset)
+            payload = stream.read()
+        if offset > 0:
+            _, _, payload = payload.partition(b"\n")
+        return payload.decode("utf-8", errors="replace").splitlines()[-max(1, int(limit)) :]
+    except Exception:
+        return []
+
+
 def read_crash_json_context_file(reports_dir: Path, file_name: str) -> dict[str, object] | None:
     try:
         context_path = Path(reports_dir) / file_name
@@ -440,7 +536,7 @@ def add_persisted_crash_breadcrumbs(
     *,
     reports_dir: Path,
     runtime_event_log_path: Path,
-    native_diagnostic_log_path: Path,
+    native_diagnostic_log_path: Path | None,
 ) -> None:
     archive_breadcrumb = read_crash_json_context_file(reports_dir, "archive_scan_breadcrumb.json")
     if archive_breadcrumb is not None:
@@ -451,12 +547,15 @@ def add_persisted_crash_breadcrumbs(
     texture_workflow_breadcrumb = read_crash_json_context_file(reports_dir, "texture_workflow_breadcrumb.json")
     if texture_workflow_breadcrumb is not None:
         context["texture_workflow_breadcrumb"] = texture_workflow_breadcrumb
-    runtime_tail = read_jsonl_tail(runtime_event_log_path, limit=80)
+    runtime_tail = read_jsonl_tail(runtime_event_log_path, limit=40)
     if runtime_tail:
         context["persisted_runtime_event_tail"] = runtime_tail
-    native_tail = read_jsonl_tail(native_diagnostic_log_path, limit=80)
+    native_tail = read_jsonl_tail(native_diagnostic_log_path, limit=40) if native_diagnostic_log_path else []
     if native_tail:
         context["persisted_native_event_tail"] = native_tail
+    native_fault_tail = read_text_tail(Path(reports_dir) / "native_fault_current.log")
+    if native_fault_tail:
+        context["persisted_native_fault_tail"] = native_fault_tail
 
 
 def write_ui_breadcrumb(
@@ -521,6 +620,65 @@ def unraisable_exception_report(args: object) -> tuple[str, str, str]:
     return "unraisable_exception", f"Unraisable exception from {getattr(args, 'object', None)!r}", formatted
 
 
+def find_duplicate_crash_report(
+    reports_dir: Path,
+    *,
+    kind: str,
+    fingerprint: str,
+    session_id: str,
+    limit: int = 80,
+) -> Path | None:
+    normalized_kind = str(kind or "").strip()
+    normalized_fingerprint = str(fingerprint or "").strip()
+    normalized_session = str(session_id or "").strip()
+    if not normalized_kind or not normalized_fingerprint or not normalized_session:
+        return None
+    try:
+        candidates = sorted(
+            Path(reports_dir).glob(f"{normalized_kind}_*.log"),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+    except Exception:
+        return None
+    for report_path in candidates[: max(1, int(limit))]:
+        try:
+            with report_path.open("r", encoding="utf-8", errors="replace") as stream:
+                header = parse_crash_report_header(stream.read(16 * 1024))
+        except OSError:
+            continue
+        if (
+            header.get("Fingerprint") == normalized_fingerprint
+            and header.get("Session ID") == normalized_session
+        ):
+            return report_path
+    return None
+
+
+def prune_crash_reports(reports_dir: Path, *, limit: int = 20) -> list[Path]:
+    try:
+        candidates: list[Path] = []
+        for report_path in Path(reports_dir).glob("*.log"):
+            try:
+                with report_path.open("r", encoding="utf-8", errors="replace") as stream:
+                    header = parse_crash_report_header(stream.read(16 * 1024))
+            except OSError:
+                continue
+            if header.get("Kind") and header.get("Report ID"):
+                candidates.append(report_path)
+        candidates.sort(key=lambda path: (path.stat().st_mtime, path.name), reverse=True)
+    except Exception:
+        return []
+    removed: list[Path] = []
+    for report_path in candidates[max(0, int(limit)) :]:
+        try:
+            report_path.unlink()
+            removed.append(report_path)
+        except OSError:
+            pass
+    return removed
+
+
 def write_crash_report(
     reports_dir: Path,
     kind: str,
@@ -535,14 +693,25 @@ def write_crash_report(
     python_version: str | None = None,
     platform_label: str | None = None,
     timestamp: str | None = None,
+    retention_limit: int = 20,
 ) -> Path | None:
     try:
         reports_dir = Path(reports_dir)
         reports_dir.mkdir(parents=True, exist_ok=True)
         process_id = os.getpid() if pid is None else int(pid)
+        details = crash_report_details(kind, title, body)
+        duplicate = find_duplicate_crash_report(
+            reports_dir,
+            kind=kind,
+            fingerprint=details["fingerprint"],
+            session_id=session_id,
+        )
+        if duplicate is not None:
+            prune_crash_reports(reports_dir, limit=retention_limit)
+            return duplicate
         timestamp_value = crash_timestamp()
         report_path = reports_dir / f"{kind}_{timestamp_value}_{process_id}.log"
-        details = crash_report_details(kind, title, body, report_id=report_path.stem)
+        details["report_id"] = report_path.stem
         lines = [
             f"{app_title} crash/details report",
             f"Kind: {kind}",
@@ -564,6 +733,7 @@ def write_crash_report(
         if context:
             lines.extend(["", "Context:", json.dumps(dict(context), indent=2, ensure_ascii=False)])
         report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        prune_crash_reports(reports_dir, limit=retention_limit)
         return report_path
     except Exception:
         return None
@@ -905,18 +1075,24 @@ __all__ = [
     "format_issue_summary",
     "format_timing_summary",
     "format_thread_dump",
+    "find_duplicate_crash_report",
     "heartbeat_payload",
     "is_expected_cancellation_message",
     "latest_diagnostic_report_files",
+    "latest_issue_report_file",
     "merge_timing_maps",
     "parse_crash_report_header",
     "process_is_alive",
+    "prune_crash_reports",
     "read_crash_json_context_file",
     "read_jsonl_tail",
+    "read_text_tail",
+    "reset_runtime_event_logs",
     "rotate_runtime_event_logs",
     "runtime_event_child_memory",
     "runtime_event_log_sibling",
     "sanitize_runtime_event_value",
+    "should_persist_runtime_event",
     "should_write_crash_report",
     "start_hang_watchdog",
     "timing_value",

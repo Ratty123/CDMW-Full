@@ -68,6 +68,19 @@ The clean-shutdown heartbeat phase `closed` is written only after registered
 builders, owned threads/processes, resident renderers, and the archive backend
 have stopped and the final `QMainWindow` close is being accepted.
 
+The default `workspace/logs` policy is issue-focused. `app_heartbeat.json` is
+the small clean/unclean-session marker, while `diagnostics_current.jsonl`
+persists only session/last-operation breadcrumbs and warning/failure-class
+events. Routine resize, memory-audit, preview-success, and native helper
+dispatch events remain in the bounded in-memory ring. The existing
+`Include extra local context in diagnostic reports` preference opts into the
+verbose runtime stream and native helper JSONL for troubleshooting. Repeated
+reports with the same kind, fingerprint, and session are written once, and
+only the newest 20 issue reports are retained. Native dumps and the current
+fault-handler file are not treated as ordinary issue reports. A new session
+first consumes any legacy runtime/native stream as unclean-exit context, then
+removes those superseded streams before writing the bounded current file.
+
 Model Library ZIP resolution/extraction and shell scene import/companion scans
 stay in their existing task/utility workers. Recolor analysis and DDS preview
 generation share one cancellable operation worker; every result is request-ID
