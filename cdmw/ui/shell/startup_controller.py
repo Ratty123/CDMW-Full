@@ -34,12 +34,11 @@ class StartupController:
         self.context = context
 
 
-def queue_startup_archive_autoload(
+def _continue_startup_archive_autoload(
     window: object,
     startup_splash: object,
     _write_heartbeat: Callable[[str], None],
 ) -> None:
-    window._show_startup_archive_path_prompt_if_needed(startup_splash)
     if window._startup_archive_autoload_expected():
         if bool(getattr(window, "_startup_archive_path_prompt_accepted", False)):
             startup_splash.set_detail(
@@ -54,6 +53,23 @@ def queue_startup_archive_autoload(
     else:
         _write_heartbeat("running")
         window._release_startup_splash()
+
+
+def queue_startup_archive_autoload(
+    window: object,
+    startup_splash: object,
+    _write_heartbeat: Callable[[str], None],
+) -> None:
+    def continue_after_prompt() -> None:
+        _continue_startup_archive_autoload(window, startup_splash, _write_heartbeat)
+
+    if window._show_startup_archive_path_prompt_if_needed(
+        startup_splash,
+        on_finished=continue_after_prompt,
+    ):
+        _write_heartbeat("startup_path_prompt")
+        return
+    continue_after_prompt()
 
 
 class StartupPromptMixin:
@@ -637,7 +653,69 @@ class StartupPromptMixin:
             return False
         return not bool(self.archive_package_root_edit.text().strip())
 
-    def _show_startup_archive_path_prompt_if_needed(self, startup_splash: Optional[object] = None) -> bool:
+    def _retire_startup_archive_path_dialog(self, dialog: QDialog) -> None:
+        thread = getattr(dialog, "_path_task_thread", None)
+        if thread is not None:
+            try:
+                if not thread.wait(0):
+                    QTimer.singleShot(
+                        10,
+                        lambda target=dialog: self._retire_startup_archive_path_dialog(target),
+                    )
+                    return
+            except RuntimeError:
+                pass
+        if getattr(self, "_startup_archive_path_dialog", None) is dialog:
+            self._startup_archive_path_dialog = None
+        dialog.deleteLater()
+
+    def _complete_startup_archive_path_prompt(
+        self,
+        dialog: QDialog,
+        result: int,
+        on_finished: Optional[Callable[[], None]],
+    ) -> None:
+        if getattr(self, "_startup_archive_path_dialog", None) is not dialog:
+            return
+        self._startup_archive_path_prompt_open = False
+        accepted = result == QDialog.Accepted
+        selected_path = dialog.selected_path().strip() if accepted else ""
+        QTimer.singleShot(0, lambda target=dialog: self._retire_startup_archive_path_dialog(target))
+        if not selected_path:
+            self._startup_archive_path_prompt_accepted = False
+            self.set_status_message("Crimson Desert path setup skipped; archive cache build was not started.")
+            self._record_startup_prompt_event("startup_path_prompt_skipped")
+        else:
+            self.archive_package_root_edit.setText(selected_path)
+            self.show_quick_start_on_launch = False
+            self._startup_archive_path_prompt_accepted = True
+            self.settings.setValue("ui/startup_setup_shown", True)
+            self.settings.setValue("archive/package_root", selected_path)
+            self.flush_settings_save()
+            self.settings.sync()
+            self.set_status_message(f"Crimson Desert path set: {selected_path}")
+            self.append_log(f"Startup setup selected Crimson Desert package root: {selected_path}")
+            self.append_archive_log(
+                "Startup setup selected a Crimson Desert path. First archive cache build can take a while; "
+                "let it finish before closing the app."
+            )
+            self._startup_texture_preview_defer_env = True
+            os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"
+            self._update_startup_splash(
+                "Building archive cache. First load can take a while; let it finish.",
+                1,
+                100,
+            )
+            self._record_startup_prompt_event("startup_path_prompt_accepted", package_root=selected_path)
+        if on_finished is not None:
+            QTimer.singleShot(0, on_finished)
+
+    def _show_startup_archive_path_prompt_if_needed(
+        self,
+        startup_splash: Optional[object] = None,
+        *,
+        on_finished: Optional[Callable[[], None]] = None,
+    ) -> bool:
         if not self._startup_archive_path_prompt_needed():
             return False
         self._startup_archive_path_prompt_handled = True
@@ -652,39 +730,19 @@ class StartupPromptMixin:
         if not self.windowIcon().isNull():
             dialog.setWindowIcon(self.windowIcon())
         dialog.center_on_screen()
+        dialog.setModal(False)
+        self._startup_archive_path_dialog = dialog
         self._startup_archive_path_prompt_open = True
-        try:
-            accepted = dialog.exec() == QDialog.Accepted
-            selected_path = dialog.selected_path().strip() if accepted else ""
-        finally:
-            self._startup_archive_path_prompt_open = False
-            dialog.deleteLater()
-        if not selected_path:
-            self._startup_archive_path_prompt_accepted = False
-            self.set_status_message("Crimson Desert path setup skipped; archive cache build was not started.")
-            self._record_startup_prompt_event("startup_path_prompt_skipped")
-            return False
-
-        self.archive_package_root_edit.setText(selected_path)
-        self.show_quick_start_on_launch = False
-        self._startup_archive_path_prompt_accepted = True
-        self.settings.setValue("ui/startup_setup_shown", True)
-        self.settings.setValue("archive/package_root", selected_path)
-        self.flush_settings_save()
-        self.settings.sync()
-        self.set_status_message(f"Crimson Desert path set: {selected_path}")
-        self.append_log(f"Startup setup selected Crimson Desert package root: {selected_path}")
-        self.append_archive_log(
-            "Startup setup selected a Crimson Desert path. First archive cache build can take a while; let it finish before closing the app."
+        dialog.finished.connect(
+            lambda result, target=dialog, callback=on_finished: self._complete_startup_archive_path_prompt(
+                target,
+                int(result),
+                callback,
+            )
         )
-        self._startup_texture_preview_defer_env = True
-        os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"
-        self._update_startup_splash(
-            "Building archive cache. First load can take a while; let it finish.",
-            1,
-            100,
-        )
-        self._record_startup_prompt_event("startup_path_prompt_accepted", package_root=selected_path)
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
         return True
 
     def _prompt_for_archive_package_root_if_missing(

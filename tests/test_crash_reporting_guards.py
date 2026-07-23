@@ -967,11 +967,17 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("After you continue, CDMW will build the archive cache", startup_dialog_body)
 
         self.assertIn("def _show_startup_archive_path_prompt_if_needed(", source)
-        prompt_start = source.index("def _show_startup_archive_path_prompt_if_needed(")
-        prompt_body = source[prompt_start : source.index("    def _prompt_for_archive_package_root_if_missing(", prompt_start)]
+        prompt_start = source.index("    def _retire_startup_archive_path_dialog(")
+        prompt_end = source.index("    def _prompt_for_archive_package_root_if_missing(", prompt_start)
+        prompt_body = source[prompt_start:prompt_end]
         self.assertIn("StartupArchivePathDialog(", prompt_body)
         self.assertIn("self._startup_archive_path_prompt_open = True", prompt_body)
         self.assertIn("self._startup_archive_path_prompt_open = False", prompt_body)
+        self.assertIn("dialog.setModal(False)", prompt_body)
+        self.assertIn("dialog.finished.connect(", prompt_body)
+        self.assertIn("dialog.show()", prompt_body)
+        self.assertNotIn("dialog.exec()", prompt_body)
+        self.assertIn("thread.wait(0)", prompt_body)
         self.assertIn("self.show_quick_start_on_launch = False", prompt_body)
         self.assertIn('self.settings.setValue("archive/package_root", selected_path)', prompt_body)
         self.assertIn('os.environ["CDMW_DEFER_TEXTURE_PREVIEW"] = "1"', prompt_body)
@@ -987,12 +993,13 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("lambda: self.scan_archives(\n                    force_refresh=", autoload_body)
         legacy_scan_start = autoload_body.rindex("self.scan_archives(force_refresh=")
         self.assertNotIn("self._release_startup_splash()", autoload_body[legacy_scan_start:])
-        self.assertIn("window._show_startup_archive_path_prompt_if_needed(startup_splash)", source)
+        queue_start = source.index("def queue_startup_archive_autoload(")
+        queue_body = source[queue_start : source.index("class StartupPromptMixin:", queue_start)]
+        self.assertIn("window._show_startup_archive_path_prompt_if_needed(", queue_body)
+        self.assertIn("on_finished=continue_after_prompt", queue_body)
+        self.assertIn('_write_heartbeat("startup_path_prompt")', queue_body)
+        self.assertIn("continue_after_prompt()", queue_body)
         self.assertIn("QTimer.singleShot(0, window._maybe_autoload_archive_on_startup)", source)
-        self.assertLess(
-            source.index("window._show_startup_archive_path_prompt_if_needed(startup_splash)"),
-            source.index("    if window._startup_archive_autoload_expected():"),
-        )
 
         self.assertIn("def _prompt_for_archive_package_root_if_missing(", source)
         self.assertIn('box.setWindowTitle("Crimson Desert Path Required")', source)

@@ -36,14 +36,29 @@ class _StartupSplashRecorder:
 
 
 class _StartupAutoloadWindow:
-    def __init__(self, *, expected: bool, prompt_accepted: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        expected: bool,
+        prompt_accepted: bool = False,
+        prompt_async: bool = False,
+    ) -> None:
         self.expected = expected
         self._startup_archive_path_prompt_accepted = prompt_accepted
+        self.prompt_async = prompt_async
+        self.prompt_finished = None
         self.prompted = False
         self.released = False
 
-    def _show_startup_archive_path_prompt_if_needed(self, startup_splash: object) -> None:
+    def _show_startup_archive_path_prompt_if_needed(
+        self,
+        startup_splash: object,
+        *,
+        on_finished,
+    ) -> bool:
         self.prompted = True
+        self.prompt_finished = on_finished
+        return self.prompt_async
 
     def _startup_archive_autoload_expected(self) -> bool:
         return self.expected
@@ -300,6 +315,34 @@ class ShellStartupControllerTests(unittest.TestCase):
             splash.details,
         )
         self.assertEqual(["archive_autoload_queued"], heartbeats)
+        single_shot.assert_called_once_with(0, window._maybe_autoload_archive_on_startup)
+
+    def test_queue_startup_archive_autoload_waits_for_modeless_prompt(self) -> None:
+        window = _StartupAutoloadWindow(
+            expected=True,
+            prompt_accepted=True,
+            prompt_async=True,
+        )
+        splash = _StartupAutoloadSplash()
+        heartbeats: list[str] = []
+
+        with patch("cdmw.ui.shell.startup_controller.QTimer.singleShot") as single_shot:
+            queue_startup_archive_autoload(window, splash, heartbeats.append)
+
+            self.assertTrue(window.prompted)
+            self.assertFalse(window.released)
+            self.assertEqual([], splash.details)
+            self.assertEqual(["startup_path_prompt"], heartbeats)
+            single_shot.assert_not_called()
+
+            self.assertIsNotNone(window.prompt_finished)
+            window.prompt_finished()
+
+        self.assertEqual(
+            [("Building archive cache. First load can take a while; let it finish.", 1, 100)],
+            splash.details,
+        )
+        self.assertEqual(["startup_path_prompt", "archive_autoload_queued"], heartbeats)
         single_shot.assert_called_once_with(0, window._maybe_autoload_archive_on_startup)
 
     def test_queue_startup_archive_autoload_releases_when_not_expected(self) -> None:

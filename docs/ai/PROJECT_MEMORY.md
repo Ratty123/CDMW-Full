@@ -146,7 +146,7 @@ Last updated: 2026-07-23
   must not pull NumPy, OpenCV, or preview stacks into cold facade import.
 - Startup smoke uses a unique instance namespace and an atomic marker written
   only after window construction. Lock collision is failure.
-- Full startup releases the splash after UI construction and schedules archive load on the next event-loop turn; its explicit one-shot dispatch latch prevents the zero-delay first-run path and legacy 900 ms fallback from starting two remote scans. Legacy startup retains its cache behavior. Full's top status belongs only to archive work, uses indeterminate progress without a total, and terminalizes as `Archive ready 100%`; preview readiness stays inside the preview pane.
+- Full startup releases the splash after UI construction and schedules archive load on the next event-loop turn; its explicit one-shot dispatch latch prevents the zero-delay first-run path and legacy 900 ms fallback from starting two remote scans. The first-run archive-path dialog is modeless and resumes startup from `finished`; never reintroduce a pre-main-loop `exec()` because it can leave the packaged shell input-blocked after cache publication. Legacy startup retains its cache behavior. Full's top status belongs only to archive work, uses indeterminate progress without a total, and terminalizes as `Archive ready 100%`; preview readiness stays inside the preview pane.
 - Lazy composed `MainWindow` callbacks are QObject-owned and import-deferred.
   Worker signals need those or an owning-thread QObject receiver; lambdas/plain
   callables execute in the worker even with `QueuedConnection`.

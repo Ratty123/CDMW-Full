@@ -77,11 +77,14 @@ durable all-icon thumbnail warmup at low priority. None of this work blocks the
 splash or main-window first paint, and opening Item Finder consumes any ready
 page/images instead of starting the pipeline.
 
-The initial archive-path dialog runs package-root discovery and path validation
-through `startup_path_task_controller.py`. Requests are cancellable and
-latest-wins; closing the dialog only requests cancellation and never waits on
-the UI thread. The controller applies a result only when its request ID and
-current path still match.
+The initial archive-path dialog is shown modelessly and resumes archive startup
+from its `finished` signal after the application event loop begins. It must not
+use a nested `exec()` loop before normal GUI startup. Package-root discovery and
+path validation run through `startup_path_task_controller.py`; requests are
+cancellable and latest-wins. Closing the dialog only requests cancellation,
+and dialog retirement polls the worker with `wait(0)` so the UI thread never
+blocks. The controller applies a result only when its request ID and current
+path still match.
 
 ## Startup-smoke contract
 
