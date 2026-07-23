@@ -283,6 +283,23 @@ def test_bottom_tool_deck_morph_layout_is_responsive_and_session_only() -> None:
     assert "MeshToolPanelLayoutPreferences" not in layout
 
 
+def test_bottom_tool_deck_defers_splitter_minimums_until_real_size_exists() -> None:
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+    transfer = _source("EditMeshLayoutContracts.cs")
+
+    workspace_builder = layout.split("private Control BuildCompactWorkspace()", 1)[1]
+    workspace_builder = workspace_builder.split("private Control BuildCompactToolDeck()", 1)[0]
+    assert "_compactWorkspaceSplit.Panel1MinSize" not in workspace_builder
+    assert "_compactWorkspaceSplit.Panel2MinSize" not in workspace_builder
+    assert transfer.index("split.Panel1MinSize = 0;") < transfer.index(
+        "if (available <= 0)"
+    )
+    assert transfer.index("split.Panel2MinSize = 0;") < transfer.index(
+        "if (available <= 0)"
+    )
+    assert "EditMeshLayoutContracts.ApplyPanelTwoSize(" in layout
+
+
 def test_bottom_tool_deck_has_a_nonvisual_round_trip_construction_gate() -> None:
     entry = _source("ProgramEntry.cs")
     smoke = _source("EditMeshLayoutSmoke.cs")
@@ -296,5 +313,6 @@ def test_bottom_tool_deck_has_a_nonvisual_round_trip_construction_gate() -> None
     assert "same_control_instances" in smoke
     assert "same_viewport_instance" in smoke
     assert "same_viewport_handle" in smoke
+    assert "zero_size_splitter_construction" in smoke
     for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
         assert f'"{page}"' in smoke

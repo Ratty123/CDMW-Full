@@ -23,6 +23,42 @@ internal static class EditMeshLayoutContracts
             420);
     }
 
+    public static void ApplyPanelTwoSize(
+        SplitContainer split,
+        int panelTwoSize,
+        int requestedPanelOneMinimum,
+        int requestedPanelTwoMinimum)
+    {
+        ArgumentNullException.ThrowIfNull(split);
+
+        // Compact splitters are created while their hidden parent still has
+        // construction-time dimensions. Clear stale/default minimums first so
+        // a zero-size pass cannot make SplitterDistance invalid.
+        split.Panel1MinSize = 0;
+        split.Panel2MinSize = 0;
+        var available = split.Orientation == Orientation.Vertical
+            ? split.ClientSize.Width - split.SplitterWidth
+            : split.ClientSize.Height - split.SplitterWidth;
+        available = Math.Max(0, available);
+        if (available <= 0)
+        {
+            return;
+        }
+
+        var panelTwoMinimum = Math.Min(
+            Math.Max(0, requestedPanelTwoMinimum),
+            available);
+        var panelOneMinimum = Math.Min(
+            Math.Max(0, requestedPanelOneMinimum),
+            available - panelTwoMinimum);
+        split.SplitterDistance = Math.Clamp(
+            available - Math.Max(0, panelTwoSize),
+            panelOneMinimum,
+            Math.Max(panelOneMinimum, available - panelTwoMinimum));
+        split.Panel1MinSize = panelOneMinimum;
+        split.Panel2MinSize = panelTwoMinimum;
+    }
+
     public static void MoveControl(Control control, Control host, DockStyle dock)
     {
         ArgumentNullException.ThrowIfNull(control);

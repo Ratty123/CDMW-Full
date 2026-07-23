@@ -27,6 +27,39 @@ internal static class EditMeshLayoutSmoke
             Path.GetDirectoryName(reportPath)
                 ?? throw new InvalidOperationException("Layout report has no parent directory."));
 
+        using var constructionSplit = new SplitContainer
+        {
+            Name = "ZeroSizeConstructionSplit",
+            Orientation = Orientation.Horizontal,
+            FixedPanel = FixedPanel.Panel2,
+            SplitterWidth = 6,
+        };
+        constructionSplit.Panel1MinSize = 0;
+        constructionSplit.Panel2MinSize = 0;
+        constructionSplit.Size = Size.Empty;
+        EditMeshLayoutContracts.ApplyPanelTwoSize(
+            constructionSplit,
+            panelTwoSize: 280,
+            requestedPanelOneMinimum: 240,
+            requestedPanelTwoMinimum: 220);
+        Require(
+            constructionSplit.Panel1MinSize == 0
+                && constructionSplit.Panel2MinSize == 0,
+            "A hidden zero-size compact splitter retained invalid minimum sizes.");
+        constructionSplit.Size = new Size(1180, 712);
+        EditMeshLayoutContracts.ApplyPanelTwoSize(
+            constructionSplit,
+            panelTwoSize: 280,
+            requestedPanelOneMinimum: 240,
+            requestedPanelTwoMinimum: 220);
+        Require(
+            constructionSplit.SplitterDistance >= constructionSplit.Panel1MinSize
+                && constructionSplit.SplitterDistance
+                    <= constructionSplit.ClientSize.Height
+                        - constructionSplit.SplitterWidth
+                        - constructionSplit.Panel2MinSize,
+            "The compact splitter distance is invalid after receiving its real size.");
+
         using var host = new Panel { Name = "LayoutSmokeHost" };
         using var classicRoot = new Panel { Name = "ClassicLayout", Dock = DockStyle.Fill };
         using var compactRoot = new Panel
@@ -224,6 +257,7 @@ internal static class EditMeshLayoutSmoke
                 ["inspector_width"] = EditMeshLayoutContracts.DefaultInspectorWidth(1180),
                 ["tool_deck_height"] = EditMeshLayoutContracts.DefaultToolDeckHeight(760),
             },
+            ["zero_size_splitter_construction"] = true,
             ["renderer_started"] = false,
             ["visible_window_started"] = false,
         };

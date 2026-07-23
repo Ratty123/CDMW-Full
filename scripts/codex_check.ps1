@@ -164,6 +164,7 @@ if ($Area -eq "mesh-unit") {
         -or -not $LayoutPayload.same_control_instances `
         -or -not $LayoutPayload.same_viewport_instance `
         -or -not $LayoutPayload.same_viewport_handle `
+        -or -not $LayoutPayload.zero_size_splitter_construction `
         -or $LayoutPayload.pages_visited.Count -ne 5 `
         -or $LayoutPayload.renderer_started `
         -or $LayoutPayload.visible_window_started) {

@@ -186,8 +186,6 @@ internal sealed partial class ExperimentForm
             "BottomToolDeckWorkspaceSplit",
             Orientation.Horizontal,
             FixedPanel.Panel2);
-        _compactWorkspaceSplit.Panel1MinSize = ScaleToolPanelWidth(MinimumViewportWidth);
-        _compactWorkspaceSplit.Panel2MinSize = ScaleToolPanelWidth(220);
         _compactWorkspaceSplit.SplitterMoved += (_, _) => CaptureCompactSplitterLayout();
 
         _compactViewportHost = new MeshEditorBufferedPanel
@@ -867,12 +865,12 @@ internal sealed partial class ExperimentForm
                 ? _compactToolDeckHeightLogical
                 : EditMeshLayoutContracts.DefaultToolDeckHeight(
                     LogicalToolPanelWidth(ClientSize.Height));
-            ApplyCompactSplitterDistance(
+            EditMeshLayoutContracts.ApplyPanelTwoSize(
                 _compactInspectorSplit,
                 ScaleToolPanelWidth(inspectorWidth),
                 ScaleToolPanelWidth(360),
                 ScaleToolPanelWidth(300));
-            ApplyCompactSplitterDistance(
+            EditMeshLayoutContracts.ApplyPanelTwoSize(
                 _compactWorkspaceSplit,
                 ScaleToolPanelWidth(deckHeight),
                 ScaleToolPanelWidth(MinimumViewportWidth),
@@ -882,32 +880,6 @@ internal sealed partial class ExperimentForm
         {
             _applyingCompactSplitterLayout = false;
         }
-    }
-
-    private static void ApplyCompactSplitterDistance(
-        SplitContainer split,
-        int fixedPanelSize,
-        int requestedPanelOneMinimum,
-        int requestedPanelTwoMinimum)
-    {
-        var available = split.Orientation == Orientation.Vertical
-            ? split.ClientSize.Width - split.SplitterWidth
-            : split.ClientSize.Height - split.SplitterWidth;
-        available = Math.Max(0, available);
-        if (available <= 0)
-        {
-            return;
-        }
-        split.Panel1MinSize = 0;
-        split.Panel2MinSize = 0;
-        var panelTwoMinimum = Math.Min(requestedPanelTwoMinimum, available);
-        var panelOneMinimum = Math.Min(requestedPanelOneMinimum, available - panelTwoMinimum);
-        split.SplitterDistance = Math.Clamp(
-            available - fixedPanelSize,
-            panelOneMinimum,
-            Math.Max(panelOneMinimum, available - panelTwoMinimum));
-        split.Panel1MinSize = panelOneMinimum;
-        split.Panel2MinSize = panelTwoMinimum;
     }
 
     private void CaptureCompactSplitterLayout()

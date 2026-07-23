@@ -103,9 +103,10 @@ dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mes
 
 The layout smoke constructs real WinForms ownership trees, visits all five deck
 pages, and round-trips the same controls, viewport identity, and created viewport
-handle back to Classic. It starts no renderer or visible window and reads no
-licensed asset. The `mesh-unit` gate runs this smoke after its focused source
-and behavior tests.
+handle back to Classic. It also exercises the hidden zero-size splitter
+construction phase before applying the real viewport/deck dimensions. It starts
+no renderer or visible window and reads no licensed asset. The `mesh-unit` gate
+runs this smoke after its focused source and behavior tests.
 
 Archive mesh-import setup responsiveness, cancellation, stale-result rejection,
 and in-game swap-scope preflight:

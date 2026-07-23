@@ -368,6 +368,9 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   they never overwrite the persisted classic splitter widths. Morph & Refit
   keeps all profile, preset, slider, refit, reset, and bake controls and
   recomposes them into four, two, or one logical columns as space narrows.
+  The hidden deck never receives production panel minimums during zero-size
+  WinForms construction; those bounds are applied only after the shell has its
+  real client size, so preview-profile helpers can still start in Classic.
   Leaving Edit Mesh restores the classic shell before the ordinary panel
   collapse; re-entering during the same form session reapplies the requested
   bottom deck, while a new form always starts Classic. The editable
