@@ -86,6 +86,53 @@ def test_material_image_reader_falls_back_to_valid_file_bytes(
     assert (image.width(), image.height()) == (4, 2)
 
 
+def test_material_image_reader_retries_transient_byte_decode_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _image(tmp_path / "transient-byte-decode.png", (24, 48, 96, 255), size=(8, 4))
+    real_qimage = material_combiner_images.QImage
+    decode_calls = 0
+
+    class NullImageReader:
+        def __init__(self, _source_path: str) -> None:
+            pass
+
+        def setAutoTransform(self, _enabled: bool) -> None:
+            pass
+
+        def size(self):
+            return real_qimage().size()
+
+        def setScaledSize(self, _size) -> None:
+            pass
+
+        def read(self) -> QImage:
+            return real_qimage()
+
+    class FlakyQImage:
+        def __new__(cls, *args, **kwargs):
+            return real_qimage(*args, **kwargs)
+
+        @staticmethod
+        def fromData(payload: bytes) -> QImage:
+            nonlocal decode_calls
+            decode_calls += 1
+            if decode_calls < 3:
+                return real_qimage()
+            return real_qimage.fromData(payload)
+
+    monkeypatch.setattr(material_combiner_images, "QImageReader", NullImageReader)
+    monkeypatch.setattr(material_combiner_images, "QImage", FlakyQImage)
+    monkeypatch.setattr(material_combiner_images.time, "sleep", lambda _delay: None)
+
+    image = material_combiner_images._image_reader(str(source), max_dimension=4)
+
+    assert decode_calls == 3
+    assert not image.isNull()
+    assert (image.width(), image.height()) == (4, 2)
+
+
 def test_package_preserves_authoritative_base_and_direct_normal_for_ordinary_pbr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

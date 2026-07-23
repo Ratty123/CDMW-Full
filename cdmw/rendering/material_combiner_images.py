@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from pathlib import Path
 from typing import Callable, Optional, Sequence, Tuple
 
@@ -36,6 +37,9 @@ from cdmw.rendering.material_combiner_rules import (
     _texture_rule_for_input,
     _visible_layer_role,
 )
+
+
+_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS = (0.01, 0.025, 0.05)
 
 
 def _raise_if_material_combiner_cancelled(
@@ -415,11 +419,7 @@ def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
     image = reader.read()
     if not image.isNull():
         return image
-    try:
-        payload = Path(source_path).read_bytes()
-    except OSError:
-        return image
-    fallback = QImage.fromData(payload)
+    fallback = _image_from_file_bytes_with_retry(source_path)
     if fallback.isNull() or limit <= 0:
         return fallback
     width = int(fallback.width())
@@ -430,6 +430,24 @@ def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
     if target.width() <= 0 or target.height() <= 0:
         return fallback
     return fallback.scaled(target, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
+
+
+def _image_from_file_bytes_with_retry(source_path: str) -> QImage:
+    """Recover valid images from brief file-publication or decoder races."""
+
+    fallback = QImage()
+    for attempt in range(len(_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS) + 1):
+        try:
+            payload = Path(source_path).read_bytes()
+        except OSError:
+            payload = b""
+        if payload:
+            fallback = QImage.fromData(payload)
+            if not fallback.isNull():
+                return fallback
+        if attempt < len(_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS):
+            time.sleep(_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS[attempt])
+    return fallback
 
 
 def _prepare_image(
