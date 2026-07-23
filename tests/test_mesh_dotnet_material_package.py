@@ -56,6 +56,36 @@ def _write_manifest(
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def test_material_image_reader_falls_back_to_valid_file_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = _image(tmp_path / "transient-reader.png", (24, 48, 96, 255), size=(8, 4))
+
+    class NullImageReader:
+        def __init__(self, _source_path: str) -> None:
+            pass
+
+        def setAutoTransform(self, _enabled: bool) -> None:
+            pass
+
+        def size(self):
+            return QImage().size()
+
+        def setScaledSize(self, _size) -> None:
+            pass
+
+        def read(self) -> QImage:
+            return QImage()
+
+    monkeypatch.setattr(material_combiner_images, "QImageReader", NullImageReader)
+
+    image = material_combiner_images._image_reader(str(source), max_dimension=4)
+
+    assert not image.isNull()
+    assert (image.width(), image.height()) == (4, 2)
+
+
 def test_package_preserves_authoritative_base_and_direct_normal_for_ordinary_pbr(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

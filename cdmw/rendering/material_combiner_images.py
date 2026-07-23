@@ -412,7 +412,24 @@ def _image_reader(source_url: str, *, max_dimension: int = 0) -> QImage:
             target = size.scaled(limit, limit, Qt.KeepAspectRatio)
             if target.width() > 0 and target.height() > 0:
                 reader.setScaledSize(target)
-    return reader.read()
+    image = reader.read()
+    if not image.isNull():
+        return image
+    try:
+        payload = Path(source_path).read_bytes()
+    except OSError:
+        return image
+    fallback = QImage.fromData(payload)
+    if fallback.isNull() or limit <= 0:
+        return fallback
+    width = int(fallback.width())
+    height = int(fallback.height())
+    if max(width, height) <= limit:
+        return fallback
+    target = QSize(width, height).scaled(limit, limit, Qt.KeepAspectRatio)
+    if target.width() <= 0 or target.height() <= 0:
+        return fallback
+    return fallback.scaled(target, Qt.IgnoreAspectRatio, Qt.SmoothTransformation)
 
 
 def _prepare_image(
