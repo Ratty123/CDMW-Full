@@ -18,7 +18,7 @@ internal sealed partial class ExperimentForm
             Name = "ResidentRoleViewRegion",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 2,
+            RowCount = simplePreview ? 2 : 3,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemeWindowBackground,
@@ -33,6 +33,7 @@ internal sealed partial class ExperimentForm
         {
             region.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             region.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            region.RowStyles.Add(new RowStyle(SizeType.Absolute, Math.Max(58, _statusLabel.Height + 8)));
         }
         var selector = new TableLayoutPanel
         {
@@ -105,6 +106,10 @@ internal sealed partial class ExperimentForm
         {
             region.Controls.Add(_controlsHintLabel, 0, 1);
         }
+        else
+        {
+            region.Controls.Add(BuildAuthoringStatusFooter(), 0, 2);
+        }
         UpdateViewportControlsHint();
         if (!simplePreview)
         {
@@ -112,6 +117,26 @@ internal sealed partial class ExperimentForm
         }
         UpdatePresentationViewButtons();
         return region;
+    }
+
+    private Control BuildAuthoringStatusFooter()
+    {
+        var footer = new TableLayoutPanel
+        {
+            Name = "ResidentViewportStatusFooter",
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0),
+            Padding = new Padding(10, 4, 10, 4),
+            BackColor = ThemeStatusBackground,
+        };
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        footer.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        footer.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        footer.Controls.Add(_statusLabel, 0, 0);
+        footer.Controls.Add(_fpsLabel, 1, 0);
+        return footer;
     }
 
     private void AddPresentationViewButton(TableLayoutPanel selector, string text, string view, int column)

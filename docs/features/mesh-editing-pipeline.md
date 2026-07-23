@@ -351,8 +351,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   sessions, with minimum content widths and horizontal overflow preventing
   controls from being compressed into one another. Long guidance for Action
   History, Selection, Brush Tools, and Viewport is available from each section's
-  `?` hover help instead of consuming panel space. Controls and section titles
-  size from the active Windows font so larger text does not clip. The editable
+  `?` hover help instead of consuming panel space. A fixed Select/Move/Brush/
+  Topology jump bar scrolls the left panel directly to each tool family, and
+  label/input pairs share one horizontal row to use the panel width. Runtime
+  status and FPS share the wide viewport footer instead of consuming the left
+  panel's vertical space. Controls and section titles size from the active
+  Windows font so larger text does not clip. The editable
   viewport defaults to Wire + Vertices, with round vertex markers; the inert
   Material Debug control is not shown in the Viewport section.
   Its Original role selector is disabled during editing; Imported/Modify remains

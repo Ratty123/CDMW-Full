@@ -105,12 +105,32 @@ def test_long_edit_mesh_help_is_available_from_question_mark_tooltips() -> None:
     assert "MaximumSize = new Size(248, 0)" not in build_panels
     assert "OverlayAppearanceXRayHint" not in controls
 
-    assert "RowCount = 2" in presentation
+    assert "RowCount = simplePreview ? 2 : 3" in presentation
     simple_preview_footer = re.search(
         r"if \(simplePreview\)\s*\{\s*region\.Controls\.Add\(_controlsHintLabel, 0, 1\);\s*\}",
         presentation,
     )
     assert simple_preview_footer is not None
+
+
+def test_edit_mesh_left_navigation_and_status_use_the_available_space() -> None:
+    program = _source("Program.cs")
+    controls = _source("ExperimentForm.Controls.cs")
+    presentation = _source("ExperimentForm.PresentationProtocol.cs")
+
+    assert 'navigator.Name = "DotNetMeshEditorLeftToolNavigator"' in controls
+    assert "scrollPanel.ScrollControlIntoView(item.Target);" in controls
+    for label in ("Select", "Move", "Brush", "Topology"):
+        assert f'("{label}", ' in program
+    assert "left.Controls.Add(leftNavigator);" in program
+    assert "leftNavigator.BringToFront();" in program
+    assert "_meshEditOnlySections.Add(leftNavigator);" in program
+
+    assert "left.Controls.Add(statusFooter);" not in program
+    assert 'Name = "ResidentViewportStatusFooter"' in presentation
+    assert "region.Controls.Add(BuildAuthoringStatusFooter(), 0, 2);" in presentation
+    assert "footer.Controls.Add(_statusLabel, 0, 0);" in presentation
+    assert "footer.Controls.Add(_fpsLabel, 1, 0);" in presentation
 
 
 def test_edit_mesh_text_controls_expand_for_the_active_font() -> None:
@@ -127,6 +147,10 @@ def test_edit_mesh_text_controls_expand_for_the_active_font() -> None:
     labeled = labeled.split("private static Control ButtonRow", 1)[0]
     assert "AutoSize = true" in labeled
     assert "AutoSize = false" not in labeled
+    assert "ColumnCount = 2" in labeled
+    assert "RowCount = 1" in labeled
+    assert "new ColumnStyle(SizeType.AutoSize)" in labeled
+    assert "new ColumnStyle(SizeType.Percent, 100)" in labeled
     assert "control.Dock = DockStyle.Fill;" in labeled
 
     button = controls.split("private static Button StyledButton", 1)[1]

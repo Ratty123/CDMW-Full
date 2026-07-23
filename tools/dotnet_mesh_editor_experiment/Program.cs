@@ -204,14 +204,16 @@ internal sealed partial class ExperimentForm : Form
         _fpsLabel.Height = Math.Max(24, Font.Height + 8);
         _fpsLabel.ForeColor = ThemeMutedText;
         _fpsLabel.BackColor = ThemeStatusBackground;
-        _fpsLabel.Dock = DockStyle.Top;
+        _fpsLabel.Dock = DockStyle.Fill;
         _fpsLabel.TextAlign = ContentAlignment.MiddleRight;
+        _fpsLabel.AutoEllipsis = true;
         _fpsLabel.Text = "FPS -- | Frame -- ms";
         _statusLabel.AutoSize = false;
         _statusLabel.Height = Math.Max(52, (Font.Height * 2) + 12);
         _statusLabel.ForeColor = ThemeText;
         _statusLabel.BackColor = ThemeStatusBackground;
         _statusLabel.Dock = DockStyle.Fill;
+        _statusLabel.AutoEllipsis = true;
         _statusLabel.Text = $"Loaded package. materials={_materials.SlotCount} textureRefs={_materials.TextureReferenceCount} resolved={_materials.ExistingTextureFileCount}/{_materials.ResolvedTextureReferenceCount} decodable={_textureSet.DecodedCount}/{_materials.DecodableTextureFileCount}. Solid view is on; wire overlay is optional.";
 
         (_leftToolPanel, _rightToolPanel) = BuildToolPanels();
@@ -463,16 +465,6 @@ internal sealed partial class ExperimentForm : Form
                 WriteCommandRequest("clear_selection");
             }
         };
-        var statusFooter = new Panel
-        {
-            Dock = DockStyle.Bottom,
-            Height = _fpsLabel.Height + _statusLabel.Height + 14,
-            Padding = new Padding(10, 6, 10, 8),
-            BackColor = ThemeStatusBackground
-        };
-        statusFooter.Controls.Add(_statusLabel);
-        statusFooter.Controls.Add(_fpsLabel);
-
         var left = CreateToolPanel(
             "DotNetMeshEditorLeftToolPanel",
             "DotNetMeshEditorLeftToolScroll",
@@ -487,7 +479,6 @@ internal sealed partial class ExperimentForm : Form
             out var rightStack);
         _leftToolStack = leftStack;
         _rightToolStack = rightStack;
-        left.Controls.Add(statusFooter);
 
         var undoButton = CommandButton("Undo", "undo");
         var redoButton = CommandButton("Redo", "redo");
@@ -517,7 +508,7 @@ internal sealed partial class ExperimentForm : Form
                 CommandButton("Show / Hide", "toggle_visibility"),
                 duplicatePartButton,
                 deletePartButton)));
-        _meshEditOnlySections.Add(AddHelpSection(
+        var selectionSection = AddHelpSection(
             leftStack,
             "Selection",
             "Choose Vertex, Edge, Face, or Part; then click the mesh or drag a selection box. X-Ray selects through the mesh.",
@@ -525,15 +516,17 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Selection target", _selectionTarget),
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
-            ButtonRow(ToolButton("Select", "select"), CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink"))));
+            ButtonRow(ToolButton("Select", "select"), CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
+        _meshEditOnlySections.Add(selectionSection);
         _placementOnlySections.Add(AddSection(leftStack, "Placement",
             SceneComparisonControl(),
             ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale"))));
-        _meshEditOnlySections.Add(AddSection(leftStack, "Transform",
+        var transformSection = AddSection(leftStack, "Transform",
             LabeledControl("Translate step", _translateStep),
             ButtonRow(StyledActionButton("Move +X", () => RequestTransformMove((float)_translateStep.Value)), StyledActionButton("Move -X", () => RequestTransformMove(-(float)_translateStep.Value))),
-            ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab"))));
-        _meshEditOnlySections.Add(AddHelpSection(
+            ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab")));
+        _meshEditOnlySections.Add(transformSection);
+        var brushSection = AddHelpSection(
             leftStack,
             "Brush Tools",
             "Brushes paint the replacement under the yellow circle; no preselection is required. Left-drag to apply. Right-drag pans; wheel zooms.",
@@ -541,13 +534,23 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Radius", _radius),
             LabeledControl("Strength", _strength),
             LabeledControl("Falloff", _falloff),
-            ButtonRow(ToolButton("Smooth", "smooth"), ToolButton("Inflate", "inflate"), ToolButton("Pinch", "pinch"))));
+            ButtonRow(ToolButton("Smooth", "smooth"), ToolButton("Inflate", "inflate"), ToolButton("Pinch", "pinch")));
+        _meshEditOnlySections.Add(brushSection);
         var subdivideButton = CommandButton("Subdivide", "subdivide");
         var refineButton = CommandButton("Refine Smooth", "refine_smooth");
         RegisterTopologyMutationButton(subdivideButton);
         RegisterTopologyMutationButton(refineButton);
-        _meshEditOnlySections.Add(AddSection(leftStack, "Topology",
-            ButtonRow(subdivideButton, refineButton)));
+        var topologySection = AddSection(leftStack, "Topology",
+            ButtonRow(subdivideButton, refineButton));
+        _meshEditOnlySections.Add(topologySection);
+        var leftNavigator = BuildToolNavigator(
+            ("Select", selectionSection),
+            ("Move", transformSection),
+            ("Brush", brushSection),
+            ("Topology", topologySection));
+        left.Controls.Add(leftNavigator);
+        leftNavigator.BringToFront();
+        _meshEditOnlySections.Add(leftNavigator);
         AddHelpSection(
             rightStack,
             "Viewport",

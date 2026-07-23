@@ -390,16 +390,16 @@ internal sealed partial class ExperimentForm
     {
         var panel = new TableLayoutPanel
         {
-            ColumnCount = 1,
-            RowCount = 2,
+            ColumnCount = 2,
+            RowCount = 1,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             BackColor = ThemeSectionBackground,
             Margin = new Padding(0, 0, 0, 6),
             Padding = new Padding(0)
         };
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         panel.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var text = new Label
         {
@@ -408,12 +408,13 @@ internal sealed partial class ExperimentForm
             MinimumSize = new Size(0, 20),
             ForeColor = ThemeMutedText,
             BackColor = ThemeSectionBackground,
-            Margin = new Padding(0, 0, 0, 2)
+            Margin = new Padding(0, 0, 10, 0),
+            Anchor = AnchorStyles.Left
         };
         control.Margin = new Padding(0);
         control.Dock = DockStyle.Fill;
         panel.Controls.Add(text, 0, 0);
-        panel.Controls.Add(control, 0, 1);
+        panel.Controls.Add(control, 1, 0);
         return panel;
     }
 
@@ -445,6 +446,31 @@ internal sealed partial class ExperimentForm
         }
         panel.MinimumSize = new Size(minimumRowWidth, 0);
         return panel;
+    }
+
+    private Control BuildToolNavigator(params (string Label, Control Target)[] items)
+    {
+        var buttons = items.Select(item =>
+        {
+            var button = StyledButton(item.Label, height: 26);
+            button.AccessibleName = $"Go to {item.Label} tools";
+            button.Click += (_, _) =>
+            {
+                if (item.Target.Parent?.Parent is ScrollableControl scrollPanel)
+                {
+                    scrollPanel.ScrollControlIntoView(item.Target);
+                    scrollPanel.Focus();
+                }
+            };
+            return (Control)button;
+        }).ToArray();
+        var navigator = ButtonRow(buttons);
+        navigator.Name = "DotNetMeshEditorLeftToolNavigator";
+        navigator.Dock = DockStyle.Top;
+        navigator.Margin = new Padding(0);
+        navigator.Padding = new Padding(10, 8, 10, 8);
+        navigator.BackColor = ThemePanelBackground;
+        return navigator;
     }
 
     private static GroupBox AddSection(TableLayoutPanel stack, string title, params Control[] controls)
