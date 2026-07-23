@@ -112,6 +112,20 @@ std::vector<std::uint8_t> make_multi_entry_pamt(const std::vector<std::string>& 
     return data;
 }
 
+void test_case_insensitive_path_compare() {
+    using cdmw::full_archive::compare_case_insensitive;
+    require(compare_case_insensitive("Character/Model.PAC", "character/model.pac") == 0,
+        "case-insensitive path comparison changed equivalent paths");
+    require(compare_case_insensitive("alpha/file.pac", "Beta/file.pac") < 0,
+        "case-insensitive path comparison changed lexical ordering");
+    require(compare_case_insensitive("beta/file.pac", "Alpha/file.pac") > 0,
+        "case-insensitive path comparison changed reverse lexical ordering");
+    require(compare_case_insensitive("path", "path/file.pac") < 0,
+        "case-insensitive path comparison changed prefix ordering");
+    require(compare_case_insensitive("path/file.pac", "PATH") > 0,
+        "case-insensitive path comparison changed reverse prefix ordering");
+}
+
 void test_index_and_raw_decode(const fs::path& root) {
     const std::vector<std::uint8_t> payload = {'h', 'e', 'l', 'l', 'o'};
     write_bytes(root / "0.paz", payload);
@@ -214,6 +228,18 @@ void test_duplicate_override_metadata(const fs::path& root) {
         records_offset + 3 * cdmw::full_archive::kIndexRecordSize + 68);
     require(numeric_pamt_metadata == 0x3u, "numeric PAMT did not outrank a named PAMT");
     require(named_pamt_metadata == 0x2u, "named PAMT duplicate metadata changed");
+
+    const auto repeated_index = root / "duplicates-repeat.ali";
+    require(cdmw_full_archive_build_index_utf8(
+        root.u8string().c_str(),
+        repeated_index.u8string().c_str(),
+        &count,
+        error.data(),
+        error.size()) == CDMW_FULL_ARCHIVE_OK,
+        std::string("repeated duplicate index build failed: ") + error.data());
+    require(
+        cdmw::full_archive::read_binary(repeated_index, 1024 * 1024) == bytes,
+        "parallel PAMT parsing changed deterministic index bytes");
 }
 
 void test_index_deduplicates_source_paths(const fs::path& root) {
@@ -338,6 +364,7 @@ int main() {
     try {
         fs::create_directories(root);
         require(cdmw_full_archive_core_abi_version() == CDMW_FULL_ARCHIVE_CORE_ABI_VERSION, "ABI version is wrong");
+        test_case_insensitive_path_compare();
         test_index_and_raw_decode(root / "raw");
         test_duplicate_override_metadata(root / "duplicates");
         test_index_deduplicates_source_paths(root / "deduplicated-source-paths");

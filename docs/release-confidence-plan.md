@@ -1,6 +1,6 @@
 # Release Confidence Plan
 
-Last reviewed: 2026-07-22
+Last reviewed: 2026-07-23
 
 ## Goal
 
@@ -47,6 +47,23 @@ keeps core user workflows working behind stable facades.
 - Remaining failures, if any, are classified with owner, command, and reason.
 
 ## Latest Validation
+
+2026-07-23:
+
+- Full catalogue-v2 cache construction was benchmarked against the authorized
+  129.76 GiB game corpus: 213 archive sources and 1,674,732 entries on a Ryzen 7
+  9800X3D, 32 GiB RAM, and NVMe source/cache drives. From the pre-change Release
+  baseline to the final self-contained worker, time to the first 64-row page
+  changed from 10.309 s to 4.604 s for an empty cache and from 8.701 s to
+  3.830 s for forced refresh; the five-run cached median remained effectively
+  instant at 0.065 s. Native sorting fell from 3.425 s to 0.787 s. Cold and
+  refresh `archive.ali`/`archive.adi` outputs matched the baseline byte-for-byte
+  by SHA-256, and every worker stopped cleanly.
+- The authoritative Full backend Release gate passed its native CTest, zero-
+  warning .NET build, 14 managed scenarios, and synthetic QProcess protocol
+  probe. The focused remote backend set passed 92 tests and the broader Archive
+  area passed 113 tests. This run did not build the complete Full application
+  package or perform visible UI proof.
 
 2026-07-22:
 

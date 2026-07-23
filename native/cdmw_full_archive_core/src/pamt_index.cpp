@@ -1,5 +1,8 @@
 #include "archive_core_internal.hpp"
 
+#include <future>
+#include <thread>
+
 #if defined(_WIN32)
 #include <windows.h>
 #else
@@ -86,14 +89,15 @@ bool parse_decimal(const std::string& value, std::uint64_t& parsed) {
 }
 
 LoadPriority load_priority(const Entry& entry) {
-    const auto package = lower_copy(entry.pamt_path.parent_path().filename().string());
-    const auto pamt_stem = lower_copy(entry.pamt_path.stem().string());
+    const auto& pamt_path = entry.source->pamt_path;
+    const auto package = lower_copy(pamt_path.parent_path().filename().string());
+    const auto pamt_stem = lower_copy(pamt_path.stem().string());
     std::uint64_t package_number = 0;
     std::uint64_t pamt_number = 0;
     const auto numeric_package = parse_decimal(package, package_number);
     const auto numeric_pamt = parse_decimal(pamt_stem, pamt_number);
     const auto tier = package.rfind("dmm", 0) == 0 ? 3 : numeric_package ? 1 : 2;
-    return {tier, package_number, numeric_pamt, pamt_number, entry.paz_index, lower_copy(entry.pamt_path.string())};
+    return {tier, package_number, numeric_pamt, pamt_number, entry.paz_index, lower_copy(pamt_path.string())};
 }
 
 bool lower_priority(const LoadPriority& left, const LoadPriority& right) {
@@ -152,6 +156,12 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
         return left.start < right.start;
     });
 
+    auto source = std::make_shared<EntrySource>();
+    source->pamt_path = fs::absolute(pamt_path).lexically_normal();
+    source->paz_paths.reserve(paz_count);
+    for (std::uint32_t paz_index = 0; paz_index < paz_count; ++paz_index) {
+        source->paz_paths.push_back(source->pamt_path.parent_path() / (std::to_string(paz_index) + ".paz"));
+    }
     std::vector<Entry> entries;
     entries.reserve(file_count);
     size_t folder_cursor = 0;
@@ -163,14 +173,13 @@ std::vector<Entry> parse_pamt(const fs::path& pamt_path) {
         if (folder_cursor < ranges.size() && index >= ranges[folder_cursor].start && !ranges[folder_cursor].directory.empty()) {
             entry.path = ranges[folder_cursor].directory + "/" + entry.path;
         }
-        entry.pamt_path = fs::absolute(pamt_path).lexically_normal();
+        entry.source = source;
         entry.archive_offset = read_u32(data, row + 4);
         entry.stored_size = read_u32(data, row + 8);
         entry.original_size = read_u32(data, row + 12);
         entry.paz_index = read_u16(data, row + 16);
         entry.flags = read_u16(data, row + 18);
         if (entry.paz_index >= paz_count) throw std::runtime_error("PAMT entry has an invalid PAZ index");
-        entry.paz_path = entry.pamt_path.parent_path() / (std::to_string(entry.paz_index) + ".paz");
         entries.push_back(std::move(entry));
     }
     return entries;
@@ -188,10 +197,10 @@ struct SharedStringRange {
     std::uint32_t length = 0;
 };
 
-void append_shared_string(
+void append_shared_path(
     std::vector<std::uint8_t>& strings,
-    std::unordered_map<std::string, SharedStringRange>& shared,
-    const std::string& value,
+    std::unordered_map<fs::path, SharedStringRange>& shared,
+    const fs::path& value,
     std::uint64_t& offset,
     std::uint32_t& length) {
     if (const auto found = shared.find(value); found != shared.end()) {
@@ -199,23 +208,8 @@ void append_shared_string(
         length = found->second.length;
         return;
     }
-    append_string(strings, value, offset, length);
+    append_string(strings, value.u8string(), offset, length);
     shared.emplace(value, SharedStringRange{offset, length});
-}
-
-int compare_case_insensitive(const std::string& left, const std::string& right) {
-    const auto common = std::min(left.size(), right.size());
-    for (size_t index = 0; index < common; ++index) {
-        const auto left_value = static_cast<unsigned char>(
-            std::tolower(static_cast<unsigned char>(left[index])));
-        const auto right_value = static_cast<unsigned char>(
-            std::tolower(static_cast<unsigned char>(right[index])));
-        if (left_value < right_value) return -1;
-        if (left_value > right_value) return 1;
-    }
-    if (left.size() < right.size()) return -1;
-    if (left.size() > right.size()) return 1;
-    return 0;
 }
 
 void publish_file(const fs::path& staging, const fs::path& destination) {
@@ -267,18 +261,47 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
     if (pamt_files.empty()) throw std::runtime_error("no PAMT files were found under the archive root");
     std::sort(pamt_files.begin(), pamt_files.end());
     std::vector<Entry> entries;
-    for (size_t pamt_index = 0; pamt_index < pamt_files.size(); ++pamt_index) {
-        const auto& pamt = pamt_files[pamt_index];
-        if (progress) progress(pamt_index, pamt_files.size(), "index_parse", pamt.filename().u8string());
-        auto parsed = parse_pamt(pamt);
-        entries.insert(entries.end(), std::make_move_iterator(parsed.begin()), std::make_move_iterator(parsed.end()));
+    const auto available_threads = std::max(1u, std::thread::hardware_concurrency());
+    const auto worker_count = std::min(
+        pamt_files.size(),
+        static_cast<size_t>(std::min(4u, available_threads)));
+    if (worker_count == 1) {
+        for (size_t pamt_index = 0; pamt_index < pamt_files.size(); ++pamt_index) {
+            const auto& pamt = pamt_files[pamt_index];
+            if (progress) progress(pamt_index, pamt_files.size(), "index_parse", pamt.filename().u8string());
+            auto parsed = parse_pamt(pamt);
+            entries.insert(entries.end(), std::make_move_iterator(parsed.begin()), std::make_move_iterator(parsed.end()));
+        }
+    } else {
+        const auto launch_parse = [&pamt_files](size_t pamt_index) {
+            return std::async(std::launch::async, [pamt = pamt_files[pamt_index]] {
+                return parse_pamt(pamt);
+            });
+        };
+        if (progress) progress(0, pamt_files.size(), "index_parse", pamt_files[0].filename().u8string());
+        std::vector<std::future<std::vector<Entry>>> pending(worker_count);
+        for (size_t slot = 0; slot < worker_count; ++slot) {
+            pending[slot] = launch_parse(slot);
+        }
+        for (size_t pamt_index = 0; pamt_index < pamt_files.size(); ++pamt_index) {
+            if (progress && pamt_index != 0) {
+                progress(pamt_index, pamt_files.size(), "index_parse", pamt_files[pamt_index].filename().u8string());
+            }
+            const auto slot = pamt_index % worker_count;
+            auto parsed = pending[slot].get();
+            const auto next = pamt_index + worker_count;
+            if (next < pamt_files.size()) pending[slot] = launch_parse(next);
+            entries.insert(entries.end(), std::make_move_iterator(parsed.begin()), std::make_move_iterator(parsed.end()));
+        }
     }
     if (progress) progress(pamt_files.size(), pamt_files.size(), "index_parse", "complete");
     if (progress) progress(0, entries.size(), "index_sort", "");
     std::stable_sort(entries.begin(), entries.end(), [](const Entry& left, const Entry& right) {
         const auto path_order = compare_case_insensitive(left.path, right.path);
         if (path_order != 0) return path_order < 0;
-        if (left.pamt_path != right.pamt_path) return left.pamt_path < right.pamt_path;
+        if (left.source->pamt_path != right.source->pamt_path) {
+            return left.source->pamt_path < right.source->pamt_path;
+        }
         return left.archive_offset < right.archive_offset;
     });
     if (progress) progress(entries.size(), entries.size(), "index_sort", "complete");
@@ -326,7 +349,7 @@ void write_index_atomic(
             return total + entry.path.size();
         });
     strings.reserve(path_bytes);
-    std::unordered_map<std::string, SharedStringRange> shared_source_paths;
+    std::unordered_map<fs::path, SharedStringRange> shared_source_paths;
     records.reserve(entries.size() * kIndexRecordSize);
     for (size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
         const auto& entry = entries[entry_index];
@@ -336,16 +359,16 @@ void write_index_atomic(
         std::uint64_t path_offset = 0, pamt_offset = 0, paz_offset = 0;
         std::uint32_t path_length = 0, pamt_length = 0, paz_length = 0;
         append_string(strings, entry.path, path_offset, path_length);
-        append_shared_string(
+        append_shared_path(
             strings,
             shared_source_paths,
-            entry.pamt_path.u8string(),
+            entry.source->pamt_path,
             pamt_offset,
             pamt_length);
-        append_shared_string(
+        append_shared_path(
             strings,
             shared_source_paths,
-            entry.paz_path.u8string(),
+            entry.source->paz_paths[entry.paz_index],
             paz_offset,
             paz_length);
         append_u64(records, path_offset);

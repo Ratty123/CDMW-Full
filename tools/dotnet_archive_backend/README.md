@@ -137,6 +137,12 @@ probe with the same Release binaries:
 dotnet run --project tools/dotnet_archive_backend/tests/Cdmw.FullArchive.Tests/Cdmw.FullArchive.Tests.csproj -c Release --no-build -- --cache-scale-report "$env:TEMP/cdmw-full-archive-cache-scale.json"
 ```
 
+Native cache builds preserve sorted PAMT merge order while parsing through a
+bounded four-task window. Entries share immutable per-PAMT source metadata,
+source paths are encoded once, and the stable path sort avoids redundant case
+folding. Repeated builds must remain byte-identical for both `archive.ali` and
+the derived `archive.adi`.
+
 The committed baseline and packaged probe are synthetic regression evidence
 only. The scale probe measures cold build, warm open, forced refresh, and cache
 bytes plus time to the first usable 64-row page without licensed files.

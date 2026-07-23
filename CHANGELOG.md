@@ -12,6 +12,7 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Changed
+- Reduced Full Archive Browser cold cache builds and explicit refreshes by sharing per-PAMT source metadata, parsing PAMTs through a bounded deterministic worker window, reusing normalized source paths, and avoiding redundant case folding during the stable native sort; cache bytes and warm-load behavior remain compatible.
 - Changed Full CDMW Item Finder startup so its catalogue, restored first page, and icon thumbnails warm after archive publication instead of waiting for the first Item Finder click; visible icons preempt the bounded low-priority background queue.
 - Removed the standalone Material Finder from CDMW Full while retaining Item Finder, including its material-tag search and filtering.
 - Broadened Archive Browser item-name recovery across shifted ItemInfo layouts, larger prefab-reference lists, semantic StringInfo icon links, and derived icon/texture/sidecar filenames; related Name Evidence cells now show the recovered item name without a redundant `Name hint:` prefix.
