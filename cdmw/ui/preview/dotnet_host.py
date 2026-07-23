@@ -750,13 +750,14 @@ class DotNetPreviewHostFrame(QFrame):
 
         yaw = finite_float("yaw", self._DEFAULT_YAW)
         pitch = finite_float("pitch", self._DEFAULT_PITCH)
+        zoom = max(0.1, min(64.0, finite_float("zoom_factor", 1.0)))
         reason = str(initial.get("reason", "package_reset") or "package_reset")
-        self._zoom_factor = 1.0
+        self._zoom_factor = zoom
         self._fit_to_view = True
         base_state: dict[str, object] = {
             "role": "replacement",
             "reason": reason,
-            "zoom_factor": 1.0,
+            "zoom_factor": zoom,
             "fit_to_view": True,
             "yaw": yaw,
             "pitch": pitch,
@@ -773,7 +774,7 @@ class DotNetPreviewHostFrame(QFrame):
             "yaw": yaw,
             "pitch": pitch,
             "fit_mode": "fit",
-            "fit_relative_zoom": 1.0,
+            "fit_relative_zoom": zoom,
             "pan": [0.0, 0.0],
             "command_generation": self._camera_generation,
         }

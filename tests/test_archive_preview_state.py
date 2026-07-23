@@ -25,9 +25,9 @@ def test_archive_model_initial_view_state_is_front_facing_and_centered_by_defaul
     assert archive_model_initial_view_state() == {
         "role": "replacement",
         "reason": "archive_model_initial_front",
-        "zoom_factor": 1.0,
+        "zoom_factor": 0.75,
         "fit_to_view": True,
-        "yaw": 0.0,
+        "yaw": 180.0,
         "pitch": 0.0,
         "pan": (0.0, 0.0, 0.0),
     }
@@ -51,8 +51,13 @@ def test_archive_model_initial_view_state_uses_overhead_for_weapon_paths_and_nam
         "",
     )
 
-    assert all(archive_model_initial_view_state(path)["pitch"] == -89.0 for path in overhead_paths)
-    assert all(archive_model_initial_view_state(path)["pitch"] == 0.0 for path in front_paths)
+    overhead_views = tuple(archive_model_initial_view_state(path) for path in overhead_paths)
+    front_views = tuple(archive_model_initial_view_state(path) for path in front_paths)
+
+    assert all(view["yaw"] == 0.0 and view["pitch"] == -89.0 for view in overhead_views)
+    assert all(view["zoom_factor"] == 1.0 for view in overhead_views)
+    assert all(view["yaw"] == 180.0 and view["pitch"] == 0.0 for view in front_views)
+    assert all(view["zoom_factor"] == 0.75 for view in front_views)
 
 
 def test_archive_model_manifest_source_path_is_safe_and_bounded(tmp_path: Path) -> None:

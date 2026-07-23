@@ -841,11 +841,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
 - Archive Browser chooses a newly selected mesh camera from the selected archive
   path, with the package manifest `source_path` as fallback. Weapon, subweapon,
   shield, and recognized weapon-family path segments use the fitted overhead
-  view (`yaw=0`, `pitch=-89`); armor,
-  hands, feet, generic, unknown, and missing paths use the straight-on view
-  (`yaw=0`, `pitch=0`). Refreshing the same model preserves its current camera;
-  Fit and new-package reset both clear pan and restore `1x` fitted zoom. The
-  initial framing is presentation-only and never changes mesh or export transforms.
+  view (`yaw=0`, `pitch=-89`) at the existing `1x` framing. Armor, bodies,
+  hands, feet, generic, unknown, and missing paths use the asset-facing front
+  (`yaw=180`, `pitch=0`) with a `0.75x` fit-relative safety margin so the whole
+  mesh remains visible. Refreshing the same model preserves its current camera;
+  Fit and new-package reset both clear pan. The initial framing is
+  presentation-only and never changes mesh or export transforms.
 - Exact import proof uses
   `character/model/1_pc/1_phm/weapon/1_onehandweapon/cd_phm_01_sword_0016.pac`
   with `wolf_gravestone_sword_free (1).zip`: original batches use archive-resolved

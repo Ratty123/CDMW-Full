@@ -680,6 +680,40 @@ def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: P
     controller.shutdown()
 
 
+def test_preview_host_new_body_package_applies_front_camera_with_safe_fit_margin(
+    tmp_path: Path,
+) -> None:
+    controller, _process, first = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(first)
+
+    second = _package(tmp_path, "body-package")
+    assert host.load_package(
+        second,
+        reset_view=True,
+        initial_view_state={
+            "yaw": 180.0,
+            "pitch": 0.0,
+            "zoom_factor": 0.75,
+            "reason": "archive_model_initial_front",
+        },
+    )
+
+    event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert event == "presentation_state_update"
+    assert payload["camera"] == {
+        "role": "editable",
+        "yaw": 180.0,
+        "pitch": 0.0,
+        "fit_mode": "fit",
+        "fit_relative_zoom": 0.75,
+        "pan": [0.0, 0.0],
+        "command_generation": 1,
+    }
+    assert host.view_state_snapshot()["zoom_factor"] == 0.75
+    controller.shutdown()
+
+
 def test_preview_host_fit_resets_pan_and_zoom_without_changing_angle(tmp_path: Path) -> None:
     controller, _process, package = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)

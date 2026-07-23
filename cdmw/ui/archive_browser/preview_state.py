@@ -38,6 +38,9 @@ _ARCHIVE_OVERHEAD_CAMERA_SEGMENTS = frozenset(
     }
 )
 
+_ARCHIVE_NON_WEAPON_INITIAL_YAW = 180.0
+_ARCHIVE_NON_WEAPON_FIT_RELATIVE_ZOOM = 0.75
+
 
 def _archive_model_uses_overhead_camera(source_path: object) -> bool:
     normalized = str(source_path or "").replace("\\", "/").strip().casefold()
@@ -75,9 +78,9 @@ def archive_model_initial_view_state(source_path: object = "") -> dict[str, obje
     return {
         "role": "replacement",
         "reason": "archive_model_initial_overhead" if overhead else "archive_model_initial_front",
-        "zoom_factor": 1.0,
+        "zoom_factor": 1.0 if overhead else _ARCHIVE_NON_WEAPON_FIT_RELATIVE_ZOOM,
         "fit_to_view": True,
-        "yaw": 0.0,
+        "yaw": 0.0 if overhead else _ARCHIVE_NON_WEAPON_INITIAL_YAW,
         "pitch": -89.0 if overhead else 0.0,
         "pan": (0.0, 0.0, 0.0),
     }
