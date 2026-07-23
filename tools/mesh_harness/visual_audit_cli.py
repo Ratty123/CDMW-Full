@@ -7,6 +7,7 @@ import os
 import sys
 import tempfile
 import time
+import time
 from dataclasses import asdict
 from uuid import uuid4
 from collections.abc import Mapping, Sequence
@@ -784,7 +785,15 @@ def _atomic_write_json(path: Path, payload: object) -> None:
     temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     try:
         temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-        os.replace(temporary, path)
+        replace_delays = (0.01, 0.025, 0.05)
+        for attempt in range(len(replace_delays) + 1):
+            try:
+                os.replace(temporary, path)
+                break
+            except PermissionError:
+                if attempt >= len(replace_delays):
+                    raise
+                time.sleep(replace_delays[attempt])
     finally:
         temporary.unlink(missing_ok=True)
 

@@ -24,6 +24,7 @@ from tools.mesh_harness.visual_audit_corpus import (
 )
 from tools.mesh_harness.visual_audit_package import stabilize_visual_audit_archive_package
 from tools.mesh_harness.visual_audit_cli import (
+    _atomic_write_json,
     _dotnet_assembly_path,
     _load_preparation_resume,
     _load_specs,
@@ -603,6 +604,33 @@ def test_visual_audit_preparation_checkpoint_is_incremental_and_run_correlated(t
     assert '"prepared_asset_count": 7' in payload
     assert '"run_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"' in payload
     assert '"complete": false' in payload
+
+
+def test_visual_audit_atomic_json_retries_transient_windows_replace_denial(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from tools.mesh_harness import visual_audit_cli
+
+    path = tmp_path / "checkpoint.json"
+    path.write_text('{"prepared_asset_count": 1}\n', encoding="utf-8")
+    real_replace = visual_audit_cli.os.replace
+    replace_calls = 0
+
+    def flaky_replace(source: Path, destination: Path) -> None:
+        nonlocal replace_calls
+        replace_calls += 1
+        if replace_calls < 3:
+            raise PermissionError(5, "Access is denied", str(destination))
+        real_replace(source, destination)
+
+    monkeypatch.setattr(visual_audit_cli.os, "replace", flaky_replace)
+    monkeypatch.setattr(visual_audit_cli.time, "sleep", lambda _delay: None)
+
+    _atomic_write_json(path, {"prepared_asset_count": 2})
+
+    assert replace_calls == 3
+    assert json.loads(path.read_text(encoding="utf-8")) == {"prepared_asset_count": 2}
 
 
 def test_visual_audit_preparation_resume_reuses_only_an_exact_manifest_prefix(tmp_path: Path) -> None:
