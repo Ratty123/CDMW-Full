@@ -21,7 +21,7 @@ Use `$env:TEMP` for pytest temp dirs when `.pytest-tmp` is locked.
 ## Startup, Crash Reporting, And Packaging Guards
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_runtime_dependency_smoke.py tests/test_crash_reporting_guards.py tests/test_pyinstaller_temp_cleanup.py tests/test_startup_splash_lifecycle.py tests/test_shell_main_window_proxy.py tests/test_window_feature_controller.py tests/test_archive_scan_ui_delivery.py
+.\.venv\Scripts\python.exe -m pytest tests/test_runtime_dependency_smoke.py tests/test_crash_reporting_guards.py tests/test_pyinstaller_temp_cleanup.py tests/test_startup_splash_lifecycle.py tests/test_startup_archive_path_async.py tests/test_shell_main_window_proxy.py tests/test_window_feature_controller.py tests/test_archive_scan_ui_delivery.py
 .\.venv\Scripts\python.exe -m pytest tests/test_lazy_tool_tabs.py
 .\.venv\Scripts\python.exe -m pytest tests/test_settings_tab_asset_authoring.py
 .\.venv\Scripts\python.exe scripts/generate_window_feature_provider_members.py --check

@@ -9,7 +9,7 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QSettings, Qt
+from PySide6.QtCore import QSettings, QTimer, Qt
 from PySide6.QtTest import QTest
 from PySide6.QtWidgets import QApplication, QLineEdit, QPushButton, QVBoxLayout, QWidget
 
@@ -146,6 +146,54 @@ def test_first_run_prompt_is_modeless_and_main_window_stays_clickable(
     assert settings.value("archive/package_root", "") == str(package_root)
     assert "startup_path_prompt_accepted" in window.runtime_events
     window.close()
+
+
+def test_first_run_prompt_keeps_event_loop_alive_until_hidden_main_window_opens(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app = _app()
+    previous_quit_on_last_window_closed = app.quitOnLastWindowClosed()
+    app.setQuitOnLastWindowClosed(True)
+    monkeypatch.setattr(StartupArchivePathDialog, "_run_initial_autodetect", lambda _self: None)
+    package_root = tmp_path / "game"
+    package_root.mkdir()
+    settings = QSettings(str(tmp_path / "settings.ini"), QSettings.IniFormat)
+    window = _StartupPromptHarness(settings)
+    continued: list[bool] = []
+
+    def continue_after_prompt() -> None:
+        continued.append(True)
+        window.show()
+
+    shown = window._show_startup_archive_path_prompt_if_needed(
+        None,
+        on_finished=continue_after_prompt,
+    )
+    dialog = window._startup_archive_path_dialog
+    assert shown is True
+    assert dialog is not None
+    dialog._selected_path = str(package_root)
+
+    fallback_exit = QTimer()
+    fallback_exit.setSingleShot(True)
+    fallback_exit.timeout.connect(lambda: app.exit(17))
+    QTimer.singleShot(0, dialog.accept)
+    fallback_exit.start(250)
+    exit_code = app.exec()
+    fallback_exit.stop()
+    window_was_visible = window.isVisible()
+    quit_on_last_window_closed_was_restored = app.quitOnLastWindowClosed()
+
+    app.setQuitOnLastWindowClosed(False)
+    window.close()
+    app.processEvents()
+    app.setQuitOnLastWindowClosed(previous_quit_on_last_window_closed)
+
+    assert exit_code == 17
+    assert continued == [True]
+    assert window_was_visible is True
+    assert quit_on_last_window_closed_was_restored is True
 
 
 def test_startup_autodetect_handler_returns_immediately_and_applies_result(

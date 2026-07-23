@@ -34,6 +34,30 @@ class StartupController:
         self.context = context
 
 
+def _hold_application_open_for_startup_prompt(dialog: QDialog) -> None:
+    application = QApplication.instance()
+    if application is None or hasattr(dialog, "_startup_quit_on_last_window_closed"):
+        return
+    setattr(
+        dialog,
+        "_startup_quit_on_last_window_closed",
+        application.quitOnLastWindowClosed(),
+    )
+    application.setQuitOnLastWindowClosed(False)
+
+
+def _restore_application_after_startup_prompt(dialog: QDialog) -> None:
+    if not hasattr(dialog, "_startup_quit_on_last_window_closed"):
+        return
+    quit_on_last_window_closed = bool(
+        getattr(dialog, "_startup_quit_on_last_window_closed")
+    )
+    delattr(dialog, "_startup_quit_on_last_window_closed")
+    application = QApplication.instance()
+    if application is not None:
+        application.setQuitOnLastWindowClosed(quit_on_last_window_closed)
+
+
 def _continue_startup_archive_autoload(
     window: object,
     startup_splash: object,
@@ -678,6 +702,7 @@ class StartupPromptMixin:
         if getattr(self, "_startup_archive_path_dialog", None) is not dialog:
             return
         self._startup_archive_path_prompt_open = False
+        _restore_application_after_startup_prompt(dialog)
         accepted = result == QDialog.Accepted
         selected_path = dialog.selected_path().strip() if accepted else ""
         QTimer.singleShot(0, lambda target=dialog: self._retire_startup_archive_path_dialog(target))
@@ -740,6 +765,9 @@ class StartupPromptMixin:
                 callback,
             )
         )
+        # This is the only visible primary window while the shell stays hidden.
+        # Prevent its close from terminating Qt before the queued continuation runs.
+        _hold_application_open_for_startup_prompt(dialog)
         dialog.show()
         dialog.raise_()
         dialog.activateWindow()

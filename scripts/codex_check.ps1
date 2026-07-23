@@ -17,7 +17,8 @@ $TestsByArea = @{
     stability = @(
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_crash_reporting_guards.py",
-        "tests/test_pyinstaller_temp_cleanup.py"
+        "tests/test_pyinstaller_temp_cleanup.py",
+        "tests/test_startup_archive_path_async.py"
     )
     responsiveness = @(
         "tests/test_ui_responsiveness_source_guards.py",

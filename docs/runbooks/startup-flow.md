@@ -84,7 +84,10 @@ path validation run through `startup_path_task_controller.py`; requests are
 cancellable and latest-wins. Closing the dialog only requests cancellation,
 and dialog retirement polls the worker with `wait(0)` so the UI thread never
 blocks. The controller applies a result only when its request ID and current
-path still match.
+path still match. While the hidden shell leaves this dialog as the only visible
+primary window, the controller temporarily suppresses Qt's
+quit-on-last-window-close behavior and restores the prior setting when the
+dialog finishes, so Continue and Skip can resume startup instead of exiting.
 
 ## Startup-smoke contract
 
