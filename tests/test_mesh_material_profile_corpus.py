@@ -151,6 +151,122 @@ def test_real_material_hydration_uses_sidecar_contract_and_local_dds(tmp_path: P
     assert any("sidecar" in line.casefold() for line in diagnostics)
 
 
+def test_real_material_hydration_rebuilds_with_sibling_archive_texture(
+    tmp_path: Path,
+) -> None:
+    current_root = tmp_path / "0009"
+    sibling_root = tmp_path / "0000"
+    current_root.mkdir()
+    sibling_root.mkdir()
+    source_dds = tmp_path / "shared.dds"
+    source_dds.write_bytes(b"DDS sibling archive texture")
+    model_entry = ArchiveEntry(
+        path="character/model/elephant.pac",
+        pamt_path=current_root / "0.pamt",
+        paz_file=current_root / "0.paz",
+        offset=0,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
+    texture_entry = ArchiveEntry(
+        path="object/texture/shared.dds",
+        pamt_path=sibling_root / "0.pamt",
+        paz_file=sibling_root / "0.paz",
+        offset=1,
+        comp_size=1,
+        orig_size=1,
+        flags=0,
+        paz_index=0,
+    )
+    mesh = ParsedMesh(
+        path=model_entry.path,
+        format="pac",
+        submeshes=[
+            SubMesh(
+                name="Wood",
+                material="Wood",
+                texture="Wood",
+                vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)],
+                faces=[(0, 1, 2)],
+            )
+        ],
+    )
+    binding = _ArchiveModelSidecarTextureBinding(
+        texture_path="character/texture/shared.dds",
+        parameter_name="_baseColorTexture",
+        submesh_name="Wood",
+        sidecar_kind="pac_xml",
+        shader_family="Standard",
+    )
+    material_input = PreviewMaterialTextureInput(
+        slot_kind="base",
+        parameter_name="_baseColorTexture",
+        source_texture_path=binding.texture_path,
+        source_dds_path=binding.texture_path,
+        semantic_type="color",
+        material_name="Wood",
+        owner_slot_index=0,
+        visualized=True,
+    )
+    expanded_mesh = SimpleNamespace(
+        source_submesh_index=0,
+        preview_material_texture_inputs=(material_input,),
+        preview_sidecar_shader_family="Standard",
+    )
+    original_preview = SimpleNamespace(
+        path=model_entry.path,
+        meshes=[SimpleNamespace(source_submesh_index=0, preview_material_texture_inputs=())],
+    )
+    expanded_preview = SimpleNamespace(path=model_entry.path, meshes=[expanded_mesh])
+    resolution = MeshTextureSourceResolution(
+        source_path=source_dds,
+        archive_entry=texture_entry,
+        archive_path=texture_entry.path,
+        status="archive",
+    )
+
+    with (
+        patch(
+            "tools.mesh_harness.archive_provenance.extract_archive_model_sidecar_texture_references",
+            return_value=((binding,), ("character/modelproperty/elephant.pac_xml",), {}, {}),
+        ),
+        patch(
+            "tools.mesh_harness.archive_provenance._cross_archive_texture_entries",
+            return_value=(texture_entry,),
+        ),
+        patch(
+            "tools.mesh_harness.archive_provenance.build_archive_preview_result",
+            return_value=SimpleNamespace(
+                status="ok",
+                preview_model=expanded_preview,
+                warning_text="",
+                detail_text="",
+            ),
+        ) as build_preview,
+        patch(
+            "tools.mesh_harness.archive_provenance.resolve_mesh_texture_source",
+            return_value=resolution,
+        ),
+    ):
+        rows, diagnostics = _hydrate_real_archive_mesh_materials(
+            mesh,
+            model_entry,
+            {},
+            {},
+            preview_model=original_preview,
+        )
+
+    assert original_preview.meshes == [expanded_mesh]
+    assert mesh.submeshes[0].preview_material_texture_inputs[0].source_dds_path == str(
+        source_dds.resolve()
+    )
+    assert any(row["archive_path"] == texture_entry.path for row in rows)
+    assert any("sibling PAMT" in line for line in diagnostics)
+    assert texture_entry in build_preview.call_args.kwargs["texture_entries_by_basename"]["shared.dds"]
+
+
 def test_real_material_hydration_keeps_primary_base_ahead_of_sidecar_overlay(
     tmp_path: Path,
 ) -> None:

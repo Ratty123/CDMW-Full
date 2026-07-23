@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from cdmw.models import ArchiveEntry
 from collections.abc import Mapping
+from collections import defaultdict
 from cdmw.core.archive_preview_result_builder import build_archive_preview_result
+from cdmw.core.archive_format import parse_archive_pamt
 from cdmw.modding.mesh_parser import ParsedMesh
 from pathlib import Path
+from pathlib import PurePosixPath
 from collections.abc import Sequence
 from cdmw.services.archive_query_service import (
     extract_archive_model_sidecar_texture_references,
@@ -14,6 +17,93 @@ from cdmw.services.mesh_dotnet_material_state import (
 )
 from cdmw.services.mesh_texture_sources import resolve_mesh_texture_source
 from hashlib import sha256
+import threading
+
+
+_CROSS_ARCHIVE_TEXTURE_CACHE_LOCK = threading.Lock()
+_CROSS_ARCHIVE_TEXTURE_CACHE: dict[tuple[str, str], tuple[ArchiveEntry, ...]] = {}
+
+
+def _cross_archive_texture_entries(
+    model_entry: ArchiveEntry,
+    basenames: Sequence[str],
+) -> tuple[ArchiveEntry, ...]:
+    requested = {
+        PurePosixPath(str(name or "").replace("\\", "/").casefold()).name
+        for name in basenames
+        if str(name or "").strip()
+    }
+    pamt_path = Path(model_entry.pamt_path).expanduser().resolve()
+    game_root = pamt_path.parent.parent
+    root_key = str(game_root).casefold()
+    with _CROSS_ARCHIVE_TEXTURE_CACHE_LOCK:
+        uncached = {
+            name for name in requested if (root_key, name) not in _CROSS_ARCHIVE_TEXTURE_CACHE
+        }
+        if uncached:
+            found: dict[str, list[ArchiveEntry]] = defaultdict(list)
+            for sibling_pamt in sorted(game_root.glob("*/0.pamt")):
+                if sibling_pamt.resolve() == pamt_path:
+                    continue
+                for entry in parse_archive_pamt(sibling_pamt):
+                    entry_name = PurePosixPath(
+                        str(entry.path or "").replace("\\", "/").casefold()
+                    ).name
+                    if entry_name in uncached:
+                        found[entry_name].append(entry)
+            for name in uncached:
+                _CROSS_ARCHIVE_TEXTURE_CACHE[(root_key, name)] = tuple(found.get(name, ()))
+        return tuple(
+            entry
+            for name in sorted(requested)
+            for entry in _CROSS_ARCHIVE_TEXTURE_CACHE.get((root_key, name), ())
+        )
+
+
+def _expanded_texture_entry_indexes(
+    model_entry: ArchiveEntry,
+    bindings: Sequence[object],
+    entries_by_path: Mapping[str, Sequence[ArchiveEntry]],
+    entries_by_basename: Mapping[str, Sequence[ArchiveEntry]],
+) -> tuple[dict[str, tuple[ArchiveEntry, ...]], dict[str, tuple[ArchiveEntry, ...]], int]:
+    missing_names = {
+        PurePosixPath(
+            str(getattr(binding, "texture_path", "") or "").replace("\\", "/").casefold()
+        ).name
+        for binding in bindings
+        if str(getattr(binding, "texture_path", "") or "").strip()
+        and not entries_by_basename.get(
+            PurePosixPath(
+                str(getattr(binding, "texture_path", "") or "").replace("\\", "/").casefold()
+            ).name,
+            (),
+        )
+    }
+    cross_entries = _cross_archive_texture_entries(model_entry, tuple(missing_names))
+    expanded_paths = {key: tuple(value) for key, value in entries_by_path.items()}
+    expanded_names = {key: tuple(value) for key, value in entries_by_basename.items()}
+    added = 0
+    for entry in cross_entries:
+        path_key = str(entry.path or "").replace("\\", "/").casefold()
+        name_key = PurePosixPath(path_key).name
+        path_bucket = list(expanded_paths.get(path_key, ()))
+        name_bucket = list(expanded_names.get(name_key, ()))
+        identity = (str(entry.pamt_path).casefold(), str(entry.paz_file).casefold(), path_key)
+        if not any(
+            (
+                str(candidate.pamt_path).casefold(),
+                str(candidate.paz_file).casefold(),
+                str(candidate.path or "").replace("\\", "/").casefold(),
+            )
+            == identity
+            for candidate in name_bucket
+        ):
+            path_bucket.append(entry)
+            name_bucket.append(entry)
+            expanded_paths[path_key] = tuple(path_bucket)
+            expanded_names[name_key] = tuple(name_bucket)
+            added += 1
+    return expanded_paths, expanded_names, added
 
 def _archive_source_file_snapshot(entries: Sequence[ArchiveEntry]) -> dict[str, dict[str, int | bool]]:
     path_texts: set[str] = set()
@@ -132,13 +222,43 @@ def _hydrate_real_archive_mesh_materials(
     preview cache outside the install.
     """
 
-    _, sidecar_paths, _, _ = (
+    bindings, sidecar_paths, _, _ = (
         extract_archive_model_sidecar_texture_references(
             model_entry,
             archive_entries_by_basename=dict(entries_by_basename),
         )
     )
     diagnostics: list[str] = []
+    expanded_paths, expanded_names, cross_archive_count = _expanded_texture_entry_indexes(
+        model_entry,
+        bindings,
+        entries_by_path,
+        entries_by_basename,
+    )
+    if cross_archive_count:
+        expanded_preview = build_archive_preview_result(
+            model_entry,
+            (),
+            texture_entries_by_normalized_path=expanded_paths,
+            texture_entries_by_basename=expanded_names,
+            include_loose_preview_assets=False,
+            visible_texture_mode="mesh_base_first",
+            support_texture_slots=("normal", "material", "height", "emissive"),
+            quality_tier="full",
+        )
+        if expanded_preview.status != "ok" or expanded_preview.preview_model is None:
+            raise RuntimeError(
+                f"Cross-archive material hydration failed for {model_entry.path}: "
+                f"{expanded_preview.warning_text or expanded_preview.detail_text}"
+            )
+        if preview_model is not None:
+            preview_model.meshes = list(expanded_preview.preview_model.meshes)
+        preview_model = expanded_preview.preview_model
+        entries_by_path = expanded_paths
+        entries_by_basename = expanded_names
+        diagnostics.append(
+            f"Resolved {cross_archive_count} sidecar texture dependencies from sibling PAMT archives."
+        )
     if preview_model is None:
         preview_result = build_archive_preview_result(
             model_entry,
