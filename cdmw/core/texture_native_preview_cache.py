@@ -12,6 +12,9 @@ from cdmw.core.texture_decode_cache import preview_staging_dir, publish_preview_
 from cdmw.models import RunCancelled
 
 
+DIRECTXTEX_PREVIEW_RECENT_USE_SECONDS = 300.0
+
+
 def add_preview_result(
     results: Dict[str, Path],
     job: backend.NativeTextureDecodeCacheJob,
@@ -69,7 +72,10 @@ def _ensure_preview_batch_leased(
         output = job.request.output_path
         if backend._cached_preview_is_valid(output):
             add_preview_result(results, job, output, include_job_keys)
-            mark_app_temp_cache_recent(output)
+            mark_app_temp_cache_recent(
+                output,
+                seconds=DIRECTXTEX_PREVIEW_RECENT_USE_SECONDS,
+            )
         else:
             pending.append(job)
     if not pending:
@@ -179,7 +185,10 @@ def _ensure_preview_batch_leased(
                         retry_jobs.append(job)
                     continue
                 add_preview_result(results, job, output, include_job_keys)
-                mark_app_temp_cache_recent(output)
+                mark_app_temp_cache_recent(
+                    output,
+                    seconds=DIRECTXTEX_PREVIEW_RECENT_USE_SECONDS,
+                )
                 published = True
             missing_jobs = [job for job in pending if job.cache_key not in responded_cache_keys]
             if missing_jobs:

@@ -415,6 +415,39 @@ class NativeTextureBackendTests(unittest.TestCase):
         self.assertEqual(0, prune_reports[0].removed_units)
         self.assertEqual({str(dds_path.resolve())}, set(results))
 
+    def test_directxtex_batch_preview_keeps_output_ready_for_followup_compile(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            binary_path = root / "cd-texture-dx.exe"
+            binary_path.write_bytes(b"fake")
+            dds_path = root / "followup.dds"
+            dds_path.write_bytes(_minimal_bc_dds(b"DXT1"))
+
+            def fake_run(command, **_kwargs):
+                job_path = Path(command[2])
+                report_path = Path(command[3])
+                job = json.loads(job_path.read_text(encoding="utf-8"))
+                item = job["jobs"][0]
+                output = Path(item["output"])
+                output.write_bytes(_MINIMAL_PNG)
+                report_path.write_text(
+                    json.dumps({"status": "ok", "items": [{"status": "decoded", "output_path": str(output)}]}),
+                    encoding="utf-8",
+                )
+                return 0, "{}", ""
+
+            with (
+                patch("cdmw.core.texture_native.find_directxtex_texture_binary", return_value=binary_path),
+                patch("cdmw.core.texture_native.run_process_with_cancellation", side_effect=fake_run),
+                patch("cdmw.core.texture_native_preview_cache.mark_app_temp_cache_recent") as mark_recent,
+            ):
+                results = texture_native.ensure_directxtex_dds_preview_pngs(
+                    ({"dds_path": str(dds_path), "slot_kind": "base"},)
+                )
+
+        output = results[str(dds_path.resolve())]
+        mark_recent.assert_called_once_with(output, seconds=300.0)
+
     def test_native_preview_rejects_unknown_metadata_before_launch(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
