@@ -312,13 +312,15 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         self._sync_state()
         QTimer.singleShot(0, self._start_embedded_dotnet_preview_if_available)
     def show_empty_state(self, message: str = "") -> None:
+        # Clear references owned by the embedded builder before teardown. Its
+        # QDialog may already have processed deleteLater().
+        self.embedded_dotnet_editor_button = None
         self.close_standalone_session()
         self.set_native_preview_host(getattr(self, "standalone_native_host_frame", None))
         self.embedded_workspace = None
         self._embedded_control_tabs = None
         self._embedded_classic_builder = None
         self._embedded_restore_control_widget = None
-        self.embedded_dotnet_editor_button = None
         self._set_embedded_dotnet_state("closed", active=False)
         while self.embedded_builder_host_layout.count():
             item = self.embedded_builder_host_layout.takeAt(0)

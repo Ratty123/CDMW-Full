@@ -502,7 +502,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   help rather than a persistent footer below the editing viewport. Entering or
   leaving Edit Mesh collapses or restores both tool panels as one suspended,
   buffered layout update; it does not resize each section recursively or restart
-  the resident helper.
+  the resident helper. Escape is consumed by the embedded builder instead of
+  rejecting the whole workflow; explicit close and replacement actions still
+  finish it. Builder-finished cleanup is idempotent when the embedded Qt host
+  has already been deleted, so stale timers or controls cannot interrupt the
+  transition back to Mesh Editor's empty state.
   Morph & Refit is part of that same resident Edit Mesh form. C# owns profile,
   preset, body-rule, and selected-garment controls; Python owns only correlated
   command transport plus settings-backed persistence; the resident C++ session

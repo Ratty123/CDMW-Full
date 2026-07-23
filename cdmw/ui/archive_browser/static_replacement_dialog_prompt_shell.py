@@ -12,6 +12,13 @@ from cdmw.ui.archive_browser.static_replacement_dialog_ui_sections import _align
 install_static_replacement_prompt_dependencies(globals())
 
 
+class _EmbeddedAlignmentBuilderDialog(QDialog):
+    def keyPressEvent(self, event) -> None:
+        if event.key() != Qt.Key_Escape:
+            return super().keyPressEvent(event)
+        event.accept()
+
+
 def create_static_replacement_prompt_shell(context: dict[str, object]) -> SimpleNamespace:
     self = context["self"]
     entry = context["entry"]
@@ -83,7 +90,8 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         startup_progress.close()
 
     _alignment_startup_step(alignment_startup_text["creating_window"])
-    dialog = QDialog(embedded_host if embedded_alignment_builder else self)
+    dialog_type = _EmbeddedAlignmentBuilderDialog if embedded_alignment_builder else QDialog
+    dialog = dialog_type(embedded_host if embedded_alignment_builder else self)
     dialog.setObjectName("MeshReplacementAlignmentDialog")
     dialog.setWindowTitle(dialog_title)
     if embedded_alignment_builder:

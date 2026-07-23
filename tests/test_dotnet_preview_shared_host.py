@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from PySide6.QtCore import QCoreApplication, QObject, QProcess, Signal
+from PySide6.QtCore import QCoreApplication, QEvent, QObject, QProcess, Signal
 from PySide6.QtWidgets import QApplication
 
 from cdmw.services.mesh_dotnet_experiment import (
@@ -81,6 +81,16 @@ class _FakeProcess(QObject):
 
     def kill(self) -> None:
         self._state = QProcess.ProcessState.NotRunning
+
+
+def test_clear_preview_is_safe_after_controller_qobject_is_deleted() -> None:
+    owner = QObject()
+    controller = DotNetPreviewSessionController(host_hwnd=lambda: 0, parent=owner)
+    controller.shutdown()
+    owner.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+    assert controller.clear_preview() is False
 
 
 def _package(root: Path, name: str) -> MeshDotNetExperimentPackage:

@@ -780,9 +780,9 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertNotIn("embedded_alignment_builder = False", source)
         self.assertLess(
             source.index("embedded_alignment_builder = embedded_host is not None"),
-            source.index("dialog = QDialog(embedded_host if embedded_alignment_builder else self)"),
+            source.index("dialog_type = _EmbeddedAlignmentBuilderDialog if embedded_alignment_builder else QDialog"),
         )
-        self.assertIn("dialog = QDialog(embedded_host if embedded_alignment_builder else self)", source)
+        self.assertIn("dialog = dialog_type(embedded_host if embedded_alignment_builder else self)", source)
         self.assertIn("dialog.setWindowFlags(Qt.Widget)", source)
         self.assertIn("dialog.setMinimumSize(0, 0)", source)
         self.assertIn("if embedded_alignment_builder:", source)

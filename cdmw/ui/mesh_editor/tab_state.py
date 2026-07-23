@@ -286,11 +286,17 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
             dotnet_button.setEnabled(has_standalone and not task_active and not self._standalone_dotnet_editor_process_running())
         embedded_dotnet_button = getattr(self, "embedded_dotnet_editor_button", None)
         if embedded_dotnet_button is not None:
-            embedded_dotnet_button.setEnabled(
-                self.workspace_stack.currentWidget() is self.embedded_builder_host
-                and not task_active
-                and not self._standalone_dotnet_editor_process_running()
-            )
+            try:
+                embedded_dotnet_button.setEnabled(
+                    self.workspace_stack.currentWidget() is self.embedded_builder_host
+                    and not task_active
+                    and not self._standalone_dotnet_editor_process_running()
+                )
+            except RuntimeError:
+                # The modeless builder can be deleted before a queued archive
+                # selection update reaches this tab.
+                if embedded_dotnet_button is getattr(self, "embedded_dotnet_editor_button", None):
+                    self.embedded_dotnet_editor_button = None
         for button_name in (
             "standalone_run_validation_report_button",
             "standalone_rebuild_asset_button",

@@ -158,7 +158,12 @@ class MeshEditorDotNetProcessMixin:
         if self.standalone_dotnet_scene_worker is not None:
             self.standalone_dotnet_scene_worker.stop()
         if controller is not None:
-            controller.clear_preview()
+            try:
+                controller.clear_preview()
+            except RuntimeError:
+                # An embedded host can already be deleted by the time its
+                # modeless builder-finished callback reaches Mesh Editor.
+                pass
     def _handle_standalone_dotnet_editor_finished(
         self,
         process: _tab.QProcess,

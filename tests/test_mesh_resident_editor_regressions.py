@@ -8,14 +8,17 @@ from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
-from PySide6.QtCore import QPoint, QSettings, Qt
+from PySide6.QtCore import QCoreApplication, QEvent, QPoint, QSettings, Qt
 from PySide6.QtTest import QTest
-from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QTreeWidget, QTreeWidgetItem
+from PySide6.QtWidgets import QApplication, QComboBox, QFrame, QPushButton, QTreeWidget, QTreeWidgetItem
 
 from cdmw.domain.mesh import MeshEditCommand, MeshEditResult, MeshEditSelection
 from cdmw.modding.mesh_native_core import native_mesh_core_available
 from cdmw.modding.mesh_parser import ParsedMesh
 from cdmw.services.mesh_service import MeshService
+from cdmw.ui.archive_browser.static_replacement_dialog_prompt_shell import (
+    _EmbeddedAlignmentBuilderDialog,
+)
 from cdmw.ui.mesh_editor import MeshEditorTab
 from cdmw.ui.mesh_editor.controller import MeshEditorController, MeshEditorNativeUpdate
 from cdmw.ui.mesh_editor.static_replacement_adapter import StaticReplacementMeshEditSession
@@ -32,6 +35,38 @@ _APP = QApplication.instance() or QApplication([])
 
 
 class MeshResidentEditorRegressionTests(unittest.TestCase):
+    def test_embedded_builder_escape_does_not_close_the_workflow(self) -> None:
+        host = QFrame()
+        host.show()
+        dialog = _EmbeddedAlignmentBuilderDialog(host)
+        dialog.setWindowFlags(Qt.Widget)
+        finished: list[int] = []
+        dialog.finished.connect(finished.append)
+        dialog.show()
+        _APP.processEvents()
+
+        QTest.keyClick(dialog, Qt.Key_Escape)
+        _APP.processEvents()
+
+        self.assertTrue(dialog.isVisible())
+        self.assertEqual([], finished)
+        dialog.reject()
+        _APP.processEvents()
+        self.assertEqual([0], finished)
+        host.deleteLater()
+
+    def test_state_sync_drops_deleted_embedded_button(self) -> None:
+        tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorDeletedEmbeddedButton"))
+        button = QPushButton(tab)
+        tab.embedded_dotnet_editor_button = button
+        button.deleteLater()
+        QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+
+        tab._sync_state()
+
+        self.assertIsNone(tab.embedded_dotnet_editor_button)
+        tab.deleteLater()
+
     def test_embedded_preview_loading_tracks_resident_activation(self) -> None:
         tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorPreviewLoading"))
         builder = _EmbeddedMeshBuilder()

@@ -338,6 +338,8 @@ class DotNetPreviewSessionController(QObject):
         return self.is_running
 
     def clear_preview(self) -> bool:
+        if self._closed:
+            return False
         self._package_generation += 1
         self._desired_package = None
         self._desired_package_identity = None
