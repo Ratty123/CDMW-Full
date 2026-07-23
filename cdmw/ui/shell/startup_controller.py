@@ -145,6 +145,12 @@ class StartupPromptMixin:
             except Exception:
                 pass
             self._record_startup_prompt_event("splash_finished")
+        try:
+            from cdmw.app.startup_splash import close_external_startup_splash
+
+            close_external_startup_splash()
+        except Exception:
+            pass
 
     def _finish_startup_splash_before_modal(self) -> None:
         if getattr(self, "_startup_splash_window", None) is None:

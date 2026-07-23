@@ -56,7 +56,8 @@ continues startup immediately. Splash release deletes command/legacy-ready/temp
 artifacts synchronously, while a background watchdog gives the host a bounded
 grace period before terminate/kill. The host also deletes its artifacts on every
 exit path; background startup maintenance prunes stale artifacts from crashed
-older sessions without touching a live owner PID.
+older sessions without touching a live owner PID. Both splash windows are
+input-transparent and cannot retain mouse or keyboard focus over the shell.
 
 Neither splash implementation imposes a minimum display duration. Once UI
 construction is ready, the main window is shown immediately. Full mode does not

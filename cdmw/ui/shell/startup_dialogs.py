@@ -378,7 +378,13 @@ class StartupSplashDialog(QDialog):
         super().__init__(None)
         self._theme_key = _splash_resolved_theme_key(theme_key)
         self.setWindowTitle("CDMW")
-        self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+        self.setWindowFlags(
+            Qt.Window
+            | Qt.FramelessWindowHint
+            | Qt.WindowStaysOnTopHint
+            | Qt.WindowTransparentForInput
+            | Qt.WindowDoesNotAcceptFocus
+        )
         self.setAttribute(Qt.WA_TranslucentBackground, True)
         self.setModal(False)
         self.setFixedSize(420, 210)
@@ -512,7 +518,6 @@ class StartupArchivePathDialog(StartupPathTaskControllerMixin, QDialog):
         self._initialize_startup_path_tasks()
         self.setWindowTitle("Set Crimson Desert Path")
         self.setWindowFlags(Qt.Window | Qt.WindowStaysOnTopHint | Qt.CustomizeWindowHint | Qt.WindowTitleHint)
-        self.setWindowModality(Qt.ApplicationModal)
         self.setObjectName("StartupArchivePathDialog")
         self.setMinimumWidth(520)
 

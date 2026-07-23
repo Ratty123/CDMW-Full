@@ -61,6 +61,9 @@ than importing the other product's source:
   Finder surface. Double-click resolves the item's exact links, selects a
   directly linked model when available, and starts the existing Archive Browser
   preview lane; related-set expansion remains an explicit button action.
+  Ordinary archive publication and filtering leave the list unselected when
+  there is no prior user selection to restore, so the first row never starts a
+  preview on its own.
 - Full's resident catalogue now also uses Lite's ordered category/group
   taxonomy rather than its earlier coarse `Equipment` classifier.
   Classification considers internal, display, localized, model, PAC, and icon

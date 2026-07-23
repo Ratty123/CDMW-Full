@@ -694,7 +694,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self.request_structure_children("")
         QTimer.singleShot(
             0,
-            lambda generation=handle.generation: self._select_item_scope_preview_or_first(generation),
+            lambda generation=handle.generation: self._select_item_scope_preview_if_requested(generation),
         )
 
     def _handle_facets(self, facets: ArchiveFacetsResult) -> None:
@@ -749,15 +749,13 @@ class ArchiveRemoteWindowBridge(QObject):
         self._window.archive_tree.scrollTo(index)
 
     def _selection_unavailable(self, _identity: object) -> None:
-        if not self._shadow:
-            QTimer.singleShot(0, self._select_first_row_if_needed)
+        return
 
-    def _select_item_scope_preview_or_first(self, generation: int) -> None:
+    def _select_item_scope_preview_if_requested(self, generation: int) -> None:
         pending_generation = self._item_scope_selection_generation
         if pending_generation != generation:
             if pending_generation is not None and pending_generation < generation:
                 self._item_scope_selection_generation = None
-            self._select_first_row_if_needed()
             return
         self._item_scope_selection_generation = None
         if self._window.archive_tree.currentIndex().isValid():
@@ -785,15 +783,6 @@ class ArchiveRemoteWindowBridge(QObject):
             target = first_loaded
         if target.isValid():
             self._restore_selection(target)
-        else:
-            self._select_first_row_if_needed()
-
-    def _select_first_row_if_needed(self) -> None:
-        if not self._display_v2 or self._window.archive_tree.currentIndex().isValid():
-            return
-        first = self._model.index(0, 0)
-        if first.isValid() and self._model.entry_for_index(first) is not None:
-            self._restore_selection(first)
 
     def _handle_failure(self, kind: str, error: object) -> None:
         if not self._active:

@@ -137,7 +137,13 @@ def run_startup_splash_host(command_file: Path, *, parent_pid: int = 0) -> int:
         def __init__(self) -> None:
             super().__init__(None)
             self.setWindowTitle("CDMW")
-            self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+            self.setWindowFlags(
+                Qt.Window
+                | Qt.FramelessWindowHint
+                | Qt.WindowStaysOnTopHint
+                | Qt.WindowTransparentForInput
+                | Qt.WindowDoesNotAcceptFocus
+            )
             self.setAttribute(Qt.WA_TranslucentBackground, True)
             self.setModal(False)
             self.setFixedSize(420, 210)

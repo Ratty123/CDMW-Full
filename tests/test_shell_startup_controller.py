@@ -333,10 +333,14 @@ class ShellStartupControllerTests(unittest.TestCase):
         window = _ModalStartupWindow()
         splash = window._startup_splash_window
 
-        with patch("cdmw.ui.shell.startup_controller.QApplication.instance", return_value=None):
+        with (
+            patch("cdmw.ui.shell.startup_controller.QApplication.instance", return_value=None),
+            patch("cdmw.app.startup_splash.close_external_startup_splash") as close_external,
+        ):
             window._finish_startup_splash_before_modal()
 
         self.assertTrue(splash.finished)
+        close_external.assert_called_once_with()
         self.assertIsNone(window._startup_splash_window)
         self.assertTrue(window.shown)
         self.assertTrue(window.raised)

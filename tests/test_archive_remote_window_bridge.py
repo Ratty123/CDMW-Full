@@ -357,6 +357,31 @@ def test_remote_current_entry_reuses_worker_prepared_dependency_snapshot() -> No
     assert current.prepared_path == Path("C:/cache/hero.pac")
 
 
+def test_catalogue_publication_does_not_select_or_preview_the_first_row() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    handle = ArchiveQueryHandle("session-a", "query-startup", 9, 2)
+    bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
+    rows = (
+        _remote(7, "actionchart/common.paac", extension=".paac"),
+        _remote(8, "equipment/item.pac", extension=".pac"),
+    )
+    assert bridge.model.accept_page(ArchivePage("session-a", "query-startup", 9, 2, 0, rows))
+    current_changes: list[tuple[object, object]] = []
+    window.archive_tree.currentItemChanged.connect(
+        lambda current, previous: current_changes.append((current, previous))
+    )
+
+    bridge._select_item_scope_preview_if_requested(9)
+    bridge._selection_unavailable(None)
+    _drain_events()
+
+    assert not window.archive_tree.currentIndex().isValid()
+    assert window.archive_tree.selectedItems() == []
+    assert current_changes == []
+
+
 def test_item_scope_selection_prefers_a_model_for_preview() -> None:
     _app()
     window = _RemoteExportWindow()
@@ -371,7 +396,7 @@ def test_item_scope_selection_prefers_a_model_for_preview() -> None:
     assert bridge.model.accept_page(ArchivePage("session-a", "query-item", 9, 3, 0, rows))
     bridge._item_scope_selection_generation = 9
 
-    bridge._select_item_scope_preview_or_first(9)
+    bridge._select_item_scope_preview_if_requested(9)
 
     selected = bridge.model.entry_for_index(window.archive_tree.currentIndex())
     assert selected is not None

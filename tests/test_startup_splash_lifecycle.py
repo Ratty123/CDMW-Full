@@ -205,6 +205,8 @@ def test_splash_host_has_symmetric_cleanup_and_no_ready_marker_write() -> None:
     app_source = Path("cdmw/app/startup_splash.py").read_text(encoding="utf-8")
 
     assert 'with_suffix(".ready").write_text' not in source
+    assert "Qt.WindowTransparentForInput" in source
+    assert "Qt.WindowDoesNotAcceptFocus" in source
     assert "finally:\n        cleanup_startup_splash_artifacts(command_file)" in source
     start_body = app_source[app_source.index("def start_external_startup_splash"):]
     assert "time.sleep(" not in start_body

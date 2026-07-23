@@ -9,9 +9,14 @@ import pytest
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QApplication
 
-from cdmw.ui.shell.startup_dialogs import StartupArchivePathDialog, validate_startup_archive_path
+from cdmw.ui.shell.startup_dialogs import (
+    StartupArchivePathDialog,
+    StartupSplashDialog,
+    validate_startup_archive_path,
+)
 from cdmw.ui.shell import startup_path_task_controller
 
 
@@ -38,6 +43,19 @@ def test_startup_path_validation_runs_as_pure_worker_input(tmp_path: Path) -> No
     assert source == str(package_root)
     assert valid is True
     assert Path(resolved) == package_root.resolve()
+
+
+def test_startup_windows_cannot_leave_application_input_blocked() -> None:
+    _app()
+    splash = StartupSplashDialog()
+    path_dialog = StartupArchivePathDialog(initial_path="skip-initial-autodetect")
+
+    assert splash.windowFlags() & Qt.WindowTransparentForInput
+    assert splash.windowFlags() & Qt.WindowDoesNotAcceptFocus
+    assert path_dialog.windowModality() == Qt.NonModal
+
+    path_dialog.reject()
+    splash.finish()
 
 
 def test_startup_autodetect_handler_returns_immediately_and_applies_result(
