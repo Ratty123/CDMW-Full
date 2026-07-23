@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 from cdmw.models import ArchiveEntry
 from cdmw.services.mesh_texture_sources import resolve_mesh_texture_source
@@ -55,3 +56,33 @@ def test_exact_archive_dds_wins_over_material_slot_suffix_fallback(tmp_path: Pat
 
     assert result.ok
     assert result.archive_entry == exact
+
+
+def test_resolved_archive_source_stays_ready_for_downstream_packaging(tmp_path: Path) -> None:
+    target = _entry(tmp_path, "character/model/hair.pac", 0)
+    texture = _entry(tmp_path, "character/texture/hair.dds", 1)
+    extracted = tmp_path / "cache" / "hair.dds"
+    extracted.parent.mkdir()
+    extracted.write_bytes(b"dds")
+
+    with patch("cdmw.services.mesh_texture_sources.mark_app_temp_cache_recent") as mark_recent:
+        result = resolve_mesh_texture_source(
+            "character/texture/hair.dds",
+            target_entry=target,
+            entries_by_normalized_path={"character/texture/hair.dds": [texture]},
+            ensure_source=lambda _entry, **_kwargs: (extracted, "test-cache"),
+        )
+
+    assert result.ok
+    mark_recent.assert_called_once_with(extracted.resolve(), seconds=300.0)
+
+
+def test_existing_local_source_renews_downstream_packaging_grace(tmp_path: Path) -> None:
+    texture = tmp_path / "cached.dds"
+    texture.write_bytes(b"dds")
+
+    with patch("cdmw.services.mesh_texture_sources.mark_app_temp_cache_recent") as mark_recent:
+        result = resolve_mesh_texture_source(texture)
+
+    assert result.ok
+    mark_recent.assert_called_once_with(texture.resolve(), seconds=300.0)

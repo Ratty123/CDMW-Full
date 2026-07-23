@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from cdmw.core.archive import ensure_archive_preview_source
+from cdmw.core.temp_cache import mark_app_temp_cache_recent
 from cdmw.models import ArchiveEntry
+
+
+MESH_TEXTURE_SOURCE_RECENT_USE_SECONDS = 300.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +43,7 @@ def resolve_mesh_texture_source(
         return MeshTextureSourceResolution(status="missing", message="No texture path was provided.")
     local = _local_file(text)
     if local is not None:
+        _keep_texture_source_ready(local)
         return MeshTextureSourceResolution(source_path=local, status="local", message=f"Local texture source: {local.name}")
     entry = _best_archive_texture_entry(
         text,
@@ -53,6 +58,7 @@ def resolve_mesh_texture_source(
     except TypeError:
         source_path, note = ensure_source(entry)
     resolved = Path(source_path).expanduser().resolve()
+    _keep_texture_source_ready(resolved)
     return MeshTextureSourceResolution(
         source_path=resolved,
         archive_entry=entry,
@@ -60,6 +66,12 @@ def resolve_mesh_texture_source(
         status="archive",
         message=f"Archive texture source ready: {entry.path}{' (' + note + ')' if note else ''}",
     )
+
+
+def _keep_texture_source_ready(path: Path) -> None:
+    """Keep a resolved preview-cache unit alive while downstream packaging consumes it."""
+
+    mark_app_temp_cache_recent(path, seconds=MESH_TEXTURE_SOURCE_RECENT_USE_SECONDS)
 
 
 def _local_file(value: str) -> Path | None:
