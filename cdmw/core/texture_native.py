@@ -586,11 +586,6 @@ def ensure_directxtex_dds_preview_pngs(
             result_key=job_key,
             cache_key=cache_key,
         )
-        if _cached_preview_is_valid(preview_path):
-            results[key] = preview_path
-            if include_job_keys:
-                results[job_key] = preview_path
-            continue
         if normalized.cache_key not in seen_cache_keys:
             seen_cache_keys.add(normalized.cache_key)
             normalized_jobs.append(normalized)
