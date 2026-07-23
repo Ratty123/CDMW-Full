@@ -176,7 +176,7 @@ class RemoteArchiveFinderDialog(QDialog):
         self._visible_icon_timer.timeout.connect(self._request_visible_icons)
         self._item_grid.verticalScrollBar().valueChanged.connect(lambda _value: self._visible_icon_timer.start())
         self._item_grid.itemSelectionChanged.connect(self._update_selected_item_detail)
-        self._item_grid.itemDoubleClicked.connect(lambda _item: self._scope_selected(include_related=True))
+        self._item_grid.itemDoubleClicked.connect(lambda _item: self._scope_selected(include_related=False))
         self._previous_button.clicked.connect(self._previous_page)
         self._next_button.clicked.connect(self._next_page)
         self._retry_button.clicked.connect(self._start_search)

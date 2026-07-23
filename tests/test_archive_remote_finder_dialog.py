@@ -201,3 +201,25 @@ def test_full_finder_search_is_latest_wins_and_scope_uses_entry_ids() -> None:
     _drain()
     assert window.archive_remote_bridge.scopes == [((3, 8), "Item Finder: Item 7")]
     dialog.close()
+
+
+def test_full_finder_double_click_uses_exact_item_scope_for_preview() -> None:
+    _app()
+    window = _Window()
+    dialog = RemoteArchiveFinderDialog(window)
+    _drain()
+    window.archive_catalogue_service.result_ready.emit(
+        "search-1",
+        "search_item_catalog",
+        ItemCatalogSearchResult("session-a", 1, 0, 72, (_row(9),), (), (), False),
+    )
+    _drain()
+    item = dialog._tree.topLevelItem(0)
+    dialog._tree.setCurrentItem(item)
+    item.setSelected(True)
+
+    dialog._tree.itemDoubleClicked.emit(item)
+
+    assert window.archive_catalogue_service.scopes[-1].item_ids == (9,)
+    assert not window.archive_catalogue_service.scopes[-1].include_related
+    dialog.close()

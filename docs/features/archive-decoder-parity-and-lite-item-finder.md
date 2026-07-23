@@ -58,7 +58,9 @@ than importing the other product's source:
   icons in visible-first batches of at most 24, rejects stale conversion
   generations, and cancels outstanding requests and conversions on a newer
   search or dialog close. Material-specific browsing remains outside this Item
-  Finder surface.
+  Finder surface. Double-click resolves the item's exact links, selects a
+  directly linked model when available, and starts the existing Archive Browser
+  preview lane; related-set expansion remains an explicit button action.
 - Full's resident catalogue now also uses Lite's ordered category/group
   taxonomy rather than its earlier coarse `Equipment` classifier.
   Classification considers internal, display, localized, model, PAC, and icon
@@ -466,7 +468,9 @@ details:
   and PAC links, icon paths, scope, and table evidence;
 - **Show Exact Links**, **Show Related Set**, **Show in browser**, and **Open
   Icon** actions;
-- double-click behavior equivalent to scoping the Archive Browser;
+- double-click loads the exact item into the normal Archive Browser preview,
+  preferring a directly linked model and falling back to another previewable
+  direct link;
 - persisted window size/position, splitter sizes, category/group, search,
   selection, and scroll position where stable;
 - English, German, and Spanish resources in the existing localization system;

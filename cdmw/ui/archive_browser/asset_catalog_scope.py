@@ -11,6 +11,7 @@ from PySide6.QtGui import QPixmap
 from PySide6.QtWidgets import QMessageBox
 
 from cdmw.constants import ARCHIVE_STRUCTURE_FILTER
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.services.archive_query_service import (
     find_archive_model_related_entries as _find_archive_model_related_entries,
     build_archive_relationship_references,
@@ -268,6 +269,7 @@ class ArchiveAssetCatalogScopeMixin:
         hint_text: str,
         progress_text: str,
         log_text: str,
+        preferred_path: str = "",
     ) -> bool:
         scoped_entries: List[ArchiveEntry] = []
         seen: set[Tuple[str, str, int]] = set()
@@ -317,8 +319,10 @@ class ArchiveAssetCatalogScopeMixin:
         self._update_archive_filter_button_state()
         self._set_archive_load_progress(progress_text, phase="Ready", percent=100)
         self.append_archive_log(log_text)
-        preferred_path = self.archive_filtered_entries[0].path if self.archive_filtered_entries else ""
-        self._populate_archive_tree(preferred_path, rebuild_index=False)
+        selected_path = str(preferred_path or "").strip()
+        if not selected_path and self.archive_filtered_entries:
+            selected_path = self.archive_filtered_entries[0].path
+        self._populate_archive_tree(selected_path, rebuild_index=False)
         return True
 
     def _apply_archive_asset_catalog_scope(self, row: Mapping[str, object], *, include_related: bool = True) -> None:
@@ -356,6 +360,14 @@ class ArchiveAssetCatalogScopeMixin:
                 "Use Show Related Set in Item Finder to include companions when indexed relationships exist."
             )
             log_counts = f"{primary_count:,} direct only"
+        preferred_entry = next(
+            (
+                entry
+                for entry in scoped_entries[:primary_count]
+                if entry.extension.casefold() in ARCHIVE_MESH_EXTENSIONS
+            ),
+            scoped_entries[0],
+        )
         self._apply_archive_direct_scope(
             scoped_entries,
             scope_label=f"{display_name} ({scope_kind})",
@@ -368,6 +380,7 @@ class ArchiveAssetCatalogScopeMixin:
                 f"Item Finder scoped Archive Browser to: {display_name} "
                 f"({log_counts}; no full archive scan)."
             ),
+            preferred_path=preferred_entry.path,
         )
 
 

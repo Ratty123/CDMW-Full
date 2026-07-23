@@ -20,6 +20,7 @@ from cdmw.domain.archives.catalogue import (
     ArchiveViewMode,
 )
 from cdmw.domain.archives.catalogue_operations import ArchiveExportSelectionKind
+from cdmw.domain.archives.constants import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.archives.filters import archive_browser_sort_is_active
 from cdmw.models import ArchiveEntry
 from cdmw.ui.archive_browser.remote_controller import ArchiveRemoteCatalogueController
@@ -107,6 +108,7 @@ class ArchiveRemoteWindowBridge(QObject):
         self._structure_requests_enabled = False
         self._export_selection_error = ""
         self._progress_operation = ""
+        self._item_scope_selection_generation: int | None = None
         self._model = RemoteArchiveBrowserModel(parent=self)
         self._controller = ArchiveRemoteCatalogueController(
             window.archive_catalogue_service,
@@ -357,7 +359,10 @@ class ArchiveRemoteWindowBridge(QObject):
             view_mode=ArchiveViewMode.FLAT,
         )
         self._begin_pending(f"Applying {label} scope...", operation="query")
-        self._controller.apply_query(query, selection_identity=None)
+        self._item_scope_selection_generation = self._controller.apply_query(
+            query,
+            selection_identity=None,
+        )
         return True
 
     def current_selection_identity(self) -> ArchiveDurableIdentity | None:
@@ -687,7 +692,10 @@ class ArchiveRemoteWindowBridge(QObject):
         window._release_startup_splash()
         self._structure_requests_enabled = True
         self.request_structure_children("")
-        QTimer.singleShot(0, self._select_first_row_if_needed)
+        QTimer.singleShot(
+            0,
+            lambda generation=handle.generation: self._select_item_scope_preview_or_first(generation),
+        )
 
     def _handle_facets(self, facets: ArchiveFacetsResult) -> None:
         if self._shadow:
@@ -743,6 +751,42 @@ class ArchiveRemoteWindowBridge(QObject):
     def _selection_unavailable(self, _identity: object) -> None:
         if not self._shadow:
             QTimer.singleShot(0, self._select_first_row_if_needed)
+
+    def _select_item_scope_preview_or_first(self, generation: int) -> None:
+        pending_generation = self._item_scope_selection_generation
+        if pending_generation != generation:
+            if pending_generation is not None and pending_generation < generation:
+                self._item_scope_selection_generation = None
+            self._select_first_row_if_needed()
+            return
+        self._item_scope_selection_generation = None
+        if self._window.archive_tree.currentIndex().isValid():
+            return
+
+        first_loaded = QModelIndex()
+        first_previewable = QModelIndex()
+        first_model = QModelIndex()
+        row_count = min(self._model.rowCount(), self._model.page_size)
+        for row in range(row_count):
+            index = self._model.index(row, 0)
+            entry = self._model.entry_for_index(index)
+            if entry is None:
+                continue
+            if not first_loaded.isValid():
+                first_loaded = index
+            if entry.is_previewable and not first_previewable.isValid():
+                first_previewable = index
+            if entry.extension.casefold() in ARCHIVE_MESH_EXTENSIONS:
+                first_model = index
+                break
+
+        target = first_model if first_model.isValid() else first_previewable
+        if not target.isValid():
+            target = first_loaded
+        if target.isValid():
+            self._restore_selection(target)
+        else:
+            self._select_first_row_if_needed()
 
     def _select_first_row_if_needed(self) -> None:
         if not self._display_v2 or self._window.archive_tree.currentIndex().isValid():

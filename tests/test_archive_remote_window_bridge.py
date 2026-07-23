@@ -357,6 +357,27 @@ def test_remote_current_entry_reuses_worker_prepared_dependency_snapshot() -> No
     assert current.prepared_path == Path("C:/cache/hero.pac")
 
 
+def test_item_scope_selection_prefers_a_model_for_preview() -> None:
+    _app()
+    window = _RemoteExportWindow()
+    bridge = ArchiveRemoteWindowBridge(window, display_v2=True, shadow=False)
+    handle = ArchiveQueryHandle("session-a", "query-item", 9, 3)
+    bridge.model.publish_query(handle, view_mode=ArchiveViewMode.FLAT, prime=False)
+    rows = (
+        _remote(7, "ui/icon/item.dds", extension=".dds"),
+        _remote(8, "equipment/item.pac", extension=".pac"),
+        _remote(9, "equipment/item.xml", extension=".xml"),
+    )
+    assert bridge.model.accept_page(ArchivePage("session-a", "query-item", 9, 3, 0, rows))
+    bridge._item_scope_selection_generation = 9
+
+    bridge._select_item_scope_preview_or_first(9)
+
+    selected = bridge.model.entry_for_index(window.archive_tree.currentIndex())
+    assert selected is not None
+    assert selected.entry_id == 8
+
+
 def test_remote_export_selection_represents_folder_and_filtered_query_server_side() -> None:
     _app()
     window = _RemoteExportWindow()

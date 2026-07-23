@@ -838,7 +838,7 @@ class ArchiveAssetCatalogDialogMixin:
         clear_search_button.clicked.connect(search_edit.clear)
         item_grid.verticalScrollBar().valueChanged.connect(lambda _value: _queue_catalog_row_icons_coalesced(80))
         item_grid.itemSelectionChanged.connect(_update_selected_catalog_detail)
-        item_grid.itemDoubleClicked.connect(lambda _item: _scope_selected(include_related=True))
+        item_grid.itemDoubleClicked.connect(lambda _item: _scope_selected(include_related=False))
         exact_scope_button.clicked.connect(lambda _checked=False: _scope_selected(include_related=False))
         scope_button.clicked.connect(lambda _checked=False: _scope_selected(include_related=True))
         preview_icon_button.clicked.connect(_find_selected_icon)
