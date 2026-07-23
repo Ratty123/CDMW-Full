@@ -884,6 +884,78 @@ def test_dense_standard_v2_generic_weapon_part_promotes_only_in_equipment_path()
     assert unrelated["material_response_promoted"] is False
 
 
+def test_dense_standard_v2_conserved_pac_metal_promotes_outside_equipment_path() -> None:
+    contract = {
+        "shader_family": "standard_v2",
+        "material_category": "generic",
+        "material_category_confidence": 0.35,
+        "material_category_reason": "",
+        "material_response_promoted": False,
+        "source_contract": {
+            "source_kind": "pac_xml",
+            "binding_conservation": {
+                "conserved": True,
+            },
+        },
+    }
+    synthesis = {
+        "generated_channels": ["metallic", "roughness", "specular"],
+        "metallic_summary": {
+            "q50": 0.492,
+            "q90": 0.494,
+            "coverage_above_0_25": 1.0,
+        },
+    }
+
+    refined = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        contract,
+        synthesis,
+        source_asset_path=(
+            "character/model/monster/m0001/"
+            "cd_m0001_00_sir_catfish_ub_00_0001.pac"
+        ),
+    )
+
+    assert refined["material_category"] == "metal"
+    assert refined["material_category_confidence"] == 0.88
+    assert refined["material_response_promoted"] is True
+    assert refined["material_category_reason"] == (
+        "metal:dominant_decoded_pac_metal_channel"
+    )
+
+
+def test_dense_standard_v2_nonconserved_pac_metal_stays_generic() -> None:
+    refined = mesh_dotnet_material_package._refine_synthesized_material_contract(
+        {
+            "shader_family": "standard_v2",
+            "material_category": "generic",
+            "material_category_confidence": 0.35,
+            "material_category_reason": "",
+            "material_response_promoted": False,
+            "source_contract": {
+                "source_kind": "pac_xml",
+                "binding_conservation": {
+                    "conserved": False,
+                },
+            },
+        },
+        {
+            "generated_channels": ["metallic", "roughness", "specular"],
+            "metallic_summary": {
+                "q50": 0.492,
+                "q90": 0.494,
+                "coverage_above_0_25": 1.0,
+            },
+        },
+        source_asset_path=(
+            "character/model/monster/example/example_nonconserved.pac"
+        ),
+    )
+
+    assert refined["material_category"] == "generic"
+    assert refined["material_response_promoted"] is False
+
+
 def test_sparse_inferred_hair_alpha_uses_opaque_card_fallback(tmp_path: Path) -> None:
     base = tmp_path / "sparse_inferred_hair.png"
     material = _image(tmp_path / "sparse_inferred_hair_sp.png", (255, 180, 0, 255))

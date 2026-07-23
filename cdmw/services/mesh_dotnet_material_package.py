@@ -483,6 +483,23 @@ def _refine_synthesized_material_contract(
         refined.get("material_category_reason", "") or ""
     ).strip()
     normalized_source_path = str(source_asset_path or "").replace("\\", "/").casefold()
+    source_contract = refined.get("source_contract")
+    source_conservation = (
+        source_contract.get("binding_conservation", {})
+        if isinstance(source_contract, Mapping)
+        else {}
+    )
+    authoritative_pac_graph = (
+        isinstance(source_contract, Mapping)
+        and str(source_contract.get("source_kind", "") or "").strip().casefold()
+        == "pac_xml"
+        and isinstance(source_conservation, Mapping)
+        and source_conservation.get("conserved") is True
+    )
+    equipment_path = any(
+        family_token in normalized_source_path
+        for family_token in ("/armor/", "/equipment/", "/weapon/")
+    )
     if (
         str(refined.get("shader_family", "") or "").strip().casefold()
         in {"standard", "standard_v2"}
@@ -516,22 +533,22 @@ def _refine_synthesized_material_contract(
         str(refined.get("shader_family", "") or "").strip().casefold()
         in {"standard", "standard_v2"}
         and source_category == "generic"
-        and source_reason.casefold() == "generic:no_strong_material_token"
-        and any(
-            family_token in normalized_source_path
-            for family_token in ("/armor/", "/equipment/", "/weapon/")
-        )
+        and source_reason.casefold() in {"", "generic:no_strong_material_token"}
+        and (equipment_path or authoritative_pac_graph)
         and dominant_metal
     ):
         # A generic part name such as ``...Sword_0036`` deliberately carries
-        # no lexical metal promise.  The owning equipment path plus a dense
-        # synthesized metal map is stronger post-synthesis evidence and does
-        # not affect named cloth/leather/handle categories.
+        # no lexical metal promise.  An owning equipment path or a conserved
+        # PAC material graph plus a dense synthesized metal map is stronger
+        # post-synthesis evidence and does not affect named cloth/leather/
+        # handle categories or sparse mixed-material maps.
         refined["material_category_pre_synthesis_reason"] = source_reason
         refined["material_category"] = "metal"
         refined["material_category_confidence"] = 0.88
         refined["material_category_reason"] = (
-            "metal:dominant_decoded_equipment_metal_channel"
+            "metal:dominant_decoded_pac_metal_channel"
+            if authoritative_pac_graph and not equipment_path
+            else "metal:dominant_decoded_equipment_metal_channel"
         )
         refined["material_response_promoted"] = True
 
