@@ -92,6 +92,21 @@ window, starts no renderer, reads no licensed asset, and performs no archive
 I/O. Changes to `static_replacement_dialog_prompt*`, its preview shell, or its
 state/presentation callbacks must run this gate.
 
+Resident Edit Mesh Classic/Bottom Tool Deck ownership, grouping, responsive
+Morph & Refit composition, and the nonvisual WinForms round trip:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_dotnet_mesh_editor_layout_contract.py tests/test_mesh_morph_slider_ui_source_guards.py tests/test_dotnet_mesh_editor_tool_protocol_source.py
+dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
+```
+
+The layout smoke constructs real WinForms ownership trees, visits all five deck
+pages, and round-trips the same controls, viewport identity, and created viewport
+handle back to Classic. It starts no renderer or visible window and reads no
+licensed asset. The `mesh-unit` gate runs this smoke after its focused source
+and behavior tests.
+
 Archive mesh-import setup responsiveness, cancellation, stale-result rejection,
 and in-game swap-scope preflight:
 

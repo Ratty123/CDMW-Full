@@ -33,6 +33,11 @@ internal static class Program
             {
                 return MaterialResourcePolicyProbe.Run(args);
             }
+            if (EditMeshLayoutSmoke.IsRequested(args))
+            {
+                ApplicationConfiguration.Initialize();
+                return EditMeshLayoutSmoke.Run(args);
+            }
             if (HeadlessGpuFramePacingSoak.IsRequested(args))
             {
                 ApplicationConfiguration.Initialize();
@@ -92,6 +97,7 @@ internal static class Program
             var suppressDialog = Array.Exists(args, arg =>
                 string.Equals(arg, "--embedded", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(arg, "--headless-edit-mesh-layout-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-material-authority-parity", StringComparison.OrdinalIgnoreCase)

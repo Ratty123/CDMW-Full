@@ -29,6 +29,27 @@ internal sealed partial class ExperimentForm
     private readonly Label _morphDiagnosticStatus = new();
     private readonly Dictionary<string, MorphSliderControls> _morphSliders = new(StringComparer.Ordinal);
     private readonly List<Button> _topologyMutationButtons = new();
+    private TableLayoutPanel? _morphSectionLayout;
+    private TableLayoutPanel? _morphSectionBody;
+    private Button? _morphSectionHeader;
+    private Control? _morphProfileControl;
+    private Control? _morphProfileActions;
+    private Control? _morphPresetControl;
+    private Control? _morphPresetActions;
+    private Control? _morphBindingActions;
+    private Control? _morphCommitActions;
+    private GroupBox? _morphDefinitionCard;
+    private GroupBox? _morphPresetCard;
+    private GroupBox? _morphSlidersCard;
+    private GroupBox? _morphRefitCard;
+    private GroupBox? _morphCommitCard;
+    private TableLayoutPanel? _morphDefinitionCardBody;
+    private TableLayoutPanel? _morphPresetCardBody;
+    private TableLayoutPanel? _morphSlidersCardBody;
+    private TableLayoutPanel? _morphRefitCardBody;
+    private TableLayoutPanel? _morphCommitCardBody;
+    private bool _morphCompactLayoutActive;
+    private bool _morphClassicExpanded = true;
     private bool _syncingMorphUi;
     private bool _morphStateReceived;
     private bool _morphRefreshRequested;
@@ -102,17 +123,24 @@ internal sealed partial class ExperimentForm
         var reset = StyledActionButton("Reset All", () => WriteCommandRequest("morph_reset"));
         var bake = StyledActionButton("Bake", () => WriteCommandRequest("morph_bake"));
 
-        var body = StackControls(
-            LabeledControl("Definition profile", _morphProfile),
-            ButtonRow(author, saveProfile, deleteProfile),
-            LabeledControl("Value preset", _morphPreset),
-            ButtonRow(savePreset, deletePreset),
+        _morphProfileControl = LabeledControl("Definition profile", _morphProfile);
+        _morphProfileActions = ButtonRow(author, saveProfile, deleteProfile);
+        _morphPresetControl = LabeledControl("Value preset", _morphPreset);
+        _morphPresetActions = ButtonRow(savePreset, deletePreset);
+        _morphBindingActions = ButtonRow(setDriver, bind, clear);
+        _morphCommitActions = ButtonRow(reset, bake);
+        var body = (TableLayoutPanel)StackControls(
+            _morphProfileControl,
+            _morphProfileActions,
+            _morphPresetControl,
+            _morphPresetActions,
             _morphSliderStack,
             _morphDriverStatus,
             _morphBindingStatus,
-            ButtonRow(setDriver, bind, clear),
-            ButtonRow(reset, bake),
+            _morphBindingActions,
+            _morphCommitActions,
             _morphDiagnosticStatus);
+        _morphSectionBody = body;
         var section = new TableLayoutPanel
         {
             Name = "MorphRefitSection",
@@ -128,20 +156,339 @@ internal sealed partial class ExperimentForm
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         section.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         var header = StyledButton("▾  Morph & Refit", 32);
+        _morphSectionLayout = section;
+        _morphSectionHeader = header;
         header.Name = "MorphRefitCollapseButton";
         header.TextAlign = ContentAlignment.MiddleLeft;
         header.Click += (_, _) =>
         {
             body.Visible = !body.Visible;
+            _morphClassicExpanded = body.Visible;
             header.Text = body.Visible ? "▾  Morph & Refit" : "▸  Morph & Refit";
             section.PerformLayout();
         };
         body.Dock = DockStyle.Top;
         section.Controls.Add(header, 0, 0);
         section.Controls.Add(body, 0, 1);
+        _morphDefinitionCard = CreateMorphCompactCard(
+            "Definition",
+            "Select or author the topology-matched slider definition.",
+            out _morphDefinitionCardBody);
+        _morphPresetCard = CreateMorphCompactCard(
+            "Presets",
+            "Apply or save a named set of procedural values.",
+            out _morphPresetCardBody);
+        _morphSlidersCard = CreateMorphCompactCard(
+            "Shape Sliders",
+            "Adjust the active topology-bound values.",
+            out _morphSlidersCardBody);
+        _morphRefitCard = CreateMorphCompactCard(
+            "Garment Refit",
+            "Choose the driver and bind selected garment parts.",
+            out _morphRefitCardBody);
+        _morphCommitCard = CreateMorphCompactCard(
+            "Review & Apply",
+            "Reset or bake the visible procedural result.",
+            out _morphCommitCardBody);
         AddStackRow(stack, section);
         _meshEditOnlySections.Add(section);
         return section;
+    }
+
+    private GroupBox CreateMorphCompactCard(
+        string title,
+        string helpText,
+        out TableLayoutPanel body)
+    {
+        var card = new GroupBox
+        {
+            Name = $"BottomToolDeckMorph{title.Replace(" ", string.Empty).Replace("&", string.Empty)}Card",
+            Text = title,
+            ForeColor = ThemeText,
+            BackColor = ThemeSectionBackground,
+            Padding = new Padding(10, 24, 10, 10),
+            Margin = new Padding(4),
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Fill,
+            AccessibleDescription = helpText,
+        };
+        body = new MeshEditorBufferedTableLayoutPanel
+        {
+            Name = $"{card.Name}Body",
+            ColumnCount = 1,
+            RowCount = 0,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Top,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = ThemeSectionBackground,
+        };
+        body.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        card.Controls.Add(body);
+        _helpToolTip.SetToolTip(card, helpText);
+        return card;
+    }
+
+    private void EnterCompactMorphLayout(int requestedColumns)
+    {
+        if (_morphSectionLayout is null
+            || _morphSectionBody is null
+            || _morphSectionHeader is null
+            || _morphDefinitionCard is null
+            || _morphPresetCard is null
+            || _morphSlidersCard is null
+            || _morphRefitCard is null
+            || _morphCommitCard is null
+            || _morphDefinitionCardBody is null
+            || _morphPresetCardBody is null
+            || _morphSlidersCardBody is null
+            || _morphRefitCardBody is null
+            || _morphCommitCardBody is null
+            || _morphProfileControl is null
+            || _morphProfileActions is null
+            || _morphPresetControl is null
+            || _morphPresetActions is null
+            || _morphBindingActions is null
+            || _morphCommitActions is null)
+        {
+            return;
+        }
+        if (!_morphCompactLayoutActive)
+        {
+            _morphClassicExpanded = _morphSectionBody.Visible;
+            PopulateMorphCompactCard(
+                _morphDefinitionCardBody,
+                _morphProfileControl,
+                _morphProfileActions);
+            PopulateMorphCompactCard(
+                _morphPresetCardBody,
+                _morphPresetControl,
+                _morphPresetActions);
+            PopulateMorphCompactCard(
+                _morphSlidersCardBody,
+                _morphSliderStack);
+            PopulateMorphCompactCard(
+                _morphRefitCardBody,
+                _morphDriverStatus,
+                _morphBindingStatus,
+                _morphBindingActions);
+            PopulateMorphCompactCard(
+                _morphCommitCardBody,
+                _morphCommitActions,
+                _morphDiagnosticStatus);
+            _morphCompactLayoutActive = true;
+        }
+
+        var columns = requestedColumns >= 4 ? 4 : requestedColumns >= 2 ? 2 : 1;
+        _morphSectionLayout.SuspendLayout();
+        _morphSectionBody.SuspendLayout();
+        try
+        {
+            _morphSectionHeader.Visible = false;
+            _morphSectionLayout.AutoSize = true;
+            _morphSectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            _morphSectionLayout.Dock = DockStyle.Top;
+            _morphSectionLayout.Margin = new Padding(0);
+            _morphSectionLayout.RowStyles[0].SizeType = SizeType.Absolute;
+            _morphSectionLayout.RowStyles[0].Height = 0;
+            _morphSectionLayout.RowStyles[1].SizeType = SizeType.AutoSize;
+            _morphSectionBody.Visible = true;
+            _morphSectionBody.Dock = DockStyle.Top;
+            _morphSectionBody.AutoSize = true;
+            _morphSectionBody.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            _morphSectionBody.Padding = new Padding(4);
+            _morphDiagnosticStatus.MaximumSize = Size.Empty;
+
+            _morphSectionBody.Controls.Clear();
+            _morphSectionBody.ColumnStyles.Clear();
+            _morphSectionBody.RowStyles.Clear();
+            _morphSectionBody.ColumnCount = columns;
+            _morphSectionBody.RowCount = 0;
+            for (var column = 0; column < columns; column++)
+            {
+                _morphSectionBody.ColumnStyles.Add(
+                    new ColumnStyle(SizeType.Percent, 100.0f / columns));
+            }
+            if (columns == 4)
+            {
+                AddMorphCompactGridRow(
+                    _morphSectionBody,
+                    _morphDefinitionCard,
+                    _morphPresetCard,
+                    _morphRefitCard,
+                    _morphCommitCard);
+                AddMorphCompactSpanningRow(
+                    _morphSectionBody,
+                    _morphSlidersCard,
+                    columns);
+            }
+            else if (columns == 2)
+            {
+                AddMorphCompactGridRow(
+                    _morphSectionBody,
+                    _morphDefinitionCard,
+                    _morphPresetCard);
+                AddMorphCompactSpanningRow(
+                    _morphSectionBody,
+                    _morphSlidersCard,
+                    columns);
+                AddMorphCompactGridRow(
+                    _morphSectionBody,
+                    _morphRefitCard,
+                    _morphCommitCard);
+            }
+            else
+            {
+                AddMorphCompactGridRow(_morphSectionBody, _morphDefinitionCard);
+                AddMorphCompactGridRow(_morphSectionBody, _morphPresetCard);
+                AddMorphCompactGridRow(_morphSectionBody, _morphSlidersCard);
+                AddMorphCompactGridRow(_morphSectionBody, _morphRefitCard);
+                AddMorphCompactGridRow(_morphSectionBody, _morphCommitCard);
+            }
+        }
+        finally
+        {
+            _morphSectionBody.ResumeLayout(performLayout: true);
+            _morphSectionLayout.ResumeLayout(performLayout: true);
+        }
+    }
+
+    private void ExitCompactMorphLayout()
+    {
+        if (!_morphCompactLayoutActive
+            || _morphSectionLayout is null
+            || _morphSectionBody is null
+            || _morphSectionHeader is null
+            || _morphProfileControl is null
+            || _morphProfileActions is null
+            || _morphPresetControl is null
+            || _morphPresetActions is null
+            || _morphBindingActions is null
+            || _morphCommitActions is null)
+        {
+            return;
+        }
+        _morphSectionLayout.SuspendLayout();
+        _morphSectionBody.SuspendLayout();
+        try
+        {
+            ClearMorphCompactCard(_morphDefinitionCardBody);
+            ClearMorphCompactCard(_morphPresetCardBody);
+            ClearMorphCompactCard(_morphSlidersCardBody);
+            ClearMorphCompactCard(_morphRefitCardBody);
+            ClearMorphCompactCard(_morphCommitCardBody);
+            _morphSectionBody.Controls.Clear();
+            _morphSectionBody.ColumnStyles.Clear();
+            _morphSectionBody.RowStyles.Clear();
+            _morphSectionBody.ColumnCount = 1;
+            _morphSectionBody.RowCount = 0;
+            _morphSectionBody.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            AddStackRow(_morphSectionBody, _morphProfileControl);
+            AddStackRow(_morphSectionBody, _morphProfileActions);
+            AddStackRow(_morphSectionBody, _morphPresetControl);
+            AddStackRow(_morphSectionBody, _morphPresetActions);
+            AddStackRow(_morphSectionBody, _morphSliderStack);
+            AddStackRow(_morphSectionBody, _morphDriverStatus);
+            AddStackRow(_morphSectionBody, _morphBindingStatus);
+            AddStackRow(_morphSectionBody, _morphBindingActions);
+            AddStackRow(_morphSectionBody, _morphCommitActions);
+            AddStackRow(_morphSectionBody, _morphDiagnosticStatus);
+
+            _morphSectionHeader.Visible = true;
+            _morphSectionHeader.Text = _morphClassicExpanded
+                ? "▾  Morph & Refit"
+                : "▸  Morph & Refit";
+            _morphSectionLayout.AutoSize = true;
+            _morphSectionLayout.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            _morphSectionLayout.Dock = DockStyle.Top;
+            _morphSectionLayout.Margin = new Padding(0, 0, 0, 10);
+            _morphSectionLayout.RowStyles[0].SizeType = SizeType.AutoSize;
+            _morphSectionLayout.RowStyles[1].SizeType = SizeType.AutoSize;
+            _morphSectionBody.Dock = DockStyle.Top;
+            _morphSectionBody.AutoSize = true;
+            _morphSectionBody.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            _morphSectionBody.Padding = new Padding(0);
+            _morphSectionBody.Visible = _morphClassicExpanded;
+            _morphDiagnosticStatus.MaximumSize = new Size(460, 0);
+            _morphCompactLayoutActive = false;
+            _compactMorphColumnCount = 0;
+        }
+        finally
+        {
+            _morphSectionBody.ResumeLayout(performLayout: true);
+            _morphSectionLayout.ResumeLayout(performLayout: true);
+        }
+    }
+
+    private static void PopulateMorphCompactCard(
+        TableLayoutPanel body,
+        params Control[] controls)
+    {
+        body.Controls.Clear();
+        body.RowStyles.Clear();
+        body.RowCount = 0;
+        foreach (var control in controls)
+        {
+            AddStackRow(body, control);
+        }
+    }
+
+    private static void ClearMorphCompactCard(TableLayoutPanel? body)
+    {
+        if (body is null)
+        {
+            return;
+        }
+        body.Controls.Clear();
+        body.RowStyles.Clear();
+        body.RowCount = 0;
+    }
+
+    private static void AddMorphCompactGridRow(
+        TableLayoutPanel grid,
+        params Control[] controls)
+    {
+        var row = grid.RowCount;
+        grid.RowCount = row + 1;
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        for (var column = 0; column < controls.Length; column++)
+        {
+            controls[column].Dock = DockStyle.Fill;
+            grid.Controls.Add(controls[column], column, row);
+        }
+    }
+
+    private static void AddMorphCompactSpanningRow(
+        TableLayoutPanel grid,
+        Control control,
+        int columns)
+    {
+        var row = grid.RowCount;
+        grid.RowCount = row + 1;
+        grid.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        control.Dock = DockStyle.Fill;
+        grid.Controls.Add(control, 0, row);
+        grid.SetColumnSpan(control, columns);
+    }
+
+    private void DisposeDetachedCompactMorphCards()
+    {
+        foreach (var card in new[]
+                 {
+                     _morphDefinitionCard,
+                     _morphPresetCard,
+                     _morphSlidersCard,
+                     _morphRefitCard,
+                     _morphCommitCard,
+                 })
+        {
+            if (card is { Parent: null })
+            {
+                card.Dispose();
+            }
+        }
     }
 
     private static void ConfigureMorphStatusLabel(Label label, string text)

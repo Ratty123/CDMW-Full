@@ -34,9 +34,11 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert 'CreateToolPanelSplit("DotNetMeshEditorLeftViewportSplit", FixedPanel.Panel1)' in program
     assert 'CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2)' in program
     assert "_leftToolSplit.Panel1.Controls.Add(_leftToolPanel);" in program
-    assert "_rightToolSplit.Panel1.Controls.Add(BuildPresentationViewportRegion());" in program
+    assert "_presentationViewportRegion = BuildPresentationViewportRegion();" in program
+    assert "_rightToolSplit.Panel1.Controls.Add(_presentationViewportRegion);" in program
     assert "_rightToolSplit.Panel2.Controls.Add(_rightToolPanel);" in program
     assert "_leftToolSplit.Panel2.Controls.Add(_rightToolSplit);" in program
+    assert "InitializeEditMeshLayoutHost(_leftToolSplit);" in program
 
     assert _section_stack(program, "Mesh Edit Session") == "leftStack"
     assert _section_stack(program, "Part Pick") == "leftStack"
@@ -185,3 +187,114 @@ def test_panel_reveal_is_atomic_and_has_no_recursive_width_forcing() -> None:
     assert "MeshEditorBufferedPanel" in controls
     assert "MeshEditorBufferedTableLayoutPanel" in controls
     assert "MeshEditorBufferedSplitContainer" in controls
+
+
+def test_bottom_tool_deck_is_opt_in_and_reuses_the_live_editor_controls() -> None:
+    program = _source("Program.cs")
+    controls = _source("ExperimentForm.Controls.cs")
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+    transfer = _source("EditMeshLayoutContracts.cs")
+
+    assert "_requestedEditMeshLayout = EditMeshLayoutMode.Classic;" in layout
+    assert "_activeEditMeshLayout = EditMeshLayoutMode.Classic;" in layout
+    assert '"Try Bottom Tool Deck"' in program
+    assert '"Use Classic Layout"' in layout
+    assert "RequestEditMeshLayout(EditMeshLayoutMode.BottomToolDeck)" in program
+    assert "RequestEditMeshLayout(EditMeshLayoutMode.Classic)" in layout
+
+    assert "MoveSessionControlsToCompactBar();" in layout
+    assert "MoveSessionControlsToClassicSection();" in layout
+    assert "MovePresentationRegion(_compactViewportHost, compactEditableOnly: true);" in layout
+    assert "MovePresentationRegion(_rightToolSplit.Panel1, compactEditableOnly: false);" in layout
+    assert "EditMeshLayoutContracts.MoveControl(" in layout
+    assert "host.Controls.Add(control);" in transfer
+    assert "control.IsDisposed || host.IsDisposed" in transfer
+    assert "new MeshViewport" not in layout
+    assert "CommandButton(" not in layout
+    assert "ToolButton(" not in layout
+
+    interaction = controls.split("private void ApplyInteractionModeControls()", 1)[1]
+    interaction = interaction.split("private void ApplyEmbeddedToolPanelVisibility", 1)[0]
+    assert "RestoreClassicLayoutForNonMeshMode();" in interaction
+    assert "ApplyRequestedEditMeshLayout();" in interaction
+    assert "if (!IsBottomToolDeckActive)" in controls
+
+    classic_restore = layout.split("private void RebuildClassicToolStacks()", 1)[1]
+    classic_restore = classic_restore.split("private static void RebuildClassicStack", 1)[0]
+    for earlier, later in (
+        ("_classicSessionSection", "_partPickSection"),
+        ("_partPickSection", "_selectionSection"),
+        ("_selectionSection", "_placementSection"),
+        ("_placementSection", "_transformSection"),
+        ("_transformSection", "_brushSection"),
+        ("_brushSection", "_topologySection"),
+        ("_actionHistorySection", "_morphRefitSection"),
+        ("_morphRefitSection", "_partsSection"),
+        ("_partsSection", "_viewportSection"),
+    ):
+        assert classic_restore.index(earlier) < classic_restore.index(later)
+
+
+def test_bottom_tool_deck_groups_every_edit_tool_and_keeps_editable_only_view() -> None:
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+
+    for page, label in (
+        ("Selection", "Selection"),
+        ("Transform", "Transform"),
+        ("Brush", "Brush"),
+        ("Topology", "Topology"),
+        ("MorphRefit", "Morph & Refit"),
+    ):
+        assert f"CompactToolPage.{page}, \"{label}\"" in layout
+
+    assert "AddCompactSection(_compactSelectionGrid, _partPickSection, 0, 0);" in layout
+    assert "AddCompactSection(_compactSelectionGrid, _selectionSection, 1, 0);" in layout
+    assert "AddCompactSection(_compactTransformHost, _transformSection);" in layout
+    assert "AddCompactSection(_compactBrushHost, _brushSection);" in layout
+    assert "AddCompactSection(_compactTopologyHost, _topologySection);" in layout
+    assert "AddCompactSection(_compactMorphHost, _morphRefitSection);" in layout
+    assert "AddCompactInspectorSection(_partsSection, 0, stretchFirstRow: true);" in layout
+    assert "AddCompactInspectorSection(_actionHistorySection, 1, stretchFirstRow: true);" in layout
+    assert "AddCompactInspectorSection(_viewportSection, 2);" in layout
+    assert '_viewport.ActivatePresentationView("editable");' in layout
+    assert "_presentationViewSelector.Visible = !compactEditableOnly;" in layout
+
+
+def test_bottom_tool_deck_morph_layout_is_responsive_and_session_only() -> None:
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+    morph = _source("ExperimentForm.MorphRefit.cs")
+    transfer = _source("EditMeshLayoutContracts.cs")
+
+    assert "logicalWidth >= 1500 ? 4 : logicalWidth >= 900 ? 2 : 1" in transfer
+    assert "EnterCompactMorphLayout(columnCount);" in layout
+    assert "AddMorphCompactSpanningRow(" in morph
+    for title in (
+        "Definition",
+        "Presets",
+        "Shape Sliders",
+        "Garment Refit",
+        "Review & Apply",
+    ):
+        assert f'"{title}"' in morph
+    assert "_compactInspectorWidthLogical" in layout
+    assert "_compactToolDeckHeightLogical" in layout
+    assert "DefaultInspectorWidth(" in transfer
+    assert "DefaultToolDeckHeight(" in transfer
+    assert "MeshToolPanelLayoutPreferences" not in layout
+
+
+def test_bottom_tool_deck_has_a_nonvisual_round_trip_construction_gate() -> None:
+    entry = _source("ProgramEntry.cs")
+    smoke = _source("EditMeshLayoutSmoke.cs")
+
+    assert "EditMeshLayoutSmoke.IsRequested(args)" in entry
+    assert "return EditMeshLayoutSmoke.Run(args);" in entry
+    assert '"--headless-edit-mesh-layout-smoke"' in smoke
+    assert '"--layout-report"' in smoke
+    assert '["renderer_started"] = false' in smoke
+    assert '["visible_window_started"] = false' in smoke
+    assert "same_control_instances" in smoke
+    assert "same_viewport_instance" in smoke
+    assert "same_viewport_handle" in smoke
+    for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
+        assert f'"{page}"' in smoke

@@ -53,7 +53,9 @@ $TestsByArea = @{
         "tests/test_mesh_visual_audit_harness.py",
         "tests/test_mesh_visual_audit_integrity.py",
         "tests/test_mesh_visual_audit_package.py",
+        "tests/test_dotnet_mesh_editor_layout_contract.py",
         "tests/test_dotnet_mesh_editor_tool_protocol_source.py",
+        "tests/test_mesh_morph_slider_ui_source_guards.py",
         "tests/test_dotnet_preview_performance_contract.py",
         "tests/test_dotnet_texture_region_protocol.py",
         "tests/test_dotnet_material_parameter_protocol.py",
@@ -126,4 +128,50 @@ if ($MissingTests.Count -gt 0) {
 
 Write-Host "Running $Area checks with $Python"
 & $Python -m pytest @PytestTempArgs @ConfiguredTests
-exit $LASTEXITCODE
+$PytestExitCode = $LASTEXITCODE
+if ($PytestExitCode -ne 0) {
+    exit $PytestExitCode
+}
+
+if ($Area -eq "mesh-unit") {
+    $DotNetProject = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
+    Write-Host "Building the resident .NET Mesh Editor for the Bottom Tool Deck construction gate"
+    & dotnet build $DotNetProject -c Release --nologo --verbosity:minimal
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    $LayoutRunId = [Guid]::NewGuid().ToString("N")
+    $LayoutReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-edit-mesh-layout-$LayoutRunId.json"
+    $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.exe"
+    $LayoutProcess = Start-Process `
+        -FilePath $DotNetHelper `
+        -ArgumentList @("--headless-edit-mesh-layout-smoke", "--layout-report", $LayoutReport) `
+        -Wait `
+        -PassThru `
+        -WindowStyle Hidden
+    if ($LayoutProcess.ExitCode -ne 0) {
+        Write-Error "Bottom Tool Deck construction smoke failed with exit code $($LayoutProcess.ExitCode)."
+        exit $LayoutProcess.ExitCode
+    }
+    if (-not (Test-Path -LiteralPath $LayoutReport)) {
+        Write-Error "Bottom Tool Deck construction smoke did not create '$LayoutReport'."
+        exit 1
+    }
+    $LayoutPayload = Get-Content -LiteralPath $LayoutReport -Raw | ConvertFrom-Json
+    if (-not $LayoutPayload.ok `
+        -or -not $LayoutPayload.classic_default `
+        -or -not $LayoutPayload.same_control_instances `
+        -or -not $LayoutPayload.same_viewport_instance `
+        -or -not $LayoutPayload.same_viewport_handle `
+        -or $LayoutPayload.pages_visited.Count -ne 5 `
+        -or $LayoutPayload.renderer_started `
+        -or $LayoutPayload.visible_window_started) {
+        Write-Error "Bottom Tool Deck construction smoke returned an invalid report at '$LayoutReport'."
+        exit 1
+    }
+    Remove-Item -LiteralPath $LayoutReport
+    Write-Host "Bottom Tool Deck construction smoke passed."
+}
+
+exit 0

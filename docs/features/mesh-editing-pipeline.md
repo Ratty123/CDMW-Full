@@ -357,7 +357,20 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   label/input pairs share one horizontal row to use the panel width. Runtime
   status and FPS share the wide viewport footer instead of consuming the left
   panel's vertical space. Controls and section titles size from the active
-  Windows font so larger text does not clip. The editable
+  Windows font so larger text does not clip. This side-panel arrangement remains
+  the default for every new helper session. Embedded Edit Mesh also offers an
+  opt-in `Bottom Tool Deck`: the same live viewport region and the same command
+  controls move atomically into a top session bar, an Editable-only viewport, a
+  bottom Selection/Transform/Brush/Topology/Morph & Refit tab deck, and a right
+  Parts/Action History/Viewport inspector. `Use Classic Layout` moves those
+  instances back without restarting the renderer or replacing edit state.
+  Bottom-deck inspector width, deck height, and selected tab are session-only;
+  they never overwrite the persisted classic splitter widths. Morph & Refit
+  keeps all profile, preset, slider, refit, reset, and bake controls and
+  recomposes them into four, two, or one logical columns as space narrows.
+  Leaving Edit Mesh restores the classic shell before the ordinary panel
+  collapse; re-entering during the same form session reapplies the requested
+  bottom deck, while a new form always starts Classic. The editable
   viewport defaults to Wire + Vertices, with round vertex markers; the inert
   Material Debug control is not shown in the Viewport section.
   Placement exposes the same geometry display family in the Builder's

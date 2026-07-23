@@ -742,8 +742,10 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "_rightToolPanel.Margin = new Padding(0);" in program_source
     assert "_viewport.Margin = new Padding(0);" in program_source
     assert "_leftToolSplit.Panel1.Controls.Add(_leftToolPanel);" in program_source
-    assert "_rightToolSplit.Panel1.Controls.Add(BuildPresentationViewportRegion());" in program_source
+    assert "_presentationViewportRegion = BuildPresentationViewportRegion();" in program_source
+    assert "_rightToolSplit.Panel1.Controls.Add(_presentationViewportRegion);" in program_source
     assert "_rightToolSplit.Panel2.Controls.Add(_rightToolPanel);" in program_source
+    assert "InitializeEditMeshLayoutHost(_leftToolSplit);" in program_source
     assert "ApplyEmbeddedToolPanelVisibility(meshEdit: false);" in controls_source
     assert "ApplyEmbeddedToolPanelVisibility(meshEdit: true);" in controls_source
     assert "_leftToolSplit.Panel1Collapsed = true;" in controls_source

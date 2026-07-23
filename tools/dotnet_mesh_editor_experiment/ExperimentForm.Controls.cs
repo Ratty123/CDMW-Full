@@ -710,6 +710,7 @@ internal sealed partial class ExperimentForm
     private void CaptureToolPanelLayout(bool persist)
     {
         if (_applyingToolPanelLayout
+            || IsBottomToolDeckActive
             || _leftToolSplit is null
             || _rightToolSplit is null
             || _leftToolSplit.Panel1Collapsed
@@ -733,7 +734,10 @@ internal sealed partial class ExperimentForm
 
     private void SaveToolPanelLayout()
     {
-        CaptureToolPanelLayout(persist: false);
+        if (!IsBottomToolDeckActive)
+        {
+            CaptureToolPanelLayout(persist: false);
+        }
         _ = MeshToolPanelLayoutPreferences.TrySave(_toolPanelLayout, out _);
     }
 
@@ -899,6 +903,10 @@ internal sealed partial class ExperimentForm
         var enteringMeshEdit = meshEdit && !_meshEditInteractionActive;
         var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;
         _meshEditInteractionActive = meshEdit;
+        if (!meshEdit)
+        {
+            RestoreClassicLayoutForNonMeshMode();
+        }
         SuspendToolPanelLayout();
         try
         {
@@ -919,6 +927,7 @@ internal sealed partial class ExperimentForm
             if (meshEdit)
             {
                 ApplyEmbeddedToolPanelVisibility(meshEdit: true);
+                ApplyRequestedEditMeshLayout();
             }
         }
         finally
@@ -1065,6 +1074,7 @@ internal sealed partial class ExperimentForm
     {
         if (disposing)
         {
+            DisposeDetachedCompactMorphCards();
             _helpToolTip.Dispose();
         }
         base.Dispose(disposing);

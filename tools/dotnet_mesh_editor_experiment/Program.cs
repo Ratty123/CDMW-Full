@@ -223,13 +223,14 @@ internal sealed partial class ExperimentForm : Form
         _rightToolPanel.Dock = DockStyle.Fill;
         _rightToolPanel.Margin = new Padding(0);
         _viewport.Margin = new Padding(0);
+        _presentationViewportRegion = BuildPresentationViewportRegion();
         _rightToolSplit = CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2);
-        _rightToolSplit.Panel1.Controls.Add(BuildPresentationViewportRegion());
+        _rightToolSplit.Panel1.Controls.Add(_presentationViewportRegion);
         _rightToolSplit.Panel2.Controls.Add(_rightToolPanel);
         _leftToolSplit = CreateToolPanelSplit("DotNetMeshEditorLeftViewportSplit", FixedPanel.Panel1);
         _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
         _leftToolSplit.Panel2.Controls.Add(_rightToolSplit);
-        Controls.Add(_leftToolSplit);
+        InitializeEditMeshLayoutHost(_leftToolSplit);
         ConfigureToolPanelSplitters();
         ApplySavedToolPanelLayout();
         ApplyInteractionModeControls();
@@ -450,6 +451,7 @@ internal sealed partial class ExperimentForm : Form
                 SaveAndReport();
             }
         };
+        _sessionFinishButton = finish;
 
         ConfigureCheckBox(_partPick, "Part Pick", isChecked: false);
         _partPick.CheckedChanged += (_, _) =>
@@ -481,34 +483,59 @@ internal sealed partial class ExperimentForm : Form
         _leftToolStack = leftStack;
         _rightToolStack = rightStack;
 
+        var clearSelectionButton = CommandButton("Clear Selection", "clear_selection");
+        var selectAllButton = CommandButton("Select All", "select_all");
+        var invertButton = CommandButton("Invert", "invert");
         var undoButton = CommandButton("Undo", "undo");
         var redoButton = CommandButton("Redo", "redo");
+        _sessionClearSelectionButton = clearSelectionButton;
+        _sessionSelectAllButton = selectAllButton;
+        _sessionInvertButton = invertButton;
         _undoButton = undoButton;
         _redoButton = redoButton;
         undoButton.Enabled = false;
         redoButton.Enabled = false;
-        _meshEditOnlySections.Add(AddSection(leftStack, "Mesh Edit Session",
+        _classicSessionSelectionRow = ButtonRow(clearSelectionButton, selectAllButton);
+        _classicSessionHistoryRow = ButtonRow(invertButton, undoButton, redoButton);
+        var classicLayoutToggleButton = StyledActionButton(
+            "Try Bottom Tool Deck",
+            () => RequestEditMeshLayout(EditMeshLayoutMode.BottomToolDeck));
+        classicLayoutToggleButton.Name = "TryBottomToolDeckButton";
+        classicLayoutToggleButton.AccessibleName = "Try Bottom Tool Deck layout";
+        classicLayoutToggleButton.AccessibleDescription =
+            "Switches only the Edit Mesh control layout. The resident viewport and edit state remain active.";
+        classicLayoutToggleButton.Visible = _options.Embedded;
+        _classicSessionSection = AddSection(leftStack, "Mesh Edit Session",
             finish,
-            ButtonRow(CommandButton("Clear Selection", "clear_selection"), CommandButton("Select All", "select_all")),
-            ButtonRow(CommandButton("Invert", "invert"), undoButton, redoButton)));
-        _meshEditOnlySections.Add(AddHelpSection(
+            _classicSessionSelectionRow,
+            _classicSessionHistoryRow,
+            classicLayoutToggleButton);
+        _classicSessionSection.Name = "ClassicMeshEditSessionSection";
+        _classicSessionBody = _classicSessionSection.Controls.OfType<TableLayoutPanel>().Single();
+        _meshEditOnlySections.Add(_classicSessionSection);
+        _actionHistorySection = AddHelpSection(
             rightStack,
             "Action History",
             "Every applied mesh edit and selection change appears here. Undone actions remain visible for Redo.",
             out _,
-            _actionHistoryList));
-        BuildMorphRefitSection(rightStack);
-        AddSection(leftStack, "Part Pick", _partPick);
+            _actionHistoryList);
+        _actionHistorySection.Name = "CompactActionHistorySection";
+        _meshEditOnlySections.Add(_actionHistorySection);
+        _morphRefitSection = BuildMorphRefitSection(rightStack);
+        _partPickSection = AddSection(leftStack, "Part Pick", _partPick);
+        _partPickSection.Name = "CompactPartPickSection";
         var duplicatePartButton = CommandButton("Duplicate", "duplicate");
         var deletePartButton = CommandButton("Delete", "delete");
         RegisterTopologyMutationButton(duplicatePartButton);
         RegisterTopologyMutationButton(deletePartButton);
-        _meshEditOnlySections.Add(AddSection(rightStack, "Parts",
+        _partsSection = AddSection(rightStack, "Parts",
             _submeshList,
             ButtonRow(
                 CommandButton("Show / Hide", "toggle_visibility"),
                 duplicatePartButton,
-                deletePartButton)));
+                deletePartButton));
+        _partsSection.Name = "CompactPartsSection";
+        _meshEditOnlySections.Add(_partsSection);
         var selectionSection = AddHelpSection(
             leftStack,
             "Selection",
@@ -518,14 +545,20 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Selection mode", _selectionOperation),
             _xray,
             ButtonRow(ToolButton("Select", "select"), CommandButton("Grow", "grow"), CommandButton("Shrink", "shrink")));
+        selectionSection.Name = "CompactSelectionSection";
+        _selectionSection = selectionSection;
         _meshEditOnlySections.Add(selectionSection);
-        _placementOnlySections.Add(AddSection(leftStack, "Placement",
+        _placementSection = AddSection(leftStack, "Placement",
             SceneComparisonControl(),
-            ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale"))));
+            ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale")));
+        _placementSection.Name = "ClassicPlacementSection";
+        _placementOnlySections.Add(_placementSection);
         var transformSection = AddSection(leftStack, "Transform",
             LabeledControl("Translate step", _translateStep),
             ButtonRow(StyledActionButton("Move +X", () => RequestTransformMove((float)_translateStep.Value)), StyledActionButton("Move -X", () => RequestTransformMove(-(float)_translateStep.Value))),
             ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab")));
+        transformSection.Name = "CompactTransformSection";
+        _transformSection = transformSection;
         _meshEditOnlySections.Add(transformSection);
         var brushSection = AddHelpSection(
             leftStack,
@@ -536,6 +569,8 @@ internal sealed partial class ExperimentForm : Form
             LabeledControl("Strength", _strength),
             LabeledControl("Falloff", _falloff),
             ButtonRow(ToolButton("Smooth", "smooth"), ToolButton("Inflate", "inflate"), ToolButton("Pinch", "pinch")));
+        brushSection.Name = "CompactBrushSection";
+        _brushSection = brushSection;
         _meshEditOnlySections.Add(brushSection);
         var subdivideButton = CommandButton("Subdivide", "subdivide");
         var refineButton = CommandButton("Refine Smooth", "refine_smooth");
@@ -543,6 +578,8 @@ internal sealed partial class ExperimentForm : Form
         RegisterTopologyMutationButton(refineButton);
         var topologySection = AddSection(leftStack, "Topology",
             ButtonRow(subdivideButton, refineButton));
+        topologySection.Name = "CompactTopologySection";
+        _topologySection = topologySection;
         _meshEditOnlySections.Add(topologySection);
         var leftNavigator = BuildToolNavigator(
             ("Select", selectionSection),
@@ -552,7 +589,7 @@ internal sealed partial class ExperimentForm : Form
         left.Controls.Add(leftNavigator);
         leftNavigator.BringToFront();
         _meshEditOnlySections.Add(leftNavigator);
-        AddHelpSection(
+        _viewportSection = AddHelpSection(
             rightStack,
             "Viewport",
             "Choose the preview mode, topology appearance, or a camera preset. Mouse and keyboard bindings update with the active tool.",
@@ -563,6 +600,7 @@ internal sealed partial class ExperimentForm : Form
             ButtonRow(CameraButton("Back", "back"), CameraButton("Top", "top"), CameraButton("Bottom", "bottom")),
             ButtonRow(StyledActionButton("-15", () => _viewport.RotateYawDegrees(-15.0f)), StyledActionButton("+15", () => _viewport.RotateYawDegrees(15.0f)), StyledActionButton("Reset/Fit", _viewport.FrameMesh)),
             ToolButton("Orbit", "orbit"));
+        _viewportSection.Name = "CompactViewportSection";
         _viewportHelpMarker = viewportHelpMarker;
 
         return (left, right);
