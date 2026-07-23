@@ -173,6 +173,8 @@ def test_builder_mesh_view_selector_uses_the_resident_presentation_lane() -> Non
         "controls.preview_mesh_view_combo.currentIndexChanged.connect(_set_preview_display_mode)"
         in prompt_callbacks
     )
+    assert '"_mesh_editor_embedded_request_viewport_display"' in callbacks
+    assert "request_display(mode)" in callbacks
     assert '{"display": {"mode": mode}}' in callbacks
     assert '"set_viewport_display_mode"' in callbacks
     assert "display_mode=_state.preview_mesh_view_combo.currentData()" in presentation_getter

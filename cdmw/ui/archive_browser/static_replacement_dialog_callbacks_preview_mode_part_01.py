@@ -229,6 +229,14 @@ def _preview_mode_step_012(_state):
         mode = normalize_mesh_preview_display_mode(
             _state.preview_mesh_view_combo.currentData()
         )
+        request_display = getattr(
+            _state.dialog,
+            "_mesh_editor_embedded_request_viewport_display",
+            None,
+        )
+        if callable(request_display):
+            request_display(mode)
+            return
         if send_resident_presentation_state(
             _state.dialog,
             {"display": {"mode": mode}},

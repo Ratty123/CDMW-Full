@@ -32,6 +32,19 @@ internal sealed partial class MeshViewport
             _ => "comparison",
         };
 
+    internal static Size EffectivePaneSurfaceSize(
+        Size ownerClientSize,
+        Size renderSurfaceClientSize,
+        bool renderSurfaceAvailable)
+    {
+        var source = renderSurfaceAvailable
+            && renderSurfaceClientSize.Width > 0
+            && renderSurfaceClientSize.Height > 0
+                ? renderSurfaceClientSize
+                : ownerClientSize;
+        return new Size(Math.Max(1, source.Width), Math.Max(1, source.Height));
+    }
+
     public bool HasSimultaneousRolePanes =>
         UsesSimultaneousRolePanes(
             _scene.ComparisonMode,
@@ -126,10 +139,36 @@ internal sealed partial class MeshViewport
             ? "reference"
             : "editable";
 
+    private Control? ActiveRenderSurface() =>
+        _d3d11Viewport is { IsDisposed: false }
+            ? _d3d11Viewport
+            : _gpuHost is { IsDisposed: false }
+                ? _gpuHost
+                : null;
+
+    private Size PaneSurfaceSize()
+    {
+        var surface = ActiveRenderSurface();
+        return EffectivePaneSurfaceSize(
+            ClientSize,
+            surface?.ClientSize ?? Size.Empty,
+            surface is not null);
+    }
+
+    private void SetRenderSurfaceCapture(bool capture)
+    {
+        var surface = ActiveRenderSurface() ?? this;
+        if (!surface.IsDisposed)
+        {
+            surface.Capture = capture;
+        }
+    }
+
     private (Rectangle Reference, Rectangle Editable) RolePaneBounds()
     {
-        var width = Math.Max(1, Width);
-        var height = Math.Max(1, Height);
+        var surfaceSize = PaneSurfaceSize();
+        var width = surfaceSize.Width;
+        var height = surfaceSize.Height;
         var splitX = width <= PaneDividerWidth * 2
             ? Math.Max(1, width / 2)
             : Math.Clamp((int)MathF.Round(width * _paneSplitRatio), PaneDividerWidth, width - PaneDividerWidth);
@@ -144,7 +183,8 @@ internal sealed partial class MeshViewport
     {
         if (!HasSimultaneousRolePanes)
         {
-            return new Rectangle(0, 0, Math.Max(1, Width), Math.Max(1, Height));
+            var surfaceSize = PaneSurfaceSize();
+            return new Rectangle(0, 0, surfaceSize.Width, surfaceSize.Height);
         }
         var panes = RolePaneBounds();
         return string.Equals(_activeCameraContextId, "reference", StringComparison.OrdinalIgnoreCase)
@@ -191,7 +231,7 @@ internal sealed partial class MeshViewport
         }
         _paneDividerDragging = true;
         SetPaneCursor(Cursors.VSplit);
-        if (_d3d11Viewport is not null) _d3d11Viewport.Capture = true;
+        SetRenderSurfaceCapture(true);
         return true;
     }
 
@@ -204,7 +244,7 @@ internal sealed partial class MeshViewport
         }
         if (_paneDividerDragging)
         {
-            SetPaneSplitRatio((float)e.X / Math.Max(1, Width));
+            SetPaneSplitRatio((float)e.X / PaneSurfaceSize().Width);
             SetPaneCursor(Cursors.VSplit);
             return true;
         }
@@ -219,8 +259,8 @@ internal sealed partial class MeshViewport
             return false;
         }
         _paneDividerDragging = false;
-        if (_d3d11Viewport is not null) _d3d11Viewport.Capture = false;
-        SetPaneSplitRatio((float)e.X / Math.Max(1, Width), notifyHost: true);
+        SetRenderSurfaceCapture(false);
+        SetPaneSplitRatio((float)e.X / PaneSurfaceSize().Width, notifyHost: true);
         SetPaneCursor(PaneAt(e.Location).Length == 0 ? Cursors.VSplit : Cursors.Default);
         return true;
     }
@@ -321,7 +361,8 @@ internal sealed partial class MeshViewport
         }
         var role = SinglePaneRoleForMode(_scene.ComparisonMode);
         var context = _presentationContexts[_activeCameraContextId];
-        var full = new Rectangle(0, 0, Math.Max(1, Width), Math.Max(1, Height));
+        var surfaceSize = PaneSurfaceSize();
+        var full = new Rectangle(0, 0, surfaceSize.Width, surfaceSize.Height);
         _currentRenderPanes[0] = RenderPane(full, context, role, PresentationInteractionAllowed);
         return 1;
     }

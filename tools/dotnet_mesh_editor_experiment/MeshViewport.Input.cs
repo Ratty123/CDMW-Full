@@ -94,6 +94,7 @@ internal sealed partial class MeshViewport
         }
         FocusPresentationPane(paneId);
         _capturedInputPane = paneId;
+        SetRenderSurfaceCapture(true);
         e = PaneMouseEvent(e, paneId);
         _pointerInside = true;
         _pointerLocation = e.Location;
@@ -179,29 +180,38 @@ internal sealed partial class MeshViewport
             return;
         }
         var paneId = _capturedInputPane.Length > 0 ? _capturedInputPane : PaneAt(e.Location);
-        if (paneId.Length == 0)
+        try
         {
-            return;
+            if (paneId.Length == 0)
+            {
+                return;
+            }
+            e = PaneMouseEvent(e, paneId);
+            if (_edgeDragActive)
+            {
+                FinishEdgeDrag(e.Location);
+            }
+            if (_editorStrokeActive)
+            {
+                EditorEventRequested?.Invoke("stroke_end", PointerPayload(e.Location, _strokePrevious, true));
+                _strokePrevious = e.Location;
+                _editorStrokeActive = false;
+            }
+            base.OnMouseUp(e);
         }
-        e = PaneMouseEvent(e, paneId);
-        if (_edgeDragActive)
+        finally
         {
-            FinishEdgeDrag(e.Location);
-        }
-        if (_editorStrokeActive)
-        {
-            EditorEventRequested?.Invoke("stroke_end", PointerPayload(e.Location, _strokePrevious, true));
-            _strokePrevious = e.Location;
+            _rotating = false;
+            _panning = false;
+            _edgeDragActive = false;
             _editorStrokeActive = false;
+            _capturedInputPane = string.Empty;
+            SetRenderSurfaceCapture(false);
+            if (_placementDragActive)
+            {
+                EndPlacementGizmoDrag();
+            }
         }
-        _rotating = false;
-        _panning = false;
-        if (_placementDragActive)
-        {
-            EndPlacementGizmoDrag();
-        }
-        _capturedInputPane = string.Empty;
-        base.OnMouseUp(e);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)

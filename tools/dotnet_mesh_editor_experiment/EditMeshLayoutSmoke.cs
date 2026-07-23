@@ -61,13 +61,19 @@ internal static class EditMeshLayoutSmoke
             "The compact splitter distance is invalid after receiving its real size.");
 
         using var host = new Panel { Name = "LayoutSmokeHost" };
-        using var classicRoot = new Panel { Name = "ClassicLayout", Dock = DockStyle.Fill };
+        using var classicRoot = new Panel { Name = "ClassicTools", Dock = DockStyle.Fill };
         using var compactRoot = new Panel
         {
-            Name = "BottomToolDeckLayout",
+            Name = "BottomToolDeckTools",
             Dock = DockStyle.Fill,
             Visible = false,
         };
+        using var permanentViewportHost = new Panel
+        {
+            Name = "PermanentViewportHost",
+            Dock = DockStyle.Fill,
+        };
+        host.Controls.Add(permanentViewportHost);
         host.Controls.Add(classicRoot);
         host.Controls.Add(compactRoot);
 
@@ -107,10 +113,9 @@ internal static class EditMeshLayoutSmoke
         AddRow(classicRight, morphSection);
         AddRow(classicRight, inspectorSections[0]);
         AddRow(classicRight, inspectorSections[2]);
-        classicRoot.Controls.Add(viewport);
+        permanentViewportHost.Controls.Add(viewport);
 
         var compactSession = new FlowLayoutPanel { Name = "CompactSession" };
-        var compactViewport = new Panel { Name = "CompactViewport" };
         var compactInspector = CreateStack("CompactInspector");
         var pageHost = new Panel { Name = "CompactPageHost" };
         var pages = ToolPages.ToDictionary(
@@ -123,7 +128,6 @@ internal static class EditMeshLayoutSmoke
             },
             StringComparer.Ordinal);
         compactRoot.Controls.Add(compactSession);
-        compactRoot.Controls.Add(compactViewport);
         compactRoot.Controls.Add(compactInspector);
         compactRoot.Controls.Add(pageHost);
         foreach (var page in pages.Values)
@@ -133,8 +137,9 @@ internal static class EditMeshLayoutSmoke
         _ = host.Handle;
         _ = classicRoot.Handle;
         _ = compactRoot.Handle;
-        _ = compactViewport.Handle;
+        _ = permanentViewportHost.Handle;
         var originalViewportHandle = viewport.Handle;
+        var originalViewportParent = viewport.Parent;
 
         var originalControls = sessionCommands
             .Cast<Control>()
@@ -150,10 +155,11 @@ internal static class EditMeshLayoutSmoke
         {
             EditMeshLayoutContracts.MoveControl(command, compactSession, DockStyle.None);
         }
-        EditMeshLayoutContracts.MoveControl(viewport, compactViewport, DockStyle.Fill);
         Require(
-            viewport.IsHandleCreated && viewport.Handle == originalViewportHandle,
-            "Moving to the Bottom Tool Deck recreated the viewport handle.");
+            viewport.IsHandleCreated
+                && viewport.Handle == originalViewportHandle
+                && ReferenceEquals(viewport.Parent, originalViewportParent),
+            "Activating the Bottom Tool Deck changed the permanent viewport host or handle.");
         EditMeshLayoutContracts.MoveControl(editSections[0], pages["Selection"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[1], pages["Selection"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[2], pages["Transform"], DockStyle.Top);
@@ -200,10 +206,11 @@ internal static class EditMeshLayoutSmoke
         AddRow(classicRight, morphSection);
         AddRow(classicRight, inspectorSections[0]);
         AddRow(classicRight, inspectorSections[2]);
-        EditMeshLayoutContracts.MoveControl(viewport, classicRoot, DockStyle.Fill);
         Require(
-            viewport.IsHandleCreated && viewport.Handle == originalViewportHandle,
-            "Returning to Classic recreated the viewport handle.");
+            viewport.IsHandleCreated
+                && viewport.Handle == originalViewportHandle
+                && ReferenceEquals(viewport.Parent, originalViewportParent),
+            "Returning to Classic changed the permanent viewport host or handle.");
         compactRoot.Visible = false;
         classicRoot.Visible = true;
 
@@ -214,8 +221,8 @@ internal static class EditMeshLayoutSmoke
                 && !control.IsDisposed),
             "A live Edit Mesh control was replaced or disposed during the layout round trip.");
         Require(
-            ReferenceEquals(viewport.Parent, classicRoot),
-            "The resident viewport region did not return to the Classic layout.");
+            ReferenceEquals(viewport.Parent, permanentViewportHost),
+            "The resident viewport region left its permanent host.");
         Require(
             sessionCommands.All(command => ReferenceEquals(command.Parent, classicLeft)),
             "A session command did not return to the Classic layout.");
@@ -245,6 +252,7 @@ internal static class EditMeshLayoutSmoke
             ["same_control_instances"] = true,
             ["same_viewport_instance"] = true,
             ["same_viewport_handle"] = true,
+            ["stable_viewport_parent"] = true,
             ["pages_visited"] = pagesVisited,
             ["morph_columns"] = new Dictionary<string, int>
             {

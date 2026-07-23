@@ -30,13 +30,12 @@ internal sealed partial class ExperimentForm
     private Point _classicLeftScrollPosition;
     private Point _classicRightScrollPosition;
 
-    private Panel? _editMeshLayoutHost;
+    private TableLayoutPanel? _editMeshLayoutHost;
     private Control? _classicEditMeshLayoutRoot;
-    private TableLayoutPanel? _compactEditMeshLayoutRoot;
-    private SplitContainer? _compactInspectorSplit;
     private SplitContainer? _compactWorkspaceSplit;
-    private Panel? _compactViewportHost;
+    private Control? _compactSessionBar;
     private FlowLayoutPanel? _compactSessionCommandHost;
+    private Panel? _rightToolModeHost;
     private TableLayoutPanel? _compactInspectorGrid;
     private TableLayoutPanel? _compactSelectionGrid;
     private Panel? _compactTransformHost;
@@ -71,28 +70,12 @@ internal sealed partial class ExperimentForm
     {
         _classicEditMeshLayoutRoot = classicRoot;
         _classicEditMeshLayoutRoot.Dock = DockStyle.Fill;
-        _compactEditMeshLayoutRoot = BuildCompactEditMeshLayoutRoot();
-        _compactEditMeshLayoutRoot.Visible = false;
+        BuildPermanentViewportWorkspace();
+        BuildPermanentRightToolModeHost();
 
-        _editMeshLayoutHost = new MeshEditorBufferedPanel
+        _editMeshLayoutHost = new MeshEditorBufferedTableLayoutPanel
         {
             Name = "DotNetMeshEditorLayoutHost",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0),
-            Padding = new Padding(0),
-            BackColor = ThemeWindowBackground,
-        };
-        _editMeshLayoutHost.Controls.Add(_classicEditMeshLayoutRoot);
-        _editMeshLayoutHost.Controls.Add(_compactEditMeshLayoutRoot);
-        _classicEditMeshLayoutRoot.BringToFront();
-        Controls.Add(_editMeshLayoutHost);
-    }
-
-    private TableLayoutPanel BuildCompactEditMeshLayoutRoot()
-    {
-        var root = new MeshEditorBufferedTableLayoutPanel
-        {
-            Name = "BottomToolDeckLayout",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
@@ -100,27 +83,65 @@ internal sealed partial class ExperimentForm
             Padding = new Padding(0),
             BackColor = ThemeWindowBackground,
         };
-        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        root.RowStyles.Add(new RowStyle(SizeType.Absolute, ScaleToolPanelWidth(48)));
-        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        root.Resize += (_, _) =>
+        _editMeshLayoutHost.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _editMeshLayoutHost.RowStyles.Add(new RowStyle(SizeType.Absolute, 0));
+        _editMeshLayoutHost.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _editMeshLayoutHost.Resize += (_, _) =>
         {
             if (IsBottomToolDeckActive)
             {
                 ApplyCompactSplitterLayout();
             }
         };
-        root.Controls.Add(BuildCompactSessionBar(), 0, 0);
+        _compactSessionBar = BuildCompactSessionBar();
+        _compactSessionBar.Visible = false;
+        _editMeshLayoutHost.Controls.Add(_compactSessionBar, 0, 0);
+        _editMeshLayoutHost.Controls.Add(_classicEditMeshLayoutRoot, 0, 1);
+        Controls.Add(_editMeshLayoutHost);
+    }
 
-        _compactInspectorSplit = CreateCompactSplit(
-            "BottomToolDeckInspectorSplit",
-            Orientation.Vertical,
+    private void BuildPermanentViewportWorkspace()
+    {
+        if (_rightToolSplit is null || _presentationViewportRegion is null)
+        {
+            throw new InvalidOperationException(
+                "The permanent Edit Mesh viewport host requires the classic viewport split.");
+        }
+        _compactWorkspaceSplit = CreateCompactSplit(
+            "BottomToolDeckWorkspaceSplit",
+            Orientation.Horizontal,
             FixedPanel.Panel2);
-        _compactInspectorSplit.Panel1.Controls.Add(BuildCompactWorkspace());
-        _compactInspectorSplit.Panel2.Controls.Add(BuildCompactInspector());
-        _compactInspectorSplit.SplitterMoved += (_, _) => CaptureCompactSplitterLayout();
-        root.Controls.Add(_compactInspectorSplit, 0, 1);
-        return root;
+        _compactWorkspaceSplit.Panel2.Controls.Add(BuildCompactToolDeck());
+        _compactWorkspaceSplit.Panel2Collapsed = true;
+        _compactWorkspaceSplit.SplitterMoved += (_, _) => CaptureCompactSplitterLayout();
+        _rightToolSplit.Panel1.Controls.Add(_compactWorkspaceSplit);
+        // Attach the live viewport region only after its permanent ancestor
+        // chain is in place. This is the sole Win32 parent assignment for the
+        // resident renderer subtree.
+        _compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);
+    }
+
+    private void BuildPermanentRightToolModeHost()
+    {
+        if (_rightToolSplit is null || _rightToolPanel is null)
+        {
+            throw new InvalidOperationException(
+                "The permanent Edit Mesh inspector host requires the classic right tool panel.");
+        }
+        _rightToolModeHost = new MeshEditorBufferedPanel
+        {
+            Name = "DotNetMeshEditorRightToolModeHost",
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = ThemePanelBackground,
+        };
+        _rightToolPanel.Visible = true;
+        _rightToolModeHost.Controls.Add(_rightToolPanel);
+        var compactInspector = BuildCompactInspector();
+        compactInspector.Visible = false;
+        _rightToolModeHost.Controls.Add(compactInspector);
+        _rightToolSplit.Panel2.Controls.Add(_rightToolModeHost);
     }
 
     private Control BuildCompactSessionBar()
@@ -178,27 +199,6 @@ internal sealed partial class ExperimentForm
         bar.Controls.Add(_compactSessionCommandHost, 1, 0);
         bar.Controls.Add(useClassic, 2, 0);
         return bar;
-    }
-
-    private Control BuildCompactWorkspace()
-    {
-        _compactWorkspaceSplit = CreateCompactSplit(
-            "BottomToolDeckWorkspaceSplit",
-            Orientation.Horizontal,
-            FixedPanel.Panel2);
-        _compactWorkspaceSplit.SplitterMoved += (_, _) => CaptureCompactSplitterLayout();
-
-        _compactViewportHost = new MeshEditorBufferedPanel
-        {
-            Name = "BottomToolDeckViewportHost",
-            Dock = DockStyle.Fill,
-            Margin = new Padding(0),
-            Padding = new Padding(0),
-            BackColor = ThemeWindowBackground,
-        };
-        _compactWorkspaceSplit.Panel1.Controls.Add(_compactViewportHost);
-        _compactWorkspaceSplit.Panel2.Controls.Add(BuildCompactToolDeck());
-        return _compactWorkspaceSplit;
     }
 
     private Control BuildCompactToolDeck()
@@ -401,13 +401,18 @@ internal sealed partial class ExperimentForm
 
     private void RestoreClassicLayoutForNonMeshMode()
     {
-        if (_activeEditMeshLayout != EditMeshLayoutMode.BottomToolDeck)
+        var requestedBeforeRestore = _requestedEditMeshLayout;
+        try
         {
-            return;
+            // Always normalize the live control tree on mode exit. This also
+            // repairs any interrupted compact transition before placement
+            // controls (including Mesh View) become interactive again.
+            ActivateClassicEditMeshLayout();
         }
-        _ = TryActivateEditMeshLayout(
-            EditMeshLayoutMode.Classic,
-            preserveRequestedLayout: true);
+        finally
+        {
+            _requestedEditMeshLayout = requestedBeforeRestore;
+        }
     }
 
     private bool TryActivateEditMeshLayout(
@@ -458,9 +463,9 @@ internal sealed partial class ExperimentForm
     private void ActivateBottomToolDeckLayout()
     {
         if (_activeEditMeshLayout == EditMeshLayoutMode.BottomToolDeck
-            || _compactEditMeshLayoutRoot is null
             || _classicEditMeshLayoutRoot is null
-            || _compactViewportHost is null
+            || _editMeshLayoutHost is null
+            || _compactSessionBar is null
             || _compactSessionCommandHost is null
             || _compactInspectorGrid is null
             || _compactSelectionGrid is null
@@ -468,6 +473,10 @@ internal sealed partial class ExperimentForm
             || _compactBrushHost is null
             || _compactTopologyHost is null
             || _compactMorphHost is null
+            || _compactWorkspaceSplit is null
+            || _leftToolSplit is null
+            || _rightToolSplit is null
+            || _rightToolPanel is null
             || _presentationViewportRegion is null)
         {
             return;
@@ -479,7 +488,7 @@ internal sealed partial class ExperimentForm
         try
         {
             MoveSessionControlsToCompactBar();
-            MovePresentationRegion(_compactViewportHost, compactEditableOnly: true);
+            ConfigurePresentationRegion(compactEditableOnly: true);
 
             AddCompactSection(_compactSelectionGrid, _partPickSection, 0, 0);
             AddCompactSection(_compactSelectionGrid, _selectionSection, 1, 0);
@@ -491,9 +500,14 @@ internal sealed partial class ExperimentForm
             AddCompactInspectorSection(_actionHistorySection, 1, stretchFirstRow: true);
             AddCompactInspectorSection(_viewportSection, 2);
 
-            _classicEditMeshLayoutRoot.Visible = false;
-            _compactEditMeshLayoutRoot.Visible = true;
-            _compactEditMeshLayoutRoot.BringToFront();
+            _compactSessionBar.Visible = true;
+            _editMeshLayoutHost.RowStyles[0].Height = ScaleToolPanelWidth(48);
+            _rightToolPanel.Visible = false;
+            _compactInspectorGrid.Visible = true;
+            _compactInspectorGrid.BringToFront();
+            _leftToolSplit.Panel1Collapsed = true;
+            _rightToolSplit.Panel2Collapsed = false;
+            _compactWorkspaceSplit.Panel2Collapsed = false;
             _activeEditMeshLayout = EditMeshLayoutMode.BottomToolDeck;
             ApplyCompactSplitterLayout();
             if (!_compactToolPageSelected)
@@ -511,7 +525,8 @@ internal sealed partial class ExperimentForm
 
     private void ActivateClassicEditMeshLayout()
     {
-        if (_classicEditMeshLayoutRoot is null)
+        if (_classicEditMeshLayoutRoot is null
+            || _editMeshLayoutHost is null)
         {
             return;
         }
@@ -521,16 +536,34 @@ internal sealed partial class ExperimentForm
             ExitCompactMorphLayout();
             MoveSessionControlsToClassicSection();
             RebuildClassicToolStacks();
-            if (_rightToolSplit is not null && _presentationViewportRegion is not null)
+            ConfigurePresentationRegion(compactEditableOnly: false);
+            if (_compactWorkspaceSplit is not null)
             {
-                MovePresentationRegion(_rightToolSplit.Panel1, compactEditableOnly: false);
+                _compactWorkspaceSplit.Panel2Collapsed = true;
             }
-            if (_compactEditMeshLayoutRoot is not null)
+            if (_compactSessionBar is not null)
             {
-                _compactEditMeshLayoutRoot.Visible = false;
+                _compactSessionBar.Visible = false;
+            }
+            _editMeshLayoutHost.RowStyles[0].Height = 0;
+            if (_compactInspectorGrid is not null)
+            {
+                _compactInspectorGrid.Visible = false;
+            }
+            if (_rightToolPanel is not null)
+            {
+                _rightToolPanel.Visible = true;
+                _rightToolPanel.BringToFront();
+            }
+            if (_leftToolSplit is not null)
+            {
+                _leftToolSplit.Panel1Collapsed = false;
+            }
+            if (_rightToolSplit is not null)
+            {
+                _rightToolSplit.Panel2Collapsed = false;
             }
             _classicEditMeshLayoutRoot.Visible = true;
-            _classicEditMeshLayoutRoot.BringToFront();
             _activeEditMeshLayout = EditMeshLayoutMode.Classic;
             ApplySavedToolPanelLayout();
         }
@@ -760,16 +793,12 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private void MovePresentationRegion(Control host, bool compactEditableOnly)
+    private void ConfigurePresentationRegion(bool compactEditableOnly)
     {
         if (_presentationViewportRegion is null)
         {
             return;
         }
-        EditMeshLayoutContracts.MoveControl(
-            _presentationViewportRegion,
-            host,
-            DockStyle.Fill);
         if (_presentationViewportRegion is TableLayoutPanel viewportRegion
             && viewportRegion.RowStyles.Count > 0
             && _presentationViewSelector is not null)
@@ -845,7 +874,7 @@ internal sealed partial class ExperimentForm
     private void ApplyCompactSplitterLayout()
     {
         if (_applyingCompactSplitterLayout
-            || _compactInspectorSplit is null
+            || _rightToolSplit is null
             || _compactWorkspaceSplit is null)
         {
             return;
@@ -853,8 +882,8 @@ internal sealed partial class ExperimentForm
         _applyingCompactSplitterLayout = true;
         try
         {
-            _compactEditMeshLayoutRoot?.PerformLayout();
-            _compactInspectorSplit.PerformLayout();
+            _editMeshLayoutHost?.PerformLayout();
+            _rightToolSplit.PerformLayout();
             _compactWorkspaceSplit.PerformLayout();
 
             var inspectorWidth = _compactInspectorWidthLogical > 0
@@ -866,7 +895,7 @@ internal sealed partial class ExperimentForm
                 : EditMeshLayoutContracts.DefaultToolDeckHeight(
                     LogicalToolPanelWidth(ClientSize.Height));
             EditMeshLayoutContracts.ApplyPanelTwoSize(
-                _compactInspectorSplit,
+                _rightToolSplit,
                 ScaleToolPanelWidth(inspectorWidth),
                 ScaleToolPanelWidth(360),
                 ScaleToolPanelWidth(300));
@@ -886,16 +915,16 @@ internal sealed partial class ExperimentForm
     {
         if (_applyingCompactSplitterLayout
             || !IsBottomToolDeckActive
-            || _compactInspectorSplit is null
+            || _rightToolSplit is null
             || _compactWorkspaceSplit is null)
         {
             return;
         }
         var inspectorWidth = Math.Max(
             0,
-            _compactInspectorSplit.ClientSize.Width
-                - _compactInspectorSplit.SplitterWidth
-                - _compactInspectorSplit.SplitterDistance);
+            _rightToolSplit.ClientSize.Width
+                - _rightToolSplit.SplitterWidth
+                - _rightToolSplit.SplitterDistance);
         var deckHeight = Math.Max(
             0,
             _compactWorkspaceSplit.ClientSize.Height
@@ -938,7 +967,8 @@ internal sealed partial class ExperimentForm
     {
         _editMeshLayoutHost?.SuspendLayout();
         _classicEditMeshLayoutRoot?.SuspendLayout();
-        _compactEditMeshLayoutRoot?.SuspendLayout();
+        _compactWorkspaceSplit?.SuspendLayout();
+        _rightToolModeHost?.SuspendLayout();
         _compactInspectorGrid?.SuspendLayout();
         _compactSelectionGrid?.SuspendLayout();
         SuspendToolPanelLayout();
@@ -949,7 +979,8 @@ internal sealed partial class ExperimentForm
         ResumeToolPanelLayout();
         _compactSelectionGrid?.ResumeLayout(performLayout: false);
         _compactInspectorGrid?.ResumeLayout(performLayout: false);
-        _compactEditMeshLayoutRoot?.ResumeLayout(performLayout: true);
+        _rightToolModeHost?.ResumeLayout(performLayout: true);
+        _compactWorkspaceSplit?.ResumeLayout(performLayout: true);
         _classicEditMeshLayoutRoot?.ResumeLayout(performLayout: true);
         _editMeshLayoutHost?.ResumeLayout(performLayout: true);
     }

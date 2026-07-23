@@ -359,11 +359,12 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   panel's vertical space. Controls and section titles size from the active
   Windows font so larger text does not clip. This side-panel arrangement remains
   the default for every new helper session. Embedded Edit Mesh also offers an
-  opt-in `Bottom Tool Deck`: the same live viewport region and the same command
-  controls move atomically into a top session bar, an Editable-only viewport, a
-  bottom Selection/Transform/Brush/Topology/Morph & Refit tab deck, and a right
-  Parts/Action History/Viewport inspector. `Use Classic Layout` moves those
-  instances back without restarting the renderer or replacing edit state.
+  opt-in `Bottom Tool Deck`: the live viewport stays under one permanent Win32
+  parent while the same command controls move atomically into a top session
+  bar, an Editable-only viewport workspace, a bottom Selection/Transform/Brush/
+  Topology/Morph & Refit tab deck, and a right Parts/Action History/Viewport
+  inspector. `Use Classic Layout` moves the ordinary controls back without
+  restarting the renderer or replacing edit state.
   Bottom-deck inspector width, deck height, and selected tab are session-only;
   they never overwrite the persisted classic splitter widths. Morph & Refit
   keeps all profile, preset, slider, refit, reset, and bake controls and
@@ -377,9 +378,11 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   viewport defaults to Wire + Vertices, with round vertex markers; the inert
   Material Debug control is not shown in the Viewport section.
   Placement exposes the same geometry display family in the Builder's
-  `Mesh view` selector and defaults to Faces + Wire. The selected placement mode
-  remains resident while Edit Mesh temporarily uses Wire + Vertices, then is
-  restored without rebuilding geometry or textures.
+  `Mesh view` selector and defaults to Faces + Wire. `Solid (Textured)` first
+  runs the existing material resolver and waits for the resident material
+  acknowledgement before switching the presentation to textured rendering.
+  The selected placement mode remains resident while Edit Mesh temporarily uses
+  Wire + Vertices, then is restored without rebuilding geometry or textures.
   Its Original role selector is disabled during editing; Imported/Modify remains
   active with move/rotate/scale gizmo selection. In placement, the scene toolbar
   provides two-pane, overlay, focus-Imported/Modify, and focus-Original choices.

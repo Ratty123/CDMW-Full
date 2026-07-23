@@ -485,6 +485,13 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             parameter_updates_supported = bool(capability()) if callable(capability) else bool(capability)
             if normalized_state == "ready" and active and not was_active and parameter_updates_supported and callable(replay_parameters):
                 replay_parameters()
+
+    def _handle_embedded_builder_viewport_display_mode(self, mode: str) -> bool:
+        return self._handle_embedded_viewport_display_mode(
+            mode,
+            use_presentation_state=True,
+        )
+
     def _wire_embedded_dotnet_button(self, builder: QWidget) -> None:
         dotnet_executable = self._dotnet_editor_executable_path(log=False)
         dotnet_available = dotnet_executable is not None and dotnet_executable.is_file()
@@ -500,6 +507,11 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
             builder,
             "_mesh_editor_embedded_set_presentation_state",
             self._send_dotnet_presentation_state,
+        )
+        setattr(
+            builder,
+            "_mesh_editor_embedded_request_viewport_display",
+            self._handle_embedded_builder_viewport_display_mode,
         )
         setattr(
             builder,

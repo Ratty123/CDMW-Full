@@ -196,6 +196,86 @@ def test_textured_view_waits_for_resident_material_ack_without_reload() -> None:
     app.processEvents()
 
 
+def test_builder_textured_selector_resolves_materials_before_presentation_update() -> None:
+    app = QApplication.instance() or QApplication([])
+    tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorBuilderTexturedRequest"))
+    builder = _EmbeddedMeshBuilder()
+    texture_requests: list[str] = []
+    setattr(
+        builder,
+        "_mesh_editor_embedded_request_material_resources",
+        lambda: texture_requests.append("requested"),
+    )
+    tab.mount_embedded_builder(builder)
+    process = _FakeProcess(tab)
+    process._state = process.Running
+    tab.standalone_dotnet_target_embedded = True
+    tab.standalone_dotnet_target_controller = builder.controller
+    tab._connect_dotnet_protocol(process)
+    _install_shared_dotnet_test_process(
+        tab,
+        process,
+        capabilities=(
+            "resident_material_updates_v2",
+            "resident_presentation_state_v1",
+            "viewport_display_modes_v1",
+        ),
+    )
+    setattr(builder, "_mesh_editor_embedded_dotnet_active", True)
+
+    request_display = getattr(
+        builder,
+        "_mesh_editor_embedded_request_viewport_display",
+        None,
+    )
+    assert callable(request_display)
+    assert request_display("textured")
+
+    writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
+    presentation_updates = [
+        payload
+        for payload in writes
+        if payload.get("event") == "presentation_state_update"
+    ]
+    assert texture_requests == ["requested"]
+    assert presentation_updates[-1]["display"]["mode"] == "untextured_faces"
+    assert not [
+        payload
+        for payload in writes
+        if payload.get("event") == "viewport_display_update"
+    ]
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert tab.standalone_dotnet_pending_textured_view_uses_presentation is True
+
+    tab._finish_pending_textured_view(success=True)
+    assert tab.standalone_dotnet_presentation_desired["display"]["mode"] == "textured"
+    assert tab.standalone_dotnet_presentation_queued is True
+
+    first_update = presentation_updates[-1]
+    assert tab._handle_dotnet_presentation_state_ack(
+        {
+            "event": "presentation_state_update_ack",
+            "status": "applied",
+            "session_id": first_update["session_id"],
+            "request_id": first_update["request_id"],
+            "process_generation": first_update["process_generation"],
+        }
+    )
+    writes = [json.loads(raw.decode("utf-8")) for raw in process.stdin_writes]
+    presentation_updates = [
+        payload
+        for payload in writes
+        if payload.get("event") == "presentation_state_update"
+    ]
+    assert presentation_updates[-1]["display"]["mode"] == "textured"
+    assert tab.standalone_dotnet_lifecycle_counts["full_reload_count"] == 0
+    assert tab.standalone_dotnet_lifecycle_counts["process_restart_count"] == 0
+    assert not process.terminated
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
 def test_native_textured_selector_routes_through_resident_material_request() -> None:
     app = QApplication.instance() or QApplication([])
     tab = MeshEditorTab(settings=QSettings("CDMWTests", "MeshEditorNativeTexturedRequest"))

@@ -703,7 +703,12 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
             }
             self._flush_dotnet_protocol_messages()
         return bool(sent)
-    def _handle_embedded_viewport_display_mode(self, mode: str) -> bool:
+    def _handle_embedded_viewport_display_mode(
+        self,
+        mode: str,
+        *,
+        use_presentation_state: bool = False,
+    ) -> bool:
         normalized = str(mode or "textured").strip().lower() or "textured"
         if not bool(getattr(self.active_builder(), "_mesh_editor_embedded_dotnet_active", False)):
             self.status_message_requested.emit("Embedded .NET viewport is not ready yet.", True)
@@ -723,7 +728,10 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
                 and self.standalone_dotnet_material_generation
                 <= self.standalone_dotnet_completed_material_generation
             ):
-                return self._send_embedded_viewport_display_mode("textured")
+                return self._send_requested_viewport_display_mode(
+                    "textured",
+                    use_presentation_state=use_presentation_state,
+                )
             builder = self.active_builder()
             request_textures = getattr(
                 builder,
@@ -737,8 +745,13 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
                 )
                 return False
             self.standalone_dotnet_pending_textured_view = True
-            self._send_embedded_viewport_display_mode(
+            self.standalone_dotnet_pending_textured_view_mode = normalized
+            self.standalone_dotnet_pending_textured_view_uses_presentation = bool(
+                use_presentation_state
+            )
+            self._send_requested_viewport_display_mode(
                 "untextured_faces",
+                use_presentation_state=use_presentation_state,
                 texture_request_pending=True,
             )
             request_textures()
@@ -748,7 +761,28 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
             )
             return True
         self.standalone_dotnet_pending_textured_view = False
-        return self._send_embedded_viewport_display_mode(normalized)
+        self.standalone_dotnet_pending_textured_view_mode = "textured"
+        self.standalone_dotnet_pending_textured_view_uses_presentation = False
+        return self._send_requested_viewport_display_mode(
+            normalized,
+            use_presentation_state=use_presentation_state,
+        )
+
+    def _send_requested_viewport_display_mode(
+        self,
+        normalized: str,
+        *,
+        use_presentation_state: bool,
+        texture_request_pending: bool = False,
+    ) -> bool:
+        if use_presentation_state:
+            return self._send_dotnet_presentation_state(
+                {"display": {"mode": normalized}}
+            )
+        return self._send_embedded_viewport_display_mode(
+            normalized,
+            texture_request_pending=texture_request_pending,
+        )
 
     def _send_embedded_viewport_display_mode(
         self,

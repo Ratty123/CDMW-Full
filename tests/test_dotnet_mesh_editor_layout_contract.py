@@ -25,6 +25,7 @@ def _section_stack(program_source: str, title: str) -> str:
 def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     program = _source("Program.cs")
     controls = _source("ExperimentForm.Controls.cs")
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
     preferences = _source("MeshToolPanelLayoutPreferences.cs")
 
     left_width = int(re.search(r"DefaultLeftWidth = (\d+)", preferences).group(1))
@@ -35,10 +36,18 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert 'CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2)' in program
     assert "_leftToolSplit.Panel1.Controls.Add(_leftToolPanel);" in program
     assert "_presentationViewportRegion = BuildPresentationViewportRegion();" in program
-    assert "_rightToolSplit.Panel1.Controls.Add(_presentationViewportRegion);" in program
-    assert "_rightToolSplit.Panel2.Controls.Add(_rightToolPanel);" in program
     assert "_leftToolSplit.Panel2.Controls.Add(_rightToolSplit);" in program
     assert "InitializeEditMeshLayoutHost(_leftToolSplit);" in program
+    assert "BuildPermanentViewportWorkspace();" in layout
+    assert "BuildPermanentRightToolModeHost();" in layout
+    assert "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout
+    assert "_rightToolModeHost.Controls.Add(_rightToolPanel);" in layout
+    assert layout.count("Controls.Add(_presentationViewportRegion)") == 1
+    assert layout.index(
+        "_rightToolSplit.Panel1.Controls.Add(_compactWorkspaceSplit);"
+    ) < layout.index(
+        "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);"
+    )
 
     assert _section_stack(program, "Mesh Edit Session") == "leftStack"
     assert _section_stack(program, "Part Pick") == "leftStack"
@@ -204,8 +213,12 @@ def test_bottom_tool_deck_is_opt_in_and_reuses_the_live_editor_controls() -> Non
 
     assert "MoveSessionControlsToCompactBar();" in layout
     assert "MoveSessionControlsToClassicSection();" in layout
-    assert "MovePresentationRegion(_compactViewportHost, compactEditableOnly: true);" in layout
-    assert "MovePresentationRegion(_rightToolSplit.Panel1, compactEditableOnly: false);" in layout
+    assert "ConfigurePresentationRegion(compactEditableOnly: true);" in layout
+    assert "ConfigurePresentationRegion(compactEditableOnly: false);" in layout
+    assert "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout
+    assert "MoveControl(_presentationViewportRegion" not in layout
+    assert "MovePresentationRegion" not in layout
+    assert "_compactViewportHost" not in layout
     assert "EditMeshLayoutContracts.MoveControl(" in layout
     assert "host.Controls.Add(control);" in transfer
     assert "control.IsDisposed || host.IsDisposed" in transfer
@@ -287,8 +300,8 @@ def test_bottom_tool_deck_defers_splitter_minimums_until_real_size_exists() -> N
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
     transfer = _source("EditMeshLayoutContracts.cs")
 
-    workspace_builder = layout.split("private Control BuildCompactWorkspace()", 1)[1]
-    workspace_builder = workspace_builder.split("private Control BuildCompactToolDeck()", 1)[0]
+    workspace_builder = layout.split("private void BuildPermanentViewportWorkspace()", 1)[1]
+    workspace_builder = workspace_builder.split("private void BuildPermanentRightToolModeHost()", 1)[0]
     assert "_compactWorkspaceSplit.Panel1MinSize" not in workspace_builder
     assert "_compactWorkspaceSplit.Panel2MinSize" not in workspace_builder
     assert transfer.index("split.Panel1MinSize = 0;") < transfer.index(
@@ -313,6 +326,8 @@ def test_bottom_tool_deck_has_a_nonvisual_round_trip_construction_gate() -> None
     assert "same_control_instances" in smoke
     assert "same_viewport_instance" in smoke
     assert "same_viewport_handle" in smoke
+    assert "stable_viewport_parent" in smoke
+    assert "MoveControl(viewport" not in smoke
     assert "zero_size_splitter_construction" in smoke
     for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
         assert f'"{page}"' in smoke

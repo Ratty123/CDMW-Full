@@ -195,12 +195,37 @@ internal static partial class HeadlessGpuSparseSoak
                     && referenceVisible == expected.ReferenceVisible,
             });
         }
+        var ownerSize = new System.Drawing.Size(1412, 620);
+        var deferredRenderSurfaceSize = new System.Drawing.Size(1180, 614);
+        var effectiveDeferredSize = MeshViewport.EffectivePaneSurfaceSize(
+            ownerSize,
+            deferredRenderSurfaceSize,
+            renderSurfaceAvailable: true);
+        var fallbackOwnerSize = MeshViewport.EffectivePaneSurfaceSize(
+            ownerSize,
+            System.Drawing.Size.Empty,
+            renderSurfaceAvailable: false);
+        var paneGeometryTracksRenderSurface =
+            effectiveDeferredSize == deferredRenderSurfaceSize
+            && fallbackOwnerSize == ownerSize;
         return new Dictionary<string, object?>
         {
             ["ok"] = rows.All(row => (bool)row["ok"]!)
+                && paneGeometryTracksRenderSurface
                 && NetSceneState.EffectiveComparisonMode("side_by_side", "mesh_edit") == "replacement_only"
                 && NetSceneState.EffectiveComparisonMode("original_only", "mesh_edit") == "replacement_only",
             ["modes"] = rows,
+            ["pane_geometry_tracks_current_render_surface"] = paneGeometryTracksRenderSurface,
+            ["deferred_render_surface_size"] = new[]
+            {
+                effectiveDeferredSize.Width,
+                effectiveDeferredSize.Height,
+            },
+            ["fallback_owner_size"] = new[]
+            {
+                fallbackOwnerSize.Width,
+                fallbackOwnerSize.Height,
+            },
             ["mesh_edit_side_by_side_resolved"] = NetSceneState.EffectiveComparisonMode("side_by_side", "mesh_edit"),
             ["mesh_edit_original_only_resolved"] = NetSceneState.EffectiveComparisonMode("original_only", "mesh_edit"),
         };

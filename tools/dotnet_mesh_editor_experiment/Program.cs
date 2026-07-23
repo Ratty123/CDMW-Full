@@ -225,8 +225,6 @@ internal sealed partial class ExperimentForm : Form
         _viewport.Margin = new Padding(0);
         _presentationViewportRegion = BuildPresentationViewportRegion();
         _rightToolSplit = CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2);
-        _rightToolSplit.Panel1.Controls.Add(_presentationViewportRegion);
-        _rightToolSplit.Panel2.Controls.Add(_rightToolPanel);
         _leftToolSplit = CreateToolPanelSplit("DotNetMeshEditorLeftViewportSplit", FixedPanel.Panel1);
         _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
         _leftToolSplit.Panel2.Controls.Add(_rightToolSplit);

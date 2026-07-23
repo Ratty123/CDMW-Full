@@ -6,6 +6,7 @@ from typing import Mapping, Sequence
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QPixmap
+from PySide6.QtWidgets import QComboBox
 
 from cdmw.services.mesh_dotnet_material_state import copy_dotnet_preview_material_bindings
 from cdmw.services.mesh_dotnet_material_compiler import (
@@ -97,10 +98,36 @@ class MeshEditorDotNetResourceProtocolMixin(
         if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
             return
         self.standalone_dotnet_pending_textured_view = False
+        requested_mode = str(
+            getattr(
+                self,
+                "standalone_dotnet_pending_textured_view_mode",
+                "textured",
+            )
+            or "textured"
+        )
+        use_presentation_state = bool(
+            getattr(
+                self,
+                "standalone_dotnet_pending_textured_view_uses_presentation",
+                False,
+            )
+        )
+        self.standalone_dotnet_pending_textured_view_mode = "textured"
+        self.standalone_dotnet_pending_textured_view_uses_presentation = False
         workspace = getattr(self, "embedded_workspace", None)
         combo = getattr(workspace, "viewport_display_combo", None)
+        builder = self.active_builder()
+        builder_combo = (
+            builder.findChild(QComboBox, "MeshAlignmentViewportDisplayModeCombo")
+            if builder is not None
+            else None
+        )
         if success:
-            self._send_embedded_viewport_display_mode("textured")
+            self._send_requested_viewport_display_mode(
+                requested_mode,
+                use_presentation_state=use_presentation_state,
+            )
             if combo is not None:
                 combo.blockSignals(True)
                 combo.setCurrentText("Textured")
@@ -110,6 +137,12 @@ class MeshEditorDotNetResourceProtocolMixin(
             combo.blockSignals(True)
             combo.setCurrentText("Faces")
             combo.blockSignals(False)
+        if builder_combo is not None:
+            untextured_index = builder_combo.findData("untextured_faces")
+            if untextured_index >= 0:
+                builder_combo.blockSignals(True)
+                builder_combo.setCurrentIndex(untextured_index)
+                builder_combo.blockSignals(False)
 
     def _handle_embedded_texture_request_failed(self, message: str) -> None:
         self._finish_pending_textured_view(success=False)

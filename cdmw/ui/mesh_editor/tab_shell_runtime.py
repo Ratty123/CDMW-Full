@@ -113,6 +113,8 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_completed_material_generation = 0
         self.standalone_dotnet_material_signature = ""
         self.standalone_dotnet_pending_textured_view = False
+        self.standalone_dotnet_pending_textured_view_mode = "textured"
+        self.standalone_dotnet_pending_textured_view_uses_presentation = False
         self.standalone_dotnet_material_ready_flush_token = (0, 0)
         self.standalone_dotnet_pending_clone_material_model: object | None = None
         self.standalone_dotnet_pending_reference_material_model: object | None = None

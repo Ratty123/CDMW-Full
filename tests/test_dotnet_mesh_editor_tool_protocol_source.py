@@ -18,6 +18,31 @@ def test_equal_surface_resize_refreshes_initial_render_pane_layout() -> None:
     assert equal_bounds.index("UpdateGpuViewport();") < equal_bounds.index("return;")
 
 
+def test_split_panes_track_the_render_surface_and_release_pointer_capture() -> None:
+    split_view_source = _source("MeshViewport.SplitView.cs")
+    input_source = _source("MeshViewport.Input.cs")
+    scene_proofs = _source("HeadlessGpuSparseSoak.SceneProofs.cs")
+
+    role_bounds = split_view_source.split(
+        "private (Rectangle Reference, Rectangle Editable) RolePaneBounds()",
+        maxsplit=1,
+    )[1].split("private Rectangle ActivePaneBounds()", maxsplit=1)[0]
+    mouse_up = input_source.split(
+        "protected override void OnMouseUp",
+        maxsplit=1,
+    )[1].split("protected override void OnMouseMove", maxsplit=1)[0]
+
+    assert "EffectivePaneSurfaceSize(" in split_view_source
+    assert "surface?.ClientSize ?? Size.Empty" in split_view_source
+    assert "var surfaceSize = PaneSurfaceSize();" in role_bounds
+    assert "Math.Max(1, Width)" not in role_bounds
+    assert "SetRenderSurfaceCapture(true);" in input_source
+    assert "finally" in mouse_up
+    assert "SetRenderSurfaceCapture(false);" in mouse_up
+    assert "_capturedInputPane = string.Empty;" in mouse_up
+    assert "pane_geometry_tracks_current_render_surface" in scene_proofs
+
+
 def test_part_pick_off_routes_authoritative_clear_selection() -> None:
     program_source = _source("Program.cs")
     part_pick_handler = program_source.split(
@@ -729,6 +754,7 @@ def test_dotnet_tool_panel_has_no_disabled_gizmo_placeholder() -> None:
 def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     program_source = _source("Program.cs")
     controls_source = _source("ExperimentForm.Controls.cs")
+    layout_source = _source("ExperimentForm.EditMeshLayouts.cs")
     protocol_source = _source("ExperimentForm.Protocol.cs")
     morph_source = _source("ExperimentForm.MorphRefit.cs")
     material_source = _source("ExperimentForm.MaterialProtocol.cs")
@@ -743,8 +769,8 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "_viewport.Margin = new Padding(0);" in program_source
     assert "_leftToolSplit.Panel1.Controls.Add(_leftToolPanel);" in program_source
     assert "_presentationViewportRegion = BuildPresentationViewportRegion();" in program_source
-    assert "_rightToolSplit.Panel1.Controls.Add(_presentationViewportRegion);" in program_source
-    assert "_rightToolSplit.Panel2.Controls.Add(_rightToolPanel);" in program_source
+    assert "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout_source
+    assert "_rightToolModeHost.Controls.Add(_rightToolPanel);" in layout_source
     assert "InitializeEditMeshLayoutHost(_leftToolSplit);" in program_source
     assert "ApplyEmbeddedToolPanelVisibility(meshEdit: false);" in controls_source
     assert "ApplyEmbeddedToolPanelVisibility(meshEdit: true);" in controls_source

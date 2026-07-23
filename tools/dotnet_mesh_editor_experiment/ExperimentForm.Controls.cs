@@ -619,7 +619,11 @@ internal sealed partial class ExperimentForm
             return;
         }
         _leftToolSplit.SplitterMoved += (_, _) => CaptureToolPanelLayout(persist: true);
-        _rightToolSplit.SplitterMoved += (_, _) => CaptureToolPanelLayout(persist: true);
+        _rightToolSplit.SplitterMoved += (_, _) =>
+        {
+            CaptureToolPanelLayout(persist: true);
+            CaptureCompactSplitterLayout();
+        };
     }
 
     private void ApplySavedToolPanelLayout()
