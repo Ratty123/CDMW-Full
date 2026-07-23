@@ -7,6 +7,9 @@ from types import SimpleNamespace
 from cdmw.ui.archive_browser.static_replacement_dialog_prompt_deps import (
     install_static_replacement_prompt_dependencies,
 )
+from cdmw.ui.archive_browser.static_replacement_dialog_prompt_state_context import (
+    StaticReplacementPromptStateControls,
+)
 
 install_static_replacement_prompt_dependencies(globals())
 
@@ -14,28 +17,11 @@ install_static_replacement_prompt_dependencies(globals())
 def create_static_replacement_prompt_state_callbacks(context: dict[str, object]) -> SimpleNamespace:
     _alignment_dialog_widgets_live = context['_alignment_dialog_widgets_live']
     _record_runtime_event = context['_record_runtime_event']
-    alignment_d3d11_reload_timer = context['alignment_d3d11_reload_timer']
     alignment_d3d11_preview_host = context.get('alignment_d3d11_preview_host')
     alignment_d3d11_state = context['alignment_d3d11_state']
-    alignment_d3d11_status_timer = context['alignment_d3d11_status_timer']
-    alignment_d3d11_view_mode_combo = context['alignment_d3d11_view_mode_combo']
-    alignment_preview_settings_button = context['alignment_preview_settings_button']
-    alignment_use_global_preview_button = context['alignment_use_global_preview_button']
+    controls = StaticReplacementPromptStateControls.from_mapping(context)
     dialog = context['dialog']
     entry = context['entry']
-    overlay_original_locked_checkbox = context['overlay_original_locked_checkbox']
-    preview_depth_spin = context['preview_depth_spin']
-    preview_disable_brightness_checkbox = context['preview_disable_brightness_checkbox']
-    preview_disable_tint_checkbox = context['preview_disable_tint_checkbox']
-    preview_disable_uv_scale_checkbox = context['preview_disable_uv_scale_checkbox']
-    preview_mesh_view_combo = context['preview_mesh_view_combo']
-    preview_mode_combo = context['preview_mode_combo']
-    preview_render_mode_combo = context['preview_render_mode_combo']
-    preview_renderer_combo = context['preview_renderer_combo']
-    preview_rough_spin = context['preview_rough_spin']
-    preview_shine_spin = context['preview_shine_spin']
-    preview_support_maps_checkbox = context['preview_support_maps_checkbox']
-    preview_visible_mode_combo = context['preview_visible_mode_combo']
     prompt_shell_context = context['prompt_shell_context']
     SceneImportResult = context.get('SceneImportResult')
     obj_path = context.get('obj_path')
@@ -356,25 +342,28 @@ def create_static_replacement_prompt_state_callbacks(context: dict[str, object])
         ),
     )
 
-    preview_visible_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)
-    preview_render_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)
-    preview_disable_tint_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
-    preview_disable_brightness_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
-    preview_disable_uv_scale_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
-    preview_support_maps_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
-    preview_depth_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
-    preview_shine_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
-    preview_rough_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
-    alignment_d3d11_view_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)
-    alignment_preview_settings_button.clicked.connect(lambda _checked=False: _open_alignment_preview_settings_dialog())
-    alignment_use_global_preview_button.clicked.connect(_use_global_alignment_preview_settings)
+    controls.preview_visible_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)
+    controls.preview_render_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)
+    controls.preview_disable_tint_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
+    controls.preview_disable_brightness_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
+    controls.preview_disable_uv_scale_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
+    controls.preview_support_maps_checkbox.toggled.connect(_apply_alignment_preview_render_settings)
+    controls.preview_depth_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
+    controls.preview_shine_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
+    controls.preview_rough_spin.valueChanged.connect(_apply_alignment_preview_render_settings)
+    controls.alignment_d3d11_view_mode_combo.currentIndexChanged.connect(
+        _apply_alignment_preview_render_settings
+    )
+    controls.alignment_preview_settings_button.clicked.connect(
+        lambda _checked=False: _open_alignment_preview_settings_dialog()
+    )
+    controls.alignment_use_global_preview_button.clicked.connect(_use_global_alignment_preview_settings)
 
-
-    preview_renderer_combo.currentIndexChanged.connect(lambda _index: _set_preview_renderer())
-    preview_mode_combo.currentIndexChanged.connect(_set_preview_mode)
-    preview_mesh_view_combo.currentIndexChanged.connect(_set_preview_display_mode)
-    overlay_original_locked_checkbox.toggled.connect(_queue_static_preview_refresh)
-    alignment_d3d11_reload_timer.timeout.connect(_flush_alignment_d3d11_preview_request)
+    controls.preview_renderer_combo.currentIndexChanged.connect(lambda _index: _set_preview_renderer())
+    controls.preview_mode_combo.currentIndexChanged.connect(_set_preview_mode)
+    controls.preview_mesh_view_combo.currentIndexChanged.connect(_set_preview_display_mode)
+    controls.overlay_original_locked_checkbox.toggled.connect(_queue_static_preview_refresh)
+    controls.alignment_d3d11_reload_timer.timeout.connect(_flush_alignment_d3d11_preview_request)
 
     alignment_selection_mapping_helpers = create_alignment_selection_mapping_helpers({
         **context,

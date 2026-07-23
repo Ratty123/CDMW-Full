@@ -15,12 +15,12 @@ Last updated: 2026-07-23
 ## Validated restructure baseline
 
 - The whole-codebase repair phases and final validation passed on 2026-07-11; the completed plan was removed from `docs/plans/active/`. Broad test, package, startup, and real-game evidence lives in `docs/release-confidence-plan.md`.
-- Static-replacement callback/section facades and the mesh-edit factory pass live globals/state into ordered bounded owners; preserve patch seams, public callback signatures/identity, and signal order.
+- Static-replacement callback/section facades and the mesh-edit factory pass live globals/state into ordered bounded owners; preserve patch seams, public callback signatures/identity, and signal order. Migrate high-risk `locals()` seams incrementally to validated typed contexts; preview-state wiring is owned by `StaticReplacementPromptStateControls`. Builder close cancels queued post-open callbacks and stops prompt timers before Qt child deletion.
 
 ## Test and evidence contracts
 
 - Default pytest and `scripts/codex_check.ps1 -Area full` are headless and must launch no visible native windows. Synthetic geometry is protocol/unit-only.
-- `scripts/codex_check.ps1 -Area mesh-unit` is nonvisual mesh coverage.
+- `scripts/codex_check.ps1 -Area mesh-unit` is nonvisual mesh coverage. It owns the Builder unresolved-global audit and offscreen Import Mesh/Modify Original construction gate; release packaging repeats the synthetic Builder target without renderer, archive, or licensed-asset I/O. Source-string guards alone do not close escaped runtime wiring regressions.
 - `scripts/codex_check.ps1 -Area mesh [-GameRoot PATH]` is the explicit visual real-game gate. Root resolution is argument, `CDMW_GAME_ROOT`, then `C:\games\Steam\steamapps\common\Crimson Desert`.
 - That gate requires the sole production .NET/Vortice renderer `d3d11_vortice_shader` and resident edit backend `cdmw_mesh_core_0.1`; the retired native visual renderer has no scenario or fallback path.
 - The real proof loads `character/model/1_pc/14_ptm/nude/cd_ptm_00_nude_00_0001.pac` from `0009\0.pamt`, uses production material/texture resolution, forbids checker or synthetic fallback, runs the resident select/transform/material/texture/UV/topology/undo/export sequence, reparses exported GLB/OBJ/DDS/sidecars, and fingerprints source archives before/after.

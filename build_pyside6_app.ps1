@@ -1017,6 +1017,7 @@ if ($BuildProfile -eq "release") {
         Join-Path (Join-Path $pyInstallerDistDir $appName) "$appName.exe"
     }
     & $packagedStartupVerifier -ExecutablePath $startupSmokeExecutable
+    & $packagedStartupVerifier -ExecutablePath $startupSmokeExecutable -Target mesh_builder
 }
 
 Write-BuildProgress -Percent 97 -Stage "Publishing build output"

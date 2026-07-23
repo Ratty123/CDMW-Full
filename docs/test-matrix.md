@@ -78,6 +78,20 @@ separately authorized local corpus gate.
 
 ## Mesh Editor Suite
 
+Archive Builder runtime wiring and successful offscreen construction for both
+Import Mesh and Modify Original:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_builder_runtime_wiring.py tests/test_mesh_builder_construction_lifecycle.py tests/test_static_replacement_post_open_state.py tests/test_static_replacement_dotnet_presentation.py
+```
+
+This gate resolves the dynamically installed callback globals, validates the
+typed state-control boundary, constructs both real Builder UI paths from
+synthetic empty meshes, and requires clean dialog teardown. It opens no visible
+window, starts no renderer, reads no licensed asset, and performs no archive
+I/O. Changes to `static_replacement_dialog_prompt*`, its preview shell, or its
+state/presentation callbacks must run this gate.
+
 Archive mesh-import setup responsiveness, cancellation, stale-result rejection,
 and in-game swap-scope preflight:
 
@@ -451,7 +465,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mod
 
 Both release modes publish the self-contained .NET helper, require its hidden
 `d3d11_vortice_shader` GPU smoke to keep all native windows hidden, and run the
-packaged offscreen startup verifier before moving output into `dist/`. The
+packaged offscreen startup verifier for both the default shell and the synthetic
+Import Mesh/Modify Original Builder target before moving output into `dist/`. The
 release builder also runs `cd-texture-dx.exe self-test` directly from onedir,
 extracts the bundled helper from onefile to system temp and runs the same
 self-test, and rejects either artifact if a retired texture executable is

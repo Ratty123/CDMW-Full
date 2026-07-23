@@ -461,6 +461,13 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   hidden-part, routing, and per-part presentation state use one correlated
   `presentation_state_update` lane. The host keeps one active request plus one
   merged pending state and rejects stale session/process acknowledgements.
+  The highest-risk Qt state-callback seam receives its required preview widgets
+  through `StaticReplacementPromptStateControls` rather than ad hoc local-name
+  lookups. The release gate also constructs both Import Mesh and Modify
+  Original from synthetic empty meshes in offscreen Qt, requires the Builder
+  completion marker and clean teardown, and rejects unresolved callback globals
+  before packaging. Closing a Builder cancels every queued post-open callback
+  and stops every prompt-owned timer before its Qt children are deleted.
   While production .NET presentation is active, migrated Builder callbacks
   return through that lane instead of mutating only the legacy preview host.
   The Builder `.NET view` selector is an exact renderer-owned allow-list: Lit,

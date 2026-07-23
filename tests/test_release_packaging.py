@@ -129,6 +129,14 @@ def test_release_builder_keeps_portable_self_contained_defaults_and_smokes_befor
     archive_backend_stage = 'Stage "Verifying packaged full archive backend"'
     assert archive_backend_stage in source
     assert source.index(archive_backend_stage) < source.index('Stage "Verifying packaged startup"')
+    default_startup_smoke = "& $packagedStartupVerifier -ExecutablePath $startupSmokeExecutable"
+    builder_startup_smoke = (
+        "& $packagedStartupVerifier -ExecutablePath $startupSmokeExecutable -Target mesh_builder"
+    )
+    assert default_startup_smoke in source
+    assert builder_startup_smoke in source
+    assert source.index(default_startup_smoke) < source.index(builder_startup_smoke)
+    assert source.index(builder_startup_smoke) < source.index("Publishing build output")
 
 
 def test_onedir_publish_removes_runtime_artifacts_created_by_startup_smoke() -> None:
@@ -182,13 +190,22 @@ def test_windows_workflow_gates_packaging_on_both_headless_python_releases() -> 
 @pytest.mark.skipif(sys.platform != "win32" or POWERSHELL is None, reason="PowerShell behavior test")
 def test_packaged_startup_result_readback_requires_post_construction(tmp_path: Path) -> None:
     valid = tmp_path / "valid.json"
+    builder = tmp_path / "builder.json"
     invalid = tmp_path / "invalid.json"
     valid.write_text('{"ok":true,"pid":42,"stage":"post_construction","target":"default"}\n', encoding="utf-8")
+    builder.write_text(
+        '{"ok":true,"pid":43,"stage":"post_construction","target":"mesh_builder"}\n',
+        encoding="utf-8",
+    )
     invalid.write_text('{"ok":true,"pid":42,"stage":"pre_window","target":"default"}\n', encoding="utf-8")
     command = f"""
 . '{str(STARTUP_VERIFIER).replace("'", "''")}' -ExecutablePath ignored
 $payload = Assert-PackagedStartupResult -ResultPath '{str(valid).replace("'", "''")}'
 if ($payload.stage -ne 'post_construction') {{ exit 10 }}
+$builderPayload = Assert-PackagedStartupResult `
+    -ResultPath '{str(builder).replace("'", "''")}' `
+    -ExpectedTarget mesh_builder
+if ($builderPayload.target -ne 'mesh_builder') {{ exit 13 }}
 try {{
     Assert-PackagedStartupResult -ResultPath '{str(invalid).replace("'", "''")}' | Out-Null
     exit 11

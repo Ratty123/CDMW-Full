@@ -316,6 +316,24 @@ class ShellAppStartupTests(unittest.TestCase):
         self.assertTrue(window.finalized)
         mesh_editor_tab.deleteLater()
 
+    def test_finish_gui_startup_smoke_can_construct_mesh_builder_target(self) -> None:
+        window = _WindowStub()
+        app = _AppStub()
+
+        with (
+            patch.dict(
+                os.environ,
+                {"CDMW_GUI_STARTUP_SMOKE": "1", "CDMW_GUI_STARTUP_SMOKE_TARGET": "mesh_builder"},
+            ),
+            patch(
+                "cdmw.ui.shell.app_startup._verify_mesh_builder_startup_smoke_target"
+            ) as verify_builder,
+        ):
+            self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
+
+        verify_builder.assert_called_once_with(window, app)
+        self.assertTrue(window.finalized)
+
     def test_finish_gui_startup_smoke_can_load_mesh_editor_asset_target(self) -> None:
         QApplication.instance() or QApplication([])
         window = _WindowStub()
@@ -510,7 +528,7 @@ class ShellAppStartupTests(unittest.TestCase):
                 patch("cdmw.services.mesh_dotnet_experiment.mesh_dotnet_experiment_command", side_effect=fake_command),
                 patch("cdmw.services.mesh_dotnet_experiment.import_mesh_dotnet_experiment_output", side_effect=fake_import_output),
                 patch("cdmw.services.mesh_dotnet_experiment.write_mesh_dotnet_experiment_evaluation", side_effect=fake_write_evaluation),
-                patch("cdmw.ui.shell.app_startup.subprocess.run", side_effect=fake_run),
+                patch("cdmw.ui.mesh_editor.startup_smoke.subprocess.run", side_effect=fake_run),
             ):
                 self.assertTrue(finish_gui_startup_smoke_if_requested(window, app))  # type: ignore[arg-type]
 
@@ -525,7 +543,9 @@ class ShellAppStartupTests(unittest.TestCase):
 
     def test_mesh_editor_dotnet_startup_smoke_requires_same_count_position_operation(self) -> None:
         root = Path(__file__).resolve().parents[1]
-        source = (root / "cdmw" / "ui" / "shell" / "app_startup.py").read_text(encoding="utf-8")
+        source = (root / "cdmw" / "ui" / "mesh_editor" / "startup_smoke.py").read_text(
+            encoding="utf-8"
+        )
 
         self.assertIn("_cdmw_edit_operations", source)
         self.assertIn("replace_positions_same_count", source)

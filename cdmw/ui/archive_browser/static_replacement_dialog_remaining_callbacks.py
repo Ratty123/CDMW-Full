@@ -730,12 +730,15 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
     _alignment_dialog_accepted_helper = context.get('_alignment_dialog_accepted_helper')
     _alignment_dialog_finished_route_helper = context.get('_alignment_dialog_finished_route_helper')
     _alignment_dialog_mark_closing_helper = context.get('_alignment_dialog_mark_closing_helper')
+    _cancel_alignment_post_open_tasks_helper = context.get('_cancel_alignment_post_open_tasks_helper')
     _finish_alignment_startup_progress = context.get('_finish_alignment_startup_progress')
     _safe_shutdown_alignment_d3d11_preview = context.get('_safe_shutdown_alignment_d3d11_preview')
     _safe_stop_alignment_timer = context.get('_safe_stop_alignment_timer')
     _stop_original_reference_texture_worker = context.get('_stop_original_reference_texture_worker')
     alignment_dialog_closing = context.get('alignment_dialog_closing')
     alignment_dialog_key = context.get('alignment_dialog_key')
+    alignment_post_open_state = context.get('alignment_post_open_state')
+    alignment_post_open_tasks = context.get('alignment_post_open_tasks')
     dialog = context.get('dialog')
     dialog_accepted_state = context.get('dialog_accepted_state')
     embedded_alignment_builder = context.get('embedded_alignment_builder')
@@ -744,11 +747,32 @@ def create_alignment_modeless_dialog_callbacks(context: dict[str, object]) -> Si
     on_cancel = context.get('on_cancel')
     self = context.get('self')
     source_material_plan_refresh_timer = context.get('source_material_plan_refresh_timer')
+    close_timer_ids = {
+        id(material_edit_refresh_timer),
+        id(source_material_plan_refresh_timer),
+    }
+    additional_alignment_close_timers = []
+    for name, value in context.items():
+        if (
+            not str(name).endswith('_timer')
+            or id(value) in close_timer_ids
+            or not callable(getattr(value, 'stop', None))
+        ):
+            continue
+        close_timer_ids.add(id(value))
+        additional_alignment_close_timers.append(value)
 
     def _modeless_alignment_dialog_finished(result: int=0) -> None:
         _alignment_dialog_mark_closing_helper(alignment_dialog_closing)
+        if callable(_cancel_alignment_post_open_tasks_helper):
+            _cancel_alignment_post_open_tasks_helper(
+                alignment_post_open_state,
+                alignment_post_open_tasks,
+            )
         _safe_stop_alignment_timer(material_edit_refresh_timer)
         _safe_stop_alignment_timer(source_material_plan_refresh_timer)
+        for timer in additional_alignment_close_timers:
+            _safe_stop_alignment_timer(timer)
         if callable(_stop_original_reference_texture_worker):
             _stop_original_reference_texture_worker()
         _safe_shutdown_alignment_d3d11_preview()

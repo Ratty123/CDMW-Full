@@ -285,6 +285,7 @@ from cdmw.ui.archive_browser.static_replacement_preview_batch_state import (
     static_preview_batch_queue_request as _static_preview_batch_queue_request_helper,
 )
 from cdmw.ui.archive_browser.static_replacement_post_open_state import (
+    cancel_alignment_post_open_tasks as _cancel_alignment_post_open_tasks_helper,
     alignment_post_open_initial_state as _alignment_post_open_initial_state_helper,
     alignment_post_open_started as _alignment_post_open_started_helper,
     queue_alignment_post_open_task as _queue_alignment_post_open_task_helper,

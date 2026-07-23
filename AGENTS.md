@@ -100,6 +100,16 @@ that can identify the owning area, then widen only when evidence requires it:
 
 Use `docs/test-matrix.md`.
 
+- An escaped runtime regression is not closed until a focused reproducer catches
+  the pre-fix behavior, passes with the repair, and is registered in the owning
+  `scripts/codex_check.ps1` gate.
+- Do not use source-string assertions as the sole proof for executable UI
+  wiring. Exercise the smallest real headless construction or behavior path.
+- Changes to the static-replacement prompt shell, state callbacks, preview
+  controls, or presentation wiring must run the offscreen Import Mesh and
+  Modify Original Builder construction gate documented under **Mesh Editor
+  Suite**.
+
 ## Workflow skills
 
 - Use `$cdmw-validate-change` to select the smallest sufficient validation for

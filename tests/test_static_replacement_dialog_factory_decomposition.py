@@ -368,6 +368,8 @@ def test_prompt_section_factories_export_every_member_consumed_by_prompt_setup()
 def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None:
     calls: list[str] = []
     dialog = SimpleNamespace(deleteLater=lambda: calls.append("delete_dialog"))
+    preview_timer = SimpleNamespace(name="preview_timer", stop=lambda: None)
+    tree_timer = SimpleNamespace(name="tree_timer", stop=lambda: None)
     owner = SimpleNamespace(
         _unregister_modeless_alignment_dialog=lambda *_args: calls.append("unregister")
     )
@@ -383,12 +385,19 @@ def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None
                 should_show_embedded_empty_state=False,
             ),
             "_alignment_dialog_mark_closing_helper": lambda _state: calls.append("closing"),
+            "_cancel_alignment_post_open_tasks_helper": (
+                lambda _state, _tasks: calls.append("cancel_post_open")
+            ),
             "_finish_alignment_startup_progress": lambda: calls.append("finish_progress"),
             "_safe_shutdown_alignment_d3d11_preview": lambda: calls.append("stop_d3d"),
-            "_safe_stop_alignment_timer": lambda timer: calls.append(f"stop_{timer}"),
+            "_safe_stop_alignment_timer": lambda timer: calls.append(
+                f"stop_{getattr(timer, 'name', timer)}"
+            ),
             "_stop_original_reference_texture_worker": lambda: calls.append("stop_texture"),
             "alignment_dialog_closing": {},
             "alignment_dialog_key": "builder",
+            "alignment_post_open_state": {},
+            "alignment_post_open_tasks": [],
             "dialog": dialog,
             "dialog_accepted_state": {},
             "embedded_alignment_builder": False,
@@ -396,11 +405,16 @@ def test_modeless_dialog_close_stops_texture_worker_before_d3d_preview() -> None
             "on_cancel": None,
             "self": owner,
             "source_material_plan_refresh_timer": "source_timer",
+            "static_preview_refresh_timer": preview_timer,
+            "source_tree_population_timer": tree_timer,
         }
     )
 
     callbacks._modeless_alignment_dialog_finished(0)
 
+    assert "stop_preview_timer" in calls
+    assert "stop_tree_timer" in calls
+    assert calls.index("cancel_post_open") < calls.index("stop_preview_timer")
     assert calls.index("stop_texture") < calls.index("stop_d3d")
     assert calls[-2:] == ["unregister", "delete_dialog"]
 

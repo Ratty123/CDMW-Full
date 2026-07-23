@@ -1,12 +1,22 @@
 # Known Pitfalls
 
-Last reviewed: 2026-06-21
+Last reviewed: 2026-07-23
 
 - Do not restart the restructure or overwrite the current partial migration.
 - `cdmw_app.py` and `cdmw/ui/main_window.py` are thin compatibility entry points; adding logic there regresses the architecture.
 - Compatibility wrappers may be required during moves because tests and public imports still use old module paths.
 - Source guards may still point at old files intentionally, especially facade modules and shell wiring.
 - Some source guards combine old and new files; update the guard only after confirming the behavior it protects moved.
+- Source-string guards do not prove executable Qt wiring. A new or changed
+  Builder control must pass the offscreen Import Mesh and Modify Original
+  construction gate; signal-name assertions alone are insufficient.
+- The static-replacement Builder still has legacy dictionary/`locals()` context
+  handoffs. Keep migrating the highest-risk seams to typed, slotted context
+  objects, and retain the unresolved-runtime-global audit until those handoffs
+  are gone.
+- An escaped runtime regression is not closed until its reproducer fails against
+  the pre-fix behavior, passes with the repair, and is included in the owning
+  `codex_check` gate.
 - Archive mutation must stay explicit, backed up, and recoverable.
 - UI code must not directly mutate archives; route operations through services/workers/domain rules.
 - Slow work belongs in `cdmw/workers/` or `cdmw/services/`, not on the UI thread.

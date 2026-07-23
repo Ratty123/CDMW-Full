@@ -4269,7 +4269,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_queue_alignment_post_open_task(_queue_static_preview_refresh)", source)
         self.assertIn("QTimer.singleShot(0, _run_alignment_post_open_tasks)", source)
         self.assertIn("for task_index, callback in enumerate(pending_tasks):", source)
-        self.assertIn("schedule(int(task_index) * int(spacing_ms), callback)", source)
+        self.assertIn("int(task_index) * int(spacing_ms),", source)
+        self.assertIn(
+            "lambda callback=callback: _run_alignment_post_open_task(state, callback)",
+            source,
+        )
         self.assertIn("schedule=_state.QTimer.singleShot", static_replacement_callback_concern_source(ROOT, "refresh_queue"))
         self.assertNotIn("QTimer.singleShot(0, source_tree_population_timer.start)", source)
         self.assertNotIn("QTimer.singleShot(0, _refresh_static_dialog_preview)", source)
