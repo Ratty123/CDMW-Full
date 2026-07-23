@@ -140,6 +140,22 @@ class CrimsonShaderRegistryTests(unittest.TestCase):
                 self.assertEqual(source_kind, decode["source_kind"])
                 self.assertFalse(decode["promoted_channels"])
 
+    def test_hair_aging_color_is_recorded_without_replacing_base_color(self) -> None:
+        decode = decode_crimson_texture_binding(
+            shader_family="SkinnedMeshHairAging",
+            parameter_name="_hairTransientAgingColorTexture",
+            source_path="character/texture/cd_phm_00_beard_0002.dds",
+            parameter_declared_by="pac_xml",
+        )
+
+        self.assertEqual(AUTHORITY_AUTHORITATIVE, decode["authority"])
+        self.assertEqual("layer", decode["slot"])
+        self.assertEqual("crimson_hair_aging_color", decode["source_kind"])
+        self.assertEqual("recorded", decode["disposition"])
+        self.assertEqual({}, decode["promoted_channels"])
+        self.assertEqual({"aging_color": "rgb"}, decode["source_channels"])
+        self.assertTrue(decode["known_slot"])
+
     def test_renderdoc_water_bindings_are_runtime_environment_inputs(self) -> None:
         cases = (
             ("__3__36__0__0__g_waterNormalTexture", "crimson_water_normal", "normal", "environment_layer"),

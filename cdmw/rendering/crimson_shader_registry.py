@@ -716,6 +716,31 @@ def decode_crimson_texture_binding(
         )
         return decode
 
+    if family == "hair" and parameter_key == "hairtransientagingcolortexture":
+        decode.update(
+            {
+                "slot": "layer",
+                "source_kind": "crimson_hair_aging_color",
+                "authority": _authority_from_source(
+                    exact_rule=True,
+                    sidecar_kind=sidecar_kind,
+                    parameter_declared_by=parameter_declared_by,
+                    capture_inferred=capture_inferred,
+                    fallback_guess=fallback_guess,
+                ),
+                "disposition": "recorded",
+                "promoted_channels": {},
+                "source_channels": {"aging_color": "rgb"},
+                "srgb": "true",
+                "known_slot": True,
+                "reason": (
+                    "Crimson hair aging color is a shader-controlled color layer; "
+                    "record it without replacing the authoritative base color"
+                ),
+            }
+        )
+        return decode
+
     if "emissive" in parameter_key and "texture" in parameter_key:
         decode.update(
             {
