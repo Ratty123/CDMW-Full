@@ -730,6 +730,7 @@ class MeshEditorLoadSpeedTests(unittest.TestCase):
         self.assertIn("var expectedBytes = checked((long)vertexCount * BytesPerVertex);", source)
         self.assertIn("fileLength != expectedBytes", source)
         self.assertIn("totalVertices > MaximumVertices", source)
+        self.assertIn("var uv = new Vec2(nativeU, 1.0f - nativeV);", source)
 
 
 if __name__ == "__main__":

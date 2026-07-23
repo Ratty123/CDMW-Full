@@ -108,6 +108,7 @@ class ShellWindowBootstrapStateMixin:
         self._startup_archive_path_prompt_handled = False
         self._startup_archive_path_prompt_accepted = False
         self._startup_archive_path_prompt_open = False
+        self._startup_archive_autoload_dispatched = False
 
         self.app_tray_icon = None
         self.app_tray_menu = None

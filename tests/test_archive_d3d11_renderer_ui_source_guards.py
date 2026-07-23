@@ -27,6 +27,7 @@ class ArchiveVorticeRendererSourceGuardTests(unittest.TestCase):
         self.assertIn('getattr(result, "dotnet_preview_package_path"', source)
         self.assertIn("validate_dotnet_preview_package(package_dir)", source)
         self.assertIn("self.archive_d3d11_preview_host.load_package(", source)
+        self.assertIn('set_viewport_display_mode("untextured_wire")', source)
         self.assertIn("_preserve_archive_resident_scene_error", source)
         self.assertNotIn("self.archive_d3d11_preview_host.clear_preview()", source)
         self.assertIn("The legacy renderer is not used as a fallback.", source)

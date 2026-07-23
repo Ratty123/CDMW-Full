@@ -282,6 +282,9 @@ class StartupPromptMixin:
             self._write_heartbeat("running")
             self._release_startup_splash()
             return
+        if bool(getattr(self, "_startup_archive_autoload_dispatched", False)):
+            return
+        self._startup_archive_autoload_dispatched = True
 
         self.append_archive_log("Startup Archive Browser preload is enabled.")
         remote_bridge = getattr(self, "archive_remote_bridge", None)

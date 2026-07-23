@@ -97,8 +97,11 @@ behind compatibility wrappers.
   Core packages are validated and adapted in place with atomic versioned
   `net_materials.json`, `dotnet_scene.json`, `mesh.cdmeta.json`, and marker
   sidecars; the base manifest and geometry buffers are never rewritten or
-  quarantined for corrupt adapter data. Unsupported schemas alone use the
-  compatibility OBJ/PNG converter. Texture resolution and material compilation
+  quarantined for corrupt adapter data. Their renderer-ready native UVs enter
+  the shared Wavefront-oriented document convention once, so the later upload
+  conversion restores the original V coordinate before any explicit material
+  flip policy is applied. Unsupported schemas alone use the compatibility
+  OBJ/PNG converter. Texture resolution and material compilation
   happen later through the resident material/package protocols; lightweight
   resident material-state snapshots never run image synthesis or package I/O.
   Archive and editor surfaces consume the same `dotnet_scene.json`,
@@ -447,10 +450,11 @@ navigation does not start expensive previews; other previewable files retain the
 metadata before full package generation. If a native model is already visible,
 quick metadata updates labels/details without stopping that renderer; the host
 stays resident until the replacement package is ready. Geometry is always the
-first usable Archive Preview result. `Load Textures` starts one latest-wins
-request while preserving the scene and camera; `Hide Textures` is presentation
-only. Automatic texture loading is an explicit opt-in and queues the same
-request after geometry rather than delaying first display.
+first usable Archive Preview result and uses matte faces with a topology wire
+overlay. `Load Textures` starts one latest-wins request while preserving the
+scene and camera; `Hide Textures` returns to that wire presentation without a
+package load. Automatic texture loading is an explicit opt-in and queues the
+same request after geometry rather than delaying first display.
 Icon/thumbnail work must prioritize visible rows and run in background workers.
 Archive scan, conversion, rebuild, import/export, hashing, recursive IO, and
 package build work must stay off the UI thread.

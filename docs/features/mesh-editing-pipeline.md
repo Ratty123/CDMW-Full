@@ -95,9 +95,10 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
   - Durable archive preview packages are pinned from renderer launch through
     reload, process failure, cancellation, or close. A loaded reload retires the
     old pin; pruning and manual cache clearing skip every active package lease.
-  - Fast untextured geometry is the stable first display. Archive Preview and
-    Mesh Editor keep the accepted scene and camera visible while one
-    latest-wins texture/material request prepares. A successful acknowledged
+  - Fast untextured geometry is the stable first display. Archive Preview uses
+    matte faces plus topology wire, while Mesh Editor keeps its readable
+    untextured-faces mode. Both keep the accepted scene and camera visible while
+    one latest-wins texture/material request prepares. A successful acknowledged
     update changes the resident package or material generation once; failure
     remains stably untextured and does not restart the helper.
 - .NET experiment handoff:

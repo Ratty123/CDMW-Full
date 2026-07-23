@@ -394,6 +394,15 @@ class DotNetPreviewHostFrame(QFrame):
         )
         return self._remember_presentation_state()
 
+    def set_viewport_display_mode(self, mode: str) -> bool:
+        normalized = str(mode or "").strip().lower().replace("-", "_")
+        if not normalized:
+            return False
+        display = dict(self._presentation_state.get("display", {}))
+        display["mode"] = normalized
+        self._presentation_state["display"] = display
+        return self._remember_presentation_state()
+
     def remember_side_by_side_split_ratio(self, ratio: Optional[float] = None) -> float:
         if ratio is not None:
             self._side_by_side_split_ratio = max(0.18, min(0.82, float(ratio)))

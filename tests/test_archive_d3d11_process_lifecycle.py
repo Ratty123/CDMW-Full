@@ -29,6 +29,7 @@ class _FakeHost:
         self.clear_count = 0
         self.loads: list[tuple[Path, bool]] = []
         self.tuning: list[object] = []
+        self.viewport_modes: list[str] = []
         self.accept_load = True
 
     def clear_preview(self) -> bool:
@@ -41,6 +42,10 @@ class _FakeHost:
 
     def set_render_tuning(self, settings: object) -> bool:
         self.tuning.append(settings)
+        return True
+
+    def set_viewport_display_mode(self, mode: str) -> bool:
+        self.viewport_modes.append(str(mode))
         return True
 
 
@@ -145,7 +150,7 @@ def test_archive_texture_action_hides_and_shows_loaded_textures_without_package_
     harness._open_archive_isolated_d3d11_preview()
 
     assert harness.archive_d3d11_preview_host.loads == []
-    assert [settings.use_textures_by_default for settings in harness.archive_d3d11_preview_host.tuning] == [False, True]
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["untextured_wire", "textured"]
     assert harness._archive_textures_visible is True
 
 
@@ -193,6 +198,7 @@ def test_resident_texture_apply_commits_latest_generation_once(tmp_path: Path) -
     assert harness.current_archive_preview_result == "textured-result"
     assert harness._archive_texture_request_loading is False
     assert len(harness.archive_d3d11_preview_host.tuning) == 1
+    assert harness.archive_d3d11_preview_host.viewport_modes == ["textured"]
 
 
 def test_reload_without_package_requests_canonical_preparation() -> None:

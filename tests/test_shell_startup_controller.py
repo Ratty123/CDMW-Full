@@ -5,6 +5,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from cdmw.ui.shell.startup_splash import (
@@ -52,6 +53,52 @@ class _StartupAutoloadWindow:
 
     def _release_startup_splash(self) -> None:
         self.released = True
+
+
+class _RemoteStartupDispatchWindow(StartupPromptMixin):
+    def __init__(self, package_root: Path) -> None:
+        self._startup_archive_path_prompt_open = False
+        self._startup_archive_path_prompt_accepted = True
+        self._startup_archive_autoload_dispatched = False
+        self._previous_session_unclean = False
+        self.show_quick_start_on_launch = False
+        self.worker_thread = None
+        self.archive_entries: list[object] = []
+        self.archive_package_root_edit = SimpleNamespace(text=lambda: str(package_root))
+        self.archive_remote_bridge = SimpleNamespace(displays_v2=True)
+        self.events: list[str] = []
+        self.heartbeats: list[str] = []
+        self.scans: list[tuple[bool, bool]] = []
+        self.releases = 0
+
+    def _write_heartbeat(self, phase: str) -> None:
+        self.heartbeats.append(phase)
+
+    def _release_startup_splash(self) -> None:
+        self.releases += 1
+
+    def append_archive_log(self, _message: str) -> None:
+        return
+
+    def _apply_archive_filter_state(self, _state: object) -> None:
+        return
+
+    @staticmethod
+    def _neutral_archive_filter_state() -> dict[str, object]:
+        return {}
+
+    def _update_archive_filter_button_state(self) -> None:
+        return
+
+    def _record_runtime_event(self, event: str, **_fields: object) -> None:
+        self.events.append(event)
+
+    @staticmethod
+    def _preference_bool(_key: str, default: bool) -> bool:
+        return default
+
+    def scan_archives(self, *, force_refresh: bool, activate_archive_tab: bool) -> None:
+        self.scans.append((force_refresh, activate_archive_tab))
 
 
 class _StartupAutoloadSplash:
@@ -266,6 +313,21 @@ class ShellStartupControllerTests(unittest.TestCase):
         self.assertTrue(window.released)
         self.assertEqual([], splash.details)
         self.assertEqual(["running"], heartbeats)
+
+    def test_remote_startup_autoload_is_dispatched_once_when_zero_and_fallback_timers_overlap(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            window = _RemoteStartupDispatchWindow(Path(temp_dir))
+            with patch("cdmw.ui.shell.startup_controller.QTimer.singleShot") as single_shot:
+                window._maybe_autoload_archive_on_startup()
+                window._maybe_autoload_archive_on_startup()
+
+            self.assertTrue(window._startup_archive_autoload_dispatched)
+            self.assertEqual(["startup_autoload_begin"], window.events)
+            self.assertEqual(["running"], window.heartbeats)
+            self.assertEqual(1, window.releases)
+            single_shot.assert_called_once()
+            single_shot.call_args.args[1]()
+            self.assertEqual([(False, False)], window.scans)
 
     def test_finish_startup_splash_before_modal_closes_splash_and_shows_window(self) -> None:
         window = _ModalStartupWindow()

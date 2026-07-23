@@ -85,7 +85,7 @@ def test_archive_warm_selection_keeps_view_for_same_resident_package() -> None:
     assert "reset_view=not same_model" in source
     assert "archive_model_initial_view_state(" in source
     assert "initial_view_state=initial_view_state" in source
-    assert "self.archive_d3d11_preview_host.clear_preview()" in source
+    assert "self.archive_d3d11_preview_host.clear_preview()" not in source
 
 
 def test_non_model_preview_clears_shared_host_without_retired_worker_state() -> None:

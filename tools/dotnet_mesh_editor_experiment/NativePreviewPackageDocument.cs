@@ -102,7 +102,12 @@ internal static class NativePreviewPackageDocument
             stream.ReadExactly(vertex);
             var position = new Vec3(ReadFinite(vertex, 0, batchIndex), ReadFinite(vertex, 1, batchIndex), ReadFinite(vertex, 2, batchIndex));
             var normal = new Vec3(ReadFinite(vertex, 3, batchIndex), ReadFinite(vertex, 4, batchIndex), ReadFinite(vertex, 5, batchIndex));
-            var uv = new Vec2(ReadFinite(vertex, 9, batchIndex), ReadFinite(vertex, 10, batchIndex));
+            var nativeU = ReadFinite(vertex, 9, batchIndex);
+            var nativeV = ReadFinite(vertex, 10, batchIndex);
+            // The shared upload path flips Wavefront-style V into renderer coordinates.
+            // Native UVs are already renderer-ready, so enter the intermediate convention here;
+            // the upload conversion then restores the original native V.
+            var uv = new Vec2(nativeU, 1.0f - nativeV);
             submesh.Vertices.Add(position);
             submesh.Normals.Add(normal);
             submesh.Uvs.Add(uv);

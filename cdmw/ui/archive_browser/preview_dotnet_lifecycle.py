@@ -80,11 +80,7 @@ class ArchivePreviewDotNetLifecycleMixin:
             return
         if self._archive_active_package_has_textures():
             visible = not bool(getattr(self, "_archive_textures_visible", True))
-            settings = replace(
-                self._current_model_preview_render_settings(),
-                use_textures_by_default=visible,
-            )
-            host.set_render_tuning(settings)
+            host.set_viewport_display_mode("textured" if visible else "untextured_wire")
             self._archive_textures_visible = visible
             self._sync_archive_texture_action_state()
             self.set_status_message("Textures shown." if visible else "Textures hidden; geometry remains resident.")
@@ -140,6 +136,7 @@ class ArchivePreviewDotNetLifecycleMixin:
         host = getattr(self, "archive_d3d11_preview_host", None)
         if host is not None and render_settings is not None:
             host.set_render_tuning(render_settings)
+            host.set_viewport_display_mode("textured")
         has_textures = self._archive_active_package_has_textures()
         request_id = int(getattr(self, "_archive_texture_request_id", 0) or 0)
         pending_result = getattr(self, "_archive_pending_texture_result", None)

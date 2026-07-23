@@ -616,6 +616,19 @@ def test_preview_host_restores_absolute_camera_and_rejects_mutation(tmp_path: Pa
     controller.shutdown()
 
 
+def test_preview_host_changes_viewport_display_mode_through_resident_presentation(tmp_path: Path) -> None:
+    controller, _process, package = _start_controller(tmp_path)
+    host = DotNetPreviewHostFrame(profile="preview", controller=controller)
+    assert host.load_package(package)
+
+    assert host.set_viewport_display_mode("untextured-wire")
+
+    event, payload = controller._resident_state["presentation"]  # noqa: SLF001
+    assert event == "presentation_state_update"
+    assert payload["display"]["mode"] == "untextured_wire"
+    controller.shutdown()
+
+
 def test_preview_host_new_package_reset_replaces_stale_camera_replay(tmp_path: Path) -> None:
     controller, _process, first = _start_controller(tmp_path)
     host = DotNetPreviewHostFrame(profile="preview", controller=controller)

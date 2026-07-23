@@ -213,6 +213,7 @@ class ArchivePreviewResultMixin:
                 self.archive_isolated_renderer_active_package = package_dir
                 self.archive_isolated_renderer_package_source = "dotnet-canonical"
                 self.archive_d3d11_preview_host.set_render_tuning(render_settings)
+                self.archive_d3d11_preview_host.set_viewport_display_mode("untextured_wire")
                 self._archive_textures_visible = False
                 sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
                 if callable(sync_texture_action):
