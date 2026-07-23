@@ -14,6 +14,35 @@ from .catalogue_wire import (
     require_sequence,
 )
 
+_LEGACY_CATEGORY_FILTERS: dict[tuple[str, str], tuple[str | None, str | None]] = {
+    ("equipment", "subweapon / shield"): ("Weapon", "Shield"),
+    ("equipment", "upper armor"): ("Armor", "Body"),
+    ("equipment", "lower armor"): ("Armor", "Legs"),
+    ("equipment", "hands"): ("Armor", "Hands"),
+    ("equipment", "feet"): ("Armor", "Feet"),
+    ("equipment", "head"): ("Armor", "Head"),
+    ("equipment", "weapon"): (None, None),
+    ("equipment", "accessory"): (None, None),
+    ("consumable", "consumable"): (None, None),
+    ("material", "crafting material"): (None, None),
+    ("quest", "quest item"): ("Quest / Document", "Quest"),
+    ("other", "other"): ("Item", "Unclassified"),
+}
+
+
+def migrate_legacy_item_catalogue_filter(
+    category: str | None,
+    group: str | None,
+) -> tuple[str | None, str | None]:
+    """Map or clear filters persisted by Full's retired coarse taxonomy."""
+
+    normalized_category = str(category or "").strip()
+    normalized_group = str(group or "").strip()
+    legacy_key = (normalized_category.casefold(), normalized_group.casefold())
+    if legacy_key in _LEGACY_CATEGORY_FILTERS:
+        return _LEGACY_CATEGORY_FILTERS[legacy_key]
+    return normalized_category or None, normalized_group or None
+
 
 @dataclass(frozen=True, slots=True)
 class BuildNameIndexRequest:
@@ -239,4 +268,5 @@ __all__ = [
     "ItemIconBatchRequest",
     "ItemIconBatchResult",
     "ItemIconResult",
+    "migrate_legacy_item_catalogue_filter",
 ]

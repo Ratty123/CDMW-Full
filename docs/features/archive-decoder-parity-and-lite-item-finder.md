@@ -64,6 +64,8 @@ than importing the other product's source:
   Classification considers internal, display, localized, model, PAC, and icon
   naming evidence, preserves the `Item / Unclassified` fallback, and uses token
   boundaries so embedded text such as `password` does not become a `sword`.
+  Saved filters from the retired Full taxonomy are mapped or cleared before
+  startup warmup and dialog search so an upgrade cannot cache an empty page.
 - Full now starts the catalogue and icon warmup immediately after archive
   publication instead of on the first Item Finder click. The restored 72-row
   page is cached for immediate open, selected/visible requests preempt the
@@ -103,8 +105,8 @@ Focused Full classifier parity validation on 2026-07-23:
 - Full archive backend Release gate: PASS, 14 managed scenarios including the
   new Lite category-parity fixture, plus the native self-test and headless
   worker/protocol probe.
-- Full remote finder, Lite-parity UI, catalogue-service, and backend-contract
-  tests: PASS, 24 tests.
+- Full remote finder, warmup/lifecycle, Lite-parity UI, catalogue-service, and
+  backend-contract tests: PASS, 31 tests.
 - Licensed real-corpus and visible UI validation remained deferred.
 
 Standalone-repository extraction validation on 2026-07-21:

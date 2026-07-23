@@ -98,9 +98,9 @@ def _row(item_id: int) -> ItemCatalogRow:
         item_id,
         f"item_{item_id}",
         f"Item {item_id}",
-        "Equipment",
         "Weapon",
-        "path classification",
+        "Sword",
+        "Recovered item/model naming",
         (f"equipment/weapon/item_{item_id}.pac",),
         (f"item_{item_id}",),
         (f"ui/icon/item_{item_id}.dds",),
@@ -127,14 +127,14 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
 
     request = window.archive_catalogue_service.searches[-1]
     assert request.query == "sword"
-    assert (request.category, request.group, request.material_tag) == ("Equipment", "Weapon", "metal")
+    assert (request.category, request.group, request.material_tag) == (None, None, "metal")
     result = ItemCatalogSearchResult(
         "session-a",
         1,
         0,
         72,
         (_row(7),),
-        (ItemCatalogCategoryFacet("Equipment", "Weapon", 1),),
+        (ItemCatalogCategoryFacet("Weapon", "Sword", 1),),
         (ItemCatalogValueFacet("metal", 1),),
         True,
     )
@@ -167,6 +167,8 @@ def test_full_item_finder_matches_lite_card_detail_and_scope_flow() -> None:
     dialog.close()
     assert "ui/item_finder_geometry" in settings.values
     assert settings.values["ui/item_finder_search_text"] == "sword"
+    assert settings.values["ui/item_finder_category"] == ""
+    assert settings.values["ui/item_finder_group"] == ""
 
 
 def test_new_search_cancels_icons_and_rejects_stale_conversion(tmp_path) -> None:

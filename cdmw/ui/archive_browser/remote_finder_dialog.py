@@ -31,6 +31,7 @@ from cdmw.domain.archives.item_catalogue import (
     ItemCatalogSearchResult,
     ItemIconBatchRequest,
     ItemIconBatchResult,
+    migrate_legacy_item_catalogue_filter,
 )
 from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
 
@@ -76,6 +77,10 @@ class RemoteArchiveFinderDialog(QDialog):
         self._warmup = getattr(window, "archive_item_finder_warmup_controller", None)
         self._preferred_category = self._read_setting("ui/item_finder_category")
         self._preferred_group = self._read_setting("ui/item_finder_group")
+        self._preferred_category, self._preferred_group = migrate_legacy_item_catalogue_filter(
+            self._preferred_category,
+            self._preferred_group,
+        )
         self._preferred_material = self._read_setting("ui/item_finder_material_tag")
         self._item_grid: _ItemFinderGrid | None = None
         self._tree: _ItemFinderGrid | None = None

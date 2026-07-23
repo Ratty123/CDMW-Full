@@ -18,7 +18,7 @@ The format is intentionally simple:
 - Merged Archive Browser's Exact Name and Name Evidence columns into one Item Name column. Direct names take priority, inferred names fill the same column, and the tooltip retains the exact-versus-related confidence distinction.
 
 ### Fixed
-- Fixed CDMW Full Item Finder categories lagging behind CDMW Lite by applying Lite's ordered category/group taxonomy and token-safe naming rules in the resident Full archive backend.
+- Fixed CDMW Full Item Finder categories lagging behind CDMW Lite by applying Lite's ordered category/group taxonomy and token-safe naming rules in the resident Full archive backend; saved filters from the retired taxonomy are migrated before startup warmup and dialog search.
 
 ## [0.10.0-alpha.2] - 2026-06-06
 

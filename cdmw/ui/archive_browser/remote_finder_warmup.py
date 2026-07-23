@@ -16,6 +16,7 @@ from cdmw.domain.archives.item_catalogue import (
     ItemCatalogSearchResult,
     ItemIconBatchRequest,
     ItemIconBatchResult,
+    migrate_legacy_item_catalogue_filter,
 )
 from cdmw.workers.archive_item_finder_workers import ArchiveItemThumbnailWorker
 
@@ -206,11 +207,15 @@ class RemoteItemFinderWarmupController(QObject):
         return tuple(accepted)
 
     def _saved_search_request(self, session_id: str) -> ItemCatalogSearchRequest:
+        category, group = migrate_legacy_item_catalogue_filter(
+            self._setting("ui/item_finder_category"),
+            self._setting("ui/item_finder_group"),
+        )
         return ItemCatalogSearchRequest(
             session_id,
             query=self._setting("ui/item_finder_search_text"),
-            category=self._setting("ui/item_finder_category") or None,
-            group=self._setting("ui/item_finder_group") or None,
+            category=category,
+            group=group,
             material_tag=self._setting("ui/item_finder_material_tag") or None,
             page_start=0,
             page_size=_INITIAL_PAGE_SIZE,

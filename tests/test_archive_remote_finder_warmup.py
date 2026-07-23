@@ -17,6 +17,7 @@ from cdmw.domain.archives.item_catalogue import (
     ItemCatalogSearchResult,
     ItemIconBatchResult,
     ItemIconResult,
+    migrate_legacy_item_catalogue_filter,
 )
 from cdmw.ui.archive_browser.remote_finder_warmup import RemoteItemFinderWarmupController
 from cdmw.ui.archive_browser import remote_finder_warmup as warmup_module
@@ -105,9 +106,9 @@ def _row(item_id: int, *, with_icon: bool) -> ItemCatalogRow:
         item_id,
         f"item_{item_id}",
         f"Item {item_id}",
-        "Equipment",
         "Weapon",
-        "path classification",
+        "Sword",
+        "Recovered item/model naming",
         (f"equipment/weapon/item_{item_id}.pac",),
         (f"item_{item_id}",),
         (f"ui/icon/item_{item_id}.dds",) if with_icon else (),
@@ -116,6 +117,14 @@ def _row(item_id: int, *, with_icon: bool) -> ItemCatalogRow:
         1,
         "model link",
     )
+
+
+def test_legacy_full_category_filters_migrate_without_hiding_the_new_taxonomy() -> None:
+    assert migrate_legacy_item_catalogue_filter("Equipment", "Head") == ("Armor", "Head")
+    assert migrate_legacy_item_catalogue_filter("Quest", "Quest Item") == ("Quest / Document", "Quest")
+    assert migrate_legacy_item_catalogue_filter("Other", "Other") == ("Item", "Unclassified")
+    assert migrate_legacy_item_catalogue_filter("Equipment", "Weapon") == (None, None)
+    assert migrate_legacy_item_catalogue_filter("Weapon", "Sword") == ("Weapon", "Sword")
 
 
 def test_startup_builds_catalogue_and_caches_the_restored_first_page() -> None:
@@ -137,8 +146,8 @@ def test_startup_builds_catalogue_and_caches_the_restored_first_page() -> None:
     assert request == ItemCatalogSearchRequest(
         "session-a",
         query="sword",
-        category="Equipment",
-        group="Weapon",
+        category=None,
+        group=None,
         material_tag="metal",
         page_start=0,
         page_size=72,
