@@ -128,6 +128,10 @@ def test_visual_audit_prepare_batch_preserves_full_manifest_identity() -> None:
     assert "pending_specs = specs[resumed_asset_count:]" in corpus_source
     assert "pending_specs = pending_specs[:max_new_assets]" in corpus_source
     assert "requested_asset_count=len(specs)" in corpus_source
+    assert "if batch_incomplete:" in (
+        ROOT / "tools" / "mesh_harness" / "visual_audit_cli.py"
+    ).read_text(encoding="utf-8")
+    assert "else _archive_content_fingerprints(tuple(fingerprint_paths))" in corpus_source
 
 
 def test_visual_audit_rerun_commands_preserve_custom_manifest(tmp_path: Path) -> None:

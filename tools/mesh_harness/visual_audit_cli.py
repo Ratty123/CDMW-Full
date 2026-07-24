@@ -113,13 +113,16 @@ def main(argv: Sequence[str] | None = None) -> int:
     temporary_root = Path()
 
     if args.phase in {"all", "prepare"}:
-        package_state, run_id, temporary_root = _prepare_visual_audit_run(
+        prepared_run = _prepare_visual_audit_run(
             args,
             parser,
             game_root=game_root,
             evidence_root=evidence_root,
             runtime_root=runtime_root,
         )
+        if prepared_run is None:
+            return 0
+        package_state, run_id, temporary_root = prepared_run
     else:
         package_state = _read_json(package_state_path)
         run_id = str(package_state.get("run_id", "") or "")
@@ -287,7 +290,7 @@ def _prepare_visual_audit_run(
     game_root: Path,
     evidence_root: Path,
     runtime_root: Path,
-) -> tuple[dict[str, object], str, Path]:
+) -> tuple[dict[str, object], str, Path] | None:
     generated_manifest_path = runtime_root / "selection-manifest-v2.json"
     if args.manifest:
         specs = _load_specs(args.manifest)
@@ -345,6 +348,13 @@ def _prepare_visual_audit_run(
         resume_checkpoint=resume_checkpoint,
         source_board_root=evidence_root / "source-boards",
     )
+    batch_incomplete = bool(prepared.pop("batch_incomplete", False))
+    if batch_incomplete:
+        print(
+            f"Prepared batch checkpoint: {prepared['asset_count']}/{len(specs)} assets.",
+            flush=True,
+        )
+        return None
     prepared["run_id"] = run_id
     runtime_assets = prepared.pop("runtime_assets")
     for row in runtime_assets:

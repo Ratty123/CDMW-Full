@@ -401,6 +401,7 @@ def prepare_visual_audit_corpus(
             source_boards,
         )
         gc.collect()
+    batch_incomplete = max_new_assets > 0 and len(rows) < len(specs)
     return {
         "schema": "cdmw_mesh_visual_audit_corpus_v2",
         "compatible_reader_schemas": ["cdmw_mesh_visual_audit_corpus_v1"],
@@ -411,7 +412,12 @@ def prepare_visual_audit_corpus(
         "assets": rows,
         "runtime_assets": runtime_assets,
         "archive_fingerprint_paths": [str(path) for path in sorted(fingerprint_paths, key=lambda value: str(value).casefold())],
-        "archive_fingerprints": _archive_content_fingerprints(tuple(fingerprint_paths)),
+        "archive_fingerprints": (
+            {}
+            if batch_incomplete
+            else _archive_content_fingerprints(tuple(fingerprint_paths))
+        ),
+        "batch_incomplete": batch_incomplete,
     }
 
 
