@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from collections.abc import Mapping
 from functools import lru_cache
 from pathlib import Path
@@ -35,6 +36,8 @@ from cdmw.services.pac_material_graph import build_pac_material_graph_v1
 
 
 _PAC_INFERRED_HAIR_CUTOUT_ALPHA_CUTOFF = 0.12
+_SOURCE_FILE_IDENTITY_RETRY_ATTEMPTS = 20
+_SOURCE_FILE_IDENTITY_RETRY_DELAY_SECONDS = 0.01
 
 
 def _dotnet_material_shader_context(
@@ -458,8 +461,26 @@ def _source_file_content_fingerprint(source: Path) -> str:
     )
 
 
+def _source_file_content_identity(source: Path, raw_path: str) -> str:
+    attempts = (
+        _SOURCE_FILE_IDENTITY_RETRY_ATTEMPTS
+        if source.is_absolute()
+        else 1
+    )
+    for attempt in range(attempts):
+        try:
+            if source.is_file():
+                return f"sha256:{_source_file_content_fingerprint(source)}"
+        except OSError:
+            pass
+        if attempt + 1 < attempts:
+            time.sleep(_SOURCE_FILE_IDENTITY_RETRY_DELAY_SECONDS)
+    return raw_path
+
+
 def mesh_dotnet_material_input_signature(mesh: object) -> str:
     rows: list[dict[str, object]] = []
+    source_identities: dict[str, str] = {}
     source_asset_path = str(getattr(mesh, "path", "") or "").strip()
     for fallback_index, raw_submesh in enumerate(_dotnet_material_sources(mesh)):
         submesh = _canonical_dotnet_material_source(raw_submesh, fallback_index)
@@ -468,14 +489,10 @@ def mesh_dotnet_material_input_signature(mesh: object) -> str:
         for channel, value in sorted(resolved_channels.items()):
             raw_path = str(value or "").strip()
             source = Path(raw_path).expanduser()
-            try:
-                identity = (
-                    f"sha256:{_source_file_content_fingerprint(source)}"
-                    if source.is_file()
-                    else raw_path
-                )
-            except OSError:
-                identity = raw_path
+            identity = source_identities.get(raw_path)
+            if identity is None:
+                identity = _source_file_content_identity(source, raw_path)
+                source_identities[raw_path] = identity
             channels.append((channel, identity))
         rows.append(
             {

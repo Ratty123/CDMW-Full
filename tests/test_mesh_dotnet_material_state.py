@@ -63,6 +63,32 @@ def test_dotnet_material_signature_changes_only_with_material_inputs(tmp_path: P
     assert mesh_dotnet_material_input_signature(mesh) != first
 
 
+def test_dotnet_material_signature_retries_transient_absolute_source_gap(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    mesh = _mesh()
+    texture = tmp_path / "skin.png"
+    texture.write_bytes(b"stable-content")
+    mesh.submeshes[0].preview_texture_path = str(texture)
+    expected = mesh_dotnet_material_input_signature(mesh)
+    original_is_file = Path.is_file
+    attempts = 0
+
+    def transient_is_file(path: Path) -> bool:
+        nonlocal attempts
+        if path == texture and attempts < 2:
+            attempts += 1
+            return False
+        return original_is_file(path)
+
+    monkeypatch.setattr(Path, "is_file", transient_is_file)
+    monkeypatch.setattr(mesh_dotnet_material_semantics.time, "sleep", lambda _seconds: None)
+
+    assert mesh_dotnet_material_input_signature(mesh) == expected
+    assert attempts == 2
+
+
 def test_dotnet_material_state_payload_is_deterministic_and_does_not_build_package(
     tmp_path: Path,
     monkeypatch,
