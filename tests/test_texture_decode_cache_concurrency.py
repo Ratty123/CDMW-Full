@@ -14,6 +14,7 @@ import pytest
 from cdmw.core import texture_native
 from cdmw.core.texture_decode_cache import (
     preview_cache_lock_registry_size,
+    preview_png_is_valid,
     preview_sidecar_path,
     publish_preview_pair,
 )
@@ -153,6 +154,20 @@ def test_corrupt_helper_png_is_not_published(tmp_path: Path) -> None:
 
     assert result is None
     assert not tuple((tmp_path / "cache").rglob("*.png"))
+
+
+def test_preview_png_validation_rejects_late_chunk_corruption(
+    tmp_path: Path,
+) -> None:
+    valid = tmp_path / "valid.png"
+    corrupt = tmp_path / "corrupt.png"
+    valid.write_bytes(_MINIMAL_PNG)
+    corrupt_bytes = bytearray(_MINIMAL_PNG)
+    corrupt_bytes[-20] ^= 0xFF
+    corrupt.write_bytes(corrupt_bytes)
+
+    assert preview_png_is_valid(valid) is True
+    assert preview_png_is_valid(corrupt) is False
 
 
 def test_failure_diagnostics_and_lock_registry_are_bounded() -> None:

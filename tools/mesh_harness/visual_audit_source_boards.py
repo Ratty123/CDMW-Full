@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import time
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
@@ -116,21 +117,20 @@ def _analyze_texture(
     channel_stats: dict[str, object] = {}
     alpha_coverage: dict[str, object] = {}
     if not decode_error:
-        with Image.open(preview) as raw:
-            image = raw.convert("RGBA")
-            image.save(decoded_copy, "PNG")
-            channel_stats = {
-                name: _channel_statistics(image.getchannel(name))
-                for name in ("R", "G", "B", "A")
-            }
-            alpha = image.getchannel("A")
-            histogram = alpha.histogram()
-            total = max(1, sum(histogram))
-            alpha_coverage = {
-                "transparent_fraction": round(histogram[0] / total, 8),
-                "below_half_fraction": round(sum(histogram[:128]) / total, 8),
-                "nonopaque_fraction": round(sum(histogram[:255]) / total, 8),
-            }
+        image = _load_source_board_rgba(Path(preview), image_type=Image)
+        image.save(decoded_copy, "PNG")
+        channel_stats = {
+            name: _channel_statistics(image.getchannel(name))
+            for name in ("R", "G", "B", "A")
+        }
+        alpha = image.getchannel("A")
+        histogram = alpha.histogram()
+        total = max(1, sum(histogram))
+        alpha_coverage = {
+            "transparent_fraction": round(histogram[0] / total, 8),
+            "below_half_fraction": round(sum(histogram[:128]) / total, 8),
+            "nonopaque_fraction": round(sum(histogram[:255]) / total, 8),
+        }
     dds = _dds_header_row(source) if source.is_file() else {"dds_header_status": "missing"}
     return {
         "submesh_index": _safe_int(row.get("submesh_index", -1), -1),
@@ -153,6 +153,33 @@ def _analyze_texture(
         "channel_statistics": channel_stats,
         "alpha_coverage": alpha_coverage,
     }
+
+
+def _load_source_board_rgba(
+    preview: Path,
+    *,
+    image_type: object,
+    attempts: int = 20,
+) -> object:
+    """Open a newly decoded preview after its bytes become fully readable."""
+
+    last_error: OSError | None = None
+    for attempt in range(max(1, attempts)):
+        try:
+            with image_type.open(preview) as raw:
+                image = raw.convert("RGBA")
+                image.load()
+                return image.copy()
+        except OSError as exc:
+            last_error = exc
+            if attempt + 1 >= max(1, attempts):
+                raise OSError(
+                    "Source-board preview remained unreadable after "
+                    f"{max(1, attempts)} attempts: {preview}: {exc}"
+                ) from exc
+            time.sleep(min(0.5, 0.1 * (attempt + 1)))
+    assert last_error is not None
+    raise last_error
 
 
 def _channel_statistics(channel: object) -> dict[str, object]:
