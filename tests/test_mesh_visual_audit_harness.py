@@ -99,7 +99,7 @@ def test_visual_audit_resume_preserves_a_bounded_manifest_selection() -> None:
     )
 
     assert "specs = specs[: max(1, args.limit)]" in source
-    assert "allow_partial=bool(args.limit > 0 or args.prepare_batch_size > 0)" in source
+    assert "allow_partial=bool(args.limit > 0)" in source
     assert "--resume-prepare cannot be combined with --limit" not in source
 
 
@@ -122,6 +122,9 @@ def test_visual_audit_prepare_batch_preserves_full_manifest_identity() -> None:
     ).read_text(encoding="utf-8")
 
     assert args.prepare_batch_size == 10
+    assert "allow_partial=bool(args.limit > 0)" in (
+        ROOT / "tools" / "mesh_harness" / "visual_audit_cli.py"
+    ).read_text(encoding="utf-8")
     assert "pending_specs = specs[resumed_asset_count:]" in corpus_source
     assert "pending_specs = pending_specs[:max_new_assets]" in corpus_source
     assert "requested_asset_count=len(specs)" in corpus_source

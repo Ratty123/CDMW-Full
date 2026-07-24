@@ -340,7 +340,7 @@ def _prepare_visual_audit_run(
             temporary_root=temporary_root,
             payload=payload,
         ),
-        allow_partial=bool(args.limit > 0 or args.prepare_batch_size > 0),
+        allow_partial=bool(args.limit > 0),
         max_new_assets=max(0, args.prepare_batch_size),
         resume_checkpoint=resume_checkpoint,
         source_board_root=evidence_root / "source-boards",
