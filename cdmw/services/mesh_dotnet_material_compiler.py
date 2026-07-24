@@ -31,7 +31,7 @@ from cdmw.services.mesh_dotnet_material_semantics import (
 )
 
 
-MESH_DOTNET_MATERIAL_COMPILER_VERSION = 3
+MESH_DOTNET_MATERIAL_COMPILER_VERSION = 4
 MESH_DOTNET_MATERIAL_CACHE_NAME = "cdmw-mesh-dotnet-material-cache-v1"
 
 
