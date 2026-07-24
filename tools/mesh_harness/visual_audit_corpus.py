@@ -213,6 +213,7 @@ def prepare_visual_audit_corpus(
     progress: Callable[[int, int, str], None] | None = None,
     checkpoint: Callable[[Mapping[str, object]], None] | None = None,
     allow_partial: bool = False,
+    max_new_assets: int = 0,
     resume_checkpoint: Mapping[str, object] | None = None,
     source_board_root: Path | None = None,
 ) -> dict[str, object]:
@@ -235,9 +236,15 @@ def prepare_visual_audit_corpus(
         pamt_path=pamt_path,
         coverage=coverage,
     )
+    if max_new_assets < 0:
+        raise ValueError("Visual-audit prepare batch size cannot be negative.")
+    resumed_asset_count = len(rows)
+    pending_specs = specs[resumed_asset_count:]
+    if max_new_assets > 0:
+        pending_specs = pending_specs[:max_new_assets]
     package_root = temporary_root / "packages"
     package_root.mkdir(parents=True, exist_ok=True)
-    for offset, spec in enumerate(specs[len(rows) :], len(rows) + 1):
+    for offset, spec in enumerate(pending_specs, resumed_asset_count + 1):
         if progress is not None:
             progress(offset, len(specs), spec.virtual_path)
         (

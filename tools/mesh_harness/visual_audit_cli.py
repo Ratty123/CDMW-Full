@@ -45,6 +45,15 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--phase", choices=("all", "prepare", "seal", "capture"), default="all")
     parser.add_argument("--resume-prepare", action="store_true")
     parser.add_argument("--limit", type=int, default=0)
+    parser.add_argument(
+        "--prepare-batch-size",
+        type=int,
+        default=0,
+        help=(
+            "Prepare at most this many new assets while preserving the full manifest "
+            "identity and resume checkpoint."
+        ),
+    )
     parser.add_argument("--native-timeout", type=float, default=45.0)
     parser.add_argument("--dotnet-timeout", type=float, default=900.0)
     parser.add_argument("--dotnet-assembly", type=Path)
@@ -92,6 +101,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     game_root, evidence_root, runtime_root = _initialize_evidence_roots(args, parser)
     if args.resume_prepare and args.phase in {"seal", "capture"}:
         parser.error("--resume-prepare requires the prepare or all phase.")
+    if args.prepare_batch_size < 0:
+        parser.error("--prepare-batch-size cannot be negative.")
+    if args.prepare_batch_size > 0 and args.phase != "prepare":
+        parser.error("--prepare-batch-size requires the prepare phase.")
     final_root = evidence_root / "final"
     package_state_path = runtime_root / "package-state.json"
     corpus_path = evidence_root / "corpus.json"
@@ -327,7 +340,8 @@ def _prepare_visual_audit_run(
             temporary_root=temporary_root,
             payload=payload,
         ),
-        allow_partial=bool(args.limit > 0),
+        allow_partial=bool(args.limit > 0 or args.prepare_batch_size > 0),
+        max_new_assets=max(0, args.prepare_batch_size),
         resume_checkpoint=resume_checkpoint,
         source_board_root=evidence_root / "source-boards",
     )
