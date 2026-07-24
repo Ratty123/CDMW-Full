@@ -31,7 +31,7 @@ from cdmw.services.mesh_dotnet_material_semantics import (
 )
 
 
-MESH_DOTNET_MATERIAL_COMPILER_VERSION = 4
+MESH_DOTNET_MATERIAL_COMPILER_VERSION = 5
 MESH_DOTNET_MATERIAL_CACHE_NAME = "cdmw-mesh-dotnet-material-cache-v1"
 
 
@@ -230,6 +230,24 @@ def _material_compile_blockers(manifest: Mapping[str, object]) -> list[dict[str,
             )
         synthesis = submesh.get("material_synthesis", {})
         raw_contract = submesh.get("raw_material_contract", {})
+        synthesis_notes = (
+            tuple(synthesis.get("notes", ()) or ())
+            if isinstance(synthesis, Mapping)
+            else ()
+        )
+        unreadable_inputs = [
+            str(note)
+            for note in synthesis_notes
+            if "unreadable:" in str(note).casefold()
+        ]
+        if unreadable_inputs:
+            blockers.append(
+                {
+                    "submesh_index": submesh_index,
+                    "kind": "unreadable_material_inputs",
+                    "notes": unreadable_inputs,
+                }
+            )
         if (
             isinstance(synthesis, Mapping)
             and bool(synthesis.get("attempted", False))

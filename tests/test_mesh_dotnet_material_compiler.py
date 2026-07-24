@@ -8,6 +8,7 @@ from PIL import Image
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import PreviewMaterialTextureInput
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
+from cdmw.services import mesh_dotnet_material_compiler
 from cdmw.services.mesh_dotnet_material_compiler import (
     MeshDotNetMaterialCompilationError,
     MeshDotNetMaterialCompileRequest,
@@ -255,6 +256,33 @@ def test_resident_compiler_blocks_cross_owner_bindings(tmp_path: Path) -> None:
 
     with pytest.raises(MeshDotNetMaterialCompilationError, match="cross_owner_bindings"):
         compile_mesh_dotnet_material_update(_request(mesh, tmp_path / "cache"))
+
+
+def test_resident_compiler_blocks_unreadable_synthesis_inputs() -> None:
+    blockers = mesh_dotnet_material_compiler._material_compile_blockers(
+        {
+            "submeshes": [
+                {
+                    "submesh_index": 4,
+                    "material_synthesis": {
+                        "attempted": True,
+                        "succeeded": True,
+                        "notes": [
+                            "height unreadable:cd_texturelayer_012_0002_disp.png"
+                        ],
+                    },
+                }
+            ]
+        }
+    )
+
+    assert blockers == [
+        {
+            "submesh_index": 4,
+            "kind": "unreadable_material_inputs",
+            "notes": ["height unreadable:cd_texturelayer_012_0002_disp.png"],
+        }
+    ]
 
 
 def test_material_update_worker_publishes_request_and_payload(tmp_path: Path) -> None:

@@ -39,7 +39,9 @@ from cdmw.rendering.material_combiner_rules import (
 )
 
 
-_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS = (0.01, 0.025, 0.05) + (0.1,) * 8
+_IMAGE_BYTE_DECODE_RETRY_DELAYS_SECONDS = tuple(
+    min(0.5, 0.1 * attempt) for attempt in range(1, 20)
+)
 
 
 def _raise_if_material_combiner_cancelled(
