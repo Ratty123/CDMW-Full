@@ -10,6 +10,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QImage
 
 from cdmw.models import PreviewMaterialTextureInput
+from cdmw.rendering.material_combiner_decode import _material_parameter_index
 from cdmw.rendering.material_combiner_images import (
     _byte,
     _image_reader,
@@ -144,6 +145,40 @@ def _is_layer_normal_input(input_item: PreviewMaterialTextureInput) -> bool:
     )
 
 
+def _normal_input_order_key(
+    input_item: PreviewMaterialTextureInput,
+) -> tuple[object, ...]:
+    """Return the authored, deterministic order for normal composition."""
+
+    role = _visible_layer_role(input_item)
+    channel = _layer_channel(input_item)
+    try:
+        owner_slot_index = int(getattr(input_item, "owner_slot_index", -1))
+    except (TypeError, ValueError, OverflowError):
+        owner_slot_index = -1
+
+    def normalized(value: object) -> str:
+        return str(value or "").replace("\\", "/").strip().casefold()
+
+    return (
+        1 if _is_layer_normal_input(input_item) else 0,
+        _material_parameter_index(input_item),
+        owner_slot_index if owner_slot_index >= 0 else 9999,
+        {
+            "damage": 0,
+            "grime": 1,
+            "detail": 2,
+            "layer": 3,
+        }.get(role, 4),
+        {"": 0, "r": 1, "g": 2, "b": 3, "a": 4}.get(channel, 5),
+        normalized(getattr(input_item, "parameter_name", "")),
+        normalized(getattr(input_item, "source_texture_path", "")),
+        normalized(getattr(input_item, "source_dds_path", "")),
+        normalized(getattr(input_item, "texture_name", "")),
+        normalized(getattr(input_item, "preview_texture_path", "")),
+    )
+
+
 def _generate_synthesized_normal_map(
     normal_inputs: Sequence[PreviewMaterialTextureInput],
     mask_inputs: dict[str, PreviewMaterialTextureInput],
@@ -162,12 +197,15 @@ def _generate_synthesized_normal_map(
     """
 
     _raise_if_material_combiner_cancelled(cancelled)
-    layer_items = tuple(item for item in normal_inputs if _is_layer_normal_input(item))
+    ordered_normal_inputs = tuple(sorted(normal_inputs, key=_normal_input_order_key))
+    layer_items = tuple(
+        item for item in ordered_normal_inputs if _is_layer_normal_input(item)
+    )
     if not layer_items:
         return "", 0.0, ()
 
     prepared_normals: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
-    for item in normal_inputs:
+    for item in ordered_normal_inputs:
         _raise_if_material_combiner_cancelled(cancelled)
         image = _image_reader(
             str(getattr(item, "preview_texture_path", "") or ""),

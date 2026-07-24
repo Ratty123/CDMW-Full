@@ -540,6 +540,114 @@ def test_package_replaces_base_normal_with_masked_pac_normal_layers(
     assert packaged_normal.pixelColor(0, 0).red() > 145
 
 
+def test_package_layered_normal_synthesis_is_input_order_invariant(
+    tmp_path: Path,
+) -> None:
+    base_normal = _image(tmp_path / "base_normal.png", (128, 128, 255, 255))
+    damage_normal = _image(tmp_path / "damage_normal.png", (196, 112, 238, 255))
+    grime_normal = _image(tmp_path / "grime_normal.png", (112, 194, 236, 255))
+    detail_normal = _image(tmp_path / "detail_normal.png", (178, 158, 232, 255))
+    selector = _image(tmp_path / "color_blending_mask.png", (255, 255, 255, 255))
+
+    def normal_inputs(*, reversed_layers: bool) -> tuple[PreviewMaterialTextureInput, ...]:
+        layers = [
+            PreviewMaterialTextureInput(
+                slot_kind="normal",
+                parameter_name="_damageBlendingNormalTexture",
+                preview_texture_path=str(damage_normal),
+                source_dds_path=str(damage_normal),
+                semantic_type="normal",
+                layer_role="damage",
+                sidecar_kind="pac_xml",
+                binding_authority="authoritative",
+                binding_disposition="layer_only",
+                source_kind="crimson_layer_normal",
+                visualized=True,
+            ),
+            PreviewMaterialTextureInput(
+                slot_kind="normal",
+                parameter_name="_grimeNormalTextureG",
+                preview_texture_path=str(grime_normal),
+                source_dds_path=str(grime_normal),
+                semantic_type="normal",
+                layer_role="grime",
+                layer_channel="g",
+                sidecar_kind="pac_xml",
+                binding_authority="authoritative",
+                binding_disposition="layer_only",
+                source_kind="crimson_layer_normal",
+                visualized=True,
+            ),
+            PreviewMaterialTextureInput(
+                slot_kind="normal",
+                parameter_name="_detailNormalMaskB",
+                preview_texture_path=str(detail_normal),
+                source_dds_path=str(detail_normal),
+                semantic_type="normal",
+                layer_role="detail",
+                layer_channel="b",
+                sidecar_kind="pac_xml",
+                binding_authority="authoritative",
+                binding_disposition="layer_only",
+                source_kind="crimson_layer_normal",
+                visualized=True,
+            ),
+        ]
+        if reversed_layers:
+            layers.reverse()
+        return (
+            PreviewMaterialTextureInput(
+                slot_kind="normal",
+                parameter_name="_normalTexture",
+                preview_texture_path=str(base_normal),
+                source_dds_path=str(base_normal),
+                semantic_type="normal",
+                layer_role="normal",
+                sidecar_kind="pac_xml",
+                binding_authority="authoritative",
+                binding_disposition="promoted",
+                source_kind="crimson_normal",
+                visualized=True,
+            ),
+            *layers,
+            PreviewMaterialTextureInput(
+                slot_kind="mask",
+                parameter_name="_colorBlendingMaskTexture",
+                preview_texture_path=str(selector),
+                source_dds_path=str(selector),
+                semantic_type="mask",
+                layer_role="color",
+                sidecar_kind="pac_xml",
+                binding_authority="authoritative",
+                binding_disposition="layer_only",
+                source_kind="crimson_color_blending_mask",
+                visualized=True,
+            ),
+        )
+
+    fingerprints: list[str] = []
+    notes: list[list[str]] = []
+    for index, reversed_layers in enumerate((False, True)):
+        submesh = _submesh(f"layered_normal_{index}")
+        submesh.preview_material_texture_inputs = normal_inputs(
+            reversed_layers=reversed_layers
+        )
+        payload = _write_manifest(tmp_path / f"package_{index}", [submesh])
+        binding = payload["submeshes"][0]
+        normal_resource = next(
+            resource
+            for resource in payload["resources"]
+            if resource["resource_id"] == binding["resource_channels"]["normal"]
+        )
+        fingerprints.append(normal_resource["fingerprint"])
+        notes.append(binding["material_synthesis"]["notes"])
+
+    assert fingerprints[0] == fingerprints[1]
+    expected_note = "normal layers synthesized:damage,grime:g,detail:b"
+    assert expected_note in notes[0]
+    assert expected_note in notes[1]
+
+
 def test_dark_neutral_pac_readability_lifts_only_conserved_generated_albedo() -> None:
     raw_contract = {
         "source_contract": {
