@@ -118,7 +118,7 @@ def test_material_image_reader_retries_transient_byte_decode_failure(
         def fromData(payload: bytes) -> QImage:
             nonlocal decode_calls
             decode_calls += 1
-            if decode_calls < 3:
+            if decode_calls < 8:
                 return real_qimage()
             return real_qimage.fromData(payload)
 
@@ -128,7 +128,7 @@ def test_material_image_reader_retries_transient_byte_decode_failure(
 
     image = material_combiner_images._image_reader(str(source), max_dimension=4)
 
-    assert decode_calls == 3
+    assert decode_calls == 8
     assert not image.isNull()
     assert (image.width(), image.height()) == (4, 2)
 
