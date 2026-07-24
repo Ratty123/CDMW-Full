@@ -258,7 +258,12 @@ def _prepare_normal_source(
         notes.append("missing tangents")
     if not tangents_usable:
         return "", 0.0
-    synthesized_source, synthesized_average_strength, synthesized_roles = (
+    (
+        synthesized_source,
+        synthesized_average_strength,
+        synthesized_roles,
+        synthesized_unreadable_inputs,
+    ) = (
         _generate_synthesized_normal_map(
             candidates,
             _mask_inputs_for_albedo(inputs),
@@ -269,6 +274,7 @@ def _prepare_normal_source(
             cancelled=cancelled,
         )
     )
+    notes.extend(synthesized_unreadable_inputs)
     if synthesized_source:
         configured_strength = _finite_float(getattr(payload, "normal_texture_strength", 0.0), 0.0)
         if configured_strength <= 0.0:

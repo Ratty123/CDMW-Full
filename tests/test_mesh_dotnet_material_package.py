@@ -648,6 +648,66 @@ def test_package_layered_normal_synthesis_is_input_order_invariant(
     assert expected_note in notes[1]
 
 
+def test_package_layered_normal_synthesis_reports_unreadable_input(
+    tmp_path: Path,
+) -> None:
+    base_normal = _image(tmp_path / "base_normal.png", (128, 128, 255, 255))
+    detail_normal = _image(tmp_path / "detail_normal.png", (178, 158, 232, 255))
+    selector = _image(tmp_path / "color_blending_mask.png", (255, 255, 255, 255))
+    missing_normal = tmp_path / "missing_grime_normal.png"
+    submesh = _submesh("layered_normal_with_missing_input")
+    submesh.preview_material_texture_inputs = (
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_normalTexture",
+            preview_texture_path=str(base_normal),
+            source_dds_path=str(base_normal),
+            semantic_type="normal",
+            layer_role="normal",
+            binding_disposition="promoted",
+            source_kind="crimson_normal",
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_grimeNormalTextureG",
+            preview_texture_path=str(missing_normal),
+            source_dds_path=str(missing_normal),
+            semantic_type="normal",
+            layer_role="grime",
+            layer_channel="g",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_normal",
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="normal",
+            parameter_name="_detailNormalMaskR",
+            preview_texture_path=str(detail_normal),
+            source_dds_path=str(detail_normal),
+            semantic_type="normal",
+            layer_role="detail",
+            layer_channel="r",
+            binding_disposition="layer_only",
+            source_kind="crimson_layer_normal",
+        ),
+        PreviewMaterialTextureInput(
+            slot_kind="mask",
+            parameter_name="_colorBlendingMaskTexture",
+            preview_texture_path=str(selector),
+            source_dds_path=str(selector),
+            semantic_type="mask",
+            layer_role="color",
+            binding_disposition="layer_only",
+            source_kind="crimson_color_blending_mask",
+        ),
+    )
+
+    payload = _write_manifest(tmp_path / "package", [submesh])
+    synthesis = payload["submeshes"][0]["material_synthesis"]
+
+    assert "normal layers synthesized:detail:r" in synthesis["notes"]
+    assert "normal unreadable:missing_grime_normal.png" in synthesis["notes"]
+
+
 def test_dark_neutral_pac_readability_lifts_only_conserved_generated_albedo() -> None:
     raw_contract = {
         "source_contract": {

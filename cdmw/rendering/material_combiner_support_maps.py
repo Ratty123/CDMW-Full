@@ -25,6 +25,7 @@ from cdmw.rendering.material_combiner_rules import (
     _clamp,
     _layer_channel,
     _layer_weight_from_parameters,
+    _texture_label,
     _visible_layer_role,
 )
 
@@ -188,7 +189,7 @@ def _generate_synthesized_normal_map(
     flip_vertical: bool,
     max_dimension: int,
     cancelled: Callable[[], bool] | None = None,
-) -> Tuple[str, float, Tuple[str, ...]]:
+) -> Tuple[str, float, Tuple[str, ...], Tuple[str, ...]]:
     """Combine a macro normal with masked PAC detail normals.
 
     PAC material graphs bind grime/detail normals separately from the primary
@@ -202,9 +203,10 @@ def _generate_synthesized_normal_map(
         item for item in ordered_normal_inputs if _is_layer_normal_input(item)
     )
     if not layer_items:
-        return "", 0.0, ()
+        return "", 0.0, (), ()
 
     prepared_normals: list[Tuple[PreviewMaterialTextureInput, QImage]] = []
+    unreadable_inputs: list[str] = []
     for item in ordered_normal_inputs:
         _raise_if_material_combiner_cancelled(cancelled)
         image = _image_reader(
@@ -212,6 +214,10 @@ def _generate_synthesized_normal_map(
             max_dimension=max_dimension,
         )
         if image.isNull():
+            unreadable_inputs.append(
+                "normal unreadable:"
+                + _texture_label(item.preview_texture_path, item.texture_name)
+            )
             continue
         prepared = _support_source_image(
             image,
@@ -223,7 +229,7 @@ def _generate_synthesized_normal_map(
                 (item, prepared.convertToFormat(QImage.Format.Format_RGBA8888))
             )
     if not prepared_normals:
-        return "", 0.0, ()
+        return "", 0.0, (), tuple(unreadable_inputs)
 
     prepared_masks: dict[str, QImage] = {}
     for role, item in mask_inputs.items():
@@ -233,6 +239,10 @@ def _generate_synthesized_normal_map(
             max_dimension=max_dimension,
         )
         if image.isNull():
+            unreadable_inputs.append(
+                "normal mask unreadable:"
+                + _texture_label(item.preview_texture_path, item.texture_name)
+            )
             continue
         prepared = _support_source_image(
             image,
@@ -253,7 +263,7 @@ def _generate_synthesized_normal_map(
         if int(image.width()) > 0 and int(image.height()) > 0
     )
     if not size_candidates:
-        return "", 0.0, ()
+        return "", 0.0, (), tuple(unreadable_inputs)
     target_size_source = max(
         size_candidates,
         key=lambda image: (
@@ -264,7 +274,7 @@ def _generate_synthesized_normal_map(
     width = int(target_size_source.width())
     height = int(target_size_source.height())
     if width <= 0 or height <= 0:
-        return "", 0.0, ()
+        return "", 0.0, (), tuple(unreadable_inputs)
 
     base_entry = next(
         (
@@ -378,14 +388,19 @@ def _generate_synthesized_normal_map(
             sample_count += 1
     average_strength = strength_total / float(max(1, sample_count))
     if average_strength <= 0.012 or not roles_used:
-        return "", 0.0, ()
+        return "", 0.0, (), tuple(unreadable_inputs)
 
     _raise_if_material_combiner_cancelled(cancelled)
     output_dir.mkdir(parents=True, exist_ok=True)
     output_path = output_dir / f"{stem}_normal.png"
     if not target.save(str(output_path), "PNG"):
-        return "", 0.0, ()
-    return _local_file_url(output_path), average_strength, tuple(roles_used)
+        return "", 0.0, (), tuple(unreadable_inputs)
+    return (
+        _local_file_url(output_path),
+        average_strength,
+        tuple(roles_used),
+        tuple(unreadable_inputs),
+    )
 
 
 def _generate_height_map(
