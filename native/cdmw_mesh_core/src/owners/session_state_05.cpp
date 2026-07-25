@@ -30,6 +30,9 @@ std::string run_mesh_editor_session(const JsonValue& root) {
     if (command == "morph_upload") {
         return mesh_editor_morph_upload_session_report(root, session_id, session, started);
     }
+    if (command == "morph_generate_fields") {
+        return mesh_editor_morph_generate_fields_report(root, session_id, session, started);
+    }
     if (command == "morph_change") {
         return mesh_editor_morph_change_session_report(root, session_id, session, started);
     }

@@ -379,6 +379,18 @@ def _install_shared_dotnet_test_process(
     return controller
 
 
+# The standalone file loader runs at QThread.LowPriority
+# (cdmw/ui/mesh_editor/tab_session_runtime.py), so under a saturated suite the
+# worker can be starved well past the default budget before it even runs. Its
+# teardown then needs two more main-loop passes: `worker.finished` is delivered
+# cross-thread to `thread.quit`, and `thread.finished` back again to the slot
+# that clears the reference. That has no principled wall-clock bound, so waits
+# on it get a budget generous enough to absorb scheduling delay while still
+# failing a genuine hang. Blocking on QThread.wait() instead would deadlock:
+# `quit` is queued to the main thread, which would no longer be pumping.
+_LOW_PRIORITY_THREAD_TIMEOUT_SECONDS = 15.0
+
+
 def _wait_for(app: QApplication, predicate: Callable[[], bool], *, timeout_seconds: float = 2.0) -> bool:
     started = time.monotonic()
     while time.monotonic() - started < timeout_seconds:
@@ -3436,8 +3448,20 @@ class MeshEditorActionBarTests(unittest.TestCase):
                     self.assertGreater(request_id, 0)
                     self.assertIsNotNone(tab.standalone_file_load_thread)
                     self.assertFalse(tab.action_bar.isEnabled())
-                    self.assertTrue(_wait_for(app, lambda: tab.has_active_standalone_session()))
-                    self.assertTrue(_wait_for(app, lambda: tab.standalone_file_load_thread is None))
+                    self.assertTrue(
+                        _wait_for(
+                            app,
+                            lambda: tab.has_active_standalone_session(),
+                            timeout_seconds=_LOW_PRIORITY_THREAD_TIMEOUT_SECONDS,
+                        )
+                    )
+                    self.assertTrue(
+                        _wait_for(
+                            app,
+                            lambda: tab.standalone_file_load_thread is None,
+                            timeout_seconds=_LOW_PRIORITY_THREAD_TIMEOUT_SECONDS,
+                        )
+                    )
 
                 parser.assert_called_once_with(b"mesh-bytes", str(mesh_path))
                 assert tab.standalone_controller is not None

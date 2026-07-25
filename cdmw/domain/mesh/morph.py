@@ -12,7 +12,7 @@ from typing import Iterable, Mapping, Sequence
 Vec3 = tuple[float, float, float]
 MESH_MORPH_PROFILE_FORMAT = "cdmw.mesh_morph_profile.v2"
 MESH_MORPH_PRESET_FORMAT = "cdmw.mesh_morph_value_preset.v2"
-MESH_MORPH_RULES = ("volume", "scale", "move", "flatten", "taper", "twist")
+MESH_MORPH_RULES = ("volume", "scale", "move", "flatten", "taper", "twist", "radius")
 MESH_MORPH_AXES = ("x", "y", "z")
 MESH_MORPH_MIRROR_MODES = ("off", "x", "y", "z")
 MESH_MORPH_FALLOFFS = ("constant", "linear", "smooth")
@@ -390,6 +390,12 @@ def _rule_delta(position: Vec3, pivot: Vec3, axis: Vec3, rule: MeshMorphRule, ax
         return _scale(axial, amount)
     if rule.kind == "flatten":
         return _scale(axial, -amount)
+    if rule.kind == "radius":
+        # Girth: displace proportionally to distance from the axis, so a limb
+        # thickens by a percentage rather than by a fixed distance. "volume"
+        # pushes every vertex the same absolute amount, which over-inflates
+        # thin parts and under-inflates thick ones.
+        return _scale(radial, amount)
     if rule.kind == "taper":
         return _scale(radial, amount * (projection / axial_extent))
     if rule.kind == "twist":

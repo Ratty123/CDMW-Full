@@ -12,6 +12,41 @@ from .editing import (
     MeshEditSelection,
     MeshEditSessionView,
 )
+from .body_region_atlas import (
+    BODY_REGION_ATLAS_COLOURS,
+    BodyRegionAtlas,
+    BodyRegionAtlasGroup,
+    BodyRegionAtlasRow,
+    build_body_region_atlas,
+)
+from .body_region_falloff import (
+    DEFAULT_FALLOFF_BAND,
+    smooth_body_region_weights,
+)
+from .body_region_sliders import (
+    BODY_REGION_SLIDER_PROFILE_PREFIX,
+    DEFAULT_BODY_REGION_SLIDER_TEMPLATES,
+    BodyRegionSliderTemplate,
+    build_region_slider_definitions,
+    build_region_slider_profile,
+)
+from .body_regions import (
+    BODY_REGION_GROUPS,
+    BODY_REGION_MAP_FORMAT,
+    BODY_REGION_SIDES,
+    DEFAULT_BODY_REGION_RULES,
+    BodyRegion,
+    BodyRegionAxis,
+    BodyRegionMap,
+    BodyRegionRule,
+    BodyRegionWeights,
+    body_region_local_basis,
+    body_region_morph_selection,
+    bone_side,
+    build_body_region_map,
+    classify_bone,
+    dominant_region_by_vertex,
+)
 from .material_resource_policy import (
     MeshMaterialResourcePolicy,
     canonical_material_channel,
@@ -97,6 +132,33 @@ from .textures import MeshTextureEditTarget, selected_mesh_texture_edit_target
 from .uv import MeshUvIslandSummary, MeshUvSummary, mesh_uv_lasso_selection, mesh_uv_region_selection, summarize_mesh_uvs
 
 __all__ = [
+    "BODY_REGION_ATLAS_COLOURS",
+    "BODY_REGION_GROUPS",
+    "BodyRegionAtlas",
+    "BodyRegionAtlasGroup",
+    "BodyRegionAtlasRow",
+    "build_body_region_atlas",
+    "BODY_REGION_SLIDER_PROFILE_PREFIX",
+    "DEFAULT_BODY_REGION_SLIDER_TEMPLATES",
+    "BodyRegionSliderTemplate",
+    "build_region_slider_definitions",
+    "build_region_slider_profile",
+    "DEFAULT_FALLOFF_BAND",
+    "smooth_body_region_weights",
+    "BODY_REGION_MAP_FORMAT",
+    "BODY_REGION_SIDES",
+    "DEFAULT_BODY_REGION_RULES",
+    "BodyRegion",
+    "BodyRegionAxis",
+    "BodyRegionMap",
+    "BodyRegionRule",
+    "BodyRegionWeights",
+    "body_region_local_basis",
+    "body_region_morph_selection",
+    "bone_side",
+    "build_body_region_map",
+    "classify_bone",
+    "dominant_region_by_vertex",
     "MESH_EDIT_ACTIONS",
     "MESH_EDIT_MODES",
     "MESH_MORPH_ACTIONS",
