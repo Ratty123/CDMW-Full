@@ -162,7 +162,6 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     source_mix_control_text = _alignment_source_mix_control_text_helper()
     source_mix_tray = QGroupBox(source_mix_control_text["group_title"])
     source_mix_tray.setToolTip(source_mix_control_text["tray_tooltip"])
-    source_mix_tray.setVisible(static_replacement_workflow_mode == "import_mesh")
     source_mix_tray.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
     source_mix_layout = QVBoxLayout(source_mix_tray)
     source_mix_layout.setContentsMargins(5, 3, 5, 3)
@@ -203,6 +202,9 @@ def create_alignment_workflow_shell_section(context: dict[str, object]) -> Simpl
     modify_original_parity_label.setMaximumHeight(28)
     source_mix_layout.addWidget(modify_original_parity_label)
     setup_advanced_layout.addWidget(source_mix_tray)
+    # Shown only once parented; visible-while-parentless briefly makes the tray
+    # its own top-level window during construction.
+    source_mix_tray.setVisible(static_replacement_workflow_mode == "import_mesh")
 
     alignment_source_mix_callbacks = create_alignment_source_mix_callbacks({**context, **locals()})
     _choose_loaded_archive_mesh_source_for_alignment = alignment_source_mix_callbacks._choose_loaded_archive_mesh_source_for_alignment

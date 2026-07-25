@@ -293,8 +293,10 @@ def _texture_material_step_004(_state):
     _state.original_texture_preview_note.setToolTip(_state._original_texture_preview_note_tooltip_helper(modify_original_clone_mode=_state.modify_original_clone_mode, defer_original_texture_preview=_state.defer_original_texture_preview))
     _state.original_texture_preview_layout.addWidget(_state.original_texture_preview_note)
     _state.original_texture_preview_note.setVisible(_state.bool(_state.modify_original_clone_mode and _state.defer_original_texture_preview))
-    _state.original_texture_preview_group.setVisible(_state.bool(_state.modify_original_clone_mode))
     _state.textures_layout.addWidget(_state.original_texture_preview_group, 0)
+    # Shown only once parented; visible-while-parentless briefly makes the group
+    # its own top-level window during construction.
+    _state.original_texture_preview_group.setVisible(_state.bool(_state.modify_original_clone_mode))
     _state.original_texture_preview_checkbox.toggled.connect(_state._set_original_texture_preview_enabled)
     _state.added_texture_control_text = _state._added_part_texture_control_text_helper()
     _state.added_texture_group = _state.QGroupBox(_state.str(_state.added_texture_control_text['group_title']))

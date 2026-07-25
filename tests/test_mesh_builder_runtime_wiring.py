@@ -147,6 +147,7 @@ def test_mesh_builder_runtime_wiring_is_owned_by_mesh_unit() -> None:
     for test_name in (
         "tests/test_mesh_builder_runtime_wiring.py",
         "tests/test_mesh_builder_construction_lifecycle.py",
+        "tests/test_mesh_builder_construction_invariants.py",
         "tests/test_static_replacement_post_open_state.py",
         "tests/test_static_replacement_dotnet_presentation.py",
     ):

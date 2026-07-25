@@ -337,11 +337,13 @@ def _source_parts_outliner_step_005(_state):
     _state._alignment_startup_step(_state.alignment_startup_text['routing_controls'])
     _state.mapping_table_action_control_text = _state._mapping_table_action_control_text_helper()
     _state.advanced_routing_section = _state.CollapsibleSection('Advanced Routing', expanded=False)
-    _state.advanced_routing_section.setVisible(not _state.modify_original_clone_mode)
     _state.advanced_routing_layout = _state.advanced_routing_section.body_layout
     if _state.mapping_hint is not None:
         _state.advanced_routing_layout.addWidget(_state.mapping_hint)
     _state.mapping_layout.addWidget(_state.advanced_routing_section)
+    # Shown only once parented; visible-while-parentless briefly makes the
+    # section its own top-level window during construction.
+    _state.advanced_routing_section.setVisible(not _state.modify_original_clone_mode)
     _state.mapping_tree = _state.QTreeWidget()
     _state.mapping_tree.setHeaderLabels(list(_state.mapping_table_action_control_text['headers']))
     _state.mapping_tree.setMinimumHeight(96)
