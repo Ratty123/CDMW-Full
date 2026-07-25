@@ -114,8 +114,16 @@ duplicate_runtime_payloads = {
 
 # The app never installs a QTranslator, so the bundled Qt message catalogues can
 # never be loaded.
+#
+# The second entry is the same idea for OpenImageIO. Following oiiotool.exe's
+# imports makes PyInstaller re-collect its DLLs at their package-relative
+# OpenImageIO\bin\, 15 MB on top of the copy the openimageio/ payload already
+# places beside the executable. oiiotool loads them from its own directory, and
+# the OpenImageIO Python module is not bundled, so nothing can open the second
+# copy.
 unused_payload_prefixes = (
     "PySide6\\translations\\",
+    "OpenImageIO\\bin\\",
 )
 
 

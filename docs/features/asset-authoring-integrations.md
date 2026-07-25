@@ -49,9 +49,18 @@ OpenImageIO; and `share/fonts/`, which serves `oiiotool`'s text drawing. A
 release build fails closed if the package is absent, so the helper cannot go
 missing from a shipped app unnoticed.
 
+One exclusion is not obvious from the wheel's contents. PyInstaller follows
+`oiiotool.exe`'s imports and re-collects its whole DLL closure a second time at
+the package-relative `OpenImageIO\bin\`, which measured 15 MB in the built
+bundle. Nothing can load that copy: `oiiotool` reads its own directory, and the
+OpenImageIO Python module is not bundled at all. `unused_payload_prefixes` drops
+it, the same way the duplicated `D3DCompiler_47_cor3.dll` is dropped.
+
 `find_bundled_openimageio_binary()` resolves it from `sys._MEIPASS` and the
 frozen executable's directory, then from the installed package when running
-from source. Resolution order for this helper is configured path or
+from source. In practice `sys._MEIPASS` is the branch that fires: a onedir build
+places the payload under `_internal/`, and a onefile build extracts it to the
+temporary root. The executable's own directory is the manual-override case. Resolution order for this helper is configured path or
 `CDMW_OIIO_BIN`, then the bundled copy, then `PATH` — the bundled binary wins
 over an arbitrary `oiiotool` on the machine because it is the one the build was
 tested against. Its report reads `source: bundled_lookup` and `package_safe:
