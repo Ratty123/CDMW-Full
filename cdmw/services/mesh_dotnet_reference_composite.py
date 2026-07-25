@@ -11,7 +11,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 
 from cdmw.domain.cancellation import RunCancelled
-from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
+from cdmw.modding.mesh_totals import refresh_mesh_totals
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.services.mesh_dotnet_material_state import apply_dotnet_native_material_batch_binding
 

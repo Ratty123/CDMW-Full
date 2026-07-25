@@ -69,6 +69,9 @@ from cdmw.ui.archive_browser.static_replacement_source_parts_state import (
     source_part_glow_color_controls_state,
     source_part_glow_color_button_text,
     source_part_glow_emissive_update_states,
+    source_part_glow_emissive_update_states_for_sources,
+    source_part_glow_reason_text,
+    source_part_glow_selection_state,
     source_part_glow_rgb,
     source_part_group_routing_overflow_message,
     source_part_group_routing_text,
@@ -2361,3 +2364,88 @@ def test_source_parts_selection_pending_presentation_preserves_no_rebuild_feedba
     assert presentation.performance_details == (
         "Pending source disabled; selection update did not rebuild geometry."
     )
+
+
+def test_glow_updates_reach_every_selected_glow_part() -> None:
+    """A multi-part selection used to edit nothing at all."""
+    adjustments = {
+        1: SimpleNamespace(material_role="glow", emissive_color_rgb=(), emissive_strength=None),
+        2: SimpleNamespace(material_role="glow", emissive_color_rgb=(1, 1, 1), emissive_strength=None),
+        3: SimpleNamespace(material_role="geometry", emissive_color_rgb=(), emissive_strength=None),
+        4: SimpleNamespace(material_role="glow", emissive_color_rgb=(8, 16, 32), emissive_strength=3.0),
+    }
+
+    updates = source_part_glow_emissive_update_states_for_sources(
+        adjustments,
+        source_indices=(1, 2, 3, 4, 2, -5, "bad"),
+        rgb=(8, 16, 32),
+        use_color=True,
+        strength=3.0,
+        use_strength=True,
+    )
+
+    # 3 is not a glow part and 4 already holds the target values, so neither
+    # produces an update; 2 is deduplicated.
+    assert tuple(state.source_index for state in updates) == (1, 2)
+    assert all(state.emissive_color_rgb == (8, 16, 32) for state in updates)
+    assert all(state.emissive_strength == 3.0 for state in updates)
+
+
+def test_glow_selection_state_requires_every_part_to_carry_the_role() -> None:
+    adjustments = {
+        1: SimpleNamespace(material_role="glow", emissive_color_rgb=(1, 2, 3), emissive_strength=1.0),
+        2: SimpleNamespace(material_role="glow", emissive_color_rgb=(1, 2, 3), emissive_strength=1.0),
+        3: SimpleNamespace(material_role="geometry", emissive_color_rgb=(), emissive_strength=None),
+    }
+
+    agreed = source_part_glow_selection_state(adjustments, (1, 2))
+    assert agreed["editable"] is True
+    assert agreed["glow_indices"] == (1, 2)
+    assert agreed["mixed_values"] is False
+
+    mixed = source_part_glow_selection_state(
+        {**adjustments, 2: SimpleNamespace(material_role="glow", emissive_color_rgb=(9, 9, 9), emissive_strength=2.0)},
+        (1, 2),
+    )
+    assert mixed["editable"] is True
+    assert mixed["mixed_values"] is True
+
+    blocked = source_part_glow_selection_state(adjustments, (1, 3))
+    assert blocked["editable"] is False
+    assert blocked["non_glow_count"] == 1
+
+    assert source_part_glow_selection_state(adjustments, ())["editable"] is False
+
+
+def test_glow_reason_text_explains_why_editing_is_blocked() -> None:
+    adjustments = {
+        1: SimpleNamespace(material_role="glow", emissive_color_rgb=(1, 2, 3), emissive_strength=1.0),
+        2: SimpleNamespace(material_role="glow", emissive_color_rgb=(9, 9, 9), emissive_strength=2.0),
+        3: SimpleNamespace(material_role="geometry", emissive_color_rgb=(), emissive_strength=None),
+    }
+
+    empty = source_part_glow_reason_text(
+        source_part_glow_selection_state(adjustments, ()), material_authority_active=True
+    )
+    assert "at least one" in empty
+
+    partial = source_part_glow_reason_text(
+        source_part_glow_selection_state(adjustments, (1, 3)), material_authority_active=True
+    )
+    assert "1 of 2" in partial
+
+    inactive = source_part_glow_reason_text(
+        source_part_glow_selection_state(adjustments, (1,)), material_authority_active=False
+    )
+    assert "Material Authority activates" in inactive
+
+    # A single agreeing part needs no explanation at all.
+    assert source_part_glow_reason_text(
+        source_part_glow_selection_state(adjustments, (1,)), material_authority_active=True
+    ) == ""
+
+    multi = source_part_glow_reason_text(
+        source_part_glow_selection_state(adjustments, (1, 2)), material_authority_active=True
+    )
+    assert "2 selected parts" in multi
+    assert "differ" in multi

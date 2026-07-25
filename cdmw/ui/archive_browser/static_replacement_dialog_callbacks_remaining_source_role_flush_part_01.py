@@ -5,6 +5,9 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
     resident_material_parameter_group,
     send_resident_material_parameters,
 )
+from cdmw.ui.archive_browser.static_replacement_source_part_adjustment_state import (
+    source_part_glow_emissive_update_states_for_sources,
+)
 
 def _remaining_source_role_flush_step_001(_state):
     _state.state = _state._StaticReplacementDialogState(_state.context)
@@ -95,7 +98,7 @@ def _remaining_source_role_flush_step_005(_state):
             if callable(_state._selected_glow_source_indices)
             else ()
         )
-        if len(selected_indices) != 1:
+        if not selected_indices:
             return
         checkbox = _state._part_glow_color_checkbox()
         strength_checkbox = _state._part_glow_strength_checkbox()
@@ -111,9 +114,9 @@ def _remaining_source_role_flush_step_005(_state):
             if callable(_state._selected_part_glow_strength_from_controls)
             else 1.0
         )
-        update_states = _state._source_part_glow_emissive_update_states_helper(
+        update_states = source_part_glow_emissive_update_states_for_sources(
             _state.source_part_adjustments,
-            source_index=selected_indices[0],
+            source_indices=selected_indices,
             rgb=rgb,
             use_color=use_color,
             strength=strength,
