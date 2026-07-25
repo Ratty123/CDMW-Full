@@ -2,13 +2,23 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class ExperimentForm
 {
+    private const int ToolRailWidth = 74;
+    private const int ToolRailButtonHeight = 48;
+    private const int ToolPropertyWidth = 340;
+    private const int SceneInspectorWidth = 336;
+
     private enum EditMeshLayoutMode
     {
         Classic,
-        BottomToolDeck,
+        ToolRail,
     }
 
-    private enum CompactToolPage
+    /// <summary>
+    /// The modal tools, one rail button each. Only these swap with the rail —
+    /// the scene groups (Parts, Action History, Viewport) are not modal and
+    /// live permanently in the right inspector. Declaration order is rail order.
+    /// </summary>
+    private enum ToolRailPage
     {
         Selection,
         Transform,
@@ -17,31 +27,31 @@ internal sealed partial class ExperimentForm
         MorphRefit,
     }
 
-    private readonly Dictionary<CompactToolPage, Button> _compactToolTabButtons = new();
-    private readonly Dictionary<CompactToolPage, Panel> _compactToolPages = new();
-    private EditMeshLayoutMode _requestedEditMeshLayout = EditMeshLayoutMode.Classic;
+    private readonly Dictionary<ToolRailPage, Button> _toolRailButtons = new();
+    private readonly Dictionary<ToolRailPage, Panel> _toolRailPages = new();
+    // Entering Edit Mesh presents the tool rail. Classic remains the control
+    // tree's construction and non-mesh-mode state, and stays reachable from
+    // the session bar.
+    private EditMeshLayoutMode _requestedEditMeshLayout = EditMeshLayoutMode.ToolRail;
     private EditMeshLayoutMode _activeEditMeshLayout = EditMeshLayoutMode.Classic;
-    private CompactToolPage _compactSelectedToolPage = CompactToolPage.Selection;
-    private bool _compactToolPageSelected;
-    private bool _applyingCompactSplitterLayout;
-    private int _compactInspectorWidthLogical;
-    private int _compactToolDeckHeightLogical;
-    private int _compactMorphColumnCount;
+    private ToolRailPage _selectedToolRailPage = ToolRailPage.Selection;
+    private bool _toolRailPageSelected;
+    private bool _applyingToolRailSplitterLayout;
     private Point _classicLeftScrollPosition;
     private Point _classicRightScrollPosition;
 
     private TableLayoutPanel? _editMeshLayoutHost;
     private Control? _classicEditMeshLayoutRoot;
-    private SplitContainer? _compactWorkspaceSplit;
+    private SplitContainer? _viewportWorkspaceSplit;
     private Control? _compactSessionBar;
     private FlowLayoutPanel? _compactSessionCommandHost;
+    private Panel? _compactSessionFinishHost;
+    private Panel? _leftToolModeHost;
     private Panel? _rightToolModeHost;
-    private TableLayoutPanel? _compactInspectorGrid;
-    private TableLayoutPanel? _compactSelectionGrid;
-    private Panel? _compactTransformHost;
-    private Panel? _compactBrushHost;
-    private Panel? _compactTopologyHost;
-    private Panel? _compactMorphHost;
+    private TableLayoutPanel? _toolDock;
+    private Label? _toolRailPanelHeader;
+    private TableLayoutPanel? _railSelectionStack;
+    private TableLayoutPanel? _sceneInspectorColumn;
     private Control? _presentationViewportRegion;
 
     private Button? _sessionFinishButton;
@@ -63,15 +73,15 @@ internal sealed partial class ExperimentForm
     private GroupBox? _topologySection;
     private GroupBox? _viewportSection;
 
-    private bool IsBottomToolDeckActive =>
-        _activeEditMeshLayout == EditMeshLayoutMode.BottomToolDeck;
+    private bool IsToolRailActive =>
+        _activeEditMeshLayout == EditMeshLayoutMode.ToolRail;
 
     private void InitializeEditMeshLayoutHost(Control classicRoot)
     {
         _classicEditMeshLayoutRoot = classicRoot;
         _classicEditMeshLayoutRoot.Dock = DockStyle.Fill;
         BuildPermanentViewportWorkspace();
-        BuildPermanentRightToolModeHost();
+        BuildPermanentToolModeHosts();
 
         _editMeshLayoutHost = new MeshEditorBufferedTableLayoutPanel
         {
@@ -88,16 +98,35 @@ internal sealed partial class ExperimentForm
         _editMeshLayoutHost.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
         _editMeshLayoutHost.Resize += (_, _) =>
         {
-            if (IsBottomToolDeckActive)
+            if (IsToolRailActive)
             {
-                ApplyCompactSplitterLayout();
+                ApplyToolRailSplitterLayout();
             }
         };
+        _editMeshLayoutHost.Controls.Add(_classicEditMeshLayoutRoot, 0, 1);
+        Controls.Add(_editMeshLayoutHost);
+        // The session bar belongs to the tool rail Edit Mesh layout, so it
+        // follows the same schedule as the panels it sits above.
+        if (!DeferAuthoringToolPanels)
+        {
+            AttachCompactSessionBar();
+        }
+    }
+
+    /// <summary>
+    /// The session bar occupies row 0 of the layout host, a zero-height row
+    /// until the tool rail claims it, so attaching it later is only a cell
+    /// assignment and never touches the viewport's ancestry.
+    /// </summary>
+    private void AttachCompactSessionBar()
+    {
+        if (_options.SimplePreview || _compactSessionBar is not null || _editMeshLayoutHost is null)
+        {
+            return;
+        }
         _compactSessionBar = BuildCompactSessionBar();
         _compactSessionBar.Visible = false;
         _editMeshLayoutHost.Controls.Add(_compactSessionBar, 0, 0);
-        _editMeshLayoutHost.Controls.Add(_classicEditMeshLayoutRoot, 0, 1);
-        Controls.Add(_editMeshLayoutHost);
     }
 
     private void BuildPermanentViewportWorkspace()
@@ -107,27 +136,68 @@ internal sealed partial class ExperimentForm
             throw new InvalidOperationException(
                 "The permanent Edit Mesh viewport host requires the classic viewport split.");
         }
-        _compactWorkspaceSplit = CreateCompactSplit(
-            "BottomToolDeckWorkspaceSplit",
+        // Panel2 stays collapsed in both layouts. The split is kept because it
+        // is the resident renderer's permanent ancestor: re-parenting the D3D
+        // surface to shorten this chain would recreate its Win32 handle.
+        _viewportWorkspaceSplit = CreateCompactSplit(
+            "EditMeshViewportWorkspaceSplit",
             Orientation.Horizontal,
             FixedPanel.Panel2);
-        _compactWorkspaceSplit.Panel2.Controls.Add(BuildCompactToolDeck());
-        _compactWorkspaceSplit.Panel2Collapsed = true;
-        _compactWorkspaceSplit.SplitterMoved += (_, _) => CaptureCompactSplitterLayout();
-        _rightToolSplit.Panel1.Controls.Add(_compactWorkspaceSplit);
+        _viewportWorkspaceSplit.Panel2Collapsed = true;
+        _rightToolSplit.Panel1.Controls.Add(_viewportWorkspaceSplit);
         // Attach the live viewport region only after its permanent ancestor
         // chain is in place. This is the sole Win32 parent assignment for the
         // resident renderer subtree.
-        _compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);
+        _viewportWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);
     }
 
-    private void BuildPermanentRightToolModeHost()
+    /// <summary>
+    /// Both flanks host two mutually exclusive children: the classic scrolling
+    /// tool panel, and this layout's dock. Swapping visibility keeps every live
+    /// control instance parented to a stable ancestor.
+    /// </summary>
+    private void BuildPermanentToolModeHosts()
     {
-        if (_rightToolSplit is null || _rightToolPanel is null)
+        if (DeferAuthoringToolPanels)
+        {
+            // Preview never builds these; an embedded authoring host builds them
+            // on first mesh-edit entry. Either way the flanks stay empty and
+            // collapsed and the viewport keeps the same split ancestry.
+            return;
+        }
+        AttachPermanentToolModeHosts();
+    }
+
+    private void AttachPermanentToolModeHosts()
+    {
+        if (_options.SimplePreview || _leftToolModeHost is not null)
+        {
+            return;
+        }
+        if (_leftToolSplit is null
+            || _rightToolSplit is null
+            || _leftToolPanel is null
+            || _rightToolPanel is null)
         {
             throw new InvalidOperationException(
-                "The permanent Edit Mesh inspector host requires the classic right tool panel.");
+                "The permanent Edit Mesh tool hosts require the classic tool panels.");
         }
+
+        _leftToolModeHost = new MeshEditorBufferedPanel
+        {
+            Name = "DotNetMeshEditorLeftToolModeHost",
+            Dock = DockStyle.Fill,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = ThemePanelBackground,
+        };
+        _leftToolPanel.Visible = true;
+        _leftToolModeHost.Controls.Add(_leftToolPanel);
+        var toolDock = BuildToolDock();
+        toolDock.Visible = false;
+        _leftToolModeHost.Controls.Add(toolDock);
+        _leftToolSplit.Panel1.Controls.Add(_leftToolModeHost);
+
         _rightToolModeHost = new MeshEditorBufferedPanel
         {
             Name = "DotNetMeshEditorRightToolModeHost",
@@ -138,9 +208,9 @@ internal sealed partial class ExperimentForm
         };
         _rightToolPanel.Visible = true;
         _rightToolModeHost.Controls.Add(_rightToolPanel);
-        var compactInspector = BuildCompactInspector();
-        compactInspector.Visible = false;
-        _rightToolModeHost.Controls.Add(compactInspector);
+        var inspector = BuildSceneInspector();
+        inspector.Visible = false;
+        _rightToolModeHost.Controls.Add(inspector);
         _rightToolSplit.Panel2.Controls.Add(_rightToolModeHost);
     }
 
@@ -148,34 +218,36 @@ internal sealed partial class ExperimentForm
     {
         var bar = new MeshEditorBufferedTableLayoutPanel
         {
-            Name = "BottomToolDeckSessionBar",
+            Name = "EditMeshSessionBar",
             Dock = DockStyle.Fill,
-            ColumnCount = 3,
+            ColumnCount = 4,
             RowCount = 1,
             Margin = new Padding(0),
-            Padding = new Padding(10, 6, 10, 6),
+            Padding = new Padding(14, 7, 14, 7),
             BackColor = ThemePanelBackground,
         };
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+        bar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         bar.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
         var title = new Label
         {
-            Name = "BottomToolDeckSessionTitle",
-            Text = "EDIT MESH  •  EDITABLE",
+            Name = "EditMeshSessionTitle",
+            Text = "Mesh Edit Session",
             AutoSize = true,
+            UseMnemonic = false,
             Anchor = AnchorStyles.Left,
-            Margin = new Padding(0, 0, 14, 0),
-            ForeColor = ThemeAccent,
+            Margin = new Padding(0, 0, 16, 0),
+            ForeColor = ThemeStrongText,
             BackColor = ThemePanelBackground,
             Font = new Font(Font, FontStyle.Bold),
-            AccessibleName = "Edit Mesh, Editable view",
+            AccessibleName = "Mesh Edit Session, Editable view",
         };
         _compactSessionCommandHost = new FlowLayoutPanel
         {
-            Name = "BottomToolDeckSessionCommands",
+            Name = "EditMeshSessionCommands",
             Dock = DockStyle.Fill,
             FlowDirection = FlowDirection.LeftToRight,
             WrapContents = false,
@@ -185,27 +257,130 @@ internal sealed partial class ExperimentForm
             BackColor = ThemePanelBackground,
         };
         ApplyDarkScrollbars(_compactSessionCommandHost);
+        _compactSessionFinishHost = new MeshEditorBufferedPanel
+        {
+            Name = "EditMeshSessionFinishHost",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Anchor = AnchorStyles.Right,
+            Margin = new Padding(12, 0, 0, 0),
+            Padding = new Padding(0),
+            BackColor = ThemePanelBackground,
+        };
         var useClassic = StyledActionButton(
-            "Use Classic Layout",
+            "Classic Layout",
             () => RequestEditMeshLayout(EditMeshLayoutMode.Classic));
         useClassic.Name = "UseClassicEditMeshLayoutButton";
         useClassic.AccessibleName = "Use Classic Edit Mesh layout";
         useClassic.AccessibleDescription =
             "Returns the same live Edit Mesh controls and viewport to the classic side-panel layout.";
-        useClassic.Margin = new Padding(12, 0, 0, 0);
+        useClassic.Margin = new Padding(8, 0, 0, 0);
         useClassic.Anchor = AnchorStyles.Right;
 
         bar.Controls.Add(title, 0, 0);
         bar.Controls.Add(_compactSessionCommandHost, 1, 0);
-        bar.Controls.Add(useClassic, 2, 0);
+        bar.Controls.Add(_compactSessionFinishHost, 2, 0);
+        bar.Controls.Add(useClassic, 3, 0);
         return bar;
     }
 
-    private Control BuildCompactToolDeck()
+    /// <summary>
+    /// Left flank: the tool rail on the outer edge and the active tool's
+    /// properties beside it. Only the selected tool is realised, so an inactive
+    /// tool never reserves space.
+    /// </summary>
+    private TableLayoutPanel BuildToolDock()
     {
-        var deck = new MeshEditorBufferedTableLayoutPanel
+        _toolDock = new MeshEditorBufferedTableLayoutPanel
         {
-            Name = "BottomToolDeck",
+            Name = "EditMeshToolDock",
+            Dock = DockStyle.Fill,
+            ColumnCount = 2,
+            RowCount = 1,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = ThemePanelBackground,
+        };
+        _toolDock.ColumnStyles.Add(
+            new ColumnStyle(SizeType.Absolute, ScaleToolPanelWidth(ToolRailWidth)));
+        _toolDock.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _toolDock.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        _toolDock.Controls.Add(BuildToolRail(), 0, 0);
+        _toolDock.Controls.Add(BuildToolPropertyPanel(), 1, 0);
+        return _toolDock;
+    }
+
+    private Control BuildToolRail()
+    {
+        var rail = new MeshEditorBufferedTableLayoutPanel
+        {
+            Name = "EditMeshToolRail",
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 6,
+            Margin = new Padding(0),
+            Padding = new Padding(6, 8, 6, 8),
+            BackColor = ThemeRailBackground,
+        };
+        rail.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        var buttonHeight = ScaleToolPanelWidth(ToolRailButtonHeight);
+        for (var row = 0; row < 5; row++)
+        {
+            rail.RowStyles.Add(new RowStyle(SizeType.Absolute, buttonHeight));
+        }
+        rail.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        AddToolRailButton(rail, ToolRailPage.Selection, "◰", "Select", 0,
+            "Vertex, face and part selection, X-Ray and Part Pick.");
+        AddToolRailButton(rail, ToolRailPage.Transform, "✥", "Move", 1,
+            "Translate step, Move and Grab.");
+        AddToolRailButton(rail, ToolRailPage.Brush, "◍", "Brush", 2,
+            "Smooth, Inflate and Pinch with radius, strength and falloff.");
+        AddToolRailButton(rail, ToolRailPage.Topology, "△", "Topo", 3,
+            "Subdivide and Refine Smooth.");
+        AddToolRailButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 4,
+            "Definition profiles, shape sliders and garment refit binding.");
+        return rail;
+    }
+
+    private void AddToolRailButton(
+        TableLayoutPanel rail,
+        ToolRailPage page,
+        string glyph,
+        string caption,
+        int row,
+        string description)
+    {
+        // Glyph over caption: the caption keeps the rail readable even where a
+        // symbol falls back, and is the seam to swap in a real icon set later.
+        var button = StyledButton($"{glyph}\n{caption}", height: ToolRailButtonHeight);
+        button.Name = $"EditMeshToolRail{page}Button";
+        button.AutoSize = false;
+        button.Dock = DockStyle.Fill;
+        button.Margin = new Padding(0, 0, 0, 4);
+        button.Padding = new Padding(0);
+        button.TextAlign = ContentAlignment.MiddleCenter;
+        button.AccessibleName = $"{ToolRailPageTitle(page)} tool";
+        SetHelpText(button, description);
+        button.Click += (_, _) => ShowToolRailPage(page);
+        _toolRailButtons.Add(page, button);
+        rail.Controls.Add(button, 0, row);
+    }
+
+    private static string ToolRailPageTitle(ToolRailPage page) => page switch
+    {
+        ToolRailPage.Selection => "Selection",
+        ToolRailPage.Transform => "Transform",
+        ToolRailPage.Brush => "Brush",
+        ToolRailPage.Topology => "Topology",
+        _ => "Morph & Refit",
+    };
+
+    private Control BuildToolPropertyPanel()
+    {
+        var panel = new MeshEditorBufferedTableLayoutPanel
+        {
+            Name = "EditMeshToolPropertyPanel",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
             RowCount = 2,
@@ -213,141 +388,143 @@ internal sealed partial class ExperimentForm
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
-        deck.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        deck.RowStyles.Add(new RowStyle(SizeType.Absolute, ScaleToolPanelWidth(42)));
-        deck.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, ScaleToolPanelWidth(32)));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        var tabs = new MeshEditorBufferedTableLayoutPanel
+        _toolRailPanelHeader = CreateDockHeader("EditMeshToolPropertyHeader", "SELECTION");
+
+        var scroll = new MeshEditorBufferedPanel
         {
-            Name = "BottomToolDeckTabs",
+            Name = "EditMeshToolPropertyScroll",
             Dock = DockStyle.Fill,
-            ColumnCount = 5,
-            RowCount = 1,
+            AutoScroll = true,
             Margin = new Padding(0),
-            Padding = new Padding(8, 6, 8, 4),
+            Padding = new Padding(10, 8, 10, 10),
             BackColor = ThemePanelBackground,
         };
-        tabs.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        foreach (var _ in Enum.GetValues<CompactToolPage>())
-        {
-            tabs.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 20));
-        }
-        AddCompactToolTab(tabs, CompactToolPage.Selection, "Selection", 0);
-        AddCompactToolTab(tabs, CompactToolPage.Transform, "Transform", 1);
-        AddCompactToolTab(tabs, CompactToolPage.Brush, "Brush", 2);
-        AddCompactToolTab(tabs, CompactToolPage.Topology, "Topology", 3);
-        AddCompactToolTab(tabs, CompactToolPage.MorphRefit, "Morph & Refit", 4);
+        ApplyDarkScrollbars(scroll);
 
-        var pageHost = new MeshEditorBufferedPanel
+        foreach (var page in Enum.GetValues<ToolRailPage>())
         {
-            Name = "BottomToolDeckPageHost",
-            Dock = DockStyle.Fill,
+            var host = CreateToolRailPage(page);
+            _toolRailPages.Add(page, host);
+            scroll.Controls.Add(host);
+        }
+
+        // Selection is the one tool that owns two sections, so it needs a grid
+        // rather than a single docked child.
+        _railSelectionStack = new MeshEditorBufferedTableLayoutPanel
+        {
+            Name = "EditMeshToolRailSelectionStack",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 2,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
-        foreach (var page in Enum.GetValues<CompactToolPage>())
+        _railSelectionStack.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        _railSelectionStack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _railSelectionStack.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        _toolRailPages[ToolRailPage.Selection].Controls.Add(_railSelectionStack);
+
+        panel.Controls.Add(_toolRailPanelHeader, 0, 0);
+        panel.Controls.Add(scroll, 0, 1);
+        return panel;
+    }
+
+    /// <summary>
+    /// Right flank: the groups every tool reads and changes. None of them are
+    /// modal, so they are all visible at once instead of hiding behind tabs.
+    /// </summary>
+    private Control BuildSceneInspector()
+    {
+        var panel = new MeshEditorBufferedTableLayoutPanel
         {
-            var panel = CreateCompactToolPage(page);
-            _compactToolPages.Add(page, panel);
-            pageHost.Controls.Add(panel);
-        }
-        _compactSelectionGrid = new MeshEditorBufferedTableLayoutPanel
-        {
-            Name = "BottomToolDeckSelectionGrid",
+            Name = "EditMeshSceneInspector",
             Dock = DockStyle.Fill,
-            ColumnCount = 2,
-            RowCount = 1,
+            ColumnCount = 1,
+            RowCount = 2,
             Margin = new Padding(0),
-            Padding = new Padding(8),
+            Padding = new Padding(0),
             BackColor = ThemePanelBackground,
         };
-        _compactSelectionGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 35));
-        _compactSelectionGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 65));
-        _compactSelectionGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-        _compactToolPages[CompactToolPage.Selection].Controls.Add(_compactSelectionGrid);
+        panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        panel.RowStyles.Add(new RowStyle(SizeType.Absolute, ScaleToolPanelWidth(32)));
+        panel.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-        _compactTransformHost = CreateCompactSingleSectionHost("BottomToolDeckTransformHost");
-        _compactBrushHost = CreateCompactSingleSectionHost("BottomToolDeckBrushHost");
-        _compactTopologyHost = CreateCompactSingleSectionHost("BottomToolDeckTopologyHost");
-        _compactMorphHost = CreateCompactSingleSectionHost("BottomToolDeckMorphRefitHost");
-        _compactMorphHost.Resize += (_, _) => UpdateCompactMorphLayout();
-        _compactToolPages[CompactToolPage.Transform].Controls.Add(_compactTransformHost);
-        _compactToolPages[CompactToolPage.Brush].Controls.Add(_compactBrushHost);
-        _compactToolPages[CompactToolPage.Topology].Controls.Add(_compactTopologyHost);
-        _compactToolPages[CompactToolPage.MorphRefit].Controls.Add(_compactMorphHost);
+        var header = CreateDockHeader("EditMeshSceneInspectorHeader", "SCENE");
 
-        deck.Controls.Add(tabs, 0, 0);
-        deck.Controls.Add(pageHost, 0, 1);
-        return deck;
-    }
-
-    private void AddCompactToolTab(
-        TableLayoutPanel tabs,
-        CompactToolPage page,
-        string text,
-        int column)
-    {
-        var button = StyledButton(text, height: 30);
-        button.Name = $"BottomToolDeck{page}Tab";
-        button.AutoSize = false;
-        button.Dock = DockStyle.Fill;
-        button.Margin = new Padding(column == 0 ? 0 : 3, 0, column == 4 ? 0 : 3, 0);
-        button.AccessibleName = $"{text} tools";
-        button.Click += (_, _) => ShowCompactToolPage(page);
-        _compactToolTabButtons.Add(page, button);
-        tabs.Controls.Add(button, column, 0);
-    }
-
-    private static Panel CreateCompactToolPage(CompactToolPage page)
-    {
-        var panel = new MeshEditorBufferedPanel
+        var scroll = new MeshEditorBufferedPanel
         {
-            Name = $"BottomToolDeck{page}Page",
+            Name = "EditMeshSceneInspectorScroll",
             Dock = DockStyle.Fill,
-            Visible = false,
             AutoScroll = true,
+            Margin = new Padding(0),
+            Padding = new Padding(10, 8, 10, 10),
+            BackColor = ThemePanelBackground,
+        };
+        ApplyDarkScrollbars(scroll);
+
+        _sceneInspectorColumn = new MeshEditorBufferedTableLayoutPanel
+        {
+            Name = "EditMeshSceneInspectorColumn",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            ColumnCount = 1,
+            RowCount = 3,
+            Margin = new Padding(0),
+            Padding = new Padding(0),
+            BackColor = ThemePanelBackground,
+        };
+        _sceneInspectorColumn.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        for (var row = 0; row < 3; row++)
+        {
+            _sceneInspectorColumn.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+        scroll.Controls.Add(_sceneInspectorColumn);
+
+        panel.Controls.Add(header, 0, 0);
+        panel.Controls.Add(scroll, 0, 1);
+        return panel;
+    }
+
+    private Label CreateDockHeader(string name, string text)
+    {
+        return new Label
+        {
+            Name = name,
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleLeft,
+            UseMnemonic = false,
+            Margin = new Padding(0),
+            Padding = new Padding(12, 0, 12, 0),
+            ForeColor = ThemeMutedText,
+            BackColor = ThemeRailBackground,
+            Font = new Font(Font.FontFamily, Font.Size - 0.5f, FontStyle.Bold),
+            Text = text,
+        };
+    }
+
+    private static Panel CreateToolRailPage(ToolRailPage page)
+    {
+        // Natural height, so the scrolling column measures only the visible tool.
+        return new MeshEditorBufferedPanel
+        {
+            Name = $"EditMeshToolRail{page}Page",
+            Dock = DockStyle.Top,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Visible = false,
             Margin = new Padding(0),
             Padding = new Padding(0),
             BackColor = ThemePanelBackground,
             TabStop = true,
         };
-        ApplyDarkScrollbars(panel);
-        return panel;
-    }
-
-    private static Panel CreateCompactSingleSectionHost(string name)
-    {
-        var panel = new MeshEditorBufferedPanel
-        {
-            Name = name,
-            Dock = DockStyle.Fill,
-            AutoScroll = true,
-            Margin = new Padding(0),
-            Padding = new Padding(8),
-            BackColor = ThemePanelBackground,
-        };
-        ApplyDarkScrollbars(panel);
-        return panel;
-    }
-
-    private Control BuildCompactInspector()
-    {
-        _compactInspectorGrid = new MeshEditorBufferedTableLayoutPanel
-        {
-            Name = "BottomToolDeckInspector",
-            Dock = DockStyle.Fill,
-            ColumnCount = 1,
-            RowCount = 3,
-            Margin = new Padding(0),
-            Padding = new Padding(8),
-            BackColor = ThemePanelBackground,
-        };
-        _compactInspectorGrid.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-        _compactInspectorGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 29));
-        _compactInspectorGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 24));
-        _compactInspectorGrid.RowStyles.Add(new RowStyle(SizeType.Percent, 47));
-        return _compactInspectorGrid;
     }
 
     private SplitContainer CreateCompactSplit(
@@ -385,8 +562,8 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
-        _statusLabel.Text = layout == EditMeshLayoutMode.BottomToolDeck
-            ? "Bottom Tool Deck active. All Edit Mesh tools still operate on the same resident session."
+        _statusLabel.Text = layout == EditMeshLayoutMode.ToolRail
+            ? "Tool rail active. All Edit Mesh tools still operate on the same resident session."
             : "Classic Edit Mesh layout restored.";
     }
 
@@ -405,7 +582,7 @@ internal sealed partial class ExperimentForm
         try
         {
             // Always normalize the live control tree on mode exit. This also
-            // repairs any interrupted compact transition before placement
+            // repairs any interrupted rail transition before placement
             // controls (including Mesh View) become interactive again.
             ActivateClassicEditMeshLayout();
         }
@@ -426,9 +603,9 @@ internal sealed partial class ExperimentForm
         var requestedBeforeSwitch = _requestedEditMeshLayout;
         try
         {
-            if (layout == EditMeshLayoutMode.BottomToolDeck)
+            if (layout == EditMeshLayoutMode.ToolRail)
             {
-                ActivateBottomToolDeckLayout();
+                ActivateToolRailLayout();
             }
             else
             {
@@ -455,27 +632,25 @@ internal sealed partial class ExperimentForm
             _requestedEditMeshLayout = EditMeshLayoutMode.Classic;
             _activeEditMeshLayout = EditMeshLayoutMode.Classic;
             _statusLabel.Text =
-                $"Bottom Tool Deck could not be activated; Classic layout remains in use. {ex.Message}";
+                $"The tool rail could not be activated; Classic layout remains in use. {ex.Message}";
             return false;
         }
     }
 
-    private void ActivateBottomToolDeckLayout()
+    private void ActivateToolRailLayout()
     {
-        if (_activeEditMeshLayout == EditMeshLayoutMode.BottomToolDeck
+        if (_activeEditMeshLayout == EditMeshLayoutMode.ToolRail
             || _classicEditMeshLayoutRoot is null
             || _editMeshLayoutHost is null
             || _compactSessionBar is null
             || _compactSessionCommandHost is null
-            || _compactInspectorGrid is null
-            || _compactSelectionGrid is null
-            || _compactTransformHost is null
-            || _compactBrushHost is null
-            || _compactTopologyHost is null
-            || _compactMorphHost is null
-            || _compactWorkspaceSplit is null
+            || _toolDock is null
+            || _sceneInspectorColumn is null
+            || _railSelectionStack is null
+            || _viewportWorkspaceSplit is null
             || _leftToolSplit is null
             || _rightToolSplit is null
+            || _leftToolPanel is null
             || _rightToolPanel is null
             || _presentationViewportRegion is null)
         {
@@ -489,33 +664,47 @@ internal sealed partial class ExperimentForm
         {
             MoveSessionControlsToCompactBar();
             ConfigurePresentationRegion(compactEditableOnly: true);
+            // The Morph & Refit card grid was built for a full-width bottom
+            // deck. In a single tool column its classic stacked form is both
+            // correct and already responsive, so unwind the grid here.
+            ExitCompactMorphLayout();
+            // The dock header already names the tool, so the section's own
+            // collapse header would just repeat it.
+            SetMorphCollapseHeaderVisible(false);
 
-            AddCompactSection(_compactSelectionGrid, _partPickSection, 0, 0);
-            AddCompactSection(_compactSelectionGrid, _selectionSection, 1, 0);
-            AddCompactSection(_compactTransformHost, _transformSection);
-            AddCompactSection(_compactBrushHost, _brushSection);
-            AddCompactSection(_compactTopologyHost, _topologySection);
-            AddCompactSection(_compactMorphHost, _morphRefitSection);
-            AddCompactInspectorSection(_partsSection, 0, stretchFirstRow: true);
-            AddCompactInspectorSection(_actionHistorySection, 1, stretchFirstRow: true);
-            AddCompactInspectorSection(_viewportSection, 2);
+            // Left: only the modal tools swap with the rail. Selection owns two
+            // sections, so it gets a grid; the rest own one page each.
+            AddRailSection(_railSelectionStack, _selectionSection, row: 0);
+            AddRailSection(_railSelectionStack, _partPickSection, row: 1);
+            AddRailSection(_toolRailPages[ToolRailPage.Transform], _transformSection);
+            AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
+            AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
+            AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
+
+            // Right: the scene groups every tool reads and changes, all visible.
+            AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);
+            AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 1);
+            AddRailSection(_sceneInspectorColumn, _viewportSection, row: 2);
 
             _compactSessionBar.Visible = true;
-            _editMeshLayoutHost.RowStyles[0].Height = ScaleToolPanelWidth(48);
+            _editMeshLayoutHost.RowStyles[0].Height = ScaleToolPanelWidth(46);
+            _leftToolPanel.Visible = false;
             _rightToolPanel.Visible = false;
-            _compactInspectorGrid.Visible = true;
-            _compactInspectorGrid.BringToFront();
-            _leftToolSplit.Panel1Collapsed = true;
+            _toolDock.Visible = true;
+            _toolDock.BringToFront();
+            _sceneInspectorColumn.Parent!.Parent!.Visible = true;
+            _sceneInspectorColumn.Parent!.Parent!.BringToFront();
+            _leftToolSplit.Panel1Collapsed = false;
             _rightToolSplit.Panel2Collapsed = false;
-            _compactWorkspaceSplit.Panel2Collapsed = false;
-            _activeEditMeshLayout = EditMeshLayoutMode.BottomToolDeck;
-            ApplyCompactSplitterLayout();
-            if (!_compactToolPageSelected)
+            _viewportWorkspaceSplit.Panel2Collapsed = true;
+            _activeEditMeshLayout = EditMeshLayoutMode.ToolRail;
+            ApplyToolRailSplitterLayout();
+            if (!_toolRailPageSelected)
             {
-                _compactSelectedToolPage = CompactPageForActiveTool();
-                _compactToolPageSelected = true;
+                _selectedToolRailPage = ToolRailPageForActiveTool();
+                _toolRailPageSelected = true;
             }
-            ShowCompactToolPage(_compactSelectedToolPage);
+            ShowToolRailPage(_selectedToolRailPage);
         }
         finally
         {
@@ -534,32 +723,47 @@ internal sealed partial class ExperimentForm
         try
         {
             ExitCompactMorphLayout();
+            SetMorphCollapseHeaderVisible(true);
             MoveSessionControlsToClassicSection();
             RebuildClassicToolStacks();
             ConfigurePresentationRegion(compactEditableOnly: false);
-            if (_compactWorkspaceSplit is not null)
+            if (_viewportWorkspaceSplit is not null)
             {
-                _compactWorkspaceSplit.Panel2Collapsed = true;
+                _viewportWorkspaceSplit.Panel2Collapsed = true;
             }
             if (_compactSessionBar is not null)
             {
                 _compactSessionBar.Visible = false;
             }
             _editMeshLayoutHost.RowStyles[0].Height = 0;
-            if (_compactInspectorGrid is not null)
+            if (_toolDock is not null)
             {
-                _compactInspectorGrid.Visible = false;
+                _toolDock.Visible = false;
+            }
+            if (_sceneInspectorColumn?.Parent?.Parent is { } inspector)
+            {
+                inspector.Visible = false;
+            }
+            if (_leftToolPanel is not null)
+            {
+                _leftToolPanel.Visible = true;
+                _leftToolPanel.BringToFront();
             }
             if (_rightToolPanel is not null)
             {
                 _rightToolPanel.Visible = true;
                 _rightToolPanel.BringToFront();
             }
-            if (_leftToolSplit is not null)
+            // The read-only preview profile builds no tool panels at all, so
+            // both flanks are empty. Un-collapsing them here would undo the
+            // collapse applied at construction and leave two blank bands: this
+            // runs on every exit from mesh-edit mode, including the
+            // ApplyInteractionModeControls call in the constructor.
+            if (_leftToolSplit is not null && !_options.SimplePreview)
             {
                 _leftToolSplit.Panel1Collapsed = false;
             }
-            if (_rightToolSplit is not null)
+            if (_rightToolSplit is not null && !_options.SimplePreview)
             {
                 _rightToolSplit.Panel2Collapsed = false;
             }
@@ -571,12 +775,17 @@ internal sealed partial class ExperimentForm
         {
             ResumeAllEditMeshLayouts();
         }
+        // The stacks are rebuilt while suspended and resume without their own
+        // layout pass, so their new rows keep construction-time bounds until
+        // something forces the measure. Do it here rather than relying on an
+        // incidental resize.
+        PerformClassicToolStackLayout();
         RestoreClassicScrollPositions();
     }
 
     private void MoveSessionControlsToCompactBar()
     {
-        if (_compactSessionCommandHost is null)
+        if (_compactSessionCommandHost is null || _compactSessionFinishHost is null)
         {
             return;
         }
@@ -584,14 +793,21 @@ internal sealed partial class ExperimentForm
         foreach (var button in SessionCommandButtons())
         {
             button.Dock = DockStyle.None;
-            button.Margin = new Padding(3, 0, 3, 0);
+            button.Margin = new Padding(0, 0, 6, 0);
             button.MinimumSize = new Size(
                 Math.Max(button.MinimumSize.Width, button.GetPreferredSize(Size.Empty).Width),
                 Math.Max(30, button.MinimumSize.Height));
-            EditMeshLayoutContracts.MoveControl(
-                button,
-                _compactSessionCommandHost,
-                DockStyle.None);
+            // Finishing the session is the bar's primary command, so it is
+            // pinned to the right edge and accented instead of scrolling with
+            // the selection and history commands.
+            var host = ReferenceEquals(button, _sessionFinishButton)
+                ? (Control)_compactSessionFinishHost
+                : _compactSessionCommandHost;
+            EditMeshLayoutContracts.MoveControl(button, host, DockStyle.None);
+        }
+        if (_sessionFinishButton is not null)
+        {
+            SetButtonAccent(_sessionFinishButton, true);
         }
     }
 
@@ -609,6 +825,7 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
+        SetButtonAccent(_sessionFinishButton, false);
         EditMeshLayoutContracts.MoveControl(
             _sessionFinishButton,
             _classicSessionBody,
@@ -699,60 +916,28 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private static void AddCompactSection(
-        Control host,
-        Control? section,
-        int column = -1,
-        int row = -1)
+    /// <summary>
+    /// Moves one live section into a dock column. Sections keep their natural
+    /// height and the column scrolls, so nothing reserves space it does not use.
+    /// </summary>
+    private static void AddRailSection(Control host, Control? section, int row = -1)
     {
         if (section is null)
         {
             return;
         }
-        ApplyCompactSectionStyle(section);
-        if (host is TableLayoutPanel table && column >= 0 && row >= 0)
+        RestoreClassicSectionStyle(section);
+        section.Margin = new Padding(0, 0, 0, 10);
+
+        if (host is TableLayoutPanel table && row >= 0)
         {
-            EditMeshLayoutContracts.MoveControl(
-                section,
-                table,
-                column,
-                row,
-                DockStyle.Fill);
+            EditMeshLayoutContracts.MoveControl(section, table, 0, row, DockStyle.Top);
         }
         else
         {
-            EditMeshLayoutContracts.MoveControl(section, host, DockStyle.Fill);
+            EditMeshLayoutContracts.MoveControl(section, host, DockStyle.Top);
         }
         section.BringToFront();
-    }
-
-    private void AddCompactInspectorSection(
-        Control? section,
-        int row,
-        bool stretchFirstRow = false)
-    {
-        if (_compactInspectorGrid is null || section is null)
-        {
-            return;
-        }
-        ApplyCompactSectionStyle(section);
-        if (stretchFirstRow && section is GroupBox group)
-        {
-            ConfigureCompactStretchBody(group);
-        }
-        EditMeshLayoutContracts.MoveControl(
-            section,
-            _compactInspectorGrid,
-            0,
-            row,
-            DockStyle.Fill);
-    }
-
-    private static void ApplyCompactSectionStyle(Control section)
-    {
-        section.AutoSize = false;
-        section.Dock = DockStyle.Fill;
-        section.Margin = new Padding(4);
     }
 
     private static void RestoreClassicSectionStyle(Control section)
@@ -773,23 +958,9 @@ internal sealed partial class ExperimentForm
             rowStyle.SizeType = SizeType.AutoSize;
             rowStyle.Height = 0;
         }
-    }
-
-    private static void ConfigureCompactStretchBody(GroupBox group)
-    {
-        if (group.Controls.OfType<TableLayoutPanel>().SingleOrDefault() is not { } body
-            || body.RowStyles.Count == 0)
+        foreach (Control child in body.Controls)
         {
-            return;
-        }
-        body.AutoSize = false;
-        body.Dock = DockStyle.Fill;
-        for (var row = 0; row < body.RowStyles.Count; row++)
-        {
-            body.RowStyles[row].SizeType = row == 0
-                ? SizeType.Percent
-                : SizeType.AutoSize;
-            body.RowStyles[row].Height = row == 0 ? 100 : 0;
+            child.Dock = DockStyle.Top;
         }
     }
 
@@ -813,11 +984,42 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private void ShowCompactToolPage(CompactToolPage page)
+    /// <summary>
+    /// The tool a rail page puts the viewport into. Topology and Morph &amp; Refit
+    /// are command pages rather than modal tools, so they leave the active tool
+    /// alone and return null.
+    /// </summary>
+    private static string? DefaultToolForRailPage(ToolRailPage page) => page switch
     {
-        _compactSelectedToolPage = page;
-        _compactToolPageSelected = true;
-        foreach (var pair in _compactToolPages)
+        ToolRailPage.Selection => "select",
+        ToolRailPage.Transform => "move",
+        ToolRailPage.Brush => "smooth",
+        _ => null,
+    };
+
+    private static bool RailPageOwnsTool(ToolRailPage page, string tool) => page switch
+    {
+        ToolRailPage.Selection => string.Equals(tool, "select", StringComparison.OrdinalIgnoreCase),
+        ToolRailPage.Transform => tool.ToLowerInvariant() is "move" or "grab",
+        ToolRailPage.Brush => tool.ToLowerInvariant() is "smooth" or "inflate" or "pinch",
+        _ => false,
+    };
+
+    private void ShowToolRailPage(ToolRailPage page)
+    {
+        _selectedToolRailPage = page;
+        _toolRailPageSelected = true;
+        // A rail button that names a tool has to select that tool. Revealing the
+        // page alone left the viewport in whatever mode it was already in, so
+        // clicking "Select" and then clicking the model did nothing.
+        var defaultTool = DefaultToolForRailPage(page);
+        if (defaultTool is not null
+            && _meshEditInteractionActive
+            && !RailPageOwnsTool(page, _viewport.ActiveTool))
+        {
+            ActivateTool(defaultTool, ToolRailPageTitle(page));
+        }
+        foreach (var pair in _toolRailPages)
         {
             pair.Value.Visible = pair.Key == page;
             if (pair.Key == page)
@@ -825,113 +1027,109 @@ internal sealed partial class ExperimentForm
                 pair.Value.BringToFront();
             }
         }
-        foreach (var pair in _compactToolTabButtons)
+        foreach (var pair in _toolRailButtons)
         {
-            SetButtonLatched(pair.Value, pair.Key == page);
+            SetButtonAccent(pair.Value, pair.Key == page);
         }
-        if (page == CompactToolPage.MorphRefit)
+        if (_toolRailPanelHeader is not null)
         {
-            UpdateCompactMorphLayout();
+            _toolRailPanelHeader.Text = ToolRailPageTitle(page).ToUpperInvariant();
         }
     }
 
-    private CompactToolPage CompactPageForActiveTool()
+    private ToolRailPage ToolRailPageForActiveTool()
     {
         return _viewport.ActiveTool.ToLowerInvariant() switch
         {
-            "move" or "grab" => CompactToolPage.Transform,
-            "smooth" or "inflate" or "pinch" => CompactToolPage.Brush,
-            _ => CompactToolPage.Selection,
+            "move" or "grab" => ToolRailPage.Transform,
+            "smooth" or "inflate" or "pinch" => ToolRailPage.Brush,
+            _ => ToolRailPage.Selection,
         };
     }
 
-    private void UpdateCompactMorphLayout()
+    /// <summary>
+    /// Keeps the rail highlight on the page that owns the active tool when the
+    /// tool is changed from the page's own buttons rather than from the rail.
+    /// </summary>
+    private void SyncToolRailPageToActiveTool()
     {
-        if (!IsBottomToolDeckActive || _compactMorphHost is null)
+        if (!IsToolRailActive)
         {
             return;
         }
-        var columnCount = CompactMorphColumnCount();
-        if (columnCount == _compactMorphColumnCount)
+        var page = ToolRailPageForActiveTool();
+        if (page != _selectedToolRailPage && RailPageOwnsTool(page, _viewport.ActiveTool))
         {
-            return;
+            ShowToolRailPage(page);
         }
-        _compactMorphColumnCount = columnCount;
-        EnterCompactMorphLayout(columnCount);
     }
 
-    private int CompactMorphColumnCount()
+    private void ApplyToolRailSplitterLayout()
     {
-        var deviceWidth = Math.Max(
-            1,
-            _compactMorphHost?.ClientSize.Width
-                ?? _compactWorkspaceSplit?.Panel2.ClientSize.Width
-                ?? ClientSize.Width);
-        var logicalWidth = LogicalToolPanelWidth(deviceWidth);
-        return EditMeshLayoutContracts.MorphColumnsForLogicalWidth(logicalWidth);
-    }
-
-    private void ApplyCompactSplitterLayout()
-    {
-        if (_applyingCompactSplitterLayout
-            || _rightToolSplit is null
-            || _compactWorkspaceSplit is null)
+        if (_applyingToolRailSplitterLayout
+            || _leftToolSplit is null
+            || _rightToolSplit is null)
         {
             return;
         }
-        _applyingCompactSplitterLayout = true;
+        _applyingToolRailSplitterLayout = true;
         try
         {
             _editMeshLayoutHost?.PerformLayout();
+            _leftToolSplit.PerformLayout();
             _rightToolSplit.PerformLayout();
-            _compactWorkspaceSplit.PerformLayout();
 
-            var inspectorWidth = _compactInspectorWidthLogical > 0
-                ? _compactInspectorWidthLogical
-                : EditMeshLayoutContracts.DefaultInspectorWidth(
-                    LogicalToolPanelWidth(ClientSize.Width));
-            var deckHeight = _compactToolDeckHeightLogical > 0
-                ? _compactToolDeckHeightLogical
-                : EditMeshLayoutContracts.DefaultToolDeckHeight(
-                    LogicalToolPanelWidth(ClientSize.Height));
+            var toolDockWidth = ScaleToolPanelWidth(ToolRailWidth + ToolPropertyWidth);
+            ApplySplitterDistance(
+                _leftToolSplit,
+                toolDockWidth,
+                toolDockWidth,
+                ScaleToolPanelWidth(MinimumViewportWidth + SceneInspectorWidth),
+                prioritizePanelOne: true);
+            _leftToolSplit.PerformLayout();
             EditMeshLayoutContracts.ApplyPanelTwoSize(
                 _rightToolSplit,
-                ScaleToolPanelWidth(inspectorWidth),
-                ScaleToolPanelWidth(360),
-                ScaleToolPanelWidth(300));
-            EditMeshLayoutContracts.ApplyPanelTwoSize(
-                _compactWorkspaceSplit,
-                ScaleToolPanelWidth(deckHeight),
+                ScaleToolPanelWidth(SceneInspectorWidth),
                 ScaleToolPanelWidth(MinimumViewportWidth),
-                ScaleToolPanelWidth(220));
+                ScaleToolPanelWidth(280));
         }
         finally
         {
-            _applyingCompactSplitterLayout = false;
+            _applyingToolRailSplitterLayout = false;
         }
     }
 
-    private void CaptureCompactSplitterLayout()
+    /// <summary>
+    /// The Morph &amp; Refit section carries its own collapse header for the
+    /// classic stack. In the tool dock the header row is redundant, and the
+    /// body must not stay collapsed from a previous classic session.
+    /// </summary>
+    private void SetMorphCollapseHeaderVisible(bool visible)
     {
-        if (_applyingCompactSplitterLayout
-            || !IsBottomToolDeckActive
-            || _rightToolSplit is null
-            || _compactWorkspaceSplit is null)
+        if (_morphSectionHeader is null
+            || _morphSectionLayout is null
+            || _morphSectionLayout.RowStyles.Count == 0)
         {
             return;
         }
-        var inspectorWidth = Math.Max(
-            0,
-            _rightToolSplit.ClientSize.Width
-                - _rightToolSplit.SplitterWidth
-                - _rightToolSplit.SplitterDistance);
-        var deckHeight = Math.Max(
-            0,
-            _compactWorkspaceSplit.ClientSize.Height
-                - _compactWorkspaceSplit.SplitterWidth
-                - _compactWorkspaceSplit.SplitterDistance);
-        _compactInspectorWidthLogical = LogicalToolPanelWidth(inspectorWidth);
-        _compactToolDeckHeightLogical = LogicalToolPanelWidth(deckHeight);
+        _morphSectionHeader.Visible = visible;
+        _morphSectionLayout.RowStyles[0].SizeType =
+            visible ? SizeType.AutoSize : SizeType.Absolute;
+        _morphSectionLayout.RowStyles[0].Height = 0;
+        if (_morphSectionBody is not null)
+        {
+            _morphSectionBody.Visible = !visible || _morphClassicExpanded;
+        }
+    }
+
+    private void PerformClassicToolStackLayout()
+    {
+        _morphSectionBody?.PerformLayout();
+        _morphSectionLayout?.PerformLayout();
+        _leftToolStack?.PerformLayout();
+        _rightToolStack?.PerformLayout();
+        _leftToolPanel?.PerformLayout();
+        _rightToolPanel?.PerformLayout();
     }
 
     private void CaptureClassicScrollPositions()
@@ -967,20 +1165,24 @@ internal sealed partial class ExperimentForm
     {
         _editMeshLayoutHost?.SuspendLayout();
         _classicEditMeshLayoutRoot?.SuspendLayout();
-        _compactWorkspaceSplit?.SuspendLayout();
+        _viewportWorkspaceSplit?.SuspendLayout();
+        _leftToolModeHost?.SuspendLayout();
         _rightToolModeHost?.SuspendLayout();
-        _compactInspectorGrid?.SuspendLayout();
-        _compactSelectionGrid?.SuspendLayout();
+        _toolDock?.SuspendLayout();
+        _sceneInspectorColumn?.SuspendLayout();
+        _railSelectionStack?.SuspendLayout();
         SuspendToolPanelLayout();
     }
 
     private void ResumeAllEditMeshLayouts()
     {
         ResumeToolPanelLayout();
-        _compactSelectionGrid?.ResumeLayout(performLayout: false);
-        _compactInspectorGrid?.ResumeLayout(performLayout: false);
+        _railSelectionStack?.ResumeLayout(performLayout: false);
+        _sceneInspectorColumn?.ResumeLayout(performLayout: false);
+        _toolDock?.ResumeLayout(performLayout: false);
         _rightToolModeHost?.ResumeLayout(performLayout: true);
-        _compactWorkspaceSplit?.ResumeLayout(performLayout: true);
+        _leftToolModeHost?.ResumeLayout(performLayout: true);
+        _viewportWorkspaceSplit?.ResumeLayout(performLayout: true);
         _classicEditMeshLayoutRoot?.ResumeLayout(performLayout: true);
         _editMeshLayoutHost?.ResumeLayout(performLayout: true);
     }

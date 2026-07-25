@@ -4,6 +4,21 @@ internal sealed partial class MeshViewport
 {
     public long ResidentSceneLoadCount => _d3d11Viewport?.ResidentSceneLoadCount ?? 0;
 
+    /// <summary>
+    /// The view a freshly loaded package settles on. Read-only previews show
+    /// wire over untextured geometry by default, and plain textured geometry
+    /// once textures are resolved; the wire overlay is the authoring default,
+    /// not the preview one.
+    /// </summary>
+    internal string InitialResidentDisplayMode(bool hasTextureResources)
+    {
+        if (_options.SimplePreview)
+        {
+            return hasTextureResources ? "textured" : "untextured_wire";
+        }
+        return hasTextureResources ? "textured_wire" : "untextured_wire";
+    }
+
     public void ReplaceResidentPackage(
         ObjDocument document,
         NetMaterialSet materials,
@@ -52,8 +67,11 @@ internal sealed partial class MeshViewport
         var hasTextureResources = materials.TextureLoadResources().Any()
             || textureSet.DecodedCount > 0
             || textureSet.NativeDdsResourceCount > 0;
+        // Land on the mode the host is going to ask for anyway. Picking a
+        // different one here made every swap present an intermediate view
+        // before the host's own display update corrected it.
         _ = TrySetSynchronizedDisplayMode(
-            hasTextureResources ? "textured_wire" : "untextured_wire",
+            InitialResidentDisplayMode(hasTextureResources),
             out _);
         ApplySceneState();
     }

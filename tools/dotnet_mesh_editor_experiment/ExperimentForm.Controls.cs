@@ -1,4 +1,5 @@
 using System.Drawing;
+using System.Drawing.Drawing2D;
 using System.Windows.Forms;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -29,6 +30,11 @@ internal sealed partial class ExperimentForm
         combo.FlatStyle = FlatStyle.Flat;
         combo.ItemHeight = Math.Max(combo.ItemHeight, combo.Font.Height + 4);
         combo.MinimumSize = new Size(0, SingleLineControlHeight(combo));
+        // A flat DropDownList only invalidates the newly exposed strip when it
+        // grows, so the previous themed paint and drop arrow stay on screen and
+        // the widened remainder keeps the unthemed system background. Repaint
+        // the whole client whenever the layout resizes it.
+        combo.Resize += (_, _) => combo.Invalidate();
         ApplyCommonControlStyle(combo);
     }
 
@@ -66,7 +72,7 @@ internal sealed partial class ExperimentForm
     private static Button StyledButton(string text, int height = 30)
     {
         var buttonHeight = Math.Max(height, TextRenderer.MeasureText(text, SystemFonts.MessageBoxFont).Height + 10);
-        var button = new MeshEditorDepthButton
+        var button = new MeshEditorFlatButton
         {
             Text = text,
             AutoSize = true,
@@ -78,6 +84,9 @@ internal sealed partial class ExperimentForm
             ForeColor = ThemeText,
             BackColor = ThemeButtonBackground,
             Margin = new Padding(0, 0, 0, 6),
+            // Tool captions are data, not accelerators: "Morph & Refit" has to
+            // render its ampersand instead of losing it to a mnemonic prefix.
+            UseMnemonic = false,
             UseVisualStyleBackColor = false
         };
         button.FlatAppearance.BorderSize = 0;
@@ -104,6 +113,18 @@ internal sealed partial class ExperimentForm
 
     private Control PreviewModeControl()
     {
+        return LabeledControl("Preview mode", _previewMode);
+    }
+
+    /// <summary>
+    /// Populates and wires the preview-mode combo. This is display state the
+    /// resident viewport protocol reads and writes, not decoration: the preview
+    /// profile builds no tool panels but still routes every
+    /// viewport_display_update through <see cref="SyncPreviewModeSelection"/>,
+    /// which assigns SelectedIndex. An unpopulated combo throws there.
+    /// </summary>
+    private void ConfigurePreviewModeCombo()
+    {
         var modes = new[]
         {
             "textured",
@@ -128,9 +149,11 @@ internal sealed partial class ExperimentForm
                 "Wire + Vertices",
                 "X-Ray",
             },
-            selectedIndex: HasResidentTextureResources() ? 3 : 2);
+            selectedIndex: Array.IndexOf(
+                modes,
+                _viewport.InitialResidentDisplayMode(HasResidentTextureResources())));
         _ = _viewport.TrySetSynchronizedDisplayMode(
-            HasResidentTextureResources() ? "textured_wire" : "untextured_wire",
+            _viewport.InitialResidentDisplayMode(HasResidentTextureResources()),
             out _);
         _previewMode.SelectedIndexChanged += (_, _) =>
         {
@@ -166,7 +189,6 @@ internal sealed partial class ExperimentForm
                 _statusLabel.Text = error;
             }
         };
-        return LabeledControl("Preview mode", _previewMode);
     }
 
     private bool HasResidentTextureResources()
@@ -264,13 +286,13 @@ internal sealed partial class ExperimentForm
         _vertexMarkerSize.ValueChanged += (_, _) => ApplyOverlaySizing(
             $"Vertex size set to {_vertexMarkerSize.Value:0.#} px.");
         var reset = StyledActionButton("Reset", ResetOverlayAppearance);
-        return LabeledControl(
-            "Topology appearance",
-            StackControls(
-                ButtonRow(_wireColorButton, _vertexColorButton, reset),
-                ButtonRow(
-                    LabeledControl("Wire width (px)", _wireOverlayWidth),
-                    LabeledControl("Vertex size (px)", _vertexMarkerSize))));
+        // Each of these rows owns the section's full width. Nesting them under a
+        // shared "Topology appearance" label pushed the sizing row past the
+        // inspector edge, which clipped the vertex-size control out of reach.
+        return StackControls(
+            ButtonRow(_wireColorButton, _vertexColorButton, reset),
+            LabeledControl("Wire width (px)", _wireOverlayWidth),
+            LabeledControl("Vertex size (px)", _vertexMarkerSize));
     }
 
     private Button OverlayColorButton(string label, bool wire)
@@ -428,6 +450,7 @@ internal sealed partial class ExperimentForm
         {
             Text = label,
             AutoSize = true,
+            UseMnemonic = false,
             MinimumSize = new Size(0, 20),
             ForeColor = ThemeMutedText,
             BackColor = ThemeSectionBackground,
@@ -498,7 +521,7 @@ internal sealed partial class ExperimentForm
 
     private static GroupBox AddSection(TableLayoutPanel stack, string title, params Control[] controls)
     {
-        var group = new GroupBox
+        var group = new MeshEditorSectionBox
         {
             Text = title,
             ForeColor = ThemeText,
@@ -618,12 +641,10 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
+        // CaptureToolPanelLayout is a no-op while the tool rail is active, so
+        // dragging a rail splitter never overwrites the classic widths.
         _leftToolSplit.SplitterMoved += (_, _) => CaptureToolPanelLayout(persist: true);
-        _rightToolSplit.SplitterMoved += (_, _) =>
-        {
-            CaptureToolPanelLayout(persist: true);
-            CaptureCompactSplitterLayout();
-        };
+        _rightToolSplit.SplitterMoved += (_, _) => CaptureToolPanelLayout(persist: true);
     }
 
     private void ApplySavedToolPanelLayout()
@@ -714,7 +735,7 @@ internal sealed partial class ExperimentForm
     private void CaptureToolPanelLayout(bool persist)
     {
         if (_applyingToolPanelLayout
-            || IsBottomToolDeckActive
+            || IsToolRailActive
             || _leftToolSplit is null
             || _rightToolSplit is null
             || _leftToolSplit.Panel1Collapsed
@@ -738,7 +759,7 @@ internal sealed partial class ExperimentForm
 
     private void SaveToolPanelLayout()
     {
-        if (!IsBottomToolDeckActive)
+        if (!IsToolRailActive)
         {
             CaptureToolPanelLayout(persist: false);
         }
@@ -774,19 +795,8 @@ internal sealed partial class ExperimentForm
     {
         var button = StyledButton(text);
         _toolButtons[tool] = button;
-        button.Click += (_, _) => ToggleTool(tool, text);
+        button.Click += (_, _) => ActivateTool(tool, text);
         return button;
-    }
-
-    private void ToggleTool(string tool, string text)
-    {
-        if (!string.Equals(tool, "orbit", StringComparison.OrdinalIgnoreCase)
-            && string.Equals(_viewport.ActiveTool, tool, StringComparison.OrdinalIgnoreCase))
-        {
-            ActivateTool("orbit", "Orbit");
-            return;
-        }
-        ActivateTool(tool, text);
     }
 
     private void ActivateTool(string tool, string text)
@@ -802,13 +812,14 @@ internal sealed partial class ExperimentForm
     {
         _viewport.ActiveTool = tool;
         RefreshToolButtonStates();
+        SyncToolRailPageToActiveTool();
     }
 
     private void RefreshToolButtonStates()
     {
         foreach (var pair in _toolButtons)
         {
-            SetButtonLatched(
+            SetButtonAccent(
                 pair.Value,
                 string.Equals(pair.Key, _viewport.ActiveTool, StringComparison.OrdinalIgnoreCase));
         }
@@ -818,21 +829,21 @@ internal sealed partial class ExperimentForm
     {
         foreach (var pair in _gizmoButtons)
         {
-            SetButtonLatched(
+            SetButtonAccent(
                 pair.Value,
                 string.Equals(pair.Key, _scene.GizmoTool, StringComparison.OrdinalIgnoreCase));
         }
     }
 
-    private static void SetButtonLatched(Button button, bool latched)
+    private static void SetButtonAccent(Button button, bool accent)
     {
-        if (button is MeshEditorDepthButton depthButton)
+        if (button is MeshEditorFlatButton flatButton)
         {
-            depthButton.SetLatched(latched);
+            flatButton.SetAccent(accent);
             return;
         }
-        button.BackColor = latched ? ThemeAccent : ThemeButtonBackground;
-        button.ForeColor = latched ? Color.Black : ThemeText;
+        button.BackColor = accent ? ThemeAccent : ThemeButtonBackground;
+        button.ForeColor = accent ? Color.White : ThemeText;
     }
 
     private Button CommandButton(string text, string command)
@@ -904,6 +915,13 @@ internal sealed partial class ExperimentForm
     private void ApplyInteractionModeControls()
     {
         var meshEdit = string.Equals(_scene.InteractionMode, "mesh_edit", StringComparison.OrdinalIgnoreCase);
+        if (meshEdit)
+        {
+            // The first moment the flanks uncollapse is the first moment the
+            // panels must exist. Everything below walks the section lists,
+            // which stay empty until they are built.
+            EnsureAuthoringToolPanelsReady();
+        }
         var enteringMeshEdit = meshEdit && !_meshEditInteractionActive;
         var leavingMeshEdit = !meshEdit && _meshEditInteractionActive;
         _meshEditInteractionActive = meshEdit;
@@ -1111,136 +1129,129 @@ internal sealed partial class ExperimentForm
         }
     }
 
-    private sealed class MeshEditorDepthButton : Button
+    /// <summary>
+    /// Flat, rounded, accent-driven button. Replaces the beveled highlight and
+    /// shadow border, which is the single strongest "old Windows" cue in the
+    /// editor and does not exist anywhere in the Qt shell.
+    /// </summary>
+    private sealed class MeshEditorFlatButton : Button
     {
-        private bool _latched;
-        private bool _mousePressed;
-        private bool _keyboardPressed;
+        private const int CornerRadius = 4;
+        private bool _accent;
 
-        public MeshEditorDepthButton()
+        public MeshEditorFlatButton()
         {
             ResizeRedraw = true;
             SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+            FlatStyle = FlatStyle.Flat;
+            FlatAppearance.BorderSize = 0;
         }
 
-        public void SetLatched(bool latched)
+        public void SetAccent(bool accent)
         {
-            _latched = latched;
-            BackColor = latched ? ThemeAccent : ThemeButtonBackground;
-            ForeColor = latched ? Color.Black : ThemeText;
-            FlatAppearance.MouseOverBackColor = latched ? ThemeAccentHover : ThemeButtonHover;
-            FlatAppearance.MouseDownBackColor = latched ? ThemeAccentPressed : ThemeButtonPressed;
+            _accent = accent;
+            BackColor = accent ? ThemeAccent : ThemeButtonBackground;
+            ForeColor = accent ? Color.White : ThemeText;
+            FlatAppearance.MouseOverBackColor = accent ? ThemeAccentHover : ThemeButtonHover;
+            FlatAppearance.MouseDownBackColor = accent ? ThemeAccentPressed : ThemeButtonPressed;
             Invalidate();
         }
 
-        protected override void OnMouseDown(MouseEventArgs e)
+        internal static GraphicsPath RoundedPath(Rectangle bounds, int radius)
         {
-            _mousePressed = e.Button == MouseButtons.Left;
-            base.OnMouseDown(e);
-            Invalidate();
-        }
-
-        protected override void OnMouseUp(MouseEventArgs e)
-        {
-            _mousePressed = false;
-            base.OnMouseUp(e);
-            Invalidate();
-        }
-
-        protected override void OnMouseMove(MouseEventArgs e)
-        {
-            base.OnMouseMove(e);
-            if (_mousePressed)
+            var path = new GraphicsPath();
+            var d = Math.Max(1, radius * 2);
+            if (bounds.Width <= d || bounds.Height <= d)
             {
-                Invalidate();
+                path.AddRectangle(bounds);
+                return path;
             }
+            path.AddArc(bounds.X, bounds.Y, d, d, 180, 90);
+            path.AddArc(bounds.Right - d, bounds.Y, d, d, 270, 90);
+            path.AddArc(bounds.Right - d, bounds.Bottom - d, d, d, 0, 90);
+            path.AddArc(bounds.X, bounds.Bottom - d, d, d, 90, 90);
+            path.CloseFigure();
+            return path;
         }
 
-        protected override void OnMouseEnter(EventArgs e)
+        protected override void OnResize(EventArgs e)
         {
-            base.OnMouseEnter(e);
-            Invalidate();
+            base.OnResize(e);
+            ApplyRoundedRegion();
         }
 
-        protected override void OnMouseLeave(EventArgs e)
+        protected override void OnHandleCreated(EventArgs e)
         {
-            base.OnMouseLeave(e);
-            Invalidate();
+            base.OnHandleCreated(e);
+            ApplyRoundedRegion();
         }
 
-        protected override void OnMouseCaptureChanged(EventArgs e)
+        private void ApplyRoundedRegion()
         {
-            if (!Capture)
+            if (Width < 4 || Height < 4)
             {
-                _mousePressed = false;
+                return;
             }
-            base.OnMouseCaptureChanged(e);
-            Invalidate();
-        }
-
-        protected override void OnKeyDown(KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Space)
-            {
-                _keyboardPressed = true;
-            }
-            base.OnKeyDown(e);
-            Invalidate();
-        }
-
-        protected override void OnKeyUp(KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Space)
-            {
-                _keyboardPressed = false;
-            }
-            base.OnKeyUp(e);
-            Invalidate();
-        }
-
-        protected override void OnLostFocus(EventArgs e)
-        {
-            _keyboardPressed = false;
-            base.OnLostFocus(e);
-            Invalidate();
-        }
-
-        protected override void OnEnabledChanged(EventArgs e)
-        {
-            base.OnEnabledChanged(e);
-            Invalidate();
+            using var path = RoundedPath(new Rectangle(0, 0, Width, Height), CornerRadius);
+            var previous = Region;
+            Region = new Region(path);
+            previous?.Dispose();
         }
 
         protected override void OnPaint(PaintEventArgs pevent)
         {
             base.OnPaint(pevent);
-            if (ClientSize.Width < 4 || ClientSize.Height < 4)
+            if (Width < 4 || Height < 4)
             {
                 return;
             }
-            var pointerInside = ClientRectangle.Contains(PointToClient(Cursor.Position));
-            var sunken = _latched || _keyboardPressed || (_mousePressed && pointerInside);
-            var topLeft = Enabled
-                ? (sunken ? ThemeButtonShadow : ThemeButtonHighlight)
-                : ThemeBorder;
-            var bottomRight = Enabled
-                ? (sunken ? ThemeButtonHighlight : ThemeButtonShadow)
-                : ThemeBorder;
-            ControlPaint.DrawBorder(
-                pevent.Graphics,
-                ClientRectangle,
-                topLeft,
-                2,
-                ButtonBorderStyle.Solid,
-                topLeft,
-                2,
-                ButtonBorderStyle.Solid,
-                bottomRight,
-                2,
-                ButtonBorderStyle.Solid,
-                bottomRight,
-                2,
-                ButtonBorderStyle.Solid);
+            pevent.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = RoundedPath(new Rectangle(0, 0, Width - 1, Height - 1), CornerRadius);
+            using var pen = new Pen(
+                !Enabled ? ThemeBorder : _accent ? ThemeAccent : ThemeButtonBorder);
+            pevent.Graphics.DrawPath(pen, path);
+        }
+    }
+
+    /// <summary>
+    /// A flat card instead of the Win32 etched group frame: hairline rounded
+    /// border, uppercase caption, no notch.
+    /// </summary>
+    private sealed class MeshEditorSectionBox : GroupBox
+    {
+        public MeshEditorSectionBox()
+        {
+            ResizeRedraw = true;
+            SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(BackColor);
+            if (Width < 4 || Height < 4)
+            {
+                return;
+            }
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var path = MeshEditorFlatButton.RoundedPath(
+                new Rectangle(0, 0, Width - 1, Height - 1), 5))
+            using (var pen = new Pen(ThemeBorder))
+            {
+                g.DrawPath(pen, path);
+            }
+            g.SmoothingMode = SmoothingMode.Default;
+            if (string.IsNullOrEmpty(Text))
+            {
+                return;
+            }
+            TextRenderer.DrawText(
+                g,
+                Text.ToUpperInvariant(),
+                Font,
+                new Rectangle(12, 7, Math.Max(0, Width - 24), Font.Height + 2),
+                ThemeMutedText,
+                TextFormatFlags.Left | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
         }
     }
 }

@@ -71,9 +71,30 @@ class MeshEditorDotNetCommandMixin:
             request_payload=request_payload,
         )
         return True
+    def _reject_dotnet_request_without_session(
+        self,
+        command_name: str,
+        payload: Mapping[str, object],
+    ) -> None:
+        """Answer a helper request that arrived without a live edit session.
+
+        Selection and stroke requests block the helper's viewport on an
+        authoritative reply. Dropping one leaves the editor showing "awaiting
+        authoritative result" for a click that will never be answered, which
+        reads as the tool being broken.
+        """
+        self._send_dotnet_command_result(
+            command_name,
+            ok=False,
+            status="unavailable",
+            diagnostics=("No live Mesh Editor session is attached.",),
+            request_payload=payload,
+        )
+
     def _handle_dotnet_select_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
+            self._reject_dotnet_request_without_session("select", payload)
             return False
         if self._reject_dotnet_mutation_while_busy("select", payload):
             return True
@@ -105,6 +126,7 @@ class MeshEditorDotNetCommandMixin:
     def _handle_dotnet_local_selection_request(self, payload: Mapping[str, object]) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None or not isinstance(payload.get("local_selection"), Mapping):
+            self._reject_dotnet_request_without_session("select", payload)
             return False
         if self._reject_dotnet_mutation_while_busy("select", payload):
             return True
@@ -123,6 +145,7 @@ class MeshEditorDotNetCommandMixin:
     def _handle_dotnet_stroke_event(self, payload: Mapping[str, object], phase: str) -> bool:
         controller = self._dotnet_target_controller()
         if controller is None:
+            self._reject_dotnet_request_without_session("stroke", payload)
             return False
         if self._reject_dotnet_mutation_while_busy("stroke", payload):
             return True

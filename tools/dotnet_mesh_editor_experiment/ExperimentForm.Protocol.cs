@@ -1111,6 +1111,7 @@ internal sealed partial class ExperimentForm
             ["comparison_mode"] = _scene.ComparisonMode,
             ["interaction_mode"] = _scene.InteractionMode,
             ["capabilities"] = new[] { ResidentSceneCapability, AuthoritativeResidentSceneCapability },
+            ["lifecycle_counts"] = LifecycleCountsPayload(),
         };
         CopyMutationEnvelope(root, payload);
         WriteProtocolEvent("scene_state_update_ack", payload);

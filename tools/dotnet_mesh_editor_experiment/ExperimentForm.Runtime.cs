@@ -7,10 +7,13 @@ internal sealed partial class ExperimentForm
 {
     private const double PlacementTransformProtocolIntervalMs = 30.0;
     private const double ViewStateProtocolIntervalMs = 50.0;
+    private const double StrokeUpdateProtocolIntervalMs = 30.0;
     private Dictionary<string, object?>? _pendingPlacementTransformPayload;
     private Dictionary<string, object?>? _pendingViewStatePayload;
+    private Dictionary<string, object?>? _pendingStrokeUpdatePayload;
     private long _lastPlacementTransformProtocolTimestamp;
     private long _lastViewStateProtocolTimestamp;
+    private long _lastStrokeUpdateProtocolTimestamp;
 
     private void HandleViewportEditorEvent(string eventName, Dictionary<string, object?> payload)
     {
@@ -18,6 +21,29 @@ internal sealed partial class ExperimentForm
         {
             _pendingViewStatePayload = new Dictionary<string, object?>(payload);
             FlushPendingViewState();
+            return;
+        }
+        // A drag reports every mouse move, and each stroke payload carries a
+        // projection matrix per editable submesh. Left unpaced that is megabytes
+        // per second of protocol traffic on a multi-part model, which overruns
+        // the host's read buffer and takes the editor down mid-stroke. Only the
+        // newest intermediate sample matters, so coalesce to it; the phases that
+        // carry meaning are always written through.
+        if (string.Equals(eventName, "stroke_update", StringComparison.OrdinalIgnoreCase))
+        {
+            _pendingStrokeUpdatePayload = CoalesceStrokeSample(_pendingStrokeUpdatePayload, payload);
+            FlushPendingStrokeUpdate();
+            return;
+        }
+        if (eventName is "stroke_begin" or "stroke_end" or "stroke_cancel")
+        {
+            // The terminal phase absorbs whatever span is still pending, so the
+            // host never sees an update arrive after the stroke closed and no
+            // pointer motion is dropped on the way out.
+            var terminal = CoalesceStrokeSample(_pendingStrokeUpdatePayload, payload);
+            _pendingStrokeUpdatePayload = null;
+            WriteProtocolEvent(eventName, terminal);
+            _lastStrokeUpdateProtocolTimestamp = Stopwatch.GetTimestamp();
             return;
         }
         if (!string.Equals(eventName, "placement_transform_request", StringComparison.OrdinalIgnoreCase))
@@ -59,6 +85,55 @@ internal sealed partial class ExperimentForm
         _pendingViewStatePayload = null;
         WriteProtocolEvent("view_state_changed", payload);
         _lastViewStateProtocolTimestamp = Stopwatch.GetTimestamp();
+    }
+
+    /// <summary>
+    /// Folds a pending stroke sample into the newest one. Each sample's
+    /// screen_drag is the motion since the previous sample, so a coalesced
+    /// sample has to keep the older start point: taking only the newest sample
+    /// would silently discard the pointer motion the dropped ones carried.
+    /// </summary>
+    private static Dictionary<string, object?> CoalesceStrokeSample(
+        Dictionary<string, object?>? pending,
+        Dictionary<string, object?> newest)
+    {
+        var merged = new Dictionary<string, object?>(newest);
+        if (pending is null
+            || pending.GetValueOrDefault("screen_drag") is not Dictionary<string, object?> pendingDrag
+            || merged.GetValueOrDefault("screen_drag") is not Dictionary<string, object?> newestDrag)
+        {
+            return merged;
+        }
+        var drag = new Dictionary<string, object?>(newestDrag);
+        foreach (var key in new[] { "start_x", "start_y" })
+        {
+            if (pendingDrag.TryGetValue(key, out var start))
+            {
+                drag[key] = start;
+            }
+        }
+        merged["screen_drag"] = drag;
+        return merged;
+    }
+
+    private void FlushPendingStrokeUpdate(bool force = false)
+    {
+        if (_pendingStrokeUpdatePayload is null)
+        {
+            return;
+        }
+        var now = Stopwatch.GetTimestamp();
+        var elapsedMs = _lastStrokeUpdateProtocolTimestamp <= 0
+            ? double.MaxValue
+            : (now - _lastStrokeUpdateProtocolTimestamp) * 1000.0 / Stopwatch.Frequency;
+        if (!force && elapsedMs < StrokeUpdateProtocolIntervalMs)
+        {
+            return;
+        }
+        var payload = _pendingStrokeUpdatePayload;
+        _pendingStrokeUpdatePayload = null;
+        WriteProtocolEvent("stroke_update", payload);
+        _lastStrokeUpdateProtocolTimestamp = Stopwatch.GetTimestamp();
     }
 
     private void FlushPendingPlacementTransform(bool force = false)
@@ -110,6 +185,7 @@ internal sealed partial class ExperimentForm
                 return;
             }
             _viewport.EnsureRenderScheduled();
+            FlushPendingStrokeUpdate();
             FlushPendingPlacementTransform();
             FlushPendingViewState();
             if (_readyPendingFirstFrame && _viewport.HasRenderedRequiredPresentation)
