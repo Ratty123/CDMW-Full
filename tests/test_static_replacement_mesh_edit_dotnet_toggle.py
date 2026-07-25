@@ -411,15 +411,25 @@ def test_texture_reapply_reads_latest_original_reference_model() -> None:
     assert "has_original_reference_model=_state._current_original_reference_preview_model() is not None" in source
 
 
-def test_dotnet_exit_always_queues_material_texture_restore_after_preview_transition() -> None:
+def test_dotnet_exit_restores_the_textured_preview_through_the_mode_transition() -> None:
     restore_source = _function_source(
         "static_replacement_mesh_edit_session.py",
         "_mesh_editor_queue_post_edit_textured_preview_rebuild",
     )
 
-    assert "_state._queue_texture_preview_refresh()" in restore_source
-    assert restore_source.index("_mesh_edit_apply_preview_mode_transition") < restore_source.index(
-        "_queue_texture_preview_refresh"
+    # afda4eae ("Stabilize resident Vortice previews") deleted the trailing
+    # _queue_texture_preview_refresh() from this function: the mode transition
+    # already restores the textured preview, and the second refresh was the
+    # flicker on exit. This guard asserted the deleted line, so the shipped fix
+    # is what turned it red. Asserting its absence keeps that fix from
+    # regressing, and matches the guard in
+    # test_mesh_edit_responsiveness_source_guards.py, which asserts the same.
+    assert "_queue_texture_preview_refresh" not in restore_source
+    assert '_state.mesh_edit_preview_model_dirty["value"] = True' in restore_source
+    assert "_mesh_edit_refresh_replacement_preview_model" in restore_source
+    # The transition is what restores the texture, so the model refresh precedes it.
+    assert restore_source.index("_mesh_edit_refresh_replacement_preview_model") < restore_source.index(
+        "_mesh_edit_apply_preview_mode_transition"
     )
 
 
