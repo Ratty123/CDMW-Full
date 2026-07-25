@@ -8,6 +8,9 @@ from cdmw.constants import APP_VERSION
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# Untracked local working notes, not repository documentation. Both guards in
+# this module agree on that: neither reads a plan off disk.
+PLANS_DIR = ROOT / "docs" / "plans"
 DELETED_ACTIVE_PLANS = {
     "app-shutdown-process-cleanup.md",
     "code-review-findings-remediation.md",
@@ -18,7 +21,7 @@ DELETED_ACTIVE_PLANS = {
 
 def _documentation_files() -> tuple[Path, ...]:
     files = [ROOT / "README.md", ROOT / "SECURITY.md"]
-    files.extend((ROOT / "docs").rglob("*.md"))
+    files.extend(path for path in (ROOT / "docs").rglob("*.md") if PLANS_DIR not in path.parents)
     files.extend((ROOT / "cdmw").rglob("README.md"))
     return tuple(sorted(set(files)))
 
