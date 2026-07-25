@@ -170,6 +170,10 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
             + Path("cdmw/ui/shell/model_library_bridge.py").read_text(encoding="utf-8")
             + "\n"
             + Path("cdmw/ui/archive_browser/preview_dotnet_lifecycle.py").read_text(encoding="utf-8")
+            + "\n"
+            # The package-rejection message moved here out of the lifecycle module;
+            # the guard follows the behavior rather than the old file.
+            + Path("cdmw/ui/archive_browser/preview_result.py").read_text(encoding="utf-8")
         )
 
         self.assertIn("from cdmw.ui.model_library import ModelLibraryTab", source)
@@ -412,7 +416,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertNotIn("grabFramebuffer", source)
         self.assertIn("generated_icons", source)
         self.assertIn("_model_preview_icon_image", source)
-        self.assertIn("NativePreviewPanel", source)
+        self.assertNotIn("NativePreviewPanel", source)
         self.assertNotIn("WebGlPbrPreviewHostFrame", source)
         self.assertNotIn("WEBGL_PBR_RENDERER_BACKEND", source)
         self.assertNotIn("webgl_pbr", source)
@@ -424,9 +428,13 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn('inline_render_settings.render_diagnostic_mode = "base_direct"', source)
         self.assertIn("inline_render_settings.disable_all_support_maps = True", source)
         self.assertIn("inline_render_settings.low_quality_texture_max_dimension = 1024", source)
-        self.assertIn("inline_preview_widget.set_render_settings(inline_render_settings)", source)
-        self.assertIn("inline_preview_widget.set_use_textures(True)", source)
-        self.assertIn("inline_preview_widget.set_high_quality_textures(True)", source)
+        self.assertIn("inline_render_settings.use_textures_by_default = True", source)
+        self.assertIn("inline_render_settings.high_quality_by_default = True", source)
+        self.assertIn(
+            "tab.inline_preview_render_settings = clamp_model_preview_render_settings(inline_render_settings)",
+            source,
+        )
+        self.assertNotIn("inline_preview_widget", source)
         self.assertIn("inline_preview_status_label.setWordWrap(False)", source)
         self.assertIn("inline_preview_status_label.setMinimumHeight(24)", source)
         self.assertIn("inline_preview_status_label.setMaximumHeight(32)", source)
@@ -441,7 +449,7 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("reset_orientation=False", source)
         self.assertIn('== "d3d11_vortice_shader"', source)
         self.assertIn("self._inline_preview_loaded_texture_count", source)
-        self.assertIn("preview_render_settings = self.inline_preview_widget.render_settings()", source)
+        self.assertIn("preview_render_settings = self.inline_preview_render_settings", source)
         self.assertIn("render_settings=preview_render_settings", source)
         self.assertIn("prepare_model_library_inline_preview(", source)
         self.assertNotIn("prepare_model_library_inline_preview_in_subprocess", source)
@@ -452,6 +460,13 @@ class ModelLibraryUiSourceGuardTests(unittest.TestCase):
         self.assertIn("_handle_inline_dotnet_state", source)
         self.assertIn("capture_replacement_icon", source)
         self.assertIn("_cleanup_inline_d3d11_packages", source)
+        self.assertIn("self._pending_icon_generation_for_next_preview = True", source)
+        self.assertIn("self._pending_icon_generation_request_id = request_id", source)
+        self.assertNotIn(
+            "self._pending_icon_generation_request_id = self._inline_preview_request_id + 1",
+            source,
+        )
+        self.assertIn('summary or ".NET/Vortice Model Library preview ready."', source)
         self.assertNotIn("write_isolated_d3d11_preview_package", source)
         self.assertNotIn("def _inline_preview_material_channel_summary", source)
         self.assertIn("channels: {material_channel_summary}", source)

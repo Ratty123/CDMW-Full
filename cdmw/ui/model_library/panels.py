@@ -29,9 +29,9 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.domain.library.models import DEFAULT_MODEL_MIRROR_URL
+from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
 from cdmw.ui.model_library.settings import MODEL_LIBRARY_FILTER_COLUMNS
 from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
-from cdmw.ui.widgets import NativePreviewPanel
 
 
 def build_controls_panel(tab: object) -> QWidget:
@@ -451,11 +451,9 @@ def build_preview_panel(tab: object) -> QWidget:
     preview_layout = QVBoxLayout(preview_group)
     preview_layout.setContentsMargins(8, 8, 8, 8)
     preview_layout.setSpacing(6)
-    tab.inline_preview_widget = NativePreviewPanel(
-        "Select a downloaded or local model to preview it here.",
-        theme_key=tab.theme_key,
-    )
-    inline_render_settings = tab.inline_preview_widget.render_settings()
+    # The inline preview is drawn by the resident .NET/Vortice host, so these are
+    # preparation settings only: no preview widget owns them.
+    inline_render_settings = ModelPreviewRenderSettings()
     inline_render_settings.visible_texture_mode = "sidecar_visible_first"
     inline_render_settings.render_diagnostic_mode = "base_direct"
     inline_render_settings.disable_tint = True
@@ -465,12 +463,9 @@ def build_preview_panel(tab: object) -> QWidget:
     inline_render_settings.disable_material_map = True
     inline_render_settings.disable_height_map = True
     inline_render_settings.low_quality_texture_max_dimension = 1024
-    tab.inline_preview_widget.set_render_settings(inline_render_settings)
-    tab.inline_preview_widget.set_use_textures(True)
-    tab.inline_preview_widget.set_high_quality_textures(True)
-    tab.inline_preview_widget.setMinimumHeight(280)
-    tab.inline_preview_widget.setParent(panel)
-    tab.inline_preview_widget.setVisible(False)
+    inline_render_settings.use_textures_by_default = True
+    inline_render_settings.high_quality_by_default = True
+    tab.inline_preview_render_settings = clamp_model_preview_render_settings(inline_render_settings)
     tab.inline_preview_stack = QStackedWidget()
     tab.inline_d3d11_preview_host = DotNetPreviewHostFrame(
         profile=DotNetPreviewProfile.PREVIEW,
