@@ -1153,6 +1153,16 @@ class ModelPreviewMesh:
     preview_role: str = ""
 
 
+# Derived from the dataclass rather than written out, so a new decoded-image
+# field cannot be added here and then silently missed by the clone helpers that
+# drop images when handing a preview across a thread or cache boundary.
+PREVIEW_MESH_IMAGE_FIELD_NAMES: Tuple[str, ...] = tuple(
+    field_info.name
+    for field_info in fields(ModelPreviewMesh)
+    if field_info.name.endswith("_texture_image")
+)
+
+
 @dataclass(slots=True)
 class PbdMaterialSettings:
     material_name: str = ""

@@ -6,6 +6,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
+from cdmw.domain.textures.semantics import is_stock_or_shared_texture_path
+
 
 MATERIAL_AUTHORITY_REPORT_FILENAME = "cdmw_material_authority_report.json"
 MATERIAL_AUTHORITY_REPORT_CHECK_SCHEMA = "cdmw_material_authority_report_check_v1"
@@ -1174,17 +1176,7 @@ def _visible_color_luma_mean(texture: Mapping[str, object], package_root: str) -
     return (0.2126 * float(red)) + (0.7152 * float(green)) + (0.0722 * float(blue))
 
 
-def _is_stock_or_shared_texture_path(texture_path: str) -> bool:
-    basename = Path(str(texture_path or "").replace("\\", "/")).name.lower()
-    return (
-        basename.startswith("cd_texturelayer_")
-        or basename.startswith("cd_temp")
-        or basename.startswith("cd_metal_")
-        or basename.startswith("blackoil")
-        or basename.startswith("cd_common_default")
-        or basename.startswith("nonetexture")
-        or basename.startswith("none_texture")
-    )
+_is_stock_or_shared_texture_path = is_stock_or_shared_texture_path
 
 
 def _normalized_report_texture_path(value: object) -> str:
