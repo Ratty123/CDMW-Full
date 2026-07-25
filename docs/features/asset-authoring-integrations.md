@@ -29,10 +29,26 @@ native integration explicitly vendors a library.
 | MikkTSpace | bundled in `cdmw_mesh_core` | `CDMW_MESH_CORE_BIN` | Build with `cdmw_mesh_core`; `generate-tangents-json` reports face-corner tangents, signs, vertex-storage remap metadata, and Python applies a topology split when shared vertex storage would average across seams. | Reference code notice is preserved under `native/cdmw_mesh_core/third_party/mikktspace/`. | Existing Python tangent generator if native helper is missing or fails. |
 | `material_maker` | `asset_authoring/material_maker_path` | `CDMW_MATERIAL_MAKER_BIN` | Install Material Maker separately; configure `asset_authoring/material_maker_export_template` or `CDMW_MATERIAL_MAKER_EXPORT_TEMPLATE` for CLI export. | MIT; external app not bundled. | Existing Texture Workflow assets and DDS paths. |
 | `ufbx` | bundled in `cdmw_mesh_core` | `CDMW_MESH_CORE_BIN` | Build with `cdmw_mesh_core`; `import-scene-json` reports FBX mesh/material/texture/rig/animation evidence without claiming game compatibility. | MIT notice is preserved under `native/cdmw_mesh_core/third_party/ufbx/`. | Existing OBJ/DAE/GLB/glTF scene import reports; FBX remains unsupported when native helper is missing. |
-| `assimp` | `asset_authoring/assimp_path` | `CDMW_ASSIMP_BIN` | Optional future import comparator only, not the primary FBX path. | Modified BSD 3-Clause. | Existing scene import paths. |
-| `directxmesh` | `asset_authoring/directxmesh_path` | `CDMW_DIRECTXMESH_BIN` | Future native validation/cleanup code should build with native mesh helpers. | MIT. Preserve upstream notice if bundled. | Service mesh-health preflight and Python cleanup. |
 | `meshoptimizer` | bundled in `cdmw_mesh_core`; optional external comparator path remains `asset_authoring/meshoptimizer_path` | `CDMW_MESH_CORE_BIN`; comparator `CDMW_MESHOPTIMIZER_BIN` | Build with `cdmw_mesh_core`; `optimize-json` reports vertex-cache/overdraw ordering and opt-in simplification metrics before any apply path. | MIT notice is preserved under `native/cdmw_mesh_core/third_party/meshoptimizer/`. | Conservative topology-preserving package output unless simplification is explicitly reviewed. |
 | `openimageio` | `asset_authoring/oiio_path` | `CDMW_OIIO_BIN` | Install `oiiotool` separately; CDMW uses it only for source metadata, conversion, and image diffs. The offline Mesh Editor parity report adds explicit thresholds, structured mean/RMS/max/PSNR metrics, and an amplified absolute-difference PNG. | Primarily Apache-2.0, with small legacy BSD-3-Clause portions. | Existing PNG/JPG/BMP/DDS workflows and DirectXTex DDS authority. |
+
+## Mesh Health Connectivity Checks
+
+`AssetAuthoringService.mesh_health_report` is pure Python preflight and needs no
+native helper. Alongside the invalid/degenerate/duplicate/loose counts it reports
+connectivity that welding and degenerate-face removal do not fix:
+
+| Field | Meaning | Warns |
+|---|---|---|
+| `boundary_edges` | Edge used by exactly one face | No — open meshes such as cloth, hair cards, and cut-out geometry are legitimate |
+| `non_manifold_edges` | Edge shared by more than two faces | Yes |
+| `inconsistent_winding_edges` | Two neighbouring faces traverse a shared edge in the same direction | Yes |
+| `bowtie_vertices` | Vertex whose incident faces form more than one disconnected fan | Yes |
+
+Bowties and flipped winding survive cleanup and simplification, and surface as
+shading or backface artifacts rather than as invalid geometry, so they are
+reported before an edit is accepted. The report stays preflight-only and never
+mutates the mesh.
 
 ## Failure Behavior
 
@@ -83,7 +99,5 @@ meshoptimizer preflight JSON reports.
 - xatlas: https://github.com/jpcy/xatlas
 - Material Maker: https://github.com/RodZill4/material-maker
 - ufbx: https://github.com/ufbx/ufbx
-- Assimp: https://github.com/assimp/assimp
-- DirectXMesh: https://github.com/microsoft/DirectXMesh
 - meshoptimizer: https://github.com/zeux/meshoptimizer
 - OpenImageIO: https://github.com/AcademySoftwareFoundation/OpenImageIO

@@ -128,26 +128,6 @@ _HELPERS = (
         package_safe=False,
     ),
     AssetAuthoringHelperSpec(
-        key="assimp",
-        label="Assimp",
-        role="optional fallback import comparator",
-        setting_key="asset_authoring/assimp_path",
-        env_key="CDMW_ASSIMP_BIN",
-        executables=("assimp",),
-        capabilities=("scene_report", "format_fallback"),
-        package_safe=False,
-    ),
-    AssetAuthoringHelperSpec(
-        key="directxmesh",
-        label="DirectXMesh",
-        role="future mesh validation/cleanup helper",
-        setting_key="asset_authoring/directxmesh_path",
-        env_key="CDMW_DIRECTXMESH_BIN",
-        executables=("directxmesh", "meshconvert"),
-        capabilities=("adjacency", "mesh_validate", "cleanup"),
-        package_safe=False,
-    ),
-    AssetAuthoringHelperSpec(
         key="meshoptimizer",
         label="meshoptimizer",
         role="optional external simplification/optimization comparator; bundled backend lives in cdmw_mesh_core",
@@ -918,7 +898,7 @@ def _helper_report(
         "package_safe": bool(spec.package_safe and status == "available"),
         "version": "",
         "version_status": "not_checked",
-        "version_argv": _helper_version_argv(spec, path) if status == "available" and path is not None else [],
+        "version_argv": _helper_version_argv(path) if status == "available" and path is not None else [],
     }
     if source == "cdmw_mesh_core":
         report.update(
@@ -1017,11 +997,9 @@ def _module_executable_path(spec: AssetAuthoringHelperSpec) -> Path | None:
     return None
 
 
-def _helper_version_argv(spec: AssetAuthoringHelperSpec, path: Path | None) -> list[str]:
+def _helper_version_argv(path: Path | None) -> list[str]:
     if path is None:
         return []
-    if spec.key == "assimp":
-        return [str(path), "version"]
     return [str(path), "--version"]
 
 
@@ -1612,7 +1590,7 @@ def _mesh_health_part(index: int, submesh: object, duplicate_epsilon: float) -> 
     degenerate_faces = 0
     duplicate_faces = 0
     seen_faces: set[tuple[int, int, int]] = set()
-    valid_faces = 0
+    connected_faces: list[tuple[int, int, int]] = []
     for face in faces:
         indices = _face_indices(face)
         if indices is None:
@@ -1626,7 +1604,7 @@ def _mesh_health_part(index: int, submesh: object, duplicate_epsilon: float) -> 
         if len(set(indices)) < 3:
             degenerate_faces += 1
             continue
-        valid_faces += 1
+        connected_faces.append(indices)
         used_vertices.update(indices)
         face_key = tuple(sorted(indices))
         if face_key in seen_faces:
@@ -1639,7 +1617,7 @@ def _mesh_health_part(index: int, submesh: object, duplicate_epsilon: float) -> 
         "name": str(getattr(submesh, "name", "") or f"part_{index}"),
         "vertex_count": len(vertices),
         "face_count": len(faces),
-        "valid_faces": valid_faces,
+        "valid_faces": len(connected_faces),
         "invalid_vertices": invalid_vertices,
         "invalid_faces": invalid_faces,
         "invalid_indices": invalid_indices,
@@ -1649,7 +1627,73 @@ def _mesh_health_part(index: int, submesh: object, duplicate_epsilon: float) -> 
         "duplicate_vertices": duplicate_vertices,
         "duplicate_faces": duplicate_faces,
         "loose_vertices": loose_vertices,
+        **_mesh_connectivity_counts(connected_faces),
     }
+
+
+def _mesh_connectivity_counts(faces: Sequence[tuple[int, int, int]]) -> dict[str, int]:
+    edge_slots: dict[tuple[int, int], list[int]] = {}
+    edge_directions: dict[tuple[int, int], list[bool]] = {}
+    vertex_slots: dict[int, list[int]] = {}
+    for slot, corners in enumerate(faces):
+        for position in range(3):
+            start = corners[position]
+            end = corners[(position + 1) % 3]
+            key = (start, end) if start < end else (end, start)
+            edge_slots.setdefault(key, []).append(slot)
+            edge_directions.setdefault(key, []).append(start < end)
+            vertex_slots.setdefault(start, []).append(slot)
+
+    boundary_edges = 0
+    non_manifold_edges = 0
+    inconsistent_winding_edges = 0
+    for directions in edge_directions.values():
+        if len(directions) == 1:
+            boundary_edges += 1
+        elif len(directions) > 2:
+            non_manifold_edges += 1
+        elif directions[0] == directions[1]:
+            inconsistent_winding_edges += 1
+
+    fans: dict[tuple[int, int], tuple[int, int]] = {}
+    for (left_vertex, right_vertex), slots in edge_slots.items():
+        for other in slots[1:]:
+            _union_face_fans(fans, (left_vertex, slots[0]), (left_vertex, other))
+            _union_face_fans(fans, (right_vertex, slots[0]), (right_vertex, other))
+
+    bowtie_vertices = 0
+    for vertex, slots in vertex_slots.items():
+        if len(slots) < 2:
+            continue
+        if len({_find_face_fan(fans, (vertex, slot)) for slot in slots}) > 1:
+            bowtie_vertices += 1
+
+    return {
+        "boundary_edges": boundary_edges,
+        "non_manifold_edges": non_manifold_edges,
+        "inconsistent_winding_edges": inconsistent_winding_edges,
+        "bowtie_vertices": bowtie_vertices,
+    }
+
+
+def _find_face_fan(fans: dict[tuple[int, int], tuple[int, int]], node: tuple[int, int]) -> tuple[int, int]:
+    root = node
+    while fans.get(root, root) != root:
+        root = fans[root]
+    while fans.get(node, node) != node:
+        fans[node], node = root, fans[node]
+    return root
+
+
+def _union_face_fans(
+    fans: dict[tuple[int, int], tuple[int, int]],
+    left: tuple[int, int],
+    right: tuple[int, int],
+) -> None:
+    left_root = _find_face_fan(fans, left)
+    right_root = _find_face_fan(fans, right)
+    if left_root != right_root:
+        fans[left_root] = right_root
 
 
 def _mesh_health_totals(parts: Sequence[Mapping[str, object]]) -> dict[str, int]:
@@ -1666,6 +1710,10 @@ def _mesh_health_totals(parts: Sequence[Mapping[str, object]]) -> dict[str, int]
         "duplicate_vertices",
         "duplicate_faces",
         "loose_vertices",
+        "boundary_edges",
+        "non_manifold_edges",
+        "inconsistent_winding_edges",
+        "bowtie_vertices",
     )
     return {key: sum(int(part.get(key, 0) or 0) for part in parts) for key in keys}
 
@@ -1680,6 +1728,9 @@ def _mesh_health_warnings(totals: Mapping[str, int], topology: Mapping[str, obje
         ("duplicate_vertices", "duplicate vertices"),
         ("duplicate_faces", "duplicate faces"),
         ("loose_vertices", "loose vertices"),
+        ("non_manifold_edges", "non-manifold edges shared by more than two faces"),
+        ("inconsistent_winding_edges", "edges whose neighbouring faces disagree on winding"),
+        ("bowtie_vertices", "bowtie vertices joining otherwise disconnected face fans"),
     ):
         count = int(totals.get(key, 0) or 0)
         if count:
