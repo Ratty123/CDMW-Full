@@ -39,6 +39,7 @@ from tools.mesh_harness.visual_audit_manifest_v2 import (
     build_visual_audit_v2_candidates,
     select_visual_audit_v2_candidates,
     validate_visual_audit_v2_selection,
+    visual_audit_v2_contract_for_asset_count,
 )
 from tools.mesh_harness.visual_audit_source_boards import build_source_material_boards
 
@@ -157,11 +158,26 @@ def default_visual_audit_v2_specs(game_root: Path) -> tuple[VisualAuditAssetSpec
     )
 
 
-def validate_visual_audit_specs(specs: Sequence[VisualAuditAssetSpec]) -> dict[str, int]:
+def validate_visual_audit_specs(
+    specs: Sequence[VisualAuditAssetSpec],
+    *,
+    expected_asset_count: int | None = None,
+) -> dict[str, int]:
     _validate_visual_audit_identities(specs)
     v2_categories = set(VISUAL_AUDIT_V2_CATEGORY_COUNTS)
     selected_categories = {spec.model_category for spec in specs}
     if selected_categories and selected_categories <= v2_categories:
+        # Without a pinned count this infers the milestone from the specs it was
+        # handed, so a 120-PAC corpus validates cleanly where 500 was intended.
+        # Callers that know which milestone they asked for should pass it.
+        if expected_asset_count is not None and len(specs) != int(expected_asset_count):
+            raise ValueError(
+                f"Visual-audit corpus requires exactly {int(expected_asset_count)} "
+                f"PACs; found {len(specs)}."
+            )
+        category_counts, graph_minimums = visual_audit_v2_contract_for_asset_count(
+            len(specs)
+        )
         validation = validate_visual_audit_v2_selection(
             tuple(
                 VisualAuditV2Candidate(
@@ -173,7 +189,9 @@ def validate_visual_audit_specs(specs: Sequence[VisualAuditAssetSpec]) -> dict[s
                     pac_xml_sha256=spec.pac_xml_sha256,
                 )
                 for spec in specs
-            )
+            ),
+            category_counts=category_counts,
+            graph_minimums=graph_minimums,
         )
         return {
             **dict(validation["category_counts"]),

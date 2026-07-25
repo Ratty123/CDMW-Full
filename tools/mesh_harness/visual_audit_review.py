@@ -13,8 +13,7 @@ from tools.mesh_harness.visual_audit_integrity import _capture_integrity
 from tools.mesh_harness.visual_audit_manifest_v2 import (
     PRIOR_CONCERN_SWORD_PATH,
     REQUIRED_SWORD_PATH,
-    VISUAL_AUDIT_V2_CATEGORY_COUNTS,
-    VISUAL_AUDIT_V2_GRAPH_MINIMUMS,
+    visual_audit_v2_contract_for_asset_count,
 )
 
 
@@ -1073,14 +1072,30 @@ def _source_board_coverage_ok(corpus_rows: list[Mapping[str, object]]) -> bool:
     return True
 
 
-def _v2_corpus_acceptance_ok(corpus: Mapping[str, object]) -> bool:
+def _v2_corpus_acceptance_ok(
+    corpus: Mapping[str, object],
+    *,
+    expected_asset_count: int | None = None,
+) -> bool:
     if str(corpus.get("schema", "") or "") != "cdmw_mesh_visual_audit_corpus_v2":
         return False
     raw_rows = tuple(corpus.get("assets", ()) or ())
     if any(not isinstance(row, Mapping) for row in raw_rows):
         return False
     rows = [row for row in raw_rows if isinstance(row, Mapping)]
-    if len(rows) != 120 or int(corpus.get("asset_count", 0) or 0) != 120:
+    # Take the requirement from the corpus's own declaration, not from the rows
+    # it happens to carry. Deriving it from len(rows) makes the row-count check
+    # tautological, so a truncated corpus would score itself as complete.
+    asset_count = int(corpus.get("asset_count", 0) or 0)
+    if expected_asset_count is not None and asset_count != int(expected_asset_count):
+        return False
+    try:
+        required_category_counts, graph_minimums = (
+            visual_audit_v2_contract_for_asset_count(asset_count)
+        )
+    except ValueError:
+        return False
+    if len(rows) != asset_count:
         return False
     ids = [str(row.get("asset_id", "") or "") for row in rows]
     paths = [str(row.get("virtual_path", "") or "") for row in rows]
@@ -1088,18 +1103,18 @@ def _v2_corpus_acceptance_ok(corpus: Mapping[str, object]) -> bool:
     if (
         not all(ids)
         or not all(paths)
-        or len(set(ids)) != 120
-        or len({path.casefold() for path in paths}) != 120
-        or indices != list(range(1, 121))
+        or len(set(ids)) != asset_count
+        or len({path.casefold() for path in paths}) != asset_count
+        or indices != list(range(1, asset_count + 1))
     ):
         return False
     category_counts = Counter(str(row.get("model_category", "") or "") for row in rows)
-    if dict(category_counts) != dict(VISUAL_AUDIT_V2_CATEGORY_COUNTS):
+    if dict(category_counts) != dict(required_category_counts):
         return False
     coverage = corpus.get("coverage", {})
     if not isinstance(coverage, Mapping) or any(
         int(coverage.get(key, 0) or 0) < minimum
-        for key, minimum in VISUAL_AUDIT_V2_GRAPH_MINIMUMS.items()
+        for key, minimum in graph_minimums.items()
     ):
         return False
     folded_paths = {path.casefold() for path in paths}

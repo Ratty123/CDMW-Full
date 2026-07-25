@@ -30,6 +30,8 @@ from tools.mesh_harness.visual_audit_corpus import (
 from tools.mesh_harness.visual_audit_manifest_v2 import (
     PRIOR_CONCERN_SWORD_PATH,
     REQUIRED_SWORD_PATH,
+    VISUAL_AUDIT_V2_500_CATEGORY_COUNTS,
+    VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS,
     VISUAL_AUDIT_V2_CATEGORY_COUNTS,
     VISUAL_AUDIT_V2_GRAPH_MINIMUMS,
     VisualAuditV2Candidate,
@@ -72,6 +74,7 @@ def _synthetic_candidates(*, extra_per_category: int = 3) -> tuple[VisualAuditV2
             "weapon_sword",
             1,
             _ALL_GRAPH_TAGS,
+            pac_xml_virtual_path=REQUIRED_SWORD_PATH + ".xml",
             pac_xml_sha256=hashlib.sha256(REQUIRED_SWORD_PATH.encode()).hexdigest(),
             shader_families=("standardv2",),
         ),
@@ -80,6 +83,7 @@ def _synthetic_candidates(*, extra_per_category: int = 3) -> tuple[VisualAuditV2
             "weapon_sword",
             2,
             _ALL_GRAPH_TAGS,
+            pac_xml_virtual_path=PRIOR_CONCERN_SWORD_PATH + ".xml",
             pac_xml_sha256=hashlib.sha256(PRIOR_CONCERN_SWORD_PATH.encode()).hexdigest(),
             shader_families=("standardv2",),
         ),
@@ -97,6 +101,7 @@ def _synthetic_candidates(*, extra_per_category: int = 3) -> tuple[VisualAuditV2
                     category=category,
                     graph_complexity=1000 - index,
                     graph_tags=_ALL_GRAPH_TAGS,
+                    pac_xml_virtual_path=virtual_path + ".xml",
                     pac_xml_sha256=hashlib.sha256(virtual_path.encode()).hexdigest(),
                     wrapper_count=1 + index % 5,
                     parameter_count=10 + index,
@@ -154,6 +159,42 @@ def test_visual_audit_v2_expansion_selection_excludes_history_except_allowed_rep
     }
     assert len(selected_paths - historical_normalized) == 118
     assert validate_visual_audit_v2_selection(selected)["asset_count"] == 120
+
+
+def test_visual_audit_v2_expanded_500_selection_is_strict_and_keeps_only_two_repeats() -> None:
+    candidates = _synthetic_candidates(extra_per_category=150)
+    historical = select_visual_audit_v2_candidates(candidates)
+    historical_paths = {row.virtual_path for row in historical}
+
+    selected = select_visual_audit_v2_candidates(
+        tuple(reversed(candidates)),
+        excluded_paths=historical_paths,
+        allowed_repeat_paths=EXPANSION_REPEAT_PATHS,
+        selection_seed="expanded-500-selection-test",
+        category_counts=VISUAL_AUDIT_V2_500_CATEGORY_COUNTS,
+        graph_minimums=VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS,
+    )
+
+    assert len(selected) == 500
+    assert Counter(row.category for row in selected) == Counter(
+        VISUAL_AUDIT_V2_500_CATEGORY_COUNTS
+    )
+    selected_paths = {row.virtual_path.casefold() for row in selected}
+    historical_normalized = {path.casefold() for path in historical_paths}
+    assert selected_paths & historical_normalized == {
+        path.casefold() for path in EXPANSION_REPEAT_PATHS
+    }
+    assert len(selected_paths - historical_normalized) == 498
+    coverage = validate_visual_audit_v2_selection(
+        selected,
+        category_counts=VISUAL_AUDIT_V2_500_CATEGORY_COUNTS,
+        graph_minimums=VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS,
+    )
+    assert coverage["asset_count"] == 500
+    assert all(
+        coverage["graph_coverage"][tag] >= minimum
+        for tag, minimum in VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS.items()
+    )
 
 
 def test_visual_audit_v2_expansion_requires_repeat_permission_for_excluded_priority() -> None:
@@ -256,6 +297,48 @@ def test_visual_audit_v2_expansion_manifest_records_deterministic_history_and_ha
             archive_fingerprints_before={"pamt": {"sha256": "a" * 64}},
             archive_fingerprints_after={"pamt": {"sha256": "b" * 64}},
         )
+
+
+def test_visual_audit_v2_expanded_500_manifest_loads_through_strict_contract(
+    tmp_path: Path,
+) -> None:
+    candidates = _synthetic_candidates(extra_per_category=150)
+    historical = select_visual_audit_v2_candidates(candidates)
+    history_path = tmp_path / "historical.json"
+    history_path.write_text(
+        json.dumps(
+            {
+                "schema": "cdmw_mesh_visual_audit_corpus_v2",
+                "assets": [{"virtual_path": row.virtual_path} for row in historical],
+            }
+        ),
+        encoding="utf-8",
+    )
+    registry = load_visual_audit_exclusion_registry((history_path,))
+
+    payload = build_visual_audit_expansion_manifest(
+        candidates,
+        registry,
+        selection_seed="expanded-500-manifest-test",
+        asset_count=500,
+    )
+    provenance = payload["selection_provenance"]
+    assert payload["minimum_asset_count"] == 500
+    assert provenance["required_asset_count"] == 500
+    assert provenance["new_path_count"] == 498
+    assert provenance["category_counts"] == dict(VISUAL_AUDIT_V2_500_CATEGORY_COUNTS)
+
+    output_path = tmp_path / "manifest-expanded-sixth-500.json"
+    write_visual_audit_expansion_manifest(output_path, payload)
+    specs = _load_specs(output_path)
+    assert len(specs) == 500
+    assert validate_visual_audit_specs(specs) == {
+        **dict(VISUAL_AUDIT_V2_500_CATEGORY_COUNTS),
+        **{
+            tag: sum(tag in spec.graph_tags for spec in specs)
+            for tag in VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS
+        },
+    }
 
 
 def test_visual_audit_v2_specs_use_the_v2_coverage_contract() -> None:
@@ -988,15 +1071,31 @@ def test_visual_audit_v2_package_seal_rejects_tampered_tree_or_aggregate() -> No
     ) is False
 
 
-def test_visual_audit_v2_full_120_acceptance_survives_sorted_json_round_trip(
+@pytest.mark.parametrize("asset_count", (120, 500))
+def test_visual_audit_v2_full_acceptance_survives_sorted_json_round_trip(
     tmp_path: Path,
+    asset_count: int,
 ) -> None:
     evidence = tmp_path / "evidence"
     runtime = evidence / "runtime"
     runtime.mkdir(parents=True)
     run_id = "f" * 32
-    candidates = select_visual_audit_v2_candidates(_synthetic_candidates())
-    assert len(candidates) == 120
+    category_counts = (
+        VISUAL_AUDIT_V2_500_CATEGORY_COUNTS
+        if asset_count == 500
+        else VISUAL_AUDIT_V2_CATEGORY_COUNTS
+    )
+    graph_minimums = (
+        VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS
+        if asset_count == 500
+        else VISUAL_AUDIT_V2_GRAPH_MINIMUMS
+    )
+    candidates = select_visual_audit_v2_candidates(
+        _synthetic_candidates(extra_per_category=150 if asset_count == 500 else 3),
+        category_counts=category_counts,
+        graph_minimums=graph_minimums,
+    )
+    assert len(candidates) == asset_count
 
     master_png = tmp_path / "master.png"
     Image.new("RGB", (2, 2), (30, 60, 90)).save(master_png)
@@ -1208,7 +1307,7 @@ def test_visual_audit_v2_full_120_acceptance_survives_sorted_json_round_trip(
     corpus = {
         "schema": "cdmw_mesh_visual_audit_corpus_v2",
         "run_id": run_id,
-        "asset_count": 120,
+        "asset_count": asset_count,
         "coverage": dict(coverage),
         "assets": corpus_assets,
     }
@@ -1229,7 +1328,7 @@ def test_visual_audit_v2_full_120_acceptance_survives_sorted_json_round_trip(
         "schema": "cdmw_mesh_visual_audit_prepared_package_fingerprints_v1",
         "run_id": run_id,
         "corpus_sha256": corpus_sha256,
-        "asset_count": 120,
+        "asset_count": asset_count,
         "assets": seal_assets,
         "aggregate_sha256": hashlib.sha256(
             json.dumps(
@@ -1250,8 +1349,8 @@ def test_visual_audit_v2_full_120_acceptance_survives_sorted_json_round_trip(
         "schema": "cdmw_mesh_visual_audit_dotnet_batch_v2",
         "run_id": run_id,
         "ok": True,
-        "requested_asset_count": 120,
-        "resident_material_update_count": 120,
+        "requested_asset_count": asset_count,
+        "resident_material_update_count": asset_count,
         "resident_material_update_failure_count": 0,
         "process_start_count": 1,
         "process_restart_count": 0,
@@ -1302,13 +1401,13 @@ def test_visual_audit_v2_full_120_acceptance_survives_sorted_json_round_trip(
 
     summary = finalize_visual_audit_review(evidence, verdicts_path)
 
-    assert summary["asset_count"] == 120
-    assert summary["pass_count"] == 120
-    assert summary["visible_submesh_count"] == 120
-    assert summary["full_model_angle_direct_review_count"] == 720
-    assert summary["contact_sheet_direct_review_count"] == 120
-    assert summary["source_board_direct_review_count"] == 120
-    assert summary["submesh_review_sheet_direct_review_count"] == 120
+    assert summary["asset_count"] == asset_count
+    assert summary["pass_count"] == asset_count
+    assert summary["visible_submesh_count"] == asset_count
+    assert summary["full_model_angle_direct_review_count"] == asset_count * 6
+    assert summary["contact_sheet_direct_review_count"] == asset_count
+    assert summary["source_board_direct_review_count"] == asset_count
+    assert summary["submesh_review_sheet_direct_review_count"] == asset_count
     assert summary["acceptance_ok"] is True
     assert all(summary["acceptance_checks"].values())
 
