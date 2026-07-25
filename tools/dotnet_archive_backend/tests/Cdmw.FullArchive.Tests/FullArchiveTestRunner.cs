@@ -261,8 +261,12 @@ internal static class FullArchiveTestRunner
             var firstGeneration = Directory.GetDirectories(Path.Combine(family, "generations"))
                 .Single(path => !Path.GetFileName(path).StartsWith(".", StringComparison.Ordinal));
             Require(File.Exists(Path.Combine(firstGeneration, "archive.ali")), "base index is missing");
-            Require(File.Exists(Path.Combine(firstGeneration, "archive.adi")), "compact dependency index is missing");
             Require(File.Exists(Path.Combine(firstGeneration, "manifest.json")), "generation manifest is missing");
+            // The derived index is built in the background, so it is expected once
+            // the first consumer of it has been served, not at open.
+            await new ArchiveLookupService(sessions, cache, native)
+                .WarmAsync(first.SessionId, CancellationToken.None).ConfigureAwait(false);
+            Require(File.Exists(Path.Combine(firstGeneration, "archive.adi")), "compact dependency index is missing");
 
             var warmStarted = Stopwatch.StartNew();
             var second = await sessions.OpenAsync(
@@ -314,34 +318,68 @@ internal static class FullArchiveTestRunner
                         return Task.CompletedTask;
                     }).ConfigureAwait(false);
                 Require(
-                    dependencyProgress.Select(static update => update.Phase).Distinct().SequenceEqual(
-                        ["dependency_index_records", "dependency_index_sort", "dependency_index_write", "dependency_index_ready"]),
-                    "cold dependency-index progress did not expose records, sort, write, and ready phases");
+                    dependencyProgress.Count == 0,
+                    "cold open reported dependency-index progress, so it waited on a build it should defer");
                 var session = sessions.GetRequired(handle.SessionId);
                 dependencyIndexPath = Path.Combine(session.GenerationPath, "archive.adi");
-                Require(File.Exists(dependencyIndexPath), "compact dependency index was not published on cold open");
                 Require(!File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")), "cold open eagerly published the general lookup maps");
                 var lookup = new ArchiveLookupService(sessions, cache, native);
                 await lookup.WarmAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
+                Require(
+                    File.Exists(dependencyIndexPath),
+                    "the deferred dependency index was not published by the time warmup completed");
                 var facets = await lookup.FacetsAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
                 Require(facets.Extensions.Any(static facet => facet.Key == ".dds" && facet.Count == 1), "mapped dependency facets changed");
                 Require(!File.Exists(Path.Combine(session.GenerationPath, "lookups.bin")), "dependency warmup reconstructed the general lookup maps");
+            }
+
+            // A consumer that arrives while the background build is still running
+            // must get the finished index, not a missing one.
+            File.Delete(dependencyIndexPath);
+            using (var sessions = new ArchiveSessionManager(native, cache))
+            {
+                var handle = await sessions.OpenAsync(
+                    new OpenArchiveRequest(fixture.Root),
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(handle.CacheHit, "a missing dependency index forced the base generation to rebuild");
+                var lookup = new ArchiveLookupService(sessions, cache, native);
+                var facets = await lookup.FacetsAsync(handle.SessionId, CancellationToken.None).ConfigureAwait(false);
+                Require(
+                    facets.Extensions.Any(static facet => facet.Key == ".dds" && facet.Count == 1),
+                    "facets requested during a deferred build did not wait for it");
+                Require(File.Exists(dependencyIndexPath), "a waited-on deferred build did not publish its index");
             }
 
             var generationPath = Path.GetDirectoryName(dependencyIndexPath)!;
             var rootCachePath = Directory.GetParent(generationPath)!.Parent!.FullName;
             var currentPath = Path.Combine(rootCachePath, "current.json");
             var currentPointer = await File.ReadAllTextAsync(currentPath).ConfigureAwait(false);
-            using (var lockedIndex = new FileStream(dependencyIndexPath, FileMode.Open, FileAccess.Read, FileShare.None))
+            // A derived index that cannot be written no longer fails the archive
+            // open; browsing stays available and the failure reaches the consumer
+            // that needed the index. Once the lock clears, the next consumer retries.
             using (var sessions = new ArchiveSessionManager(native, cache))
             {
-                await ExpectAsync<UnauthorizedAccessException>(() => sessions.OpenAsync(
-                    new OpenArchiveRequest(fixture.Root),
-                    CancellationToken.None)).ConfigureAwait(false);
-                Require(File.Exists(dependencyIndexPath), "secondary index access failure quarantined the base generation");
+                var lookup = new ArchiveLookupService(sessions, cache, native);
+                string sessionId;
+                using (new FileStream(dependencyIndexPath, FileMode.Open, FileAccess.Read, FileShare.None))
+                {
+                    var handle = await sessions.OpenAsync(
+                        new OpenArchiveRequest(fixture.Root),
+                        CancellationToken.None).ConfigureAwait(false);
+                    sessionId = handle.SessionId;
+                    Require(handle.CacheHit, "a locked derived index blocked base generation reuse");
+                    Require(File.Exists(dependencyIndexPath), "secondary index access failure quarantined the base generation");
+                    Require(
+                        await File.ReadAllTextAsync(currentPath).ConfigureAwait(false) == currentPointer,
+                        "secondary index access failure replaced the current base generation");
+                    Require(
+                        await CaptureAsync(() => lookup.FacetsAsync(sessionId, CancellationToken.None)).ConfigureAwait(false) is not null,
+                        "a derived index that could not be written did not surface its failure to the consumer");
+                }
+                var facets = await lookup.FacetsAsync(sessionId, CancellationToken.None).ConfigureAwait(false);
                 Require(
-                    await File.ReadAllTextAsync(currentPath).ConfigureAwait(false) == currentPointer,
-                    "secondary index access failure replaced the current base generation");
+                    facets.Extensions.Any(static facet => facet.Key == ".dds" && facet.Count == 1),
+                    "a dependency index that failed while locked was not retried after the lock cleared");
             }
 
             await File.WriteAllTextAsync(dependencyIndexPath, "damaged").ConfigureAwait(false);
@@ -351,33 +389,38 @@ internal static class FullArchiveTestRunner
                     new OpenArchiveRequest(fixture.Root),
                     CancellationToken.None).ConfigureAwait(false);
                 Require(reopened.CacheHit, "damaged derived dependency index prevented base generation reuse");
+                var lookup = new ArchiveLookupService(sessions, cache, native);
+                await lookup.WarmAsync(reopened.SessionId, CancellationToken.None).ConfigureAwait(false);
                 Require(new FileInfo(dependencyIndexPath).Length > 80, "damaged dependency index was not rebuilt");
             }
 
+            // Closing a session mid-build must cancel it and leave nothing partial
+            // or half-written behind.
             File.Delete(dependencyIndexPath);
             using (var sessions = new ArchiveSessionManager(native, cache))
-            using (var cancelled = new CancellationTokenSource())
             {
-                await ExpectAsync<OperationCanceledException>(() => sessions.OpenAsync(
+                var handle = await sessions.OpenAsync(
                     new OpenArchiveRequest(fixture.Root),
-                    cancelled.Token,
-                    update =>
-                    {
-                        if (update.Phase == "dependency_index_records")
-                        {
-                            cancelled.Cancel();
-                        }
-                        return Task.CompletedTask;
-                    })).ConfigureAwait(false);
-                Require(!File.Exists(dependencyIndexPath), "cancelled dependency-index build published a partial index");
+                    CancellationToken.None).ConfigureAwait(false);
+                Require(sessions.Close(handle.SessionId), "session close did not release the deferred build");
+                Require(
+                    !Directory.EnumerateFiles(generationPath, ".archive.adi.*.tmp").Any(),
+                    "a closed session left dependency-index staging files behind");
+                Require(
+                    !File.Exists(dependencyIndexPath) || new FileInfo(dependencyIndexPath).Length > 80,
+                    "a closed session published a partial dependency index");
             }
 
+            File.Delete(dependencyIndexPath);
             using (var sessions = new ArchiveSessionManager(native, cache))
             {
                 var recovered = await sessions.OpenAsync(
                     new OpenArchiveRequest(fixture.Root),
                     CancellationToken.None).ConfigureAwait(false);
-                Require(recovered.CacheHit && File.Exists(dependencyIndexPath), "dependency index did not recover after cancellation");
+                var lookup = new ArchiveLookupService(sessions, cache, native);
+                await lookup.WarmAsync(recovered.SessionId, CancellationToken.None).ConfigureAwait(false);
+                Require(recovered.CacheHit, "the base generation was rebuilt instead of reused after a cancelled derived build");
+                Require(File.Exists(dependencyIndexPath), "dependency index did not recover after cancellation");
             }
         }
         finally
@@ -1371,6 +1414,20 @@ internal static class FullArchiveTestRunner
             return;
         }
         throw new InvalidOperationException($"Expected {typeof(TException).Name} was not raised.");
+    }
+
+    /// <summary>Runs an action that is expected to fail and returns its exception, or null.</summary>
+    private static async Task<Exception?> CaptureAsync(Func<Task> action)
+    {
+        try
+        {
+            await action().ConfigureAwait(false);
+            return null;
+        }
+        catch (Exception exception)
+        {
+            return exception;
+        }
     }
 
     private static async Task ExpectAsync<TException>(Func<Task> action)

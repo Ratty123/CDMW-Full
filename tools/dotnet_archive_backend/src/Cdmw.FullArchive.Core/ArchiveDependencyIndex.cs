@@ -50,7 +50,31 @@ internal sealed class ArchiveDependencyIndex : IDisposable
     public IReadOnlyList<ArchiveFacet> Roles { get; }
     public IReadOnlyList<ArchiveFacet> Categories { get; }
 
-    public static async Task<ArchiveDependencyIndex> OpenOrBuildAsync(
+    /// <summary>
+    /// Opens an already published dependency index, or returns null when none is
+    /// usable yet. Missing, stale, and damaged derived indexes are all rebuildable,
+    /// so they are reported the same way rather than failing the caller.
+    /// </summary>
+    internal static ArchiveDependencyIndex? TryOpen(ArchiveIndex source, string path)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        try
+        {
+            return Open(path, source);
+        }
+        catch (Exception exception) when (
+            exception is FileNotFoundException or InvalidDataException or IOException or OverflowException or FormatException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Builds the dependency index and publishes it atomically, then opens the
+    /// published file. A cancelled or failed build leaves no partial index behind.
+    /// </summary>
+    internal static async Task<ArchiveDependencyIndex> BuildAsync(
         ArchiveIndex source,
         string path,
         Func<ProgressUpdate, Task>? publishProgress,
@@ -58,33 +82,6 @@ internal sealed class ArchiveDependencyIndex : IDisposable
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        ArchiveDependencyIndex? existing = null;
-        try
-        {
-            existing = Open(path, source);
-        }
-        catch (Exception exception) when (
-            exception is FileNotFoundException or InvalidDataException or IOException or OverflowException or FormatException)
-        {
-            // Missing, stale, and damaged derived indexes are safe to rebuild.
-        }
-        if (existing is not null)
-        {
-            try
-            {
-                await PublishProgressAsync(
-                    publishProgress,
-                    new ProgressUpdate(1, 1, "dependency_index_ready")).ConfigureAwait(false);
-                cancellationToken.ThrowIfCancellationRequested();
-                return existing;
-            }
-            catch
-            {
-                existing.Dispose();
-                throw;
-            }
-        }
-
         var build = await Task.Run(
             () => Build(source, publishProgress, cancellationToken),
             CancellationToken.None).ConfigureAwait(false);
@@ -322,7 +319,10 @@ internal sealed class ArchiveDependencyIndex : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         for (long entryId = 0; entryId < source.EntryCount; entryId++)
         {
-            if (entryId > 0 && (entryId & 0x1FFF) == 0)
+            // Every published update is a synchronous framed write the scan waits
+            // on, so this reports roughly every 50ms of work rather than 200 times
+            // over the pass. A slow reader can no longer meter the build.
+            if (entryId > 0 && (entryId & 0x1FFFF) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 publishProgress?.Invoke(new ProgressUpdate(

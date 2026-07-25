@@ -210,6 +210,7 @@ public sealed class ArchiveCacheStore
                 var pointer = new ArchiveCurrentPointer(rootId, generationId, fingerprint.Value, DateTimeOffset.UtcNow);
                 await AtomicJson.WriteAsync(Path.Combine(RootDirectory(rootId), "current.json"), pointer, cancellationToken).ConfigureAwait(false);
                 var lease = await AcquireGenerationAsync(
+                    rootId,
                     generationPath,
                     manifest,
                     cacheHit: false,
@@ -282,6 +283,7 @@ public sealed class ArchiveCacheStore
         }
 
         return await AcquireGenerationAsync(
+            rootId,
             generationPath!,
             manifest!,
             cacheHit: true,
@@ -291,6 +293,7 @@ public sealed class ArchiveCacheStore
     }
 
     private async Task<ArchiveGenerationLease> AcquireGenerationAsync(
+        string rootId,
         string generationPath,
         ArchiveGenerationManifest manifest,
         bool cacheHit,
@@ -299,17 +302,18 @@ public sealed class ArchiveCacheStore
         Func<ProgressUpdate, Task>? progress)
     {
         ArchiveIndex? index = validatedIndex;
-        ArchiveDependencyIndex? dependencyIndex = null;
+        ArchiveDependencyIndexHandle? dependencyIndex = null;
         try
         {
             index ??= ArchiveIndex.Open(Path.Combine(generationPath, "archive.ali"));
-            dependencyIndex = await ArchiveDependencyIndex.OpenOrBuildAsync(
+            // Opens an existing dependency index inline and builds a missing one in
+            // the background. Nothing between here and the first page of results
+            // reads it, so a cold open no longer waits on that build.
+            dependencyIndex = ArchiveDependencyIndexHandle.Create(
                 index,
-                Path.Combine(generationPath, "archive.adi"),
-                progress,
-                cancellationToken).ConfigureAwait(false);
+                Path.Combine(generationPath, "archive.adi"));
             cancellationToken.ThrowIfCancellationRequested();
-            if (!manifest.LookupsReady)
+            if (dependencyIndex.IsReady && !manifest.LookupsReady)
             {
                 await UpdateSecondaryStateAsync(
                     generationPath,
@@ -322,7 +326,12 @@ public sealed class ArchiveCacheStore
             {
                 _activeGenerations[generationPath] = _activeGenerations.GetValueOrDefault(generationPath) + 1;
             }
-            return new ArchiveGenerationLease(this, generationPath, manifest, index, dependencyIndex, cacheHit);
+            var lease = new ArchiveGenerationLease(this, generationPath, manifest, index, dependencyIndex, cacheHit);
+            if (!dependencyIndex.IsReady)
+            {
+                MarkLookupsReadyWhenBuilt(dependencyIndex, rootId, generationPath);
+            }
+            return lease;
         }
         catch
         {
@@ -330,6 +339,45 @@ public sealed class ArchiveCacheStore
             index?.Dispose();
             throw;
         }
+    }
+
+    private void MarkLookupsReadyWhenBuilt(
+        ArchiveDependencyIndexHandle dependencyIndex,
+        string rootId,
+        string generationPath)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await dependencyIndex.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                // Taken under the same gate as an open: this rewrites the manifest a
+                // concurrent open validates, and that write used to be serialised by
+                // running inside the open itself.
+                var rootGate = _rootGates.GetOrAdd(rootId, static _ => new SemaphoreSlim(1, 1));
+                await rootGate.WaitAsync(CancellationToken.None).ConfigureAwait(false);
+                try
+                {
+                    await UpdateSecondaryStateAsync(
+                        generationPath,
+                        lookupsReady: true,
+                        namesReady: null,
+                        CancellationToken.None).ConfigureAwait(false);
+                }
+                finally
+                {
+                    rootGate.Release();
+                }
+            }
+            catch (Exception exception) when (
+                exception is OperationCanceledException or ObjectDisposedException or IOException
+                    or UnauthorizedAccessException or InvalidDataException or JsonException)
+            {
+                // The manifest flag is a hint. A session that closed before its
+                // background build finished simply leaves it unset, and the next
+                // open rebuilds and records it then.
+            }
+        });
     }
 
     internal void ReleaseGeneration(string generationPath)
@@ -595,21 +643,24 @@ public sealed class ArchiveGenerationLease : IDisposable
         string generationPath,
         ArchiveGenerationManifest manifest,
         ArchiveIndex index,
-        ArchiveDependencyIndex dependencyIndex,
+        ArchiveDependencyIndexHandle dependencyIndex,
         bool cacheHit)
     {
         _owner = owner;
         GenerationPath = generationPath;
         Manifest = manifest;
         Index = index;
-        DependencyIndex = dependencyIndex;
+        DependencyIndexHandle = dependencyIndex;
         CacheHit = cacheHit;
     }
 
     public string GenerationPath { get; }
     public ArchiveGenerationManifest Manifest { get; }
     public ArchiveIndex Index { get; }
-    internal ArchiveDependencyIndex DependencyIndex { get; }
+    internal ArchiveDependencyIndexHandle DependencyIndexHandle { get; }
+
+    /// <summary>Waits for a background dependency-index build when one is still running.</summary>
+    internal ArchiveDependencyIndex DependencyIndex => DependencyIndexHandle.Value;
     public bool CacheHit { get; }
 
     public void Dispose()
@@ -620,7 +671,9 @@ public sealed class ArchiveGenerationLease : IDisposable
         }
         try
         {
-            DependencyIndex.Dispose();
+            // Cancels and drains a background build before the index mapping it
+            // reads through is closed below.
+            DependencyIndexHandle.Dispose();
         }
         finally
         {

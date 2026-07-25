@@ -16,21 +16,24 @@ public sealed class ArchiveLookupService(
     private readonly ConcurrentDictionary<string, Lazy<Task<ArchiveLookupIndex>>> _indexes =
         new(StringComparer.OrdinalIgnoreCase);
 
-    public Task WarmAsync(
+    public async Task WarmAsync(
         string sessionId,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null)
     {
         var session = sessions.GetRequired(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        _ = session.DependencyIndex.RecordCount;
-        return progress is null
-            ? Task.CompletedTask
-            : progress(new ProgressUpdate(
-                session.DependencyIndex.RecordCount,
-                session.DependencyIndex.RecordCount,
+        // Absorbs the wait for a cold archive's background dependency-index build,
+        // which is why the worker starts this warmup as soon as an archive opens.
+        var dependencyIndex = await session.DependencyIndexAsync(cancellationToken).ConfigureAwait(false);
+        if (progress is not null)
+        {
+            await progress(new ProgressUpdate(
+                dependencyIndex.RecordCount,
+                dependencyIndex.RecordCount,
                 "dependency_index_ready",
-                "memory_mapped"));
+                "memory_mapped")).ConfigureAwait(false);
+        }
     }
 
     public async Task<ArchiveLookupResult> ResolveAsync(
@@ -70,12 +73,13 @@ public sealed class ArchiveLookupService(
                 }
                 break;
             case ArchiveLookupKind.Basenames:
+                var basenameIndex = await session.DependencyIndexAsync(cancellationToken).ConfigureAwait(false);
                 foreach (var value in request.Values ?? [])
                 {
                     if (!string.IsNullOrWhiteSpace(value))
                     {
                         incomplete |= AddDependencyMatches(
-                            session.DependencyIndex.FindEntryIdsByBasename(
+                            basenameIndex.FindEntryIdsByBasename(
                                 session.Index,
                                 value,
                                 MaximumPreviewLookupResults,
@@ -212,9 +216,10 @@ public sealed class ArchiveLookupService(
     {
         var session = sessions.GetRequired(sessionId);
         var selected = session.ReadEntry(entryId);
+        var dependencyIndex = await session.DependencyIndexAsync(cancellationToken).ConfigureAwait(false);
         var ids = new HashSet<long>();
         var incomplete = AddDependencyMatches(
-            session.DependencyIndex.FindEntryIdsByStem(
+            dependencyIndex.FindEntryIdsByStem(
                 session.Index,
                 Path.GetFileNameWithoutExtension(selected.Path),
                 MaximumPreviewLookupResults,
@@ -270,7 +275,7 @@ public sealed class ArchiveLookupService(
                     incomplete = true;
                     break;
                 }
-                incomplete |= AddPreviewReference(session, token, ids, cancellationToken);
+                incomplete |= AddPreviewReference(session, dependencyIndex, token, ids, cancellationToken);
             }
         }
         ids.Remove(selected.EntryId);
@@ -278,14 +283,15 @@ public sealed class ArchiveLookupService(
         return new PreviewAssociationResolution(ids.Order().ToArray(), incomplete);
     }
 
-    public Task<ArchiveFacetsResult> FacetsAsync(
+    public async Task<ArchiveFacetsResult> FacetsAsync(
         string sessionId,
         CancellationToken cancellationToken,
         Func<ProgressUpdate, Task>? progress = null)
     {
         var session = sessions.GetRequired(sessionId);
         cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(session.DependencyIndex.CreateFacets(session.Id));
+        var dependencyIndex = await session.DependencyIndexAsync(cancellationToken).ConfigureAwait(false);
+        return dependencyIndex.CreateFacets(session.Id);
     }
 
     private Task<ArchiveLookupIndex> GetIndexAsync(
@@ -507,6 +513,7 @@ public sealed class ArchiveLookupService(
 
     private static bool AddPreviewReference(
         ArchiveSession session,
+        ArchiveDependencyIndex dependencyIndex,
         string token,
         HashSet<long> ids,
         CancellationToken cancellationToken)
@@ -516,7 +523,7 @@ public sealed class ArchiveLookupService(
         incomplete |= AddExactPathMatches(session.Index, normalized, ids, cancellationToken);
         var separatorPath = normalized.Replace('/', Path.DirectorySeparatorChar);
         incomplete |= AddDependencyMatches(
-            session.DependencyIndex.FindEntryIdsByBasename(
+            dependencyIndex.FindEntryIdsByBasename(
                 session.Index,
                 Path.GetFileName(separatorPath),
                 MaximumPreviewLookupResults,

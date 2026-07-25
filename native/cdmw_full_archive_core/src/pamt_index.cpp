@@ -1,5 +1,6 @@
 #include "archive_core_internal.hpp"
 
+#include <execution>
 #include <future>
 #include <thread>
 
@@ -100,6 +101,28 @@ LoadPriority load_priority(const Entry& entry) {
     return {tier, package_number, numeric_pamt, pamt_number, entry.paz_index, lower_copy(pamt_path.string())};
 }
 
+// Override priority depends only on the entry source and its PAZ index, so it is
+// derived once per (source, paz) pair instead of re-deriving lowercase package,
+// stem, and path strings for every duplicate candidate.
+class LoadPriorityCache {
+public:
+    const LoadPriority& of(const Entry& entry) {
+        const auto key = std::make_pair(entry.source.get(), entry.paz_index);
+        const auto cached = priorities_.find(key);
+        if (cached != priorities_.end()) return cached->second;
+        return priorities_.emplace(key, load_priority(entry)).first->second;
+    }
+
+private:
+    struct KeyHash {
+        size_t operator()(const std::pair<const EntrySource*, std::uint32_t>& key) const noexcept {
+            return std::hash<const void*>{}(key.first) ^ (static_cast<size_t>(key.second) * 0x9E3779B97F4A7C15ull);
+        }
+    };
+
+    std::unordered_map<std::pair<const EntrySource*, std::uint32_t>, LoadPriority, KeyHash> priorities_;
+};
+
 bool lower_priority(const LoadPriority& left, const LoadPriority& right) {
     if (left.tier != right.tier) return left.tier < right.tier;
     if (left.package_number != right.package_number) return left.package_number < right.package_number;
@@ -197,19 +220,194 @@ struct SharedStringRange {
     std::uint32_t length = 0;
 };
 
-void append_shared_path(
-    std::vector<std::uint8_t>& strings,
-    std::unordered_map<fs::path, SharedStringRange>& shared,
-    const fs::path& value,
-    std::uint64_t& offset,
-    std::uint32_t& length) {
-    if (const auto found = shared.find(value); found != shared.end()) {
-        offset = found->second.offset;
-        length = found->second.length;
-        return;
+// Source paths repeat for every entry of a package, so they are interned once
+// per (source, paz index) pair. Keying on the source pointer keeps this to an
+// integer hash instead of hashing a full filesystem path 3.3M times.
+class SourcePathInterner {
+public:
+    void resolve(
+        std::vector<std::uint8_t>& strings,
+        const EntrySource& source,
+        std::uint32_t paz_index,
+        SharedStringRange& pamt_range,
+        SharedStringRange& paz_range) {
+        auto& cached = sources_[&source];
+        if (!cached.initialized) {
+            append_string(strings, source.pamt_path.u8string(), cached.pamt.offset, cached.pamt.length);
+            cached.paz.resize(source.paz_paths.size());
+            cached.resolved.assign(source.paz_paths.size(), false);
+            cached.initialized = true;
+        }
+        if (paz_index >= cached.paz.size()) {
+            throw std::runtime_error("archive index entry references an unknown PAZ file");
+        }
+        if (!cached.resolved[paz_index]) {
+            append_string(
+                strings,
+                source.paz_paths[paz_index].u8string(),
+                cached.paz[paz_index].offset,
+                cached.paz[paz_index].length);
+            cached.resolved[paz_index] = true;
+        }
+        pamt_range = cached.pamt;
+        paz_range = cached.paz[paz_index];
     }
-    append_string(strings, value.u8string(), offset, length);
-    shared.emplace(value, SharedStringRange{offset, length});
+
+private:
+    struct SourceStrings {
+        SharedStringRange pamt;
+        std::vector<SharedStringRange> paz;
+        std::vector<bool> resolved;
+        bool initialized = false;
+    };
+
+    std::unordered_map<const EntrySource*, SourceStrings> sources_;
+};
+
+// Parses every PAMT into its own slot on a bounded worker pool. Largest files
+// are claimed first so one oversized package cannot leave the pool idle at the
+// tail, and results stay keyed by file order so the index stays deterministic.
+std::vector<std::vector<Entry>> parse_pamt_files(
+    const std::vector<fs::path>& pamt_files,
+    const ProgressSink& progress) {
+    std::vector<std::vector<Entry>> parsed(pamt_files.size());
+    std::vector<size_t> schedule(pamt_files.size());
+    std::iota(schedule.begin(), schedule.end(), size_t{0});
+    std::vector<std::uint64_t> sizes(pamt_files.size(), 0);
+    for (size_t index = 0; index < pamt_files.size(); ++index) {
+        std::error_code size_error;
+        sizes[index] = fs::file_size(pamt_files[index], size_error);
+        if (size_error) sizes[index] = 0;
+    }
+    std::sort(schedule.begin(), schedule.end(), [&sizes](size_t left, size_t right) {
+        if (sizes[left] != sizes[right]) return sizes[left] > sizes[right];
+        return left < right;
+    });
+
+    const auto available_threads = std::max(1u, std::thread::hardware_concurrency());
+    const auto worker_count = std::min(
+        pamt_files.size(),
+        static_cast<size_t>(std::min(8u, available_threads)));
+    std::atomic<size_t> cursor{0};
+    std::atomic<size_t> completed{0};
+    std::mutex report_gate;
+    std::mutex failure_gate;
+    std::exception_ptr failure;
+    if (progress) progress(0, pamt_files.size(), "index_parse", pamt_files[schedule[0]].filename().u8string());
+
+    const auto run_worker = [&] {
+        while (true) {
+            const auto claimed = cursor.fetch_add(1, std::memory_order_relaxed);
+            if (claimed >= schedule.size()) return;
+            {
+                std::lock_guard<std::mutex> guard(failure_gate);
+                if (failure) return;
+            }
+            const auto file_index = schedule[claimed];
+            try {
+                parsed[file_index] = parse_pamt(pamt_files[file_index]);
+                const auto done = completed.fetch_add(1, std::memory_order_relaxed) + 1;
+                if (progress) {
+                    // The sink raises on cancellation, so it stays inside the guarded
+                    // body: an escaping exception would terminate the worker thread.
+                    std::lock_guard<std::mutex> guard(report_gate);
+                    progress(done, pamt_files.size(), "index_parse", pamt_files[file_index].filename().u8string());
+                }
+            } catch (...) {
+                std::lock_guard<std::mutex> guard(failure_gate);
+                if (!failure) failure = std::current_exception();
+                return;
+            }
+        }
+    };
+
+    std::vector<std::thread> workers;
+    workers.reserve(worker_count - 1);
+    for (size_t worker = 1; worker < worker_count; ++worker) {
+        workers.emplace_back(run_worker);
+    }
+    run_worker();
+    for (auto& worker : workers) worker.join();
+    if (failure) std::rethrow_exception(failure);
+    return parsed;
+}
+
+// Ranks every distinct entry source once so the index sort compares a small
+// integer instead of two filesystem paths on each of its N log N comparisons.
+std::unordered_map<const EntrySource*, std::uint32_t> rank_entry_sources(const std::vector<Entry>& entries) {
+    std::vector<const EntrySource*> sources;
+    sources.reserve(64);
+    for (const auto& entry : entries) {
+        const auto* source = entry.source.get();
+        if (sources.empty() || sources.back() != source) {
+            if (std::find(sources.begin(), sources.end(), source) == sources.end()) {
+                sources.push_back(source);
+            }
+        }
+    }
+    std::sort(sources.begin(), sources.end(), [](const EntrySource* left, const EntrySource* right) {
+        return left->pamt_path < right->pamt_path;
+    });
+    std::unordered_map<const EntrySource*, std::uint32_t> ranks;
+    ranks.reserve(sources.size() * 2);
+    for (std::uint32_t rank = 0; rank < sources.size(); ++rank) {
+        ranks.emplace(sources[rank], rank);
+    }
+    return ranks;
+}
+
+// Sorts a permutation rather than the entries themselves: the parallel sort then
+// moves each entry exactly once instead of shuffling strings through a merge
+// buffer, and falling back on the original position keeps the order stable.
+void sort_entries(std::vector<Entry>& entries) {
+    if (entries.size() < 2) return;
+    if (entries.size() > std::numeric_limits<std::uint32_t>::max()) {
+        throw std::runtime_error("archive index exceeds the sortable entry limit");
+    }
+    const auto ranks = rank_entry_sources(entries);
+    std::vector<std::uint32_t> order(entries.size());
+    std::iota(order.begin(), order.end(), 0u);
+    std::sort(
+        std::execution::par,
+        order.begin(),
+        order.end(),
+        [&entries, &ranks](std::uint32_t left_index, std::uint32_t right_index) {
+            const auto& left = entries[left_index];
+            const auto& right = entries[right_index];
+            const auto path_order = compare_case_insensitive(left.path, right.path);
+            if (path_order != 0) return path_order < 0;
+            if (left.source != right.source) {
+                const auto left_rank = ranks.at(left.source.get());
+                const auto right_rank = ranks.at(right.source.get());
+                if (left_rank != right_rank) return left_rank < right_rank;
+            }
+            if (left.archive_offset != right.archive_offset) {
+                return left.archive_offset < right.archive_offset;
+            }
+            return left_index < right_index;
+        });
+    std::vector<Entry> sorted;
+    sorted.reserve(entries.size());
+    for (const auto index : order) sorted.push_back(std::move(entries[index]));
+    entries = std::move(sorted);
+}
+
+// Buffered stream writes measured faster here than a preallocated WriteFile
+// path: the index is memory-mapped again the moment it is published, and the
+// hand-rolled variants only moved cost from the write into that read-back.
+void write_sections(
+    const fs::path& staging,
+    const std::vector<std::uint8_t>& header,
+    const std::vector<std::uint8_t>& records,
+    const std::vector<std::uint8_t>& strings) {
+    std::ofstream output(staging, std::ios::binary | std::ios::trunc);
+    if (!output) throw std::runtime_error("could not create archive index staging file");
+    for (const auto* section : {&header, &records, &strings}) {
+        output.write(reinterpret_cast<const char*>(section->data()), static_cast<std::streamsize>(section->size()));
+    }
+    output.flush();
+    if (!output) throw std::runtime_error("could not flush archive index staging file");
+    output.close();
 }
 
 void publish_file(const fs::path& staging, const fs::path& destination) {
@@ -260,50 +458,19 @@ std::vector<Entry> scan_package_root(const fs::path& package_root, const Progres
     }
     if (pamt_files.empty()) throw std::runtime_error("no PAMT files were found under the archive root");
     std::sort(pamt_files.begin(), pamt_files.end());
+    auto parsed = parse_pamt_files(pamt_files, progress);
+    size_t entry_total = 0;
+    for (const auto& batch : parsed) entry_total += batch.size();
     std::vector<Entry> entries;
-    const auto available_threads = std::max(1u, std::thread::hardware_concurrency());
-    const auto worker_count = std::min(
-        pamt_files.size(),
-        static_cast<size_t>(std::min(4u, available_threads)));
-    if (worker_count == 1) {
-        for (size_t pamt_index = 0; pamt_index < pamt_files.size(); ++pamt_index) {
-            const auto& pamt = pamt_files[pamt_index];
-            if (progress) progress(pamt_index, pamt_files.size(), "index_parse", pamt.filename().u8string());
-            auto parsed = parse_pamt(pamt);
-            entries.insert(entries.end(), std::make_move_iterator(parsed.begin()), std::make_move_iterator(parsed.end()));
-        }
-    } else {
-        const auto launch_parse = [&pamt_files](size_t pamt_index) {
-            return std::async(std::launch::async, [pamt = pamt_files[pamt_index]] {
-                return parse_pamt(pamt);
-            });
-        };
-        if (progress) progress(0, pamt_files.size(), "index_parse", pamt_files[0].filename().u8string());
-        std::vector<std::future<std::vector<Entry>>> pending(worker_count);
-        for (size_t slot = 0; slot < worker_count; ++slot) {
-            pending[slot] = launch_parse(slot);
-        }
-        for (size_t pamt_index = 0; pamt_index < pamt_files.size(); ++pamt_index) {
-            if (progress && pamt_index != 0) {
-                progress(pamt_index, pamt_files.size(), "index_parse", pamt_files[pamt_index].filename().u8string());
-            }
-            const auto slot = pamt_index % worker_count;
-            auto parsed = pending[slot].get();
-            const auto next = pamt_index + worker_count;
-            if (next < pamt_files.size()) pending[slot] = launch_parse(next);
-            entries.insert(entries.end(), std::make_move_iterator(parsed.begin()), std::make_move_iterator(parsed.end()));
-        }
+    entries.reserve(entry_total);
+    for (auto& batch : parsed) {
+        entries.insert(entries.end(), std::make_move_iterator(batch.begin()), std::make_move_iterator(batch.end()));
+        batch.clear();
+        batch.shrink_to_fit();
     }
     if (progress) progress(pamt_files.size(), pamt_files.size(), "index_parse", "complete");
     if (progress) progress(0, entries.size(), "index_sort", "");
-    std::stable_sort(entries.begin(), entries.end(), [](const Entry& left, const Entry& right) {
-        const auto path_order = compare_case_insensitive(left.path, right.path);
-        if (path_order != 0) return path_order < 0;
-        if (left.source->pamt_path != right.source->pamt_path) {
-            return left.source->pamt_path < right.source->pamt_path;
-        }
-        return left.archive_offset < right.archive_offset;
-    });
+    sort_entries(entries);
     if (progress) progress(entries.size(), entries.size(), "index_sort", "complete");
     return entries;
 }
@@ -317,6 +484,7 @@ void write_index_atomic(
     std::vector<std::uint8_t> records;
     std::vector<std::uint8_t> strings;
     std::vector<std::uint32_t> override_metadata(entries.size(), 0);
+    LoadPriorityCache priorities;
     for (size_t group_start = 0; group_start < entries.size();) {
         auto group_end = group_start + 1;
         while (group_end < entries.size() &&
@@ -325,12 +493,12 @@ void write_index_atomic(
         }
         if (group_end - group_start > 1) {
             auto active_index = group_start;
-            auto active_priority = load_priority(entries[active_index]);
+            const auto* active_priority = &priorities.of(entries[active_index]);
             for (auto candidate = group_start + 1; candidate < group_end; ++candidate) {
-                const auto priority = load_priority(entries[candidate]);
-                if (lower_priority(active_priority, priority)) {
+                const auto& priority = priorities.of(entries[candidate]);
+                if (lower_priority(*active_priority, priority)) {
                     active_index = candidate;
-                    active_priority = priority;
+                    active_priority = &priority;
                 }
             }
             for (auto duplicate = group_start; duplicate < group_end; ++duplicate) override_metadata[duplicate] = 0x2u;
@@ -348,38 +516,29 @@ void write_index_atomic(
             }
             return total + entry.path.size();
         });
-    strings.reserve(path_bytes);
-    std::unordered_map<fs::path, SharedStringRange> shared_source_paths;
+    strings.reserve(path_bytes + path_bytes / 8 + 4096);
+    SourcePathInterner source_paths;
     records.reserve(entries.size() * kIndexRecordSize);
     for (size_t entry_index = 0; entry_index < entries.size(); ++entry_index) {
         const auto& entry = entries[entry_index];
-        if (progress && (entry_index == 0 || (entry_index & 0xFFF) == 0)) {
+        if (progress && (entry_index & 0x3FFFF) == 0) {
             progress(entry_index, entries.size(), "index_write", entry.path);
         }
-        std::uint64_t path_offset = 0, pamt_offset = 0, paz_offset = 0;
-        std::uint32_t path_length = 0, pamt_length = 0, paz_length = 0;
+        std::uint64_t path_offset = 0;
+        std::uint32_t path_length = 0;
+        SharedStringRange pamt_range;
+        SharedStringRange paz_range;
         append_string(strings, entry.path, path_offset, path_length);
-        append_shared_path(
-            strings,
-            shared_source_paths,
-            entry.source->pamt_path,
-            pamt_offset,
-            pamt_length);
-        append_shared_path(
-            strings,
-            shared_source_paths,
-            entry.source->paz_paths[entry.paz_index],
-            paz_offset,
-            paz_length);
+        source_paths.resolve(strings, *entry.source, entry.paz_index, pamt_range, paz_range);
         append_u64(records, path_offset);
-        append_u64(records, pamt_offset);
-        append_u64(records, paz_offset);
+        append_u64(records, pamt_range.offset);
+        append_u64(records, paz_range.offset);
         append_u64(records, entry.archive_offset);
         append_u64(records, entry.stored_size);
         append_u64(records, entry.original_size);
         append_u32(records, path_length);
-        append_u32(records, pamt_length);
-        append_u32(records, paz_length);
+        append_u32(records, pamt_range.length);
+        append_u32(records, paz_range.length);
         append_u32(records, entry.flags);
         append_u32(records, entry.paz_index);
         append_u32(records, override_metadata[entry_index]);
@@ -412,14 +571,7 @@ void write_index_atomic(
              return sequence.fetch_add(1, std::memory_order_relaxed);
          }()) + L".tmp");
     try {
-        std::ofstream output(staging, std::ios::binary | std::ios::trunc);
-        if (!output) throw std::runtime_error("could not create archive index staging file");
-        output.write(reinterpret_cast<const char*>(header.data()), static_cast<std::streamsize>(header.size()));
-        output.write(reinterpret_cast<const char*>(records.data()), static_cast<std::streamsize>(records.size()));
-        output.write(reinterpret_cast<const char*>(strings.data()), static_cast<std::streamsize>(strings.size()));
-        output.flush();
-        if (!output) throw std::runtime_error("could not flush archive index staging file");
-        output.close();
+        write_sections(staging, header, records, strings);
         if (progress) progress(0, 1, "index_publish", index_path.filename().u8string());
         publish_file(staging, index_path);
         if (progress) progress(1, 1, "index_publish", "complete");
