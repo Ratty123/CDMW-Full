@@ -57,9 +57,12 @@ corpus/
 corpora/
 .tmp_crimson_shader_corpus/
 *_artifact.json
+*-parity.json
+material-authority-parity-*/
 docs/reverse_engineering/*.json
 
 # Local extracted game/corpus payloads should stay outside source control.
+tests/Extracts/
 *.pamt
 *.paz
 *.pac

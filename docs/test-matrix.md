@@ -23,7 +23,7 @@ Use `$env:TEMP` for pytest temp dirs when `.pytest-tmp` is locked.
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_runtime_dependency_smoke.py tests/test_crash_reporting_guards.py tests/test_pyinstaller_temp_cleanup.py tests/test_startup_splash_lifecycle.py tests/test_startup_archive_path_async.py tests/test_shell_main_window_proxy.py tests/test_window_feature_controller.py tests/test_archive_scan_ui_delivery.py
 .\.venv\Scripts\python.exe -m pytest tests/test_lazy_tool_tabs.py
-.\.venv\Scripts\python.exe -m pytest tests/test_settings_tab_asset_authoring.py
+.\.venv\Scripts\python.exe -m pytest tests/test_settings_tab_asset_authoring.py tests/test_settings_tab_flush_persistence.py tests/test_profile_controller.py
 .\.venv\Scripts\python.exe scripts/generate_window_feature_provider_members.py --check
 .\.venv\Scripts\python.exe tools/benchmark_app_startup.py --runs 11 --first-tab mesh_editor_tab --baseline docs/reference/app-startup-benchmark-phase5.json --output docs/reference/app-startup-benchmark-phase6.json
 .\scripts\codex_check.ps1 -Area stability
@@ -82,12 +82,14 @@ Archive Builder runtime wiring and successful offscreen construction for both
 Import Mesh and Modify Original:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests/test_mesh_builder_runtime_wiring.py tests/test_mesh_builder_construction_lifecycle.py tests/test_static_replacement_post_open_state.py tests/test_static_replacement_dotnet_presentation.py
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_builder_runtime_wiring.py tests/test_mesh_builder_construction_lifecycle.py tests/test_mesh_builder_construction_invariants.py tests/test_static_replacement_post_open_state.py tests/test_static_replacement_dotnet_presentation.py
 ```
 
 This gate resolves the dynamically installed callback globals, validates the
 typed state-control boundary, constructs both real Builder UI paths from
-synthetic empty meshes, and requires clean dialog teardown. It opens no visible
+synthetic empty meshes, and requires clean dialog teardown. The construction
+invariants also reject any widget made visible before it is parented, which
+would otherwise flash as a stray top-level window. It opens no visible
 window, starts no renderer, reads no licensed asset, and performs no archive
 I/O. Changes to `static_replacement_dialog_prompt*`, its preview shell, or its
 state/presentation callbacks must run this gate.
@@ -98,7 +100,7 @@ Morph & Refit composition, and the nonvisual WinForms round trip:
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_mesh_editor_layout_contract.py tests/test_mesh_morph_slider_ui_source_guards.py tests/test_dotnet_mesh_editor_tool_protocol_source.py
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
-dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-edit-mesh-layout-smoke --layout-report "$env:TEMP\cdmw-edit-mesh-layout.json"
 ```
 
 The layout smoke constructs real WinForms ownership trees, visits all five deck
@@ -170,12 +172,12 @@ The direct harness CLI resolves the game root from `--game-root`, then
 
 ```powershell
 dotnet build tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release
-dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --material-resource-policy-report "$env:TEMP\cdmw-material-resource-policy-runtime.json"
-dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-sparse-soak --gpu-soak-report "$env:TEMP\cdmw-dotnet-gpu-sparse-soak.json"
-dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-material-authority-parity --material-authority-parity-report "$env:TEMP\cdmw-material-authority-parity.json"
-dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --material-resource-policy-report "$env:TEMP\cdmw-material-resource-policy-runtime.json"
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-sparse-soak --gpu-soak-report "$env:TEMP\cdmw-dotnet-gpu-sparse-soak.json"
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-material-authority-parity --material-authority-parity-report "$env:TEMP\cdmw-material-authority-parity.json"
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144
 .\.venv\Scripts\python.exe -m pytest tests/test_dotnet_preview_performance_contract.py tests/test_mesh_harness_performance_contract.py tests/test_dotnet_texture_region_protocol.py tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
-.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_dds_synthesis.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_mesh_visual_audit_v2.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
+.\.venv\Scripts\python.exe -m pytest tests/test_mesh_asset_pipeline.py tests/test_mesh_pipeline_cli.py tests/test_mesh_dotnet_experiment.py tests/test_mesh_dotnet_experiment_output.py tests/test_mesh_dotnet_material_state.py tests/test_mesh_dotnet_material_visual_parity.py tests/test_mesh_dotnet_material_package.py tests/test_mesh_dotnet_material_dds_synthesis.py tests/test_mesh_dotnet_material_parameters.py tests/test_mesh_visual_audit_harness.py tests/test_mesh_visual_audit_integrity.py tests/test_mesh_visual_audit_package.py tests/test_mesh_visual_audit_v2.py tests/test_dotnet_mesh_editor_tool_protocol_source.py tests/test_dotnet_material_parameter_protocol.py tests/test_native_preview_material_authority_protocol.py tests/test_dotnet_icon_capture_protocol.py tests/test_dotnet_gpu_geometry_resources.py tests/test_dotnet_topology_channel_updates.py tests/test_mesh_edit_revision_protocol.py tests/test_mesh_history_bounds.py tests/test_native_preview_package_cache_concurrency.py tests/test_mesh_edit_operations.py tests/test_mesh_service_editing.py tests/test_mesh_editor_controller.py tests/test_mesh_editor_actions.py tests/test_mesh_editor_action_bar.py tests/test_mesh_resident_editor_regressions.py tests/test_static_replacement_mesh_edit_dotnet_toggle.py tests/test_static_replacement_d3d11_cache.py tests/test_mesh_deformer.py tests/test_mesh_body_regions.py tests/test_mesh_body_region_falloff.py tests/test_mesh_body_region_sliders.py tests/test_mesh_body_region_slider_native.py tests/test_mesh_region_decompose.py tests/test_mesh_body_region_atlas.py tests/test_native_morph_field_generation.py tests/test_pac_skin_layout_regression.py tests/test_mesh_selection_tools.py tests/test_archive_structured_asset_preview.py tests/test_rigging_binary_parsers.py
 .\.venv\Scripts\python.exe -m pytest tests/test_mesh_harness_scenario_registry.py tests/test_mesh_harness_real_dotnet_evidence.py tests/test_mesh_dotnet_live_stroke_dispatch.py
 .\.venv\Scripts\python.exe -m pytest tests/test_scene_import_uv_contract.py tests/test_scene_import_normalization.py tests/test_scene_importer_gltf.py
 .\scripts\codex_check.ps1 -Area mesh -GameRoot "C:\games\Steam\steamapps\common\Crimson Desert"
@@ -245,8 +247,8 @@ release claim requires three 30-second 1920x1080/144 Hz repetitions plus this
 ten-minute RAM/VRAM soak:
 
 ```powershell
-1..3 | ForEach-Object { dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing-$_.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144 }
-dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing-10-minute.json" --frame-pacing-duration-seconds 600 --frame-pacing-target-hz 144
+1..3 | ForEach-Object { dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing-$_.json" --frame-pacing-duration-seconds 30 --frame-pacing-target-hz 144 }
+dotnet .\tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.dll --headless-gpu-frame-pacing-soak --frame-pacing-report "$env:TEMP\cdmw-dotnet-preview-frame-pacing-10-minute.json" --frame-pacing-duration-seconds 600 --frame-pacing-target-hz 144
 ```
 
 The visible performance manifest
