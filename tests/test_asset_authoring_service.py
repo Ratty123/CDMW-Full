@@ -1,11 +1,36 @@
 from __future__ import annotations
 
+import importlib.util
 import json
+import shutil
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 from unittest import mock
 
+
+# Mirrors the payload selection in CrimsonDesertModWorkbench.spec.
+_BUNDLED_OPENIMAGEIO_SKIPPED = {"idiff.exe", "maketx.exe"}
+
+
+def _installed_openimageio_bin() -> Path | None:
+    try:
+        module_spec = importlib.util.find_spec("OpenImageIO")
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return None
+    if module_spec is None:
+        return None
+    for location in tuple(getattr(module_spec, "submodule_search_locations", ()) or ()):
+        if not str(location or "").strip():
+            continue
+        candidate = Path(location) / "bin"
+        if (candidate / "oiiotool.exe").is_file():
+            return candidate
+    return None
+
+from cdmw.services import bundled_helper_availability
+from cdmw.services.bundled_helper_availability import find_bundled_openimageio_binary
 from cdmw.services.asset_authoring_service import (
     ASSET_AUTHORING_DISCOVERY_SCHEMA,
     ASSET_AUTHORING_MESH_HEALTH_SCHEMA,
@@ -43,6 +68,113 @@ class AssetAuthoringServiceTests(unittest.TestCase):
         self.assertEqual("configured_missing", report["helpers"]["xatlas"]["status"])
         self.assertFalse(report["helpers"]["xatlas"]["package_safe"])
         json.dumps(report)
+
+    def test_bundled_openimageio_resolves_beside_the_frozen_executable(self) -> None:
+        """The frozen app must find oiiotool without the installed package.
+
+        A frozen build has no importable OpenImageIO, so a resolver that only
+        consulted the module would report the helper unavailable in exactly the
+        shipped configuration this payload exists to fix.
+        """
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app_root = Path(temp_dir)
+            bundled = app_root / "openimageio" / "oiiotool.exe"
+            bundled.parent.mkdir(parents=True)
+            bundled.write_text("", encoding="utf-8")
+
+            with mock.patch.object(
+                bundled_helper_availability.sys, "frozen", True, create=True
+            ), mock.patch.object(
+                bundled_helper_availability.sys, "executable", str(app_root / "CrimsonDesertModWorkbench.exe")
+            ), mock.patch.object(
+                bundled_helper_availability.importlib.util, "find_spec", return_value=None
+            ):
+                self.assertEqual(bundled, find_bundled_openimageio_binary())
+
+    def test_bundled_openimageio_is_preferred_over_an_arbitrary_path_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            bundled = Path(temp_dir) / "oiiotool.exe"
+            bundled.write_text("", encoding="utf-8")
+
+            with mock.patch.dict(
+                bundled_helper_availability.BUNDLED_HELPER_FINDERS,
+                {"openimageio": lambda: bundled},
+            ), mock.patch(
+                "cdmw.services.asset_authoring_service.shutil.which",
+                return_value="Z:/somewhere/else/oiiotool.exe",
+            ):
+                helper = AssetAuthoringService().discovery_report()["helpers"]["openimageio"]
+
+        self.assertEqual("available", helper["status"])
+        self.assertEqual("bundled_lookup", helper["source"])
+        self.assertEqual(str(bundled), helper["path"])
+        self.assertTrue(helper["bundled"])
+        self.assertTrue(helper["package_safe"])
+
+    def test_configured_openimageio_path_still_overrides_the_bundled_copy(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            configured = Path(temp_dir) / "custom-oiiotool.exe"
+            configured.write_text("", encoding="utf-8")
+            bundled = Path(temp_dir) / "oiiotool.exe"
+            bundled.write_text("", encoding="utf-8")
+
+            with mock.patch.dict(
+                bundled_helper_availability.BUNDLED_HELPER_FINDERS,
+                {"openimageio": lambda: bundled},
+            ):
+                report = AssetAuthoringService().discovery_report({"openimageio": configured})
+
+        helper = report["helpers"]["openimageio"]
+        self.assertEqual("configured", helper["source"])
+        self.assertEqual(str(configured), helper["path"])
+
+    def test_bundled_openimageio_payload_runs_with_nothing_else_present(self) -> None:
+        """The bundled DLL closure has to be complete on its own.
+
+        oiiotool resolves its DLLs from its own directory, so a payload missing
+        one still passes every test run from the venv and fails only in the
+        packaged app -- the exact failure this bundle exists to remove. Staging
+        the spec's selection into an empty directory is what proves it.
+        """
+
+        source_bin = _installed_openimageio_bin()
+        if source_bin is None:
+            self.skipTest("openimageio package is not installed")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            staged = Path(temp_dir) / "openimageio"
+            staged.mkdir()
+            for path in sorted(source_bin.iterdir()):
+                if not path.is_file() or path.suffix.lower() not in {".dll", ".exe"}:
+                    continue
+                if path.name.casefold() in {name.casefold() for name in _BUNDLED_OPENIMAGEIO_SKIPPED}:
+                    continue
+                shutil.copy2(path, staged / path.name)
+
+            self.assertFalse((staged / "maketx.exe").exists())
+            completed = subprocess.run(
+                [str(staged / "oiiotool.exe"), "--version"],
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertTrue(completed.stdout.strip())
+
+    def test_packaging_spec_bundles_openimageio_and_fails_closed_in_release(self) -> None:
+        spec_source = Path("CrimsonDesertModWorkbench.spec").read_text(encoding="utf-8")
+
+        self.assertIn('binaries.append((str(runtime_file), "openimageio"))', spec_source)
+        self.assertIn("_openimageio_package_root()", spec_source)
+        # The console script in Scripts/ is a launcher shim, not the tool.
+        self.assertIn('(root / "bin" / "oiiotool.exe").is_file()', spec_source)
+        self.assertIn('elif PROFILE == "release":', spec_source)
+        for skipped in _BUNDLED_OPENIMAGEIO_SKIPPED:
+            self.assertIn(skipped, spec_source)
+        for notice in ("LICENSE.md", "THIRD-PARTY.md"):
+            self.assertIn(notice, spec_source)
 
     def test_discovery_report_accepts_configured_helper_path(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

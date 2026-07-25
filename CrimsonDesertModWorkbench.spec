@@ -1,4 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
+import importlib.util
 import os
 from pathlib import Path
 import sys
@@ -211,6 +212,57 @@ if vgmstream_dir.exists():
             datas.append((str(runtime_file), "vgmstream"))
         elif runtime_file.suffix.lower() in {".dll", ".exe"}:
             binaries.append((str(runtime_file), "vgmstream"))
+
+# OpenImageIO ships as a wheel whose console script in Scripts/ is only a
+# launcher shim. The real oiiotool lives in the package's own bin/ and loads its
+# DLL closure from that directory, so the tool and the DLLs travel together or
+# not at all. idiff and maketx sit in the same directory and CDMW invokes
+# neither. The wheel's lib/*.lib are import libraries for building against
+# OpenImageIO, and share/fonts serves oiiotool's text drawing, which CDMW does
+# not use; taking bin/*.{exe,dll} alone leaves all three behind.
+unused_openimageio_tools = {
+    "idiff.exe",
+    "maketx.exe",
+}
+
+
+def _openimageio_package_root():
+    try:
+        module_spec = importlib.util.find_spec("OpenImageIO")
+    except (ImportError, ModuleNotFoundError, ValueError):
+        return None
+    if module_spec is None:
+        return None
+    for location in tuple(getattr(module_spec, "submodule_search_locations", ()) or ()):
+        if not str(location or "").strip():
+            continue
+        root = Path(location)
+        if (root / "bin" / "oiiotool.exe").is_file():
+            return root
+    return None
+
+
+openimageio_root = _openimageio_package_root()
+if openimageio_root is not None:
+    blocked_openimageio = {name.casefold() for name in unused_openimageio_tools}
+    for runtime_file in sorted(path for path in (openimageio_root / "bin").iterdir() if path.is_file()):
+        if runtime_file.name.casefold() in blocked_openimageio:
+            continue
+        if runtime_file.suffix.lower() in {".dll", ".exe"}:
+            binaries.append((str(runtime_file), "openimageio"))
+    # Apache-2.0 with small BSD-3-Clause portions; redistribution carries both.
+    for notice_name in ("LICENSE.md", "THIRD-PARTY.md"):
+        notice = next(
+            iter(sorted(openimageio_root.parent.glob(f"openimageio-*.dist-info/licenses/{notice_name}"))),
+            None,
+        )
+        if notice is not None:
+            datas.append((str(notice), "openimageio"))
+elif PROFILE == "release":
+    raise SystemExit(
+        "OpenImageIO is bundled in release builds but its package was not found. "
+        "Install it into the build environment: .\\.venv\\Scripts\\python.exe -m pip install openimageio"
+    )
 
 numpy_datas, numpy_binaries, numpy_hiddenimports = collect_all(
     "numpy",
