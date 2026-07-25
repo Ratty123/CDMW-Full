@@ -622,10 +622,19 @@ def _model_texture_slot_hint_priority(preview_slot: str, semantic_hint: str) -> 
         return None
 
     if normalized_slot == "material":
+        # ``_colorBlendingMaskTexture`` and ``_detailMaskTexture`` are layer
+        # selection masks, not PBR parameter maps: their channels pick which
+        # detail/grime layer applies rather than carrying roughness or metal.
+        # They must never occupy the material slot, otherwise they outrank the
+        # real ``_grimeMaterialTexture``/``_detailMaterialMask`` inputs through
+        # the generic ``masktexture`` token below and the renderer loses every
+        # authoritative roughness and metal value.
+        if normalized_hint in {"colorblendingmasktexture", "detailmasktexture"}:
+            return None
         if normalized_hint in {"materialtexture", "basematerialtexture"}:
             return (9, 4)
         if "detailmaterial" in normalized_hint or "grimematerial" in normalized_hint:
-            return (5, 1)
+            return (7, 1)
         if normalized_hint.startswith("material") or normalized_hint.endswith("materialtexture"):
             return (8, 3)
         if any(token in normalized_hint for token in ("masktexture", "detailmask", "material", "roughness", "metallic", "occlusion")):

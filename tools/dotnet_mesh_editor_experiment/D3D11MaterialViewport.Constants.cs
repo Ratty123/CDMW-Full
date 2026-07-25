@@ -39,6 +39,13 @@ internal sealed record D3D11PresentationSettings
     public float AmbientStrength { get; init; } = 0.84f;
     public float DiffuseWrapBias { get; init; } = 0.58f;
     public float DiffuseLightScale { get; init; } = 0.62f;
+    // Neutral mid backdrop, supplied in linear space because the render target is
+    // sRGB.  The old near-black clear (linear ~0.006) let dark leather and cloth
+    // melt into the background so the silhouette was unreadable; a mid-grey is
+    // also the standard backdrop for judging material response.
+    // Exactly neutral at the same luminance: a tinted backdrop biases how every
+    // material's colour reads, and the previous value measured a +0.06 cool cast.
+    public Vector3 BackgroundColor { get; init; } = new Vector3(0.0434f, 0.0434f, 0.0434f);
     public float NormalStrengthCap { get; init; } = 1.0f;
     public float HeightEffectMax { get; init; } = 1.0f;
     public float SpecularBase { get; init; } = 0.055f;

@@ -586,7 +586,14 @@ internal static class MaterialAuthorityParityReport
         WriteDds(basePath, changed ? Color.FromArgb(255, 30, 88, 220) : Color.FromArgb(255, 190, 118, 42), srgb: true);
         WriteDds(normalPath, changed ? Color.FromArgb(255, 215, 74, 205) : Color.FromArgb(255, 128, 128, 255), srgb: false);
         WriteDds(heightPath, changed ? Color.White : Color.FromArgb(255, 36, 36, 36), srgb: false);
-        WriteDds(materialPath, changed ? Color.FromArgb(255, 255, 24, 245) : Color.FromArgb(255, 255, 225, 8), srgb: false);
+        // The material map is occlusion/roughness/metal in R/G/B.  These cases
+        // declare the metal category, so the map has to agree with it: shipped
+        // metal layers measure roughness around 0.15-0.27 over a set metal
+        // channel.  The earlier values encoded roughness 0.88 with metal 0.03,
+        // which only rendered as metal while the category guess was allowed to
+        // override the map, and left the displacement cases relying on that
+        // override to keep a highlight tight enough to register a change.
+        WriteDds(materialPath, changed ? Color.FromArgb(255, 200, 140, 40) : Color.FromArgb(255, 255, 56, 255), srgb: false);
         WriteDds(emissivePath, changed ? Color.FromArgb(255, 240, 20, 12) : Color.FromArgb(255, 12, 5, 3), srgb: true);
         return new MaterialPaths(basePath, normalPath, heightPath, materialPath, emissivePath);
     }

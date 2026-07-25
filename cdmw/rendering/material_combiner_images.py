@@ -16,12 +16,14 @@ from cdmw.rendering.material_combiner_decode import (
     _apply_external_material_factors,
     _material_decode_output_flags,
     _resolve_external_material_factors,
+    affine_decode_mode_terms,
     decode_material_sample,
 )
 from cdmw.rendering.material_combiner_rules import (
     _LAYER_CHANNEL_INDEX,
     _NONMETAL_RESPONSE_LIMITS,
     _apply_nonmetal_response_limits,
+    _nonmetal_response_limits,
     _clamp,
     _finite_float,
     _height_amount_multiplier,
@@ -572,6 +574,21 @@ def _image_rgb888_write_view(image: QImage, width: int, height: int) -> Tuple[Op
     return view, stride
 
 
+def _image_rgba8888_write_view(image: QImage, width: int, height: int) -> Tuple[Optional[memoryview], int]:
+    """Writable view for layer maps that carry mask coverage in alpha."""
+
+    if image.isNull() or width <= 0 or height <= 0:
+        return None, 0
+    try:
+        stride = int(image.bytesPerLine())
+        view = memoryview(image.bits())
+    except (BufferError, TypeError, ValueError, RuntimeError):
+        return None, 0
+    if stride < width * 4 or len(view) < stride * height or view.readonly:
+        return None, 0
+    return view, stride
+
+
 def _rgba8888_mask_alpha(
     view: memoryview,
     stride: int,
@@ -622,6 +639,142 @@ def _image_exceeds_dimension(image: QImage, max_dimension: int) -> bool:
     return max(int(image.width()), int(image.height())) > int(max_dimension)
 
 
+def _numpy_module():
+    """Return numpy if importable, else ``None`` so callers fall back."""
+
+    try:
+        import numpy
+    except Exception:
+        return None
+    return numpy
+
+
+def _vectorised_material_maps(
+    *,
+    mode: str,
+    source_view: memoryview,
+    source_stride: int,
+    width: int,
+    height: int,
+    mask_view: Optional[memoryview],
+    mask_stride: int,
+    mask_channel: str,
+    effective_layer_weight: float,
+    has_mask: bool,
+    external_factors_present: bool,
+    force_nonmetal_skin: bool,
+    apply_sidecar_hints: bool,
+    metallic_hint: float,
+    roughness_hint: float,
+    specular_hint: float,
+    force_nonmetal_surface: bool,
+    preserve_authored_metal_islands: bool,
+    surface_category: str,
+    emit: Tuple[bool, bool, bool, bool],
+    views: Tuple[Optional[memoryview], ...],
+    strides: Tuple[int, ...],
+) -> Optional[Tuple[float, float, float]]:
+    """Decode and write every slot at once, mirroring the scalar loop exactly.
+
+    Returns ``(metal_peak, spec_peak, contribution_peak)``, or ``None`` when this
+    input needs the scalar path.
+    """
+
+    if external_factors_present:
+        return None
+    affine = affine_decode_mode_terms(mode)
+    if affine is None:
+        return None
+    np = _numpy_module()
+    if np is None:
+        return None
+
+    def channels(view: memoryview, stride: int):
+        raw = np.frombuffer(view, dtype=np.uint8, count=stride * height)
+        rows = raw.reshape(height, stride)[:, : width * 4]
+        return rows.reshape(height, width, 4).astype(np.float32) / 255.0
+
+    source = channels(source_view, source_stride)
+    r, g, b, a = source[..., 0], source[..., 1], source[..., 2], source[..., 3]
+    peak = np.maximum(np.maximum(r, g), np.maximum(b, a))
+    minimum = np.minimum(np.minimum(r, g), np.minimum(b, a))
+    terms = {
+        "r": r,
+        "g": g,
+        "b": b,
+        "a": a,
+        "b_minus_18": np.maximum(0.0, b - 0.18),
+        "variance": np.maximum(peak - minimum, 0.0),
+        "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
+        "one": np.ones_like(r),
+    }
+
+    def slot(name: str):
+        term, offset, gain, low, high = affine[name]
+        return np.clip(offset + gain * terms[term], low, high)
+
+    ao = slot("ao")
+    roughness = slot("roughness")
+    metalness = slot("metalness")
+    specular = slot("specular")
+
+    source_metalness = metalness
+    if force_nonmetal_skin:
+        metalness = np.zeros_like(metalness)
+        specular = np.minimum(specular, 0.42)
+    elif apply_sidecar_hints:
+        if metallic_hint > 0.02:
+            metalness = np.maximum(metalness, metallic_hint * 0.42)
+            specular = np.maximum(specular, 0.14 + metallic_hint * 0.32)
+        if roughness_hint > 0.02:
+            roughness = np.clip((roughness * 0.72) + (roughness_hint * 0.28), 0.04, 0.98)
+        if specular_hint > 0.02:
+            specular = np.maximum(specular, specular_hint * 0.58)
+        ao = np.clip(ao, 0.45, 1.0)
+        roughness = np.clip(roughness, 0.04, 1.0)
+        metalness = np.clip(metalness, 0.0, 1.0)
+        specular = np.clip(specular, 0.0, 1.0)
+
+    if force_nonmetal_surface:
+        metal_cap, spec_cap, roughness_floor = _nonmetal_response_limits(surface_category)
+        limited = np.ones_like(metalness, dtype=bool)
+        if preserve_authored_metal_islands:
+            limited = source_metalness < 0.35
+        metalness = np.where(limited, np.minimum(np.clip(metalness, 0.0, 1.0), metal_cap), metalness)
+        specular = np.where(limited, np.minimum(np.clip(specular, 0.0, 1.0), spec_cap), specular)
+        roughness = np.where(limited, np.maximum(np.clip(roughness, 0.0, 1.0), roughness_floor), roughness)
+
+    if mask_view is not None:
+        mask = channels(mask_view, mask_stride)
+        coverage = np.clip(
+            mask[..., _LAYER_CHANNEL_INDEX.get(mask_channel, 0)] * effective_layer_weight,
+            0.0,
+            1.0,
+        )
+        contribution_peak = float(coverage.max())
+    else:
+        coverage = np.ones_like(r)
+        contribution_peak = 1.0 if has_mask is False else 0.0
+
+    metal_peak = float((metalness * coverage).max())
+    spec_peak = float((specular * coverage).max())
+
+    def to_bytes(values):
+        return np.clip(np.rint(np.clip(values, 0.0, 1.0) * 255.0), 0, 255).astype(np.uint8)
+
+    coverage_bytes = to_bytes(coverage)
+    for emit_slot, view, stride, values in zip(emit, views, strides, (ao, roughness, metalness, specular)):
+        if not emit_slot or view is None:
+            continue
+        grey = to_bytes(values)
+        packed = np.stack((grey, grey, grey, coverage_bytes), axis=-1)
+        span = width * 4
+        for y in range(height):
+            offset = y * stride
+            view[offset : offset + span] = packed[y].tobytes()
+    return metal_peak, spec_peak, contribution_peak
+
+
 def _has_authoritative_pac_layer_metal_response(
     input_item: Optional[PreviewMaterialTextureInput],
     decode_mode: str,
@@ -640,7 +793,10 @@ def _has_authoritative_pac_layer_metal_response(
         and str(decode_mode or "").strip().lower()
         in {"standard_v2_material", "standard_v2_specular"}
         and _texture_rule_for_input(input_item)
-        in {"standard", "standard_v2", "emissive_v2"}
+        # Cloth garments routinely carry metal studs, buckles and trim, so a
+        # cloth rule must not discard an authoritatively authored metal layer the
+        # way it should for skin and hair.
+        in {"standard", "standard_v2", "emissive_v2", "cloth", "cloth_v2"}
     )
 
 
@@ -692,14 +848,18 @@ def _generate_material_maps(
     if not mask_source.isNull() and effective_layer_weight <= 0.001:
         return (), ("", "", "", "")
     emit_occlusion, emit_roughness, emit_metalness, emit_specular = _material_decode_output_flags(decode_mode)
-    ao_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_occlusion else QImage()
-    rough_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_roughness else QImage()
-    metal_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_metalness else QImage()
-    spec_image = QImage(width, height, QImage.Format.Format_RGB888) if emit_specular else QImage()
-    ao_view, ao_stride = _image_rgb888_write_view(ao_image, width, height) if emit_occlusion else (None, 0)
-    rough_view, rough_stride = _image_rgb888_write_view(rough_image, width, height) if emit_roughness else (None, 0)
-    metal_view, metal_stride = _image_rgb888_write_view(metal_image, width, height) if emit_metalness else (None, 0)
-    spec_view, spec_stride = _image_rgb888_write_view(spec_image, width, height) if emit_specular else (None, 0)
+    # Layer maps are RGBA: RGB carries the decoded value, alpha carries how much
+    # of this layer's mask covers the texel.  Baking the uncovered value into RGB
+    # instead loses coverage, and the blend step could then only average layers
+    # together -- which is what flattened every roughness map toward one constant.
+    ao_image = QImage(width, height, QImage.Format.Format_RGBA8888) if emit_occlusion else QImage()
+    rough_image = QImage(width, height, QImage.Format.Format_RGBA8888) if emit_roughness else QImage()
+    metal_image = QImage(width, height, QImage.Format.Format_RGBA8888) if emit_metalness else QImage()
+    spec_image = QImage(width, height, QImage.Format.Format_RGBA8888) if emit_specular else QImage()
+    ao_view, ao_stride = _image_rgba8888_write_view(ao_image, width, height) if emit_occlusion else (None, 0)
+    rough_view, rough_stride = _image_rgba8888_write_view(rough_image, width, height) if emit_roughness else (None, 0)
+    metal_view, metal_stride = _image_rgba8888_write_view(metal_image, width, height) if emit_metalness else (None, 0)
+    spec_view, spec_stride = _image_rgba8888_write_view(spec_image, width, height) if emit_specular else (None, 0)
     if (
         (emit_occlusion and ao_view is None)
         or (emit_roughness and rough_view is None)
@@ -747,6 +907,55 @@ def _generate_material_maps(
     spec_peak = 0.0
     contribution_peak = 1.0 if mask_source.isNull() else 0.0
     external_material_factors = _resolve_external_material_factors(input_item, decode_mode)
+
+    # Array fast path.  The per-texel work is elementwise arithmetic over scalar
+    # parameters, so it vectorises exactly -- and it is what lets support maps
+    # keep their resolution instead of being capped small enough for a Python
+    # loop to finish.  Restricted to modes whose response is the shared affine
+    # table, and skipped when external factors apply since those carry their own
+    # per-mode branching.
+    fast = _vectorised_material_maps(
+        mode=mode,
+        source_view=source_view,
+        source_stride=source_stride,
+        width=width,
+        height=height,
+        mask_view=mask_view,
+        mask_stride=mask_stride,
+        mask_channel=mask_channel,
+        effective_layer_weight=effective_layer_weight,
+        has_mask=not mask_source.isNull(),
+        external_factors_present=bool(getattr(external_material_factors, "input_present", False)),
+        force_nonmetal_skin=force_nonmetal_skin,
+        apply_sidecar_hints=apply_sidecar_hints,
+        metallic_hint=metallic_hint,
+        roughness_hint=roughness_hint,
+        specular_hint=specular_hint,
+        force_nonmetal_surface=force_nonmetal_surface,
+        preserve_authored_metal_islands=preserve_authored_metal_islands,
+        surface_category=surface_category,
+        emit=(emit_occlusion, emit_roughness, emit_metalness, emit_specular),
+        views=(ao_view, rough_view, metal_view, spec_view),
+        strides=(ao_stride, rough_stride, metal_stride, spec_stride),
+    )
+    if fast is not None:
+        metal_peak, spec_peak, contribution_peak = fast
+        if contribution_peak <= 0.015:
+            return (), ("", "", "", "")
+        del source_view
+        if mask_view is not None:
+            del mask_view
+        for released in (ao_view, rough_view, metal_view, spec_view):
+            if released is not None:
+                del released
+        return _save_material_maps(
+            output_dir,
+            stem,
+            images=(ao_image, rough_image, metal_image, spec_image),
+            metal_peak=metal_peak,
+            spec_peak=spec_peak,
+            cancelled=cancelled,
+        )
     for y in range(height):
         _raise_if_material_combiner_cancelled(cancelled)
         source_row = y * source_stride
@@ -795,34 +1004,34 @@ def _generate_material_maps(
                     specular,
                     roughness,
                 )
+            coverage = 1.0
             if mask_view is not None:
-                layer_alpha = _clamp(
+                coverage = _clamp(
                     _rgba8888_mask_alpha(mask_view, mask_stride, x, y, channel=mask_channel)
                     * effective_layer_weight
                 )
-                contribution_peak = max(contribution_peak, layer_alpha)
-                ao = (1.0 * (1.0 - layer_alpha)) + (ao * layer_alpha)
-                roughness = (0.58 * (1.0 - layer_alpha)) + (roughness * layer_alpha)
-                metalness *= layer_alpha
-                specular *= layer_alpha
-            metal_peak = max(metal_peak, metalness)
-            spec_peak = max(spec_peak, specular)
+                contribution_peak = max(contribution_peak, coverage)
+            # Values stay as decoded; coverage rides in alpha so the blend step
+            # can composite layers over one another instead of averaging them.
+            metal_peak = max(metal_peak, metalness * coverage)
+            spec_peak = max(spec_peak, specular * coverage)
+            coverage_byte = _byte(coverage)
             if emit_occlusion:
                 ao_g = _byte(ao)
-                offset = (y * ao_stride) + (x * 3)
-                ao_view[offset : offset + 3] = bytes((ao_g, ao_g, ao_g))
+                offset = (y * ao_stride) + (x * 4)
+                ao_view[offset : offset + 4] = bytes((ao_g, ao_g, ao_g, coverage_byte))
             if emit_roughness:
                 rough_g = _byte(roughness)
-                offset = (y * rough_stride) + (x * 3)
-                rough_view[offset : offset + 3] = bytes((rough_g, rough_g, rough_g))
+                offset = (y * rough_stride) + (x * 4)
+                rough_view[offset : offset + 4] = bytes((rough_g, rough_g, rough_g, coverage_byte))
             if emit_metalness:
                 metal_g = _byte(metalness)
-                offset = (y * metal_stride) + (x * 3)
-                metal_view[offset : offset + 3] = bytes((metal_g, metal_g, metal_g))
+                offset = (y * metal_stride) + (x * 4)
+                metal_view[offset : offset + 4] = bytes((metal_g, metal_g, metal_g, coverage_byte))
             if emit_specular:
                 spec_g = _byte(specular)
-                offset = (y * spec_stride) + (x * 3)
-                spec_view[offset : offset + 3] = bytes((spec_g, spec_g, spec_g))
+                offset = (y * spec_stride) + (x * 4)
+                spec_view[offset : offset + 4] = bytes((spec_g, spec_g, spec_g, coverage_byte))
     if contribution_peak <= 0.015:
         return (), ("", "", "", "")
     del source_view
@@ -884,6 +1093,55 @@ def _read_generated_map(source_url: str) -> QImage:
     return _image_reader(source_url).convertToFormat(QImage.Format.Format_RGBA8888)
 
 
+_MATERIAL_SLOT_DEFAULTS = {
+    "occlusion": 1.0,
+    "roughness": 0.58,
+    "metalness": 0.0,
+    "specular": 0.04,
+}
+# Layer means further apart than this describe different materials, not one
+# surface, so their average is not a usable fallback for uncovered texels.
+_SLOT_LEVEL_AGREEMENT_SPREAD = 0.14
+
+
+def _coverage_weighted_slot_level(
+    layer_views: Sequence[Tuple[int, str, QImage, memoryview, int]],
+    width: int,
+    height: int,
+) -> Optional[float]:
+    """Level to extend into texels no layer covers, or ``None`` to keep neutral.
+
+    Layers that agree on a value describe one surface, and extending that value
+    into the gaps between their masks is better than dropping to a constant.
+    Layers that disagree describe genuinely different materials, and averaging
+    them produces a level that belongs to neither -- a metal trim layer pulled a
+    quilted cloth helmet from 0.52 down to 0.33 that way.  Sampled on a stride
+    because this only characterises the surface; the caller does the real pass.
+    """
+
+    step = max(1, min(width, height) // 48)
+    means: list[float] = []
+    for _priority, _mode, _image, view, stride in layer_views:
+        total = 0.0
+        weight = 0.0
+        for y in range(0, height, step):
+            row = y * stride
+            for x in range(0, width, step):
+                offset = row + (x * 4)
+                coverage = float(view[offset + 3]) / 255.0
+                if coverage <= 0.0:
+                    continue
+                total += (float(view[offset]) / 255.0) * coverage
+                weight += coverage
+        if weight > 0.0:
+            means.append(total / weight)
+    if not means:
+        return None
+    if max(means) - min(means) > _SLOT_LEVEL_AGREEMENT_SPREAD:
+        return None
+    return _clamp(sum(means) / len(means))
+
+
 def _combine_material_slot_maps(
     slot_name: str,
     layers: Sequence[Tuple[int, str, str]],
@@ -902,9 +1160,12 @@ def _combine_material_slot_maps(
         valid_layers.append((int(priority), str(mode or "generic"), str(source_url or ""), image))
     if not valid_layers:
         return "", ""
-    valid_layers.sort(key=lambda item: item[0], reverse=True)
-    if len(valid_layers) == 1:
-        return valid_layers[0][2], valid_layers[0][1]
+    # Ascending priority: the compositor lays each layer over the ones below it,
+    # so the highest-priority layer must be applied last.  A single layer still
+    # goes through the composite because its map now carries mask coverage in
+    # alpha, and uncovered texels have to resolve to the slot default rather than
+    # to whatever value happened to be decoded outside the mask.
+    valid_layers.sort(key=lambda item: item[0])
 
     base_width = int(valid_layers[0][3].width())
     base_height = int(valid_layers[0][3].height())
@@ -932,37 +1193,41 @@ def _combine_material_slot_maps(
             layer_views.append((priority, mode, image, view, stride))
     if not layer_views:
         return valid_layers[0][2], valid_layers[0][1]
-    weight_total = max(1.0, sum(max(1.0, float(priority)) for priority, _mode, _image, _view, _stride in layer_views))
+    # Value a texel keeps when no layer covers it.  Specular defaults to the
+    # physical dielectric reflectance so an uncovered surface reads as a plain
+    # non-metal rather than inheriting a neighbouring layer's gloss.
+    slot_default = _MATERIAL_SLOT_DEFAULTS.get(slot, 0.0)
+    if slot == "roughness":
+        # A fixed 0.58 for uncovered texels was pulling whole submeshes toward
+        # mid-roughness: a polished blade whose layers all sit near 0.21 came out
+        # at 0.48 because the gaps between layer masks dominated the average.
+        # The layers present are the best available description of the surface, so
+        # fall back to their coverage-weighted level instead of a constant.
+        derived = _coverage_weighted_slot_level(layer_views, base_width, base_height)
+        if derived is not None:
+            slot_default = derived
     for y in range(base_height):
         _raise_if_material_combiner_cancelled(cancelled)
         target_row = y * target_stride
         for x in range(base_width):
-            values: list[Tuple[float, float]] = []
-            for priority, _mode, _image, view, stride in layer_views:
+            combined = slot_default
+            covered = False
+            for _priority, _mode, _image, view, stride in layer_views:
                 offset = (y * stride) + (x * 4)
-                grey = (
-                    (0.2126 * (float(view[offset]) / 255.0))
-                    + (0.7152 * (float(view[offset + 1]) / 255.0))
-                    + (0.0722 * (float(view[offset + 2]) / 255.0))
-                )
-                values.append((_clamp(grey), max(1.0, float(priority))))
-            if slot == "occlusion":
-                combined = 1.0
-                for value, _weight in values:
-                    combined = min(combined, value)
-                combined = _clamp(combined, 0.55, 1.0)
-            elif slot == "metalness":
-                combined = max(
-                    value * _clamp(0.45 + ((weight / 100.0) * 0.55), 0.45, 1.0)
-                    for value, weight in values
-                )
-            elif slot == "specular":
-                weighted = sum(value * weight for value, weight in values) / weight_total
-                peak = max(value for value, _weight in values)
-                combined = _clamp((weighted * 0.35) + (peak * 0.65), 0.0, 1.0)
-            else:
-                combined = sum(value * weight for value, weight in values) / weight_total
-            grey_byte = _byte(combined)
+                # RGB is greyscale here, so red is the value; alpha is coverage.
+                value = _clamp(float(view[offset]) / 255.0)
+                coverage = _clamp(float(view[offset + 3]) / 255.0)
+                if coverage <= 0.0:
+                    continue
+                if slot == "occlusion":
+                    # Occlusion from separate layers stacks rather than replaces:
+                    # the darkest contributor wins where they overlap.
+                    contribution = (value * coverage) + (1.0 * (1.0 - coverage))
+                    combined = contribution if not covered else min(combined, contribution)
+                else:
+                    combined = (combined * (1.0 - coverage)) + (value * coverage)
+                covered = True
+            grey_byte = _byte(_clamp(combined))
             target_offset = target_row + (x * 3)
             target_view[target_offset : target_offset + 3] = bytes((grey_byte, grey_byte, grey_byte))
 

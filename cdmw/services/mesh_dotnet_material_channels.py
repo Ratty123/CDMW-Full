@@ -19,6 +19,113 @@ from cdmw.rendering.preview_tint_contract import resolve_preview_tint_contract
 _COMPONENT_NAMES = ("r", "g", "b", "a")
 _DEFAULT_INSPECT_DDS_NATIVE_PATH = inspect_dds_native_path
 
+# A base texture this dark carries no usable colour: the part renders as a
+# silhouette and the sidecar's declared tint is the only colour information
+# available for it.  Measured against the shipped corpus, only a handful of
+# submeshes fall here, so promoting the tint stays a narrow rescue rather than a
+# blanket recolour -- applying it everywhere washes out material that is already
+# correct, and paints per-layer dyes across whole submeshes.
+_BASE_TINT_RESCUE_MAX_BASE_LUMA = 0.07
+# ... and only when the tint is clearly brighter than what the texture gives, so
+# a dark tint is not swapped in for an equally dark texture.  Measured gains on
+# the shipped corpus separate cleanly: the parts this rescues sit at 3.4 and 4.5,
+# while a dark green cannon tint sits at 3.0 and only tinted the barrel without
+# making it readable.  The threshold sits between them.
+_BASE_TINT_RESCUE_MIN_GAIN = 3.15
+
+
+def _rescued_base_tint_strength(
+    strength: float,
+    base_color: Sequence[float],
+    resolved_channels: Mapping[str, str],
+) -> float:
+    """Promote a declared tint only for parts whose base texture is unusable.
+
+    ``base_tint_strength`` is otherwise derived from whether a separate texture
+    tint exists, so a part can declare a colour that is then discarded.  Turning
+    every one of those back on is a regression: the shader's tint path also lifts
+    luminance, and the declared colours are per-layer dyes, so applying them to a
+    whole submesh washes out correct material and mis-colours the rest.  This
+    only rescues parts that would otherwise render as a black silhouette.
+    """
+
+    if strength > 0.001 or len(base_color) < 3:
+        return strength
+    base_path = next(
+        (
+            str(resolved_channels.get(channel, "") or "")
+            for channel in ("base", "albedo", "diffuse")
+            if str(resolved_channels.get(channel, "") or "")
+        ),
+        "",
+    )
+    if not base_path:
+        return strength
+    base_luma = _mean_texture_luma(base_path)
+    if base_luma is None or base_luma > _BASE_TINT_RESCUE_MAX_BASE_LUMA:
+        return strength
+    tint_luma = (
+        (0.2126 * float(base_color[0]))
+        + (0.7152 * float(base_color[1]))
+        + (0.0722 * float(base_color[2]))
+    )
+    if tint_luma < max(base_luma * _BASE_TINT_RESCUE_MIN_GAIN, 0.05):
+        return strength
+    return 0.85
+
+
+@lru_cache(maxsize=512)
+def _mean_texture_luma(path: str) -> float | None:
+    """Mean luminance of a preview texture, or ``None`` if unreadable."""
+
+    candidate = Path(str(path or "")).expanduser()
+    if not candidate.is_file():
+        return None
+    try:
+        from PySide6.QtGui import QImage
+
+        image = QImage(str(candidate))
+        if image.isNull():
+            return None
+        # A small sample is enough to decide whether a texture is black.
+        thumbnail = image.scaled(32, 32).convertToFormat(QImage.Format.Format_RGB888)
+        if thumbnail.isNull():
+            return None
+        total = 0.0
+        count = 0
+        for y in range(thumbnail.height()):
+            for x in range(thumbnail.width()):
+                colour = thumbnail.pixelColor(x, y)
+                total += (
+                    (0.2126 * colour.redF())
+                    + (0.7152 * colour.greenF())
+                    + (0.0722 * colour.blueF())
+                )
+                count += 1
+        return (total / count) if count else None
+    except Exception:
+        return None
+
+# Crimson Desert packs its material parameters into one RGB texture, referenced
+# from the sidecar as ``_grimeMaterialTexture*`` / ``_detailMaterialMask*`` and
+# stored on disk with an ``_sp`` suffix.  The suffix reads like "specular", but
+# these are metal/roughness workflow maps: measured across the shipped ``_sp``
+# corpus, red is occlusion (a flat 1.0 unless occlusion was authored, as on
+# faces), green is roughness, and blue is a near-binary metal mask whose set
+# regions pair with low roughness and bright desaturated albedo.  Treating blue
+# as a specular level instead would be wrong -- 0.0 is not a legal dielectric
+# reflectance, but it is the correct "not metal" value.
+_CRIMSON_PACKED_MATERIAL_COMPONENTS = {
+    "occlusion": "r",
+    "roughness": "g",
+    "metallic": "b",
+}
+# Only ``_sp`` carries these parameters.  ``_ma`` (``material_mask``), ``_mg``
+# (``material_response``) and ``_m`` (``mask``) are layer selectors whose
+# channels sum to roughly one across the image, so reading them as roughness and
+# metal would feed the renderer layer weights instead of surface response.
+_CRIMSON_PACKED_MATERIAL_SUBTYPES = frozenset({"specular"})
+
 
 def _dotnet_dds_inspector():
     """Honor historical facade patch points while owning channel behavior here."""
@@ -273,8 +380,22 @@ def _material_texture_metadata(source: object | None) -> tuple[str, tuple[str, .
 def _dotnet_material_channel_components(source: object | None) -> dict[str, str]:
     subtype, packed = _material_texture_metadata(source)
     normalized = tuple(value.replace("metalness", "metallic") for value in packed)
-    if subtype in {"metallic_roughness", "metallicroughness", "gltf_metallic_roughness"}:
-        result: dict[str, str] = {"roughness": "g", "metallic": "b"}
+    if subtype in _CRIMSON_PACKED_MATERIAL_SUBTYPES:
+        # A component index only describes the packed texture it came from.  When
+        # a channel already resolves to its own dedicated map -- the shared
+        # material combiner emits separate roughness/metal/occlusion images --
+        # that map carries its value in red, so claiming green or blue here would
+        # sample the wrong channel.  Keep the packed layout for the channels this
+        # texture actually supplies.
+        already_bound = _dotnet_material_input_channels(source)
+        material_path = already_bound.get("material", "")
+        result: dict[str, str] = {
+            channel: component
+            for channel, component in _CRIMSON_PACKED_MATERIAL_COMPONENTS.items()
+            if already_bound.get(channel, material_path) == material_path
+        }
+    elif subtype in {"metallic_roughness", "metallicroughness", "gltf_metallic_roughness"}:
+        result = {"roughness": "g", "metallic": "b"}
     elif subtype in {"orm", "arm"}:
         result = {"roughness": "g", "metallic": "b"}
     elif subtype == "rma":
@@ -468,7 +589,11 @@ def _dotnet_initial_material_parameters(
     )
     if len(tint_contract.base_color) >= 3:
         result["base_tint_color"] = list(tint_contract.base_color)
-        result["base_tint_strength"] = tint_contract.base_tint_strength
+        result["base_tint_strength"] = _rescued_base_tint_strength(
+            tint_contract.base_tint_strength,
+            tint_contract.base_color,
+            resolved_channels,
+        )
         material_category = str(overrides.get("material_category", "") or "").strip().casefold()
         if material_category:
             result["base_tint_metallic"] = material_category == "metal"
