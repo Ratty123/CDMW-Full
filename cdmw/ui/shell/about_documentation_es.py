@@ -472,9 +472,15 @@ class AboutDocumentationSpanishMixin:
                       <li><b>Importar perfil</b> restaura primero el flujo y despues recarga esos ajustes en Configuracion, Reemplazador y Editor de texturas.</li>
                       <li>Los perfiles no guardan archivos abiertos, documentos activos ni sesiones de proyecto por pestana.</li>
                       <li><b>Exportar diagnosticos</b> incluye el mismo perfil, logs, resumen de cache, analisis de chaiNNer, contexto de fallos si existe, README, licencia y avisos de terceros.</li>
-                      <li><b>Configuracion / Inicio</b>: carga automatica del archivo, preferencia de cache, ultima pestana y filtros del explorador.</li>
-                      <li><b>Configuracion / Rendimiento</b>: perfil de recursos, backend de vista, presupuesto UI, workers, aceleracion nativa, indexacion de sidecars y cache .NET/Vortice.</li>
+                    </ul>
+                    <p>Configuracion tiene siete paginas en la lista de la izquierda: <b>Setup</b>, <b>Inicio</b>, <b>Rutas</b>, <b>Rendimiento</b>, <b>Apariencia</b>, <b>Layout</b> y <b>Seguridad</b>.</p>
+                    <ul>
+                      <li><b>Configuracion / Setup</b>: creacion del workspace, deteccion de herramientas externas y estado de los ayudantes de autoria.</li>
+                      <li><b>Configuracion / Inicio</b>: carga automatica del archivo, preferencia de cache y restauracion de la ultima pestana. Los filtros del explorador arrancan neutros.</li>
+                      <li><b>Configuracion / Rutas</b>: raices del flujo, ubicaciones de archivos, raiz del juego/paquetes y raiz de extraccion.</li>
+                      <li><b>Configuracion / Rendimiento</b>: preajuste de carga, lotes de la lista de archivos, ayudante nativo, indexacion opcional de sidecars, caches de vista previa y cache de paquetes .NET/Vortice.</li>
                       <li><b>Configuracion / Apariencia</b>: temas, Espanol/Aleman integrados, idiomas personalizados, fuentes, densidad, colores y valores 3D.</li>
+                      <li><b>Configuracion / Layout y Seguridad</b>: memoria de tamanos de paneles, confirmaciones de limpieza y contexto extra de diagnostico local.</li>
                     </ul>
                     <p>Exportar idioma crea JSON con claves en ingles. Manten las claves sin cambios y edita solo los valores traducidos.</p>
                     """,
@@ -491,6 +497,7 @@ class AboutDocumentationSpanishMixin:
                       <li><b>Volver a acoplar herramienta actual</b> y <b>Volver a acoplar todas las herramientas</b> devuelven herramientas separadas a sus grupos originales.</li>
                       <li>La geometria separada se guarda como <code>window/detached/&lt;tool&gt;/geometry</code>; la ventana principal usa <code>window/geometry</code>.</li>
                       <li><b>Configuracion / Layout</b> controla si se recuerdan tamanos de paneles y splitters.</li>
+                      <li>La parte inferior del menu <b>Ventana</b> lista una entrada <b>Mostrar &lt;herramienta&gt;</b> por herramienta: selecciona su pestana o trae al frente su ventana si esta separada.</li>
                     </ul>
                     """,
                 },

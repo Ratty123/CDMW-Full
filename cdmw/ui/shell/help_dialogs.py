@@ -70,7 +70,7 @@ _QUICK_START_HTML_ES = """
   <li><b>Comparar</b>: revision lado a lado antes de lotes grandes.</li>
 </ul>
 <h3>Nota sobre cache de sidecars</h3>
-<p>Crear el cache global de sidecars puede tardar mucho en archivos grandes. Mejora referencias inversas DDS, conexiones de texturas de modelos y busqueda de sidecars/materiales. Si lo activas, deja que termine; se configura en <b>Configuracion &gt; Rendimiento del explorador de archivos</b>.</p>
+<p>Crear el cache global de sidecars puede tardar mucho en archivos grandes. Mejora referencias inversas DDS, conexiones de texturas de modelos y busqueda de sidecars/materiales. Si lo activas, deja que termine; se configura en <b>Configuracion &gt; Rendimiento</b>.</p>
 <h3>Advertencia sobre texturas tecnicas</h3>
 <p>Las texturas visibles de color no son iguales que mapas tecnicos. Altura, desplazamiento, normales, mascaras, vectores y otros DDS sensibles son mas riesgosos al pasar por PNG.</p>
 <ul>
@@ -79,7 +79,7 @@ _QUICK_START_HTML_ES = """
   <li>Revisa perfiles y rutas del planificador antes de forzar mapas tecnicos por la ruta PNG visible.</li>
 </ul>
 <h3>Documentacion</h3>
-<p>El menu <b>Documentacion</b> abre un navegador de documentacion con busqueda y temas de flujo, perfiles y rutas del planificador.</p>
+<p><b>Ayuda &gt; Documentacion</b> abre un navegador de documentacion con busqueda y temas de flujo, perfiles y rutas del planificador.</p>
 """
 
 
@@ -130,7 +130,7 @@ _QUICK_START_HTML_DE = """
   <li><b>Vergleichen</b>: Seit-an-Seit-Pruefung vor groesseren Laeufen.</li>
 </ul>
 <h3>Hinweis zum Sidecar-Cache</h3>
-<p>Der globale Sidecar-Cache kann bei grossen Archiven lange dauern. Er verbessert DDS-Rueckreferenzen, Modell-Textur-Verbindungen und Material-Sidecar-Suche. Wenn du ihn aktivierst, lass den ersten Lauf fertig werden; die Optionen findest du unter <b>Einstellungen &gt; Archiv-Browser-Leistung</b>.</p>
+<p>Der globale Sidecar-Cache kann bei grossen Archiven lange dauern. Er verbessert DDS-Rueckreferenzen, Modell-Textur-Verbindungen und Material-Sidecar-Suche. Wenn du ihn aktivierst, lass den ersten Lauf fertig werden; die Optionen findest du unter <b>Einstellungen &gt; Leistung</b>.</p>
 <h3>Warnung zu technischen Texturen</h3>
 <p>Sichtbare Farbtexturen sind nicht dasselbe wie technische Maps. Hoehe, Displacement, Normalen, Masken, Vektoren und andere empfindliche DDS-Dateien sind riskanter, wenn sie ueber PNG laufen.</p>
 <ul>
@@ -139,7 +139,7 @@ _QUICK_START_HTML_DE = """
   <li>Pruefe Planerprofile und Planerpfade, bevor technische Maps in den sichtbaren PNG-Pfad gezwungen werden.</li>
 </ul>
 <h3>Dokumentation</h3>
-<p>Das Menue <b>Dokumentation</b> oeffnet einen durchsuchbaren Dokumentationsbrowser mit Workflow-Themen, Profilen und Planerpfaden.</p>
+<p><b>Hilfe &gt; Dokumentation</b> oeffnet einen durchsuchbaren Dokumentationsbrowser mit Workflow-Themen, Profilen und Planerpfaden.</p>
 """
 
 
@@ -190,7 +190,7 @@ class QuickStartDialog(QDialog):
             <h3>Recommended Startup Setup</h3>
             <ol>
               <li>Create or choose a dedicated folder for the app, then place the portable <b>.exe</b> there so config, cache, tools, and workspace folders stay together.</li>
-              <li>Open <b>Settings &gt; Archive Locations</b> and set the Crimson Desert game/package path. Use <b>Auto-detect</b> if the game is in a common install location.</li>
+              <li>Open <b>Settings &gt; Paths &gt; Archive Locations</b> and set the Crimson Desert game/package path. Use <b>Auto-detect</b> if the game is in a common install location.</li>
               <li>Open <b>Settings &gt; Setup</b> and click <b>Init Workspace</b>.</li>
               <li>Use the bundled native DDS helper <b>cd-texture-dx.exe</b> for preview and rebuild.</li>
               <li>Confirm <b>Original DDS root</b>, <b>PNG root</b>, and <b>Output root</b>. Enable DDS staging only if you want a separate pre-upscale PNG staging folder.</li>
@@ -224,7 +224,7 @@ class QuickStartDialog(QDialog):
               <li><b>I am searching for XML, JSON, Lua, or config strings</b>: use <b>Text Search</b> against archives or loose folders.</li>
             </ul>
             <h3>Sidecar Cache Note</h3>
-            <p>Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in <b>Settings &gt; Archive Browser Performance</b>.</p>
+            <p>Building the global sidecar cache is intentionally optional because it can be expensive on large archives. It improves DDS related-file discovery, reverse references, mesh texture connections, and material-sidecar lookup. If you enable it, let the first run finish even when it takes a long time. Configure sidecar indexing and worker count in <b>Settings &gt; Performance</b>.</p>
             <h3>Safety Reminders</h3>
             <p>Visible color textures are not the same as technical maps. Height, displacement, normals, masks, vectors, and other precision-sensitive DDS files are riskier to push through PNG intermediates.</p>
             <ul>
@@ -234,7 +234,7 @@ class QuickStartDialog(QDialog):
               <li>Open Documentation for detailed field references, recipes, troubleshooting, and FAQs.</li>
             </ul>
             <h3>Where Details Live</h3>
-            <p>The <b>Documentation</b> menu is topic-based and searchable. Use it for mesh import/swap steps, archive guides, Texture Workflow profiles and rules, Texture Editor tools, Texture Replacer packaging, Research, Text Search, settings, troubleshooting, and FAQs.</p>
+            <p><b>Help &gt; Documentation</b> is topic-based and searchable. Use it for mesh import/swap steps, archive guides, Texture Workflow profiles and rules, Texture Editor tools, Texture Replacer packaging, Research, Text Search, settings, troubleshooting, and FAQs.</p>
             """
         )
         self.browser.setFont(self.font())
