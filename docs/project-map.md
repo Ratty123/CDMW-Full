@@ -7,12 +7,15 @@ you need historical ownership detail.
 
 ## Read Order
 
+Do not preload this set. Read `AGENTS.md`, then this map, then open only what
+the task actually needs, in this order of preference:
+
 1. `AGENTS.md`
-2. `docs/README.md`
-3. `docs/release-confidence-plan.md`
-4. `docs/architecture.md`
-5. `docs/test-matrix.md`
-6. This map
+2. This map, and the nearest feature README
+3. `docs/architecture.md` when an ownership boundary or contract is unclear
+4. `docs/test-matrix.md` for the touched area only, once that area is known
+5. `docs/release-confidence-plan.md` only for release or readiness work
+6. `docs/README.md` only when doc placement is part of the task
 7. `docs/project-map-detailed.md` only when package boundaries are unclear
 
 ## Cleanup Rule
