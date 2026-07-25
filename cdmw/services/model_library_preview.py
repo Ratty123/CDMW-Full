@@ -15,6 +15,7 @@ from tempfile import TemporaryDirectory
 from typing import Optional
 
 from cdmw.core.common import run_process_with_cancellation
+from cdmw.core.model_preview_orientation import scene_import_normalizes_texture_v
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.domain.library.models import IMPORTABLE_MODEL_EXTENSIONS
 from cdmw.core.archive_modding import (
@@ -22,20 +23,37 @@ from cdmw.core.archive_modding import (
     import_scene_mesh_with_report,
     parsed_mesh_to_preview_model,
 )
+from cdmw.services.mesh_dotnet_material_state import set_dotnet_preview_texture_flip_vertical
 from cdmw.services.model_library_service import ModelLibraryService
 from cdmw.modding.scene_import_result_ops import reduce_scene_import_result_quality
 from cdmw.models import ModelPreviewRenderSettings, clamp_model_preview_render_settings
+from cdmw.rendering.dotnet_preview_package_cache import dotnet_preview_package_cache_budget
 from cdmw.rendering.material_channels import resolve_preview_batch_material_channels
 from cdmw.rendering.model_preview_prepare import prepare_model_preview
 from cdmw.services.mesh_dotnet_preview_package import (
     build_or_lookup_dotnet_preview_package_from_model,
 )
 
-_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 500
-_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 1200
 _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH = 50_000
 _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH = 80_000
 _SUBPROCESS_TIMEOUT_SECONDS = 300
+_PREVIEW_PACKAGE_CACHE_MODE = "balanced"
+
+
+def _model_library_preview_package_cache_identity(
+    import_path: Path,
+    *,
+    texture_flip_vertical: bool,
+) -> str:
+    """Key one prepared package by its source revision and baked orientation."""
+
+    try:
+        stat = import_path.stat()
+        revision = f"{int(stat.st_mtime_ns)}:{int(stat.st_size)}"
+    except OSError:
+        revision = "unstatable"
+    orientation = "flipv" if texture_flip_vertical else "noflipv"
+    return f"model-library:{import_path}:{revision}:{orientation}"
 
 
 def _model_preview_render_settings_payload(render_settings: object) -> dict[str, object]:
@@ -159,6 +177,13 @@ def prepare_model_library_inline_preview(
     progress: Optional[Callable[[str], None]] = None,
     stop_event: Optional[threading.Event] = None,
 ) -> dict[str, object]:
+    """Prepare one canonical .NET/Vortice package for the Model Library preview.
+
+    Model Library previews always use fast preview textures, so
+    ``high_quality_textures`` is reported back for telemetry and status text
+    rather than selecting a texture tier.
+    """
+
     progress = progress or (lambda _message: None)
     source = Path(source_path)
     metadata = dict(payload or {})
@@ -186,11 +211,8 @@ def prepare_model_library_inline_preview(
     original_faces = int(scene_result.mesh.total_faces)
     submeshes = tuple(getattr(scene_result.mesh, "submeshes", ()) or ())
     quality_reduction = None
-    max_faces = _INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
-    max_vertices = _INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
-    if backend == "d3d11_vortice_shader":
-        max_faces = _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
-        max_vertices = _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
+    max_faces = _DOTNET_INLINE_PREVIEW_MAX_FACES_PER_SUBMESH
+    max_vertices = _DOTNET_INLINE_PREVIEW_MAX_VERTICES_PER_SUBMESH
     if any(
         len(getattr(submesh, "faces", ()) or ()) > max_faces
         or len(getattr(submesh, "vertices", ()) or ()) > max_vertices
@@ -205,29 +227,41 @@ def prepare_model_library_inline_preview(
     raise_if_cancelled(stop_event)
     preview_model = parsed_mesh_to_preview_model(scene_result.mesh)
     texture_count = attach_scene_preview_textures(preview_model, scene_result, resolved_import_path)
+    texture_flip_vertical = scene_import_normalizes_texture_v(
+        getattr(scene_result.mesh, "format", ""),
+        getattr(scene_result.mesh, "path", "") or resolved_import_path,
+    )
+    if bool(getattr(render_settings, "flip_texture_v", False)):
+        texture_flip_vertical = not texture_flip_vertical
+    set_dotnet_preview_texture_flip_vertical(preview_model, texture_flip_vertical)
     raise_if_cancelled(stop_event)
+    # Support maps are synthesized once while the canonical package is written,
+    # so the preparation-side combiner would only repeat that work.
     prepared_model, prepared_preview = prepare_model_preview(
         preview_model,
         render_settings=render_settings,
-        enable_material_combiner=True,
+        enable_material_combiner=False,
     )
     raise_if_cancelled(stop_event)
-    package_dir = ""
-    package_ms = 0.0
-    if backend == "d3d11_vortice_shader":
-        package_started = time.perf_counter()
-        progress("Writing canonical .NET/Vortice preview package...")
-        package_dir = str(
-            build_or_lookup_dotnet_preview_package_from_model(
-                prepared_model,
-                cache_root=Path(tempfile.gettempdir()) / "cdmw_preview_packages",
-                archive_identity=f"model-library:{resolved_import_path}:{request_id}:{time.time_ns()}",
-                cache_mode="off",
-                cancelled=(stop_event.is_set if stop_event is not None else None),
-                metadata={"surface": "model_library", "source_path": str(resolved_import_path)},
-            ).package_dir
-        )
-        package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
+    package_started = time.perf_counter()
+    progress("Writing canonical .NET/Vortice preview package...")
+    cache_max_bytes, cache_target_bytes = dotnet_preview_package_cache_budget(_PREVIEW_PACKAGE_CACHE_MODE)
+    package_dir = str(
+        build_or_lookup_dotnet_preview_package_from_model(
+            prepared_model,
+            cache_root=Path(tempfile.gettempdir()) / "cdmw_preview_packages",
+            archive_identity=_model_library_preview_package_cache_identity(
+                resolved_import_path,
+                texture_flip_vertical=texture_flip_vertical,
+            ),
+            cache_mode=_PREVIEW_PACKAGE_CACHE_MODE,
+            max_bytes=cache_max_bytes,
+            target_bytes=cache_target_bytes,
+            cancelled=(stop_event.is_set if stop_event is not None else None),
+            metadata={"surface": "model_library", "source_path": str(resolved_import_path)},
+        ).package_dir
+    )
+    package_ms = max(0.0, (time.perf_counter() - package_started) * 1000.0)
     raise_if_cancelled(stop_event)
     audit = getattr(scene_result, "external_audit", None)
     return {
@@ -247,6 +281,7 @@ def prepare_model_library_inline_preview(
         "quality_reduction": quality_reduction,
         "meshes": len(getattr(preview_model, "meshes", ()) or ()),
         "textures": int(texture_count),
+        "texture_flip_vertical": bool(texture_flip_vertical),
         "high_quality_textures": bool(high_quality_textures),
         "material_channel_summary": model_library_preview_material_channel_summary(prepared_preview),
         "diagnostics": tuple(scene_result.diagnostics or ()),

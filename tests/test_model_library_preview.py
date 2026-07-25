@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QEventLoop, QObject, QThread, QTimer, Qt, Signal, Slot
 from PySide6.QtWidgets import QApplication
 
-from cdmw.models import RunCancelled
+from cdmw.models import ModelPreviewRenderSettings, RunCancelled
 from cdmw.services.mesh_dotnet_preview_package import validate_dotnet_preview_package
 from cdmw.services.model_library_preview import (
     prepare_model_library_inline_preview,
@@ -119,8 +119,37 @@ class ModelLibraryPreviewServiceTests(unittest.TestCase):
 
             self.assertEqual(result["dotnet_preview_package_path"], str(package_dir))
             self.assertTrue(writer.called)
-            self.assertEqual(writer.call_args.kwargs["cache_mode"], "off")
+            self.assertEqual(writer.call_args.kwargs["cache_mode"], "balanced")
+            self.assertGreater(int(writer.call_args.kwargs["max_bytes"]), 0)
+            self.assertGreater(int(writer.call_args.kwargs["target_bytes"]), 0)
             self.assertEqual(writer.call_args.kwargs["metadata"]["surface"], "model_library")
+
+    def test_backend_package_identity_is_stable_per_source_revision_and_orientation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            scene_path = _write_triangle_gltf(Path(tmp))
+            package = type("Package", (), {"package_dir": Path(tmp) / "package"})()
+
+            def identity_for(flip_v: bool) -> str:
+                render_settings = ModelPreviewRenderSettings()
+                render_settings.flip_texture_v = flip_v
+                with patch(
+                    "cdmw.services.model_library_preview.build_or_lookup_dotnet_preview_package_from_model",
+                    return_value=package,
+                ) as writer:
+                    prepare_model_library_inline_preview(
+                        scene_path,
+                        model_name="Triangle",
+                        render_settings=render_settings,
+                    )
+                return str(writer.call_args.kwargs["archive_identity"])
+
+            self.assertEqual(identity_for(False), identity_for(False))
+            self.assertNotEqual(identity_for(False), identity_for(True))
+
+            before_touch = identity_for(False)
+            touched_at = time.time() + 5.0
+            os.utime(scene_path, (touched_at, touched_at))
+            self.assertNotEqual(before_touch, identity_for(False))
 
     def test_backend_prepares_fast_d3d11_package_from_gltf_zip_with_texture(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

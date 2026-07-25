@@ -44,6 +44,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             self._load_inline_model_preview(source_path, payload)
 
         def missing() -> None:
+            self._pending_icon_generation_for_next_preview = False
             if payload.get("kind") == "mirror":
                 self._set_inline_preview_status("Download this mirror model first, then Preview Here.", error=True)
             else:
@@ -116,7 +117,10 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         if str(state) == "ready":
             self._cleanup_inline_d3d11_packages(include_active=False)
             self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
-            self._set_inline_preview_status(".NET/Vortice Model Library preview ready.")
+            # Keep the prepared-model summary the load already published; the
+            # host reports ready afterwards and would otherwise erase it.
+            summary = str(getattr(self, "_inline_preview_summary_status", "") or "")
+            self._set_inline_preview_status(summary or ".NET/Vortice Model Library preview ready.")
             self._record_model_library_preview_event("model_library_dotnet_ready")
             if int(self._pending_icon_generation_request_id) == int(self._inline_preview_request_id):
                 self._pending_icon_generation_request_id = 0
@@ -159,9 +163,9 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self.inline_preview_flip_v_checkbox.blockSignals(False)
 
     def _apply_inline_preview_flip_v_render_setting(self, checked: bool) -> None:
-        settings = self.inline_preview_widget.render_settings()
+        settings = self.inline_preview_render_settings
         settings.flip_texture_v = bool(checked)
-        self.inline_preview_widget.set_render_settings(settings)
+        self.inline_preview_render_settings = settings
 
     def _sync_inline_preview_orientation_controls(self) -> None:
         if not hasattr(self, "inline_preview_flip_v_checkbox"):
@@ -215,6 +219,10 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             return
         self._inline_preview_request_id += 1
         request_id = self._inline_preview_request_id
+        if bool(getattr(self, "_pending_icon_generation_for_next_preview", False)):
+            self._pending_icon_generation_for_next_preview = False
+            self._pending_icon_generation_request_id = request_id
+        self._inline_preview_summary_status = ""
         source_path = Path(source_path)
         model_name = str(payload.get("name", "") or source_path.stem or "model")
         renderer_backend = self._inline_preview_renderer_backend()
@@ -227,7 +235,7 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
         self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
         self._inline_preview_loaded_import_path = None
         self._inline_preview_loaded_payload = None
-        preview_render_settings = self.inline_preview_widget.render_settings()
+        preview_render_settings = self.inline_preview_render_settings
         high_quality_textures = bool(getattr(preview_render_settings, "high_quality_by_default", True))
         self._record_model_library_preview_event(
             "model_library_preview_start",
@@ -318,11 +326,12 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
                 audit_text = f" | audit: {audit_category} {float(result.get('audit_confidence', 0.0) or 0.0):.0%}"
             material_channel_summary = str(result.get("material_channel_summary", "") or "").strip()
             material_channel_text = f" | channels: {material_channel_summary}" if material_channel_summary else ""
-            self._set_inline_preview_status(
+            self._inline_preview_summary_status = (
                 f"{result.get('model_name', 'Model')} | {int(result.get('meshes', 0)):,} mesh(es), "
                 f"{int(result.get('vertices', 0)):,} vertices, {int(result.get('faces', 0)):,} faces, "
                 f"{texture_count:,} resolved texture slot(s){audit_text}{material_channel_text}{renderer_note}."
             )
+            self._set_inline_preview_status(self._inline_preview_summary_status)
             self._sync_inline_preview_orientation_controls()
             self._update_selection_state()
             if int(self._pending_icon_generation_request_id) == int(request_id):
@@ -334,6 +343,8 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             if int(request_id) != int(self._inline_preview_request_id):
                 return
             self._pending_icon_generation_request_id = 0
+            self._pending_icon_generation_for_next_preview = False
+            self._inline_preview_summary_status = ""
             self._sync_inline_preview_orientation_controls()
             self._record_model_library_preview_event(
                 "model_library_preview_error",
@@ -382,7 +393,9 @@ class ModelLibraryInlinePreviewMixin(ModelLibraryIconOutputMixin):
             if self._task_thread is not None and self._task_thread.isRunning():
                 self._set_inline_preview_status("A model library task is already running.", error=True)
                 return
-            self._pending_icon_generation_request_id = self._inline_preview_request_id + 1
+            # The load that finally starts claims this request; predicting the next
+            # request id misses whenever a queued preview bumps it first.
+            self._pending_icon_generation_for_next_preview = True
             self.preview_selected_model_here()
             return
         self._capture_inline_preview_icon()

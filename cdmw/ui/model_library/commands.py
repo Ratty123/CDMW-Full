@@ -356,14 +356,16 @@ class ModelLibraryCommandsMixin:
         deleted = [Path(path) for path in result.deleted_paths]
         if deleted:
             self._texture_status_cache.clear()
-            self.inline_preview_widget.clear_model("Select a downloaded or local model to preview it here.")
             self.inline_d3d11_preview_host.clear_preview()
             self.inline_preview_stack.setCurrentWidget(self.inline_d3d11_preview_host)
+            self._set_inline_preview_status("Select a downloaded or local model to preview it here.")
             self._inline_preview_loaded_import_path = None
             self._inline_preview_loaded_payload = None
             self._inline_preview_loaded_texture_count = 0
             self._inline_preview_loaded_renderer_backend = ""
+            self._inline_preview_summary_status = ""
             self._pending_icon_generation_request_id = 0
+            self._pending_icon_generation_for_next_preview = False
             self._prepare_inline_preview_orientation_for_load(reset_orientation=True)
             self._clear_deleted_local_state(deleted)
             if self._active_results_view == "local" and self.local_roots:

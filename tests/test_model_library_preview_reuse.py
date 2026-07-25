@@ -28,6 +28,27 @@ def test_resident_preview_reveals_dotnet_host_after_ready_state() -> None:
     record_event.assert_called_once_with("model_library_dotnet_ready")
 
 
+def test_ready_state_keeps_the_prepared_model_summary() -> None:
+    summary = "Wolf | 2 mesh(es), 1,024 vertices, 512 faces, 3 resolved texture slot(s)."
+    stack = MagicMock()
+    set_status = MagicMock()
+
+    class Owner:
+        _handle_inline_dotnet_state = ModelLibraryInlinePreviewMixin._handle_inline_dotnet_state
+        _inline_preview_request_id = 7
+        _pending_icon_generation_request_id = 0
+        _inline_preview_summary_status = summary
+        inline_d3d11_preview_host = object()
+        inline_preview_stack = stack
+        _set_inline_preview_status = set_status
+        _record_model_library_preview_event = MagicMock()
+        _cleanup_inline_d3d11_packages = MagicMock()
+
+    Owner()._handle_inline_dotnet_state("ready", "ready")
+
+    set_status.assert_called_once_with(summary)
+
+
 def test_legacy_status_polling_is_disabled() -> None:
     stack = MagicMock()
 

@@ -92,6 +92,8 @@ class ModelLibraryTab(
         self._pending_model_action_after_task: Optional[Callable[[], None]] = None
         self._model_action_request_id = 0
         self._pending_icon_generation_request_id = 0
+        self._pending_icon_generation_for_next_preview = False
+        self._inline_preview_summary_status = ""
         self._pending_dotnet_icon_capture: Optional[tuple[dict[str, object], Path, Path]] = None
         self._icon_output_request_id = 0
         self._icon_output_active = False
@@ -345,6 +347,8 @@ class ModelLibraryTab(
             except OSError:
                 pass
         self._pending_model_action_after_task = None
+        self._pending_icon_generation_for_next_preview = False
+        self._inline_preview_summary_status = ""
         self._model_action_request_id = int(getattr(self, "_model_action_request_id", 0) or 0) + 1
         self._results_request_id = int(getattr(self, "_results_request_id", 0) or 0) + 1
         self._delete_request_id = int(getattr(self, "_delete_request_id", 0) or 0) + 1

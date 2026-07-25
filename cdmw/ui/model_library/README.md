@@ -10,6 +10,12 @@ without reducing moderate native-preview geometry, and promotes the D3D11
 widget only after the host reports `loaded`. Archive Browser preview remains an
 explicit manual action.
 
+Scene imports (glTF/GLB/OBJ/DAE) normalize texture V, so the preparation step
+stamps that orientation onto the preview meshes before the canonical package is
+written; the Flip V control inverts the same value and rebuilds. Prepared
+packages are cached per source revision and orientation, so re-selecting a model
+or toggling Flip V back reuses the existing package instead of rebuilding it.
+
 ZIP discovery/extraction and generic Preview/Import path resolution run through
 the Model Library task worker. Results are discarded when the selected row
 changes. The shell imports scene geometry and scans texture/sidecar companions
