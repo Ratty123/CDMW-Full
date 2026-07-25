@@ -6,6 +6,7 @@ from uuid import uuid4
 import pytest
 
 from cdmw.domain.mesh import (
+    MESH_MORPH_RULES,
     MeshMorphDefinition,
     MeshMorphRule,
     build_weighted_morph_selection,
@@ -181,7 +182,9 @@ def _assert_positions_close(
         assert actual_point == pytest.approx(expected_point)
 
 
-@pytest.mark.parametrize("rule_kind", ("volume", "scale", "move", "flatten", "taper", "twist"))
+# Derived from the rule set, so a new rule cannot ship without native readback
+# proof. `radius` was added later and would otherwise have had none.
+@pytest.mark.parametrize("rule_kind", MESH_MORPH_RULES)
 def test_every_rule_at_100_percent_matches_its_generated_sparse_field_in_native_readback(rule_kind: str) -> None:
     mesh = _driver_garment_mesh()
     baseline = deepcopy(mesh)

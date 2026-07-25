@@ -5,12 +5,19 @@ from __future__ import annotations
 import math
 from typing import Sequence
 
-from .mesh_parser import ParsedMesh, SubMesh
+from .mesh_parser import (
+    PAC_SKIN_INDEX_OFFSET,
+    PAC_SKIN_MAX_BONE_INDEX,
+    PAC_SKIN_UNUSED_SLOT,
+    PAC_SKIN_WEIGHT_LAYOUT,
+    PAC_SKIN_WEIGHT_OFFSET,
+    ParsedMesh,
+    SubMesh,
+)
 
 
 SOURCE_VERTEX_MAP_TARGET_DONOR = "target_donor_record"
 SOURCE_VERTEX_MAP_TOPOLOGY = "topology"
-PAC_SKIN_WEIGHT_LAYOUT = "pac_palette_u8x4"
 
 
 def source_vertex_map_is_target_donor_lineage(original: SubMesh, candidate: SubMesh) -> bool:
@@ -60,28 +67,17 @@ def finalize_merged_skin_provenance(merged: SubMesh, sources: Sequence[SubMesh],
     merged.source_skin_weight_layout = str(target.source_skin_weight_layout or "")
 
 
-def target_skin_palette(target: SubMesh) -> tuple[int, ...]:
-    try:
-        palette = tuple(int(value) for value in tuple(target.source_bone_palette or ()))
-    except (TypeError, ValueError, OverflowError):
-        return ()
-    if len(palette) > 255 or len(set(palette)) != len(palette) or any(value < 0 or value > 255 for value in palette):
-        return ()
-    return palette
-
-
 def has_skin_rows(submesh: SubMesh) -> bool:
     return any(bool(row) for row in tuple(submesh.bone_indices or ())) or any(
         bool(row) for row in tuple(submesh.bone_weights or ())
     )
 
 
-def has_valid_target_skin_weights(submesh: SubMesh, palette: Sequence[int]) -> bool:
+def has_valid_target_skin_weights(submesh: SubMesh) -> bool:
     vertices = tuple(submesh.vertices or ())
     index_rows = tuple(submesh.bone_indices or ())
     weight_rows = tuple(submesh.bone_weights or ())
-    allowed = {int(value) for value in palette}
-    if not vertices or not allowed or len(index_rows) != len(vertices) or len(weight_rows) != len(vertices):
+    if not vertices or len(index_rows) != len(vertices) or len(weight_rows) != len(vertices):
         return False
     for indices, weights in zip(index_rows, weight_rows):
         try:
@@ -89,7 +85,9 @@ def has_valid_target_skin_weights(submesh: SubMesh, palette: Sequence[int]) -> b
             values = tuple(float(value) for value in tuple(weights or ()))
         except (TypeError, ValueError, OverflowError):
             return False
-        if not 1 <= len(bones) == len(values) <= 4 or any(bone not in allowed for bone in bones):
+        if not 1 <= len(bones) == len(values) <= 4:
+            return False
+        if any(bone < 0 or bone > PAC_SKIN_MAX_BONE_INDEX for bone in bones):
             return False
         if any(not math.isfinite(value) or value <= 0.0 for value in values):
             return False
@@ -115,18 +113,12 @@ def ensure_final_target_skin_weights(
             f"Cannot author skin weights for target {target_index} ({label}): "
             f"unsupported or unproven skin-weight layout {skin_layout or '<unknown>'}."
         )
-    palette = target_skin_palette(target)
-    if not palette:
-        raise ValueError(
-            f"Cannot author skin weights for target {target_index} ({label}): PAC bone-palette provenance is unavailable."
-        )
     if not target_has_rows:
         raise ValueError(
             f"Cannot author skin weights for target {target_index} ({label}): "
             "the proven PAC skin layout has no decoded donor influence rows."
         )
-    if has_valid_target_skin_weights(merged, palette):
-        merged.source_bone_palette = palette
+    if has_valid_target_skin_weights(merged):
         if summary is not None:
             summary.append(f"Skin weights target {target_index} ({label}): preserved valid target-rig weights.")
         return
@@ -159,9 +151,8 @@ def ensure_final_target_skin_weights(
             )
         reason = str(transfer_metrics.get("error") or "native mesh core returned no transfer result")
         raise RuntimeError(f"Skin-weight transfer failed for target {target_index} ({label}): {reason}.")
-    if not has_valid_target_skin_weights(merged, palette):
+    if not has_valid_target_skin_weights(merged):
         raise ValueError(f"Skin-weight transfer for target {target_index} ({label}) produced invalid target-rig weights.")
-    merged.source_bone_palette = palette
     if summary is not None:
         summary.append(
             f"Skin weights target {target_index} ({label}): transferred {len(merged.vertices):,} vertices; "
@@ -173,21 +164,18 @@ def pack_pac_skin_weights(
     record: bytearray,
     bone_indices: Sequence[object],
     bone_weights: Sequence[object],
-    palette: Sequence[int],
     *,
     context: str,
 ) -> None:
+    """Encode up to four influences into a PAC vertex record, in place.
+
+    Slot values are written verbatim. They are per-mesh palette tokens, not
+    skeleton bone indices, so writing back what the reader decoded round-trips
+    correctly; remapping them would require the unsolved palette mapping.
+    """
+
     if len(record) != 40:
         raise ValueError(f"Cannot encode {context}: expected proven 40-byte PAC vertex record, got {len(record)} bytes.")
-    palette_values = tuple(int(bone) for bone in palette)
-    if (
-        not palette_values
-        or len(palette_values) > 255
-        or len(set(palette_values)) != len(palette_values)
-        or any(bone < 0 or bone > 255 for bone in palette_values)
-    ):
-        raise ValueError(f"Cannot encode {context}: target PAC bone palette is invalid or exceeds slot 254.")
-    palette_slots = {bone: slot for slot, bone in enumerate(palette_values)}
     merged: dict[int, float] = {}
     for raw_bone, raw_weight in zip(tuple(bone_indices or ()), tuple(bone_weights or ())):
         try:
@@ -199,9 +187,12 @@ def pack_pac_skin_weights(
     strongest = sorted(merged.items(), key=lambda item: (-item[1], item[0]))[:4]
     if not strongest:
         raise ValueError(f"Cannot encode {context}: skin-weight row is empty or invalid.")
-    missing = [bone for bone, _weight in strongest if bone not in palette_slots]
-    if missing:
-        raise ValueError(f"Cannot encode {context}: target PAC bone palette does not contain global bone index(es) {missing}.")
+    out_of_range = [bone for bone, _weight in strongest if bone > PAC_SKIN_MAX_BONE_INDEX]
+    if out_of_range:
+        raise ValueError(
+            f"Cannot encode {context}: bone index(es) {out_of_range} exceed the PAC limit of "
+            f"{PAC_SKIN_MAX_BONE_INDEX} ({PAC_SKIN_UNUSED_SLOT:#x} marks an unused slot)."
+        )
     total = sum(weight for _bone, weight in strongest)
     available = 255 - len(strongest)
     scaled = [weight / total * available for _bone, weight in strongest]
@@ -210,10 +201,11 @@ def pack_pac_skin_weights(
     order = sorted(range(len(strongest)), key=lambda index: (scaled[index] - math.floor(scaled[index]), -index), reverse=True)
     for index in order[:remainder]:
         packed_weights[index] += 1
-    slots = [palette_slots[bone] for bone, _weight in strongest]
-    slots.extend([0xFF] * (4 - len(slots)))
+    slots = [bone for bone, _weight in strongest]
+    slots.extend([PAC_SKIN_UNUSED_SLOT] * (4 - len(slots)))
     packed_weights.extend([0] * (4 - len(packed_weights)))
-    record[28:32], record[32:36] = bytes(slots), bytes(packed_weights)
+    record[PAC_SKIN_INDEX_OFFSET:PAC_SKIN_INDEX_OFFSET + 4] = bytes(slots)
+    record[PAC_SKIN_WEIGHT_OFFSET:PAC_SKIN_WEIGHT_OFFSET + 4] = bytes(packed_weights)
 
 
 def pac_skin_weights_changed(original: SubMesh, updated: SubMesh) -> bool:
@@ -223,16 +215,13 @@ def pac_skin_weights_changed(original: SubMesh, updated: SubMesh) -> bool:
     )
 
 
-def pac_skin_export_palette(
-    original: SubMesh,
-    updated: SubMesh,
-    descriptor_palette: Sequence[int],
-    submesh_index: int,
-) -> tuple[int, ...] | None:
+def pac_skin_export_enabled(original: SubMesh, updated: SubMesh, submesh_index: int) -> bool:
+    """True when this submesh carries skin rows that the writer is proven to encode."""
+
     bone_indices = tuple(updated.bone_indices or ())
     bone_weights = tuple(updated.bone_weights or ())
     if not bone_indices and not bone_weights:
-        return None
+        return False
     if len(bone_indices) != len(updated.vertices) or len(bone_weights) != len(updated.vertices):
         raise ValueError(f"PAC submesh {submesh_index} has incomplete skin-weight rows.")
     if original.source_skin_weight_layout != PAC_SKIN_WEIGHT_LAYOUT:
@@ -242,18 +231,13 @@ def pac_skin_export_palette(
             f"PAC submesh {submesh_index} skin weights require the proven 40-byte vertex layout; "
             f"found stride {original.source_vertex_stride}."
         )
-    parsed_palette = tuple(int(value) for value in tuple(original.source_bone_palette or ()))
-    palette = tuple(int(value) for value in tuple(descriptor_palette or ()))
-    if not palette or (parsed_palette and parsed_palette != palette):
-        raise ValueError(f"PAC submesh {submesh_index} bone-palette provenance is missing or inconsistent.")
-    return palette
+    return True
 
 
 def patch_pac_vertex_skin(
     record: bytearray,
     submesh: SubMesh,
     vertex_index: int,
-    palette: Sequence[int],
     submesh_index: int,
 ) -> None:
     if not 0 <= vertex_index < len(submesh.vertices):
@@ -262,7 +246,6 @@ def patch_pac_vertex_skin(
         record,
         submesh.bone_indices[vertex_index],
         submesh.bone_weights[vertex_index],
-        palette,
         context=f"PAC submesh {submesh_index} vertex {vertex_index}",
     )
 
@@ -271,7 +254,7 @@ __all__ = [
     "PAC_SKIN_WEIGHT_LAYOUT",
     "ensure_final_target_skin_weights",
     "finalize_merged_skin_provenance",
-    "pac_skin_export_palette",
+    "pac_skin_export_enabled",
     "pac_skin_weights_changed",
     "pack_pac_skin_weights",
     "patch_pac_vertex_skin",

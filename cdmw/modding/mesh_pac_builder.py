@@ -18,7 +18,7 @@ from .mesh_parser import (
     _validated_pac_descriptor_prefix,
     parse_pac,
 )
-from .mesh_skinning import pac_skin_export_palette, pac_skin_weights_changed, patch_pac_vertex_skin, source_vertex_map_is_target_donor_lineage
+from .mesh_skinning import pac_skin_export_enabled, pac_skin_weights_changed, patch_pac_vertex_skin, source_vertex_map_is_target_donor_lineage
 
 logger = get_logger("core.mesh_importer")
 
@@ -693,7 +693,7 @@ def _build_pac_full_rebuild(
                 )
             donor_records.append(original_data[rec_off:rec_off + orig_sm.source_vertex_stride])
         donor_indices = _choose_pac_donor_indices(orig_sm, new_sm)
-        skin_palette = pac_skin_export_palette(orig_sm, new_sm, getattr(desc, "palette", ()) or (), sm_idx)
+        skin_export = pac_skin_export_enabled(orig_sm, new_sm, sm_idx)
         normals = (
             new_sm.normals
             if len(new_sm.normals) == len(new_sm.vertices)
@@ -731,7 +731,7 @@ def _build_pac_full_rebuild(
             "stored_lod_count": stored_lod_count,
             "clean_shading_records": clean_shading_records,
             "lod_variants": lod_variants,
-            "skin_palette": skin_palette,
+            "skin_export": skin_export,
         })
     lod_payloads: dict[int, bytes] = {}
     lod_split_bytes: dict[int, int] = {}
@@ -801,8 +801,8 @@ def _build_pac_full_rebuild(
                         ),
                     )
 
-                if prepared["skin_palette"] is not None:
-                    patch_pac_vertex_skin(donor_rec, prepared["submesh"], skin_vi, prepared["skin_palette"], sm_idx)
+                if prepared["skin_export"]:
+                    patch_pac_vertex_skin(donor_rec, prepared["submesh"], skin_vi, sm_idx)
 
                 verts_buf.extend(donor_rec)
 

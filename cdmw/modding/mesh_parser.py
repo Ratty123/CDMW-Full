@@ -55,6 +55,31 @@ PAMLOD_BBOX_MIN = 0x10
 PAMLOD_BBOX_MAX = 0x1C
 PAMLOD_ENTRY_TABLE = 0x50
 
+# PAC skin influences inside the 40-byte vertex record: four influence slots
+# at byte 20, then their four u8 weights at byte 28. Measured across every
+# submesh of the vanilla 1_pc bodies: weights are sorted descending, sum to 255
+# (+/- u8 rounding), and the primary carries 68% on average.
+#
+# A slot is NOT a skeleton bone index. It indexes the .pac's own bone palette —
+# a u16 count followed by that many u32 .pab bone-name hashes, near the start of
+# the file (see pac_bone_palette_candidates). Resolving slot 0 that way was
+# verified against real geometry: 22 of 24 single-influence slots land within
+# 10cm of their bone, with exact left/right symmetry.
+#
+# Only slot 0 decodes. Bytes 21-23 are a packed field, not plain slots: byte 21
+# is always a multiple of 4 with just 64 distinct values and byte 23 never
+# exceeds 12, and no byte in the record holds influence #1 as an index. Decoding
+# them as slots yields impossible pairings (a forehead bone blended with a
+# forearm on one vertex), so consumers that need named bones must use the
+# primary influence only. The raw bytes still round-trip verbatim, which is what
+# the replacement path needs.
+PAC_SKIN_INDEX_OFFSET = 20
+PAC_SKIN_WEIGHT_OFFSET = 28
+PAC_SKIN_RECORD_END = PAC_SKIN_WEIGHT_OFFSET + 4
+PAC_SKIN_UNUSED_SLOT = 0xFF
+PAC_SKIN_MAX_BONE_INDEX = PAC_SKIN_UNUSED_SLOT - 1
+PAC_SKIN_WEIGHT_LAYOUT = "pac_slot_u8x4"
+
 # Stride candidates for auto-detection
 STRIDE_CANDIDATES = [6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30, 32, 36, 40, 44, 48, 52, 56, 60, 64]
 
@@ -1091,8 +1116,6 @@ def _parse_pac_legacy(data: bytes, filename: str = "") -> ParsedMesh:
         ni = sm_info["idx_counts"][0]
         bmin = sm_info["bmin"]
         bmax = sm_info["bmax"]
-        bone_palette = sm_info.get("bone_palette", ())
-
         raw_faces = []
         max_index = -1
         for i in range(0, ni - 2, 3):
@@ -1145,15 +1168,15 @@ def _parse_pac_legacy(data: bytes, filename: str = "") -> ParsedMesh:
 
             packed_bones = ()
             packed_weights = ()
-            if rec_off + 36 <= min(len(data), lod0_split):
-                raw_slots = struct.unpack_from("<BBBB", data, rec_off + 28)
-                raw_weights = struct.unpack_from("<BBBB", data, rec_off + 32)
+            if rec_off + PAC_SKIN_RECORD_END <= min(len(data), lod0_split):
+                raw_slots = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_INDEX_OFFSET)
+                raw_weights = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_WEIGHT_OFFSET)
                 mapped_bones = []
                 mapped_weights = []
                 for slot, weight in zip(raw_slots, raw_weights):
-                    if slot == 0xFF or weight == 0:
+                    if slot == PAC_SKIN_UNUSED_SLOT or weight == 0:
                         continue
-                    mapped_bones.append(bone_palette[slot] if slot < len(bone_palette) else slot)
+                    mapped_bones.append(slot)
                     mapped_weights.append(weight / 255.0)
                 packed_bones = tuple(mapped_bones)
                 packed_weights = tuple(mapped_weights)
@@ -1462,15 +1485,15 @@ def _decode_pac_vertex_record(
 
     packed_bones: tuple[int, ...] = ()
     packed_weights: tuple[float, ...] = ()
-    if rec_off + 36 <= len(data):
-        raw_slots = struct.unpack_from("<BBBB", data, rec_off + 28)
-        raw_weights = struct.unpack_from("<BBBB", data, rec_off + 32)
+    if rec_off + PAC_SKIN_RECORD_END <= len(data):
+        raw_slots = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_INDEX_OFFSET)
+        raw_weights = struct.unpack_from("<BBBB", data, rec_off + PAC_SKIN_WEIGHT_OFFSET)
         mapped_bones = []
         mapped_weights = []
         for slot, weight in zip(raw_slots, raw_weights):
-            if slot == 0xFF or weight == 0:
+            if slot == PAC_SKIN_UNUSED_SLOT or weight == 0:
                 continue
-            mapped_bones.append(desc.palette[slot] if slot < len(desc.palette) else slot)
+            mapped_bones.append(slot)
             mapped_weights.append(weight / 255.0)
         packed_bones = tuple(mapped_bones)
         packed_weights = tuple(mapped_weights)
@@ -1856,7 +1879,7 @@ def _parse_pac_geometry_section(
             source_vertex_map=list(range(len(verts))),
             source_vertex_map_authority="target_donor_record",
             source_bone_palette=tuple(desc.palette),
-            source_skin_weight_layout="pac_palette_u8x4",
+            source_skin_weight_layout=PAC_SKIN_WEIGHT_LAYOUT,
             vertex_count=len(verts),
             face_count=len(faces),
             source_vertex_offsets=source_offsets,
@@ -2201,6 +2224,71 @@ def _inspect_pac_binary_layout(data: bytes, filename: str) -> MeshBinaryLayout:
     strides = [desc.vertex_stride for desc in layout.submesh_descriptors if desc.vertex_stride > 0]
     layout.vertex_stride = max(set(strides), key=strides.count) if strides else 40
     return layout
+
+
+def pac_bone_palette_candidates(
+    data: bytes,
+    *,
+    search_limit: int = 4096,
+    minimum_entries: int = 8,
+    maximum_entries: int = 512,
+) -> tuple[tuple[int, ...], ...]:
+    """Bone-hash palette tables near the start of a PAC, longest first.
+
+    A skinned PAC carries its own bone palette: a u16 count followed by that
+    many u32 ``.pab`` bone-name hashes. A vertex's primary influence byte
+    (``PAC_SKIN_INDEX_OFFSET``) indexes this table, which is what turns an
+    opaque slot into a named skeleton bone.
+
+    Several byte runs can satisfy the shape, so every plausible table is
+    returned and the caller picks the one that actually resolves against a
+    skeleton — see :func:`resolve_pac_bone_palette`. Guessing here instead
+    would silently mis-name bones.
+    """
+
+    found: list[tuple[int, tuple[int, ...]]] = []
+    limit = min(int(search_limit), max(0, len(data) - 6))
+    for offset in range(16, limit):
+        count = struct.unpack_from("<H", data, offset)[0]
+        if not minimum_entries <= count <= maximum_entries:
+            continue
+        if offset + 2 + count * 4 > len(data):
+            continue
+        values = struct.unpack_from(f"<{count}I", data, offset + 2)
+        # Real hashes are large and unique; counts and offsets are neither.
+        if any(value < 0x10000 for value in values) or len(set(values)) != count:
+            continue
+        found.append((count, values))
+    found.sort(key=lambda item: -item[0])
+    return tuple(values for _count, values in found)
+
+
+def resolve_pac_bone_palette(data: bytes, skeleton: object) -> tuple[int, ...]:
+    """Map PAC influence slots to skeleton bone indices, or () if unresolved.
+
+    Picks the candidate table whose hashes all resolve against ``skeleton``,
+    so a mismatched or missing skeleton yields nothing rather than a wrong
+    palette.
+    """
+
+    bones = tuple(getattr(skeleton, "bones", ()) or ())
+    if not bones:
+        return ()
+    by_hash: dict[int, int] = {}
+    for position, bone in enumerate(bones):
+        try:
+            name_hash = int(getattr(bone, "name_hash", 0))
+        except (TypeError, ValueError):
+            continue
+        by_hash.setdefault(name_hash, position)
+    best: tuple[int, ...] = ()
+    for candidate in pac_bone_palette_candidates(data):
+        resolved = tuple(by_hash.get(value, -1) for value in candidate)
+        if any(index < 0 for index in resolved):
+            continue
+        if len(resolved) > len(best):
+            best = resolved
+    return best
 
 
 def parse_mesh(data: bytes, filename: str = "") -> ParsedMesh:

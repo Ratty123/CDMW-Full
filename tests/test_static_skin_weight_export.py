@@ -8,7 +8,13 @@ import pytest
 from cdmw.modding.mesh_native_rigging import find_native_mesh_core_binary
 from cdmw.modding.mesh_pac_builder import _choose_pac_donor_indices, build_pac
 from cdmw.modding.mesh_pam_builder import build_pam
-from cdmw.modding.mesh_parser import ParsedMesh, SubMesh, parse_pac
+from cdmw.modding.mesh_parser import (
+    PAC_SKIN_INDEX_OFFSET,
+    PAC_SKIN_WEIGHT_OFFSET,
+    ParsedMesh,
+    SubMesh,
+    parse_pac,
+)
 from cdmw.modding.mesh_skinning import pack_pac_skin_weights
 from cdmw.modding.static_mesh_build import build_static_mesh_replacement
 from cdmw.modding.static_mesh_types import (
@@ -24,8 +30,8 @@ def _skinned_pac() -> tuple[bytes, ParsedMesh]:
     parsed = parse_pac(raw, "target.pac")
     patched = bytearray(raw)
     for bone, offset in enumerate(parsed.submeshes[0].source_vertex_offsets):
-        patched[offset + 28:offset + 32] = bytes((bone, 0xFF, 0xFF, 0xFF))
-        patched[offset + 32:offset + 36] = bytes((255, 0, 0, 0))
+        patched[offset + PAC_SKIN_INDEX_OFFSET:offset + PAC_SKIN_INDEX_OFFSET + 4] = bytes((bone, 0xFF, 0xFF, 0xFF))
+        patched[offset + PAC_SKIN_WEIGHT_OFFSET:offset + PAC_SKIN_WEIGHT_OFFSET + 4] = bytes((255, 0, 0, 0))
     result = bytes(patched)
     return result, parse_pac(result, "target.pac")
 
@@ -91,19 +97,22 @@ def test_pac_skin_weights_encode_and_reparse_with_exact_unorm_sum() -> None:
     assert sum(weights.values()) == pytest.approx(1.0)
 
 
-def test_pac_skin_weight_export_blocks_bones_missing_from_target_palette() -> None:
+def test_pac_skin_weight_export_round_trips_a_high_bone_index() -> None:
+    # Slots are per-mesh palette tokens reaching 252 in real bodies, far above
+    # the descriptor's 4-entry identity sequence, so they must survive verbatim.
     raw, original = _skinned_pac()
     updated = copy.deepcopy(original)
-    updated.submeshes[0].bone_indices[0] = (99,)
+    updated.submeshes[0].bone_indices[0] = (252,)
     updated.submeshes[0].bone_weights[0] = (1.0,)
 
-    with pytest.raises(ValueError, match="bone palette does not contain"):
-        build_pac(updated, raw)
+    reparsed = parse_pac(build_pac(updated, raw), "target.pac")
+
+    assert _weight_map(reparsed.submeshes[0], 0) == {252: pytest.approx(1.0)}
 
 
-def test_pac_skin_weight_export_blocks_palette_slot_255() -> None:
-    with pytest.raises(ValueError, match="exceeds slot 254"):
-        pack_pac_skin_weights(bytearray(40), (255,), (1.0,), tuple(range(256)), context="test vertex")
+def test_pac_skin_weight_export_blocks_the_unused_slot_sentinel() -> None:
+    with pytest.raises(ValueError, match="exceed the PAC limit"):
+        pack_pac_skin_weights(bytearray(40), (255,), (1.0,), context="test vertex")
 
 
 def test_static_replacement_transfers_after_alignment_and_reparses() -> None:
