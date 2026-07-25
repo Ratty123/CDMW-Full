@@ -500,14 +500,25 @@ internal sealed partial class ExperimentForm : Form
         {
             return;
         }
-        BuildAuthoringToolPanels();
-        if (_leftToolPanel is not null)
+        // This runs after the first frame, so the window is already on screen
+        // and every attachment below would otherwise paint as it lands.
+        using var redraw = BeginRedrawBatch();
+        SuspendLayout();
+        try
         {
-            _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
+            BuildAuthoringToolPanels();
+            if (_leftToolPanel is not null)
+            {
+                _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
+            }
+            AttachPermanentToolModeHosts();
+            AttachCompactSessionBar();
+            ApplySavedToolPanelLayout();
         }
-        AttachPermanentToolModeHosts();
-        AttachCompactSessionBar();
-        ApplySavedToolPanelLayout();
+        finally
+        {
+            ResumeLayout(performLayout: false);
+        }
     }
 
     private (Panel Left, Panel Right) BuildToolPanels()

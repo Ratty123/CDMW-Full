@@ -601,6 +601,10 @@ internal sealed partial class ExperimentForm
             return true;
         }
         var requestedBeforeSwitch = _requestedEditMeshLayout;
+        // Both directions re-parent live sections between the flanks. Freezing
+        // the window for the swap keeps the reader from seeing sections land one
+        // at a time against a half-empty panel.
+        using var redraw = BeginRedrawBatch();
         try
         {
             if (layout == EditMeshLayoutMode.ToolRail)
@@ -659,6 +663,11 @@ internal sealed partial class ExperimentForm
 
         CaptureToolPanelLayout(persist: false);
         CaptureClassicScrollPositions();
+        // Sections are re-parented one at a time below. SuspendLayout defers
+        // their measurement but not their painting, so without this the reader
+        // sees them land at construction-time bounds: captionless group boxes,
+        // clipped combo text and unpainted buttons.
+        using var redraw = BeginRedrawBatch();
         SuspendAllEditMeshLayouts();
         try
         {
@@ -719,6 +728,9 @@ internal sealed partial class ExperimentForm
         {
             return;
         }
+        // RebuildClassicToolStacks clears and re-adds every section, so the same
+        // partial-paint window applies on the way back to Classic.
+        using var redraw = BeginRedrawBatch();
         SuspendAllEditMeshLayouts();
         try
         {

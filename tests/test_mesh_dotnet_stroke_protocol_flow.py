@@ -147,3 +147,34 @@ def test_helper_pins_the_stroke_tool_and_paces_stroke_updates() -> None:
     assert '"start_x", "start_y"' in coalesce
     assert 'merged["screen_drag"] = drag;' in coalesce
     assert "var terminal = CoalesceStrokeSample(_pendingStrokeUpdatePayload, payload);" in runtime_source
+
+
+def test_layout_transitions_paint_once_instead_of_step_by_step() -> None:
+    redraw_source = dotnet_experiment_source("ExperimentForm.Redraw.cs")
+    layouts_source = dotnet_experiment_source("ExperimentForm.EditMeshLayouts.cs")
+    program_source = dotnet_experiment_source("Program.cs")
+
+    # SuspendLayout defers measurement but not painting, so the batch has to
+    # hold WM_SETREDRAW and force one settled repaint on release.
+    assert "WmSetRedraw" in redraw_source
+    assert "_control.PerformLayout()" not in redraw_source
+    assert "_form.PerformLayout();" in redraw_source
+    assert "_form.Invalidate(invalidateChildren: true);" in redraw_source
+    assert "_form.Update();" in redraw_source
+
+    # Nested batches must not thaw the window early.
+    assert "_redrawBatchDepth" in redraw_source
+    assert "if (_form._redrawBatchDepth++ == 0)" in redraw_source
+    assert "if (--_form._redrawBatchDepth > 0)" in redraw_source
+
+    # Every path that re-parents live sections holds a batch: both layout
+    # activations, and the deferred authoring panel build that runs after the
+    # editor's first frame is already on screen.
+    tool_rail = layouts_source.split("private void ActivateToolRailLayout()", maxsplit=1)[1]
+    tool_rail = tool_rail.split("private void ActivateClassicEditMeshLayout()", maxsplit=1)[0]
+    classic = layouts_source.split("private void ActivateClassicEditMeshLayout()", maxsplit=1)[1]
+    classic = classic.split("private void MoveSessionControlsToCompactBar()", maxsplit=1)[0]
+    deferred = program_source.split("private void EnsureAuthoringToolPanelsReady()", maxsplit=1)[1]
+    deferred = deferred.split("private (Panel Left, Panel Right) BuildToolPanels()", maxsplit=1)[0]
+    for name, body in (("tool rail", tool_rail), ("classic", classic), ("deferred", deferred)):
+        assert "BeginRedrawBatch()" in body, f"{name} activation must batch its repaint"
