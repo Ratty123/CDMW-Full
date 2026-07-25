@@ -13,19 +13,19 @@ from tools.mesh_harness.archive_provenance import _archive_content_fingerprints
 from tools.mesh_harness.visual_audit_manifest_v2 import (
     PRIOR_CONCERN_SWORD_PATH,
     REQUIRED_SWORD_PATH,
-    VISUAL_AUDIT_V2_CATEGORY_COUNTS,
     VISUAL_AUDIT_V2_EXPANSION_RULES_VERSION,
-    VISUAL_AUDIT_V2_GRAPH_MINIMUMS,
     VisualAuditV2Candidate,
     build_visual_audit_v2_candidates,
     normalize_visual_audit_virtual_path,
     select_visual_audit_v2_candidates,
     validate_visual_audit_v2_selection,
     visual_audit_v2_archive_paths,
+    visual_audit_v2_contract_for_asset_count,
 )
 
 
 DEFAULT_EXPANSION_SELECTION_SEED = "expanded-sixth-120-20260722"
+DEFAULT_EXPANDED_500_SELECTION_SEED = "expanded-sixth-500-20260722"
 EXPANSION_REPEAT_PATHS = (REQUIRED_SWORD_PATH, PRIOR_CONCERN_SWORD_PATH)
 
 
@@ -93,7 +93,11 @@ def build_visual_audit_expansion_manifest(
     allowed_repeat_paths: Iterable[str] = EXPANSION_REPEAT_PATHS,
     archive_fingerprints_before: Mapping[str, Mapping[str, object]] | None = None,
     archive_fingerprints_after: Mapping[str, Mapping[str, object]] | None = None,
+    asset_count: int = 120,
 ) -> dict[str, object]:
+    required_category_counts, graph_minimums = visual_audit_v2_contract_for_asset_count(
+        asset_count
+    )
     normalized_repeats = {
         normalize_visual_audit_virtual_path(path)
         for path in allowed_repeat_paths
@@ -104,7 +108,7 @@ def build_visual_audit_expansion_manifest(
     }
     if normalized_repeats != required_repeats:
         raise ValueError(
-            "The expanded 120-PAC milestone permits exactly the two required sword repeats."
+            "The expanded strict milestone permits exactly the two required sword repeats."
         )
     missing_history = sorted(normalized_repeats - exclusion_registry.paths)
     if missing_history:
@@ -118,8 +122,14 @@ def build_visual_audit_expansion_manifest(
         excluded_paths=exclusion_registry.paths,
         allowed_repeat_paths=normalized_repeats,
         selection_seed=selection_seed,
+        category_counts=required_category_counts,
+        graph_minimums=graph_minimums,
     )
-    validation = validate_visual_audit_v2_selection(selected)
+    validation = validate_visual_audit_v2_selection(
+        selected,
+        category_counts=required_category_counts,
+        graph_minimums=graph_minimums,
+    )
     selected_paths = {
         normalize_visual_audit_virtual_path(candidate.virtual_path)
         for candidate in selected
@@ -133,9 +143,26 @@ def build_visual_audit_expansion_manifest(
             f"unexpected={unexpected}, missing_required={missing}"
         )
     new_path_count = len(selected_paths - exclusion_registry.paths)
-    if new_path_count != 118:
+    required_new_path_count = asset_count - len(normalized_repeats)
+    if new_path_count != required_new_path_count:
         raise ValueError(
-            f"Expanded visual-audit selection requires exactly 118 new PACs; found {new_path_count}."
+            "Expanded visual-audit selection requires exactly "
+            f"{required_new_path_count} new PACs; found {new_path_count}."
+        )
+    incomplete_authority = sorted(
+        candidate.virtual_path
+        for candidate in selected
+        if (
+            not candidate.pac_xml_virtual_path
+            or len(candidate.pac_xml_sha256) != 64
+            or candidate.graph_complexity <= 0
+            or not candidate.shader_families
+        )
+    )
+    if incomplete_authority:
+        raise ValueError(
+            "Expanded visual-audit selection contains PACs without complete material-graph "
+            f"authority: {incomplete_authority}"
         )
     if (archive_fingerprints_before is None) != (archive_fingerprints_after is None):
         raise ValueError("Source archive fingerprints require both before and after records.")
@@ -173,11 +200,11 @@ def build_visual_audit_expansion_manifest(
     ]
     payload: dict[str, object] = {
         "schema": "cdmw_mesh_visual_audit_manifest_v2",
-        "name": "expanded-sixth-120",
-        "minimum_asset_count": 120,
+        "name": f"expanded-sixth-{asset_count}",
+        "minimum_asset_count": asset_count,
         "required_coverage": {
-            **dict(VISUAL_AUDIT_V2_CATEGORY_COUNTS),
-            **dict(VISUAL_AUDIT_V2_GRAPH_MINIMUMS),
+            **dict(required_category_counts),
+            **dict(graph_minimums),
         },
         "excluded_virtual_paths": effective_exclusions,
         "selection_policy": (
@@ -194,6 +221,9 @@ def build_visual_audit_expansion_manifest(
             "allowed_repeat_paths": sorted(normalized_repeats),
             "historical_overlap_paths": sorted(historical_overlap),
             "new_path_count": new_path_count,
+            "required_asset_count": asset_count,
+            "required_category_counts": dict(required_category_counts),
+            "required_graph_minimums": dict(graph_minimums),
             "candidate_count": len(
                 {
                     normalize_visual_audit_virtual_path(candidate.virtual_path)
@@ -247,7 +277,7 @@ def write_visual_audit_expansion_manifest(
 def _argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
-            "Generate the deterministic expanded 120-PAC Mesh Editor visual-audit manifest."
+            "Generate a deterministic strict 120- or 500-PAC Mesh Editor visual-audit manifest."
         )
     )
     parser.add_argument("--game-root", type=Path, required=True)
@@ -255,9 +285,10 @@ def _argument_parser() -> argparse.ArgumentParser:
     parser.add_argument("--baseline-corpus", type=Path, required=True)
     parser.add_argument("--historical-manifest", type=Path, action="append", default=[])
     parser.add_argument("--historical-corpus", type=Path, action="append", default=[])
+    parser.add_argument("--asset-count", type=int, choices=(120, 500), default=120)
     parser.add_argument(
         "--selection-seed",
-        default=DEFAULT_EXPANSION_SELECTION_SEED,
+        default=None,
     )
     return parser
 
@@ -281,12 +312,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         archive_fingerprints_before = _archive_content_fingerprints(archive_paths)
         candidates = build_visual_audit_v2_candidates(game_root)
         archive_fingerprints_after = _archive_content_fingerprints(archive_paths)
+        selection_seed = args.selection_seed or (
+            DEFAULT_EXPANDED_500_SELECTION_SEED
+            if args.asset_count == 500
+            else DEFAULT_EXPANSION_SELECTION_SEED
+        )
         payload = build_visual_audit_expansion_manifest(
             candidates,
             registry,
-            selection_seed=args.selection_seed,
+            selection_seed=selection_seed,
             archive_fingerprints_before=archive_fingerprints_before,
             archive_fingerprints_after=archive_fingerprints_after,
+            asset_count=args.asset_count,
         )
         result = write_visual_audit_expansion_manifest(output_path, payload)
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -294,7 +331,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     provenance = payload["selection_provenance"]
     assert isinstance(provenance, Mapping)
     print(
-        "Generated expanded 120-PAC manifest: "
+        f"Generated expanded {provenance['required_asset_count']}-PAC manifest: "
         f"new={provenance['new_path_count']} "
         f"excluded={provenance['excluded_path_count']} "
         f"sha256={result['manifest_sha256']} "
@@ -369,6 +406,7 @@ def _path_sort_key(path: Path) -> str:
 
 __all__ = [
     "DEFAULT_EXPANSION_SELECTION_SEED",
+    "DEFAULT_EXPANDED_500_SELECTION_SEED",
     "EXPANSION_REPEAT_PATHS",
     "VisualAuditExclusionRegistry",
     "build_visual_audit_expansion_manifest",

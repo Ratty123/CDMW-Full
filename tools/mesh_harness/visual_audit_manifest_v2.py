@@ -34,6 +34,24 @@ VISUAL_AUDIT_V2_GRAPH_MINIMUMS: Mapping[str, int] = {
     "soft_control_candidate": 20,
 }
 
+VISUAL_AUDIT_V2_500_CATEGORY_COUNTS: Mapping[str, int] = {
+    "weapon_sword": 100,
+    "weapon_other": 67,
+    "weapon_shield": 50,
+    "armor_body": 100,
+    "helmet_mask": 67,
+    "equipment_small": 50,
+    "equipment_soft": 33,
+    "regression_control": 33,
+}
+
+VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS: Mapping[str, int] = {
+    "layered_dye_grime_graph": 125,
+    "mixed_hard_soft_candidate": 84,
+    "true_metal_control_candidate": 84,
+    "soft_control_candidate": 84,
+}
+
 VISUAL_AUDIT_V2_EXPANSION_RULES_VERSION = "coverage-aware-pac-graph-v1"
 
 REQUIRED_SWORD_PATH = (
@@ -144,6 +162,8 @@ def select_visual_audit_v2_candidates(
     excluded_paths: Iterable[str] = (),
     allowed_repeat_paths: Iterable[str] = (),
     selection_seed: str | None = None,
+    category_counts: Mapping[str, int] = VISUAL_AUDIT_V2_CATEGORY_COUNTS,
+    graph_minimums: Mapping[str, int] = VISUAL_AUDIT_V2_GRAPH_MINIMUMS,
 ) -> tuple[VisualAuditV2Candidate, ...]:
     ordered_candidates = tuple(sorted(candidates, key=_candidate_identity_key))
     candidates_by_path: dict[str, VisualAuditV2Candidate] = {}
@@ -181,7 +201,7 @@ def select_visual_audit_v2_candidates(
         )
 
     by_category: dict[str, list[VisualAuditV2Candidate]] = {
-        category: [] for category in VISUAL_AUDIT_V2_CATEGORY_COUNTS
+        category: [] for category in category_counts
     }
     for candidate in eligible_candidates:
         if candidate.category in by_category:
@@ -213,7 +233,7 @@ def select_visual_audit_v2_candidates(
         selected.append(match)
         selected_paths.add(priority)
 
-    for category, required_count in VISUAL_AUDIT_V2_CATEGORY_COUNTS.items():
+    for category, required_count in category_counts.items():
         current = sum(candidate.category == category for candidate in selected)
         available = [
             candidate
@@ -234,10 +254,11 @@ def select_visual_audit_v2_candidates(
         by_category,
         selected_paths,
         protected_paths=set(normalized_priorities),
+        graph_minimums=graph_minimums,
     )
     selected.sort(
         key=lambda candidate: (
-            tuple(VISUAL_AUDIT_V2_CATEGORY_COUNTS).index(candidate.category),
+            tuple(category_counts).index(candidate.category),
             candidate_sort_key(candidate),
         )
     )
@@ -253,15 +274,27 @@ def select_visual_audit_v2_candidates(
         raise ValueError(
             f"Visual-audit v2 selection reuses excluded PAC paths: {unexpected_overlap}"
         )
-    validate_visual_audit_v2_selection(selected)
+    validate_visual_audit_v2_selection(
+        selected,
+        category_counts=category_counts,
+        graph_minimums=graph_minimums,
+    )
     return tuple(selected)
 
 
 def validate_visual_audit_v2_selection(
     candidates: Sequence[VisualAuditV2Candidate],
+    *,
+    category_counts: Mapping[str, int] = VISUAL_AUDIT_V2_CATEGORY_COUNTS,
+    graph_minimums: Mapping[str, int] = VISUAL_AUDIT_V2_GRAPH_MINIMUMS,
 ) -> dict[str, object]:
-    if len(candidates) != sum(VISUAL_AUDIT_V2_CATEGORY_COUNTS.values()):
-        raise ValueError(f"Visual-audit v2 requires exactly 120 PACs; found {len(candidates)}.")
+    required_category_counts = category_counts
+    expected_asset_count = sum(required_category_counts.values())
+    if len(candidates) != expected_asset_count:
+        raise ValueError(
+            "Visual-audit v2 requires exactly "
+            f"{expected_asset_count} PACs; found {len(candidates)}."
+        )
     paths = [_archive_key(candidate.virtual_path) for candidate in candidates]
     if len(set(paths)) != len(paths):
         raise ValueError("Visual-audit v2 PAC paths must be unique.")
@@ -269,30 +302,40 @@ def validate_visual_audit_v2_selection(
         raise ValueError("Visual-audit v2 must include cd_phm_02_sword_0014.pac.")
     if _archive_key(PRIOR_CONCERN_SWORD_PATH) not in paths:
         raise ValueError("Visual-audit v2 must retain the prior in-scope concern sword.")
-    category_counts = Counter(candidate.category for candidate in candidates)
+    actual_category_counts = Counter(candidate.category for candidate in candidates)
     category_short = {
-        key: (category_counts[key], expected)
-        for key, expected in VISUAL_AUDIT_V2_CATEGORY_COUNTS.items()
-        if category_counts[key] != expected
+        key: (actual_category_counts[key], expected)
+        for key, expected in required_category_counts.items()
+        if actual_category_counts[key] != expected
     }
     if category_short:
         raise ValueError(f"Visual-audit v2 category counts are invalid: {category_short}")
     graph_counts = {
         tag: sum(tag in candidate.graph_tags for candidate in candidates)
-        for tag in VISUAL_AUDIT_V2_GRAPH_MINIMUMS
+        for tag in graph_minimums
     }
     graph_short = {
         key: (graph_counts[key], minimum)
-        for key, minimum in VISUAL_AUDIT_V2_GRAPH_MINIMUMS.items()
+        for key, minimum in graph_minimums.items()
         if graph_counts[key] < minimum
     }
     if graph_short:
         raise ValueError(f"Visual-audit v2 graph coverage is incomplete: {graph_short}")
     return {
         "asset_count": len(candidates),
-        "category_counts": dict(category_counts),
+        "category_counts": dict(actual_category_counts),
         "graph_coverage": graph_counts,
     }
+
+
+def visual_audit_v2_contract_for_asset_count(
+    asset_count: int,
+) -> tuple[Mapping[str, int], Mapping[str, int]]:
+    if int(asset_count) == sum(VISUAL_AUDIT_V2_CATEGORY_COUNTS.values()):
+        return VISUAL_AUDIT_V2_CATEGORY_COUNTS, VISUAL_AUDIT_V2_GRAPH_MINIMUMS
+    if int(asset_count) == sum(VISUAL_AUDIT_V2_500_CATEGORY_COUNTS.values()):
+        return VISUAL_AUDIT_V2_500_CATEGORY_COUNTS, VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS
+    raise ValueError(f"Unsupported strict visual-audit v2 asset count: {asset_count}")
 
 
 def normalize_visual_audit_virtual_path(virtual_path: str) -> str:
@@ -478,12 +521,13 @@ def _improve_graph_constraint_coverage(
     selected_paths: set[str],
     *,
     protected_paths: set[str] | None = None,
+    graph_minimums: Mapping[str, int] = VISUAL_AUDIT_V2_GRAPH_MINIMUMS,
 ) -> list[VisualAuditV2Candidate]:
     protected = protected_paths or {
         normalize_visual_audit_virtual_path(REQUIRED_SWORD_PATH),
         normalize_visual_audit_virtual_path(PRIOR_CONCERN_SWORD_PATH),
     }
-    for tag, minimum in VISUAL_AUDIT_V2_GRAPH_MINIMUMS.items():
+    for tag, minimum in graph_minimums.items():
         while sum(tag in candidate.graph_tags for candidate in selected) < minimum:
             replacement: tuple[int, VisualAuditV2Candidate] | None = None
             for index, current in enumerate(selected):
@@ -606,6 +650,8 @@ __all__ = [
     "PRIOR_CONCERN_SWORD_PATH",
     "REQUIRED_SWORD_PATH",
     "VISUAL_AUDIT_V2_CATEGORY_COUNTS",
+    "VISUAL_AUDIT_V2_500_CATEGORY_COUNTS",
+    "VISUAL_AUDIT_V2_500_GRAPH_MINIMUMS",
     "VISUAL_AUDIT_V2_EXPANSION_RULES_VERSION",
     "VISUAL_AUDIT_V2_GRAPH_MINIMUMS",
     "VisualAuditV2Candidate",
@@ -614,5 +660,6 @@ __all__ = [
     "normalize_visual_audit_virtual_path",
     "select_visual_audit_v2_candidates",
     "validate_visual_audit_v2_selection",
+    "visual_audit_v2_contract_for_asset_count",
     "visual_audit_v2_archive_paths",
 ]
