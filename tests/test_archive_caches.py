@@ -731,21 +731,33 @@ class ArchiveCacheTests(unittest.TestCase):
             self.assertEqual([entry.path for entry in loaded_entries], ["character/texture/a.dds"])
             self.assertTrue((basic_payload or {}).get("cache_loaded"))
 
-    def test_native_derived_index_job_is_wired_as_preferred_basic_index_path(self) -> None:
+    def test_basic_index_build_stays_in_process(self) -> None:
+        """The derived index must not be handed to the accelerator subprocess.
+
+        Serialising 419,660 entries out as TSV and parsing the JSON report back
+        measured ~2.9 s against ~740 ms for the same grouping in process, so the
+        hand-off is a straight loss at archive scale. The native command itself
+        is left intact for other callers.
+        """
+
         accelerator = (REPO_ROOT / "cdmw" / "core" / "archive_accelerator.py").read_text(encoding="utf-8")
         native = (REPO_ROOT / "native" / "cdmw_archive_accelerator" / "src" / "main.cpp").read_text(encoding="utf-8")
         scan_worker = (REPO_ROOT / "cdmw" / "workers" / "archive_scan_workers.py").read_text(encoding="utf-8")
 
         self.assertIn("def build_archive_basic_indexes_accelerated", accelerator)
-        self.assertIn('"derived-index-job"', accelerator)
-        self.assertIn("build_archive_entry_path_index(entries)", accelerator)
-        self.assertIn("build_archive_entry_basename_index(entries)", accelerator)
-        self.assertIn("build_archive_entry_extension_index(entries)", accelerator)
-        self.assertIn("build_archive_entry_role_index(entries)", accelerator)
+        builder = accelerator.split("def build_archive_basic_indexes_accelerated", maxsplit=1)[1].split(
+            "\ndef ", maxsplit=1
+        )[0]
+        self.assertNotIn('"derived-index-job"', builder)
+        self.assertNotIn("subprocess.run", builder)
+        self.assertIn("build_archive_entry_path_index(entries)", builder)
+        self.assertIn("build_archive_entry_basename_index(entries)", builder)
+        self.assertIn("build_archive_entry_extension_index(entries)", builder)
+        self.assertIn("build_archive_entry_role_index(entries)", builder)
+        # Cancellation has to be observable between phases now that the whole
+        # build runs on the calling thread.
+        self.assertIn("raise_if_cancelled(stop_event)", builder)
         self.assertIn("run_derived_index_job", native)
-        self.assertIn('path_rows', native)
-        self.assertIn('basename_rows', native)
-        self.assertIn('extension_rows', native)
         self.assertIn("build_archive_basic_indexes_accelerated(", scan_worker)
 
     def test_basename_index_orders_nested_real_paths_before_shortcut_aliases(self) -> None:

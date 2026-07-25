@@ -170,6 +170,9 @@ class ShellWindowRuntimeStateMixin:
         self.archive_preview_request_started_at: Dict[int, float] = {}
         self.archive_preview_request_phase_timings: Dict[int, Dict[str, float]] = {}
         self.archive_preview_request_sources: Dict[int, str] = {}
+        # Set when a model preview renders before the archive path lookup is
+        # ready, so its Asset Family metadata can be completed once it lands.
+        self._archive_preview_pending_lookup_entry = None
         self._initialize_archive_renderer_runtime_state()
         self.archive_memory_audit_timer = QTimer(self)
         self.archive_memory_audit_timer.setInterval(30000)

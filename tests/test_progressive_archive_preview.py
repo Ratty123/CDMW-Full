@@ -64,10 +64,12 @@ class ProgressiveArchivePreviewTests(unittest.TestCase):
             ArchivePreviewCacheMixin._archive_preview_support_texture_slots(settings),
         )
 
-    def test_native_model_preview_uses_longer_selection_dwell(self) -> None:
-        self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pac", ".pac")))
-        self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pam", ".pam")))
-        self.assertEqual(450, _archive_preview_debounce_ms(_entry("character/model/body.pamlod", ".pamlod")))
+    def test_native_model_preview_uses_key_repeat_selection_dwell(self) -> None:
+        # Still above the ~30 ms key-repeat interval, so a held arrow key keeps
+        # resetting the timer and only the row it settles on starts a preview.
+        self.assertEqual(60, _archive_preview_debounce_ms(_entry("character/model/body.pac", ".pac")))
+        self.assertEqual(60, _archive_preview_debounce_ms(_entry("character/model/body.pam", ".pam")))
+        self.assertEqual(60, _archive_preview_debounce_ms(_entry("character/model/body.pamlod", ".pamlod")))
         self.assertEqual(90, _archive_preview_debounce_ms(_entry("ui/texture/icon.dds", ".dds")))
         self.assertEqual(90, _archive_preview_debounce_ms(None))
 

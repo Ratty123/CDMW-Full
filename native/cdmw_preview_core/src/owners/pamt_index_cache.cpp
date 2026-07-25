@@ -7,9 +7,36 @@ static size_t resident_pamt_index_count() {
     return resident_pamt_index_cache().size();
 }
 
+// The key most recently served, so a completed job can keep that one index and
+// drop the rest.
+static std::string& last_resident_pamt_key() {
+    static std::string key;
+    return key;
+}
+
 static void release_resident_pamt_indexes() {
     std::map<std::string, PamtIndex> empty;
     resident_pamt_index_cache().swap(empty);
+    last_resident_pamt_key().clear();
+}
+
+// Bound the resident set to the index the next job is most likely to ask for
+// instead of dropping everything. Reloading it costs about 115 ms per job even
+// from the on-disk cache, and consecutive previews almost always come from the
+// same .pamt. One index is roughly 10 MB against the service's 512 MB
+// private-bytes recycle guard, so the memory ceiling this replaces still holds.
+static void trim_resident_pamt_indexes() {
+    auto& cache = resident_pamt_index_cache();
+    if (cache.size() <= 1) return;
+    const std::string keep = last_resident_pamt_key();
+    auto it = keep.empty() ? cache.end() : cache.find(keep);
+    if (it == cache.end()) {
+        release_resident_pamt_indexes();
+        return;
+    }
+    std::map<std::string, PamtIndex> retained;
+    retained.emplace(it->first, std::move(it->second));
+    cache.swap(retained);
 }
 
 static const PamtIndex& cached_pamt_index(
@@ -45,5 +72,6 @@ static const PamtIndex& cached_pamt_index(
             it = cache.emplace(key, std::move(parsed)).first;
         }
     }
+    last_resident_pamt_key() = key;
     return it->second;
 }

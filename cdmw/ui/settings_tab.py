@@ -69,6 +69,7 @@ from cdmw.models import (
     clamp_archive_performance_settings,
     clamp_model_preview_render_settings,
 )
+from cdmw.ui.archive_performance_settings_io import read_archive_performance_settings
 from cdmw.ui.localization import BUILTIN_LANGUAGES
 from cdmw.ui.settings_helper_discovery import (
     SettingsHelperDiscoveryMixin,
@@ -1608,53 +1609,7 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         self.model_preview_settings_changed.emit(self.current_model_preview_render_settings())
 
     def _read_archive_performance_settings(self) -> ArchivePerformanceSettings:
-        defaults = clamp_archive_performance_settings()
-        sidecar_worker_count = self._read_int(
-            "archive/sidecar_worker_count",
-            defaults.sidecar_worker_count,
-        )
-        if not self.settings.contains("archive/sidecar_worker_count"):
-            sidecar_worker_count = self._read_int(
-                "performance/background_worker_limit",
-                defaults.sidecar_worker_count,
-            )
-        return clamp_archive_performance_settings(
-            ArchivePerformanceSettings(
-                resource_profile=str(
-                    self.settings.value("performance/resource_profile", defaults.resource_profile)
-                    or defaults.resource_profile
-                ),
-                archive_fetch_batch_size=self._read_int(
-                    "performance/archive_fetch_batch_size",
-                    defaults.archive_fetch_batch_size,
-                ),
-                native_archive_acceleration=self._read_bool(
-                    "performance/native_archive_acceleration",
-                    defaults.native_archive_acceleration,
-                ),
-                enable_sidecar_indexing=self._read_bool(
-                    "archive/enable_sidecar_indexing",
-                    defaults.enable_sidecar_indexing,
-                ),
-                sidecar_worker_count=sidecar_worker_count,
-                preview_cache_limit=self._read_int(
-                    "archive/preview_cache_limit",
-                    defaults.preview_cache_limit,
-                ),
-                native_preview_cache_mode=str(
-                    self.settings.value("archive/native_preview_cache_mode", defaults.native_preview_cache_mode)
-                    or defaults.native_preview_cache_mode
-                ),
-                quick_then_full_preview=self._read_bool(
-                    "archive/quick_then_full_preview",
-                    defaults.quick_then_full_preview,
-                ),
-                maximum_indexing_priority=self._read_bool(
-                    "archive/maximum_indexing_priority",
-                    defaults.maximum_indexing_priority,
-                ),
-            )
-        )
+        return read_archive_performance_settings(self.settings)
 
     def _archive_performance_setting_widgets(self) -> tuple[QWidget, ...]:
         return (

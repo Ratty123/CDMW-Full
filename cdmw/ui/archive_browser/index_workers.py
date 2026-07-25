@@ -223,6 +223,7 @@ class ArchiveIndexWorkerMixin:
         self._refresh_archive_browser_if_pending(reason="basic_indexes_ready")
         if self.scheduled_archive_preview_request is not None:
             QTimer.singleShot(0, self._flush_scheduled_archive_preview_request)
+        self._refresh_archive_preview_awaiting_lookup()
         pending_patch_results = tuple(
             getattr(self, "_archive_patch_results_pending_index", ()) or ()
         )
@@ -231,6 +232,28 @@ class ArchiveIndexWorkerMixin:
             self._apply_archive_patch_result(patch_result)
         self._try_apply_startup_saved_filters()
         self._maybe_release_startup_after_archive_ready()
+
+    def _refresh_archive_preview_awaiting_lookup(self) -> None:
+        """Complete the metadata for a preview that rendered before the lookup.
+
+        The model itself is already on screen; this only re-resolves the Asset
+        Family rows and texture references that needed the path lookup, and it
+        is cheap because the decode package and the resident renderer are both
+        warm by now.
+        """
+
+        entry = getattr(self, "_archive_preview_pending_lookup_entry", None)
+        self._archive_preview_pending_lookup_entry = None
+        if entry is None or self._shutting_down:
+            return
+        current = getattr(self, "_current_archive_entry", lambda: None)()
+        if current is None or getattr(current, "identity", None) != getattr(entry, "identity", None):
+            return
+        # The cached result carries the unresolved references, so drop it before
+        # asking for the same preview again.
+        for cache_key in tuple(self.archive_preview_cache_keys.values()):
+            self.archive_preview_cache.pop(cache_key, None)
+        self._render_archive_preview(current, force=True)
 
     def _handle_archive_basic_index_error(self, message: str, *, request_id: int | None = None) -> None:
         if request_id is not None and int(request_id) != int(getattr(self, "archive_basic_index_request_id", 0) or 0):

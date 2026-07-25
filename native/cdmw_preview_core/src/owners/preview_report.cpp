@@ -25,7 +25,10 @@ static PreviewCacheReleaseStats release_preview_job_caches() {
     stats.pamt_before = resident_pamt_index_count();
     stats.metadata_before = resident_preview_metadata_cache_count();
     stats.archive_lite_lookup_before = resident_archive_lite_lookup_count();
-    release_resident_pamt_indexes();
+    // Trimmed rather than released: keeping the last index resident is what
+    // stops every job paying to reload it. The error path below still clears
+    // the cache outright.
+    trim_resident_pamt_indexes();
     release_resident_preview_metadata_caches();
     release_resident_archive_lite_lookup();
     stats.pamt_after = resident_pamt_index_count();
@@ -41,6 +44,9 @@ static void append_preview_cache_release_report(
     out << "\"native_pamt_index_resident_before_release\":" << stats.pamt_before << ","
         << "\"native_pamt_index_resident_after_release\":" << stats.pamt_after << ","
         << "\"native_pamt_index_cache_released\":" << (stats.pamt_after == 0 ? "true" : "false") << ","
+        // The job-completion path keeps at most the most recently used index;
+        // anything above that means the trim failed to bound the resident set.
+        << "\"native_pamt_index_cache_bounded\":" << (stats.pamt_after <= 1 ? "true" : "false") << ","
         << "\"native_metadata_cache_resident_before_release\":" << stats.metadata_before << ","
         << "\"native_metadata_cache_resident_after_release\":" << stats.metadata_after << ","
         << "\"native_metadata_cache_released\":" << (stats.metadata_after == 0 ? "true" : "false") << ",";

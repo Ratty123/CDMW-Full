@@ -22,6 +22,7 @@ from cdmw.core.archive import (
 from cdmw.core.archive_modding import ARCHIVE_MESH_EXTENSIONS
 from cdmw.domain.cancellation import raise_if_cancelled
 from cdmw.models import (
+    PREVIEW_MESH_IMAGE_FIELD_NAMES,
     ArchiveEntry,
     ArchiveModelTextureReference,
     ArchivePreviewResult,
@@ -452,10 +453,8 @@ class ArchivePreviewWorker(ArchivePreviewNativeMixin, QObject):
                     for field_info in dataclasses.fields(ModelPreviewMesh)
                 }
                 if strip_images:
-                    mesh_values["preview_texture_image"] = None
-                    mesh_values["preview_normal_texture_image"] = None
-                    mesh_values["preview_material_texture_image"] = None
-                    mesh_values["preview_height_texture_image"] = None
+                    for image_field in PREVIEW_MESH_IMAGE_FIELD_NAMES:
+                        mesh_values[image_field] = None
                 cloned_meshes.append(ModelPreviewMesh(**mesh_values))
             else:
                 cloned_meshes.append(mesh)

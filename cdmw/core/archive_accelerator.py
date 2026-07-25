@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Mapping, Optional, Sequence, Tuple
 
-from cdmw.core.archive_compact_index import ArchiveRowIndex, append_archive_row_id, compact_archive_rows_mapping
 from cdmw.core.archive_filtering import (
     archive_browser_sort_is_active,
     build_archive_entry_basename_index,
@@ -489,28 +488,6 @@ def _decode_native_browser_state(report: Mapping[str, object], entries: Sequence
     }
 
 
-def _decode_row_index(rows: object, entries: Sequence[ArchiveEntry], *, name: str = "") -> ArchiveRowIndex:
-    if not isinstance(rows, list):
-        raise ValueError("native derived index rows are missing")
-    decoded: dict[str, object] = {}
-    entry_count = len(entries)
-    for row in rows:
-        if not isinstance(row, list) or len(row) < 2:
-            continue
-        key = str(row[0] or "")
-        raw_indexes = row[1]
-        if not key or not isinstance(raw_indexes, list):
-            continue
-        for raw_index in raw_indexes:
-            try:
-                index = int(raw_index)
-            except (TypeError, ValueError):
-                continue
-            if 0 <= index < entry_count:
-                append_archive_row_id(decoded, key, index)
-    return ArchiveRowIndex(entries, compact_archive_rows_mapping(decoded), name=name)
-
-
 def build_archive_basic_indexes_accelerated(
     entries: Sequence[ArchiveEntry],
     *,
@@ -524,61 +501,35 @@ def build_archive_basic_indexes_accelerated(
     Mapping[str, Sequence[ArchiveEntry]],
     bool,
 ]:
-    binary = find_native_archive_accelerator() if native_enabled else None
-    if native_enabled and _native_archive_accelerator_ready(binary) and entries:
-        assert binary is not None
-        raise_if_cancelled(stop_event)
-        with tempfile.TemporaryDirectory(prefix="cdmw_archive_accelerator_derived_") as temp_dir:
-            temp_path = Path(temp_dir)
-            entries_path = temp_path / "entries.tsv"
-            report_path = temp_path / "derived_report.json"
-            progress_path = temp_path / "derived_progress.json"
-            if on_progress is not None:
-                on_progress(0, max(len(entries), 1), "Building path lookup...")
-            _write_browser_entries_tsv(entries_path, entries)
-            try:
-                completed = subprocess.run(
-                    [
-                        str(binary),
-                        "derived-index-job",
-                        str(entries_path),
-                        str(report_path),
-                        str(progress_path),
-                        *_native_diagnostic_args(),
-                    ],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    timeout=90.0,
-                    check=False,
-                    **hidden_subprocess_kwargs(),
-                )
-            except (OSError, subprocess.SubprocessError, ValueError):
-                completed = None
-            raise_if_cancelled(stop_event)
-            if completed is not None and completed.returncode == 0 and report_path.is_file():
-                try:
-                    report = json.loads(report_path.read_text(encoding="utf-8"))
-                    if (
-                        isinstance(report, Mapping)
-                        and report.get("status") == "ok"
-                        and int(report.get("entry_count") or -1) == len(entries)
-                    ):
-                        return (
-                            _decode_row_index(report.get("path_rows"), entries, name="path"),
-                            _decode_row_index(report.get("basename_rows"), entries, name="basename"),
-                            _decode_row_index(report.get("extension_rows"), entries, name="extension"),
-                            build_archive_entry_role_index(entries),
-                            True,
-                        )
-                except Exception:
-                    pass
-    return (
-        build_archive_entry_path_index(entries),
-        build_archive_entry_basename_index(entries),
-        build_archive_entry_extension_index(entries),
-        build_archive_entry_role_index(entries),
-        False,
-    )
+    """Group entries into the derived lookup indexes in process.
+
+    The accelerator's ``derived-index-job`` is deliberately not used. Handing
+    this off means serialising every entry to a TSV and parsing a JSON report
+    back, and over a full archive (419,660 entries) that round trip measured
+    ~2.9 s -- 322 ms to write an 84 MB TSV, 2,172 ms in the subprocess, and
+    399 ms to parse and decode a 19 MB report -- to replace ~740 ms of
+    in-process grouping. The hand-off made the build 2.8x slower end to end
+    (3,565 ms against 1,252 ms), so the work stays here.
+
+    ``native_enabled`` is still accepted so callers can keep threading their
+    accelerator preference through unchanged, and the returned flag reports
+    honestly that no native path was taken.
+    """
+
+    del native_enabled
+    raise_if_cancelled(stop_event)
+    if on_progress is not None:
+        on_progress(0, max(len(entries), 1), "Building path lookup...")
+    # Checked between phases so a cancelled scan does not have to sit through
+    # the whole build; each phase is a single pass over the entry list.
+    path_index = build_archive_entry_path_index(entries)
+    raise_if_cancelled(stop_event)
+    basename_index = build_archive_entry_basename_index(entries)
+    raise_if_cancelled(stop_event)
+    extension_index = build_archive_entry_extension_index(entries)
+    raise_if_cancelled(stop_event)
+    role_index = build_archive_entry_role_index(entries)
+    return (path_index, basename_index, extension_index, role_index, False)
 
 
 def _try_prepare_archive_browser_state_native(
