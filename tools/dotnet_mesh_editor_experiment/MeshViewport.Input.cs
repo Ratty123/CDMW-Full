@@ -7,6 +7,24 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class MeshViewport
 {
+    /// <summary>
+    /// The tools that drive a mesh-edit stroke. Every other tool either orbits
+    /// or resolves a selection, and must never open a stroke: the host rejects
+    /// a stroke payload whose tool is not one of these.
+    /// </summary>
+    private static readonly HashSet<string> StrokeTools = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "move", "grab", "smooth", "inflate", "pinch",
+    };
+
+    // The tool a stroke opened with. Update and end phases report this instead
+    // of the live ActiveTool, so switching tools (or leaving mesh-edit mode)
+    // mid-gesture can never emit a stroke the host has to reject.
+    private string _strokeTool = string.Empty;
+
+    internal static bool IsStrokeTool(string? tool) =>
+        tool is not null && StrokeTools.Contains(tool.Trim());
+
     public void SetCameraPreset(string preset)
     {
         var normalized = (preset ?? string.Empty).Trim().ToLowerInvariant();
@@ -83,6 +101,28 @@ internal sealed partial class MeshViewport
 
     protected override void OnMouseDown(MouseEventArgs e)
     {
+        try
+        {
+            HandleMouseDownCore(e);
+        }
+        finally
+        {
+            // Handlers attached to MouseDown move focus onto the viewport, and a
+            // focus change cancels the render surface's mouse capture. Without
+            // capture the matching mouse-up is delivered to whatever control the
+            // pointer happens to be over, so a drag that leaves the viewport
+            // strands the gesture: the stroke stays open and every later drag
+            // emits stroke updates for whichever tool is active by then.
+            // Re-assert capture once the handlers have run.
+            if (_capturedInputPane.Length > 0 || _paneDividerDragging)
+            {
+                SetRenderSurfaceCapture(true);
+            }
+        }
+    }
+
+    private void HandleMouseDownCore(MouseEventArgs e)
+    {
         if (TryBeginPaneDividerDrag(e))
         {
             return;
@@ -158,12 +198,15 @@ internal sealed partial class MeshViewport
                     EditorEventRequested?.Invoke("select_request", PointerPayload(e.Location, null, false));
                 }
             }
+            else if (IsStrokeTool(ActiveTool))
+            {
+                BeginEditorStroke(e.Location);
+            }
             else
             {
-                _editorStrokeActive = true;
-                _strokePrevious = e.Location;
-                _strokeId++;
-                EditorEventRequested?.Invoke("stroke_begin", PointerPayload(e.Location, e.Location, true));
+                // An unknown tool must orbit rather than open a stroke the host
+                // is guaranteed to reject.
+                _rotating = true;
             }
             base.OnMouseDown(e);
             return;
@@ -191,12 +234,7 @@ internal sealed partial class MeshViewport
             {
                 FinishEdgeDrag(e.Location);
             }
-            if (_editorStrokeActive)
-            {
-                EditorEventRequested?.Invoke("stroke_end", PointerPayload(e.Location, _strokePrevious, true));
-                _strokePrevious = e.Location;
-                _editorStrokeActive = false;
-            }
+            EndEditorStroke(e.Location, cancelled: false);
             base.OnMouseUp(e);
         }
         finally
@@ -204,7 +242,7 @@ internal sealed partial class MeshViewport
             _rotating = false;
             _panning = false;
             _edgeDragActive = false;
-            _editorStrokeActive = false;
+            EndEditorStroke(_strokePrevious, cancelled: true);
             _capturedInputPane = string.Empty;
             SetRenderSurfaceCapture(false);
             if (_placementDragActive)
@@ -233,6 +271,16 @@ internal sealed partial class MeshViewport
         var dx = e.X - _lastMouse.X;
         var dy = e.Y - _lastMouse.Y;
         _lastMouse = e.Location;
+        if ((e.Button & MouseButtons.Left) != MouseButtons.Left)
+        {
+            // The button is no longer held, so any gesture that was waiting for
+            // a mouse-up is over whether or not that mouse-up ever arrived.
+            // Closing it here keeps a lost capture from leaving the camera
+            // orbiting on hover or a stroke open across later gestures.
+            EndEditorStroke(e.Location, cancelled: false);
+            _rotating = false;
+            _panning = false;
+        }
         if (_placementDragActive && (e.Button & MouseButtons.Left) == MouseButtons.Left)
         {
             UpdatePlacementGizmoDrag(e.Location);
@@ -262,7 +310,7 @@ internal sealed partial class MeshViewport
         {
             if ((e.Button & MouseButtons.Left) == MouseButtons.Left)
             {
-                EditorEventRequested?.Invoke("stroke_update", PointerPayload(e.Location, _strokePrevious, true));
+                EditorEventRequested?.Invoke("stroke_update", StrokePointerPayload(e.Location, _strokePrevious));
                 _strokePrevious = e.Location;
             }
         }
@@ -332,17 +380,68 @@ internal sealed partial class MeshViewport
             && (ModifierKeys & Keys.Control) == Keys.Control;
     }
 
-    private Dictionary<string, object?> PointerPayload(Point point, Point? start, bool stroke)
+    private void BeginEditorStroke(Point location)
+    {
+        _editorStrokeActive = true;
+        _strokeTool = ActiveTool;
+        _strokePrevious = location;
+        _strokeId++;
+        EditorEventRequested?.Invoke("stroke_begin", StrokePointerPayload(location, location));
+    }
+
+    /// <summary>
+    /// Closes the stroke that is currently open, if any. Safe to call more than
+    /// once for the same gesture: only the first call reports a phase.
+    /// </summary>
+    private void EndEditorStroke(Point location, bool cancelled)
+    {
+        if (!_editorStrokeActive)
+        {
+            return;
+        }
+        _editorStrokeActive = false;
+        var payload = StrokePointerPayload(location, _strokePrevious);
+        _strokePrevious = location;
+        _strokeTool = string.Empty;
+        EditorEventRequested?.Invoke(cancelled ? "stroke_cancel" : "stroke_end", payload);
+    }
+
+    /// <summary>
+    /// Aborts an open stroke without committing it. Used when the tool, the
+    /// interaction mode, or the input focus changes underneath a live gesture.
+    /// </summary>
+    internal void CancelActiveStroke()
+    {
+        EndEditorStroke(_strokePrevious, cancelled: true);
+        _rotating = false;
+        _panning = false;
+    }
+
+    protected override void OnLostFocus(EventArgs e)
+    {
+        CancelActiveStroke();
+        base.OnLostFocus(e);
+    }
+
+    private Dictionary<string, object?> StrokePointerPayload(Point point, Point? start) =>
+        PointerPayload(point, start, stroke: true, toolOverride: _strokeTool);
+
+    private Dictionary<string, object?> PointerPayload(
+        Point point,
+        Point? start,
+        bool stroke,
+        string? toolOverride = null)
     {
         var options = ToolOptionsProvider?.Invoke() ?? new Dictionary<string, object?>();
         var radius = NumberOption(options, "radius", 24.0);
         var screenPayload = ScreenPayload(point, radius);
+        var tool = string.IsNullOrEmpty(toolOverride) ? ActiveTool : toolOverride;
         var payload = new Dictionary<string, object?>(options)
         {
-            ["tool"] = ActiveTool,
+            ["tool"] = tool,
             ["screen_brush"] = screenPayload
         };
-        if (ActiveTool is "inflate" or "pinch")
+        if (tool is "inflate" or "pinch")
         {
             payload["screen_radius"] = new Dictionary<string, object?>(screenPayload)
             {

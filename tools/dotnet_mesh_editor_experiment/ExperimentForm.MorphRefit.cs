@@ -200,9 +200,9 @@ internal sealed partial class ExperimentForm
         string helpText,
         out TableLayoutPanel body)
     {
-        var card = new GroupBox
+        var card = new MeshEditorSectionBox
         {
-            Name = $"BottomToolDeckMorph{title.Replace(" ", string.Empty).Replace("&", string.Empty)}Card",
+            Name = $"EditMeshToolRailMorph{title.Replace(" ", string.Empty).Replace("&", string.Empty)}Card",
             Text = title,
             ForeColor = ThemeText,
             BackColor = ThemeSectionBackground,
@@ -413,7 +413,6 @@ internal sealed partial class ExperimentForm
             _morphSectionBody.Visible = _morphClassicExpanded;
             _morphDiagnosticStatus.MaximumSize = new Size(460, 0);
             _morphCompactLayoutActive = false;
-            _compactMorphColumnCount = 0;
         }
         finally
         {

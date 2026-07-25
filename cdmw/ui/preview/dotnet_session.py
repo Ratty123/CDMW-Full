@@ -368,10 +368,14 @@ class DotNetPreviewSessionController(QObject):
             self._set_state("inactive", ".NET/Vortice Preview paused while hidden.")
             return
         if self._launch_is_prewarm and self._session_established and not self._renderer_ready:
-            if self._desired_package is None or not self._request_resident_package_load():
-                self._activate_prewarm()
             if self._desired_package is None:
+                # Becoming visible with nothing selected must not present the
+                # procedural prewarm scene: the helper stays resident and warm,
+                # but showing its placeholder triangle only to replace it when
+                # the real package arrives reads as a flicker.
                 return
+            if not self._request_resident_package_load():
+                self._activate_prewarm()
         if self._desired_package is None:
             self._set_state("empty", "Select a model to open .NET/Vortice Preview.")
             return

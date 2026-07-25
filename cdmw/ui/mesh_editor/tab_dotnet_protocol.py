@@ -92,13 +92,12 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
         if not raw:
             return
         self.standalone_dotnet_protocol_stdout += raw.decode("utf-8", "replace")
-        if len(self.standalone_dotnet_protocol_stdout) > _tab.DOTNET_PROTOCOL_BUFFER_LIMIT:
-            buffered = len(self.standalone_dotnet_protocol_stdout)
-            self.standalone_dotnet_protocol_stdout = ""
-            self._record_mesh_dotnet_event("mesh_dotnet_protocol_buffer_limit", buffered_chars=buffered)
-            self._set_dotnet_status("Mesh .NET editor protocol exceeded its input limit.", error=True)
-            self._stop_standalone_dotnet_editor_process(embedded_state="failed")
-            return
+        # Drain every complete message before enforcing the buffer limit. A busy
+        # UI thread lets a legitimate burst (a live stroke reports one message
+        # per sampled mouse move) accumulate past the limit in a single read, and
+        # tearing the editor down over well-formed messages is what made brush
+        # and move strokes look like a helper crash. The limit exists to bound an
+        # unterminated message, so it is applied to the residue below.
         while "\n" in self.standalone_dotnet_protocol_stdout:
             line, self.standalone_dotnet_protocol_stdout = self.standalone_dotnet_protocol_stdout.split("\n", 1)
             if len(line) > _tab.DOTNET_PROTOCOL_LINE_LIMIT:
@@ -106,6 +105,13 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
                 self._set_dotnet_status("Mesh .NET editor protocol ignored an oversized message.", error=True)
                 continue
             self._handle_dotnet_protocol_line(line.strip())
+        if len(self.standalone_dotnet_protocol_stdout) > _tab.DOTNET_PROTOCOL_BUFFER_LIMIT:
+            buffered = len(self.standalone_dotnet_protocol_stdout)
+            self.standalone_dotnet_protocol_stdout = ""
+            self._record_mesh_dotnet_event("mesh_dotnet_protocol_buffer_limit", buffered_chars=buffered)
+            self._set_dotnet_status("Mesh .NET editor protocol exceeded its input limit.", error=True)
+            self._stop_standalone_dotnet_editor_process(embedded_state="failed")
+            return
     def _handle_dotnet_protocol_stderr_ready(self, process: _tab.QProcess) -> None:
         if self.standalone_dotnet_editor_process is not process:
             return

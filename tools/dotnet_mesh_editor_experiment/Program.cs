@@ -15,22 +15,26 @@ internal sealed partial class ExperimentForm : Form
     private const int ToolPanelSplitterWidth = 6;
     private const int MinimumViewportWidth = 240;
     private static readonly UTF8Encoding Utf8NoBom = new(false);
-    private static readonly Color ThemeWindowBackground = Color.FromArgb(15, 20, 26);
-    private static readonly Color ThemePanelBackground = Color.FromArgb(21, 27, 35);
-    private static readonly Color ThemeSectionBackground = Color.FromArgb(25, 32, 41);
-    private static readonly Color ThemeInputBackground = Color.FromArgb(31, 39, 49);
-    private static readonly Color ThemeButtonBackground = Color.FromArgb(36, 46, 58);
-    private static readonly Color ThemeButtonHover = Color.FromArgb(47, 60, 75);
-    private static readonly Color ThemeButtonPressed = Color.FromArgb(25, 32, 41);
-    private static readonly Color ThemeButtonHighlight = Color.FromArgb(91, 108, 128);
-    private static readonly Color ThemeButtonShadow = Color.FromArgb(8, 12, 17);
-    private static readonly Color ThemeBorder = Color.FromArgb(62, 75, 91);
-    private static readonly Color ThemeAccent = Color.FromArgb(92, 169, 255);
-    private static readonly Color ThemeAccentHover = Color.FromArgb(116, 185, 255);
-    private static readonly Color ThemeAccentPressed = Color.FromArgb(68, 132, 204);
-    private static readonly Color ThemeText = Color.FromArgb(222, 232, 242);
-    private static readonly Color ThemeMutedText = Color.FromArgb(151, 169, 186);
-    private static readonly Color ThemeStatusBackground = Color.FromArgb(18, 25, 32);
+    // The workbench shell's "graphite" scheme, verbatim from
+    // cdmw/ui/theme_schemes.py. The editor is embedded in that shell, so it has
+    // to read as the same application rather than a second one.
+    private static readonly Color ThemeWindowBackground = Color.FromArgb(30, 30, 30);      // #1e1e1e
+    private static readonly Color ThemePanelBackground = Color.FromArgb(37, 37, 38);       // #252526
+    private static readonly Color ThemeSectionBackground = Color.FromArgb(37, 37, 38);     // #252526
+    private static readonly Color ThemeRailBackground = Color.FromArgb(45, 45, 48);        // #2d2d30
+    private static readonly Color ThemeInputBackground = Color.FromArgb(31, 31, 31);       // #1f1f1f
+    private static readonly Color ThemeButtonBackground = Color.FromArgb(45, 45, 48);      // #2d2d30
+    private static readonly Color ThemeButtonHover = Color.FromArgb(55, 55, 61);           // #37373d
+    private static readonly Color ThemeButtonPressed = Color.FromArgb(37, 37, 38);         // #252526
+    private static readonly Color ThemeButtonBorder = Color.FromArgb(69, 73, 74);          // #45494a
+    private static readonly Color ThemeBorder = Color.FromArgb(60, 60, 60);                // #3c3c3c
+    private static readonly Color ThemeAccent = Color.FromArgb(0, 122, 204);               // #007acc
+    private static readonly Color ThemeAccentHover = Color.FromArgb(28, 145, 224);
+    private static readonly Color ThemeAccentPressed = Color.FromArgb(0, 90, 158);
+    private static readonly Color ThemeText = Color.FromArgb(204, 204, 204);               // #cccccc
+    private static readonly Color ThemeStrongText = Color.FromArgb(243, 243, 243);         // #f3f3f3
+    private static readonly Color ThemeMutedText = Color.FromArgb(157, 160, 166);          // #9da0a6
+    private static readonly Color ThemeStatusBackground = Color.FromArgb(30, 30, 30);      // #1e1e1e
     private readonly LaunchOptions _options;
     private ObjDocument _document;
     private readonly MeshViewport _viewport;
@@ -146,7 +150,9 @@ internal sealed partial class ExperimentForm : Form
             _overlaySettings = new MeshOverlaySettings(
                 new MeshOverlayColors(Color.FromArgb(48, 60, 74), MeshOverlayColors.Default.Vertex),
                 new MeshOverlaySizing(1.0f, MeshOverlaySizing.Default.VertexMarkerSizePixels));
-            _ = _viewport.TrySetSynchronizedDisplayMode("textured", out _);
+            _ = _viewport.TrySetSynchronizedDisplayMode(
+                _viewport.InitialResidentDisplayMode(HasResidentTextureResources()),
+                out _);
         }
         _viewport.SetOverlaySettings(_overlaySettings);
         _viewport.ToolOptionsProvider = ToolOptionsPayload;
@@ -157,6 +163,11 @@ internal sealed partial class ExperimentForm : Form
         _viewport.SubmeshSelectedRequested += _ => SyncSubmeshListSelection();
         _submeshList.Dock = DockStyle.Fill;
         _submeshList.IntegralHeight = false;
+        // Both list sections size to their content in the dock columns, so the
+        // list's own height is what the reader actually gets.
+        _submeshList.Height = 150;
+        _actionHistoryList.Height = 150;
+        _actionHistoryList.IntegralHeight = false;
         _submeshList.HorizontalScrollbar = true;
         _submeshList.SelectionMode = SelectionMode.MultiExtended;
         RefreshSubmeshList();
@@ -217,19 +228,40 @@ internal sealed partial class ExperimentForm : Form
         _statusLabel.AutoEllipsis = true;
         _statusLabel.Text = $"Loaded package. materials={_materials.SlotCount} textureRefs={_materials.TextureReferenceCount} resolved={_materials.ExistingTextureFileCount}/{_materials.ResolvedTextureReferenceCount} decodable={_textureSet.DecodedCount}/{_materials.DecodableTextureFileCount}. Solid view is on; wire overlay is optional.";
 
-        (_leftToolPanel, _rightToolPanel) = BuildToolPanels();
-        _leftToolPanel.Dock = DockStyle.Fill;
-        _leftToolPanel.Margin = new Padding(0);
-        _rightToolPanel.Dock = DockStyle.Fill;
-        _rightToolPanel.Margin = new Padding(0);
+        // Display state both profiles drive over the protocol, so it is
+        // configured before the tool panels that merely present it.
+        ConfigurePreviewModeCombo();
+
+        // Roughly a second of WinForms layout that no embedded profile has on
+        // screen while the host waits for its first frame: preview rejects every
+        // authoring mutation so it can never uncollapse these, and an embedded
+        // authoring host opens in placement mode with both flanks collapsed. A
+        // standalone window shows them immediately, so it still builds up front.
+        if (!DeferAuthoringToolPanels)
+        {
+            BuildAuthoringToolPanels();
+        }
         _viewport.Margin = new Padding(0);
         _presentationViewportRegion = BuildPresentationViewportRegion();
         _rightToolSplit = CreateToolPanelSplit("DotNetMeshEditorViewportRightSplit", FixedPanel.Panel2);
         _leftToolSplit = CreateToolPanelSplit("DotNetMeshEditorLeftViewportSplit", FixedPanel.Panel1);
-        _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
+        if (_leftToolPanel is not null)
+        {
+            _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
+        }
         _leftToolSplit.Panel2.Controls.Add(_rightToolSplit);
         InitializeEditMeshLayoutHost(_leftToolSplit);
         ConfigureToolPanelSplitters();
+        if (options.SimplePreview)
+        {
+            // Both flanks are empty in this profile, so collapse them up front
+            // instead of leaving the saved authoring widths as blank bands.
+            // ApplySavedToolPanelLayout then correctly declines to restore them.
+            _leftToolSplit.Panel1MinSize = 0;
+            _rightToolSplit.Panel2MinSize = 0;
+            _leftToolSplit.Panel1Collapsed = true;
+            _rightToolSplit.Panel2Collapsed = true;
+        }
         ApplySavedToolPanelLayout();
         ApplyInteractionModeControls();
 
@@ -369,6 +401,22 @@ internal sealed partial class ExperimentForm : Form
             ["parts_list_selected_index"] = _submeshList.SelectedIndex,
             ["parts_list_selected_indices"] = _submeshList.SelectedIndices.Cast<int>().ToArray(),
         });
+        // The deferred authoring panels cost about a second of layout. Building
+        // them here, once the first frame is out and ready has been published,
+        // keeps that off both the startup path and the Edit Mesh click. The
+        // mesh-edit entry point still calls the same builder, so an entry that
+        // somehow beats this post is still correct.
+        if (DeferAuthoringToolPanels && !_options.SimplePreview)
+        {
+            try
+            {
+                BeginInvoke(new Action(EnsureAuthoringToolPanelsReady));
+            }
+            catch (InvalidOperationException)
+            {
+                // No handle to post to; mesh-edit entry will build them.
+            }
+        }
     }
 
     private bool TryEmbedOrFail(string phase)
@@ -416,6 +464,50 @@ internal sealed partial class ExperimentForm : Form
         }
         _textureSet.Dispose();
         base.OnFormClosing(e);
+    }
+
+    /// <summary>
+    /// True when the authoring tool panels can wait until the user actually
+    /// enters mesh edit. Preview never builds them at all; an embedded
+    /// authoring host opens in placement mode with both flanks collapsed, so it
+    /// builds them on first entry instead of before its first frame.
+    /// </summary>
+    private bool DeferAuthoringToolPanels => _options.SimplePreview || _options.Embedded;
+
+    private bool _authoringToolPanelsBuilt;
+
+    private void BuildAuthoringToolPanels()
+    {
+        if (_options.SimplePreview || _authoringToolPanelsBuilt)
+        {
+            return;
+        }
+        _authoringToolPanelsBuilt = true;
+        (_leftToolPanel, _rightToolPanel) = BuildToolPanels();
+        _leftToolPanel.Dock = DockStyle.Fill;
+        _leftToolPanel.Margin = new Padding(0);
+        _rightToolPanel.Dock = DockStyle.Fill;
+        _rightToolPanel.Margin = new Padding(0);
+    }
+
+    /// <summary>
+    /// Build and attach the deferred authoring panels. Called the first time the
+    /// scene enters mesh edit, which is the first moment the flanks uncollapse.
+    /// </summary>
+    private void EnsureAuthoringToolPanelsReady()
+    {
+        if (_options.SimplePreview || _authoringToolPanelsBuilt || _leftToolSplit is null)
+        {
+            return;
+        }
+        BuildAuthoringToolPanels();
+        if (_leftToolPanel is not null)
+        {
+            _leftToolSplit.Panel1.Controls.Add(_leftToolPanel);
+        }
+        AttachPermanentToolModeHosts();
+        AttachCompactSessionBar();
+        ApplySavedToolPanelLayout();
     }
 
     private (Panel Left, Panel Right) BuildToolPanels()
@@ -496,13 +588,12 @@ internal sealed partial class ExperimentForm : Form
         _classicSessionSelectionRow = ButtonRow(clearSelectionButton, selectAllButton);
         _classicSessionHistoryRow = ButtonRow(invertButton, undoButton, redoButton);
         var classicLayoutToggleButton = StyledActionButton(
-            "Try Bottom Tool Deck",
-            () => RequestEditMeshLayout(EditMeshLayoutMode.BottomToolDeck));
-        classicLayoutToggleButton.Name = "TryBottomToolDeckButton";
-        classicLayoutToggleButton.AccessibleName = "Try Bottom Tool Deck layout";
+            "Use Tool Rail Layout",
+            () => RequestEditMeshLayout(EditMeshLayoutMode.ToolRail));
+        classicLayoutToggleButton.Name = "UseToolRailEditMeshLayoutButton";
+        classicLayoutToggleButton.AccessibleName = "Use the tool rail Edit Mesh layout";
         classicLayoutToggleButton.AccessibleDescription =
             "Switches only the Edit Mesh control layout. The resident viewport and edit state remain active.";
-        classicLayoutToggleButton.Visible = _options.Embedded;
         _classicSessionSection = AddSection(leftStack, "Mesh Edit Session",
             finish,
             _classicSessionSelectionRow,
@@ -551,9 +642,16 @@ internal sealed partial class ExperimentForm : Form
             ButtonRow(GizmoButton("Move", "move"), GizmoButton("Rotate", "rotate"), GizmoButton("Scale", "scale")));
         _placementSection.Name = "ClassicPlacementSection";
         _placementOnlySections.Add(_placementSection);
-        var transformSection = AddSection(leftStack, "Transform",
+        var transformSection = AddHelpSection(
+            leftStack,
+            "Transform",
+            "Move drags the current selection freely in screen space; Grab pulls vertices under the brush. "
+            + "The axis buttons nudge the selection by the exact translate step.",
+            out _,
             LabeledControl("Translate step", _translateStep),
-            ButtonRow(StyledActionButton("Move +X", () => RequestTransformMove((float)_translateStep.Value)), StyledActionButton("Move -X", () => RequestTransformMove(-(float)_translateStep.Value))),
+            AxisNudgeRow("x"),
+            AxisNudgeRow("y"),
+            AxisNudgeRow("z"),
             ButtonRow(ToolButton("Move", "move"), ToolButton("Grab", "grab")));
         transformSection.Name = "CompactTransformSection";
         _transformSection = transformSection;
@@ -572,9 +670,22 @@ internal sealed partial class ExperimentForm : Form
         _meshEditOnlySections.Add(brushSection);
         var subdivideButton = CommandButton("Subdivide", "subdivide");
         var refineButton = CommandButton("Refine Smooth", "refine_smooth");
+        // Deleting and duplicating geometry is driven by the current selection
+        // target, so it belongs beside the other topology edits. The Parts group
+        // keeps its own pair for whole-part actions.
+        var deleteSelectionButton = CommandButton("Delete Selection", "delete");
+        var duplicateSelectionButton = CommandButton("Duplicate Selection", "duplicate");
         RegisterTopologyMutationButton(subdivideButton);
         RegisterTopologyMutationButton(refineButton);
-        var topologySection = AddSection(leftStack, "Topology",
+        RegisterTopologyMutationButton(deleteSelectionButton);
+        RegisterTopologyMutationButton(duplicateSelectionButton);
+        var topologySection = AddHelpSection(
+            leftStack,
+            "Topology",
+            "Acts on the current Selection target. Delete and Duplicate remove or copy the selected "
+            + "vertices, edges, faces or parts; Subdivide and Refine Smooth add density.",
+            out _,
+            ButtonRow(deleteSelectionButton, duplicateSelectionButton),
             ButtonRow(subdivideButton, refineButton));
         topologySection.Name = "CompactTopologySection";
         _topologySection = topologySection;
@@ -745,14 +856,41 @@ internal sealed partial class ExperimentForm : Form
         return _outgoingMutationRequestSequence;
     }
 
-    private void RequestTransformMove(float deltaX)
+    private void RequestTransformMove(string axis, float step)
     {
+        var normalized = (axis ?? "x").Trim().ToLowerInvariant();
         WriteCommandRequest("transform_move", new Dictionary<string, object?>
         {
-            ["axis"] = "x",
-            ["step"] = deltaX,
-            ["delta"] = new[] { deltaX, 0.0f, 0.0f }
+            ["axis"] = normalized,
+            ["step"] = step,
+            ["delta"] = new[]
+            {
+                normalized == "x" ? step : 0.0f,
+                normalized == "y" ? step : 0.0f,
+                normalized == "z" ? step : 0.0f,
+            }
         });
+    }
+
+    /// <summary>
+    /// One signed pair of nudge buttons per axis. Dragging with the Move tool
+    /// already moves the selection freely in screen space; these give the same
+    /// motion an exact, repeatable step.
+    /// </summary>
+    private Control AxisNudgeRow(string axis)
+    {
+        var upper = axis.ToUpperInvariant();
+        var minus = StyledActionButton(
+            $"-{upper}",
+            () => RequestTransformMove(axis, -(float)_translateStep.Value));
+        var plus = StyledActionButton(
+            $"+{upper}",
+            () => RequestTransformMove(axis, (float)_translateStep.Value));
+        minus.Name = $"TransformMoveMinus{upper}Button";
+        plus.Name = $"TransformMovePlus{upper}Button";
+        SetHelpText(minus, $"Move the selection one step along -{upper}.");
+        SetHelpText(plus, $"Move the selection one step along +{upper}.");
+        return ButtonRow(minus, plus);
     }
 
     private Dictionary<string, object?> ToolOptionsPayload()
@@ -885,7 +1023,28 @@ internal sealed partial class MeshViewport : Control
     public bool TexturesEnabled { get; private set; } = true;
     public string DisplayMode { get; private set; } = "textured";
     public int MaterialDebugMode { get; set; }
-    public string ActiveTool { get; set; } = "orbit";
+    private string _activeTool = "orbit";
+
+    /// <summary>
+    /// Changing the tool closes any stroke that is still open, so a gesture can
+    /// never straddle two tools.
+    /// </summary>
+    public string ActiveTool
+    {
+        get => _activeTool;
+        set
+        {
+            var next = value ?? "orbit";
+            if (string.Equals(_activeTool, next, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+            CancelActiveStroke();
+            _activeTool = next;
+            UpdateGpuViewport();
+            Invalidate();
+        }
+    }
     public Func<Dictionary<string, object?>>? ToolOptionsProvider { get; set; }
     public Action<string, Dictionary<string, object?>>? EditorEventRequested { get; set; }
     public Action<string>? StatusRequested { get; set; }

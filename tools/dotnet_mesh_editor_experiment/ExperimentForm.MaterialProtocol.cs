@@ -28,6 +28,11 @@ internal sealed partial class ExperimentForm
     {
         return new Dictionary<string, object?>
         {
+            // Whether the authoring tool panels are actually constructed. The
+            // preview profile never builds them; authoring must always have
+            // them by the time mesh edit is entered, and this is what makes
+            // that observable from outside the process.
+            ["authoring_tool_panels_present"] = _leftToolPanel is not null && _rightToolPanel is not null,
             ["source_parse_count"] = _sourceParseCount,
             ["geometry_upload_count"] = _viewport.GeometryUploadCount,
             ["device_reset_count"] = _viewport.DeviceResetCount,

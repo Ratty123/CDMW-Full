@@ -84,7 +84,11 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert "NotifyLocalSelectionChanged();" not in committed_selection
     assert "_strokePrevious" in input_source
     assert "_strokeStart" not in input_source
-    active_stroke_move = input_source.split("if (_editorStrokeActive)", maxsplit=2)[2].split("else if (_rotating)", maxsplit=1)[0]
+    # The move handler is the only place an in-flight stroke reports a sample;
+    # begin, end and cancel are owned by the stroke lifecycle helpers.
+    active_stroke_move = input_source.split(
+        "protected override void OnMouseMove", maxsplit=1
+    )[1].split("if (_editorStrokeActive)", maxsplit=1)[1].split("else if (_rotating)", maxsplit=1)[0]
     assert "(e.Button & MouseButtons.Left) == MouseButtons.Left" in active_stroke_move
     assert active_stroke_move.index("MouseButtons.Left") < active_stroke_move.index('Invoke("stroke_update"') < active_stroke_move.index("_strokePrevious = e.Location")
     assert "_viewport.RefreshVertexGeometry(changed" in protocol_source
@@ -178,9 +182,17 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert '"Loading textures in the resident viewport..."' in controls_source
     assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in display_source
     assert 'texture_request_pending' in display_source
+    # One rule decides the settled view, so a load never presents an
+    # intermediate mode before the host's own display update lands. Read-only
+    # previews default to wire over untextured geometry, and to plain textured
+    # geometry once textures resolve; the wire overlay stays an authoring
+    # default only.
+    assert 'hasTextureResources ? "textured" : "untextured_wire"' in resident_package_source
     assert 'hasTextureResources ? "textured_wire" : "untextured_wire"' in resident_package_source
+    assert "InitialResidentDisplayMode(bool hasTextureResources)" in resident_package_source
+    assert "InitialResidentDisplayMode(" in controls_source
     assert '"Faces + Wire"' in controls_source
-    assert 'selectedIndex: HasResidentTextureResources() ? 3 : 2' in controls_source
+    assert "selectedIndex: Array.IndexOf(" in controls_source
     assert 'var mode = _placementPreviewMode;' in controls_source
     assert 'SyncPreviewModeSelection(_viewport.DisplayMode);' in _source(
         "ExperimentForm.PresentationProtocol.cs"
@@ -200,14 +212,12 @@ def test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync
     assert 'ActiveTool is "grab" or "smooth" or "inflate" or "pinch"' in all_source
     assert "DrawBrushCursorOverlay();" in d3d_source
     assert '_statusLabel.Text = tool is "grab" or "smooth" or "inflate" or "pinch"' in _source("ExperimentForm.Controls.cs")
-    toggle_source = controls_source.split("private void ToggleTool", maxsplit=1)[1].split(
-        "private void ActivateTool", maxsplit=1
-    )[0]
-    assert 'button.Click += (_, _) => ToggleTool(tool, text);' in controls_source
-    assert '!string.Equals(tool, "orbit", StringComparison.OrdinalIgnoreCase)' in toggle_source
-    assert 'string.Equals(_viewport.ActiveTool, tool, StringComparison.OrdinalIgnoreCase)' in toggle_source
-    assert 'ActivateTool("orbit", "Orbit");' in toggle_source
-    assert "ActivateTool(tool, text);" in toggle_source
+    # Tool buttons are idempotent: pressing the active tool keeps it active
+    # instead of dropping back to orbit, which read as the tool switching itself
+    # off. Orbit stays one click away on its own button.
+    assert "private void ToggleTool" not in controls_source
+    assert 'button.Click += (_, _) => ActivateTool(tool, text);' in controls_source
+    assert 'ToolButton("Orbit", "orbit")' in program_source
     assert "ActivateTool(tool, tool[..1].ToUpperInvariant() + tool[1..]);" in host_state_source
 
 
@@ -233,21 +243,24 @@ def test_dotnet_mesh_edit_history_and_selection_navigation_are_visible_and_short
     assert 'Name = "ResidentViewportControlsHint"' in presentation_source
 
 
-def test_dotnet_buttons_share_raised_pressed_and_latched_visual_state() -> None:
+def test_dotnet_buttons_share_flat_hover_pressed_and_accent_visual_state() -> None:
     program_source = _source("Program.cs")
     controls_source = _source("ExperimentForm.Controls.cs")
     presentation_source = _source("ExperimentForm.PresentationProtocol.cs")
 
-    assert "private sealed class MeshEditorDepthButton : Button" in controls_source
-    assert "var button = new MeshEditorDepthButton" in controls_source
+    # Flat rounded chrome matching the Qt shell. The old raised/sunken bevel
+    # drawn with ControlPaint.DrawBorder is what made the editor read as a
+    # much older application than the window hosting it.
+    assert "private sealed class MeshEditorFlatButton : Button" in controls_source
+    assert "var button = new MeshEditorFlatButton" in controls_source
     assert "button.FlatAppearance.BorderSize = 0;" in controls_source
-    assert "ControlPaint.DrawBorder(" in controls_source
-    assert "var sunken = _latched || _keyboardPressed || (_mousePressed && pointerInside);" in controls_source
-    assert "topLeft = Enabled" in controls_source
-    assert "sunken ? ThemeButtonShadow : ThemeButtonHighlight" in controls_source
-    assert "sunken ? ThemeButtonHighlight : ThemeButtonShadow" in controls_source
-    assert "FlatAppearance.MouseOverBackColor = latched ? ThemeAccentHover : ThemeButtonHover;" in controls_source
-    assert "FlatAppearance.MouseDownBackColor = latched ? ThemeAccentPressed : ThemeButtonPressed;" in controls_source
+    assert "ControlPaint.DrawBorder" not in controls_source
+    assert "ThemeButtonHighlight" not in controls_source
+    assert "ThemeButtonShadow" not in controls_source
+    assert "GraphicsPath RoundedPath(" in controls_source
+    assert "SmoothingMode.AntiAlias" in controls_source
+    assert "FlatAppearance.MouseOverBackColor = accent ? ThemeAccentHover : ThemeButtonHover;" in controls_source
+    assert "FlatAppearance.MouseDownBackColor = accent ? ThemeAccentPressed : ThemeButtonPressed;" in controls_source
 
     assert 'var finish = StyledButton(_options.Embedded ? "Finish Edit Mesh" : "Save Edited Package"' in program_source
     assert "var button = StyledButton(text);" in controls_source
@@ -261,8 +274,8 @@ def test_dotnet_buttons_share_raised_pressed_and_latched_visual_state() -> None:
 
     assert "RefreshToolButtonStates();" in controls_source
     assert "RefreshGizmoButtonStates();" in controls_source
-    assert "SetButtonLatched(" in controls_source
-    assert "SetButtonLatched(button, active);" in presentation_source
+    assert "SetButtonAccent(" in controls_source
+    assert "SetButtonAccent(button, active);" in presentation_source
     assert "_gizmoButtons[tool] = button;" in program_source
     assert "_scene.SetGizmoTool(tool);" in program_source
     assert "RefreshGizmoButtonStates();" in program_source
@@ -769,7 +782,8 @@ def test_embedded_dotnet_exposes_its_tool_panels_in_mesh_edit_mode() -> None:
     assert "_viewport.Margin = new Padding(0);" in program_source
     assert "_leftToolSplit.Panel1.Controls.Add(_leftToolPanel);" in program_source
     assert "_presentationViewportRegion = BuildPresentationViewportRegion();" in program_source
-    assert "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout_source
+    assert "_viewportWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout_source
+    assert "_leftToolModeHost.Controls.Add(_leftToolPanel);" in layout_source
     assert "_rightToolModeHost.Controls.Add(_rightToolPanel);" in layout_source
     assert "InitializeEditMeshLayoutHost(_leftToolSplit);" in program_source
     assert "ApplyEmbeddedToolPanelVisibility(meshEdit: false);" in controls_source

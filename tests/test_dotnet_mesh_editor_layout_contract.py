@@ -39,14 +39,15 @@ def test_edit_mesh_panels_flank_the_viewport_with_requested_sections() -> None:
     assert "_leftToolSplit.Panel2.Controls.Add(_rightToolSplit);" in program
     assert "InitializeEditMeshLayoutHost(_leftToolSplit);" in program
     assert "BuildPermanentViewportWorkspace();" in layout
-    assert "BuildPermanentRightToolModeHost();" in layout
-    assert "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout
+    assert "BuildPermanentToolModeHosts();" in layout
+    assert "_viewportWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout
+    assert "_leftToolModeHost.Controls.Add(_leftToolPanel);" in layout
     assert "_rightToolModeHost.Controls.Add(_rightToolPanel);" in layout
     assert layout.count("Controls.Add(_presentationViewportRegion)") == 1
     assert layout.index(
-        "_rightToolSplit.Panel1.Controls.Add(_compactWorkspaceSplit);"
+        "_rightToolSplit.Panel1.Controls.Add(_viewportWorkspaceSplit);"
     ) < layout.index(
-        "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);"
+        "_viewportWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);"
     )
 
     assert _section_stack(program, "Mesh Edit Session") == "leftStack"
@@ -198,27 +199,36 @@ def test_panel_reveal_is_atomic_and_has_no_recursive_width_forcing() -> None:
     assert "MeshEditorBufferedSplitContainer" in controls
 
 
-def test_bottom_tool_deck_is_opt_in_and_reuses_the_live_editor_controls() -> None:
+def test_tool_rail_is_the_default_and_reuses_the_live_editor_controls() -> None:
     program = _source("Program.cs")
     controls = _source("ExperimentForm.Controls.cs")
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
     transfer = _source("EditMeshLayoutContracts.cs")
 
-    assert "_requestedEditMeshLayout = EditMeshLayoutMode.Classic;" in layout
-    assert "_activeEditMeshLayout = EditMeshLayoutMode.Classic;" in layout
-    assert '"Try Bottom Tool Deck"' in program
-    assert '"Use Classic Layout"' in layout
-    assert "RequestEditMeshLayout(EditMeshLayoutMode.BottomToolDeck)" in program
+    # Entering Edit Mesh presents the tool rail. Classic stays the
+    # construction/non-mesh-mode state and remains reachable from the session
+    # bar, but it is no longer what the user is dropped into.
+    assert (
+        "private EditMeshLayoutMode _requestedEditMeshLayout = "
+        "EditMeshLayoutMode.ToolRail;"
+    ) in layout
+    assert (
+        "private EditMeshLayoutMode _activeEditMeshLayout = "
+        "EditMeshLayoutMode.Classic;"
+    ) in layout
+    assert '"Use Tool Rail Layout"' in program
+    # The layout toggle is not gated on the embedded host: the standalone
+    # authoring window has to be able to reach both layouts too.
+    assert "classicLayoutToggleButton.Visible = _options.Embedded;" not in program
+    assert '"Classic Layout"' in layout
+    assert "RequestEditMeshLayout(EditMeshLayoutMode.ToolRail)" in program
     assert "RequestEditMeshLayout(EditMeshLayoutMode.Classic)" in layout
 
     assert "MoveSessionControlsToCompactBar();" in layout
     assert "MoveSessionControlsToClassicSection();" in layout
     assert "ConfigurePresentationRegion(compactEditableOnly: true);" in layout
     assert "ConfigurePresentationRegion(compactEditableOnly: false);" in layout
-    assert "_compactWorkspaceSplit.Panel1.Controls.Add(_presentationViewportRegion);" in layout
     assert "MoveControl(_presentationViewportRegion" not in layout
-    assert "MovePresentationRegion" not in layout
-    assert "_compactViewportHost" not in layout
     assert "EditMeshLayoutContracts.MoveControl(" in layout
     assert "host.Controls.Add(control);" in transfer
     assert "control.IsDisposed || host.IsDisposed" in transfer
@@ -230,7 +240,7 @@ def test_bottom_tool_deck_is_opt_in_and_reuses_the_live_editor_controls() -> Non
     interaction = interaction.split("private void ApplyEmbeddedToolPanelVisibility", 1)[0]
     assert "RestoreClassicLayoutForNonMeshMode();" in interaction
     assert "ApplyRequestedEditMeshLayout();" in interaction
-    assert "if (!IsBottomToolDeckActive)" in controls
+    assert "if (!IsToolRailActive)" in controls
 
     classic_restore = layout.split("private void RebuildClassicToolStacks()", 1)[1]
     classic_restore = classic_restore.split("private static void RebuildClassicStack", 1)[0]
@@ -248,62 +258,102 @@ def test_bottom_tool_deck_is_opt_in_and_reuses_the_live_editor_controls() -> Non
         assert classic_restore.index(earlier) < classic_restore.index(later)
 
 
-def test_bottom_tool_deck_groups_every_edit_tool_and_keeps_editable_only_view() -> None:
+def test_tool_rail_swaps_only_modal_tools_and_pins_the_scene_groups() -> None:
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
 
-    for page, label in (
-        ("Selection", "Selection"),
-        ("Transform", "Transform"),
+    # Only the five modal tools get a rail button. Parts, Action History and
+    # Viewport are not modal, so hiding them behind a rail button would trade a
+    # full-height column for a click.
+    for page, caption in (
+        ("Selection", "Select"),
+        ("Transform", "Move"),
         ("Brush", "Brush"),
-        ("Topology", "Topology"),
-        ("MorphRefit", "Morph & Refit"),
+        ("Topology", "Topo"),
+        ("MorphRefit", "Morph"),
     ):
-        assert f"CompactToolPage.{page}, \"{label}\"" in layout
+        assert f"ToolRailPage.{page}, " in layout
+        assert f'"{caption}"' in layout
+    assert "ToolRailPage.Parts" not in layout
+    assert "ToolRailPage.History" not in layout
+    assert "ToolRailPage.Viewport" not in layout
 
-    assert "AddCompactSection(_compactSelectionGrid, _partPickSection, 0, 0);" in layout
-    assert "AddCompactSection(_compactSelectionGrid, _selectionSection, 1, 0);" in layout
-    assert "AddCompactSection(_compactTransformHost, _transformSection);" in layout
-    assert "AddCompactSection(_compactBrushHost, _brushSection);" in layout
-    assert "AddCompactSection(_compactTopologyHost, _topologySection);" in layout
-    assert "AddCompactSection(_compactMorphHost, _morphRefitSection);" in layout
-    assert "AddCompactInspectorSection(_partsSection, 0, stretchFirstRow: true);" in layout
-    assert "AddCompactInspectorSection(_actionHistorySection, 1, stretchFirstRow: true);" in layout
-    assert "AddCompactInspectorSection(_viewportSection, 2);" in layout
+    activate = layout.split("private void ActivateToolRailLayout()", 1)[1]
+    activate = activate.split("private void ActivateClassicEditMeshLayout", 1)[0]
+    assert "AddRailSection(_railSelectionStack, _selectionSection, row: 0);" in activate
+    assert "AddRailSection(_railSelectionStack, _partPickSection, row: 1);" in activate
+    for page, section in (
+        ("Transform", "_transformSection"),
+        ("Brush", "_brushSection"),
+        ("Topology", "_topologySection"),
+        ("MorphRefit", "_morphRefitSection"),
+    ):
+        assert f"AddRailSection(_toolRailPages[ToolRailPage.{page}], {section});" in activate
+    # The scene column keeps its order and is always on screen.
+    assert "AddRailSection(_sceneInspectorColumn, _partsSection, row: 0);" in activate
+    assert "AddRailSection(_sceneInspectorColumn, _actionHistorySection, row: 1);" in activate
+    assert "AddRailSection(_sceneInspectorColumn, _viewportSection, row: 2);" in activate
+
+    # Both flanks are in use: the mesh is tall and narrow, so width is the
+    # cheap axis and the viewport keeps the full window height.
+    assert "_leftToolSplit.Panel1Collapsed = false;" in activate
+    assert "_rightToolSplit.Panel2Collapsed = false;" in activate
+    assert "_viewportWorkspaceSplit.Panel2Collapsed = true;" in activate
     assert '_viewport.ActivatePresentationView("editable");' in layout
     assert "_presentationViewSelector.Visible = !compactEditableOnly;" in layout
 
 
-def test_bottom_tool_deck_morph_layout_is_responsive_and_session_only() -> None:
+def test_tool_rail_uses_the_stacked_morph_section_not_the_deck_card_grid() -> None:
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
-    morph = _source("ExperimentForm.MorphRefit.cs")
-    transfer = _source("EditMeshLayoutContracts.cs")
 
-    assert "logicalWidth >= 1500 ? 4 : logicalWidth >= 900 ? 2 : 1" in transfer
-    assert "EnterCompactMorphLayout(columnCount);" in layout
-    assert "AddMorphCompactSpanningRow(" in morph
-    for title in (
-        "Definition",
-        "Presets",
-        "Shape Sliders",
-        "Garment Refit",
-        "Review & Apply",
+    # The Morph & Refit card grid was sized for a full-width bottom deck and
+    # cannot lay out inside a single tool column, so the rail unwinds it and
+    # uses the classic stacked form instead.
+    activate = layout.split("private void ActivateToolRailLayout()", 1)[1]
+    activate = activate.split("private void ActivateClassicEditMeshLayout", 1)[0]
+    assert "ExitCompactMorphLayout();" in activate
+    assert "SetMorphCollapseHeaderVisible(false);" in activate
+    assert "EnterCompactMorphLayout(" not in layout
+    # The dock header names the active tool, so the section's own collapse
+    # header only comes back in the classic stack.
+    classic = layout.split("private void ActivateClassicEditMeshLayout()", 1)[1]
+    classic = classic.split("private void MoveSessionControlsToCompactBar", 1)[0]
+    assert "SetMorphCollapseHeaderVisible(true);" in classic
+
+
+def test_edit_mesh_chrome_matches_the_workbench_shell() -> None:
+    program = _source("Program.cs")
+    controls = _source("ExperimentForm.Controls.cs")
+
+    # The editor is embedded in the Qt shell, so it uses the shell's graphite
+    # scheme rather than its own navy one.
+    for token in (
+        "Color.FromArgb(30, 30, 30)",
+        "Color.FromArgb(37, 37, 38)",
+        "Color.FromArgb(45, 45, 48)",
+        "Color.FromArgb(0, 122, 204)",
+        "Color.FromArgb(204, 204, 204)",
     ):
-        assert f'"{title}"' in morph
-    assert "_compactInspectorWidthLogical" in layout
-    assert "_compactToolDeckHeightLogical" in layout
-    assert "DefaultInspectorWidth(" in transfer
-    assert "DefaultToolDeckHeight(" in transfer
-    assert "MeshToolPanelLayoutPreferences" not in layout
+        assert token in program
+    assert "Color.FromArgb(92, 169, 255)" not in program
+
+    # Flat rounded chrome, not the beveled highlight/shadow border.
+    assert "ControlPaint.DrawBorder" not in controls
+    assert "ThemeButtonHighlight" not in controls
+    assert "ThemeButtonShadow" not in controls
+    assert "class MeshEditorFlatButton : Button" in controls
+    assert "class MeshEditorSectionBox : GroupBox" in controls
+    assert "GraphicsPath RoundedPath(" in controls
+    assert "var group = new MeshEditorSectionBox" in controls
 
 
-def test_bottom_tool_deck_defers_splitter_minimums_until_real_size_exists() -> None:
+def test_edit_mesh_defers_splitter_minimums_until_real_size_exists() -> None:
     layout = _source("ExperimentForm.EditMeshLayouts.cs")
     transfer = _source("EditMeshLayoutContracts.cs")
 
     workspace_builder = layout.split("private void BuildPermanentViewportWorkspace()", 1)[1]
-    workspace_builder = workspace_builder.split("private void BuildPermanentRightToolModeHost()", 1)[0]
-    assert "_compactWorkspaceSplit.Panel1MinSize" not in workspace_builder
-    assert "_compactWorkspaceSplit.Panel2MinSize" not in workspace_builder
+    workspace_builder = workspace_builder.split("private void BuildPermanentToolModeHosts()", 1)[0]
+    assert "_viewportWorkspaceSplit.Panel1MinSize" not in workspace_builder
+    assert "_viewportWorkspaceSplit.Panel2MinSize" not in workspace_builder
     assert transfer.index("split.Panel1MinSize = 0;") < transfer.index(
         "if (available <= 0)"
     )
@@ -313,7 +363,51 @@ def test_bottom_tool_deck_defers_splitter_minimums_until_real_size_exists() -> N
     assert "EditMeshLayoutContracts.ApplyPanelTwoSize(" in layout
 
 
-def test_bottom_tool_deck_has_a_nonvisual_round_trip_construction_gate() -> None:
+def test_returning_to_classic_forces_its_own_layout_pass() -> None:
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+
+    classic = layout.split("private void ActivateClassicEditMeshLayout()", 1)[1]
+    classic = classic.split("private void MoveSessionControlsToCompactBar", 1)[0]
+    # The classic stacks are rebuilt while suspended and resume without their
+    # own layout pass, so their new rows keep construction-time bounds until
+    # something forces the measure.
+    assert classic.index("ResumeAllEditMeshLayouts();") < classic.index(
+        "PerformClassicToolStackLayout();"
+    )
+    performer = layout.split("private void PerformClassicToolStackLayout()", 1)[1]
+    performer = performer.split("private void CaptureClassicScrollPositions", 1)[0]
+    for target in ("_morphSectionBody", "_rightToolStack", "_leftToolStack"):
+        assert f"{target}?.PerformLayout();" in performer
+
+
+def test_edit_mesh_captions_and_inputs_survive_theming_and_resize() -> None:
+    controls = _source("ExperimentForm.Controls.cs")
+    morph = _source("ExperimentForm.MorphRefit.cs")
+
+    # "Morph & Refit" and "Review & Apply" lose their ampersand to mnemonic
+    # parsing unless the caption opts out. Buttons and labels switch it off;
+    # section titles are drawn by MeshEditorSectionBox with NoPrefix, so they
+    # must NOT be escaped or the escape renders literally.
+    assert "UseMnemonic = false" in controls
+    assert "MnemonicSafeCaption" not in controls
+    assert "MnemonicSafeCaption" not in morph
+    assert "TextFormatFlags.NoPrefix" in controls
+
+    # A flat DropDownList keeps its stale paint when the layout widens it.
+    combo = controls.split("private static void ConfigureCombo", 1)[1]
+    combo = combo.split("private static void ConfigureCheckBox", 1)[0]
+    assert "combo.Resize += (_, _) => combo.Invalidate();" in combo
+
+    # Wire width and vertex size each own a full-width row; nesting them under
+    # a shared label pushed the vertex control past the inspector edge.
+    overlay = controls.split("private Control OverlayAppearanceControls()", 1)[1]
+    overlay = overlay.split("private Button OverlayColorButton", 1)[0]
+    assert 'LabeledControl(\n            "Topology appearance",' not in overlay
+    assert 'LabeledControl("Wire width (px)", _wireOverlayWidth)' in overlay
+    assert 'LabeledControl("Vertex size (px)", _vertexMarkerSize)' in overlay
+
+
+def test_edit_mesh_has_a_nonvisual_round_trip_construction_gate() -> None:
     entry = _source("ProgramEntry.cs")
     smoke = _source("EditMeshLayoutSmoke.cs")
 
@@ -331,3 +425,51 @@ def test_bottom_tool_deck_has_a_nonvisual_round_trip_construction_gate() -> None
     assert "zero_size_splitter_construction" in smoke
     for page in ("Selection", "Transform", "Brush", "Topology", "Morph & Refit"):
         assert f'"{page}"' in smoke
+
+
+def test_deferred_authoring_tool_panels_have_two_build_triggers() -> None:
+    """The panels skip startup, so something must still guarantee they appear.
+
+    Building them before the first frame cost roughly 1.5 s of editor startup.
+    Deferring is only safe because two independent paths build them: a post to
+    the message loop once ``ready`` is published, and mesh-edit entry as a
+    backstop for a user who gets there first. Losing either one is what would
+    leave the Mesh Editor with no tool panels at all.
+
+    tools/mesh_harness/real_dotnet_tool_panel_lifecycle.py asserts the runtime
+    behaviour; this only guards the wiring.
+    """
+
+    program = _source("Program.cs")
+    controls = _source("ExperimentForm.Controls.cs")
+    layouts = _source("ExperimentForm.EditMeshLayouts.cs")
+    material_protocol = _source("ExperimentForm.MaterialProtocol.cs")
+    protocol = _source("ExperimentForm.Protocol.cs")
+
+    # Preview never builds them; a standalone window still builds them up front.
+    assert "private bool DeferAuthoringToolPanels => _options.SimplePreview || _options.Embedded;" in program
+    assert "if (!DeferAuthoringToolPanels)" in program
+
+    # Trigger 1: posted once the first frame is out.
+    ready_body = program.split("private void PublishReady(", maxsplit=1)[1].split(
+        "private bool TryEmbedOrFail(", maxsplit=1
+    )[0]
+    assert "BeginInvoke(new Action(EnsureAuthoringToolPanelsReady));" in ready_body
+
+    # Trigger 2: mesh-edit entry, before anything walks the section lists.
+    interaction_body = controls.split("private void ApplyInteractionModeControls()", maxsplit=1)[1].split(
+        "\n    private ", maxsplit=1
+    )[0]
+    assert "EnsureAuthoringToolPanelsReady();" in interaction_body
+    assert interaction_body.index("EnsureAuthoringToolPanelsReady();") < interaction_body.index(
+        "foreach (var section in _meshEditOnlySections)"
+    )
+
+    # Both builders must be idempotent, since either trigger can fire first.
+    assert "if (_options.SimplePreview || _authoringToolPanelsBuilt)" in program
+    assert "if (_options.SimplePreview || _leftToolModeHost is not null)" in layouts
+    assert "if (_options.SimplePreview || _compactSessionBar is not null" in layouts
+
+    # And the result has to stay observable from outside the process.
+    assert '["authoring_tool_panels_present"] = _leftToolPanel is not null && _rightToolPanel is not null' in material_protocol
+    assert '["lifecycle_counts"] = LifecycleCountsPayload(),' in protocol

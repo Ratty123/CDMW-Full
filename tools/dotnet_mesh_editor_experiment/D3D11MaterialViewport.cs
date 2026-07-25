@@ -337,51 +337,175 @@ internal sealed partial class D3D11MaterialViewport : Control
         _geometryDirty = true;
     }
 
-    private unsafe void CompileShaders()
+    private sealed record ShaderBytecodeSet(
+        byte[] Vertex,
+        byte[] Pixel,
+        byte[] OverlayVertex,
+        byte[] WireGeometry,
+        byte[] MarkerGeometry,
+        byte[] OverlayPixel);
+
+    private static readonly (string Entry, string Profile)[] ShaderStages =
+    {
+        ("VSMain", "vs_5_0"),
+        ("PSMain", "ps_5_0"),
+        ("VSOverlay", "vs_5_0"),
+        ("GSWireLine", "gs_5_0"),
+        ("GSVertexMarker", "gs_5_0"),
+        ("PSOverlay", "ps_5_0"),
+    };
+
+    private static string ShaderCacheDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "CrimsonDesertModWorkbench",
+        "shader_cache");
+
+    private void CompileShaders()
     {
         if (_device is null)
         {
             return;
         }
         var shaderPath = ResolveShaderPath();
-        Compiler.CompileFromFile(shaderPath, null, null, "VSMain", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var vsBlob, out var vsError).CheckError();
-        Compiler.CompileFromFile(shaderPath, null, null, "PSMain", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var psBlob, out var psError).CheckError();
-        Compiler.CompileFromFile(shaderPath, null, null, "VSOverlay", "vs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayVsBlob, out var overlayVsError).CheckError();
-        Compiler.CompileFromFile(shaderPath, null, null, "GSWireLine", "gs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var wireGsBlob, out var wireGsError).CheckError();
-        Compiler.CompileFromFile(shaderPath, null, null, "GSVertexMarker", "gs_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var markerGsBlob, out var markerGsError).CheckError();
-        Compiler.CompileFromFile(shaderPath, null, null, "PSOverlay", "ps_5_0", ShaderFlags.EnableStrictness, EffectFlags.None, out var overlayPsBlob, out var overlayPsError).CheckError();
-        using (vsBlob)
-        using (psBlob)
-        using (vsError)
-        using (psError)
-        using (overlayVsBlob)
-        using (wireGsBlob)
-        using (markerGsBlob)
-        using (overlayPsBlob)
-        using (overlayVsError)
-        using (wireGsError)
-        using (markerGsError)
-        using (overlayPsError)
+        // Compiling all six stages from HLSL costs roughly 175 ms of every
+        // helper launch, and the source only changes when this tool is rebuilt.
+        // The cache key is the source hash, so an edited shader invalidates
+        // itself without any manual step.
+        var sourceKey = ShaderSourceKey(shaderPath);
+        try
         {
-            _vertexShader = _device.CreateVertexShader(vsBlob.BufferPointer.ToPointer(), vsBlob.BufferSize, null);
-            _pixelShader = _device.CreatePixelShader(psBlob.BufferPointer.ToPointer(), psBlob.BufferSize, null);
-            _overlayVertexShader = _device.CreateVertexShader(overlayVsBlob.BufferPointer.ToPointer(), overlayVsBlob.BufferSize, null);
-            _wireGeometryShader = _device.CreateGeometryShader(wireGsBlob.BufferPointer.ToPointer(), wireGsBlob.BufferSize, null);
-            _vertexMarkerGeometryShader = _device.CreateGeometryShader(markerGsBlob.BufferPointer.ToPointer(), markerGsBlob.BufferSize, null);
-            _overlayPixelShader = _device.CreatePixelShader(overlayPsBlob.BufferPointer.ToPointer(), overlayPsBlob.BufferSize, null);
-            var elements = new[]
-            {
-                new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
-                new InputElementDescription("NORMAL", 0, Format.R32G32B32_Float, 12, 0),
-                new InputElementDescription("TANGENT", 0, Format.R32G32B32_Float, 24, 0),
-                new InputElementDescription("BINORMAL", 0, Format.R32G32B32_Float, 36, 0),
-                new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 48, 0),
-            };
-            _inputLayout = _device.CreateInputLayout(elements, vsBlob);
-            _overlayInputLayout = _device.CreateInputLayout(
-                new[] { new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0) },
-                overlayVsBlob);
+            CreateShadersFromBytecode(LoadShaderBytecode(shaderPath, sourceKey, useCache: true));
         }
+        catch (Exception)
+        {
+            // A truncated or otherwise unusable cache entry must never block the
+            // renderer: drop it and compile from source once.
+            InvalidateShaderCache(sourceKey);
+            CreateShadersFromBytecode(LoadShaderBytecode(shaderPath, sourceKey, useCache: false));
+        }
+    }
+
+    private static string ShaderSourceKey(string shaderPath)
+    {
+        using var stream = File.OpenRead(shaderPath);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream))[..16];
+    }
+
+    private static ShaderBytecodeSet LoadShaderBytecode(string shaderPath, string sourceKey, bool useCache)
+    {
+        var stages = new byte[ShaderStages.Length][];
+        for (var index = 0; index < ShaderStages.Length; index++)
+        {
+            var (entry, profile) = ShaderStages[index];
+            stages[index] = ShaderStageBytecode(shaderPath, sourceKey, entry, profile, useCache);
+        }
+        return new ShaderBytecodeSet(stages[0], stages[1], stages[2], stages[3], stages[4], stages[5]);
+    }
+
+    private static byte[] ShaderStageBytecode(
+        string shaderPath,
+        string sourceKey,
+        string entryPoint,
+        string profile,
+        bool useCache)
+    {
+        var cachePath = Path.Combine(ShaderCacheDirectory, $"{sourceKey}.{entryPoint}.{profile}.cso");
+        if (useCache)
+        {
+            try
+            {
+                if (File.Exists(cachePath))
+                {
+                    var cached = File.ReadAllBytes(cachePath);
+                    if (cached.Length > 0)
+                    {
+                        return cached;
+                    }
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Fall through to a source compile.
+            }
+        }
+
+        Compiler.CompileFromFile(
+            shaderPath,
+            null,
+            null,
+            entryPoint,
+            profile,
+            ShaderFlags.EnableStrictness,
+            EffectFlags.None,
+            out var blob,
+            out var error).CheckError();
+        using (blob)
+        using (error)
+        {
+            var bytecode = blob.AsBytes();
+            PublishShaderCacheEntry(cachePath, bytecode);
+            return bytecode;
+        }
+    }
+
+    private static void PublishShaderCacheEntry(string cachePath, byte[] bytecode)
+    {
+        try
+        {
+            Directory.CreateDirectory(ShaderCacheDirectory);
+            var staging = cachePath + ".tmp";
+            File.WriteAllBytes(staging, bytecode);
+            File.Move(staging, cachePath, overwrite: true);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // A read-only or contended cache directory only costs the compile.
+        }
+    }
+
+    private static void InvalidateShaderCache(string sourceKey)
+    {
+        try
+        {
+            if (!Directory.Exists(ShaderCacheDirectory))
+            {
+                return;
+            }
+            foreach (var stale in Directory.EnumerateFiles(ShaderCacheDirectory, $"{sourceKey}.*"))
+            {
+                File.Delete(stale);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // Best effort; the source compile below is what actually matters.
+        }
+    }
+
+    private void CreateShadersFromBytecode(ShaderBytecodeSet bytecode)
+    {
+        if (_device is null)
+        {
+            return;
+        }
+        _vertexShader = _device.CreateVertexShader(bytecode.Vertex);
+        _pixelShader = _device.CreatePixelShader(bytecode.Pixel);
+        _overlayVertexShader = _device.CreateVertexShader(bytecode.OverlayVertex);
+        _wireGeometryShader = _device.CreateGeometryShader(bytecode.WireGeometry);
+        _vertexMarkerGeometryShader = _device.CreateGeometryShader(bytecode.MarkerGeometry);
+        _overlayPixelShader = _device.CreatePixelShader(bytecode.OverlayPixel);
+        var elements = new[]
+        {
+            new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0),
+            new InputElementDescription("NORMAL", 0, Format.R32G32B32_Float, 12, 0),
+            new InputElementDescription("TANGENT", 0, Format.R32G32B32_Float, 24, 0),
+            new InputElementDescription("BINORMAL", 0, Format.R32G32B32_Float, 36, 0),
+            new InputElementDescription("TEXCOORD", 0, Format.R32G32_Float, 48, 0),
+        };
+        _inputLayout = _device.CreateInputLayout(elements, bytecode.Vertex);
+        _overlayInputLayout = _device.CreateInputLayout(
+            new[] { new InputElementDescription("POSITION", 0, Format.R32G32B32_Float, 0, 0) },
+            bytecode.OverlayVertex);
     }
 
     private static string ResolveShaderPath()

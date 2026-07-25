@@ -207,7 +207,7 @@ internal sealed partial class ExperimentForm
             button.Enabled = !meshEdit
                 || string.Equals(view, "editable", StringComparison.OrdinalIgnoreCase);
             var active = string.Equals(_viewport.ActivePresentationPane, view, StringComparison.OrdinalIgnoreCase);
-            SetButtonLatched(button, active);
+            SetButtonAccent(button, active);
         }
     }
 

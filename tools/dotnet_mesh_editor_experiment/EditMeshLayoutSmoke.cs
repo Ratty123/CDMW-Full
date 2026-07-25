@@ -26,6 +26,30 @@ internal static class EditMeshLayoutSmoke
         Directory.CreateDirectory(
             Path.GetDirectoryName(reportPath)
                 ?? throw new InvalidOperationException("Layout report has no parent directory."));
+        try
+        {
+            return RunGate(args, reportPath);
+        }
+        catch (Exception ex)
+        {
+            // This gate runs headless from a WinExe, so an escaping exception
+            // would otherwise surface only as exit code 1 with no reason.
+            File.WriteAllText(
+                reportPath,
+                JsonSerializer.Serialize(
+                    new Dictionary<string, object?>
+                    {
+                        ["ok"] = false,
+                        ["error"] = ex.Message,
+                        ["error_type"] = ex.GetType().FullName,
+                    },
+                    new JsonSerializerOptions { WriteIndented = true }));
+            return 1;
+        }
+    }
+
+    private static int RunGate(string[] args, string reportPath)
+    {
 
         using var constructionSplit = new SplitContainer
         {
@@ -64,7 +88,7 @@ internal static class EditMeshLayoutSmoke
         using var classicRoot = new Panel { Name = "ClassicTools", Dock = DockStyle.Fill };
         using var compactRoot = new Panel
         {
-            Name = "BottomToolDeckTools",
+            Name = "ToolRailTools",
             Dock = DockStyle.Fill,
             Visible = false,
         };
@@ -241,13 +265,13 @@ internal static class EditMeshLayoutSmoke
             "Responsive Morph & Refit column thresholds changed.");
         Require(
             EditMeshLayoutContracts.DefaultInspectorWidth(1180) == 380
-                && EditMeshLayoutContracts.DefaultToolDeckHeight(760) == 280,
-            "The Bottom Tool Deck default proportions changed.");
+                && EditMeshLayoutContracts.DefaultToolRailPanelWidth(1180, 68) == 448,
+            "The tool rail default proportions changed.");
 
         var report = new Dictionary<string, object?>
         {
             ["ok"] = true,
-            ["classic_default"] = true,
+            ["tool_rail_default"] = true,
             ["round_trip_layout"] = "classic",
             ["same_control_instances"] = true,
             ["same_viewport_instance"] = true,
@@ -263,7 +287,8 @@ internal static class EditMeshLayoutSmoke
             ["default_1180x760"] = new Dictionary<string, int>
             {
                 ["inspector_width"] = EditMeshLayoutContracts.DefaultInspectorWidth(1180),
-                ["tool_deck_height"] = EditMeshLayoutContracts.DefaultToolDeckHeight(760),
+                ["tool_rail_dock_width"] =
+                    EditMeshLayoutContracts.DefaultToolRailPanelWidth(1180, 68),
             },
             ["zero_size_splitter_construction"] = true,
             ["renderer_started"] = false,

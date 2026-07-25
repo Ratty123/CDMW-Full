@@ -3120,7 +3120,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
             self.assertIn(event, host_source)
         self.assertIn('EditorEventRequested?.Invoke("stroke_begin"', input_source)
         self.assertIn('EditorEventRequested?.Invoke("stroke_update"', input_source)
-        self.assertIn('EditorEventRequested?.Invoke("stroke_end"', input_source)
+        # end and cancel share one exit so a gesture can only close once.
+        self.assertIn(
+            'EditorEventRequested?.Invoke(cancelled ? "stroke_cancel" : "stroke_end"',
+            input_source,
+        )
         self.assertIn("previous_stroke_id != newest_stroke_id", dispatcher_source)
         return
         source = _read("cdmw/ui/archive_browser/static_replacement_dialog_mesh_edit_callbacks.py")
