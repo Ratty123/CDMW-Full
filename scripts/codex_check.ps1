@@ -18,7 +18,9 @@ $TestsByArea = @{
         "tests/test_runtime_dependency_smoke.py",
         "tests/test_crash_reporting_guards.py",
         "tests/test_pyinstaller_temp_cleanup.py",
-        "tests/test_startup_archive_path_async.py"
+        "tests/test_startup_archive_path_async.py",
+        "tests/test_settings_tab_flush_persistence.py",
+        "tests/test_profile_controller.py"
     )
     responsiveness = @(
         "tests/test_ui_responsiveness_source_guards.py",
@@ -67,6 +69,7 @@ $TestsByArea = @{
         "tests/test_mesh_editor_action_bar.py",
         "tests/test_mesh_builder_runtime_wiring.py",
         "tests/test_mesh_builder_construction_lifecycle.py",
+        "tests/test_mesh_builder_construction_invariants.py",
         "tests/test_mesh_builder_preview_control_honesty.py",
         "tests/test_static_replacement_post_open_state.py",
         "tests/test_mesh_resident_editor_regressions.py",
@@ -76,6 +79,14 @@ $TestsByArea = @{
         "tests/test_mesh_harness_real_dotnet_evidence.py",
         "tests/test_mesh_dotnet_live_stroke_dispatch.py",
         "tests/test_mesh_deformer.py",
+        "tests/test_mesh_body_regions.py",
+        "tests/test_mesh_body_region_falloff.py",
+        "tests/test_mesh_body_region_sliders.py",
+        "tests/test_mesh_body_region_slider_native.py",
+        "tests/test_mesh_region_decompose.py",
+        "tests/test_mesh_body_region_atlas.py",
+        "tests/test_native_morph_field_generation.py",
+        "tests/test_pac_skin_layout_regression.py",
         "tests/test_mesh_selection_tools.py",
         "tests/test_archive_structured_asset_preview.py",
         "tests/test_rigging_binary_parsers.py"
@@ -144,7 +155,7 @@ if ($Area -eq "mesh-unit") {
 
     $LayoutRunId = [Guid]::NewGuid().ToString("N")
     $LayoutReport = Join-Path ([System.IO.Path]::GetTempPath()) "cdmw-edit-mesh-layout-$LayoutRunId.json"
-    $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net8.0-windows\cdmw-mesh-dotnet-editor.exe"
+    $DotNetHelper = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\bin\Release\net10.0-windows\cdmw-mesh-dotnet-editor.exe"
     $LayoutProcess = Start-Process `
         -FilePath $DotNetHelper `
         -ArgumentList @("--headless-edit-mesh-layout-smoke", "--layout-report", $LayoutReport) `
