@@ -1744,7 +1744,12 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         splash_start = source.index("class StartupSplashDialog")
         splash_block = source[splash_start:source.index("class StartupArchivePathDialog", splash_start)]
         self.assertIn("super().__init__(None)", splash_block)
-        self.assertIn("self.setWindowFlags(Qt.Window | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)", splash_block)
+        # Asserted flag by flag: the call carries more flags than these three and
+        # is wrapped across lines, neither of which changes what is guarded here.
+        flags_start = splash_block.index("self.setWindowFlags(")
+        flags_block = splash_block[flags_start:splash_block.index(")", flags_start)]
+        for flag in ("Qt.Window", "Qt.FramelessWindowHint", "Qt.WindowStaysOnTopHint"):
+            self.assertIn(flag, flags_block)
         self.assertIn("self.setModal(False)", splash_block)
         self.assertNotIn("Qt.SplashScreen", splash_block)
 
