@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 from cdmw.constants import APP_VERSION
@@ -22,12 +23,30 @@ def _documentation_files() -> tuple[Path, ...]:
     return tuple(sorted(set(files)))
 
 
-def test_project_memory_is_compact_and_only_current_plan_is_active() -> None:
+def _tracked_active_plans() -> set[str]:
+    """Names of plans under docs/plans/active that are committed to the repository.
+
+    Implementation plans are working notes, kept out of source control. Reading
+    the directory directly would assert on whichever plan the developer happens
+    to have open locally, which is not something this repository can own.
+    """
+
+    result = subprocess.run(
+        ["git", "ls-files", "docs/plans/active"],
+        cwd=ROOT,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+    return {Path(line).name for line in result.stdout.splitlines() if line.strip().endswith(".md")}
+
+
+def test_project_memory_is_compact_and_no_plan_is_committed() -> None:
     memory = ROOT / "docs" / "ai" / "PROJECT_MEMORY.md"
     assert len(memory.read_text(encoding="utf-8-sig").splitlines()) < 200
 
-    active = {path.name for path in (ROOT / "docs" / "plans" / "active").glob("*.md")}
-    assert active == set()
+    assert _tracked_active_plans() == set()
 
 
 def test_documented_markdown_paths_exist_and_deleted_plans_are_unreferenced() -> None:
