@@ -67,6 +67,7 @@ $TestsByArea = @{
         "tests/test_mesh_editor_action_bar.py",
         "tests/test_mesh_builder_runtime_wiring.py",
         "tests/test_mesh_builder_construction_lifecycle.py",
+        "tests/test_mesh_builder_preview_control_honesty.py",
         "tests/test_static_replacement_post_open_state.py",
         "tests/test_mesh_resident_editor_regressions.py",
         "tests/test_static_replacement_dotnet_presentation.py",
@@ -135,7 +136,7 @@ if ($PytestExitCode -ne 0) {
 
 if ($Area -eq "mesh-unit") {
     $DotNetProject = Join-Path $RepoRoot "tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj"
-    Write-Host "Building the resident .NET Mesh Editor for the Bottom Tool Deck construction gate"
+    Write-Host "Building the resident .NET Mesh Editor for the Edit Mesh Tool Rail construction gate"
     & dotnet build $DotNetProject -c Release --nologo --verbosity:minimal
     if ($LASTEXITCODE -ne 0) {
         exit $LASTEXITCODE
@@ -151,28 +152,34 @@ if ($Area -eq "mesh-unit") {
         -PassThru `
         -WindowStyle Hidden
     if ($LayoutProcess.ExitCode -ne 0) {
-        Write-Error "Bottom Tool Deck construction smoke failed with exit code $($LayoutProcess.ExitCode)."
+        Write-Error "Edit Mesh Tool Rail construction smoke failed with exit code $($LayoutProcess.ExitCode)."
         exit $LayoutProcess.ExitCode
     }
     if (-not (Test-Path -LiteralPath $LayoutReport)) {
-        Write-Error "Bottom Tool Deck construction smoke did not create '$LayoutReport'."
+        Write-Error "Edit Mesh Tool Rail construction smoke did not create '$LayoutReport'."
         exit 1
     }
     $LayoutPayload = Get-Content -LiteralPath $LayoutReport -Raw | ConvertFrom-Json
+    # Edit Mesh entered through Classic when this gate was written; it now opens
+    # in the Tool Rail and the smoke reports `tool_rail_default`. The gate kept
+    # asserting the removed `classic_default`, which is always $null, so
+    # `-not $null` failed every mesh-unit run after the rename.
     if (-not $LayoutPayload.ok `
-        -or -not $LayoutPayload.classic_default `
+        -or -not $LayoutPayload.tool_rail_default `
+        -or $LayoutPayload.round_trip_layout -ne "classic" `
         -or -not $LayoutPayload.same_control_instances `
         -or -not $LayoutPayload.same_viewport_instance `
         -or -not $LayoutPayload.same_viewport_handle `
+        -or -not $LayoutPayload.stable_viewport_parent `
         -or -not $LayoutPayload.zero_size_splitter_construction `
         -or $LayoutPayload.pages_visited.Count -ne 5 `
         -or $LayoutPayload.renderer_started `
         -or $LayoutPayload.visible_window_started) {
-        Write-Error "Bottom Tool Deck construction smoke returned an invalid report at '$LayoutReport'."
+        Write-Error "Edit Mesh Tool Rail construction smoke returned an invalid report at '$LayoutReport'."
         exit 1
     }
     Remove-Item -LiteralPath $LayoutReport
-    Write-Host "Bottom Tool Deck construction smoke passed."
+    Write-Host "Edit Mesh Tool Rail construction smoke passed."
 }
 
 exit 0
