@@ -1,10 +1,10 @@
 {
   "functions": {
-    "cdmw/ui/archive_browser/action_controls.py::ArchiveBrowserActionControlsMixin._update_archive_model_action_controls": 289,
+    "cdmw/ui/archive_browser/action_controls.py::ArchiveBrowserActionControlsMixin._update_archive_model_action_controls": 305,
     "cdmw/ui/archive_browser/actions.py::ArchiveBrowserActionMixin._show_archive_tree_context_menu": 209,
     "cdmw/ui/archive_browser/appearance_composite.py::ArchiveAppearanceCompositeMixin._prompt_appearance_composite_component_selection": 161,
     "cdmw/ui/archive_browser/asset_catalog_dialog.py::ArchiveAssetCatalogDialogMixin._show_archive_asset_catalog_dialog": 844,
-    "cdmw/ui/archive_browser/asset_family_panel.py::ArchiveAssetFamilyPanelMixin._populate_archive_texture_reference_list": 173,
+    "cdmw/ui/archive_browser/asset_family_panel.py::ArchiveAssetFamilyPanelMixin._populate_archive_texture_reference_list": 179,
     "cdmw/ui/archive_browser/asset_family_references.py::ArchiveAssetFamilyReferenceMixin._archive_known_used_by_references": 154,
     "cdmw/ui/archive_browser/attachment_batch.py::ArchiveAttachmentBatchMixin._open_archive_bulk_attachment_placement_dialog": 449,
     "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py::ArchiveAttachmentDonorPickerDialogMixin._open_archive_attachment_donor_picker_dialog": 1391,
@@ -39,18 +39,18 @@
     "cdmw/ui/archive_browser/mesh_swap_support.py::ArchiveMeshSwapSupportMixin._build_archive_swap_source_texture_evidence": 187,
     "cdmw/ui/archive_browser/mod_ready_export.py::ArchiveModReadyExportMixin._prompt_archive_mod_ready_export_target": 256,
     "cdmw/ui/archive_browser/preview_d3d11_parts.py::ArchivePreviewD3D11PartsMixin._populate_archive_d3d11_part_visibility_menu": 162,
-    "cdmw/ui/archive_browser/preview_layout.py::ArchivePreviewLayoutMixin._build_archive_preview_panel": 654,
-    "cdmw/ui/archive_browser/preview_memory.py::ArchivePreviewMemoryAuditMixin._archive_memory_audit_payload": 187,
-    "cdmw/ui/archive_browser/preview_result.py::ArchivePreviewResultMixin._show_archive_preview_result": 203,
+    "cdmw/ui/archive_browser/preview_layout.py::ArchivePreviewLayoutMixin._build_archive_preview_panel": 662,
+    "cdmw/ui/archive_browser/preview_memory.py::ArchivePreviewMemoryAuditMixin._archive_memory_audit_payload": 159,
+    "cdmw/ui/archive_browser/preview_result.py::ArchivePreviewResultMixin._show_archive_preview_result": 258,
     "cdmw/ui/archive_browser/preview_settings.py::ArchivePreviewSettingsMixin._read_model_preview_render_settings": 297,
     "cdmw/ui/archive_browser/reference_export.py::ArchiveReferenceExportMixin._prompt_archive_reference_selection": 154,
-    "cdmw/ui/archive_browser/reference_preview.py::ArchiveReferencePreviewMixin._open_archive_reference_preview_entry": 168,
+    "cdmw/ui/archive_browser/reference_preview.py::ArchiveReferencePreviewMixin._open_archive_reference_preview_entry": 169,
     "cdmw/ui/archive_browser/reference_preview.py::ArchiveReferencePreviewMixin._show_archive_reference_preview_dialog": 343,
     "cdmw/ui/archive_browser/scan_lifecycle.py::ArchiveScanLifecycleMixin._handle_archive_scan_complete": 333,
     "cdmw/ui/archive_browser/scan_lifecycle.py::ArchiveScanLifecycleMixin.scan_archives": 274,
     "cdmw/ui/archive_browser/source_mix_actions.py::ArchiveSourceMixActionsMixin._open_archive_source_mix_package_dialog": 316,
     "cdmw/ui/archive_browser/source_mix_overlay.py::ArchiveSourceMixOverlayMixin._open_archive_loose_mod_overlay_dialog": 438,
     "cdmw/ui/archive_browser/source_picker_dialog.py::ArchiveSourcePickerDialogMixin._choose_archive_mesh_source_dialog": 469,
-    "cdmw/ui/archive_browser/workers.py::ArchivePreviewWorkerMixin._flush_scheduled_archive_preview_request": 156
+    "cdmw/ui/archive_browser/workers.py::ArchivePreviewWorkerMixin._flush_scheduled_archive_preview_request": 160
   }
 }

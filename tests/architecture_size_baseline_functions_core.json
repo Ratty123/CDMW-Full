@@ -52,6 +52,7 @@
     "cdmw/core/research_texture_analysis.py::validate_normal_maps": 160,
     "cdmw/core/skeleton_resolver.py::resolve_skeleton_for_model": 163,
     "cdmw/core/texture_native.py::encode_dds_batch_with_directxtex": 217,
+    "cdmw/core/texture_native_preview_cache.py::_ensure_preview_batch_leased": 160,
     "cdmw/core/texture_pipeline/inspection.py::inspect_crimson_dds": 205,
     "cdmw/core/texture_pipeline/preflight.py::build_preflight_report_lines": 274,
     "cdmw/core/texture_pipeline/runtime_config.py::normalize_config": 216,
