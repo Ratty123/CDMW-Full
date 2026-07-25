@@ -171,6 +171,11 @@ class AssetAuthoringServiceTests(unittest.TestCase):
         # The console script in Scripts/ is a launcher shim, not the tool.
         self.assertIn('(root / "bin" / "oiiotool.exe").is_file()', spec_source)
         self.assertIn('elif PROFILE == "release":', spec_source)
+        # Following oiiotool.exe's imports makes PyInstaller re-collect the same
+        # DLLs at their package-relative path -- 15 MB in the built bundle that
+        # nothing can load, since the OpenImageIO Python module is not bundled
+        # and oiiotool reads its own directory.
+        self.assertIn('"OpenImageIO\\\\bin\\\\",', spec_source)
         for skipped in _BUNDLED_OPENIMAGEIO_SKIPPED:
             self.assertIn(skipped, spec_source)
         for notice in ("LICENSE.md", "THIRD-PARTY.md"):
