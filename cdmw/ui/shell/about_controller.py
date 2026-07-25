@@ -84,7 +84,7 @@ class AboutControllerMixin:
               <li><b>Research and Text Search</b>: inspect file families, references, strings, and notes.</li>
               <li><b>Profile, Settings, and Window</b>: portable app profiles, language/theme/performance preferences, and detachable work tabs.</li>
             </ul>
-            <p>Use the top <b>Documentation</b> menu for the full searchable guide.</p>
+            <p>Use <b>Help &gt; Documentation</b> for the full searchable guide.</p>
             """
 
     def _build_about_overview_html_es(self) -> str:
@@ -112,7 +112,7 @@ class AboutControllerMixin:
               <li><b>Investigacion y busqueda de texto</b>: inspeccion de familias de archivos, referencias, cadenas y notas.</li>
               <li><b>Perfil, configuracion y ventana</b>: perfiles portables, idioma, tema, rendimiento y pestanas separables.</li>
             </ul>
-            <p>Usa el menu superior <b>Documentacion</b> para abrir la guia completa con busqueda.</p>
+            <p>Usa <b>Ayuda &gt; Documentacion</b> para abrir la guia completa con busqueda.</p>
             """
 
     def _build_about_overview_html_de(self) -> str:
@@ -140,7 +140,7 @@ class AboutControllerMixin:
               <li><b>Recherche und Textsuche</b>: Dateifamilien, Referenzen, Strings und Notizen pruefen.</li>
               <li><b>Profil, Einstellungen und Fenster</b>: portable Profile, Sprache, Theme, Leistung und abtrennbare Arbeitstabs.</li>
             </ul>
-            <p>Nutze das obere Menue <b>Dokumentation</b> fuer die vollstaendige durchsuchbare Anleitung.</p>
+            <p>Nutze <b>Hilfe &gt; Dokumentation</b> fuer die vollstaendige durchsuchbare Anleitung.</p>
             """
 
     def _build_about_page(self) -> QWidget:

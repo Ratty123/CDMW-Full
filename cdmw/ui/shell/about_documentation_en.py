@@ -310,7 +310,7 @@ class AboutDocumentationEnglishMixin:
                 "keywords": "archive browser pamt paz scan preview filter extract patch mod ready mesh audio video text dds workflow research texture editor item finder dmm active mod shadowed placement hkx",
                 "html": """
                 <p><b>Archive Browser</b> is the in-app inspection surface for Crimson Desert package data. It can browse archives in flat or tree view, preview many supported formats directly, extract files, and for supported workflows either patch the game archives or write mod-ready loose output with confirmation and backup support.</p>
-                <div class="doc-callout doc-warning"><b>First scan note:</b> set <b>Settings &gt; Archive Locations &gt; Game / Package</b> first. Optional global sidecar indexing can take a long time because it reads many material sidecars to build reverse texture connections. If you enable it, let it complete; worker count and cache behavior are configured in <b>Settings &gt; Archive Browser Performance</b>.</div>
+                <div class="doc-callout doc-warning"><b>First scan note:</b> set <b>Settings &gt; Paths &gt; Archive Locations &gt; Game / Package</b> first. Optional global sidecar indexing can take a long time because it reads many material sidecars to build reverse texture connections. If you enable it, let it complete; worker count and cache behavior are configured in <b>Settings &gt; Performance</b>.</div>
                 <table>
                   <tr><th>Area</th><th>What it is for</th><th>Typical actions</th></tr>
                   <tr><td>Archive Files</td><td>Browsable index of package entries.</td><td>Filter, sort columns, resize columns, switch Flat/Folders/Categories, select files or folders, and read the <b>State</b> column for active mod/original/shadowed duplicate status.</td></tr>
@@ -538,9 +538,15 @@ class AboutDocumentationEnglishMixin:
                 <ul>
                   <li>An app profile is one app-wide snapshot, not a separate profile per tab. It includes per-tool preferences and detached window layout inside that one profile file.</li>
                   <li><b>Import Profile</b> restores the workflow config first, then reloads the saved app settings into the live Settings, Texture Replacer, and Texture Editor controls.</li>
+                  <li>Import rejects a file that carries neither configuration fields nor a settings snapshot, rather than accepting it and quietly resetting your setup to defaults. A profile whose settings snapshot is empty leaves the stored settings alone instead of clearing them.</li>
                   <li>Profiles do not save open archives, active documents, or per-tab project sessions.</li>
                   <li><b>Export Diagnostics</b> includes the same profile payload plus logs, cache summaries, chain analysis, crash context when available, a paste-ready issue summary, README, license, and third-party notices. Reports stay local until you export and share them.</li>
+                </ul>
+                <p>Settings has seven pages in its left-hand list: <b>Setup</b>, <b>Startup</b>, <b>Paths</b>, <b>Performance</b>, <b>Appearance</b>, <b>Layout</b>, and <b>Safety</b>.</p>
+                <ul>
+                  <li><b>Settings / Setup</b> holds workspace initialization, external tool discovery, and asset-authoring helper status.</li>
                   <li><b>Settings / Startup</b> controls archive auto-load, cache preference, and last-tab restore. Archive filters start neutral after launch.</li>
+                  <li><b>Settings / Paths</b> holds workflow roots, archive locations, game/package roots, and extraction roots.</li>
                   <li><b>Settings / Performance</b> controls workload presets, archive-list batching/native helper use, optional DDS related-file indexing, preview caches, and .NET/Vortice preview package caching.</li>
                   <li><b>Settings / Appearance</b> controls themes, built-in Spanish/German/custom language files, fonts, density, log colors, preview colors, and 3D graphics defaults.</li>
                   <li><b>Settings / Layout and Safety</b> control pane-size memory, cleanup confirmations, and extra local diagnostic context.</li>
@@ -560,7 +566,8 @@ class AboutDocumentationEnglishMixin:
                   <li><b>Reattach Current Tool</b> and <b>Reattach All Tools</b> return detached tools to their original tab groups.</li>
                   <li>Detached windows remember their geometry under <code>window/detached/&lt;tool&gt;/geometry</code>. The main window stores <code>window/geometry</code>.</li>
                   <li><b>Settings / Layout</b> controls whether pane sizes and splitters are remembered across sessions.</li>
-                  <li>Archive Browser, Texture Workflow, Texture Editor, Model Library, Icon Creator, Research, and Text Search can be restored from their placeholders or the Window menu.</li>
+                  <li>Every tool can be detached: Texture Workflow, Texture Replacer, Recolor Variants, Texture Editor, Archive Browser, Mesh Editor, Model Library, Research, Text Search, Icon Creator, Retrofit/Repackage, and Settings. Each one can be restored from its placeholder or the Window menu.</li>
+                  <li>The bottom half of the <b>Window</b> menu lists a <b>Show &lt;tool&gt;</b> entry per tool. It selects the tool's tab, or raises its window when the tool is detached.</li>
                 </ul>
                 """,
             },

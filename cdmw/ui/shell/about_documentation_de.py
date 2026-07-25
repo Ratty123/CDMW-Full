@@ -471,9 +471,15 @@ class AboutDocumentationGermanMixin:
                       <li><b>Profil importieren</b> stellt zuerst den Workflow wieder her und laedt danach die Einstellungen in Einstellungen, Textur-Ersetzer und Textur-Editor.</li>
                       <li>Profile speichern keine geoeffneten Archive, aktiven Dokumente oder Projekt-Sitzungen pro Tab.</li>
                       <li><b>Diagnosen exportieren</b> enthaelt dasselbe Profil, Logs, Cache-Zusammenfassung, chaiNNer-Analyse, Crash-Kontext wenn vorhanden, README, Lizenz und Drittanbieterhinweise.</li>
-                      <li><b>Einstellungen / Start</b>: Archiv-Autoload, Cache-Praeferenz, letzter Tab und Archivfilter.</li>
-                      <li><b>Einstellungen / Leistung</b>: Ressourcenprofil, Ansichtsbackend, UI-Budget, Worker, native Beschleunigung, Sidecar-Indexierung und .NET/Vortice-Cache.</li>
+                    </ul>
+                    <p>Einstellungen hat sieben Seiten in der linken Liste: <b>Setup</b>, <b>Start</b>, <b>Pfade</b>, <b>Leistung</b>, <b>Darstellung</b>, <b>Layout</b> und <b>Sicherheit</b>.</p>
+                    <ul>
+                      <li><b>Einstellungen / Setup</b>: Workspace anlegen, externe Werkzeuge finden und Status der Authoring-Helfer.</li>
+                      <li><b>Einstellungen / Start</b>: Archiv-Autoload, Cache-Praeferenz und Wiederherstellung des letzten Tabs. Archivfilter starten neutral.</li>
+                      <li><b>Einstellungen / Pfade</b>: Workflow-Wurzeln, Archivorte, Spiel-/Paketwurzel und Extraktionswurzel.</li>
+                      <li><b>Einstellungen / Leistung</b>: Workload-Preset, Batches der Archivliste, nativer Helfer, optionale Sidecar-Indexierung, Vorschau-Caches und .NET/Vortice-Paketcache.</li>
                       <li><b>Einstellungen / Darstellung</b>: Themes, integriertes Spanisch/Deutsch, eigene Sprachdateien, Schrift, Dichte, Farben und 3D-Werte.</li>
+                      <li><b>Einstellungen / Layout und Sicherheit</b>: Speicher fuer Pane-Groessen, Aufraeum-Bestaetigungen und zusaetzlicher lokaler Diagnosekontext.</li>
                     </ul>
                     <p>Sprachexport erzeugt JSON mit englischen Schluesseln. Schluessel unveraendert lassen und nur uebersetzte Werte bearbeiten.</p>
                     """,
@@ -490,6 +496,7 @@ class AboutDocumentationGermanMixin:
                       <li><b>Aktuelles Werkzeug wieder andocken</b> und <b>Alle Werkzeuge wieder andocken</b> bringen abgetrennte Werkzeuge in ihre urspruenglichen Tabgruppen zurueck.</li>
                       <li>Abgetrennte Geometrie wird unter <code>window/detached/&lt;tool&gt;/geometry</code> gespeichert; das Hauptfenster nutzt <code>window/geometry</code>.</li>
                       <li><b>Einstellungen / Layout</b> steuert, ob Pane-Groessen und Splitter sitzungsuebergreifend gespeichert werden.</li>
+                      <li>Die untere Haelfte des Menues <b>Fenster</b> listet je Werkzeug einen Eintrag <b>&lt;Werkzeug&gt; anzeigen</b>: er waehlt den Tab aus oder holt das abgetrennte Fenster nach vorn.</li>
                     </ul>
                     """,
                 },
