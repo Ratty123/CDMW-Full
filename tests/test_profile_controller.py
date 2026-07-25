@@ -163,6 +163,71 @@ def test_profile_document_load_is_cancellable_and_coerces_before_apply(tmp_path:
         )
 
 
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"settings": {}},
+        {"config": {}},
+        {"config": {}, "settings": {}},
+        {"app": "Crimson Desert Mod Workbench", "profile_format": 4, "theme": "midnight_ember"},
+    ],
+    ids=["empty", "empty-settings", "empty-config", "empty-both", "envelope-only"],
+)
+def test_profile_document_load_rejects_documents_with_nothing_to_restore(
+    tmp_path: Path,
+    payload: dict[str, object],
+) -> None:
+    """A degenerate document must not pass as a profile.
+
+    Importing one used to succeed and report "Profile imported", while actually
+    resetting every workflow path to defaults -- and, for an empty ``settings``
+    snapshot, clearing the whole app settings store on the replace pass.
+    """
+
+    source = tmp_path / "profile.json"
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="no profile data to import"):
+        load_profile_import_document(source, current_theme_key="graphite")
+
+
+def test_profile_document_load_accepts_legacy_bare_config_mapping(tmp_path: Path) -> None:
+    source = tmp_path / "legacy.ctfprofile.json"
+    source.write_text(json.dumps({"output_root": "D:/output"}), encoding="utf-8")
+
+    document = load_profile_import_document(source, current_theme_key="graphite")
+
+    assert document.config.output_root == "D:/output"
+    assert document.decoded_settings is None
+
+
+def test_profile_document_load_accepts_settings_only_profile(tmp_path: Path) -> None:
+    source = tmp_path / "settings-only.cdmwprofile.json"
+    source.write_text(
+        json.dumps({"config": {}, "settings": {"appearance/theme": "midnight_ember"}}),
+        encoding="utf-8",
+    )
+
+    document = load_profile_import_document(source, current_theme_key="graphite")
+
+    assert document.decoded_settings == (("appearance/theme", "midnight_ember"),)
+    assert document.theme_key == "midnight_ember"
+
+
+def test_profile_document_load_keeps_stored_settings_when_snapshot_is_empty(tmp_path: Path) -> None:
+    source = tmp_path / "config-only.cdmwprofile.json"
+    source.write_text(
+        json.dumps({"config": {"output_root": "D:/output"}, "settings": {}}),
+        encoding="utf-8",
+    )
+
+    document = load_profile_import_document(source, current_theme_key="graphite")
+
+    assert document.config.output_root == "D:/output"
+    assert document.decoded_settings is None
+
+
 def test_profile_import_handler_only_selects_confirms_and_dispatches(tmp_path: Path) -> None:
     source = tmp_path / "profile.json"
     source.write_text("{}", encoding="utf-8")
