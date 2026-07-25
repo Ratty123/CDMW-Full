@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from cdmw.app.startup_smoke import gui_startup_smoke_requested, write_gui_startup_smoke_result
 from cdmw.constants import APP_NAME, APP_ORGANIZATION, DEFAULT_UI_THEME
+from cdmw.services.bundled_helper_availability import bundled_helper_resolution_snapshot
 from cdmw.services.settings_service import create_settings
 from cdmw.ui.app_icon import load_app_icon
 from cdmw.ui.shell.icon_controller import AppWindowIconEventFilter
@@ -108,7 +109,12 @@ def finish_gui_startup_smoke_if_requested(window: object, app: QApplication) -> 
         _verify_mesh_builder_startup_smoke_target(window, app)
     elif target:
         raise RuntimeError(f"Unknown GUI startup smoke target: {target}")
-    write_gui_startup_smoke_result(ok=True, stage="post_construction", target=target)
+    write_gui_startup_smoke_result(
+        ok=True,
+        stage="post_construction",
+        target=target,
+        bundled_helpers=bundled_helper_resolution_snapshot(),
+    )
     window._finalize_close()
     return True
 

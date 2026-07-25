@@ -42,7 +42,45 @@ function Assert-PackagedStartupResult {
     if ([int64]$payload.pid -le 0) {
         throw "Packaged startup smoke result did not contain a valid process id."
     }
+    Assert-PackagedBundledHelpers -Payload $payload
     return $payload
+}
+
+
+function Assert-PackagedBundledHelpers {
+    param([Parameter(Mandatory = $true)]$Payload)
+
+    # Helpers the app ships with itself must resolve from inside the package.
+    # Nothing outside a packaged run can prove this: the payload directory and
+    # sys._MEIPASS only exist there, which is how OpenImageIO shipped for a
+    # while resolving out of the developer's virtualenv and reporting
+    # unavailable to every user.
+    # Set-StrictMode turns a missing property into a PropertyNotFoundException,
+    # so a result file written before this section existed would fail with that
+    # instead of the explanation below.
+    $helpers = $null
+    if ($Payload.PSObject.Properties.Name -contains "bundled_helpers") {
+        $helpers = $Payload.bundled_helpers
+    }
+    if ($null -eq $helpers) {
+        throw (
+            "Packaged startup smoke reported no bundled_helpers section. The packaged build " +
+            "cannot confirm that helpers shipping inside it actually resolve."
+        )
+    }
+    $helperList = @($helpers)
+    if ($helperList.Count -eq 0) {
+        throw "Packaged startup smoke reported an empty bundled_helpers list; expected at least one bundled helper."
+    }
+    $unresolved = @($helperList | Where-Object { [string]$_.status -ne "available" })
+    if ($unresolved.Count -gt 0) {
+        $rendered = ($unresolved | ForEach-Object { "{0}={1}" -f [string]$_.key, [string]$_.status }) -join ", "
+        throw "Bundled helpers did not resolve inside the package: $rendered"
+    }
+    $rendered = ($helperList | ForEach-Object {
+        "{0} ({1})" -f [string]$_.key, [string]$_.source
+    }) -join ", "
+    Write-Host "Bundled helpers resolved in package: $rendered"
 }
 
 

@@ -21,7 +21,8 @@ $TestsByArea = @{
         "tests/test_startup_archive_path_async.py",
         "tests/test_settings_tab_flush_persistence.py",
         "tests/test_profile_controller.py",
-        "tests/test_asset_authoring_service.py"
+        "tests/test_asset_authoring_service.py",
+        "tests/test_packaged_bundled_helper_reporting.py"
     )
     responsiveness = @(
         "tests/test_ui_responsiveness_source_guards.py",

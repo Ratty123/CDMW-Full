@@ -3,8 +3,9 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Optional
+from typing import Mapping, Optional
 
 
 GUI_STARTUP_SMOKE_ENV = "CDMW_GUI_STARTUP_SMOKE"
@@ -21,6 +22,7 @@ def write_gui_startup_smoke_result(
     stage: str,
     target: str = "",
     detail: str = "",
+    bundled_helpers: Optional[Sequence[Mapping[str, object]]] = None,
 ) -> Optional[Path]:
     result_text = os.environ.get(GUI_STARTUP_SMOKE_RESULT_ENV, "").strip()
     if not result_text:
@@ -37,6 +39,13 @@ def write_gui_startup_smoke_result(
     }
     if detail:
         payload["detail"] = str(detail)
+    if bundled_helpers is not None:
+        # How the helpers the app ships with itself resolved in this build. A
+        # packaged run is the only place that answers the question, because the
+        # payload directory and sys._MEIPASS only exist there.
+        payload["bundled_helpers"] = [
+            {str(key): str(value) for key, value in dict(helper).items()} for helper in bundled_helpers
+        ]
 
     descriptor, temp_name = tempfile.mkstemp(
         dir=result_path.parent,
