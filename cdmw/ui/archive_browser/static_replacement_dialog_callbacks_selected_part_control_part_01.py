@@ -483,15 +483,26 @@ def _selected_part_control_step_018(_state):
         if _state._active_mesh_edit_source_part_output_mutation_blocked('role change'):
             return
         _state._push_geometry_undo_snapshot(action_state.undo_label, metadata_only=True)
-        _state._set_source_role_override_value(action_state.source_index, action_state.normalized_role)
-        adjustment = _state.source_part_adjustments.get(action_state.source_index)
-        resident_updated = send_source_role_material_parameters(
-            _state.dialog,
-            action_state.source_index,
-            action_state.normalized_role,
-            getattr(adjustment, 'emissive_color_rgb', ()) if adjustment is not None else (),
-            emissive_strength=getattr(adjustment, 'emissive_strength', None) if adjustment is not None else None,
-        )
+        # The role applies to the whole selection. Assigning it to the current
+        # part alone left a multi-part selection unable to reach the glow
+        # controls, which require every selected part to carry the role.
+        try:
+            role_indices = tuple(_state._selected_source_indices_from_tree())
+        except (AttributeError, RuntimeError, TypeError, ValueError):
+            role_indices = ()
+        if action_state.source_index not in role_indices:
+            role_indices = (*role_indices, action_state.source_index)
+        resident_updated = False
+        for role_index in role_indices:
+            _state._set_source_role_override_value(role_index, action_state.normalized_role)
+            role_adjustment = _state.source_part_adjustments.get(role_index)
+            resident_updated = send_source_role_material_parameters(
+                _state.dialog,
+                role_index,
+                action_state.normalized_role,
+                getattr(role_adjustment, 'emissive_color_rgb', ()) if role_adjustment is not None else (),
+                emissive_strength=getattr(role_adjustment, 'emissive_strength', None) if role_adjustment is not None else None,
+            ) or resident_updated
         _state._load_part_glow_color_controls(_state.source_part_adjustments.get(action_state.source_index))
         _state._refresh_source_assignment_columns(lightweight=True)
         try:
@@ -512,7 +523,9 @@ def _selected_part_control_step_019(_state):
             selected_indices = tuple(_state._selected_source_indices_from_tree())
         except (AttributeError, RuntimeError, TypeError, ValueError):
             selected_indices = ()
-        if len(selected_indices) != 1:
+        # Every selected glow part is edited; _apply_current_glow_color_to_role_overrides
+        # skips any that do not carry the role.
+        if not selected_indices:
             return
         if callable(_state._ensure_material_authority_route_active):
             _state._ensure_material_authority_route_active('source_part_glow_edit')

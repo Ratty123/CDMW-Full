@@ -19,6 +19,7 @@ from .mesh_deformer import (
     split_faces_to_submesh,
     subdivide_faces_touching_vertices,
 )
+from .mesh_totals import refresh_mesh_totals  # noqa: F401  (compatibility re-export)
 from .mesh_native_core import (
     apply_native_mesh_auto_uv,
     apply_native_mesh_bridge,
@@ -299,16 +300,6 @@ def _stop_event(params: Mapping[str, object]) -> object | None:
 def _native_kwargs(params: Mapping[str, object]) -> dict[str, object]:
     stop_event = _stop_event(params)
     return {"stop_event": stop_event} if stop_event is not None else {}
-
-
-def refresh_mesh_totals(mesh: ParsedMesh) -> None:
-    mesh.total_vertices = sum(len(submesh.vertices or []) for submesh in mesh.submeshes or [])
-    mesh.total_faces = sum(len(submesh.faces or []) for submesh in mesh.submeshes or [])
-    mesh.has_uvs = any(bool(submesh.uvs) for submesh in mesh.submeshes or [])
-    mesh.has_bones = any(bool(submesh.bone_indices) or bool(submesh.bone_weights) for submesh in mesh.submeshes or [])
-    for submesh in mesh.submeshes or []:
-        submesh.vertex_count = len(submesh.vertices or [])
-        submesh.face_count = len(submesh.faces or [])
 
 
 def _vec2(value: object, fallback: Vec2 = (0.0, 0.0)) -> Vec2:

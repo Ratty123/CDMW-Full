@@ -290,3 +290,95 @@ def test_keeping_original_support_still_wins_over_the_height_cap_gate() -> None:
         "displacement_scale_multiplier"
     ]
     assert "displacement_scale_max" in reasons
+
+
+
+def _glow_callbacks(adjustments, selected):
+    """Build the real glow callbacks over stub widgets and a controlled selection."""
+    from PySide6.QtWidgets import QCheckBox, QDoubleSpinBox, QPushButton, QSpinBox
+
+    from cdmw.ui.archive_browser.static_replacement_dialog_routing_callbacks import (
+        create_alignment_source_part_glow_callbacks,
+    )
+    from cdmw.ui.archive_browser.static_replacement_source_part_controls_state import (
+        source_part_glow_color_controls_state,
+        source_part_glow_rgb,
+    )
+
+    widgets = {
+        "part_glow_color_checkbox": QCheckBox(),
+        "part_glow_color_pick_button": QPushButton(),
+        "part_glow_color_spins": tuple(QSpinBox() for _ in range(3)),
+        "part_glow_strength_checkbox": QCheckBox(),
+        "part_glow_strength_spin": QDoubleSpinBox(),
+    }
+    for spin in widgets["part_glow_color_spins"]:
+        spin.setRange(0, 255)
+    widgets["part_glow_strength_spin"].setRange(0.0, 20.0)
+
+    context = {
+        **widgets,
+        "StaticSourcePartAdjustment": None,
+        "_complete_external_swap_enabled": lambda: True,
+        "_source_part_glow_color_controls_state_helper": source_part_glow_color_controls_state,
+        "_source_part_glow_rgb_helper": source_part_glow_rgb,
+        "_selected_source_indices_from_tree": lambda *_a, **_k: tuple(selected),
+        "selected_source_part": {"index": -1},
+        "source_part_adjustments": adjustments,
+        "prompt_shell_context": None,
+    }
+    return create_alignment_source_part_glow_callbacks(context), widgets
+
+
+def test_glow_controls_enable_for_a_multi_part_selection() -> None:
+    """Glow authoring used to require exactly one selected part.
+
+    The controls disabled themselves for any multi-selection, so selecting
+    several glow parts left them unauthorable with no way forward.
+    """
+    from types import SimpleNamespace
+
+    adjustments = {
+        0: SimpleNamespace(material_role="glow", emissive_color_rgb=(10, 20, 30), emissive_strength=1.0),
+        1: SimpleNamespace(material_role="glow", emissive_color_rgb=(10, 20, 30), emissive_strength=1.0),
+        2: SimpleNamespace(material_role="geometry", emissive_color_rgb=(), emissive_strength=None),
+        3: SimpleNamespace(material_role="glow", emissive_color_rgb=(90, 0, 0), emissive_strength=4.0),
+    }
+    selected: list[int] = []
+    callbacks, widgets = _glow_callbacks(adjustments, selected)
+    checkbox = widgets["part_glow_color_checkbox"]
+
+    try:
+        selected[:] = [0, 1]
+        callbacks._refresh_part_glow_color_controls_enabled()
+        assert checkbox.isEnabled(), checkbox.toolTip()
+        assert "2 selected parts" in checkbox.toolTip()
+        assert "differ" not in checkbox.toolTip()
+
+        # Selected parts holding different glow values say so before overwriting.
+        selected[:] = [0, 3]
+        callbacks._refresh_part_glow_color_controls_enabled()
+        assert checkbox.isEnabled()
+        assert "differ" in checkbox.toolTip()
+
+        # A non-glow part in the selection blocks editing and names the count.
+        selected[:] = [0, 2]
+        callbacks._refresh_part_glow_color_controls_enabled()
+        assert not checkbox.isEnabled()
+        assert "1 of 2" in checkbox.toolTip()
+
+        # A single glow part still works and needs no explanation.
+        selected[:] = [0]
+        callbacks._refresh_part_glow_color_controls_enabled()
+        assert checkbox.isEnabled()
+
+        selected[:] = []
+        callbacks._refresh_part_glow_color_controls_enabled()
+        assert not checkbox.isEnabled()
+        assert "at least one" in checkbox.toolTip()
+    finally:
+        for widget in (*widgets["part_glow_color_spins"], *(
+            value for key, value in widgets.items() if key != "part_glow_color_spins"
+        )):
+            widget.deleteLater()
+        _APPLICATION.processEvents()

@@ -356,6 +356,111 @@ def source_part_glow_emissive_update_states(
     )
 
 
+def source_part_glow_emissive_update_states_for_sources(
+    source_part_adjustments: Mapping[int, object],
+    *,
+    source_indices: Sequence[object],
+    rgb: Sequence[object],
+    use_color: bool,
+    strength: object = 1.0,
+    use_strength: bool = False,
+) -> tuple[SourcePartGlowEmissiveUpdateState, ...]:
+    """Resolve one glow update per selected part that actually changes.
+
+    Glow authoring used to refuse any selection other than a single part, so a
+    multi-part selection silently edited nothing. Parts without the glow role
+    are skipped rather than promoted, and unchanged parts produce no state.
+    """
+    seen: set[int] = set()
+    updates: list[SourcePartGlowEmissiveUpdateState] = []
+    for raw_index in tuple(source_indices or ()):
+        try:
+            normalized_index = int(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if normalized_index < 0 or normalized_index in seen:
+            continue
+        seen.add(normalized_index)
+        updates.extend(
+            source_part_glow_emissive_update_states(
+                source_part_adjustments,
+                source_index=normalized_index,
+                rgb=rgb,
+                use_color=use_color,
+                strength=strength,
+                use_strength=use_strength,
+            )
+        )
+    return tuple(updates)
+
+
+def source_part_glow_selection_state(
+    source_part_adjustments: Mapping[int, object],
+    source_indices: Sequence[object],
+) -> dict[str, object]:
+    """Classify a glow selection for the enable state and its reason text."""
+    normalized: list[int] = []
+    seen: set[int] = set()
+    for raw_index in tuple(source_indices or ()):
+        try:
+            value = int(raw_index)
+        except (TypeError, ValueError, OverflowError):
+            continue
+        if value >= 0 and value not in seen:
+            seen.add(value)
+            normalized.append(value)
+    glow_indices = tuple(
+        index
+        for index in normalized
+        if str(
+            getattr(source_part_adjustments.get(index), "material_role", "") or ""
+        ).strip().lower()
+        == "glow"
+    )
+    non_glow_count = len(normalized) - len(glow_indices)
+    colors = {
+        tuple(getattr(source_part_adjustments.get(index), "emissive_color_rgb", ()) or ())
+        for index in glow_indices
+    }
+    strengths = {
+        getattr(source_part_adjustments.get(index), "emissive_strength", None)
+        for index in glow_indices
+    }
+    return {
+        "selected_count": len(normalized),
+        "glow_indices": glow_indices,
+        "non_glow_count": non_glow_count,
+        "editable": bool(normalized) and non_glow_count == 0,
+        "mixed_values": len(colors) > 1 or len(strengths) > 1,
+    }
+
+
+def source_part_glow_reason_text(
+    selection_state: Mapping[str, object],
+    *,
+    material_authority_active: bool,
+) -> str:
+    selected_count = int(selection_state.get("selected_count") or 0)
+    non_glow_count = int(selection_state.get("non_glow_count") or 0)
+    if selected_count <= 0:
+        return "Select at least one source part to edit glow."
+    if non_glow_count > 0:
+        return (
+            f"Assign Glow / emissive to every selected part first; "
+            f"{non_glow_count} of {selected_count} do not use it."
+        )
+    if not material_authority_active:
+        return "Material Authority activates automatically on the first glow edit."
+    if selected_count > 1:
+        suffix = (
+            " Selected parts differ, so editing overwrites them all."
+            if bool(selection_state.get("mixed_values"))
+            else ""
+        )
+        return f"Editing glow for {selected_count} selected parts.{suffix}"
+    return ""
+
+
 def source_part_glow_color_action_state() -> SourcePartGlowColorActionState:
     return SourcePartGlowColorActionState(
         undo_action="glow",
@@ -468,6 +573,9 @@ __all__ = [
     "source_part_adjustment_values_changed",
     "source_part_glow_color_action_state",
     "source_part_glow_emissive_update_states",
+    "source_part_glow_emissive_update_states_for_sources",
+    "source_part_glow_reason_text",
+    "source_part_glow_selection_state",
     "source_part_material_adjustment_state",
     "source_part_material_adjustment_values_changed",
     "source_part_role_action_state",

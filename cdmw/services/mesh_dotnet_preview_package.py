@@ -17,7 +17,7 @@ from pathlib import Path
 from cdmw.domain.cancellation import RunCancelled
 from cdmw.models import ModelPreviewData, ModelPreviewMesh
 from cdmw.modding.mesh_deformer import copy_extra_submesh_attrs
-from cdmw.modding.mesh_edit_ops import refresh_mesh_totals
+from cdmw.modding.mesh_totals import refresh_mesh_totals
 from cdmw.modding.mesh_parser import ParsedMesh, SubMesh
 from cdmw.rendering.dotnet_preview_package_cache import (
     create_dotnet_preview_package_staging_dir,

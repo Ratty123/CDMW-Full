@@ -7,6 +7,10 @@ from types import SimpleNamespace
 from cdmw.ui.archive_browser.static_replacement_dialog_factory_runtime import (
     run_static_replacement_factory,
 )
+from cdmw.ui.archive_browser.static_replacement_source_part_adjustment_state import (
+    source_part_glow_reason_text,
+    source_part_glow_selection_state,
+)
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_routing_dialog_layout_part_01 as _routing_dialog_layout_part_01
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_routing_source_part_geometry_action_part_01 as _routing_source_part_geometry_action_part_01
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_routing_complete_swap_part_01 as _routing_complete_swap_part_01
@@ -613,12 +617,18 @@ def create_alignment_source_part_glow_callbacks(context: dict[str, object]) -> S
         if not spins or checkbox is None or pick_button is None:
             return
         selected_indices = _selected_glow_source_indices()
-        adjustment = source_part_adjustments.get(selected_indices[0]) if len(selected_indices) == 1 else None
-        glow_role = str(getattr(adjustment, 'material_role', '') or '').strip().lower() == 'glow'
+        # Glow used to require exactly one selected part, so a multi-part
+        # selection silently edited nothing. Any selection is editable as long
+        # as every part in it carries the glow role.
+        selection_state = source_part_glow_selection_state(
+            source_part_adjustments,
+            selected_indices,
+        )
         try:
-            can_override = bool(_complete_external_swap_enabled()) and len(selected_indices) == 1 and glow_role
+            material_authority_active = bool(_complete_external_swap_enabled())
         except Exception:
-            can_override = len(selected_indices) == 1 and glow_role
+            material_authority_active = True
+        can_override = bool(selection_state["editable"]) and material_authority_active
         checkbox.setEnabled(can_override)
         controls_state = _source_part_glow_color_controls_state_helper(
             rgb=_selected_part_glow_rgb_from_controls(),
@@ -633,14 +643,9 @@ def create_alignment_source_part_glow_callbacks(context: dict[str, object]) -> S
             strength_checkbox.setEnabled(can_override)
         if strength_spin is not None:
             strength_spin.setEnabled(bool(can_override and strength_checkbox is not None and strength_checkbox.isChecked()))
-        reason = (
-            'Select exactly one source part to edit glow.'
-            if len(selected_indices) != 1
-            else 'Assign Glow / emissive to this part first.'
-            if not glow_role
-            else 'Material Authority activates automatically on the first glow edit.'
-            if not bool(_complete_external_swap_enabled())
-            else ''
+        reason = source_part_glow_reason_text(
+            selection_state,
+            material_authority_active=material_authority_active,
         )
         for widget in (checkbox, pick_button, *spins, strength_checkbox, strength_spin):
             if widget is not None and reason and callable(getattr(widget, 'setToolTip', None)):
