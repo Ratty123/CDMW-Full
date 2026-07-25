@@ -162,6 +162,13 @@ def _decode_mode_for_input(input_item: PreviewMaterialTextureInput) -> str:
         return subtype
     if subtype in {"orm", "rma", "mra", "arm"}:
         return subtype
+    if subtype in {"color_blending_mask", "colorblendingmask"} or channels[:1] == ("blend",):
+        # A colour-blending mask is a layer selector: its channels are one-hot
+        # weights choosing which grime/detail layer applies, not surface
+        # response.  Untagged ones were falling through to ``packed_mask``, whose
+        # output flags emit roughness and specular, so a layer weight was decoded
+        # as a surface property and then composited over the real material.
+        return "color_blending_mask"
     if channels:
         return "packed_mask"
     return "generic"
@@ -479,6 +486,81 @@ def _select_material_candidates_for_payload(
     return tuple(selected), max(0, len(material_candidates) - len(selected))
 
 
+# Decode modes whose response is a plain per-channel affine ramp.  Both the
+# scalar and the array decoder evaluate these same entries, so the fast path
+# cannot drift away from the reference implementation.
+#
+# Each slot is (term, offset, gain, low, high) and resolves to
+# ``clamp(offset + gain * term, low, high)``.  ``term`` names one of the decoded
+# inputs: a channel, ``variance``, ``average`` or the constant ``one``.
+_AFFINE_DECODE_MODES: dict[str, dict[str, Tuple[str, float, float, float, float]]] = {
+    # ``_sp`` layout: R occlusion, G roughness, B metal.  ``standard_v2_material``
+    # and ``standard_v2_specular`` read the same texture and so decode alike.
+    "standard_v2_material": {
+        "ao": ("r", 0.0, 1.0, 0.0, 1.0),
+        "roughness": ("g", 0.0, 1.0, 0.04, 1.0),
+        "metalness": ("b_minus_18", 0.0, 1.22, 0.0, 0.92),
+        "specular": ("b", 0.04, 0.84, 0.04, 0.88),
+    },
+    "standard_v2_specular": {
+        "ao": ("r", 0.0, 1.0, 0.0, 1.0),
+        "roughness": ("g", 0.0, 1.0, 0.04, 1.0),
+        "metalness": ("b_minus_18", 0.0, 1.22, 0.0, 0.92),
+        "specular": ("b", 0.04, 0.84, 0.04, 0.88),
+    },
+    "hair_material": {
+        "ao": ("r", 0.0, 1.0, 0.0, 1.0),
+        "roughness": ("g", 0.0, 1.0, 0.04, 1.0),
+        "metalness": ("one", 0.0, 0.0, 0.0, 0.0),
+        "specular": ("variance", 0.05, 0.14, 0.05, 0.20),
+    },
+    "packed_mask": {
+        "ao": ("r", 1.0, -0.18, 0.78, 1.0),
+        "roughness": ("g", 0.24, 0.56, 0.10, 0.96),
+        "metalness": ("b", 0.0, 0.18, 0.0, 0.35),
+        "specular": ("b", 0.04, 0.30, 0.04, 0.44),
+    },
+    "detail_mask": {
+        "ao": ("r", 1.0, -0.18, 0.78, 1.0),
+        "roughness": ("g", 0.24, 0.56, 0.10, 0.96),
+        "metalness": ("b", 0.0, 0.18, 0.0, 0.35),
+        "specular": ("b", 0.04, 0.30, 0.04, 0.44),
+    },
+    "generic": {
+        "ao": ("one", 1.0, 0.0, 1.0, 1.0),
+        "roughness": ("one", 0.58, 0.0, 0.58, 0.58),
+        "metalness": ("one", 0.0, 0.0, 0.0, 0.0),
+        "specular": ("variance", 0.04, 0.24, 0.04, 0.42),
+    },
+}
+
+_AFFINE_SLOT_ORDER = ("ao", "roughness", "metalness", "specular")
+
+
+def affine_decode_mode_terms(mode: str) -> Optional[dict[str, Tuple[str, float, float, float, float]]]:
+    """Return the affine coefficient table for ``mode``, or ``None``."""
+
+    return _AFFINE_DECODE_MODES.get(str(mode or "").strip().lower())
+
+
+def _affine_decode_terms(
+    r: float,
+    g: float,
+    b: float,
+    a: float,
+) -> dict[str, float]:
+    return {
+        "r": r,
+        "g": g,
+        "b": b,
+        "a": a,
+        "b_minus_18": max(0.0, b - 0.18),
+        "variance": max(max(r, g, b, a) - min(r, g, b, a), 0.0),
+        "average": (r * 0.3333) + (g * 0.3333) + (b * 0.3334),
+        "one": 1.0,
+    }
+
+
 def decode_material_sample(
     red: float,
     green: float,
@@ -490,6 +572,16 @@ def decode_material_sample(
     g = _clamp(green)
     b = _clamp(blue)
     a = _clamp(alpha)
+    mode = str(decode_mode or "generic").strip().lower()
+    affine = _AFFINE_DECODE_MODES.get(mode)
+    if affine is not None:
+        # Shared with the array decoder so the two cannot diverge.
+        terms = _affine_decode_terms(r, g, b, a)
+        values = []
+        for slot in _AFFINE_SLOT_ORDER:
+            term, offset, gain, low, high = affine[slot]
+            values.append(min(max(offset + gain * terms[term], low), high))
+        return values[0], values[1], values[2], values[3]
     average = (r * 0.3333) + (g * 0.3333) + (b * 0.3334)
     peak = max(r, g, b, a)
     minimum = min(r, g, b, a)
@@ -497,8 +589,9 @@ def decode_material_sample(
     ao = 1.0
     roughness = 0.58
     metalness = 0.0
-    specular = _clamp(0.12 + (variance * 0.24), 0.05, 0.42)
-    mode = str(decode_mode or "generic").strip().lower()
+    # Unclassified input: start from the physical dielectric reflectance rather
+    # than a 0.12 floor, so an unrecognised map cannot add shine on its own.
+    specular = _clamp(0.04 + (variance * 0.24), 0.04, 0.42)
     if mode == "specular":
         specular = _clamp(max(r, g, b), 0.06, 1.0)
         roughness = _clamp(1.0 - max(g, average), 0.08, 0.92)
@@ -538,12 +631,14 @@ def decode_material_sample(
     elif mode == "material_mask":
         ao = _clamp(1.0 - (r * 0.30), 0.65, 1.0)
         roughness = _clamp(0.28 + (g * 0.56), 0.10, 0.96)
-        specular = _clamp(0.10 + (b * 0.34) + (a * 0.10), 0.05, 0.46)
+        # Specular tracks the metal channel from the dielectric floor upward
+        # instead of starting above it.
+        specular = _clamp(0.04 + (b * 0.40), 0.04, 0.46)
         metalness = _clamp(b * 0.28, 0.0, 0.55)
     elif mode == "material_response":
         ao = _clamp(1.0 - (r * 0.20), 0.70, 1.0)
         roughness = _clamp(0.16 + ((1.0 - g) * 0.72), 0.08, 0.96)
-        specular = _clamp(0.12 + (max(b, a) * 0.42), 0.05, 0.62)
+        specular = _clamp(0.04 + (max(b, a) * 0.50), 0.04, 0.62)
         metalness = _clamp((b * 0.24) + (a * 0.16), 0.0, 0.58)
     elif mode == "skin_material":
         roughness = _clamp(0.34 + ((1.0 - max(g, average)) * 0.42), 0.24, 0.92)
@@ -555,16 +650,32 @@ def decode_material_sample(
         specular = _clamp(0.05 + (variance * 0.16), 0.03, 0.24)
         metalness = 0.0
     elif mode == "hair_material":
-        roughness = _clamp(0.22 + ((1.0 - average) * 0.52), 0.12, 0.88)
-        specular = _clamp(0.10 + (max(b, a) * 0.34) + (variance * 0.16), 0.05, 0.54)
+        # Hair ``_sp`` follows the same layout, so G is roughness rather than
+        # glossiness.  Inverting an average of all three channels pushed glossy
+        # hair (G ~= 0.29) out to 0.52 and washed away the strand highlights that
+        # make hair legible at all.
+        ao = _clamp(r, 0.0, 1.0)
+        roughness = _clamp(g, 0.04, 1.0)
+        # Hair is a dielectric, so the old 0.10..0.54 range gave it several times
+        # the physical reflectance and made beards read as wet plastic.  It does
+        # carry a real strand sheen though, so keep a modest lobe above the plain
+        # dielectric floor.
+        specular = _clamp(0.05 + (variance * 0.14), 0.05, 0.20)
         metalness = 0.0
     elif mode == "standard_v2_specular":
         # Real-PAC ``_sp`` maps keep R/A at an opaque control value.  Treating
         # max(RGBA) as specular therefore made every cloth/leather pixel fully
         # glossy and inverted the actual G roughness response.  G is the
         # direct roughness signal; B carries the metal/specular response.
-        roughness = _clamp(0.18 + (g * 0.68), 0.08, 0.96)
-        specular = _clamp(0.08 + (b * 0.80), 0.08, 0.88)
+        #
+        # G passes through at full range: remapping it into 0.18..0.86 cost a
+        # third of the authored contrast and pushed polished metal (G ~= 0.2)
+        # up toward the mid-grey that made every surface look alike.  Specular
+        # bottoms out at the physical dielectric reflectance so a zero metal
+        # channel cannot produce shine.
+        ao = _clamp(r, 0.0, 1.0)
+        roughness = _clamp(g, 0.04, 1.0)
+        specular = _clamp(0.04 + (b * 0.84), 0.04, 0.88)
         metalness = _clamp(max(0.0, b - 0.18) * 1.22, 0.0, 0.92)
     elif mode == "standard_v2_mask":
         ao = _clamp(1.0 - (r * 0.16), 0.72, 1.0)
@@ -572,10 +683,18 @@ def decode_material_sample(
         metalness = _clamp(max(0.0, b - (r * 0.20)) * 0.46, 0.0, 0.64)
         specular = _clamp(0.10 + (a * 0.38) + (b * 0.16) + (variance * 0.12), 0.05, 0.62)
     elif mode == "standard_v2_material":
-        ao = _clamp(1.0 - (r * 0.22), 0.68, 1.0)
-        roughness = _clamp(0.18 + (g * 0.68), 0.06, 0.96)
-        metalness = _clamp(max(0.0, b - (r * 0.12)) * 0.58, 0.0, 0.78)
-        specular = _clamp(0.12 + (a * 0.52) + (b * 0.22) + (variance * 0.10), 0.05, 0.78)
+        # Same ``_sp`` layout as ``standard_v2_specular`` -- R occlusion, G
+        # roughness, B metal -- so it has to decode the same way.  The previous
+        # form misread three of the four channels: ``1.0 - r * 0.22`` darkened
+        # every surface by a fifth because R is occlusion and sits at 1.0 when
+        # unauthored, ``a * 0.52`` handed every opaque texel a 0.64 reflectance
+        # (A is an opaque control value, not signal) which was the main source of
+        # shine on cloth and leather, and ``* 0.58`` capped a fully metal texel
+        # at 0.51 so metal could never read as metal.
+        ao = _clamp(r, 0.0, 1.0)
+        roughness = _clamp(g, 0.04, 1.0)
+        metalness = _clamp(max(0.0, b - 0.18) * 1.22, 0.0, 0.92)
+        specular = _clamp(0.04 + (b * 0.84), 0.04, 0.88)
     elif mode == "standard_v2_detail":
         ao = _clamp(1.0 - (r * 0.10), 0.80, 1.0)
         roughness = _clamp(0.28 + (average * 0.52), 0.10, 0.96)
@@ -589,7 +708,10 @@ def decode_material_sample(
     elif mode in {"packed_mask", "detail_mask"}:
         ao = _clamp(1.0 - (r * 0.18), 0.78, 1.0)
         roughness = _clamp(0.24 + (g * 0.56), 0.10, 0.96)
-        specular = _clamp(0.10 + (b * 0.26) + (a * 0.12), 0.04, 0.44)
+        # Alpha is opaque on these packed masks, so the old ``a * 0.12`` term was
+        # a constant lift applied to every texel.  Track the metal channel from
+        # the dielectric floor instead.
+        specular = _clamp(0.04 + (b * 0.30), 0.04, 0.44)
         metalness = _clamp(b * 0.18, 0.0, 0.35)
     elif mode in {"orm", "arm"}:
         ao = _clamp(r, 0.45, 1.0)

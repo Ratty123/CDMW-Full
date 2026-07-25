@@ -617,7 +617,10 @@ internal sealed partial class D3D11MaterialViewport : Control
         BeginOverlayFrame();
         // The render target is sRGB. Supply the workbench background in linear
         // space so enabling correct material output does not brighten the UI.
-        _context.ClearRenderTargetView(_renderTargetView, new Color4(0.00598f, 0.00719f, 0.01002f, 1.0f));
+        var background = _presentationSettings.BackgroundColor;
+        _context.ClearRenderTargetView(
+            _renderTargetView,
+            new Color4(background.X, background.Y, background.Z, 1.0f));
         _context.ClearDepthStencilView(_depthStencilView, DepthStencilClearFlags.Depth, 1.0f, 0);
         var previousCamera = _camera;
         var previousShowSolid = ShowSolid;

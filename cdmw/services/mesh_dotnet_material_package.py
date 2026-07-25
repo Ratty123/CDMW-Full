@@ -58,6 +58,10 @@ _GENERATED_SUPPORT_CHANNELS = _GENERATED_LINEAR_CHANNELS - {"normal"}
 _DOMINANT_EQUIPMENT_METAL_Q50_MIN = 0.35
 _DOMINANT_EQUIPMENT_METAL_Q90_MIN = 0.40
 _DOMINANT_EQUIPMENT_METAL_COVERAGE_MIN = 0.50
+# A decoded metal channel this low across the whole submesh is positive evidence
+# of a dielectric rather than an absence of evidence.
+_DECODED_DIELECTRIC_Q90_MAX = 0.10
+_DECODED_DIELECTRIC_COVERAGE_MAX = 0.04
 _EQUIPMENT_FAMILY_METAL_REASONS = {
     "metal:armor_family_material_response",
     "metal:equipment_family_material_response",
@@ -551,6 +555,41 @@ def _refine_synthesized_material_contract(
             else "metal:dominant_decoded_equipment_metal_channel"
         )
         refined["material_response_promoted"] = True
+
+    if not str(refined.get("material_category_reason", "") or "").strip():
+        # A blank reason left every generic classification unauditable: there was
+        # no way to tell a part the decoded maps confirm is a dielectric from one
+        # nothing is known about.  The synthesized metal channel answers that
+        # directly, so record what it showed.
+        if isinstance(metallic_summary, Mapping) and "metallic" in generated:
+            coverage = float(metallic_summary.get("coverage_above_0_25", 0.0) or 0.0)
+            q90 = float(metallic_summary.get("q90", 0.0) or 0.0)
+            if q90 <= _DECODED_DIELECTRIC_Q90_MAX and coverage <= _DECODED_DIELECTRIC_COVERAGE_MAX:
+                refined["material_category_reason"] = (
+                    "generic:decoded_metal_channel_confirms_dielectric"
+                )
+                # Data-backed, so it should outrank a bare naming guess.
+                refined["material_category_confidence"] = max(
+                    float(refined.get("material_category_confidence", 0.0) or 0.0),
+                    0.70,
+                )
+            else:
+                refined["material_category_reason"] = (
+                    "generic:decoded_metal_channel_is_mixed"
+                )
+        elif generated & _GENERATED_SUPPORT_CHANNELS:
+            # Synthesis ran and emitted support maps but dropped metalness, which
+            # it only does when the metal peak is essentially zero.  That absence
+            # is itself a dielectric reading, not a gap in knowledge.
+            refined["material_category_reason"] = (
+                "generic:decoded_metal_channel_absent_confirms_dielectric"
+            )
+            refined["material_category_confidence"] = max(
+                float(refined.get("material_category_confidence", 0.0) or 0.0),
+                0.70,
+            )
+        else:
+            refined["material_category_reason"] = "generic:no_decoded_material_maps"
 
     alpha_summary = synthesis.get("base_alpha_summary")
     if (
