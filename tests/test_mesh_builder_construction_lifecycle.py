@@ -14,7 +14,6 @@ from cdmw.ui.archive_browser import static_replacement_dialog_prompt as prompt_o
 
 
 _APPLICATION = QApplication.instance() or QApplication([])
-_ROOT = Path(__file__).resolve().parents[1]
 
 
 class _BuilderOwner(ArchiveMeshBuilderLifecycleMixin, QWidget):
@@ -88,29 +87,9 @@ def test_import_and_modify_builder_shell_failure_disposes_overlay_and_dialog(
     owner.deleteLater()
 
 
-def test_setup_sections_are_parented_before_becoming_visible() -> None:
-    transform_part_1 = (
-        _ROOT / "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_01.py"
-    ).read_text(encoding="utf-8")
-    transform_part_2 = (
-        _ROOT / "cdmw/ui/archive_browser/static_replacement_dialog_sections_setup_options_transform_part_02.py"
-    ).read_text(encoding="utf-8")
-    source_parts = (
-        _ROOT / "cdmw/ui/archive_browser/static_replacement_dialog_sections_source_parts_outliner_part_01.py"
-    ).read_text(encoding="utf-8")
-
-    checkbox_add = "modify_original_texture_tuning_section.body_layout.addWidget(_state.modify_original_texture_tuning_checkbox)"
-    checkbox_show = "modify_original_texture_tuning_checkbox.setVisible(bool(_state.modify_original_clone_mode))"
-    assert transform_part_1.index(checkbox_add) < transform_part_1.index(checkbox_show)
-
-    section_add = "setup_layout.addWidget(_state.modify_original_texture_tuning_section)"
-    section_show = "modify_original_texture_tuning_section.setVisible(True)"
-    assert transform_part_2.index(section_add) < transform_part_2.index(section_show)
-
-    for widget_name in ("original_parts_label", "original_tree", "original_button_panel"):
-        add = f"mapping_layout.addWidget(_state.{widget_name}"
-        show = f"{widget_name}.setVisible(True)"
-        assert source_parts.index(add) < source_parts.index(show)
+# Parenting order is now covered at runtime, across both entry modes and every
+# constructed widget rather than five named ones, by
+# tests/test_mesh_builder_construction_invariants.py.
 
 
 def test_partial_builder_disposer_is_idempotent_and_orders_worker_cleanup() -> None:
