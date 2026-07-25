@@ -23,7 +23,7 @@ from cdmw.ui.archive_browser.static_replacement_prompt_preflight import (
 )
 
 
-def _synthetic_archive_entry(root: Path) -> ArchiveEntry:
+def synthetic_archive_entry(root: Path) -> ArchiveEntry:
     return ArchiveEntry(
         "character/model/synthetic_mesh_builder.pac",
         root / "0009" / "0.pamt",
@@ -36,7 +36,7 @@ def _synthetic_archive_entry(root: Path) -> ArchiveEntry:
     )
 
 
-def _synthetic_preflight(
+def synthetic_builder_preflight(
     *,
     modify_original_clone_mode: bool,
 ) -> StaticReplacementPromptPreflightResult:
@@ -86,7 +86,7 @@ def _synthetic_preflight(
     )
 
 
-def _configure_synthetic_archive_context(window: object, entry: ArchiveEntry) -> None:
+def configure_synthetic_archive_context(window: object, entry: ArchiveEntry) -> None:
     remote_bridge = getattr(window, "archive_remote_bridge", None)
     deactivate = getattr(remote_bridge, "deactivate", None)
     if callable(deactivate):
@@ -118,7 +118,7 @@ def _failure_detail(events: list[tuple[str, dict[str, object]]]) -> str:
     )
 
 
-def _active_builder_timer_names(context: object) -> tuple[str, ...]:
+def active_builder_timer_names(context: object) -> tuple[str, ...]:
     if not isinstance(context, dict):
         return ()
     active: list[str] = []
@@ -148,7 +148,7 @@ def _exercise_builder_mode(
         window.archive_entries[0],
         root / f"{mode_name}.obj",
         dialog_title=f"Synthetic {mode_name}",
-        _prepared_prompt_preflight=_synthetic_preflight(
+        _prepared_prompt_preflight=synthetic_builder_preflight(
             modify_original_clone_mode=modify_original_clone_mode,
         ),
     )
@@ -176,7 +176,7 @@ def _exercise_builder_mode(
     finally:
         dialog.reject()
         app.processEvents()
-        active_timers = _active_builder_timer_names(construction_context)
+        active_timers = active_builder_timer_names(construction_context)
         QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
         app.processEvents()
     if dialog_key in window._modeless_alignment_dialogs:
@@ -208,8 +208,8 @@ def verify_mesh_builder_startup_smoke_target(
     try:
         with tempfile.TemporaryDirectory(prefix="cdmw-mesh-builder-startup-smoke-") as temp_dir:
             root = Path(temp_dir)
-            entry = _synthetic_archive_entry(root)
-            _configure_synthetic_archive_context(window, entry)
+            entry = synthetic_archive_entry(root)
+            configure_synthetic_archive_context(window, entry)
             for mode_name, modify_original_clone_mode in (
                 ("Import Mesh", False),
                 ("Modify Original", True),
@@ -237,4 +237,18 @@ def verify_mesh_builder_startup_smoke_target(
     return tuple(completed_modes)
 
 
-__all__ = ["verify_mesh_builder_startup_smoke_target"]
+# Earlier private names; kept so an out-of-tree caller does not break on the
+# promotion to a reusable fixture surface.
+_synthetic_archive_entry = synthetic_archive_entry
+_synthetic_preflight = synthetic_builder_preflight
+_configure_synthetic_archive_context = configure_synthetic_archive_context
+_active_builder_timer_names = active_builder_timer_names
+
+
+__all__ = [
+    "active_builder_timer_names",
+    "configure_synthetic_archive_context",
+    "synthetic_archive_entry",
+    "synthetic_builder_preflight",
+    "verify_mesh_builder_startup_smoke_target",
+]
