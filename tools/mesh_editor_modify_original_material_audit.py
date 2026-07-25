@@ -39,7 +39,7 @@ def main() -> int:
             / "dotnet_mesh_editor_experiment"
             / "bin"
             / "Release"
-            / "net8.0-windows"
+            / "net10.0-windows"
             / "cdmw-mesh-dotnet-editor.dll"
         )
     )

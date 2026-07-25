@@ -104,6 +104,19 @@ unused_qt_runtime_payloads = {
     "PySide6\\plugins\\platforminputcontexts\\qtvirtualkeyboardplugin.dll",
 }
 
+# The .NET mesh editor loads this shader compiler from its own directory, where
+# _add_native_binary_tree already places it. PyInstaller's dependency scan hoists
+# a second identical copy to the bundle root that nothing ever loads.
+duplicate_runtime_payloads = {
+    "D3DCompiler_47_cor3.dll",
+}
+
+# The app never installs a QTranslator, so the bundled Qt message catalogues can
+# never be loaded.
+unused_payload_prefixes = (
+    "PySide6\\translations\\",
+)
+
 
 def _toc_entry_name(entry):
     if not isinstance(entry, tuple) or not entry:
@@ -114,6 +127,15 @@ def _toc_entry_name(entry):
 def _exclude_collected_payloads(entries, names):
     blocked = {name.casefold() for name in names}
     return [entry for entry in entries if _toc_entry_name(entry).casefold() not in blocked]
+
+
+def _exclude_collected_prefixes(entries, prefixes):
+    blocked = tuple(prefix.casefold() for prefix in prefixes)
+    return [
+        entry
+        for entry in entries
+        if not _toc_entry_name(entry).casefold().startswith(blocked)
+    ]
 
 _add_data_if_exists(datas, "assets/cdmw.ico", "assets")
 _add_data_if_exists(datas, "assets/cdmw.png", "assets")
@@ -158,7 +180,7 @@ _add_native_binary_tree(
     f"native/cdmw_mesh_dotnet_editor/build/{NATIVE_CONFIGURATION}",
     "native",
     required_release=(ROOT / "tools" / "dotnet_mesh_editor_experiment" / "Cdmw.MeshEditorExperiment.csproj").exists(),
-    suffixes={".exe", ".dll", ".json", ".pdb"},
+    suffixes={".exe", ".dll", ".json"},
 )
 _add_native_binary_tree(
     f"native/cdmw_full_archive_backend/build/{NATIVE_CONFIGURATION}",
@@ -173,9 +195,18 @@ _add_data_if_exists(
 )
 _add_native_binary("native/cd_hkx/target/release/cd-hkx.exe", "native")
 
+# Audio decoding shells out to vgmstream-cli.exe. The Winamp (in_vgmstream) and
+# XMPlay (xmp-vgmstream) player plugins in the same directory are unusable here.
+unused_vgmstream_payloads = {
+    "in_vgmstream.dll",
+    "xmp-vgmstream.dll",
+}
+
 vgmstream_dir = ROOT / ".tools" / "vgmstream"
 if vgmstream_dir.exists():
     for runtime_file in sorted(path for path in vgmstream_dir.iterdir() if path.is_file()):
+        if runtime_file.name.casefold() in {name.casefold() for name in unused_vgmstream_payloads}:
+            continue
         if runtime_file.name == "COPYING":
             datas.append((str(runtime_file), "vgmstream"))
         elif runtime_file.suffix.lower() in {".dll", ".exe"}:
@@ -236,6 +267,10 @@ a = Analysis(
 )
 a.binaries = _exclude_collected_payloads(a.binaries, unused_qt_runtime_payloads)
 a.datas = _exclude_collected_payloads(a.datas, unused_qt_runtime_payloads)
+a.binaries = _exclude_collected_payloads(a.binaries, duplicate_runtime_payloads)
+a.datas = _exclude_collected_payloads(a.datas, duplicate_runtime_payloads)
+a.binaries = _exclude_collected_prefixes(a.binaries, unused_payload_prefixes)
+a.datas = _exclude_collected_prefixes(a.datas, unused_payload_prefixes)
 pyz = PYZ(a.pure)
 
 if MODE == "onefile":
