@@ -6,6 +6,7 @@ from pathlib import Path, PurePosixPath
 from typing import Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 from cdmw.core.archive_mesh_types import MeshImportPreviewResult
+from cdmw.domain.textures.semantics import is_stock_or_shared_texture_path
 from cdmw.models import ModelPreviewData
 from cdmw.modding.asset_replacement import classify_texture_binding
 
@@ -601,17 +602,7 @@ def _preview_result_texture_contract_warnings(preview_result: MeshImportPreviewR
     return warnings
 
 
-def _is_stock_or_shared_texture_path(texture_path: str) -> bool:
-    basename = PurePosixPath(str(texture_path or "").replace("\\", "/")).name.lower()
-    return (
-        basename.startswith("cd_texturelayer_")
-        or basename.startswith("cd_temp")
-        or basename.startswith("cd_metal_")
-        or basename.startswith("blackoil")
-        or basename.startswith("cd_common_default")
-        or basename.startswith("nonetexture")
-        or basename.startswith("none_texture")
-    )
+_is_stock_or_shared_texture_path = is_stock_or_shared_texture_path
 
 
 def _looks_like_normal_texture_path(texture_path: str) -> bool:

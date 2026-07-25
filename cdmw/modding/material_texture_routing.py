@@ -10,6 +10,7 @@ from pathlib import Path, PurePosixPath
 from typing import Mapping, Optional, Sequence
 
 from cdmw.domain.textures.material_parameters import evaluate_material_parameters, source_emissive_strength
+from cdmw.domain.textures.semantics import is_stock_or_shared_texture_path
 
 from .asset_replacement import classify_texture_binding, infer_cd_texture_role_from_path
 from .mesh_parser import ParsedMesh
@@ -1819,17 +1820,10 @@ def _replacement_output_texture_path(source_slot: ReplacementTextureSlot, target
     return "character/texture/static_replacement.dds"
 
 
-def _is_shared_material_layer_texture(target_path: str) -> bool:
-    basename = PurePosixPath(str(target_path or "").replace("\\", "/")).name.lower()
-    return (
-        basename.startswith("cd_texturelayer_")
-        or basename.startswith("cd_temp")
-        or basename.startswith("cd_metal_")
-        or basename.startswith("blackoil")
-        or basename.startswith("cd_common_default")
-        or basename.startswith("nonetexture")
-        or basename.startswith("none_texture")
-    )
+# Kept as the established name for this module's many callers; the rule itself
+# lives in the domain layer so the package planner and the authority report
+# cannot drift away from it.
+_is_shared_material_layer_texture = is_stock_or_shared_texture_path
 
 
 def is_shared_material_layer_texture(target_path: str) -> bool:

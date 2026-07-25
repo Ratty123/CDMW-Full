@@ -115,7 +115,16 @@ from .material_replacer import (
 
 
 
-def _is_shared_material_layer_texture(target_path: str) -> bool:
+def _looks_like_layered_detail_texture(target_path: str) -> bool:
+    """Match layered/detail texture *names* by substring marker.
+
+    Deliberately not the same rule as
+    `cdmw.domain.textures.semantics.is_stock_or_shared_texture_path`, which
+    matches shipped stock assets by basename prefix. These two answered to the
+    same name until 2026-07-25 and are easy to confuse: this one is a loose
+    naming heuristic, that one is a do-not-overwrite guard.
+    """
+
     basename = PurePosixPath(str(target_path or "").replace("\\", "/")).name.lower()
     return any(
         marker in basename
@@ -2884,7 +2893,6 @@ def _build_source_driven_pac_material_payloads(
         if pruned_payloads:
             sidecar_payloads = _replace_sidecar_payloads(sidecar_payloads, pruned_payloads)
     return generated_payloads + sidecar_payloads
-    return []
 
 
 def _apply_detail_mask_material_contract_to_wrapper(
@@ -3606,7 +3614,7 @@ def _source_driven_parameter_body(bindings: Sequence[tuple[str, str, str]]) -> s
 def _is_direct_pac_driven_parameter(reference: object, target_path: str) -> bool:
     if not target_path.lower().endswith(".dds"):
         return False
-    if _is_shared_material_layer_texture(target_path):
+    if _looks_like_layered_detail_texture(target_path):
         return False
     parameter = str(getattr(reference, "sidecar_parameter_name", "") or "").strip().lower()
     return parameter in {
