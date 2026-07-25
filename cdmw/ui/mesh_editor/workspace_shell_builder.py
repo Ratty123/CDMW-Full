@@ -45,6 +45,12 @@ from cdmw.ui.mesh_editor.actions import (
 from cdmw.ui.mesh_editor.icons import mesh_editor_action_icon
 from cdmw.ui.preview import DotNetPreviewHostFrame, DotNetPreviewProfile
 from cdmw.ui.native_preview_panel import NativePreviewPanel
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    MESH_PREVIEW_COMPACT_DISPLAY_MODE_OPTIONS,
+    MESH_PREVIEW_DEFAULT_DISPLAY_MODE,
+    MESH_PREVIEW_DISPLAY_MODE_OPTIONS,
+    normalize_mesh_preview_display_mode,
+)
 
 
 _LEFT_TOOL_PAGES = (
@@ -109,15 +115,29 @@ class WorkspaceShellBuilderMixin:
         self.snap_combo = self._combo("MeshEditorSnapModeCombo", ("Off", "Grid", "Vertex", "Pixel"))
         self.pivot_combo = self._combo("MeshEditorPivotCombo", ("Median", "Center", "Cursor", "Individual"))
         self.orientation_combo = self._combo("MeshEditorOrientationCombo", ("Global", "Local", "Normal", "View"))
-        self.viewport_display_combo = self._combo(
-            "MeshEditorViewportDisplayCombo",
-            ("Textured", "Faces", "Wire", "Vertices", "Wire + Vertices", "X-Ray"),
-        )
+        # The Builder preview toolbar exposes the same control, so both are
+        # driven from one option table: a mode offered by one and missing from
+        # the other leaves the two visible controls unable to agree.
+        self.viewport_display_combo = self._combo("MeshEditorViewportDisplayCombo", ())
+        for index, (label, mode) in enumerate(MESH_PREVIEW_COMPACT_DISPLAY_MODE_OPTIONS):
+            self.viewport_display_combo.addItem(label, mode)
+            self.viewport_display_combo.setItemData(
+                index,
+                MESH_PREVIEW_DISPLAY_MODE_OPTIONS[index][0],
+                Qt.ItemDataRole.ToolTipRole,
+            )
         self.viewport_display_combo.setToolTip(
             "Change the resident .NET viewport without reloading geometry or textures."
         )
         if self._embedded_controls_only:
-            self.viewport_display_combo.setCurrentText("Faces")
+            self.viewport_display_combo.setCurrentIndex(
+                max(
+                    0,
+                    self.viewport_display_combo.findData(
+                        MESH_PREVIEW_DEFAULT_DISPLAY_MODE
+                    ),
+                )
+            )
         controls = [
             ("Mode", self.mode_combo),
             ("Select", self.selection_combo),
@@ -148,16 +168,11 @@ class WorkspaceShellBuilderMixin:
         self.mode_combo.currentTextChanged.connect(self._mode_changed)
         self.selection_combo.currentTextChanged.connect(self._selection_changed)
         if self._embedded_controls_only:
-            self.viewport_display_combo.currentTextChanged.connect(
-                lambda text: self.viewport_display_requested.emit(
-                    {
-                        "Textured": "textured",
-                        "Faces": "untextured_faces",
-                        "Wire": "wire",
-                        "Vertices": "vertices",
-                        "Wire + Vertices": "wire_vertices",
-                        "X-Ray": "xray",
-                    }.get(str(text), "textured")
+            self.viewport_display_combo.currentIndexChanged.connect(
+                lambda _index: self.viewport_display_requested.emit(
+                    normalize_mesh_preview_display_mode(
+                        self.viewport_display_combo.currentData()
+                    )
                 )
             )
             self.viewport_display_combo.setEnabled(False)

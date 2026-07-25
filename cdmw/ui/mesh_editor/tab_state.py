@@ -7,6 +7,10 @@ from typing import Mapping, Optional
 from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import QApplication
 
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    MESH_PREVIEW_TEXTURED_DISPLAY_MODES,
+    untextured_fallback_display_mode,
+)
 from cdmw.ui.mesh_editor.actions import NATIVE_EDITOR_SESSION_COMMANDS
 
 
@@ -716,7 +720,10 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
         if "viewport_display_modes_v1" not in self.standalone_dotnet_capabilities:
             self.status_message_requested.emit("Embedded .NET viewport does not support display-mode updates.", True)
             return False
-        if normalized == "textured":
+        # "Solid + Wire" samples the same material as "Solid (Textured)", so it
+        # has to take the texture-resolve route too rather than being sent as a
+        # plain mode switch onto an untextured scene.
+        if normalized in MESH_PREVIEW_TEXTURED_DISPLAY_MODES:
             if not self._dotnet_resident_material_updates_supported():
                 self.status_message_requested.emit(
                     "This .NET helper cannot load Mesh Editor textures in place. Update the helper; the untextured scene remains active.",
@@ -728,10 +735,13 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
                 and self.standalone_dotnet_material_generation
                 <= self.standalone_dotnet_completed_material_generation
             ):
-                return self._send_requested_viewport_display_mode(
-                    "textured",
+                sent = self._send_requested_viewport_display_mode(
+                    normalized,
                     use_presentation_state=use_presentation_state,
                 )
+                if sent:
+                    self.sync_viewport_display_combos(normalized)
+                return sent
             builder = self.active_builder()
             request_textures = getattr(
                 builder,
@@ -750,7 +760,7 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
                 use_presentation_state
             )
             self._send_requested_viewport_display_mode(
-                "untextured_faces",
+                untextured_fallback_display_mode(normalized),
                 use_presentation_state=use_presentation_state,
                 texture_request_pending=True,
             )
@@ -763,10 +773,13 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
         self.standalone_dotnet_pending_textured_view = False
         self.standalone_dotnet_pending_textured_view_mode = "textured"
         self.standalone_dotnet_pending_textured_view_uses_presentation = False
-        return self._send_requested_viewport_display_mode(
+        sent = self._send_requested_viewport_display_mode(
             normalized,
             use_presentation_state=use_presentation_state,
         )
+        if sent:
+            self.sync_viewport_display_combos(normalized)
+        return sent
 
     def _send_requested_viewport_display_mode(
         self,

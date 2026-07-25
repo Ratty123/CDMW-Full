@@ -376,6 +376,20 @@ def manual_material_profile_inactive_reasons(values: Mapping[str, object]) -> di
     if support_mode == "keep_original_support":
         for key in ("displacement_scale_multiplier", "displacement_scale_max"):
             inactive[key] = "No effect: Support maps are preserving original target height/detail."
+    else:
+        # Effective height is min(max(Height scale, Edge relief), Height cap),
+        # and the shipped Material Authority profiles start both at 0.0. With
+        # the cap at zero the scale slider cannot raise anything, which made it
+        # read as a dead control.
+        try:
+            displacement_cap = float(values.get("displacement_scale_max"))
+        except (TypeError, ValueError):
+            displacement_cap = None
+        if displacement_cap is not None and displacement_cap <= 0.0:
+            inactive["displacement_scale_multiplier"] = (
+                "No effect: Height cap is 0, which clamps every height scale to zero. "
+                "Raise Height cap first."
+            )
     if authority_contract == "runtime_xml_preserve" and support_mode == "keep_original_support":
         inactive["force_neutral_layer_support"] = "No effect: Runtime XML preserve keeps target/corpus support unless support maps are changed."
     return inactive

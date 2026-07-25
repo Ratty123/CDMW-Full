@@ -383,6 +383,8 @@ def _setup_options_transform_step_005(_state):
     _state.manual_profile_layout.setVerticalSpacing(3)
     _state.alignment_manual_profile_control_callbacks = _state.create_alignment_manual_profile_control_callbacks({**_state.context, **_state._factory_globals, **vars(_state), '_current_manual_material_profile_values': lambda *args, **kwargs: _state._current_manual_material_profile_values(*args, **kwargs), '_queue_material_authority_adjustment_preview_refresh': lambda *args, **kwargs: _state._queue_material_authority_adjustment_preview_refresh(*args, **kwargs), '_refresh_manual_profile_control_effects': lambda *args, **kwargs: _state._refresh_manual_profile_control_effects(*args, **kwargs), '_save_complete_swap_material_profile': lambda *args, **kwargs: _state._save_complete_swap_material_profile(*args, **kwargs), '_set_manual_profile_dirty': lambda *args, **kwargs: _state._set_manual_profile_dirty(*args, **kwargs)})
     _state._manual_profile_mark_changed = _state.alignment_manual_profile_control_callbacks._manual_profile_mark_changed
+    _state._manual_profile_commit_changes = _state.alignment_manual_profile_control_callbacks._manual_profile_commit_changes
+    _state._flush_manual_profile_changes = _state.alignment_manual_profile_control_callbacks._flush_manual_profile_changes
     _state._manual_combo = _state.alignment_manual_profile_control_callbacks._manual_combo
     _state._manual_int = _state.alignment_manual_profile_control_callbacks._manual_int
     _state._manual_float = _state.alignment_manual_profile_control_callbacks._manual_float
@@ -414,8 +416,8 @@ def _setup_options_transform_step_005(_state):
     _state._manual_float(24, 'shine_scalar', 'Shader shine', 0.0, 1.0, 0.05, 'Sidecar XML scalar, not a DDS. Left removes inherited shine. Right restores shine/gloss scalar.')
 
 def _setup_options_transform_step_006(_state):
-    _state._manual_float(25, 'displacement_scale_multiplier', 'Height scale', 0.0, 1.0, 0.05, 'Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left disables raised/blobby height. Right restores height relief.')
-    _state._manual_float(26, 'displacement_scale_max', 'Height cap', 0.0, 1.0, 0.05, 'Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left clamps height. Right allows stronger raised relief.')
+    _state._manual_float(25, 'displacement_scale_multiplier', 'Height scale', 0.0, 1.0, 0.05, 'Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left disables raised/blobby height. Right restores height relief. Height cap clamps this value, so raise Height cap first if it is 0.')
+    _state._manual_float(26, 'displacement_scale_max', 'Height cap', 0.0, 1.0, 0.05, 'Affects height/detail support (*_disp.dds / *_mg.dds) only when support maps write or preserve them. Left clamps height. Right allows stronger raised relief. This is an upper bound on Height scale and Edge relief, not a height source of its own.')
     _state._manual_int(27, 'ao_default', 'AO default', 0, 255, 'Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Right is brighter/no ambient darkening. Left darkens missing-AO areas.')
     _state._manual_int(28, 'alpha_default', 'Mask alpha', 0, 255, 'Affects generated material mask DDS (*_ma.dds / _detailMaskTexture in Material Authority). Usually 0. Right may preserve stronger mask alpha response.')
     _state._manual_rgb(29, 'neutral_color_rgb', 'Neutral tint RGB', 'Sidecar XML color reset value. Affects tint/scratch/color scalar params only when the target wrapper has those params.')
@@ -471,7 +473,7 @@ def _setup_options_transform_step_006(_state):
     _state.manual_profile_texture_impact.setObjectName('HintLabel')
     _state.manual_profile_texture_impact.setTextFormat(_state.Qt.RichText)
     _state.manual_profile_texture_impact.setWordWrap(True)
-    _state.manual_profile_layout.addWidget(_state.manual_profile_texture_impact, 40, 0, 1, 4)
+    _state.manual_profile_layout.addWidget(_state.manual_profile_texture_impact, 41, 0, 1, 4)
     _state.manual_profile_preset_group = _state.QGroupBox(_state.manual_profile_control_text['preset_group'])
     _state.manual_profile_preset_group.setObjectName('MeshAlignmentManualMaterialProfilePresetGroup')
     if _state.modify_original_clone_mode:
@@ -521,7 +523,7 @@ def _setup_options_transform_step_006(_state):
     _state.manual_profile_preset_layout.addWidget(_state.QLabel(_state.manual_profile_control_text['recommended_label']), 3, 0)
     _state.manual_profile_preset_layout.addWidget(_state.manual_profile_preset_recommended_edit, 3, 1)
     _state.manual_profile_preset_layout.addLayout(_state.manual_profile_preset_buttons, 4, 1)
-    _state.manual_profile_layout.addWidget(_state.manual_profile_preset_group, 41, 0, 1, 4)
+    _state.manual_profile_layout.addWidget(_state.manual_profile_preset_group, 42, 0, 1, 4)
     _state.manual_profile_apply_button = _state.QPushButton(_state.manual_profile_control_text['apply_button'])
     _state.manual_profile_apply_button.setObjectName('MeshAlignmentManualMaterialProfileApplyButton')
     _state.manual_profile_apply_button.setToolTip(_state.manual_profile_tooltips['apply'])
@@ -534,17 +536,20 @@ def _setup_options_transform_step_006(_state):
     _state.manual_profile_apply_row.setSpacing(4)
     _state.manual_profile_apply_row.addWidget(_state.manual_profile_apply_button)
     _state.manual_profile_apply_row.addWidget(_state.manual_profile_reset_button)
-    _state.manual_profile_layout.addLayout(_state.manual_profile_apply_row, 4, 0, 1, 4)
+    # Apply/Reset and the change status belong under the controls they act on;
+    # at the top of the grid they sat above ~33 more sliders and read as
+    # applying only to the four routing combos.
+    _state.manual_profile_layout.addLayout(_state.manual_profile_apply_row, 40, 0, 1, 4)
     _state.manual_profile_change_status = _state.QLabel(_state._manual_material_profile_initial_status_html_helper())
     _state.manual_profile_change_status.setObjectName('HintLabel')
     _state.manual_profile_change_status.setTextFormat(_state.Qt.RichText)
     _state.manual_profile_change_status.setWordWrap(True)
-    _state.manual_profile_layout.addWidget(_state.manual_profile_change_status, 5, 0, 1, 4)
+    _state.manual_profile_layout.addWidget(_state.manual_profile_change_status, 39, 0, 1, 4)
     _state.manual_profile_preview_warning = _state.QLabel(_state._manual_material_profile_preview_warning_html_helper())
     _state.manual_profile_preview_warning.setWordWrap(True)
     _state.manual_profile_preview_warning.setTextFormat(_state.Qt.RichText)
     _state.manual_profile_preview_warning.setObjectName('WarningLabel')
-    _state.manual_profile_layout.addWidget(_state.manual_profile_preview_warning, 42, 0, 1, 4)
+    _state.manual_profile_layout.addWidget(_state.manual_profile_preview_warning, 43, 0, 1, 4)
     _state.manual_profile_group.setVisible(False)
     _state.manual_profile_ready['ready'] = True
     _state.modify_original_texture_tuning_checkbox = _state.QCheckBox('Advanced Texture Tuning')

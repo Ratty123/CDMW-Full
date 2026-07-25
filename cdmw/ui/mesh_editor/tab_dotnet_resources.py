@@ -13,6 +13,10 @@ from cdmw.services.mesh_dotnet_material_compiler import (
     MeshDotNetMaterialCompileRequest,
     snapshot_mesh_dotnet_material_inputs,
 )
+from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
+    normalize_mesh_preview_display_mode,
+    untextured_fallback_display_mode,
+)
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor.tab_dotnet_material_compilation import (
@@ -115,34 +119,46 @@ class MeshEditorDotNetResourceProtocolMixin(
         )
         self.standalone_dotnet_pending_textured_view_mode = "textured"
         self.standalone_dotnet_pending_textured_view_uses_presentation = False
-        workspace = getattr(self, "embedded_workspace", None)
-        combo = getattr(workspace, "viewport_display_combo", None)
-        builder = self.active_builder()
-        builder_combo = (
-            builder.findChild(QComboBox, "MeshAlignmentViewportDisplayModeCombo")
-            if builder is not None
-            else None
-        )
         if success:
             self._send_requested_viewport_display_mode(
                 requested_mode,
                 use_presentation_state=use_presentation_state,
             )
-            if combo is not None:
-                combo.blockSignals(True)
-                combo.setCurrentText("Textured")
-                combo.blockSignals(False)
+            self.sync_viewport_display_combos(requested_mode)
             return
-        if combo is not None:
-            combo.blockSignals(True)
-            combo.setCurrentText("Faces")
-            combo.blockSignals(False)
-        if builder_combo is not None:
-            untextured_index = builder_combo.findData("untextured_faces")
-            if untextured_index >= 0:
-                builder_combo.blockSignals(True)
-                builder_combo.setCurrentIndex(untextured_index)
-                builder_combo.blockSignals(False)
+        # Textures did not arrive, so the controls must show what the viewport
+        # actually fell back to rather than a textured mode it never entered.
+        self.sync_viewport_display_combos(
+            untextured_fallback_display_mode(requested_mode)
+        )
+
+    def sync_viewport_display_combos(self, mode: object) -> None:
+        """Show one resident display mode in both visible Mesh View controls."""
+        normalized = normalize_mesh_preview_display_mode(mode)
+        workspace = getattr(self, "embedded_workspace", None)
+        combos = [getattr(workspace, "viewport_display_combo", None)]
+        try:
+            builder = self.active_builder()
+            if builder is not None:
+                combos.append(
+                    builder.findChild(QComboBox, "MeshAlignmentViewportDisplayModeCombo")
+                )
+        except RuntimeError:
+            pass
+        for combo in combos:
+            if combo is None:
+                continue
+            try:
+                index = combo.findData(normalized)
+                if index < 0 or index == combo.currentIndex():
+                    continue
+                combo.blockSignals(True)
+                try:
+                    combo.setCurrentIndex(index)
+                finally:
+                    combo.blockSignals(False)
+            except RuntimeError:
+                continue
 
     def _handle_embedded_texture_request_failed(self, message: str) -> None:
         self._finish_pending_textured_view(success=False)

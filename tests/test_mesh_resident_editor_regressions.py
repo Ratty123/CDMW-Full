@@ -368,9 +368,11 @@ class MeshResidentEditorRegressionTests(unittest.TestCase):
         sent: list[dict[str, object]] = []
         with patch.object(tab, "_send_dotnet_protocol_message", side_effect=lambda payload: sent.append(dict(payload)) or True):
             tab._set_embedded_dotnet_state("ready", active=True)
-            display_combo.setCurrentText("Wire")
+            # Both Mesh View controls are driven from the shared display-mode
+            # table, so select by mode rather than by label text.
+            display_combo.setCurrentIndex(display_combo.findData("wire"))
             sent.clear()
-            display_combo.setCurrentText("Faces")
+            display_combo.setCurrentIndex(display_combo.findData("untextured_faces"))
             _APP.processEvents()
 
         self.assertTrue(display_combo.isEnabled())

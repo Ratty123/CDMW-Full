@@ -85,6 +85,16 @@ def source_material_plan_refresh_interval_ms() -> int:
     return 260
 
 
+def manual_profile_commit_interval_ms() -> int:
+    """Debounce for Material Authority manual control edits.
+
+    A slider drag emits one ``valueChanged`` per step, and each one persists the
+    whole profile and restarts the exact DDS resolve. Coalescing on the same
+    scale as the other material paths keeps a drag to one commit.
+    """
+    return 150
+
+
 def material_edit_refresh_queued_performance(reason: str) -> MaterialRefreshPerformanceStatus:
     reason_text = str(reason or "material edit").strip() or "material edit"
     return MaterialRefreshPerformanceStatus(
@@ -119,6 +129,7 @@ __all__ = [
     "material_edit_refresh_queued_progress_message",
     "material_edit_refresh_running_performance",
     "material_edit_refresh_running_progress_message",
+    "manual_profile_commit_interval_ms",
     "queue_material_edit_refresh_state",
     "queue_source_material_plan_refresh_state",
     "source_material_plan_refresh_initial_state",
