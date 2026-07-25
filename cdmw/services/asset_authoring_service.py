@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Mapping, Sequence
 
 from cdmw.modding.mesh_native_core import find_native_mesh_core_binary
+from cdmw.services.bundled_helper_availability import bundled_helper_path
 
 
 ASSET_AUTHORING_DISCOVERY_SCHEMA = "cdmw_asset_authoring_discovery_v1"
@@ -140,13 +141,14 @@ _HELPERS = (
     AssetAuthoringHelperSpec(
         key="openimageio",
         label="OpenImageIO",
-        role="optional source image ingest/diff helper",
+        role="bundled source image ingest/diff helper",
         setting_key="asset_authoring/oiio_path",
         env_key="CDMW_OIIO_BIN",
         executables=("oiiotool",),
         module="OpenImageIO",
         capabilities=("read_source_images", "convert_intermediate", "image_diff", "metadata"),
-        package_safe=False,
+        bundled=True,
+        package_safe=True,
     ),
 )
 
@@ -962,6 +964,9 @@ def _configured_text(
 def _external_path(spec: AssetAuthoringHelperSpec, configured_path: Path | None) -> tuple[Path | None, str]:
     if configured_path is not None:
         return (configured_path if configured_path.is_file() else None), "configured"
+    bundled_path = bundled_helper_path(spec.key)
+    if bundled_path is not None:
+        return bundled_path, "bundled_lookup"
     for name in spec.executables:
         found = shutil.which(name)
         if found:

@@ -55,6 +55,18 @@ This file is a practical notice list for repository and release packaging. For a
 - Upstream: https://github.com/vgmstream/vgmstream
 - Notes: the build/runtime can bundle `vgmstream-cli.exe` and its runtime DLLs for Wwise decode support in the archive browser and audio export flows
 
+### OpenImageIO
+
+- Purpose: source image metadata, intermediate conversion, and Mesh Editor visual-parity image diffs
+- Upstream: https://github.com/AcademySoftwareFoundation/OpenImageIO
+- License: Apache-2.0, with small legacy BSD-3-Clause portions
+- Notes: release builds bundle `oiiotool.exe` and its runtime DLLs under `openimageio/`,
+  along with the upstream `LICENSE.md` and `THIRD-PARTY.md` shipped in the same
+  directory. Final DDS output remains owned by CDMW/DirectXTex; OpenImageIO is a
+  source-side helper only. The bundled DLL closure carries its own upstream
+  projects — OpenEXR, Imath, libtiff, OpenJPEG, giflib, FreeType, and zlib —
+  whose notices are reproduced in the bundled `THIRD-PARTY.md`
+
 ## Archive Format References And Compatibility Validation
 
 ### lazorr410/crimson-desert-unpacker

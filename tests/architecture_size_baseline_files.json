@@ -52,7 +52,7 @@
     "cdmw/rendering/native_preview_material_contract.py": 1970,
     "cdmw/rendering/native_preview_package_writer.py": 1590,
     "cdmw/rendering/native_preview_texture_sources.py": 1498,
-    "cdmw/services/asset_authoring_service.py": 1847,
+    "cdmw/services/asset_authoring_service.py": 1852,
     "cdmw/services/diagnostics_service.py": 1104,
     "cdmw/services/mesh_dotnet_material_package.py": 1346,
     "cdmw/services/mesh_service.py": 2379,

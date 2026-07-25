@@ -30,7 +30,36 @@ native integration explicitly vendors a library.
 | `material_maker` | `asset_authoring/material_maker_path` | `CDMW_MATERIAL_MAKER_BIN` | Install Material Maker separately; configure `asset_authoring/material_maker_export_template` or `CDMW_MATERIAL_MAKER_EXPORT_TEMPLATE` for CLI export. | MIT; external app not bundled. | Existing Texture Workflow assets and DDS paths. |
 | `ufbx` | bundled in `cdmw_mesh_core` | `CDMW_MESH_CORE_BIN` | Build with `cdmw_mesh_core`; `import-scene-json` reports FBX mesh/material/texture/rig/animation evidence without claiming game compatibility. | MIT notice is preserved under `native/cdmw_mesh_core/third_party/ufbx/`. | Existing OBJ/DAE/GLB/glTF scene import reports; FBX remains unsupported when native helper is missing. |
 | `meshoptimizer` | bundled in `cdmw_mesh_core`; optional external comparator path remains `asset_authoring/meshoptimizer_path` | `CDMW_MESH_CORE_BIN`; comparator `CDMW_MESHOPTIMIZER_BIN` | Build with `cdmw_mesh_core`; `optimize-json` reports vertex-cache/overdraw ordering and opt-in simplification metrics before any apply path. | MIT notice is preserved under `native/cdmw_mesh_core/third_party/meshoptimizer/`. | Conservative topology-preserving package output unless simplification is explicitly reviewed. |
-| `openimageio` | `asset_authoring/oiio_path` | `CDMW_OIIO_BIN` | Install `oiiotool` separately; CDMW uses it only for source metadata, conversion, and image diffs. The offline Mesh Editor parity report adds explicit thresholds, structured mean/RMS/max/PSNR metrics, and an amplified absolute-difference PNG. | Primarily Apache-2.0, with small legacy BSD-3-Clause portions. | Existing PNG/JPG/BMP/DDS workflows and DirectXTex DDS authority. |
+| `openimageio` | bundled under `openimageio/`; override with `asset_authoring/oiio_path` | `CDMW_OIIO_BIN` | Ships with release builds; CDMW uses it only for source metadata, conversion, and image diffs. The offline Mesh Editor parity report adds explicit thresholds, structured mean/RMS/max/PSNR metrics, and an amplified absolute-difference PNG. | Primarily Apache-2.0, with small legacy BSD-3-Clause portions; upstream `LICENSE.md` and `THIRD-PARTY.md` ship beside the binary. | Existing PNG/JPG/BMP/DDS workflows and DirectXTex DDS authority. |
+
+## Bundled OpenImageIO Payload
+
+OpenImageIO ships with the app rather than being installed separately. Before
+this, `oiiotool` resolved out of the developer's virtualenv, so every
+OpenImageIO feature worked from source and silently did nothing in the packaged
+build.
+
+The wheel's console script in `Scripts/` is only a launcher shim. The real
+`oiiotool.exe` lives in the package's own `bin/` and loads its DLL closure from
+that directory, so `CrimsonDesertModWorkbench.spec` bundles `bin/*.{exe,dll}` as
+a unit into `openimageio/` — about 16 MB across 14 files. Three things in the
+wheel are deliberately left out: `idiff.exe` and `maketx.exe`, which CDMW never
+invokes; `lib/*.lib`, which are import libraries for building against
+OpenImageIO; and `share/fonts/`, which serves `oiiotool`'s text drawing. A
+release build fails closed if the package is absent, so the helper cannot go
+missing from a shipped app unnoticed.
+
+`find_bundled_openimageio_binary()` resolves it from `sys._MEIPASS` and the
+frozen executable's directory, then from the installed package when running
+from source. Resolution order for this helper is configured path or
+`CDMW_OIIO_BIN`, then the bundled copy, then `PATH` — the bundled binary wins
+over an arbitrary `oiiotool` on the machine because it is the one the build was
+tested against. Its report reads `source: bundled_lookup` and `package_safe:
+true`.
+
+Upstream `LICENSE.md` and `THIRD-PARTY.md` ship in the same directory. The
+second matters: the DLL closure carries OpenEXR, Imath, libtiff, OpenJPEG,
+giflib, FreeType, and zlib, and their notices travel with them.
 
 ## Mesh Health Connectivity Checks
 
