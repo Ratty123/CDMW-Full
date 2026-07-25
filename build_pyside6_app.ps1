@@ -938,6 +938,25 @@ if (-not $SkipNativeBuild) {
     Write-BuildProgress -Percent 16 -Stage "Native helper build skipped"
 }
 
+# PyInstaller packages the renderer from the staging tree, not from the .NET
+# build output, so a skipped or failed publish leaves the previous helper in
+# place and the build ships it without complaint.  That is silent: the app then
+# runs an old shader while the source tree looks correct.  Compare the staged
+# shader against the authoritative one and refuse to package a stale renderer.
+$stagedShader = Join-Path $scriptDir "native\cdmw_mesh_dotnet_editor\build\$(if ($BuildProfile -eq 'debug') { 'Debug' } else { 'Release' })\D3D11MaterialShaders.hlsl"
+$sourceShader = Join-Path $scriptDir "tools\dotnet_mesh_editor_experiment\D3D11MaterialShaders.hlsl"
+if (Test-Path -LiteralPath $sourceShader -PathType Leaf) {
+    if (-not (Test-Path -LiteralPath $stagedShader -PathType Leaf)) {
+        throw "The packaged Mesh Editor renderer is missing its shader: $stagedShader`nRun a build without -SkipNativeBuild, or publish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
+    }
+    $stagedHash = (Get-FileHash -LiteralPath $stagedShader -Algorithm SHA256).Hash.ToLowerInvariant()
+    $sourceHash = (Get-FileHash -LiteralPath $sourceShader -Algorithm SHA256).Hash.ToLowerInvariant()
+    if ($stagedHash -ne $sourceHash) {
+        throw "The staged Mesh Editor shader is stale, so this build would ship an old renderer.`n  staged: $stagedShader`n  source: $sourceShader`nRepublish the helper:`n  dotnet publish tools\dotnet_mesh_editor_experiment\Cdmw.MeshEditorExperiment.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:PublishTrimmed=false -o native\cdmw_mesh_dotnet_editor\build\Release"
+    }
+    Write-Host "Staged Mesh Editor shader matches the source tree."
+}
+
 $pyInstallerArgs = @(
     "-m",
     "PyInstaller",
