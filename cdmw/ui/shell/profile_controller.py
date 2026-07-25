@@ -96,6 +96,14 @@ def _profile_config_from_payload(raw_config: object) -> AppConfig:
     return AppConfig(**config_values)
 
 
+def _profile_config_override_count(raw_config: object) -> int:
+    """Count the recognized config fields a raw profile mapping would actually apply."""
+
+    if not isinstance(raw_config, dict):
+        return 0
+    return sum(1 for field in dataclasses.fields(AppConfig) if field.name in raw_config)
+
+
 def _decoded_profile_settings_snapshot(snapshot: object) -> Dict[str, object]:
     if not isinstance(snapshot, dict):
         raise ValueError("Profile settings must be a JSON object.")
@@ -170,8 +178,19 @@ def load_profile_import_document(
     if not isinstance(payload, dict):
         raise ValueError("Profile file is invalid. Expected a JSON object.")
     payload = sanitized_profile_mapping(payload)
-    config = _profile_config_from_payload(payload.get("config", payload))
+    raw_config = payload.get("config", payload)
+    config = _profile_config_from_payload(raw_config)
     decoded = _decoded_profile_settings_snapshot(payload["settings"]) if "settings" in payload else None
+    if not decoded:
+        # An absent or empty snapshot restores nothing. Keep it as None so the import
+        # transaction skips the replace pass instead of clearing every stored setting.
+        decoded = None
+    if not _profile_config_override_count(raw_config) and decoded is None:
+        raise ValueError(
+            "Profile file contains no profile data to import. A profile needs workflow "
+            "configuration fields or an app settings snapshot; importing this file would "
+            "only reset the current setup to defaults."
+        )
     raise_if_cancelled(stop_event, "Profile import cancelled.")
     return ProfileImportDocument(
         source=source,
