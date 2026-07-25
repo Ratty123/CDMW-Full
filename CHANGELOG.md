@@ -19,13 +19,26 @@ The format is intentionally simple:
 - Removed the standalone Material Finder from CDMW Full while retaining Item Finder, including its material-tag search and filtering.
 - Broadened Archive Browser item-name recovery across shifted ItemInfo layouts, larger prefab-reference lists, semantic StringInfo icon links, and derived icon/texture/sidecar filenames; related Name Evidence cells now show the recovered item name without a redundant `Name hint:` prefix.
 - Merged Archive Browser's Exact Name and Name Evidence columns into one Item Name column. Direct names take priority, inferred names fill the same column, and the tooltip retains the exact-versus-related confidence distinction.
+- Stopped writing the unread `archive/model_high_quality_textures` settings alias, which duplicated `archive/model_high_quality` in the local config and in every exported profile.
+
+### Docs
+- Corrected in-app Help, Documentation, and About references that pointed at a non-existent top-level `Documentation` menu and at a `Settings > Archive Browser Performance` page; they now name `Help > Documentation`, `Settings > Performance`, and `Settings > Paths > Archive Locations` in English, Spanish, and German.
+- Updated the Documentation topics for Profile & Settings and Window & Layout to list the seven Settings pages that exist today and all twelve detachable tools, including the `Show <tool>` entries in the Window menu.
 
 ### Fixed
+- Corrected the PAC skin-influence byte layout: influence slots live at byte 20 and their weights at byte 28 of the 40-byte vertex record. The reader and writer previously shared the wrong offsets (28/32), so 72% of every vanilla body decoded as unweighted and authored skin weights could only reference slots 0-3. Slots index the .pac's own bone palette (a u16 count then that many u32 .pab bone-name hashes), not the skeleton directly; `resolve_pac_bone_palette` now decodes a vertex's primary influence to a named bone.
+- Fixed `Profile > Import Profile` accepting a JSON document that carries no profile data. Files such as `{}`, `{"settings": {}}`, or a bare envelope reported "Profile imported" while resetting every workflow path to defaults, and an empty settings snapshot cleared the whole app settings store on the replace pass. Such files are now rejected with an explanatory message, an empty snapshot leaves stored settings untouched, and legacy bare-config and settings-only profiles still import.
+- Fixed Settings changes being silently discarded when a theme, font, density, or log-color change was still pending: flushing settings applied the appearance change and then returned before writing the queued startup, performance, layout, safety, and 3D preview preferences. Those preferences are now written on the same flush, so app close and `Profile > Export Profile` no longer drop them.
 - Fixed CDMW Full Item Finder categories lagging behind CDMW Lite by applying Lite's ordered category/group taxonomy and token-safe naming rules in the resident Full archive backend; saved filters from the retired taxonomy are migrated before startup warmup and dialog search.
 
 ## [0.10.0-alpha.2] - 2026-06-06
 
 ### Added
+- Added a native `morph_generate_fields` command to the C++ mesh core, porting procedural morph field generation from Python. Measured on a 145-slider body it computes in 11 ms against Python's 943 ms, matching it to 3.3e-17 m across 93,690 deltas. Not yet on the production path: the JSON payload transport, not the maths, now dominates that call.
+- Added a body-region atlas panel (`cdmw/ui/mesh_editor/body_region_atlas_panel.py`) listing a body's regions grouped and colour-coded, with tick-to-select and a Generate Sliders action. Its presentation model (`cdmw/domain/mesh/body_region_atlas.py`) is Qt-free and assigns each region a stable colour so lists, overlays, and exports agree.
+- Added body-region decomposition (`cdmw/modding/mesh_region_decompose.py`): point at a vanilla body and a modded one and get per-region sliders instead of one all-or-nothing morph, so an existing body mod becomes editable. Every region at 100% rebuilds the modded body exactly.
+- Added body-region morph sliders (`cdmw/domain/mesh/body_region_sliders.py`): a template set instantiated against every segmented region, yielding 145 ready sliders across 29 regions on a vanilla body, each with the region's own vertices, pivot, and bone axis. Adds a `radius` morph rule for proportional girth, which `volume`'s fixed-distance push cannot express.
+- Added skin-weight-driven body-region segmentation (`cdmw/domain/mesh/body_regions.py`), which turns a skinned body's bone weights and skeleton bone names into named regions with per-vertex weights, so morph sliders can target a body part without a hand-painted vertex selection. Region edges are then feathered over a geodesic band (`cdmw/domain/mesh/body_region_falloff.py`) so sliders do not crease the surface at region boundaries. Inspect a body with `python -m tools.dump_body_region_map`.
 - Added Desert Dawn, High Contrast, and OLED Black app themes with matching theme-aware app icons and contrast-checked text, selections, and control borders.
 
 ### Changed
