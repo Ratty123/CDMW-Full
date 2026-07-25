@@ -534,6 +534,12 @@ _AFFINE_DECODE_MODES: dict[str, dict[str, Tuple[str, float, float, float, float]
     },
 }
 
+# Stand-in for the anisotropic strand highlight the shader has no lobe for.
+# Above a plain dielectric's reflectance on purpose: at the physical 0.04 a
+# dark beard lost the highlights that make hair legible at all.
+_HAIR_STRAND_SHEEN = 0.19
+
+
 _AFFINE_SLOT_ORDER = ("ao", "roughness", "metalness", "specular")
 
 
@@ -593,6 +599,14 @@ def decode_material_sample(
     # than a 0.12 floor, so an unrecognised map cannot add shine on its own.
     specular = _clamp(0.04 + (variance * 0.24), 0.04, 0.42)
     if mode == "specular":
+        # Serves two different inputs and cannot tell them apart: a genuine
+        # specular map from a mod or glTF import, where max(RGB) is the intended
+        # reflectance, and a Crimson `_sp` reaching here as a suffix fallback,
+        # where R is occlusion and max(RGB) returns 1.0 whenever it is unauthored.
+        # Reading it the Crimson way breaks real specular maps, and this path
+        # takes only a handful of decodes across the shipped corpus with no
+        # observed artefact, so it keeps the pass-through until the two inputs
+        # can be distinguished at the call site rather than guessed at here.
         specular = _clamp(max(r, g, b), 0.06, 1.0)
         roughness = _clamp(1.0 - max(g, average), 0.08, 0.92)
     elif mode == "specular_glossiness":
@@ -660,7 +674,15 @@ def decode_material_sample(
         # the physical reflectance and made beards read as wet plastic.  It does
         # carry a real strand sheen though, so keep a modest lobe above the plain
         # dielectric floor.
-        specular = _clamp(0.05 + (variance * 0.14), 0.05, 0.20)
+        #
+        # Deliberately a constant.  Driving this from ``variance`` only looked
+        # data-driven: that term spans alpha, which is opaque on these maps, and
+        # hair `_sp` carries nothing in blue, so it saturated to 1.0 and every
+        # shipped hair asset resolved to the same 0.19 anyway.  The honest fix is
+        # an anisotropic strand lobe in the shader, at which point this drops to
+        # the physical dielectric floor; until then one stated value beats a
+        # formula that cannot vary.
+        specular = _HAIR_STRAND_SHEEN
         metalness = 0.0
     elif mode == "standard_v2_specular":
         # Real-PAC ``_sp`` maps keep R/A at an opaque control value.  Treating
@@ -699,7 +721,13 @@ def decode_material_sample(
         ao = _clamp(1.0 - (r * 0.10), 0.80, 1.0)
         roughness = _clamp(0.28 + (average * 0.52), 0.10, 0.96)
         metalness = _clamp(max(0.0, b - r) * 0.32, 0.0, 0.44)
-        specular = _clamp(0.08 + (variance * 0.36) + (a * 0.20), 0.04, 0.50)
+        # Alpha is opaque on the detail mask, so `a * 0.20` was a flat +0.20 on
+        # every texel -- a guaranteed specular floor of 0.28 on the second most
+        # used decode path in the corpus.  Roughness here still reads the mask's
+        # average rather than a single channel: this input is `_detailMaskTexture`
+        # rather than an `_sp`, and its channel meanings are not established, so
+        # only the term that is provably a constant is removed.
+        specular = _clamp(0.04 + (variance * 0.36), 0.04, 0.50)
     elif mode == "static_multitextured_material":
         ao = _clamp(1.0 - (r * 0.18), 0.70, 1.0)
         roughness = _clamp(0.18 + ((1.0 - g) * 0.62), 0.08, 0.96)
