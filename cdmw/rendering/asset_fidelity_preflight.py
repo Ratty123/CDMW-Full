@@ -199,18 +199,11 @@ def tangent_basis_report() -> Dict[str, object]:
 
 
 def import_preflight_report() -> Dict[str, object]:
-    assimp = _detect_executable("assimp")
     ufbx = {"status": "python_module_detected" if _module_available("ufbx") else "not_detected", "path": ""}
     return {
         "schema_version": ASSET_FIDELITY_PREFLIGHT_SCHEMA_VERSION,
         "policy": "validators/bridges only; not Crimson binary truth",
         "adapters": {
-            "Assimp": {
-                **assimp,
-                "bundled_feasibility": "not_bundled",
-                "role": "health_report_only",
-                "checks": ["triangulation", "normals", "tangents", "degenerate cleanup", "broad format import/export"],
-            },
             "ufbx": {
                 **ufbx,
                 "bundled_feasibility": "not_bundled",

@@ -418,6 +418,88 @@ class AssetAuthoringServiceTests(unittest.TestCase):
         self.assertEqual(faces_before, submesh.faces)
         json.dumps(report)
 
+    def test_mesh_health_report_accepts_watertight_mesh_with_consistent_winding(self) -> None:
+        submesh = SubMesh(
+            name="tetrahedron",
+            vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)],
+            faces=[(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 3)],
+        )
+        mesh = ParsedMesh(path="tetrahedron.obj", format="obj", submeshes=[submesh])
+
+        report = AssetAuthoringService().mesh_health_report(mesh)
+
+        self.assertEqual("ok", report["status"])
+        self.assertEqual([], report["warnings"])
+        self.assertEqual(0, report["totals"]["boundary_edges"])
+        self.assertEqual(0, report["totals"]["non_manifold_edges"])
+        self.assertEqual(0, report["totals"]["inconsistent_winding_edges"])
+        self.assertEqual(0, report["totals"]["bowtie_vertices"])
+        json.dumps(report)
+
+    def test_mesh_health_report_counts_bowtie_non_manifold_and_flipped_winding(self) -> None:
+        bowtie = SubMesh(
+            name="bowtie",
+            vertices=[
+                (0.0, 0.0, 0.0),
+                (1.0, 0.0, 0.0),
+                (1.0, 1.0, 0.0),
+                (-1.0, 0.0, 0.0),
+                (-1.0, 1.0, 0.0),
+            ],
+            faces=[(0, 1, 2), (0, 3, 4)],
+        )
+        seam = SubMesh(
+            name="seam",
+            vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0), (2.0, 0.0, 0.0)],
+            faces=[(0, 1, 2), (1, 2, 3), (1, 2, 4)],
+        )
+        mesh = ParsedMesh(path="connectivity.obj", format="obj", submeshes=[bowtie, seam])
+
+        report = AssetAuthoringService().mesh_health_report(mesh)
+
+        self.assertEqual("issues_found", report["status"])
+        self.assertFalse(report["mutates"])
+        self.assertEqual(1, report["parts"][0]["bowtie_vertices"])
+        self.assertEqual(0, report["parts"][0]["non_manifold_edges"])
+        self.assertEqual(1, report["parts"][1]["non_manifold_edges"])
+        self.assertEqual(1, report["totals"]["bowtie_vertices"])
+        self.assertEqual(1, report["totals"]["non_manifold_edges"])
+        self.assertTrue(any("bowtie" in warning for warning in report["warnings"]))
+        self.assertTrue(any("non-manifold" in warning for warning in report["warnings"]))
+        json.dumps(report)
+
+    def test_mesh_health_report_flags_edges_whose_neighbours_disagree_on_winding(self) -> None:
+        submesh = SubMesh(
+            name="flipped",
+            vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2), (1, 2, 3)],
+        )
+        mesh = ParsedMesh(path="flipped.obj", format="obj", submeshes=[submesh])
+
+        report = AssetAuthoringService().mesh_health_report(mesh)
+
+        self.assertEqual("issues_found", report["status"])
+        self.assertEqual(1, report["totals"]["inconsistent_winding_edges"])
+        self.assertEqual(0, report["totals"]["non_manifold_edges"])
+        self.assertEqual(0, report["totals"]["bowtie_vertices"])
+        self.assertTrue(any("winding" in warning for warning in report["warnings"]))
+        json.dumps(report)
+
+    def test_mesh_health_report_does_not_warn_on_open_boundary_edges(self) -> None:
+        submesh = SubMesh(
+            name="cloth",
+            vertices=[(0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (1.0, 1.0, 0.0)],
+            faces=[(0, 1, 2), (2, 1, 3)],
+        )
+        mesh = ParsedMesh(path="cloth.obj", format="obj", submeshes=[submesh])
+
+        report = AssetAuthoringService().mesh_health_report(mesh)
+
+        self.assertEqual("ok", report["status"])
+        self.assertEqual(4, report["totals"]["boundary_edges"])
+        self.assertEqual([], report["warnings"])
+        json.dumps(report)
+
     def test_mesh_health_report_flags_topology_delta_against_original_mesh(self) -> None:
         original = ParsedMesh(
             path="before.obj",
