@@ -13,7 +13,13 @@ from PySide6.QtGui import QImageReader
 
 from cdmw.services.archive_query_service import resolve_archive_pathc_path
 from cdmw.services.cache_layout import runtime_cache_layout
-from cdmw.models import ArchiveEntry, ArchivePreviewResult, ModelPreviewData, ModelPreviewMesh
+from cdmw.models import (
+    PREVIEW_MESH_IMAGE_FIELD_NAMES,
+    ArchiveEntry,
+    ArchivePreviewResult,
+    ModelPreviewData,
+    ModelPreviewMesh,
+)
 from cdmw.services.preview_rendering_service import PreparedModelPreviewData
 from cdmw.services.preview_rendering_service import (
     NativePreviewCoreServiceClient,
@@ -389,10 +395,8 @@ class ArchivePreviewCacheMixin:
                     for field_info in dataclasses.fields(ModelPreviewMesh)
                 }
                 if strip_images:
-                    mesh_values["preview_texture_image"] = None
-                    mesh_values["preview_normal_texture_image"] = None
-                    mesh_values["preview_material_texture_image"] = None
-                    mesh_values["preview_height_texture_image"] = None
+                    for image_field in PREVIEW_MESH_IMAGE_FIELD_NAMES:
+                        mesh_values[image_field] = None
                 cloned_meshes.append(ModelPreviewMesh(**mesh_values))
             else:
                 cloned_meshes.append(mesh)

@@ -37,18 +37,32 @@ class NativePreviewCoreGoalRegressionTests(unittest.TestCase):
         self.assertIn("native_pamt_index_cache_hit", source)
         self.assertIn("MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH", source)
 
-    def test_native_preview_core_releases_resident_pamt_indexes_before_memory_report(self) -> None:
+    def test_native_preview_core_bounds_resident_pamt_indexes_before_memory_report(self) -> None:
+        """A finished job must bound the resident PAMT set, not empty it.
+
+        Dropping every index made each job reload one, costing ~115 ms even from
+        the on-disk cache; keeping the most recently used one takes repeat
+        previews of the same archive from ~200 ms to ~38 ms. The memory ceiling
+        the original release protected still holds: one index is ~10 MB against
+        the service's 512 MB private-bytes recycle guard, and the error path
+        below still clears the cache outright.
+        """
+
         cache_source = Path("native/cdmw_preview_core/src/owners/pamt_index_cache.cpp").read_text(encoding="utf-8")
         report_source = Path("native/cdmw_preview_core/src/owners/preview_report.cpp").read_text(encoding="utf-8")
 
         self.assertIn("resident_pamt_index_cache().swap(empty)", cache_source)
         self.assertIn("auto& cache = resident_pamt_index_cache()", cache_source)
-        release_position = report_source.index("release_resident_pamt_indexes();")
+        self.assertIn("static void trim_resident_pamt_indexes()", cache_source)
+        # The retained key has to be the one the job actually served.
+        self.assertIn("last_resident_pamt_key() = key;", cache_source)
+        trim_position = report_source.index("trim_resident_pamt_indexes();")
         memory_position = report_source.index("cdmw_native_diag::current_process_memory()")
-        self.assertLess(release_position, memory_position)
+        self.assertLess(trim_position, memory_position)
         self.assertIn("native_pamt_index_resident_before_release", report_source)
         self.assertIn("native_pamt_index_resident_after_release", report_source)
         self.assertIn("native_pamt_index_cache_released", report_source)
+        self.assertIn("native_pamt_index_cache_bounded", report_source)
         catch_body = report_source[report_source.index("int run_preview_job(") :]
         self.assertIn("catch (const std::exception& exc) {\n        release_resident_pamt_indexes();", catch_body)
 

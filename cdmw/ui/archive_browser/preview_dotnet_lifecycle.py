@@ -7,6 +7,12 @@ from collections.abc import Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
+
+
+ARCHIVE_DOTNET_PREWARM_ATTEMPT_LIMIT = 3
+ARCHIVE_DOTNET_PREWARM_RETRY_MS = 3_000
+
 
 class ArchivePreviewDotNetLifecycleMixin:
     """Own the old archive lifecycle method names without a legacy renderer process."""
@@ -34,19 +40,49 @@ class ArchivePreviewDotNetLifecycleMixin:
         controller = getattr(host, "controller", None)
         if host is None or controller is None:
             return
-        if bool(getattr(controller, "is_running", False)) or bool(
-            getattr(controller, "desired_package_path", "")
-        ):
+        if bool(getattr(controller, "desired_package_path", "")):
+            # A selection already owns the renderer; it no longer needs warming.
             return
+        if bool(getattr(controller, "is_running", False)):
+            return
+        attempt = int(getattr(self, "_archive_dotnet_prewarm_attempts", 0) or 0) + 1
+        self._archive_dotnet_prewarm_attempts = attempt
         try:
             queued = bool(host.prewarm_from_cache(
                 self._native_preview_package_cache_root()
             ))
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
-            self.archive_isolated_renderer_debug_text = f"prewarm=skipped reason={exc}"
+            self.archive_isolated_renderer_debug_text = (
+                f"prewarm=skipped attempt={attempt} reason={exc}"
+            )
+            self._schedule_archive_dotnet_preview_prewarm_retry(attempt)
             return
         self.archive_isolated_renderer_debug_text = (
-            f"prewarm={'building' if queued else 'superseded'}"
+            f"prewarm={'building' if queued else 'superseded'} attempt={attempt}"
+        )
+        if not queued:
+            self._schedule_archive_dotnet_preview_prewarm_retry(attempt)
+            return
+        # The budget is per warm-up episode, not per session: a later warm-up
+        # after the renderer has stopped gets its own retries rather than
+        # inheriting an exhausted count.
+        self._archive_dotnet_prewarm_attempts = 0
+
+    def _schedule_archive_dotnet_preview_prewarm_retry(self, attempt: int) -> None:
+        """Re-arm the warm-up so one transient miss does not cost the first click.
+
+        A failed launch clears the controller's prewarm package outright, so
+        without this the very next .pac selection pays the helper's full cold
+        start instead of landing on a resident renderer.
+        """
+
+        if bool(getattr(self, "_shutting_down", False)):
+            return
+        if int(attempt) >= ARCHIVE_DOTNET_PREWARM_ATTEMPT_LIMIT:
+            return
+        QTimer.singleShot(
+            ARCHIVE_DOTNET_PREWARM_RETRY_MS,
+            self._prewarm_archive_dotnet_preview,
         )
 
     def _clear_archive_isolated_renderer_surface_for_request(self) -> None:

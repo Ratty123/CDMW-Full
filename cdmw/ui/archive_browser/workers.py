@@ -17,8 +17,13 @@ from cdmw.workers.archive_preview_workers import ArchivePreviewWorker, _ArchiveP
 
 
 def _archive_preview_debounce_ms(entry: Optional[ArchiveEntry]) -> int:
+    # The dwell only has to swallow key-repeat while a user arrow-keys through
+    # the row list (roughly one row every 30 ms). Model previews used to wait
+    # 450 ms because the resident renderer was slow to answer, which charged
+    # every deliberate click for a burst that latest-wins cancellation already
+    # handles.
     extension = str(getattr(entry, "extension", "") or "").strip().lower()
-    return 450 if extension in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS else 90
+    return 60 if extension in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS else 90
 
 
 def _record_archive_worker_lifecycle(target: object, event: str, **fields: object) -> None:
@@ -183,19 +188,23 @@ class ArchivePreviewWorkerMixin:
                         self.set_status_message(detail)
                 return
             entry = remote_dependencies.selected_entry
-        if (
+        # The path lookup takes seconds to build over a full archive, and only
+        # the Asset Family metadata needs it — geometry decodes and renders
+        # without it. Blocking here charged the first model selection of every
+        # session for the whole build, so start it and carry on; the metadata is
+        # re-resolved once it lands.
+        awaiting_lookup = bool(
             entry is not None
             and str(getattr(entry, "extension", "") or "").strip().lower()
             in NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
             and self._archive_basic_index_missing_for_lookup()
-        ):
+        )
+        if awaiting_lookup:
             self._ensure_archive_basic_index_worker_started()
-            self._set_archive_preview_base_detail_text(
-                "Preparing archive material and texture lookup...",
-                include_current_model_debug=False,
+            self._archive_preview_pending_lookup_entry = entry
+            self.set_status_message(
+                "Preview is loading; archive material and texture lookup is still building."
             )
-            self.set_status_message("Preparing archive material and texture lookup...")
-            return
         self.scheduled_archive_preview_request = None
         if not force and self._mesh_replacement_builder_active():
             self._defer_archive_preview_refresh_for_builder(entry)

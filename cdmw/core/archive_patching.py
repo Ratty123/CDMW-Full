@@ -8,7 +8,7 @@ import tempfile
 import time
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence, Tuple
+from typing import Callable, Dict, Iterable, List, Mapping, MutableMapping, Optional, Sequence
 
 try:
     import lz4.block as lz4_block
@@ -16,54 +16,17 @@ except Exception:  # pragma: no cover - optional dependency
     lz4_block = None  # type: ignore[assignment]
 
 from cdmw.constants import APP_NAME, DDS_MAGIC
+from cdmw.core.archive_format import VfsPathResolver
 from cdmw.domain.archives.mutation import ArchivePatchRequest, ArchivePatchResult
 from cdmw.models import ArchiveEntry
 
 ARCHIVE_PATCH_BACKUP_ROOT = Path(tempfile.gettempdir()) / APP_NAME / "archive_patch_backups"
 
 
-class _VfsPathResolver:
-    def __init__(self, name_block: bytes, *, max_cache_entries: int = 200_000) -> None:
-        self._name_block = name_block
-        self._path_cache: Dict[int, str] = {0xFFFFFFFF: ""}
-        self._max_cache_entries = max(1, int(max_cache_entries))
-
-    def get_full_path(self, offset: int) -> str:
-        if offset == 0xFFFFFFFF or offset >= len(self._name_block):
-            return ""
-        cached = self._path_cache.get(offset)
-        if cached is not None:
-            return cached
-        parts: List[Tuple[int, str]] = []
-        current_offset = offset
-        base = ""
-        seen_offsets: set[int] = set()
-        while current_offset != 0xFFFFFFFF:
-            if current_offset in seen_offsets:
-                break
-            seen_offsets.add(current_offset)
-            cached = self._path_cache.get(current_offset)
-            if cached is not None:
-                base = cached
-                break
-            pos = current_offset
-            if pos + 5 > len(self._name_block):
-                break
-            parent_offset = struct.unpack_from("<I", self._name_block, pos)[0]
-            part_len = self._name_block[pos + 4]
-            if pos + 5 + part_len > len(self._name_block):
-                break
-            part = self._name_block[pos + 5 : pos + 5 + part_len].decode("utf-8", errors="replace")
-            parts.append((current_offset, part))
-            current_offset = parent_offset
-            if len(parts) > 255:
-                break
-        built = base
-        for part_offset, part in reversed(parts):
-            built = f"{built}{part}"
-            if len(self._path_cache) < self._max_cache_entries:
-                self._path_cache[part_offset] = built
-        return self._path_cache.get(offset, built)
+# The archive read path resolves VFS names with this exact resolver. Patch
+# writes must agree with it entry-for-entry, so it is imported rather than
+# re-implemented here.
+_VfsPathResolver = VfsPathResolver
 
 
 @dataclass(slots=True)
