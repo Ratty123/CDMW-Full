@@ -196,9 +196,14 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert '"emissive" or "emissive_v2" => 6.0f' in viewport
     assert "materialFamilyCode);" in viewport
     assert "float materialCategoryCode = MaterialBaseTintPolicy.y;" in shader
-    assert "float categoryMetalCap = categoryMetal" in shader
+    # The cap is a fallback for parts with no metal map; a bound map lifts it so
+    # the category guess cannot clamp away measured per-texel metal.
+    assert "float categoryMetalCap = (categoryMetal || hasSourceMetallicMap)" in shader
     assert "float categorySpecularCap = categoryMetal" in shader
-    assert "float categoryRoughnessFloor = categoryMetal" in shader
+    # Likewise a fallback: a bound roughness map drops the floor to zero so the
+    # per-category minimum cannot flatten measured roughness.
+    assert "float categoryRoughnessFloor = hasSourceRoughnessMap" in shader
+    assert "? 0.0f" in shader
     assert "float categoryEnvironmentScale = categoryMetal" in shader
     assert "parameters.RoughnessHint ?? 0.0f" in viewport
     assert "parameters.MetalnessHint ?? 0.0f" in viewport
@@ -227,10 +232,14 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "MaterialSurfaceOverrides.w > 0.02f" in authority_contract
     assert "MaterialHeightScale" not in authority_contract
     assert "float glossHint = saturate(" in shader
-    assert "lerp(roughness, materialRoughnessHint, 0.55f)" in shader
+    # The sidecar hint is one scalar for the whole submesh, so it stands in for a
+    # missing map at full weight but only nudges when a real map is bound.
+    assert "hasSourceRoughnessMap ? 0.15f : 0.55f" in shader
     assert "roughness = saturate(roughness + familyRoughnessBias);" in shader
     assert "metallic = saturate(metallic * familyMetalScale);" in shader
-    assert "specularColor *= familySpecularScale;" in shader
+    # The family scale now shapes the sampled specular map before it is folded
+    # into reflectance, rather than scaling the resolved F0 in place.
+    assert "* familySpecularScale;" in shader
     for expected_family_operator in (
         "familyMetalScale = 1.15f;",
         "familySpecularScale = 1.35f;",
@@ -300,7 +309,9 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "float3(0.85f, 0.85f, 0.85f)" in shader
     assert "float metalDirectLobe = pow(" not in shader
     assert "float broadMetalLobe = pow(" not in shader
-    assert "float nonmetalDirectSpecularScale = glossyNonmetal" in shader
+    # A bound roughness map lets the dielectric lobe be lit on its own terms;
+    # the per-category scales remain only as the no-map fallback.
+    assert "float nonmetalDirectSpecularScale = hasSourceRoughnessMap" in shader
     assert "conservativeNonmetal ? 0.025f : 0.08f" in shader
     assert "float3 sourceStableF0 = lerp(" in shader
     assert "float3 PreviewEnvironmentRadiance(float3 reflectedView, float roughness)" in shader
@@ -316,7 +327,9 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "litDiffuse += materialReferenceAlbedo * metalCue * 0.16f;" in shader
     assert "0.14f + roughness * 0.06f + (1.0f - ndotv) * 0.30f" in shader
     assert "if (categoryMetal)" in shader
-    assert "float3(0.035f, 0.035f, 0.035f)" in shader
+    # Dielectric F0 comes from the presentation setting, clamped to a physical
+    # range, instead of a hardcoded constant.
+    assert "clamp(PresentationDiagnosticTuning.y, 0.02f, 0.08f)" in shader
     assert "materialReferenceAlbedo," in shader
     assert "float3 spec = float3(0.0f, 0.0f, 0.0f);" in shader
     assert "float3 fresnel = SourceStableFresnel(" not in shader
@@ -353,7 +366,12 @@ def test_dotnet_material_category_authority_reaches_native_response_fallback() -
     environment_fresnel_use = shader.index(
         "float3 environmentFresnel = SourceStableFresnel(ndotv, resolvedSurfaceF0);"
     )
-    assert sampled_specular < source_fresnel < metal_fresnel_use < environment_fresnel_use
+    # Reflectance is established from the metal fraction before any specular map
+    # is consulted, so a dielectric cannot take its F0 from a synthesized
+    # specular texture and pick up a metallic sheen.  The map may only modulate
+    # the metal response, hence it now follows sourceStableF0 rather than
+    # feeding it, and both still precede every Fresnel use.
+    assert source_fresnel < sampled_specular < metal_fresnel_use < environment_fresnel_use
     assert "SourceStableFresnel(\n            nonmetalCameraShape,\n            resolvedSurfaceF0)" in shader
     assert "float3 resolvedSurfaceF0 = sourceStableF0;" in shader
 
