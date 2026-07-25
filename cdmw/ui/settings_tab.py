@@ -1471,7 +1471,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         preview_settings = self.current_model_preview_render_settings()
         self.settings.setValue("archive/model_use_textures", preview_settings.use_textures_by_default)
         self.settings.setValue("archive/model_high_quality", preview_settings.high_quality_by_default)
-        self.settings.setValue("archive/model_high_quality_textures", preview_settings.high_quality_by_default)
         self.settings.setValue("preview/visible_texture_mode", preview_settings.visible_texture_mode)
         self.settings.setValue("preview/render_diagnostic_mode", preview_settings.render_diagnostic_mode)
         self.settings.setValue("preview/d3d11_view_mode", preview_settings.d3d11_view_mode)
@@ -1543,10 +1542,6 @@ class SettingsTab(SettingsHelperDiscoveryMixin, QWidget):
         if self._appearance_apply_timer.isActive():
             self._appearance_apply_timer.stop()
             self._apply_pending_appearance_change()
-            if self._appearance_sync_timer.isActive():
-                self._appearance_sync_timer.stop()
-                self._sync_appearance_settings()
-            return
         if self._appearance_sync_timer.isActive():
             self._appearance_sync_timer.stop()
             self._sync_appearance_settings()
