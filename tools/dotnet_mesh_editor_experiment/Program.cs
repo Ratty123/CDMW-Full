@@ -1030,7 +1030,26 @@ internal sealed partial class MeshViewport : Control
     public bool ShowWire { get; private set; }
     public bool ShowVertices { get; private set; }
     public bool ShowXRay { get; private set; }
-    public bool PartPickEnabled { get; set; }
+    private bool _partPickEnabled;
+
+    /// <summary>
+    /// Also reported in view state, so a change has to reach the host rather
+    /// than only the viewport.
+    /// </summary>
+    public bool PartPickEnabled
+    {
+        get => _partPickEnabled;
+        set
+        {
+            if (_partPickEnabled == value)
+            {
+                return;
+            }
+            _partPickEnabled = value;
+            NotifyViewStateChanged();
+        }
+    }
+
     public bool TexturesEnabled { get; private set; } = true;
     public string DisplayMode { get; private set; } = "textured";
     public int MaterialDebugMode { get; set; }

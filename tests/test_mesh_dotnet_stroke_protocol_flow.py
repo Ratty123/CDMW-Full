@@ -149,6 +149,38 @@ def test_helper_pins_the_stroke_tool_and_paces_stroke_updates() -> None:
     assert "var terminal = CoalesceStrokeSample(_pendingStrokeUpdatePayload, payload);" in runtime_source
 
 
+def test_every_reported_viewport_control_notifies_view_state() -> None:
+    """Controls that change reported view state must tell the host.
+
+    PresentationStatusPayload carries display_mode, xray, textures_enabled,
+    part_pick_enabled, zoom and pan. Camera drags reported their changes but
+    Reset/Fit, the preview mode combo, X-Ray and Part Pick did not, so the host
+    kept a stale mirror to restore from.
+    """
+    display_source = dotnet_experiment_source("MeshViewport.DisplayModes.cs")
+    topology_source = dotnet_experiment_source("MeshViewport.Topology.cs")
+    program_source = dotnet_experiment_source("Program.cs")
+    presentation_source = dotnet_experiment_source("MeshViewport.Presentation.cs")
+
+    for field in ("display_mode", "xray", "textures_enabled", "part_pick_enabled"):
+        assert f'["{field}"]' in presentation_source
+
+    set_xray = display_source.split("public void SetXRayEnabled", maxsplit=1)[1]
+    set_xray = set_xray.split("public bool TrySetDisplayMode", maxsplit=1)[0]
+    assert "NotifyViewStateChanged();" in set_xray
+
+    set_mode = display_source.split("public bool TrySetDisplayMode", maxsplit=1)[1]
+    assert "NotifyViewStateChanged();" in set_mode
+
+    frame_mesh = topology_source.split("public void FrameMesh()", maxsplit=1)[1]
+    frame_mesh = frame_mesh.split("private static void ReplaceSelectionMap", maxsplit=1)[0]
+    assert "NotifyViewStateChanged();" in frame_mesh
+
+    part_pick = program_source.split("public bool PartPickEnabled", maxsplit=1)[1]
+    part_pick = part_pick.split("public bool TexturesEnabled", maxsplit=1)[0]
+    assert "NotifyViewStateChanged();" in part_pick
+
+
 def test_layout_transitions_paint_once_instead_of_step_by_step() -> None:
     redraw_source = dotnet_experiment_source("ExperimentForm.Redraw.cs")
     layouts_source = dotnet_experiment_source("ExperimentForm.EditMeshLayouts.cs")
