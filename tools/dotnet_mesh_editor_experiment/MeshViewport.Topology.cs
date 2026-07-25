@@ -251,6 +251,9 @@ internal sealed partial class MeshViewport
             context.PanX = 0.0f;
             context.PanY = 0.0f;
         }
+        // Reframing moves the camera exactly as an orbit or wheel zoom does, and
+        // those report it. Without this the host keeps the pre-fit zoom and pan.
+        NotifyViewStateChanged();
         UpdateGpuViewport();
         Invalidate();
     }

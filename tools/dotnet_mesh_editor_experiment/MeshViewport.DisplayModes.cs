@@ -18,6 +18,9 @@ internal sealed partial class MeshViewport
         {
             context.XRay = enabled;
         }
+        // The host mirrors xray in view state, so a silent change here leaves it
+        // holding a stale value to restore from.
+        NotifyViewStateChanged();
         UpdateGpuViewport();
         Invalidate();
     }
@@ -61,6 +64,8 @@ internal sealed partial class MeshViewport
         }
         TexturesEnabled = state.Textures;
         error = string.Empty;
+        // display_mode, xray and textures_enabled are all reported view state.
+        NotifyViewStateChanged();
         UpdateGpuViewport();
         Invalidate();
         return true;
