@@ -106,6 +106,11 @@ def _mesh_edit_control_runtime_state(_state, _callbacks):
             dotnet_vortice_process_active=_callbacks._alignment_d3d11_process_active(),
         )
     _state.mesh_edit_enabled_checkbox.setEnabled(_state.mesh_edit_supported and not topology_busy)
+    refresh_preview_mode_controls = getattr(
+        _state.dialog, "_mesh_editor_refresh_preview_mode_controls", None
+    )
+    if callable(refresh_preview_mode_controls):
+        refresh_preview_mode_controls()
     if not _state.mesh_edit_supported:
         _state.mesh_edit_enabled_checkbox.blockSignals(True)
         _state.mesh_edit_enabled_checkbox.setChecked(False)

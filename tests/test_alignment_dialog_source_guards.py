@@ -4738,8 +4738,11 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("_refresh_preview_for_current_session(changed_keys)", source)
         self.assertIn("def _apply_current_manual_material_profile_to_preview", source)
         self.assertIn("_state.manual_profile_apply_button.clicked.connect(_state._apply_current_manual_material_profile_to_preview)", setup_ui_source)
-        self.assertIn("_state.manual_profile_layout.addLayout(_state.manual_profile_apply_row, 4, 0, 1, 4)", setup_ui_source)
-        self.assertIn("_state.manual_profile_layout.addWidget(_state.manual_profile_change_status, 5, 0, 1, 4)", setup_ui_source)
+        # Apply/Reset and the change status sit under the controls they act on.
+        # tests/test_mesh_builder_preview_control_honesty.py owns that ordering
+        # against the constructed grid; these pins only catch accidental removal.
+        self.assertIn("_state.manual_profile_layout.addLayout(_state.manual_profile_apply_row, 40, 0, 1, 4)", setup_ui_source)
+        self.assertIn("_state.manual_profile_layout.addWidget(_state.manual_profile_change_status, 39, 0, 1, 4)", setup_ui_source)
         self.assertIn("_state._manual_int(6, 'base_color_lift'", setup_ui_source)
         self.assertIn("_set_manual_profile_dirty(True)", source)
         self.assertNotIn('if saved_complete_swap_material_profile.startswith("material_authority_manual"):', source)

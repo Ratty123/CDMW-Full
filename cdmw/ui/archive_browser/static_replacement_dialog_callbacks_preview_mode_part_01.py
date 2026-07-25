@@ -224,8 +224,10 @@ def _preview_mode_step_012(_state):
 
     def _set_preview_display_mode(_index: int = 0) -> None:
         del _index
-        if bool(_state.mesh_edit_enabled_checkbox.isChecked()):
-            return
+        # Edit Mesh used to drop this silently while leaving the combo live, so
+        # the control kept showing a mode the viewport was never put into. The
+        # resident .NET viewport accepts display-mode updates during editing, so
+        # the request is routed instead; the handler reports its own failures.
         mode = normalize_mesh_preview_display_mode(
             _state.preview_mesh_view_combo.currentData()
         )
@@ -297,8 +299,41 @@ def _preview_mode_step_012(_state):
             _state._queue_static_preview_refresh()
     _state._set_preview_mode = _set_preview_mode
 
+    def _refresh_preview_mode_controls_enabled() -> None:
+        """Keep the Preview Mode combo honest about Edit Mesh's single pane.
+
+        ``effective_builder_comparison_mode`` collapses every comparison layout
+        to ``replacement_only`` while editing, so leaving the combo live let the
+        user pick Side by side or Original only and get neither.
+        """
+        combo = _state.preview_mode_combo
+        if combo is None or not callable(getattr(combo, 'setEnabled', None)):
+            return
+        try:
+            mesh_edit_active = bool(_state.mesh_edit_enabled_checkbox.isChecked())
+        except (AttributeError, RuntimeError, TypeError):
+            mesh_edit_active = False
+        try:
+            combo.setEnabled(not mesh_edit_active)
+            combo.setToolTip(
+                'Edit Mesh renders the replacement on its own; comparison layouts '
+                'return when Edit Mesh is off.'
+                if mesh_edit_active
+                else _state.alignment_preview_control_text['preview_mode_tooltip']
+            )
+        except RuntimeError:
+            return
+    _state._refresh_preview_mode_controls_enabled = _refresh_preview_mode_controls_enabled
+    if _state.dialog is not None:
+        setattr(
+            _state.dialog,
+            '_mesh_editor_refresh_preview_mode_controls',
+            _refresh_preview_mode_controls_enabled,
+        )
+    _refresh_preview_mode_controls_enabled()
+
 def _preview_mode_step_013(_state):
-    _state._factory_result_values.update({'_set_preview_renderer': _state._set_preview_renderer, '_sync_highlight_sets': _state._sync_highlight_sets, '_preview_mode_qt_widgets': _state._preview_mode_qt_widgets, '_preview_mode_needs_static_refresh': _state._preview_mode_needs_static_refresh, '_set_preview_display_mode': _state._set_preview_display_mode, '_set_preview_mode': _state._set_preview_mode})
+    _state._factory_result_values.update({'_set_preview_renderer': _state._set_preview_renderer, '_sync_highlight_sets': _state._sync_highlight_sets, '_preview_mode_qt_widgets': _state._preview_mode_qt_widgets, '_preview_mode_needs_static_refresh': _state._preview_mode_needs_static_refresh, '_set_preview_display_mode': _state._set_preview_display_mode, '_set_preview_mode': _state._set_preview_mode, '_refresh_preview_mode_controls_enabled': _state._refresh_preview_mode_controls_enabled})
 
 STEPS = (
     _preview_mode_step_001,

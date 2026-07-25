@@ -160,6 +160,13 @@ def _accept_build_step_007(_state):
 def _accept_build_step_008(_state):
 
     def _commit_alignment_numeric_edits(*, refresh_preview: bool=True) -> None:
+        # Manual Material Authority edits are debounced, so a build started
+        # within the coalescing window must not read the previous profile.
+        flush_manual_profile = getattr(
+            _state.dialog, '_material_authority_flush_manual_profile_changes', None
+        )
+        if callable(flush_manual_profile):
+            flush_manual_profile()
         for spin in (_state.offset_x_spin, _state.offset_y_spin, _state.offset_z_spin, _state.rotate_x_spin, _state.rotate_y_spin, _state.rotate_z_spin, _state.scale_x_spin, _state.scale_y_spin, _state.scale_z_spin, _state.part_offset_x_spin, _state.part_offset_y_spin, _state.part_offset_z_spin, _state.part_rotate_x_spin, _state.part_rotate_y_spin, _state.part_rotate_z_spin, _state.part_scale_x_spin, _state.part_scale_y_spin, _state.part_scale_z_spin, _state.part_uniform_spin, _state.part_nudge_step_spin, _state.mesh_edit_radius_spin, _state.mesh_edit_strength_spin, _state.mesh_edit_iterations_spin, _state.texture_transform_offset_u_spin, _state.texture_transform_offset_v_spin, _state.texture_transform_scale_u_spin, _state.texture_transform_scale_v_spin):
             _state._commit_spinbox_text(spin, block_signals=not bool(refresh_preview))
         _state._update_selected_part_adjustment(queue_preview=refresh_preview, push_undo=refresh_preview)

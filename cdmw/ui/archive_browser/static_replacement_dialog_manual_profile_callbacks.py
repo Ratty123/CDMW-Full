@@ -233,7 +233,15 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
         manual_profile_apply_button.setEnabled(bool(state["apply_enabled"]))
         manual_profile_change_status.setText(str(state["status_text"]))
 
+    def _cancel_pending_manual_profile_commit() -> None:
+        cancel = getattr(dialog, "_material_authority_cancel_manual_profile_commit", None)
+        if callable(cancel):
+            cancel()
+
     def _apply_manual_material_profile_values(values: Mapping[str, object], *, persist: bool, refresh_preview: bool = False) -> None:
+        # This writes every control and persists on its own, so a debounced
+        # slider edit still in flight must not fire afterwards.
+        _cancel_pending_manual_profile_commit()
         previous_values = _current_manual_material_profile_values()
         was_ready = bool(manual_profile_ready.get("ready"))
         manual_profile_ready["ready"] = False
@@ -294,6 +302,9 @@ def create_manual_material_profile_runtime_callbacks(context: dict[str, object])
             return
         if not modify_original_clone_mode and callable(_ensure_material_authority_route_active):
             _ensure_material_authority_route_active("manual_apply")
+        # Apply persists the live values and refreshes now; a pending debounced
+        # commit would only repeat both a moment later.
+        _cancel_pending_manual_profile_commit()
         values = _current_manual_material_profile_values()
         changed_keys = _changed_profile_keys(manual_profile_saved_values, values)
         self.settings.setValue(manual_profile_settings_key, json.dumps(values, sort_keys=True, separators=(",", ":")))

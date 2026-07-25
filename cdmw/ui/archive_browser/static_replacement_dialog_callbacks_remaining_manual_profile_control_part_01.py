@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+from PySide6.QtCore import QObject, QTimer
+
 from cdmw.ui.archive_browser.static_replacement_dotnet_material_bridge import (
     resident_material_parameters_available,
     resident_material_resources_available,
+)
+from cdmw.ui.archive_browser.static_replacement_material_refresh_state import (
+    manual_profile_commit_interval_ms,
 )
 
 def _remaining_manual_profile_control_step_001(_state):
@@ -70,6 +75,25 @@ def _remaining_manual_profile_control_step_001(_state):
     _state.values = _state.context.get('values')
 
 def _remaining_manual_profile_control_step_002(_state):
+    _state.manual_profile_pending_resource_keys: set[str] = set()
+    # Parent to the dialog so the timer dies with it; factory probes pass a
+    # stand-in dialog, which cannot own a QObject.
+    _state.manual_profile_commit_timer = QTimer(
+        _state.dialog if isinstance(_state.dialog, QObject) else None
+    )
+    _state.manual_profile_commit_timer.setSingleShot(True)
+    _state.manual_profile_commit_timer.setInterval(manual_profile_commit_interval_ms())
+    _state.manual_profile_commit_timer.timeout.connect(
+        lambda: _state._manual_profile_commit_changes()
+    )
+    if isinstance(_state.dialog, QObject) and hasattr(_state.dialog, 'finished'):
+        # Closing inside the coalescing window must not lose the last edit, but
+        # a closing dialog has no preview left to refresh.
+        _state.dialog.finished.connect(
+            lambda *_args: _state._manual_profile_commit_changes(persist_only=True)
+            if _state.manual_profile_commit_timer.isActive()
+            else None
+        )
 
     def _modify_original_tuning_enabled_value() -> bool:
         if not callable(_state._modify_original_texture_tuning_enabled):
@@ -91,26 +115,84 @@ def _remaining_manual_profile_control_step_003(_state):
         _state._queue_texture_preview_refresh()
     _state._manual_profile_refresh_preview = _manual_profile_refresh_preview
 
+    def _manual_profile_commit_changes(*, persist_only: bool = False) -> None:
+        """Persist and re-resolve once for a settled batch of manual edits."""
+        if not _state.manual_profile_ready.get('ready'):
+            _state.manual_profile_pending_resource_keys.clear()
+            return
+        resource_keys = tuple(sorted(_state.manual_profile_pending_resource_keys))
+        _state.manual_profile_pending_resource_keys.clear()
+        values = _state._current_manual_material_profile_values()
+        _state.self.settings.setValue(_state.manual_profile_settings_key, _state.json.dumps(values, sort_keys=True, separators=(',', ':')))
+        if persist_only:
+            return
+        _state._save_complete_swap_material_profile()
+        _state._refresh_manual_profile_control_effects(values)
+        if _state.modify_original_clone_mode and _state._modify_original_tuning_enabled_value():
+            _state._refresh_output_impact_review()
+            _state._manual_profile_refresh_preview(resource_keys)
+        elif str(_state.complete_swap_material_profile_combo.currentData() or '') == 'material_authority_manual':
+            try:
+                _state._refresh_output_impact_review()
+                _state._manual_profile_refresh_preview(resource_keys)
+            except NameError:
+                pass
+    _state._manual_profile_commit_changes = _manual_profile_commit_changes
+
     def _manual_profile_mark_changed(resource_key: str = "") -> None:
+        # A slider drag emits one valueChanged per step. Persisting the profile
+        # and restarting the exact DDS resolve on each of those left the preview
+        # unable to settle and thrashed the sync status, so the expensive tail is
+        # coalesced onto a timer while the dirty state stays immediate.
         if not _state.manual_profile_ready.get('ready'):
             return
         if not _state.modify_original_clone_mode and callable(_state._ensure_material_authority_route_active):
             _state._ensure_material_authority_route_active(f"manual_{resource_key or 'control'}")
-        values = _state._current_manual_material_profile_values()
-        _state.self.settings.setValue(_state.manual_profile_settings_key, _state.json.dumps(values, sort_keys=True, separators=(',', ':')))
-        _state._save_complete_swap_material_profile()
-        _state._refresh_manual_profile_control_effects(values)
+        if resource_key:
+            _state.manual_profile_pending_resource_keys.add(str(resource_key))
         _state._set_manual_profile_dirty(True)
-        if _state.modify_original_clone_mode and _state._modify_original_tuning_enabled_value():
-            _state._refresh_output_impact_review()
-            _state._manual_profile_refresh_preview((resource_key,) if resource_key else ())
-        elif str(_state.complete_swap_material_profile_combo.currentData() or '') == 'material_authority_manual':
-            try:
-                _state._refresh_output_impact_review()
-                _state._manual_profile_refresh_preview((resource_key,) if resource_key else ())
-            except NameError:
-                pass
+        _state.manual_profile_commit_timer.start()
     _state._manual_profile_mark_changed = _manual_profile_mark_changed
+
+    def _flush_manual_profile_changes() -> None:
+        """Commit any coalesced manual edit immediately."""
+        if not _state.manual_profile_commit_timer.isActive():
+            return
+        _state.manual_profile_commit_timer.stop()
+        _state._manual_profile_commit_changes()
+    _state._flush_manual_profile_changes = _flush_manual_profile_changes
+
+    def _cancel_manual_profile_commit() -> None:
+        """Drop a coalesced edit that a full apply/reset is about to supersede.
+
+        Apply, Reset and preset load each persist every live value and refresh
+        the preview themselves, so letting the pending timer fire afterwards
+        would only re-persist the same profile and re-queue a second refresh.
+        """
+        _state.manual_profile_commit_timer.stop()
+        _state.manual_profile_pending_resource_keys.clear()
+    _state._cancel_manual_profile_commit = _cancel_manual_profile_commit
+    if _state.dialog is not None:
+        setattr(
+            _state.dialog,
+            '_material_authority_flush_manual_profile_changes',
+            _flush_manual_profile_changes,
+        )
+        setattr(
+            _state.dialog,
+            '_material_authority_manual_commit_timer',
+            _state.manual_profile_commit_timer,
+        )
+        setattr(
+            _state.dialog,
+            '_material_authority_manual_pending_resource_keys',
+            _state.manual_profile_pending_resource_keys,
+        )
+        setattr(
+            _state.dialog,
+            '_material_authority_cancel_manual_profile_commit',
+            _cancel_manual_profile_commit,
+        )
 
 def _remaining_manual_profile_control_step_004(_state):
 
@@ -232,7 +314,7 @@ def _remaining_manual_profile_control_step_008(_state):
     _state._manual_rgb = _manual_rgb
 
 def _remaining_manual_profile_control_step_009(_state):
-    _state._factory_result_values.update({'_manual_profile_mark_changed': _state._manual_profile_mark_changed, '_manual_combo': _state._manual_combo, '_manual_int': _state._manual_int, '_manual_float': _state._manual_float, '_manual_check': _state._manual_check, '_manual_rgb': _state._manual_rgb})
+    _state._factory_result_values.update({'_manual_profile_mark_changed': _state._manual_profile_mark_changed, '_manual_combo': _state._manual_combo, '_manual_int': _state._manual_int, '_manual_float': _state._manual_float, '_manual_check': _state._manual_check, '_manual_rgb': _state._manual_rgb, '_manual_profile_commit_changes': _state._manual_profile_commit_changes, '_flush_manual_profile_changes': _state._flush_manual_profile_changes, '_cancel_manual_profile_commit': _state._cancel_manual_profile_commit})
 
 STEPS = (
     _remaining_manual_profile_control_step_001,
