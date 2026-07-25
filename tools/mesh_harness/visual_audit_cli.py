@@ -84,7 +84,7 @@ def _dotnet_assembly_path(args: argparse.Namespace) -> Path:
         / "dotnet_mesh_editor_experiment"
         / "bin"
         / "Release"
-        / "net8.0-windows"
+        / "net10.0-windows"
         / "cdmw-mesh-dotnet-editor.dll"
     )
     if assembly_path.suffix.lower() != ".dll":

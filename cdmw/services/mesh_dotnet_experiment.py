@@ -289,7 +289,7 @@ def _mesh_dotnet_candidate_paths(
                 / "dotnet_mesh_editor_experiment"
                 / "bin"
                 / "Release"
-                / "net8.0-windows"
+                / "net10.0-windows"
                 / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
             ),
             (
@@ -299,7 +299,7 @@ def _mesh_dotnet_candidate_paths(
                 / "dotnet_mesh_editor_experiment"
                 / "bin"
                 / "Debug"
-                / "net8.0-windows"
+                / "net10.0-windows"
                 / MESH_DOTNET_EXPERIMENT_BINARY_NAME,
             ),
             ("native_release", default_mesh_dotnet_experiment_editor_path(release=True)),

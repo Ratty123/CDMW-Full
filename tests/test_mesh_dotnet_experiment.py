@@ -207,7 +207,7 @@ def test_dotnet_experiment_editor_finder_prefers_source_build_before_stale_publi
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    tools_exe = tmp_path / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Release" / "net8.0-windows" / MESH_DOTNET_EXPERIMENT_BINARY_NAME
+    tools_exe = tmp_path / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Release" / "net10.0-windows" / MESH_DOTNET_EXPERIMENT_BINARY_NAME
     native_exe = tmp_path / "native" / "cdmw_mesh_dotnet_editor" / "build" / "Release" / MESH_DOTNET_EXPERIMENT_BINARY_NAME
     tools_exe.parent.mkdir(parents=True)
     native_exe.parent.mkdir(parents=True)
@@ -252,7 +252,7 @@ def test_dotnet_experiment_editor_resolver_ignores_stale_configured_path(
     tmp_path: Path,
     monkeypatch,
 ) -> None:
-    exe_path = tmp_path / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Release" / "net8.0-windows" / MESH_DOTNET_EXPERIMENT_BINARY_NAME
+    exe_path = tmp_path / "tools" / "dotnet_mesh_editor_experiment" / "bin" / "Release" / "net10.0-windows" / MESH_DOTNET_EXPERIMENT_BINARY_NAME
     exe_path.parent.mkdir(parents=True)
     exe_path.write_text("dev build", encoding="utf-8")
     monkeypatch.delenv("CDMW_MESH_DOTNET_EXPERIMENT_EXE", raising=False)
@@ -301,7 +301,9 @@ def test_dotnet_experiment_packaging_scripts_publish_and_bundle_helper() -> None
     assert "native/cd_texture_dx/build/{NATIVE_CONFIGURATION}/cd-texture-dx.exe" in spec_source
     assert ("tex" + "conv.exe") not in spec_source.lower()
     assert 'if PROFILE != "release":' not in spec_source
-    assert "suffixes={\".exe\", \".dll\", \".json\", \".pdb\"}" in spec_source
+    assert "suffixes={\".exe\", \".dll\", \".json\"}" in spec_source
+    # Release bundles must not carry .NET debug symbols.
+    assert ".pdb" not in spec_source
 
 
 def test_dotnet_embedded_shader_fallback_is_bom_free() -> None:
