@@ -26,7 +26,16 @@ public sealed class ArchiveSession : IDisposable
     public string Fingerprint { get; }
     public string GenerationPath => _generation.GenerationPath;
     public ArchiveIndex Index => _generation.Index;
+    /// <summary>
+    /// Blocks until the derived dependency index is available. It is built in the
+    /// background when an archive is opened cold, so the first caller that needs
+    /// facets or a basename lookup may wait here; prefer
+    /// <see cref="DependencyIndexAsync"/> from an async path.
+    /// </summary>
     internal ArchiveDependencyIndex DependencyIndex => _generation.DependencyIndex;
+
+    internal Task<ArchiveDependencyIndex> DependencyIndexAsync(CancellationToken cancellationToken) =>
+        _generation.DependencyIndexHandle.WaitAsync(cancellationToken);
     public bool CacheHit => _generation.CacheHit;
 
     public ArchiveSessionHandle Handle => new(

@@ -153,14 +153,20 @@ inline std::string lower_copy(std::string value) {
     return value;
 }
 
+// The C locale is never replaced in this library, so folding only A-Z matches
+// std::tolower exactly while staying branch-predictable in the index sort.
+inline unsigned char ascii_lower(unsigned char value) {
+    return value >= 'A' && value <= 'Z' ? static_cast<unsigned char>(value + ('a' - 'A')) : value;
+}
+
 inline int compare_case_insensitive(std::string_view left, std::string_view right) {
     const auto common_size = std::min(left.size(), right.size());
     for (size_t index = 0; index < common_size; ++index) {
         const auto left_raw = static_cast<unsigned char>(left[index]);
         const auto right_raw = static_cast<unsigned char>(right[index]);
         if (left_raw == right_raw) continue;
-        const auto left_lower = static_cast<unsigned char>(std::tolower(left_raw));
-        const auto right_lower = static_cast<unsigned char>(std::tolower(right_raw));
+        const auto left_lower = ascii_lower(left_raw);
+        const auto right_lower = ascii_lower(right_raw);
         if (left_lower < right_lower) return -1;
         if (left_lower > right_lower) return 1;
     }
