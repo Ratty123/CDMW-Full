@@ -5391,7 +5391,11 @@ class MeshEditResponsivenessSourceGuardTests(unittest.TestCase):
         self.assertIn("_populate_combo_options_helper(", source)
         self.assertIn("alignment_d3d11_view_mode_combo,", source)
         self.assertIn("(_state.alignment_d3d11_view_mode_combo, settings.d3d11_view_mode)", source)
-        self.assertIn("alignment_d3d11_view_mode_combo.currentIndexChanged.connect(_apply_alignment_preview_render_settings)", source)
+        # The connect is wrapped across lines and prefixed with `controls.`;
+        # match the call and its handler rather than one unwrapped line.
+        connect_start = source.index("alignment_d3d11_view_mode_combo.currentIndexChanged.connect(")
+        connect_block = source[connect_start:source.index(")", source.index("connect(", connect_start) + len("connect("))]
+        self.assertIn("_apply_alignment_preview_render_settings", connect_block)
         self.assertIn("def _alignment_preview_render_settings_from_controls(", source)
         self.assertIn("settings.d3d11_view_mode = str(", source)
         self.assertIn('package_fields = (', source)
