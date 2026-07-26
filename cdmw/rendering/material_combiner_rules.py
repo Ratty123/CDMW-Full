@@ -729,7 +729,10 @@ def _shader_rule_for_inputs(inputs: Sequence[PreviewMaterialTextureInput], paylo
     compact = _normalized_key(shader_text)
     if "skinnedmeshskin" in compact:
         return "skin"
-    if any(marker in compact for marker in ("skinnedmeshanimalhair", "skinnedmeshhairstandard", "skinnedmeshhair", "skinnedmeshfur")):
+    # Fur decodes as standard, not hair -- see ``normalize_shader_family``.
+    if "skinnedmeshfur" in compact:
+        return "standard_v2" if "ver2" in compact or "v2" in compact else "standard"
+    if any(marker in compact for marker in ("skinnedmeshanimalhair", "skinnedmeshhairstandard", "skinnedmeshhair")):
         return "hair"
     if "skinnedmeshemissivever2" in compact or "skinnedmeshemissive" in compact:
         return "emissive_v2"

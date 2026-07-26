@@ -493,26 +493,63 @@ def _select_material_candidates_for_payload(
 # Each slot is (term, offset, gain, low, high) and resolves to
 # ``clamp(offset + gain * term, low, high)``.  ``term`` names one of the decoded
 # inputs: a channel, ``variance``, ``average`` or the constant ``one``.
+
+# Stand-in for the anisotropic strand highlight the shader has no lobe for.
+# Above a plain dielectric's reflectance on purpose: at the physical 0.04 a
+# dark beard lost the highlights that make hair legible at all.
+_HAIR_STRAND_SHEEN = 0.19
+
+# ``_sp`` channel semantics, read out of the shipped DXIL rather than inferred
+# from the suffix.  The layout is per shader family:
+#
+#   Standard/Cloth/Fur/Emissive/...  sample G and B only.  G is roughness, B is
+#                                    metalness.  R and A are never sampled.
+#   Skin/SkinWrinkle/EyeCover        sample R, G and B.  R is subsurface, G is
+#                                    roughness, B is metalness.
+#   Hair/AnimalHair/WhiteHornHair    sample G alone; hair has no metal channel.
+#
+# ``_sp`` files are BC1, so alpha is synthesised 1.0 and never carries data --
+# no entry may read ``a``.  R is *not* occlusion in any family.  It is the most
+# spatially detailed channel, which is why it reads like a baked AO map, but the
+# only shaders that sample it use it as the subsurface term.  Feeding it to
+# ``ao`` turned every asset whose R is authored dark fully occluded -- a gold cup
+# and a cloth flag both ship R=0.000 flat.
 _AFFINE_DECODE_MODES: dict[str, dict[str, Tuple[str, float, float, float, float]]] = {
-    # ``_sp`` layout: R occlusion, G roughness, B metal.  ``standard_v2_material``
-    # and ``standard_v2_specular`` read the same texture and so decode alike.
+    # Standard family: G roughness, B metal.  ``standard_v2_material`` and
+    # ``standard_v2_specular`` read the same texture and so decode alike.
     "standard_v2_material": {
-        "ao": ("r", 0.0, 1.0, 0.0, 1.0),
+        "ao": ("one", 1.0, 0.0, 1.0, 1.0),
         "roughness": ("g", 0.0, 1.0, 0.04, 1.0),
         "metalness": ("b_minus_18", 0.0, 1.22, 0.0, 0.92),
         "specular": ("b", 0.04, 0.84, 0.04, 0.88),
     },
     "standard_v2_specular": {
-        "ao": ("r", 0.0, 1.0, 0.0, 1.0),
+        "ao": ("one", 1.0, 0.0, 1.0, 1.0),
         "roughness": ("g", 0.0, 1.0, 0.04, 1.0),
         "metalness": ("b_minus_18", 0.0, 1.22, 0.0, 0.92),
         "specular": ("b", 0.04, 0.84, 0.04, 0.88),
     },
+    # Skin reads all three channels.  R is the subsurface term and the preview
+    # has no scattering lobe, so it is dropped rather than folded into occlusion.
+    # G is *direct* roughness -- the shader routes it to the same target channel
+    # every other family does -- not the inverted gloss this used to assume.
+    # B is metalness, and measures ~0.00 flat across the shipped human skin maps.
+    "skin_material": {
+        "ao": ("one", 1.0, 0.0, 1.0, 1.0),
+        "roughness": ("g", 0.0, 1.0, 0.04, 1.0),
+        "metalness": ("b", 0.0, 1.0, 0.0, 0.92),
+        "specular": ("b", 0.06, 0.24, 0.04, 0.34),
+    },
+    # Hair samples G alone; R and B are dead in every hair shader.
     "hair_material": {
-        "ao": ("r", 0.0, 1.0, 0.0, 1.0),
+        "ao": ("one", 1.0, 0.0, 1.0, 1.0),
         "roughness": ("g", 0.0, 1.0, 0.04, 1.0),
         "metalness": ("one", 0.0, 0.0, 0.0, 0.0),
-        "specular": ("variance", 0.05, 0.14, 0.05, 0.20),
+        # Deliberately a constant.  Driving this from ``variance`` only looked
+        # data-driven: that term spans alpha, which is synthesised opaque on
+        # these maps, and hair ``_sp`` carries nothing in blue, so it saturated
+        # and every shipped hair asset resolved to the same value anyway.
+        "specular": ("one", _HAIR_STRAND_SHEEN, 0.0, _HAIR_STRAND_SHEEN, _HAIR_STRAND_SHEEN),
     },
     "packed_mask": {
         "ao": ("r", 1.0, -0.18, 0.78, 1.0),
@@ -533,12 +570,6 @@ _AFFINE_DECODE_MODES: dict[str, dict[str, Tuple[str, float, float, float, float]
         "specular": ("variance", 0.04, 0.24, 0.04, 0.42),
     },
 }
-
-# Stand-in for the anisotropic strand highlight the shader has no lobe for.
-# Above a plain dielectric's reflectance on purpose: at the physical 0.04 a
-# dark beard lost the highlights that make hair legible at all.
-_HAIR_STRAND_SHEEN = 0.19
-
 
 _AFFINE_SLOT_ORDER = ("ao", "roughness", "metalness", "specular")
 
@@ -654,69 +685,16 @@ def decode_material_sample(
         roughness = _clamp(0.16 + ((1.0 - g) * 0.72), 0.08, 0.96)
         specular = _clamp(0.04 + (max(b, a) * 0.50), 0.04, 0.62)
         metalness = _clamp((b * 0.24) + (a * 0.16), 0.0, 0.58)
-    elif mode == "skin_material":
-        roughness = _clamp(0.34 + ((1.0 - max(g, average)) * 0.42), 0.24, 0.92)
-        specular = _clamp(0.06 + (max(b, average) * 0.24), 0.04, 0.34)
-        metalness = 0.0
     elif mode == "skin_detail_mask":
         ao = _clamp(1.0 - (r * 0.08), 0.86, 1.0)
         roughness = _clamp(0.46 + (average * 0.28), 0.32, 0.88)
         specular = _clamp(0.05 + (variance * 0.16), 0.03, 0.24)
         metalness = 0.0
-    elif mode == "hair_material":
-        # Hair ``_sp`` follows the same layout, so G is roughness rather than
-        # glossiness.  Inverting an average of all three channels pushed glossy
-        # hair (G ~= 0.29) out to 0.52 and washed away the strand highlights that
-        # make hair legible at all.
-        ao = _clamp(r, 0.0, 1.0)
-        roughness = _clamp(g, 0.04, 1.0)
-        # Hair is a dielectric, so the old 0.10..0.54 range gave it several times
-        # the physical reflectance and made beards read as wet plastic.  It does
-        # carry a real strand sheen though, so keep a modest lobe above the plain
-        # dielectric floor.
-        #
-        # Deliberately a constant.  Driving this from ``variance`` only looked
-        # data-driven: that term spans alpha, which is opaque on these maps, and
-        # hair `_sp` carries nothing in blue, so it saturated to 1.0 and every
-        # shipped hair asset resolved to the same 0.19 anyway.  The honest fix is
-        # an anisotropic strand lobe in the shader, at which point this drops to
-        # the physical dielectric floor; until then one stated value beats a
-        # formula that cannot vary.
-        specular = _HAIR_STRAND_SHEEN
-        metalness = 0.0
-    elif mode == "standard_v2_specular":
-        # Real-PAC ``_sp`` maps keep R/A at an opaque control value.  Treating
-        # max(RGBA) as specular therefore made every cloth/leather pixel fully
-        # glossy and inverted the actual G roughness response.  G is the
-        # direct roughness signal; B carries the metal/specular response.
-        #
-        # G passes through at full range: remapping it into 0.18..0.86 cost a
-        # third of the authored contrast and pushed polished metal (G ~= 0.2)
-        # up toward the mid-grey that made every surface look alike.  Specular
-        # bottoms out at the physical dielectric reflectance so a zero metal
-        # channel cannot produce shine.
-        ao = _clamp(r, 0.0, 1.0)
-        roughness = _clamp(g, 0.04, 1.0)
-        specular = _clamp(0.04 + (b * 0.84), 0.04, 0.88)
-        metalness = _clamp(max(0.0, b - 0.18) * 1.22, 0.0, 0.92)
     elif mode == "standard_v2_mask":
         ao = _clamp(1.0 - (r * 0.16), 0.72, 1.0)
         roughness = _clamp(0.22 + (g * 0.62), 0.08, 0.96)
         metalness = _clamp(max(0.0, b - (r * 0.20)) * 0.46, 0.0, 0.64)
         specular = _clamp(0.10 + (a * 0.38) + (b * 0.16) + (variance * 0.12), 0.05, 0.62)
-    elif mode == "standard_v2_material":
-        # Same ``_sp`` layout as ``standard_v2_specular`` -- R occlusion, G
-        # roughness, B metal -- so it has to decode the same way.  The previous
-        # form misread three of the four channels: ``1.0 - r * 0.22`` darkened
-        # every surface by a fifth because R is occlusion and sits at 1.0 when
-        # unauthored, ``a * 0.52`` handed every opaque texel a 0.64 reflectance
-        # (A is an opaque control value, not signal) which was the main source of
-        # shine on cloth and leather, and ``* 0.58`` capped a fully metal texel
-        # at 0.51 so metal could never read as metal.
-        ao = _clamp(r, 0.0, 1.0)
-        roughness = _clamp(g, 0.04, 1.0)
-        metalness = _clamp(max(0.0, b - 0.18) * 1.22, 0.0, 0.92)
-        specular = _clamp(0.04 + (b * 0.84), 0.04, 0.88)
     elif mode == "standard_v2_detail":
         ao = _clamp(1.0 - (r * 0.10), 0.80, 1.0)
         roughness = _clamp(0.28 + (average * 0.52), 0.10, 0.96)

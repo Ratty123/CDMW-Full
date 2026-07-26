@@ -119,7 +119,19 @@ def normalize_shader_family(value: object) -> str:
         return "skin"
     if "skinnedmeshskin" in compact:
         return "skin"
-    if any(marker in compact for marker in ("skinnedmeshanimalhair", "skinnedmeshhairstandard", "skinnedmeshhair", "skinnedmeshfur")):
+    # Fur is not hair.  SkinnedMeshFur samples the same two ``_sp`` channels as
+    # SkinnedMeshStandard -- G roughness, B metal -- and carries the shared
+    # partColorBlending/roughnessMetallic contract, while every hair shader
+    # samples G alone and has no metal term at all.  Grouping fur with hair
+    # discarded its metal channel.  Checked ahead of the hair markers because
+    # ``skinnedmeshfur`` would otherwise be swallowed by them.
+    #
+    # Only the two declared fur families are rerouted.  The ``"fur" in compact``
+    # fallback below still answers "hair" for any fur shader not seen in the
+    # shipped cache, which is the conservative reading for an unknown graph.
+    if "skinnedmeshfur" in compact:
+        return "standard_v2" if "v2" in compact or "ver2" in compact else "standard"
+    if any(marker in compact for marker in ("skinnedmeshanimalhair", "skinnedmeshhairstandard", "skinnedmeshhair")):
         return "hair"
     if "hair" in compact or "fur" in compact:
         return "hair"
