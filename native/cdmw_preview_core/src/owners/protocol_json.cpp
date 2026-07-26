@@ -717,6 +717,9 @@ struct NativePackage {
     int dds_candidates = 0;
     int dds_extracted = 0;
     double pamt_index_ms = 0.0;
+    double mesh_parse_ms = 0.0;
+    double material_binding_ms = 0.0;
+    double package_write_ms = 0.0;
     size_t pamt_index_entries = 0;
     bool pamt_index_cache_hit = false;
     std::string pamt_index_cache_path;

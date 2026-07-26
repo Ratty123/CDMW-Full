@@ -358,6 +358,17 @@ static void release_resident_pathc_cache() {
     resident_pathc_cache().swap(empty);
 }
 
+// One collection holds the DDS headers for a whole package, so browsing stays
+// within a handful of packages. Keep those resident for partial-DDS
+// reconstruction and clear only when a session wanders across more roots.
+static constexpr size_t kResidentPathcCollectionMaxCount = 4;
+
+static void trim_resident_pathc_cache() {
+    if (resident_pathc_cache().size() > kResidentPathcCollectionMaxCount) {
+        release_resident_pathc_cache();
+    }
+}
+
 static const PathcCollectionNative& cached_pathc_collection_native(const fs::path& path) {
     auto& cache = resident_pathc_cache();
     const std::string key = fs::absolute(path).string();

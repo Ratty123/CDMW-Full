@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import threading
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -15,6 +16,38 @@ if TYPE_CHECKING:
 
 
 MESH_DOTNET_HELPER_MANIFEST_NAME = "cdmw-mesh-dotnet-editor.manifest.json"
+
+_PROVENANCE_HASH_CACHE_MAX_ENTRIES = 16
+_provenance_hash_cache_lock = threading.Lock()
+_provenance_hash_cache: dict[str, tuple[int, int, str]] = {}
+
+
+def mesh_dotnet_provenance_file_sha256(path: Path | str) -> str:
+    """SHA-256 of a helper file, cached by (path, size, mtime).
+
+    The packaged helper executable is over 150 MB, and provenance is verified
+    both before launch and again on protocol_ready — on the UI thread. Hashing
+    it fresh each time froze the interface for the whole read, so the digest is
+    reused until the file's size or mtime changes.
+
+    Raises OSError when the file cannot be read, matching ``Path.read_bytes``.
+    """
+
+    resolved = Path(path)
+    stat_result = resolved.stat()
+    size = int(stat_result.st_size)
+    mtime_ns = int(getattr(stat_result, "st_mtime_ns", 0) or 0)
+    key = str(resolved.resolve()).casefold()
+    with _provenance_hash_cache_lock:
+        cached = _provenance_hash_cache.get(key)
+        if cached is not None and cached[0] == size and cached[1] == mtime_ns:
+            return cached[2]
+    digest = hashlib.sha256(resolved.read_bytes()).hexdigest()
+    with _provenance_hash_cache_lock:
+        if len(_provenance_hash_cache) >= _PROVENANCE_HASH_CACHE_MAX_ENTRIES:
+            _provenance_hash_cache.clear()
+        _provenance_hash_cache[key] = (size, mtime_ns, digest)
+    return digest
 
 
 def mesh_dotnet_experiment_evaluation_path(package: MeshDotNetExperimentPackage) -> Path:
@@ -132,7 +165,7 @@ def mesh_dotnet_helper_provenance_blockers(
     actual_executable_hash = ""
     if executable_path.is_file():
         try:
-            actual_executable_hash = hashlib.sha256(executable_path.read_bytes()).hexdigest()
+            actual_executable_hash = mesh_dotnet_provenance_file_sha256(executable_path)
         except OSError as exc:
             blockers.append(f"helper executable hash failed: {exc}")
     else:
@@ -145,7 +178,7 @@ def mesh_dotnet_helper_provenance_blockers(
     actual_shader_hash = ""
     if shader_path.is_file():
         try:
-            actual_shader_hash = hashlib.sha256(shader_path.read_bytes()).hexdigest()
+            actual_shader_hash = mesh_dotnet_provenance_file_sha256(shader_path)
         except OSError as exc:
             blockers.append(f"helper shader hash failed: {exc}")
     reported_shader_hash = str(provenance.get("shader_sha256", "") or "").strip().lower()
@@ -247,7 +280,7 @@ def mesh_dotnet_helper_static_provenance_blockers(
     manifest = loaded
     blockers: list[str] = []
     try:
-        executable_hash = hashlib.sha256(executable_path.read_bytes()).hexdigest()
+        executable_hash = mesh_dotnet_provenance_file_sha256(executable_path)
     except OSError as exc:
         blockers.append(f"helper executable hash failed: {exc}")
         executable_hash = ""
@@ -255,7 +288,7 @@ def mesh_dotnet_helper_static_provenance_blockers(
         blockers.append("helper executable SHA-256 does not match the release manifest")
     shader_path = executable_path.parent / "D3D11MaterialShaders.hlsl"
     try:
-        shader_hash = hashlib.sha256(shader_path.read_bytes()).hexdigest()
+        shader_hash = mesh_dotnet_provenance_file_sha256(shader_path)
     except OSError as exc:
         blockers.append(f"helper shader hash failed: {exc}")
         shader_hash = ""
@@ -389,6 +422,7 @@ __all__ = [
     "mesh_dotnet_experiment_evaluation_path",
     "mesh_dotnet_helper_provenance_blockers",
     "mesh_dotnet_material_parity_warnings",
+    "mesh_dotnet_provenance_file_sha256",
     "mesh_dotnet_renderer_blockers",
     "write_mesh_dotnet_experiment_evaluation",
 ]

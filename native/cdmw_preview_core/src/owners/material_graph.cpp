@@ -349,7 +349,7 @@ static const TechniqueIndex& cached_package_technique_index(
         const std::string pamt_key = fs::absolute(pamt_path).string();
         if (!seen_pamts.insert(pamt_key).second) continue;
         try {
-            merge_technique_index(combined, cached_technique_index(cached_pamt_index(pamt_path)));
+            merge_technique_index(combined, cached_technique_index(cached_pamt_index(pamt_path, job.cache_root)));
         } catch (...) {
         }
     }
@@ -434,7 +434,7 @@ static const NativeMaterialGraph& cached_native_material_graph(
             const std::string pamt_key = fs::absolute(pamt_path).string();
             if (!seen_pamts.insert(pamt_key).second) continue;
             try {
-                const PamtIndex& index = cached_pamt_index(pamt_path);
+                const PamtIndex& index = cached_pamt_index(pamt_path, job.cache_root);
                 ++graph.pamt_count;
                 graph.entry_count += index.entry_count;
                 graph.material_sidecar_count += index.material_sidecars.size();
@@ -479,6 +479,30 @@ static void release_resident_material_graph_metadata() {
     resident_technique_index_cache().swap(technique_indexes);
     resident_package_technique_index_cache().swap(package_technique_indexes);
     resident_native_material_graph_cache().swap(material_graphs);
+}
+
+// Building a technique index decodes every .technique/.material entry of a
+// .pamt from its archives, which can cost a second per job. The maps are keyed
+// per .pamt or package root and hold only parameter metadata, so keeping them
+// resident between jobs is cheap; the bounds below are safety valves for
+// sessions that hop across many package roots.
+static constexpr size_t kResidentTechniqueIndexMaxCount = 16;
+static constexpr size_t kResidentPackageTechniqueIndexMaxCount = 4;
+static constexpr size_t kResidentMaterialGraphMaxCount = 16;
+
+static void trim_resident_material_graph_metadata() {
+    if (resident_technique_index_cache().size() > kResidentTechniqueIndexMaxCount) {
+        std::map<std::string, TechniqueIndex> technique_indexes;
+        resident_technique_index_cache().swap(technique_indexes);
+    }
+    if (resident_package_technique_index_cache().size() > kResidentPackageTechniqueIndexMaxCount) {
+        std::map<std::string, TechniqueIndex> package_technique_indexes;
+        resident_package_technique_index_cache().swap(package_technique_indexes);
+    }
+    if (resident_native_material_graph_cache().size() > kResidentMaterialGraphMaxCount) {
+        std::map<std::string, NativeMaterialGraph> material_graphs;
+        resident_native_material_graph_cache().swap(material_graphs);
+    }
 }
 
 static const TechniqueParameterInfo* technique_parameter_for_name(

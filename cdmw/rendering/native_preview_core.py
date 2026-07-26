@@ -26,7 +26,12 @@ from cdmw.models import ArchiveEntry, ModelPreviewRenderSettings, RunCancelled
 
 NATIVE_PREVIEW_CORE_BINARY_NAME = "cdmw-preview-core.exe" if os.name == "nt" else "cdmw-preview-core"
 NATIVE_PREVIEW_CORE_BACKEND_ID = "cdmw_preview_core_0.1"
-NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 32
+# Recycling the service costs the next preview a full cross-package re-warm
+# (about three seconds against real archives), so the job budget is a leak
+# guard rather than the primary memory bound: the service's resident caches
+# are byte-bounded natively and the decoded-cache/private-bytes recycle
+# thresholds below still recycle a genuinely heavy process.
+NATIVE_PREVIEW_CORE_SERVICE_MAX_JOBS = 128
 NATIVE_PREVIEW_CORE_SERVICE_CACHE_RECYCLE_BYTES = 192 * 1024 * 1024
 NATIVE_PREVIEW_CORE_SERVICE_PRIVATE_RECYCLE_BYTES = 512 * 1024 * 1024
 NATIVE_PREVIEW_CORE_DDS_CACHE_MAX_BYTES = 96 * 1024 * 1024
@@ -844,11 +849,6 @@ def run_native_preview_core_preview_job(
     output_root = Path(output_root) if (external_output_root := output_root is not None) else job_root / "package"
     job_path = job_root / "job.json"
     report_path = job_root / "report.json"
-    cache_prune_report = prune_native_preview_core_cache(
-        cache_root,
-        max_bytes=dds_cache_max_bytes,
-        target_bytes=dds_cache_target_bytes,
-    )
     job = build_native_preview_core_job(
         entry,
         cache_root=cache_root,
@@ -940,13 +940,15 @@ def run_native_preview_core_preview_job(
     report.setdefault("native_preview_core_binary_size", binary_signature[1])
     if use_service and service_pid > 0:
         report.setdefault("native_preview_core_process_pid", service_pid)
+    # One post-job prune keeps the cache-size invariant; a second scan before
+    # the job only repeated the same directory walk and stat pass per preview.
     post_cache_prune_report = prune_native_preview_core_cache(
         cache_root,
         max_bytes=dds_cache_max_bytes,
         target_bytes=dds_cache_target_bytes,
     )
-    removed_files = int(cache_prune_report.get("removed_files", 0) or 0) + int(post_cache_prune_report.get("removed_files", 0) or 0)
-    removed_bytes = int(cache_prune_report.get("removed_bytes", 0) or 0) + int(post_cache_prune_report.get("removed_bytes", 0) or 0)
+    removed_files = int(post_cache_prune_report.get("removed_files", 0) or 0)
+    removed_bytes = int(post_cache_prune_report.get("removed_bytes", 0) or 0)
     if removed_files:
         report.setdefault("native_preview_core_cache_pruned_files", removed_files)
         report.setdefault("native_preview_core_cache_pruned_bytes", removed_bytes)

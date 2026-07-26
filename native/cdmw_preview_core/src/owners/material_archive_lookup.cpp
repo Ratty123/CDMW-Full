@@ -33,6 +33,98 @@ static void add_sidecar_basename_candidates(
     for (const auto& item : scored) add_sidecar_candidate(out, seen, item.second);
 }
 
+// Resident cache of full package-root basename scans, including negative
+// results. Most cross-package probes (prefab variants, sidecar fallbacks) miss
+// everywhere, and without this cache every miss walks up to 64 .pamt indexes
+// again on the next job. Entries are flat refs capped per basename, so the
+// cache stays within a few MB; the signature ties it to the exact on-disk
+// .pamt set so an archive change invalidates it.
+static constexpr size_t kCrossPackageScanCacheMaxBasenames = 8192;
+static constexpr size_t kCrossPackageScanCacheMaxRefsPerBasename = 64;
+
+struct CrossPackageBasenameScanCache {
+    std::string root_signature;
+    std::unordered_map<std::string, std::vector<ArchiveEntryRef>> refs_by_basename;
+};
+
+static CrossPackageBasenameScanCache& resident_cross_package_scan_cache() {
+    static CrossPackageBasenameScanCache cache;
+    return cache;
+}
+
+static size_t resident_cross_package_scan_cache_count() {
+    return resident_cross_package_scan_cache().refs_by_basename.size();
+}
+
+static void release_resident_cross_package_scan_cache() {
+    CrossPackageBasenameScanCache empty;
+    std::swap(resident_cross_package_scan_cache(), empty);
+}
+
+// Signatures are memoized per package root and dropped once per job, so the
+// stat pass over every .pamt runs at most once per job instead of per lookup.
+static std::map<std::string, std::string>& cross_package_scan_signature_memo() {
+    static std::map<std::string, std::string> memo;
+    return memo;
+}
+
+static void invalidate_cross_package_scan_signatures() {
+    cross_package_scan_signature_memo().clear();
+}
+
+static std::string cross_package_scan_signature(const EntryJob& job) {
+    const std::string root_key = lower_copy(fs::absolute(job.package_root).string());
+    auto& memo = cross_package_scan_signature_memo();
+    auto found = memo.find(root_key);
+    if (found != memo.end()) return found->second;
+    std::ostringstream signature;
+    signature << root_key;
+    for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+        std::error_code ec;
+        const std::uint64_t size = fs::file_size(pamt_path, ec);
+        const std::int64_t mtime = ec
+            ? 0
+            : static_cast<std::int64_t>(fs::last_write_time(pamt_path, ec).time_since_epoch().count());
+        signature << "|" << lower_copy(pamt_path.string()) << ":" << size << ":" << mtime;
+    }
+    return memo.emplace(root_key, signature.str()).first->second;
+}
+
+static const std::vector<ArchiveEntryRef>& cross_package_scan_refs(
+    const EntryJob& job,
+    const std::string& basename_lower
+) {
+    auto& cache = resident_cross_package_scan_cache();
+    const std::string signature = cross_package_scan_signature(job);
+    if (cache.root_signature != signature) {
+        cache.root_signature = signature;
+        cache.refs_by_basename.clear();
+    }
+    auto found = cache.refs_by_basename.find(basename_lower);
+    if (found != cache.refs_by_basename.end()) return found->second;
+    if (cache.refs_by_basename.size() >= kCrossPackageScanCacheMaxBasenames) {
+        cache.refs_by_basename.clear();
+    }
+    std::vector<ArchiveEntryRef> refs;
+    std::set<std::string> seen_pamts;
+    for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+        if (refs.size() >= kCrossPackageScanCacheMaxRefsPerBasename) break;
+        const std::string pamt_key = fs::absolute(pamt_path).string();
+        if (!seen_pamts.insert(pamt_key).second) continue;
+        try {
+            const PamtIndex& index = cached_pamt_index(pamt_path, job.cache_root);
+            auto found_refs = index.by_basename.find(basename_lower);
+            if (found_refs == index.by_basename.end()) continue;
+            for (const ArchiveEntryRef& ref : found_refs->second) {
+                refs.push_back(ref);
+                if (refs.size() >= kCrossPackageScanCacheMaxRefsPerBasename) break;
+            }
+        } catch (...) {
+        }
+    }
+    return cache.refs_by_basename.emplace(basename_lower, std::move(refs)).first->second;
+}
+
 static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
     const EntryJob& job,
     const PamtIndex& primary_index,
@@ -77,16 +169,12 @@ static std::vector<ArchiveEntryRef> lookup_basename_candidates_across_package(
         }
         return result;
     }
-    std::set<std::string> seen_pamts;
-    seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
-    for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
+    const std::string primary_key = fs::absolute(primary_index.pamt_path).string();
+    for (const ArchiveEntryRef& ref : cross_package_scan_refs(job, lower_copy(basename))) {
         if (result.size() >= max_count) break;
-        const std::string pamt_key = fs::absolute(pamt_path).string();
-        if (!seen_pamts.insert(pamt_key).second) continue;
-        try {
-            add_from_index(cached_pamt_index(pamt_path));
-        } catch (...) {
-        }
+        if (fs::absolute(ref.pamt_path).string() == primary_key) continue;
+        const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
+        if (seen.insert(key).second) result.push_back(ref);
     }
     return result;
 }
@@ -135,15 +223,11 @@ static std::optional<ArchiveEntryRef> resolve_archive_path_across_package(
                 if (seen.insert(key).second) candidates.push_back(ref);
             }
         } else if (!job.package_root.empty()) {
-            std::set<std::string> seen_pamts;
-            seen_pamts.insert(fs::absolute(primary_index.pamt_path).string());
-            for (const fs::path& pamt_path : package_root_pamt_paths(job.package_root)) {
-                const std::string pamt_key = fs::absolute(pamt_path).string();
-                if (!seen_pamts.insert(pamt_key).second) continue;
-                try {
-                    add_from_index(cached_pamt_index(pamt_path));
-                } catch (...) {
-                }
+            const std::string primary_key = fs::absolute(primary_index.pamt_path).string();
+            for (const ArchiveEntryRef& ref : cross_package_scan_refs(job, wanted_basename)) {
+                if (fs::absolute(ref.pamt_path).string() == primary_key) continue;
+                const std::string key = lower_copy(ref.pamt_path.string() + "|" + ref.path);
+                if (seen.insert(key).second) candidates.push_back(ref);
             }
         }
     }
