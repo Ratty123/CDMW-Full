@@ -6,6 +6,7 @@ from pathlib import Path
 import time
 from types import SimpleNamespace
 
+from tools.mesh_harness.real_dotnet_material import request_full_renderer_status
 from tools.mesh_harness.win32_input import (
     _activate_window_for_input,
     _foreground_window_matches,
@@ -95,10 +96,16 @@ def _presentation_cameras(renderer: Mapping[str, object]) -> tuple[dict[str, obj
 
 
 def _camera_without_zoom_or_pan(camera: Mapping[str, object]) -> dict[str, object]:
+    # fit_relative_zoom is the same zoom expressed against the fitted distance,
+    # so a zoom step necessarily moves it (206.34 -> 154.75 alongside 1 -> 0.75)
+    # and comparing it here asked the camera not to zoom while being zoomed.
+    # The zoom magnitude is asserted separately as an exact 0.75 archive step,
+    # and the anchor by the world-space pan below; everything else -- yaw,
+    # pitch, fit mode, bounds, context -- still has to match exactly.
     return {
         str(key): value
         for key, value in camera.items()
-        if str(key) not in {"zoom", "pan"}
+        if str(key) not in {"zoom", "pan", "fit_relative_zoom"}
     }
 
 
@@ -197,15 +204,21 @@ def exercise_side_by_side_wheel_zoom(
     """Physically wheel each resident role pane and prove exact inverse restoration."""
 
     cursor = len(state.tab.standalone_dotnet_protocol_events)
-    initial_presentation, initial_cameras = _latest_view_state_presentation(
-        state,
-        cursor,
-        pump_until,
+    # Ask the renderer where the panes are right now. No camera has moved yet,
+    # so no view_state_changed is pending, and the ready status predates the
+    # side-by-side package: reading it reported a single pane and pane
+    # rectangles for a layout that no longer existed, which sent the wheel at
+    # the wrong screen position and left every camera gate failing.
+    initial_presentation, initial_cameras = _presentation_cameras(
+        request_full_renderer_status(state, pump_until)
     )
     if not initial_cameras:
-        # Fall back to whatever the ready status recorded so the pane geometry
-        # is still available, but only for this pre-wheel read; the post-wheel
-        # reads below must never use it.
+        initial_presentation, initial_cameras = _latest_view_state_presentation(
+            state,
+            cursor,
+            pump_until,
+        )
+    if not initial_cameras:
         initial_presentation, initial_cameras = _presentation_cameras(
             dict(getattr(state, "renderer", {}) or {})
         )
