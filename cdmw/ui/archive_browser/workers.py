@@ -119,6 +119,12 @@ class ArchivePreviewWorkerMixin:
             self._archive_texture_package_path = ""
             self._archive_texture_render_settings = None
             self._archive_pending_texture_result = None
+            # Superseding a texture request is silent -- no failure is reported
+            # -- so without this the checkbox stays stuck on the disabled
+            # "Loading textures..." caption until some later apply syncs it.
+            sync_texture_action = getattr(self, "_sync_archive_texture_action_state", None)
+            if callable(sync_texture_action):
+                sync_texture_action()
         self.archive_preview_request_id = request_id
         self.append_archive_log(
             f"Archive Browser activation timing | cause=preview_start | path={getattr(entry, 'path', '')}",

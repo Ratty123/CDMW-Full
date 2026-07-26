@@ -50,7 +50,10 @@ from cdmw.ui.widgets import (
     PreviewLabel,
     PreviewScrollArea,
 )
-from cdmw.workers.archive_preview_native import NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS
+from cdmw.workers.archive_preview_native import (
+    NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS,
+    native_preview_core_timeout_seconds,
+)
 
 
 class ArchiveReferencePreviewMixin:
@@ -637,7 +640,7 @@ class ArchiveReferencePreviewMixin:
                         dependency_entries=dependency_entries,
                         dependency_entries_complete=remote_dependencies is not None,
                         package_root=preview_package_root,
-                        timeout_seconds=8.0,
+                        timeout_seconds=native_preview_core_timeout_seconds(preview_settings),
                     )
                 except Exception as exc:
                     native_attempt = NativePreviewCoreAttempt(

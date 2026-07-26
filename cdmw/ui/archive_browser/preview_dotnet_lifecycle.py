@@ -12,6 +12,8 @@ from PySide6.QtCore import QTimer
 
 ARCHIVE_DOTNET_PREWARM_ATTEMPT_LIMIT = 3
 ARCHIVE_DOTNET_PREWARM_RETRY_MS = 3_000
+ARCHIVE_TEXTURE_REQUEST_RETRY_LIMIT = 1
+ARCHIVE_TEXTURE_REQUEST_RETRY_MS = 250
 
 
 class ArchivePreviewDotNetLifecycleMixin:
@@ -246,9 +248,58 @@ class ArchivePreviewDotNetLifecycleMixin:
         except OSError:
             return str(package_path or "").casefold()
 
+    def _archive_texture_retry_key(self) -> str:
+        current = getattr(self, "_current_archive_entry", lambda: None)()
+        return str(getattr(current, "path", "") or "").strip().casefold()
+
+    def _schedule_archive_texture_request_retry(self, automatic: bool) -> None:
+        """Give one cold-cache texture failure a second attempt.
+
+        The first texture job of a session can spend its whole budget indexing
+        the package .pamt files before it resolves a single DDS, and the timeout
+        kills the preview-core service outright.  The indexes it did finish are
+        cached, so the retry starts warmer; without it the model stays
+        untextured until the checkbox is toggled by hand.
+        """
+
+        if bool(getattr(self, "_shutting_down", False)):
+            return
+        key = self._archive_texture_retry_key()
+        if not key:
+            return
+        if str(getattr(self, "_archive_texture_retry_key_value", "") or "") != key:
+            self._archive_texture_retry_key_value = key
+            self._archive_texture_retry_count = 0
+        attempts = int(getattr(self, "_archive_texture_retry_count", 0) or 0)
+        if attempts >= ARCHIVE_TEXTURE_REQUEST_RETRY_LIMIT:
+            return
+        self._archive_texture_retry_count = attempts + 1
+        QTimer.singleShot(
+            ARCHIVE_TEXTURE_REQUEST_RETRY_MS,
+            lambda key=key, automatic=bool(automatic): self._retry_archive_preview_textures(
+                key,
+                automatic,
+            ),
+        )
+
+    def _retry_archive_preview_textures(self, key: str, automatic: bool) -> None:
+        if bool(getattr(self, "_shutting_down", False)):
+            return
+        if self._archive_texture_retry_key() != str(key):
+            # The selection moved on; the new entry owns its own retry budget.
+            return
+        if bool(getattr(self, "_archive_texture_request_loading", False)):
+            return
+        if self._archive_active_package_has_textures():
+            return
+        if not bool(self._current_model_preview_render_settings().use_textures_by_default):
+            return
+        self._request_archive_preview_textures(automatic=bool(automatic))
+
     def _finish_archive_texture_request(self, request_id: int, *, success: bool, message: str = "") -> bool:
         if int(request_id or 0) != int(getattr(self, "_archive_texture_request_id", 0) or 0):
             return False
+        automatic = bool(getattr(self, "_archive_texture_request_automatic", False))
         self._archive_texture_request_loading = False
         self._archive_texture_request_id = 0
         self._archive_texture_request_automatic = False
@@ -258,11 +309,14 @@ class ArchivePreviewDotNetLifecycleMixin:
         self._archive_pending_texture_result = None
         self._archive_textures_visible = bool(success and self._archive_active_package_has_textures())
         self._sync_archive_texture_action_state()
-        if not success:
-            self.set_status_message(
-                f"Texture loading failed; the untextured model remains available: {message}",
-                error=True,
-            )
+        if success:
+            self._archive_texture_retry_count = 0
+            return True
+        self.set_status_message(
+            f"Texture loading failed; the untextured model remains available: {message}",
+            error=True,
+        )
+        self._schedule_archive_texture_request_retry(automatic)
         return True
 
     def _sync_archive_texture_action_state(self) -> None:

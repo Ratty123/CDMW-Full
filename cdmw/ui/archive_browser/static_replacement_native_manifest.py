@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 
 from cdmw.models import ModelPreviewData, ModelPreviewMesh, PreviewMaterialTextureInput
+from cdmw.workers.archive_preview_native import native_preview_core_timeout_seconds
 
 
 NATIVE_MATERIAL_MANIFEST_OVERRIDE_KEYS = frozenset(
@@ -177,7 +178,7 @@ def load_native_preview_core_material_manifest_for_alignment(
             render_settings=render_settings,
             companion_entry=companion_entry,
             package_root=Path(package_root_text).expanduser() if package_root_text else None,
-            timeout_seconds=8.0,
+            timeout_seconds=native_preview_core_timeout_seconds(render_settings),
         )
     except Exception as exc:
         record_runtime_event(
