@@ -384,6 +384,9 @@ def export_archive_mesh(
         None,
     )
     if manifest_target_path is not None:
+        # One try covers several stages; track which one is running so a failure
+        # in an early stage is not reported as a round-trip manifest problem.
+        manifest_stage = "archive preview metadata rebuild"
         try:
             manifest_texture_references = tuple(model_texture_references or ())
             manifest_family_graph = asset_family_graph
@@ -391,7 +394,6 @@ def export_archive_mesh(
                 from cdmw.core.archive_preview_result_builder import build_archive_preview_result
 
                 preview_result = build_archive_preview_result(
-                    None,
                     entry,
                     (),
                     texture_entries_by_normalized_path=(
@@ -413,6 +415,7 @@ def export_archive_mesh(
                 )
                 if paired_candidates:
                     paired_lod_target = paired_candidates[0].path
+            manifest_stage = "OBJ material texture rebinding"
             companion_path = ""
             if manifest_target_path.suffix.lower() == ".obj":
                 companion_candidate = manifest_target_path.with_suffix(".mtl")
@@ -495,6 +498,7 @@ def export_archive_mesh(
                 extra_payload["skeleton_resolver"] = skeleton_resolver_payload
             if skin_binding_payload:
                 extra_payload["skin_binding_map"] = skin_binding_payload
+            manifest_stage = "round-trip manifest write"
             manifest_path = write_roundtrip_manifest(
                 parsed_mesh,
                 manifest_target_path,
@@ -504,7 +508,7 @@ def export_archive_mesh(
             if manifest_path not in output_paths:
                 output_paths.append(manifest_path)
         except Exception as exc:
-            _safe_log(on_log, f"Warning: could not write round-trip manifest for {entry.path}: {exc}")
+            _safe_log(on_log, f"Warning: {manifest_stage} failed for {entry.path}: {exc}")
 
     summary_lines = [
         f"Path: {entry.path}",
