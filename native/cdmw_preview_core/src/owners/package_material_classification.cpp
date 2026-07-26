@@ -218,8 +218,16 @@ static const TextureBinding* best_visible_layer_base_fallback(
         if (mesh_family_layer_base) score += 190;
         if (wrong_family_layer_base) score -= 260;
         if (binding.visible_class == "layer_visible") score += 72;
-        if (parameter_key.find("detaildiffuse") != std::string::npos || parameter_key.find("detailcol") != std::string::npos) score += 50;
-        if (parameter_key.find("grimediffuse") != std::string::npos) score += 34;
+        // _grimeDiffuseTexture{R,G,B} are the three colour layers that
+        // _colorBlendingMaskTexture selects -- they are the surface colour.
+        // _detailDiffuseMask* are overlays selected by _detailMaskTexture.
+        // Ranking detail above grime handed the base slot to an overlay: on
+        // cd_phm_02_sword_0014 the blade's own wrapper offered
+        // _detailDiffuseMaskR (score 184) and _grimeDiffuseTexture{R,G,B}
+        // (168) at equal identity, so a detail layer became the albedo and the
+        // authored colour layers were never used.
+        if (parameter_key.find("grimediffuse") != std::string::npos) score += 50;
+        if (parameter_key.find("detaildiffuse") != std::string::npos || parameter_key.find("detailcol") != std::string::npos) score += 34;
         if (parameter_key.find("dye") != std::string::npos || parameter_key.find("tint") != std::string::npos) score += 18;
         if (material_wrapper_matches_mesh_local_index(binding, mesh)) score += 210;
         if (binding.source_authority == "exact_sidecar") score += 90;
