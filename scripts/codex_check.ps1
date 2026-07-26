@@ -49,6 +49,7 @@ $TestsByArea = @{
     "mesh-unit" = @(
         "tests/test_mesh_dotnet_experiment.py",
         "tests/test_mesh_dotnet_experiment_output.py",
+        "tests/test_material_category_contract.py",
         "tests/test_mesh_dotnet_material_state.py",
         "tests/test_mesh_dotnet_material_visual_parity.py",
         "tests/test_mesh_dotnet_material_package.py",
@@ -65,6 +66,7 @@ $TestsByArea = @{
         "tests/test_dotnet_material_parameter_protocol.py",
         "tests/test_native_preview_material_authority_protocol.py",
         "tests/test_dotnet_icon_capture_protocol.py",
+        "tests/test_mesh_edit_native_coverage.py",
         "tests/test_mesh_service_editing.py",
         "tests/test_mesh_editor_controller.py",
         "tests/test_mesh_editor_actions.py",
