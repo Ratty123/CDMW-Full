@@ -894,13 +894,25 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
     drag = state.probe_started.get("screen_drag", {}) if isinstance(state.probe_started, Mapping) else {}
     state.projection_drag = dict(drag) if isinstance(drag, Mapping) else {}
     matrix = tuple(state.projection_drag.get("world_view_projection", ()) or ())
+    # Project through the surface this matrix was actually built for. The
+    # renderer pairs each matrix with the active pane's bounds, which are not
+    # the host window's client size: projecting a pane matrix through the
+    # window size scaled every screen-space result by the ratio between them
+    # (418/698 here), so a drag that tracked the cursor exactly looked like it
+    # under-tracked by 40%.
+    state.projection_viewport_width = float(
+        state.projection_drag.get("viewport_width", 0) or 0
+    ) or float(width)
+    state.projection_viewport_height = float(
+        state.projection_drag.get("viewport_height", 0) or 0
+    ) or float(height)
     selected_faces = _projected_face_cluster_for_drag(
         state.submesh,
         matrix,
         viewport_x=0.0,
         viewport_y=0.0,
-        viewport_width=float(width),
-        viewport_height=float(height),
+        viewport_width=state.projection_viewport_width,
+        viewport_height=state.projection_viewport_height,
     ) if matrix else initial_faces
     state.selected_faces = selected_faces or initial_faces
     state.face_vertices = sorted(
@@ -921,8 +933,8 @@ def _configure_selection_and_projection(state: SimpleNamespace) -> dict[str, obj
         state.selected_center,
         viewport_x=0.0,
         viewport_y=0.0,
-        viewport_width=float(width),
-        viewport_height=float(height),
+        viewport_width=state.projection_viewport_width,
+        viewport_height=state.projection_viewport_height,
     ) if matrix else None
     state.selected_before_capture_summary = _capture_viewport(state, state.selected_before_capture_path)
     if not state.tool_state_sent or not state.tool_state_event or state.projected_center is None:
@@ -1042,8 +1054,10 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
         state.after_center,
         viewport_x=0.0,
         viewport_y=0.0,
-        viewport_width=float(state.viewport.get("width", 0) or 0),
-        viewport_height=float(state.viewport.get("height", 0) or 0),
+        viewport_width=float(getattr(state, "projection_viewport_width", 0.0))
+        or float(state.viewport.get("width", 0) or 0),
+        viewport_height=float(getattr(state, "projection_viewport_height", 0.0))
+        or float(state.viewport.get("height", 0) or 0),
     )
     projected_delta = (
         state.projected_after_center[0] - state.projected_center[0],
