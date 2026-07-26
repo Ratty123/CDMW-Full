@@ -13,6 +13,53 @@ from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_state_payl
 _MATERIAL_ACK_TIMEOUT_SECONDS = 45.0
 
 
+def request_full_renderer_status(
+    state: SimpleNamespace,
+    pump_until: Callable[..., bool],
+    timeout_seconds: float = 10.0,
+) -> dict[str, object]:
+    """Ask the renderer for its current full status and wait for the reply.
+
+    Per-frame metrics carry a slim payload with no viewport identity, no
+    texture resource counters and no presentation block, so comparisons that
+    read those fields from a metrics event were reading absent values. This
+    samples the real state at the moment it is asked for, which is what the
+    before/after comparisons need to mean anything.
+    """
+
+    cursor = len(state.tab.standalone_dotnet_protocol_events)
+    request_id = int(getattr(state, "renderer_status_request_id", 0) or 0) + 1
+    state.renderer_status_request_id = request_id
+    sent = bool(
+        state.tab._send_dotnet_protocol_message(
+            {
+                "event": "renderer_status_request",
+                "session_id": state.controller.active_session_id,
+                "request_id": request_id,
+            }
+        )
+    )
+    if not sent:
+        return {}
+    found: dict[str, object] = {}
+
+    def locate() -> bool:
+        nonlocal found
+        for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]:
+            if str(event.get("event", "")) != "renderer_status":
+                continue
+            if int(event.get("request_id", 0) or 0) != request_id:
+                continue
+            renderer = event.get("renderer")
+            if isinstance(renderer, Mapping):
+                found = dict(renderer)
+                return True
+        return False
+
+    pump_until(state, locate, timeout_seconds)
+    return found
+
+
 def renderer_identity(renderer: Mapping[str, object]) -> dict[str, int]:
     viewport = renderer.get("viewport")
     viewport = viewport if isinstance(viewport, Mapping) else {}
@@ -459,9 +506,16 @@ def exercise_material_parameter_update(
     state.material_parameter_after_capture_path = state.output_dir / "real_archive_dotnet_material_after.png"
     state.material_parameter_visual_diff_path = state.output_dir / "real_archive_dotnet_material_diff.png"
     baseline = wait_protocol_event(state, "metrics", len(state.tab.standalone_dotnet_protocol_events), 2.0)
-    renderer_before = baseline.get("renderer")
-    if not isinstance(renderer_before, Mapping):
-        renderer_before = state.tab.standalone_dotnet_status_payload.get("renderer")
+    # Both ends of this comparison have to be the same kind of payload. The
+    # metrics event supplies the frame count, but its slim renderer has no
+    # window identity, resource counters or decode counters, so pairing it with
+    # a full status afterwards would report the difference between a real
+    # reading and an absent one rather than the effect of the update.
+    renderer_before = request_full_renderer_status(state, pump_until)
+    if not renderer_before:
+        renderer_before = baseline.get("renderer")
+        if not isinstance(renderer_before, Mapping):
+            renderer_before = state.tab.standalone_dotnet_status_payload.get("renderer")
     renderer_before = dict(renderer_before) if isinstance(renderer_before, Mapping) else {}
     state.material_parameter_frame_before = _frame_count(baseline)
     state.material_parameter_before_capture_summary = capture_viewport(state, state.material_parameter_before_capture_path)
@@ -496,9 +550,14 @@ def exercise_material_parameter_update(
         return base_error(state, str(result.get("message") or "Resident .NET material-parameter update was not acknowledged."))
     frame_cursor = len(state.tab.standalone_dotnet_protocol_events)
     rendered = _next_rendered_metrics(state, pump_until, frame_cursor, state.material_parameter_frame_before)
-    renderer_after = rendered.get("renderer")
-    if not isinstance(renderer_after, Mapping):
-        renderer_after = result.get("renderer")
+    # rendered proves a frame was drawn, but its slim payload has no viewport
+    # identity or texture resource counters; the before-state was sampled from
+    # a full status, so the after-state has to come from one too.
+    renderer_after = request_full_renderer_status(state, pump_until)
+    if not renderer_after:
+        renderer_after = rendered.get("renderer")
+        if not isinstance(renderer_after, Mapping):
+            renderer_after = result.get("renderer")
     renderer_after = dict(renderer_after) if isinstance(renderer_after, Mapping) else {}
     state.material_parameter_frame_after = _frame_count(rendered)
     state.material_parameter_after_capture_summary = capture_viewport(state, state.material_parameter_after_capture_path)
@@ -523,6 +582,7 @@ __all__ = [
     "material_parameter_gates",
     "renderer_identity",
     "renderer_resource_metrics",
+    "request_full_renderer_status",
     "resident_material_evidence",
     "resident_material_gates",
 ]

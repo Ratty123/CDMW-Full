@@ -418,6 +418,9 @@ internal sealed partial class ExperimentForm
                 case "close_request":
                     Close();
                     break;
+                case "renderer_status_request":
+                    HandleRendererStatusRequest(root);
+                    break;
                 case "package_load_request":
                     HandleResidentPackageLoadRequest(root);
                     break;

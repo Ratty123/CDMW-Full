@@ -100,6 +100,29 @@ internal sealed partial class ExperimentForm
         return renderer;
     }
 
+    /// <summary>
+    /// Answer a host asking for the renderer's full status.
+    /// </summary>
+    /// <remarks>
+    /// Per-frame metrics carry a deliberately slim payload, so a host that
+    /// needs the viewport identity, texture resource counters, or the
+    /// presentation block could previously only read them from the events that
+    /// happen to carry a full status. That left it unable to sample the
+    /// renderer's actual state at an arbitrary moment. Runs on the UI thread
+    /// with the rest of the parsed protocol dispatch, because building the
+    /// status reads live viewport state.
+    /// </remarks>
+    private void HandleRendererStatusRequest(JsonElement request)
+    {
+        var payload = new Dictionary<string, object?>
+        {
+            ["request_id"] = JsonLongValue(request, "request_id"),
+            ["session_id"] = JsonString(request, "session_id"),
+            ["renderer"] = RendererStatusWithLifecycle(),
+        };
+        WriteProtocolEvent("renderer_status", payload);
+    }
+
     private Dictionary<string, object?> RendererCompactStatusWithLifecycle()
     {
         var renderer = _viewport.RendererCompactStatusPayload();

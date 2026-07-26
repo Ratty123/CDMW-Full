@@ -11,7 +11,11 @@ from cdmw.core.atomic_file import atomic_binary_writer
 from cdmw.domain.mesh.editing import MeshEditSelection
 from cdmw.models import TextureEditorSourceBinding
 from cdmw.ui.texture_workflow.editor_resident_texture import build_texture_editor_resident_patch
-from tools.mesh_harness.real_dotnet_material import renderer_identity, renderer_resource_metrics
+from tools.mesh_harness.real_dotnet_material import (
+    renderer_identity,
+    renderer_resource_metrics,
+    request_full_renderer_status,
+)
 
 
 PRODUCTION_FLOW_STEPS = (
@@ -519,7 +523,11 @@ def exercise_assignment_and_mesh_edits(
     )
     pump_until(state, lambda: bool(settled()), 5.0)
     final_metrics_event = settled()
-    final_renderer = final_metrics_event.get("renderer") if final_metrics_event else {}
+    # The settled metrics event proves the geometry work drained, but its
+    # payload is the slim per-frame one: no viewport identity and no texture
+    # resource counters. Ask the renderer for a full status for those.
+    final_status = request_full_renderer_status(state, pump_until)
+    final_renderer = final_status or (final_metrics_event.get("renderer") if final_metrics_event else {})
     final_resources = renderer_resource_metrics(final_renderer) if isinstance(final_renderer, Mapping) else {}
     state.final_window_identity = renderer_identity(final_renderer) if isinstance(final_renderer, Mapping) else {}
     affected_only = bool(
