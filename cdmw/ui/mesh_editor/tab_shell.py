@@ -612,11 +612,33 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         )
         self._wired_shared_dotnet_controller_ids.add(id(controller))
 
+    def _sync_shared_dotnet_process_identity(self, controller: object) -> None:
+        """Adopt the resident controller's process and count real launches.
+
+        The shared controller owns the QProcess, so the tab never sees
+        QProcess.started and cannot count a launch there. A process-generation
+        increase is the launch. It has to be counted here because the
+        controller's state and protocol signals arrive before any load path
+        runs, which is what left the counters reading zero starts for a
+        renderer that was demonstrably running.
+        """
+
+        process = getattr(controller, "process", None)
+        generation = int(getattr(controller, "process_generation", 0) or 0)
+        previous = int(getattr(self, "standalone_dotnet_process_generation", 0) or 0)
+        self.standalone_dotnet_editor_process = process
+        self.standalone_dotnet_process_generation = generation
+        if generation <= previous or process is None:
+            return
+        starts = int(self.standalone_dotnet_lifecycle_counts.get("renderer_process_start_count", 0) or 0)
+        self.standalone_dotnet_lifecycle_counts["renderer_process_start_count"] = starts + 1
+        if starts > 0:
+            self.standalone_dotnet_lifecycle_counts["process_restart_count"] += 1
+
     def _handle_shared_dotnet_protocol_event(self, controller: object, payload: object) -> None:
         if controller is not self._active_shared_dotnet_controller() or not isinstance(payload, Mapping):
             return
-        self.standalone_dotnet_editor_process = getattr(controller, "process", None)
-        self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
+        self._sync_shared_dotnet_process_identity(controller)
         self.standalone_dotnet_capabilities.update(getattr(controller, "capabilities", ()) or ())
         event = str(payload.get("event", "") or "").strip().lower()
         if event in {
@@ -647,8 +669,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
     def _handle_shared_dotnet_state(self, controller: object, state: str, message: str) -> None:
         if controller is not self._active_shared_dotnet_controller():
             return
-        self.standalone_dotnet_editor_process = getattr(controller, "process", None)
-        self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
+        self._sync_shared_dotnet_process_identity(controller)
         self._record_mesh_dotnet_event(
             "mesh_dotnet_shared_host_state",
             state=str(state or ""),
@@ -712,8 +733,7 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
     def _rehydrate_shared_dotnet_controller(self, controller: object) -> bool:
         if controller is not self._active_shared_dotnet_controller():
             return False
-        self.standalone_dotnet_editor_process = getattr(controller, "process", None)
-        self.standalone_dotnet_process_generation = int(getattr(controller, "process_generation", 0) or 0)
+        self._sync_shared_dotnet_process_identity(controller)
         self.standalone_dotnet_capabilities.update(getattr(controller, "capabilities", ()) or ())
         sent = self._send_dotnet_session_state()
         self._send_dotnet_scene_state()

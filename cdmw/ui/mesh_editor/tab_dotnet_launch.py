@@ -229,6 +229,12 @@ class MeshEditorDotNetLaunchMixin:
             self.standalone_dotnet_lifecycle_session_id = session_id
             for key in self.standalone_dotnet_lifecycle_counts:
                 self.standalone_dotnet_lifecycle_counts[key] = 0
+            # A resident renderer can already be running for this session (the
+            # host prewarms it). Zeroing the counters would otherwise report no
+            # renderer process at all, and the generation never rises again to
+            # correct it.
+            if self._standalone_dotnet_editor_process_running():
+                self.standalone_dotnet_lifecycle_counts["renderer_process_start_count"] = 1
             self.standalone_dotnet_material_generation = 0
             self.standalone_dotnet_applied_material_generation = 0
             self.standalone_dotnet_completed_material_generation = 0
