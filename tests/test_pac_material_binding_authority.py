@@ -1307,7 +1307,7 @@ def test_color_blending_seed_uses_primary_palette_for_neutral_scratch_defaults()
     selected_mask, tints, palette_source = _authoritative_color_blending_tint_seed((mask,))
 
     assert selected_mask is mask
-    assert palette_source == "primary_neutral_scratch_fallback"
+    assert palette_source == "primary_scratch_fallback"
     assert tints == (
         (0.902, 0.875, 0.875),
         (0.784, 0.643, 0.314),
@@ -1315,7 +1315,17 @@ def test_color_blending_seed_uses_primary_palette_for_neutral_scratch_defaults()
     )
 
 
-def test_color_blending_seed_keeps_chromatic_scratch_palette_over_primary() -> None:
+def test_color_blending_seed_uses_the_authored_layer_tints_not_the_scratch_accent() -> None:
+    """Real cd_phm_02_sword_0014 blade values.
+
+    This asset is why the preference was inverted. ``_tintColor{R,G,B}`` pairs
+    one-for-one with the ``_grimeDiffuseTexture{R,G,B}`` layers the mask selects
+    and is the surface colour; ``_scratchTintColor{R,G,B}`` is the wear accent
+    for the same channels. Preferring the chromatic scratch palette painted the
+    blade near-white (0.859 grey) and the grip yellow instead of the authored
+    #ae8c54 gold and #625142 brown.
+    """
+
     parameters = tuple(
         PreviewMaterialParameterInput(
             parameter_kind="color",
@@ -1361,11 +1371,11 @@ def test_color_blending_seed_keeps_chromatic_scratch_palette_over_primary() -> N
     selected_mask, tints, palette_source = _authoritative_color_blending_tint_seed((mask,))
 
     assert selected_mask is mask
-    assert palette_source == "scratch"
+    assert palette_source == "primary_over_scratch"
     assert tints == (
-        (0.859, 0.859, 0.859),
-        (1.0, 0.878, 0.639),
-        (0.859, 0.753, 0.243),
+        (0.231, 0.231, 0.231),
+        (0.682, 0.549, 0.329),
+        (0.384, 0.318, 0.259),
     )
 
 
@@ -1407,7 +1417,9 @@ def test_color_blending_seed_skips_an_earlier_non_authoritative_duplicate() -> N
         (0.7, 0.5, 0.2),
         (0.6, 0.4, 0.1),
     )
-    assert palette_source == "scratch"
+    # Only _scratchTintColor is declared here, so it is the fallback rather than
+    # the preferred palette; the resolved colours are unchanged.
+    assert palette_source == "primary_scratch_fallback"
 
 
 def test_authoritative_layer_key_preserves_owner_slot_zero() -> None:

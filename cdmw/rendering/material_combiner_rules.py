@@ -1227,48 +1227,35 @@ def _authoritative_color_blending_tint_seed(
         scratch_tints.append(_material_parameter_color_exact(mask_item, f"scratchtintcolor{channel}"))
         primary_tints.append(_material_parameter_color_exact(mask_item, f"tintcolor{channel}"))
 
-    # PACs commonly store neutral scratch defaults as black, white, 0.8 gray,
-    # or a byte-close warm gray while their primary tint palette carries the
-    # authored color. Treat up to 16/255 channel spread as neutral, but only
-    # switch when the primary palette contains clear chroma. This preserves
-    # intentionally silver/gold scratch palettes and avoids guessing when both
-    # palettes are neutral.
-    neutral_chroma_epsilon = 16.0 / 255.0
-
-    def _palette_has_chroma(palette: Sequence[Tuple[float, float, float]]) -> bool:
-        return any(
-            len(color) >= 3 and max(color[:3]) - min(color[:3]) > neutral_chroma_epsilon
-            for color in palette
-        )
-
+    # ``_tintColor{R,G,B}`` is the base tint of the three layers the mask
+    # selects: it sits alongside ``_grimeDiffuseTexture{R,G,B}`` one-for-one in
+    # the PAC, so channel N's tint belongs to channel N's layer.
+    # ``_scratchTintColor{R,G,B}`` is the wear/scratch accent for the same
+    # channels and carries a low alpha strength (0x0c and 0x36 on a real sword),
+    # so it is an overlay, not the surface colour.
+    #
+    # Preferring scratch inverted that. Only a wholly neutral scratch palette
+    # deferred to the primary one, and ``any()`` meant a single chromatic scratch
+    # channel kept the whole palette: on cd_phm_02_sword_0014 the blade's
+    # #dbdbdb/#ffe0a3/#dbc03e scratch set won over its authored #ae8c54 gold and
+    # #625142 brown, painting the blade near-white and the grip yellow.
     scratch_present = any(len(color) >= 3 for color in scratch_tints)
-    prefer_primary = bool(
-        scratch_present
-        and not _palette_has_chroma(scratch_tints)
-        and _palette_has_chroma(primary_tints)
-    )
-    preferred_tints = primary_tints if prefer_primary else scratch_tints
-    fallback_tints = scratch_tints if prefer_primary else primary_tints
 
     tints: list[Tuple[float, float, float]] = []
     used_fallback = False
-    for preferred, fallback in zip(preferred_tints, fallback_tints):
-        color = preferred
+    for primary, scratch in zip(primary_tints, scratch_tints):
+        color = primary
         if len(color) < 3:
-            color = fallback
+            color = scratch
             used_fallback = len(color) >= 3
         if len(color) < 3:
             return None, (), ""
         tints.append(color)
 
-    if prefer_primary:
-        palette_source = "primary_neutral_scratch"
-        if used_fallback:
-            palette_source += "_fallback"
+    if used_fallback:
+        palette_source = "primary_scratch_fallback"
     elif scratch_present:
-        palette_source = "scratch"
-        if used_fallback:
-            palette_source += "_primary_fallback"
+        palette_source = "primary_over_scratch"
     else:
         palette_source = "primary"
     return mask_item, tuple(tints), palette_source
