@@ -7,6 +7,12 @@ from types import SimpleNamespace
 from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_state_payload
 
 
+# A resident material update recompiles real material maps on a worker thread.
+# The pre-migration 5s default was calibrated against a re-send of an unchanged
+# state, which no longer reaches the compiler at all.
+_MATERIAL_ACK_TIMEOUT_SECONDS = 45.0
+
+
 def renderer_identity(renderer: Mapping[str, object]) -> dict[str, int]:
     viewport = renderer.get("viewport")
     viewport = viewport if isinstance(viewport, Mapping) else {}
@@ -124,7 +130,30 @@ def resident_material_gates(state: SimpleNamespace) -> dict[str, bool]:
             and int(after.get("material_state_applied_count", 0)) - int(before.get("material_state_applied_count", 0)) == 2
             and int(after.get("material_state_failed_count", 0)) == int(before.get("material_state_failed_count", 0))
         ),
+        "resident_material_dedup_respected": bool(getattr(state, "material_dedup_ok", False)),
     }
+
+
+def _perturb_material_state_for_update(state: SimpleNamespace, toggle_index: int) -> bool:
+    """Flip one submesh's texture V-flip so the update is a genuine change.
+
+    Production deduplicates material states whose input signature is unchanged
+    (afda4eae): resending the launch state succeeds without any protocol
+    traffic, so an ack for it never arrives. Real users change something
+    before a resident material update; the harness must too.
+    """
+
+    mesh = state.controller.working_mesh(clone=False)
+    submeshes = tuple(getattr(mesh, "submeshes", ()) or ())
+    if not submeshes:
+        return False
+    target = submeshes[min(max(0, int(toggle_index)), len(submeshes) - 1)]
+    setattr(
+        target,
+        "preview_texture_flip_vertical",
+        not bool(getattr(target, "preview_texture_flip_vertical", False)),
+    )
+    return True
 
 
 def exercise_resident_material_update(
@@ -135,6 +164,8 @@ def exercise_resident_material_update(
     wait_protocol_event: Callable[..., dict[str, object]],
 ) -> dict[str, object] | None:
     view = state.controller.session_view()
+    if not _perturb_material_state_for_update(state, 0):
+        return base_error(state, "Resident material update found no submeshes to perturb.")
     first_payload = mesh_dotnet_material_state_payload(
         state.controller.working_mesh(clone=False), session_id=view.session_id, edit_revision=view.revision,
         generation=int(state.tab.standalone_dotnet_material_generation) + 1,
@@ -145,7 +176,13 @@ def exercise_resident_material_update(
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     if not state.tab._send_dotnet_material_state(reason="real_archive_harness"):
         return base_error(state, "Production .NET material-state sender rejected the resident update.")
-    first_applied = _protocol_result(state, pump_until, cursor, {"material_state_applied", "material_state_failed"})
+    first_applied = _protocol_result(
+        state,
+        pump_until,
+        cursor,
+        {"material_state_applied", "material_state_failed"},
+        timeout_seconds=_MATERIAL_ACK_TIMEOUT_SECONDS,
+    )
     if first_applied.get("event") != "material_state_applied":
         return base_error(state, str(first_applied.get("message") or "First resident .NET material update was not acknowledged."))
     first_renderer = first_applied.get("renderer")
@@ -155,6 +192,13 @@ def exercise_resident_material_update(
     if first_renderer:
         state.renderer = first_renderer
     current = state.controller.session_view()
+    # Toggle the same submesh back rather than perturbing a second one: this is
+    # still a genuine change (so it earns its own ack) but leaves the working
+    # mesh byte-identical to how the stage found it. Leaving submeshes flipped
+    # contaminates every later stage, which then exercises a material state no
+    # user asked for.
+    if not _perturb_material_state_for_update(state, 0):
+        return base_error(state, "Second resident material update found no submeshes to perturb.")
     second_payload = mesh_dotnet_material_state_payload(
         state.controller.working_mesh(clone=False), session_id=current.session_id, edit_revision=current.revision,
         generation=int(state.tab.standalone_dotnet_material_generation) + 1,
@@ -162,7 +206,13 @@ def exercise_resident_material_update(
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     if not state.tab._send_dotnet_material_state(reason="real_archive_harness_same_revision"):
         return base_error(state, "Production .NET material-state sender rejected the second resident update.")
-    second_applied = _protocol_result(state, pump_until, cursor, {"material_state_applied", "material_state_failed"})
+    second_applied = _protocol_result(
+        state,
+        pump_until,
+        cursor,
+        {"material_state_applied", "material_state_failed"},
+        timeout_seconds=_MATERIAL_ACK_TIMEOUT_SECONDS,
+    )
     if second_applied.get("event") != "material_state_applied":
         return base_error(state, str(second_applied.get("message") or "Second resident .NET material update was not acknowledged."))
     state.material_state_payloads = (first_payload, second_payload)
@@ -180,6 +230,21 @@ def exercise_resident_material_update(
     state.material_resource_metrics_after = renderer_resource_metrics(renderer_after)
     state.material_process_pid_after = int(state.tab.standalone_dotnet_editor_process.processId())
     state.material_lifecycle_after = dict(state.tab.standalone_dotnet_lifecycle_counts)
+    # An UNCHANGED resend must take the dedup path: success without protocol
+    # traffic and without starting a compile. This encodes the afda4eae
+    # production contract the pre-migration harness predates.
+    dedup_counts_before = dict(state.tab.standalone_dotnet_lifecycle_counts)
+    dedup_cursor = len(state.tab.standalone_dotnet_protocol_events)
+    dedup_send_ok = bool(state.tab._send_dotnet_material_state(reason="real_archive_harness_unchanged"))
+    dedup_counts_after = dict(state.tab.standalone_dotnet_lifecycle_counts)
+    state.material_dedup_ok = bool(
+        dedup_send_ok
+        and int(dedup_counts_after.get("material_state_deduplicated_count", 0) or 0)
+        == int(dedup_counts_before.get("material_state_deduplicated_count", 0) or 0) + 1
+        and int(dedup_counts_after.get("material_compile_start_count", 0) or 0)
+        == int(dedup_counts_before.get("material_compile_start_count", 0) or 0)
+        and len(state.tab.standalone_dotnet_protocol_events) == dedup_cursor
+    )
     state.resident_material_gates = resident_material_gates(state)
     return None
 

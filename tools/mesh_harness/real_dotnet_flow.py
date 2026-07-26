@@ -405,15 +405,41 @@ def exercise_assignment_and_mesh_edits(
     cursor = len(state.tab.standalone_dotnet_protocol_events)
     if not state.tab.apply_texture_editor_dds_assignment(str(assigned), binding):
         return "Committed real DDS assignment was rejected."
-    if not pump_until(
-        state,
-        lambda: any(
+    def _local_material_failures() -> int:
+        return int(
+            state.tab.standalone_dotnet_lifecycle_counts.get("material_state_failed_count", 0) or 0
+        )
+
+    failures_before = _local_material_failures()
+
+    def assignment_settled() -> bool:
+        if any(
             str(event.get("event", "")) in {"material_state_applied", "material_state_failed"}
             for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]
-        ),
-        10.0,
-    ):
+        ):
+            return True
+        # A compile that fails before it reaches the helper emits no protocol
+        # event at all, so waiting for one can only ever time out. Treat the
+        # local failure counter as a settled outcome and report why below.
+        return _local_material_failures() > failures_before
+
+    # The assignment recompiles real materials with a freshly encoded DDS; the
+    # pre-migration 10s budget did not cover that work.
+    if not pump_until(state, assignment_settled, 45.0):
         return "Committed DDS assignment was not acknowledged."
+    if _local_material_failures() > failures_before and not any(
+        str(event.get("event", "")) == "material_state_applied"
+        for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]
+    ):
+        reason = next(
+            (
+                str(entry.get("message", ""))
+                for entry in reversed(tuple(getattr(state, "status_messages", ()) or ()))
+                if entry.get("error")
+            ),
+            "no status message was recorded",
+        )
+        return f"Committed DDS assignment failed to compile before reaching the renderer: {reason}"
     assignment_events = [
         dict(event)
         for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]

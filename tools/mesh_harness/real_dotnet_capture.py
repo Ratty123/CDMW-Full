@@ -33,7 +33,11 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
     visible_hwnd = 0
     visible_pid = 0
     ownership_ok = False
-    for _attempt in range(4):
+    # A busy desktop can deny SetForegroundWindow or transiently overlap the
+    # viewport; retry with growing waits before declaring the capture target
+    # lost. The ownership checks themselves stay strict: the capture must
+    # still prove the real helper viewport is what lands in the screenshot.
+    for attempt in range(10):
         state.tab.raise_()
         state.tab.activateWindow()
         try:
@@ -56,7 +60,7 @@ def capture_dotnet_viewport(state: SimpleNamespace, path: Path) -> dict[str, obj
         )
         if ownership_ok:
             break
-        time.sleep(0.08)
+        time.sleep(min(0.4, 0.08 * (attempt + 1)))
     if not ownership_ok:
         return {
             "ok": False,

@@ -42,6 +42,44 @@ def _renderer_after_metrics(
     return renderer
 
 
+def _latest_view_state_presentation(
+    state: SimpleNamespace,
+    cursor: int,
+    pump_until,
+    timeout_seconds: float = 5.0,
+) -> tuple[dict[str, object], dict[str, dict[str, object]]]:
+    """Read the newest presentation the renderer actually published.
+
+    A ``view_state_changed`` event carries the presentation status payload
+    directly: pane rectangles plus a camera per view context, republished
+    whenever a camera moves. The per-frame metrics payload carries neither
+    since the frame-pacing work slimmed it, so it cannot say where the panes
+    are or where their cameras ended up after a wheel. Reading the pre-wheel
+    status instead would answer every post-wheel question with the camera the
+    wheel was supposed to change, turning this proof into a tautology.
+    """
+
+    latest: dict[str, object] = {}
+
+    def locate() -> bool:
+        nonlocal latest
+        for event in tuple(state.tab.standalone_dotnet_protocol_events)[cursor:]:
+            if str(event.get("event", "")) == "view_state_changed":
+                latest = dict(event)
+        return bool(latest)
+
+    pump_until(state, locate, timeout_seconds)
+    cameras: dict[str, dict[str, object]] = {}
+    for raw_context in tuple(latest.get("view_contexts", ()) or ()):
+        if not isinstance(raw_context, Mapping):
+            continue
+        context_id = str(raw_context.get("id", "") or "")
+        raw_camera = raw_context.get("camera")
+        if context_id and isinstance(raw_camera, Mapping):
+            cameras[context_id] = dict(raw_camera)
+    return latest, cameras
+
+
 def _presentation_cameras(renderer: Mapping[str, object]) -> tuple[dict[str, object], dict[str, dict[str, object]]]:
     raw_presentation = renderer.get("presentation")
     presentation = dict(raw_presentation) if isinstance(raw_presentation, Mapping) else {}
@@ -159,32 +197,90 @@ def exercise_side_by_side_wheel_zoom(
     """Physically wheel each resident role pane and prove exact inverse restoration."""
 
     cursor = len(state.tab.standalone_dotnet_protocol_events)
-    initial_renderer = _renderer_after_metrics(state, cursor, pump_until)
-    initial_presentation, initial_cameras = _presentation_cameras(initial_renderer)
+    initial_presentation, initial_cameras = _latest_view_state_presentation(
+        state,
+        cursor,
+        pump_until,
+    )
+    if not initial_cameras:
+        # Fall back to whatever the ready status recorded so the pane geometry
+        # is still available, but only for this pre-wheel read; the post-wheel
+        # reads below must never use it.
+        initial_presentation, initial_cameras = _presentation_cameras(
+            dict(getattr(state, "renderer", {}) or {})
+        )
     raw_rectangles = initial_presentation.get("pane_rectangles")
     rectangles = dict(raw_rectangles) if isinstance(raw_rectangles, Mapping) else {}
 
     def capture_settled(path: Path) -> dict[str, object]:
         previous_hashes: tuple[str, ...] | None = None
         summary: dict[str, object] = {}
-        for capture_index in range(5):
-            pump_for(state, 0.2)
+        if not any(
+            role in {"reference", "editable"} and isinstance(rectangle, Mapping)
+            for role, rectangle in rectangles.items()
+        ):
+            # Without pane rectangles the hash tuple below is empty, and an
+            # empty tuple can never satisfy the settle comparison: the loop
+            # would spin its full budget and then blame the GPU. Report the
+            # missing input instead.
+            return {
+                "ok": False,
+                "error": (
+                    "The renderer reported no side-by-side pane rectangles to compare; "
+                    "the presentation payload was unavailable."
+                ),
+                "settle_pane_rectangles": dict(rectangles),
+            }
+        # Ten samples with slightly longer late pumps: a transient frame (a
+        # metrics repaint, a focus flash) must not fail the settle proof.
+        attempts: list[dict[str, object]] = []
+        for capture_index in range(10):
+            pump_for(state, 0.2 if capture_index < 5 else 0.35)
             summary = dict(capture_viewport(state, path) or {})
             if not summary.get("ok"):
                 return summary
-            current_hashes = tuple(
-                str(_pane_image_evidence(path, rectangle).get("sha256", "") or "")
+            pane_evidence = {
+                role: _pane_image_evidence(path, rectangle)
                 for role, rectangle in sorted(rectangles.items())
                 if role in {"reference", "editable"} and isinstance(rectangle, Mapping)
+            }
+            current_hashes = tuple(
+                str(evidence.get("sha256", "") or "") for evidence in pane_evidence.values()
+            )
+            attempts.append(
+                {
+                    "attempt": capture_index + 1,
+                    "pane_hashes": list(current_hashes),
+                    "matched_previous": bool(current_hashes and current_hashes == previous_hashes),
+                    "panes": {
+                        role: {
+                            key: value
+                            for key, value in evidence.items()
+                            if key != "sha256" and isinstance(value, (int, float, str, bool))
+                        }
+                        for role, evidence in pane_evidence.items()
+                    },
+                }
             )
             if current_hashes and current_hashes == previous_hashes:
                 summary["settled_frame_count"] = capture_index + 1
+                summary["settle_attempts"] = attempts
                 return summary
             previous_hashes = current_hashes
+        # Carry the per-attempt evidence so an unsettled viewport reports which
+        # pane kept changing and by how much, instead of only that it did.
+        distinct_hashes = {tuple(row["pane_hashes"]) for row in attempts}  # type: ignore[index]
         return {
             **summary,
             "ok": False,
             "error": "The side-by-side GPU panes did not settle to two identical frames.",
+            "settle_attempts": attempts,
+            "settle_distinct_frame_count": len(distinct_hashes),
+            "settle_pane_rectangles": {
+                role: dict(rectangle)
+                for role, rectangle in rectangles.items()
+                if role in {"reference", "editable"} and isinstance(rectangle, Mapping)
+            },
         }
 
     fitted_path = state.output_dir / "real_archive_dotnet_zoom_fitted.png"
@@ -280,10 +376,11 @@ def exercise_side_by_side_wheel_zoom(
             )
             metrics_cursor = len(state.tab.standalone_dotnet_protocol_events)
             wheel_out_sent = bool(ownership_ok and _send_mouse_wheel_input(-1))
-            zoomed_renderer = (
-                _renderer_after_metrics(state, metrics_cursor, pump_until) if wheel_out_sent else {}
+            zoomed_presentation, zoomed_cameras = (
+                _latest_view_state_presentation(state, metrics_cursor, pump_until)
+                if wheel_out_sent
+                else ({}, {})
             )
-            zoomed_presentation, zoomed_cameras = _presentation_cameras(zoomed_renderer)
             _set_screen_cursor_position(*away_point)
             zoomed_path = state.output_dir / f"real_archive_dotnet_{role}_zoomed_out.png"
             zoomed_capture = capture_settled(zoomed_path)
@@ -306,12 +403,11 @@ def exercise_side_by_side_wheel_zoom(
             )
             restore_cursor = len(state.tab.standalone_dotnet_protocol_events)
             wheel_restore_sent = bool(restore_ownership_ok and _send_mouse_wheel_input(1))
-            restored_renderer = (
-                _renderer_after_metrics(state, restore_cursor, pump_until)
+            restored_presentation, restored_cameras = (
+                _latest_view_state_presentation(state, restore_cursor, pump_until)
                 if wheel_restore_sent
-                else {}
+                else ({}, {})
             )
-            restored_presentation, restored_cameras = _presentation_cameras(restored_renderer)
             _set_screen_cursor_position(*away_point)
             restored_path = state.output_dir / f"real_archive_dotnet_{role}_zoom_restored.png"
             restored_capture = capture_settled(restored_path)
@@ -416,7 +512,7 @@ def exercise_side_by_side_wheel_zoom(
         if original_cursor is not None:
             _set_screen_cursor_position(*original_cursor)
     gates = {
-        "production_d3d11_backend": initial_renderer.get("backend") == "d3d11_vortice_shader",
+        "production_d3d11_backend": dict(getattr(state, "renderer", {}) or {}).get("backend") == "d3d11_vortice_shader",
         "simultaneous_role_panes": initial_presentation.get("simultaneous_role_panes") is True,
         "physical_divider_activation_owned": divider_activation.get("ok") is True,
         "correct_viewport_ownership": bool(rows and all(row["gates"]["viewport_input_owned"] for row in rows)),
@@ -440,7 +536,7 @@ def exercise_side_by_side_wheel_zoom(
     }
     return {
         "schema": "cdmw_real_pac_side_by_side_wheel_zoom_v1",
-        "renderer_backend": str(initial_renderer.get("backend", "") or ""),
+        "renderer_backend": str(dict(getattr(state, "renderer", {}) or {}).get("backend", "") or ""),
         "process_pid": int(state.production_process_pid),
         "window_identity": {
             "form_hwnd": int(state.form_hwnd),

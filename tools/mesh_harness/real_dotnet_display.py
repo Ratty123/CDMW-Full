@@ -305,15 +305,23 @@ def _rendered_mode_metrics(
                 continue
             renderer = _renderer_from_event(event)
             resources = renderer_resource_metrics(renderer)
-            if str(renderer.get("display_mode", "")) != mode:
-                continue
+            # The per-frame metrics renderer is a slimmed live-metrics payload
+            # and no longer carries display_mode, so filtering on it here
+            # rejected every event and no mode could ever prove a frame. The
+            # mode itself is already proven by the viewport_display_applied
+            # acknowledgement (which carries the mode and all four flags);
+            # events scanned from the post-acknowledgement cursor can only
+            # postdate it, so a counter above the pre-switch floor is the
+            # remaining proof that this mode actually drew.
             if any(int(resources.get(key, 0) or 0) <= floor for key, floor in counter_floors.items()):
                 continue
             found = dict(event)
             return True
         return False
 
-    pump_until(state, locate, 3.0)
+    # The helper emits metrics every 500 ms; keep enough budget for a busy
+    # desktop to deliver several of them.
+    pump_until(state, locate, 10.0)
     return found
 
 
@@ -326,6 +334,10 @@ def exercise_geometry_display_modes(
     current_renderer = _renderer_from_event(getattr(state, "material_state_applied", {})) or dict(
         state.renderer
     )
+    # The initial snapshot comes from a full renderer status; the end-of-run
+    # comparison has to read the same kind of payload or it compares real
+    # counters against missing ones.
+    latest_full_renderer = dict(current_renderer)
     initial_resources = renderer_resource_metrics(current_renderer)
     initial_decode = {
         key: int(current_renderer.get(key, 0) or 0)
@@ -370,8 +382,16 @@ def exercise_geometry_display_modes(
         capture = capture_viewport(state, capture_path)
         floors = {key: int(before_resources.get(key, 0) or 0) for key in counter_keys[mode]}
         rendered = _rendered_mode_metrics(state, metrics_cursor, mode, floors, pump_until)
-        renderer = _renderer_from_event(rendered) or _renderer_from_event(acknowledgement)
+        acknowledged_renderer = _renderer_from_event(acknowledgement)
+        renderer = _renderer_from_event(rendered) or acknowledged_renderer
         resources = renderer_resource_metrics(renderer)
+        # Only the acknowledgement carries the full renderer status; the
+        # per-frame metrics payload has no texture resource or decode counters.
+        # Keep the newest rich status for the end-of-run comparisons while the
+        # per-mode floors below stay on the post-frame metrics values, which are
+        # the stricter source.
+        if "texture_decode_attempts" in acknowledged_renderer:
+            latest_full_renderer = acknowledged_renderer
         show_solid, show_wire, show_vertices, textures_enabled = expected_flags[mode]
         flags_ok = bool(
             acknowledgement.get("mode") == mode
@@ -402,12 +422,31 @@ def exercise_geometry_display_modes(
             }
         )
         if not row_ok:
+            # Publish what was measured before bailing out. Returning only the
+            # message left the evidence report with an empty geometry_display
+            # block, so a failure here could not be told apart from a capture
+            # problem, a stale counter floor, or a genuinely black frame.
+            state.geometry_display_evidence = {
+                "ok": False,
+                "failed_mode": mode,
+                "failure_reasons": {
+                    "flags_ok": flags_ok,
+                    "capture_ok": bool(capture.get("ok")),
+                    "rendered_metrics_observed": bool(rendered),
+                    "counters_above_floor": {
+                        key: {"floor": floor, "observed": int(resources.get(key, 0) or 0)}
+                        for key, floor in floors.items()
+                    },
+                    "non_black_geometry": color.get("non_black_geometry"),
+                },
+                "rows": rows,
+            }
             return f".NET/Vortice viewport display mode {mode!r} did not render truthful real-PAC evidence."
         current_renderer = renderer
 
-    final_resources = renderer_resource_metrics(current_renderer)
+    final_resources = renderer_resource_metrics(latest_full_renderer)
     final_decode = {
-        key: int(current_renderer.get(key, 0) or 0) for key in initial_decode
+        key: int(latest_full_renderer.get(key, 0) or 0) for key in initial_decode
     }
     rendered_modes = {str(row["mode"]) for row in rows if row["ok"]}
     stable_resource_keys = (

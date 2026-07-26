@@ -44,7 +44,12 @@ internal sealed partial class ExperimentForm
             ["show_vertices"] = _viewport.ShowVertices,
             ["show_xray"] = _viewport.ShowXRay,
             ["textures_enabled"] = _viewport.TexturesEnabled,
-            ["renderer"] = RendererCompactStatusWithLifecycle(),
+            // A display-mode change is a rare, user-initiated state change, not
+            // a per-frame event, so the compact payload's per-frame cost saving
+            // does not apply. The full status is what carries texture resource
+            // and decode counters, without which a host cannot tell whether
+            // switching modes reused resident textures or re-decoded them.
+            ["renderer"] = RendererStatusWithLifecycle(),
             ["capabilities"] = new[] { ViewportDisplayModesCapability },
         };
         CopyMutationEnvelope(request, payload);

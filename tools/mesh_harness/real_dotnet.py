@@ -680,9 +680,9 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
     state.stroke_results = []
     original_handler = state.tab._handle_dotnet_stroke_event
 
-    def timed_handler(payload: Mapping[str, object], phase: str) -> bool:
+    def timed_handler(payload: Mapping[str, object], phase: str, *args: object, **kwargs: object) -> bool:
         started = time.perf_counter()
-        handled = bool(original_handler(payload, phase))
+        handled = bool(original_handler(payload, phase, *args, **kwargs))
         if state.measure_stroke_handlers and phase == "update":
             state.stroke_handler_timings.append(
                 {"phase": phase, "handled": handled, "handler_ms": (time.perf_counter() - started) * 1000.0}
@@ -691,18 +691,22 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
 
     original_apply = state.tab._apply_dotnet_result_update
 
-    def record_result(controller: object, result: object, *, command_name: str = "") -> bool:
-        applied = bool(original_apply(controller, result, command_name=command_name))
-        if state.measure_stroke_handlers and command_name in {"transform", "brush"}:
+    # Forward every keyword through: this probe wraps a production method whose
+    # signature grows (it gained request_payload after this harness was
+    # written), and a probe that pins the old signature turns a product call
+    # into a TypeError.
+    def record_result(controller: object, result: object, **kwargs: object) -> bool:
+        applied = bool(original_apply(controller, result, **kwargs))
+        if state.measure_stroke_handlers and str(kwargs.get("command_name", "") or "") in {"transform", "brush"}:
             state.stroke_results.append(result)
         return applied
 
     original_completed = state.tab._handle_dotnet_live_stroke_completed
 
-    def record_completed(outcome: object) -> None:
+    def record_completed(outcome: object, *args: object, **kwargs: object) -> None:
         if str(getattr(outcome, "source", "") or "") == "dotnet":
             state.stroke_results.append(getattr(outcome, "result", None))
-        original_completed(outcome)
+        original_completed(outcome, *args, **kwargs)
 
     state.tab._handle_dotnet_stroke_event = timed_handler
     state.tab._apply_dotnet_result_update = record_result
@@ -716,9 +720,11 @@ def _start_embedded_editor(
 ) -> dict[str, object] | None:
     os.environ["QT_QPA_PLATFORM"] = "windows"
     from PySide6.QtCore import QSettings, Qt, QTimer
-    from PySide6.QtWidgets import QApplication, QFrame, QVBoxLayout, QWidget
+    from PySide6.QtWidgets import QApplication, QVBoxLayout, QWidget
     from cdmw.ui.mesh_editor import MeshEditorTab
     from cdmw.ui.mesh_editor.controller import MeshEditorController
+    from cdmw.ui.preview.dotnet_host import DotNetPreviewHostFrame
+    from cdmw.ui.preview.profile import DotNetPreviewProfile
 
     state.app = QApplication.instance() or QApplication(["real-archive-mesh-editor-dotnet-edit"])
     state.settings = QSettings(str(state.output_dir / "real_archive_mesh_editor_dotnet.ini"), QSettings.Format.IniFormat)
@@ -731,12 +737,32 @@ def _start_embedded_editor(
     state.builder.setObjectName("RealDotNetMeshBuilder")
     layout = QVBoxLayout(state.builder)
     layout.setContentsMargins(0, 0, 0, 0)
-    state.host = QFrame(state.builder)
+    # The tab's embedded flow drives the builder-provided shared resident host
+    # (a DotNetPreviewHostFrame with an authoring controller), exactly as the
+    # production static-replacement builder provides one. A bare QFrame here
+    # predates the resident migration and leaves the launch without a
+    # controller, so the helper never starts.
+    state.host = DotNetPreviewHostFrame(
+        state.builder,
+        profile=DotNetPreviewProfile.AUTHORING,
+        terminate_on_close=True,
+    )
     state.host.setObjectName("AlignmentDotNetVorticePreviewHost")
-    state.host.setAttribute(Qt.WidgetAttribute.WA_NativeWindow, True)
+    state.host.setMinimumSize(300, 280)
     layout.addWidget(state.host)
     state.dotnet_ready_callback = False
     state.dotnet_failed = ""
+    # Several production failures (a material compile that fails before it
+    # reaches the helper, for one) only surface as a status message. Recording
+    # them additively — a new connection, never a replaced slot — keeps the
+    # reason available to the evidence report instead of leaving a stage to
+    # time out with no stated cause.
+    state.status_messages = []
+    state.tab.status_message_requested.connect(
+        lambda message, error: state.status_messages.append(
+            {"message": str(message), "error": bool(error)}
+        )
+    )
     setattr(state.builder, "_mesh_editor_embedded_controller", lambda: state.controller)
     if side_by_side_camera:
         setattr(state.builder, "_mesh_editor_embedded_reference_mesh", lambda: state.mesh)
