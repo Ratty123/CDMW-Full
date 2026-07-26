@@ -42,6 +42,24 @@ from cdmw.services.mesh_dotnet_preview_package import build_or_lookup_dotnet_pre
 
 NATIVE_PREVIEW_CORE_MODEL_EXTENSIONS = {".pac", ".pam", ".pamlod"}
 
+# Geometry-only jobs never touch the material lookup, so they stay on the short
+# budget. A texture job may have to index every .pamt in the package root before
+# it can resolve a single DDS, and that cold pass does not fit in 8s -- when it
+# overruns the client kills the whole preview-core service, so an over-tight
+# budget costs the warm caches as well as the request.
+NATIVE_PREVIEW_CORE_GEOMETRY_TIMEOUT_S = 8.0
+NATIVE_PREVIEW_CORE_TEXTURE_TIMEOUT_S = 45.0
+
+
+def native_preview_core_timeout_seconds(render_settings: object) -> float:
+    """Budget the preview-core job by how much material work it has to do."""
+
+    return (
+        NATIVE_PREVIEW_CORE_TEXTURE_TIMEOUT_S
+        if bool(getattr(render_settings, "use_textures_by_default", False))
+        else NATIVE_PREVIEW_CORE_GEOMETRY_TIMEOUT_S
+    )
+
 
 def _preserve_native_preview_core_staging_package(
     cache_root: Path,
@@ -182,7 +200,7 @@ class ArchivePreviewNativeMixin:
                 ),
                 package_root=self.native_preview_core_package_root,
                 output_root=output_root,
-                timeout_seconds=8.0,
+                timeout_seconds=native_preview_core_timeout_seconds(self.render_settings),
                 stop_event=self.stop_event,
                 dds_cache_max_bytes=dds_cache_max_bytes,
                 dds_cache_target_bytes=dds_cache_target_bytes,

@@ -132,7 +132,7 @@ static PackageWriteState start_package_write(
         std::move(package),
         package_dir,
         geometry_dir,
-        &cached_pamt_index(job.entry.pamt_path),
+        &cached_pamt_index(job.entry.pamt_path, job.cache_root),
         inspect_package_geometry(submeshes),
     };
 }

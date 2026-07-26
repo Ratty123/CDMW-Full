@@ -258,6 +258,67 @@ def test_unchecked_preference_keeps_late_automatic_texture_result_hidden(tmp_pat
     assert harness.current_archive_preview_result == "textured-result"
 
 
+def _failed_texture_request_harness(tmp_path: Path) -> _LifecycleHarness:
+    geometry = tmp_path / "geometry"
+    geometry.mkdir()
+    (geometry / "net_materials.json").write_text('{"resources":[]}', encoding="utf-8")
+    harness = _LifecycleHarness()
+    harness.archive_isolated_renderer_active_package = geometry
+    harness.settings = ModelPreviewRenderSettings(use_textures_by_default=True)
+    harness._archive_texture_request_id = 11
+    harness._archive_texture_request_loading = True
+    harness._archive_texture_request_automatic = True
+    return harness
+
+
+def test_cold_texture_failure_retries_once_for_the_same_entry(tmp_path: Path) -> None:
+    harness = _failed_texture_request_harness(tmp_path)
+
+    harness._finish_archive_texture_request(11, success=False, message="service timed out")
+
+    assert harness._archive_texture_retry_count == 1
+    harness._retry_archive_preview_textures(harness._archive_texture_retry_key(), True)
+    assert harness.render_requests == [(harness.entry, True)]
+    assert harness._archive_texture_request_automatic is True
+
+    # A second failure for the same entry must not queue another attempt.
+    harness._finish_archive_texture_request(
+        harness._archive_texture_request_id,
+        success=False,
+        message="service timed out",
+    )
+    assert harness._archive_texture_retry_count == 1
+
+
+def test_texture_retry_is_dropped_when_the_selection_moved_on(tmp_path: Path) -> None:
+    harness = _failed_texture_request_harness(tmp_path)
+    harness._finish_archive_texture_request(11, success=False, message="service timed out")
+    stale_key = harness._archive_texture_retry_key()
+
+    harness.entry = SimpleNamespace(path="character/other.pac")
+    harness._retry_archive_preview_textures(stale_key, True)
+
+    assert harness.render_requests == []
+
+
+def test_texture_success_restores_the_retry_budget(tmp_path: Path) -> None:
+    package = tmp_path / "textured"
+    package.mkdir()
+    (package / "net_materials.json").write_text(
+        json.dumps({"resources": [{"resource_id": "texture:base", "path": "base.dds"}]}),
+        encoding="utf-8",
+    )
+    harness = _failed_texture_request_harness(tmp_path)
+    harness._finish_archive_texture_request(11, success=False, message="service timed out")
+    assert harness._archive_texture_retry_count == 1
+
+    harness.archive_isolated_renderer_active_package = package
+    harness._archive_texture_request_id = 12
+    harness._finish_archive_texture_request(12, success=True)
+
+    assert harness._archive_texture_retry_count == 0
+
+
 def test_reload_without_package_requests_canonical_preparation() -> None:
     harness = _LifecycleHarness()
     harness.archive_isolated_renderer_active_package = None
