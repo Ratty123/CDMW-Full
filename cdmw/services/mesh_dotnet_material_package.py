@@ -248,7 +248,12 @@ def _synthesis_preview_profile(
         "emissive",
     }
     normal_input = slot == "normal" or semantic == "normal"
-    max_dimension = 512 if color_input or high_resolution_mask else 192
+    # This decode is where support-map resolution is actually decided.  Nothing
+    # downstream can recover detail it drops -- ``_support_source_image`` only
+    # ever downscales -- so raising the combiner's own caps without this one has
+    # no effect on the emitted maps.  Sources are overwhelmingly 256 or smaller;
+    # 192 was resampling almost all of them for no gain.
+    max_dimension = 512 if color_input or high_resolution_mask else 256
     decode_slot = "base" if color_input else ("normal" if normal_input else "material")
     srgb = str(_input_value(item, "srgb_mode") or "").strip().casefold()
     if not srgb:
@@ -893,7 +898,7 @@ def _synthesize_dotnet_material_channels(
                 normal_strength_floor=0.5,
                 normal_strength_cap=1.0,
                 height_amount=0.028,
-                support_map_max_dimension=192,
+                support_map_max_dimension=256,
                 preserve_texture_orientation=True,
             ),
             cancelled=cancelled,

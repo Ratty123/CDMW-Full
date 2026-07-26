@@ -775,14 +775,27 @@ def _resolve_external_material_factors(
     glossiness_factor = _material_parameter_numeric(input_item, "glossinessfactor")
     specular_factor = _material_parameter_numeric(input_item, "specularfactor")
     occlusion_strength = _material_parameter_numeric(input_item, "texturestrengthocclusion", "occlusionstrength")
+    specular_color = _material_parameter_hint(input_item, "specularcolorfactor")
+    # ``input_present`` means "some external factor actually applies", not merely
+    # "an input item was passed".  Flagging every item made the whole apply step a
+    # re-clamp of values ``decode_material_sample`` had already clamped, while
+    # forcing every real asset onto the scalar per-texel loop -- the array path
+    # never ran once across an audited corpus.
     return _ResolvedExternalMaterialFactors(
-        input_present=True,
+        input_present=(
+            roughness_factor is not None
+            or metallic_factor is not None
+            or glossiness_factor is not None
+            or specular_factor is not None
+            or occlusion_strength is not None
+            or specular_color > 0.0
+        ),
         mode=str(decode_mode or "").strip().lower(),
         roughness_factor=None if roughness_factor is None else _clamp(roughness_factor),
         metallic_factor=None if metallic_factor is None else _clamp(metallic_factor),
         glossiness_factor=None if glossiness_factor is None else _clamp(glossiness_factor),
         specular_factor=None if specular_factor is None else _clamp(specular_factor),
-        specular_color=_material_parameter_hint(input_item, "specularcolorfactor"),
+        specular_color=specular_color,
         occlusion_strength=None if occlusion_strength is None else _clamp(occlusion_strength),
     )
 

@@ -1109,8 +1109,16 @@ def _layer_tint(input_item: PreviewMaterialTextureInput) -> Tuple[float, float, 
         candidates = (f"tintcolor{channel}", f"dyeingcolormask{channel}", f"dyeingdetaillayercolormask{channel}")
     else:
         candidates = ("tintcolor", "dyeingcolormask", "dyeingdetaillayercolormask")
+    # Exact match only.  These candidates are an ordered precedence, and
+    # substring matching silently defeats it: "tintcolorr" is a substring of
+    # "scratchtintcolorr", so a layer asking for its primary dye got the
+    # scratch/wear dye instead whenever both were declared.  On
+    # `cd_phm_01_axe_0001` that swapped a neutral `_tintColorR`
+    # (0.769, 0.765, 0.757) for a cyan `_scratchTintColorR`
+    # (0.620, 0.765, 0.765) and turned the steel head blue-teal.
+    # `_global_material_base_tint` already guards the same hazard.
     for candidate in candidates:
-        color = _material_parameter_color(input_item, candidate)
+        color = _material_parameter_color_exact(input_item, candidate)
         if len(color) >= 3:
             return color
     return ()
