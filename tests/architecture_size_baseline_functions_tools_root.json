@@ -11,7 +11,6 @@
     "tools/mesh_harness/real_dotnet_display.py::exercise_geometry_display_modes": 156,
     "tools/mesh_harness/real_dotnet_flow.py::exercise_assignment_and_mesh_edits": 178,
     "tools/mesh_harness/real_dotnet_flow.py::exercise_linked_texture_strokes": 170,
-    "tools/mesh_harness/real_dotnet_input.py::exercise_side_by_side_wheel_zoom": 368,
     "tools/mesh_harness/visual_audit_cli.py::_write_draft_review": 153,
     "tools/mesh_harness/visual_audit_cli.py::main": 186,
     "tools/mesh_harness/visual_audit_corpus.py::prepare_visual_audit_corpus": 214,

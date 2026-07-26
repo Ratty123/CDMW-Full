@@ -159,10 +159,16 @@ def test_real_dotnet_stroke_never_sends_global_input_without_foreground_ownershi
         patch("tools.mesh_harness.real_dotnet_input._screen_cursor_position", return_value=None),
         patch("tools.mesh_harness.real_dotnet_input._set_screen_cursor_position") as set_cursor,
         patch("tools.mesh_harness.real_dotnet_input._send_left_button_input") as send_button,
-        patch("tools.mesh_harness.real_dotnet._pump_for"),
-        patch("tools.mesh_harness.real_dotnet._pump_until", return_value=True),
-        patch("tools.mesh_harness.real_dotnet._capture_viewport", return_value={"ok": False}),
-        patch("tools.mesh_harness.real_dotnet._base_error", side_effect=lambda _state, message: {"error": message}),
+        # _drive_viewport_stroke and the helpers it resolves now live in
+        # real_dotnet_evidence; patching them on real_dotnet would no longer
+        # intercept, and the stroke would run for real.
+        patch("tools.mesh_harness.real_dotnet_evidence._pump_for"),
+        patch("tools.mesh_harness.real_dotnet_evidence._pump_until", return_value=True),
+        patch("tools.mesh_harness.real_dotnet_evidence._capture_viewport", return_value={"ok": False}),
+        patch(
+            "tools.mesh_harness.real_dotnet_evidence._base_error",
+            side_effect=lambda _state, message: {"error": message},
+        ),
     ):
         result = _drive_viewport_stroke(state)
 
@@ -314,12 +320,20 @@ def test_dotnet_real_game_sends_material_state_before_selection_and_stroke() -> 
     material_source = (
         Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet_material.py"
     ).read_text(encoding="utf-8")
+    # The result gates moved to real_dotnet_evidence; the smoke flow below is
+    # still read from real_dotnet.py.
+    evidence_source = (
+        Path(__file__).resolve().parents[1] / "tools" / "mesh_harness" / "real_dotnet_evidence.py"
+    ).read_text(encoding="utf-8")
 
     assert "mesh_dotnet_material_state_payload(" in material_source
     assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness")' in material_source
     assert 'state.tab._send_dotnet_material_state(reason="real_archive_harness_same_revision")' in material_source
-    assert '"part_selection_optional": bool(' in source
-    assert "state.initial_part_selection_empty and state.face_selection_keeps_part_unselected" in source
+    assert '"part_selection_optional": bool(' in evidence_source
+    assert (
+        "state.initial_part_selection_empty and state.face_selection_keeps_part_unselected"
+        in evidence_source
+    )
     run = source[source.index("def run_real_archive_mesh_editor_dotnet_edit_smoke(") :]
     offscreen_capture = run.index("exercise_deterministic_offscreen_capture(")
     state_update = run.index("exercise_resident_material_update(")
