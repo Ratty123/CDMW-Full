@@ -93,21 +93,11 @@ class MeshEditorDotNetProcessMixin:
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
             return False
-        previous_process_generation = int(self.standalone_dotnet_process_generation or 0)
-        self.standalone_dotnet_editor_process = controller.process
-        self.standalone_dotnet_process_generation = int(controller.process_generation)
+        self._sync_shared_dotnet_process_identity(controller)
         self.standalone_dotnet_update_queue.set_context(
             session_id=self.standalone_dotnet_lifecycle_session_id,
             process_generation=self.standalone_dotnet_process_generation,
         )
-        # The shared resident controller owns the QProcess, so the tab no
-        # longer observes QProcess.started directly; a process-generation
-        # increase at load time is the launch the lifecycle counters track.
-        if (
-            self.standalone_dotnet_process_generation > previous_process_generation
-            and controller.process is not None
-        ):
-            self._handle_dotnet_process_started(controller.process)
         self._record_mesh_dotnet_event(
             "mesh_dotnet_shared_host_load",
             embedded=bool(self.standalone_dotnet_target_embedded),
@@ -124,17 +114,6 @@ class MeshEditorDotNetProcessMixin:
             return process.state() != _tab.QProcess.NotRunning
         except RuntimeError:
             return False
-    def _handle_dotnet_process_started(self, process: _tab.QProcess) -> None:
-        if self.standalone_dotnet_editor_process is process:
-            previous_starts = self.standalone_dotnet_lifecycle_counts["renderer_process_start_count"]
-            self.standalone_dotnet_lifecycle_counts["renderer_process_start_count"] = previous_starts + 1
-            if previous_starts > 0:
-                self.standalone_dotnet_lifecycle_counts["process_restart_count"] += 1
-            self._record_mesh_dotnet_event(
-                "mesh_dotnet_process_started",
-                lifecycle_counts=dict(self.standalone_dotnet_lifecycle_counts),
-                **self._dotnet_process_event_payload(process),
-            )
     def _dotnet_process_diagnostics(self, process: _tab.QProcess) -> str:
         payload = self._dotnet_process_event_payload(process)
         pieces: list[str] = []

@@ -156,6 +156,7 @@ def _base_error(state: SimpleNamespace, message: str) -> dict[str, object]:
         "protocol_event_tail": list(
             tuple(getattr(getattr(state, "tab", None), "standalone_dotnet_protocol_events", ()) or ())[-16:]
         ),
+        "status_messages": [dict(entry) for entry in tuple(getattr(state, "status_messages", ()) or ())],
         "dotnet_stderr_tail": str(
             getattr(getattr(state, "tab", None), "standalone_dotnet_stderr_tail", "") or ""
         )[-4000:],
@@ -1057,6 +1058,9 @@ def _finish_result(state: SimpleNamespace) -> dict[str, object]:
     last_result = state.stroke_results[-1] if state.stroke_results else None
     return {
         "ok": ok,
+        # A renderer that restarts mid-session, or any other fault the tab only
+        # reported as a status message, is otherwise invisible in this report.
+        "status_messages": [dict(entry) for entry in tuple(getattr(state, "status_messages", ()) or ())],
         "read_only": gates["source_archives_unchanged"],
         "backend": "dotnet",
         "renderer_backend": state.renderer_backend,
