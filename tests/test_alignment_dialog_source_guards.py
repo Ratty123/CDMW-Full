@@ -2411,20 +2411,17 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
 
     def test_alignment_dialog_is_maximizable_and_keeps_controls_readable(self) -> None:
+        # Window flags, the two panel objectNames, scroll-button/elide/expanding
+        # configuration, and per-tab tooltips are asserted against the real
+        # constructed dialog in tests/test_mesh_builder_construction_invariants.py.
+        # Only the embedded/modeless width constants remain here: they are
+        # applied to inner scroll content the constructed dialog does not expose.
         source = _main_window_source()
-        self.assertIn("dialog.setWindowFlag(Qt.WindowMaximizeButtonHint, True)", source)
-        self.assertIn("dialog.setWindowFlag(Qt.WindowMinimizeButtonHint, True)", source)
         self.assertIn("alignment_control_min_width = 420 if embedded_alignment_builder else 640", source)
         self.assertIn("alignment_control_content_min_width = 0 if embedded_alignment_builder else 700", source)
         self.assertIn("mesh_edit_control_min_width = 300 if embedded_alignment_builder else 300", source)
         self.assertIn("mesh_edit_control_content_min_width = 0 if embedded_alignment_builder else 300", source)
         self.assertIn("mesh_edit_control_max_width = 340 if embedded_alignment_builder else 340", source)
-        self.assertIn('controls_panel.setObjectName("MeshAlignmentStickyControlPanel")', source)
-        self.assertIn('control_tabs.setObjectName("MeshAlignmentStickyWorkflowTabs")', source)
-        self.assertIn("control_tabs.setUsesScrollButtons(True)", source)
-        self.assertIn("control_tabs.setElideMode(Qt.ElideNone)", source)
-        self.assertIn("control_tabs.tabBar().setExpanding(False)", source)
-        self.assertIn("control_tabs.setTabToolTip(tab_index, tab_label)", source)
         alignment_setup_source = ARCHIVE_STATIC_REPLACEMENT_ALIGNMENT_SETUP_STATE.read_text(encoding="utf-8")
         self.assertIn('alignment_workflow_control_text["setup_object"]', source)
         self.assertIn('alignment_workflow_control_text["parts_object"]', source)
