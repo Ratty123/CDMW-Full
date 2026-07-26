@@ -634,6 +634,15 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         self.standalone_dotnet_lifecycle_counts["renderer_process_start_count"] = starts + 1
         if starts > 0:
             self.standalone_dotnet_lifecycle_counts["process_restart_count"] += 1
+        # Counting the launch is not enough: Mesh Builder startup validation and
+        # the lifecycle ledger both read the event stream, not the counters, so
+        # dropping this record left that startup check unable to ever observe a
+        # launch. This is the same moment the counters treat as the start.
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_process_started",
+            lifecycle_counts=dict(self.standalone_dotnet_lifecycle_counts),
+            **self._dotnet_process_event_payload(process),
+        )
 
     def _handle_shared_dotnet_protocol_event(self, controller: object, payload: object) -> None:
         if controller is not self._active_shared_dotnet_controller() or not isinstance(payload, Mapping):
