@@ -702,6 +702,26 @@ def _install_timing_probes(state: SimpleNamespace) -> None:
             state.stroke_results.append(result)
         return applied
 
+    # Record the material states production actually transmits. Recomputing an
+    # equivalent payload in the harness does not reproduce what the compiler
+    # emitted, so evidence built from a recomputation can disagree with the
+    # renderer about its own inputs. This is the single protocol egress and is
+    # only ever called directly, never connected to a signal.
+    original_send_protocol = state.tab._send_dotnet_protocol_message
+    state.sent_material_states = []
+
+    def record_protocol_send(payload: object, *args: object, **kwargs: object) -> bool:
+        sent = bool(original_send_protocol(payload, *args, **kwargs))
+        if (
+            sent
+            and isinstance(payload, Mapping)
+            and str(payload.get("event", "") or "") == "material_state_update"
+        ):
+            state.sent_material_states.append(dict(payload))
+        return sent
+
+    state.tab._send_dotnet_protocol_message = record_protocol_send
+
     original_completed = state.tab._handle_dotnet_live_stroke_completed
 
     def record_completed(outcome: object, *args: object, **kwargs: object) -> None:
