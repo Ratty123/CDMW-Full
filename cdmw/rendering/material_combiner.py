@@ -1,5 +1,7 @@
 ﻿from __future__ import annotations
 
+from collections.abc import Mapping
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Callable, Optional, Sequence, Tuple
 
@@ -113,10 +115,41 @@ from cdmw.rendering.material_combiner_support_maps import (
 )
 
 
+def _coerce_material_texture_input(item: object) -> PreviewMaterialTextureInput | None:
+    """Accept a mapping-shaped texture input as the dataclass it stands for.
+
+    Some producers carry these inputs as plain mappings (round-tripped through
+    a payload rather than constructed directly). Every consumer below reads
+    them as attributes, so handing a mapping straight through raised
+    ``AttributeError: 'dict' object has no attribute 'slot_kind'`` deep inside
+    synthesis, where it surfaced only as an opaque per-submesh failure.
+    """
+
+    if isinstance(item, PreviewMaterialTextureInput):
+        return item
+    if not isinstance(item, Mapping):
+        return None
+    fields = {field.name for field in dataclass_fields(PreviewMaterialTextureInput)}
+    values = {key: value for key, value in item.items() if key in fields}
+    try:
+        return PreviewMaterialTextureInput(**values)
+    except TypeError:
+        return None
+
+
 def synthesize_material_texture_inputs(batch: object) -> Tuple[PreviewMaterialTextureInput, ...]:
     explicit = tuple(getattr(batch, "preview_material_texture_inputs", ()) or ())
     if explicit:
-        return explicit
+        # This function's contract is a tuple of PreviewMaterialTextureInput;
+        # returning the attribute unchecked let mapping-shaped entries reach
+        # attribute-based consumers.
+        coerced = tuple(
+            resolved
+            for resolved in (_coerce_material_texture_input(item) for item in explicit)
+            if resolved is not None
+        )
+        if coerced:
+            return coerced
     material_name = str(getattr(batch, "material_name", "") or "").strip()
     texture_name = str(getattr(batch, "texture_name", "") or "").strip()
     inputs: list[PreviewMaterialTextureInput] = []
