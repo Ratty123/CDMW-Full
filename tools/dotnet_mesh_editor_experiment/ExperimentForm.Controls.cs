@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Cdmw.MeshEditorExperiment;
@@ -1186,16 +1187,40 @@ internal sealed partial class ExperimentForm
             ApplyRoundedRegion();
         }
 
+        private Size _appliedRegionSize = Size.Empty;
+
         private void ApplyRoundedRegion()
         {
-            if (Width < 4 || Height < 4)
+            if (!IsHandleCreated || Width < 4 || Height < 4)
             {
                 return;
             }
-            using var path = RoundedPath(new Rectangle(0, 0, Width, Height), CornerRadius);
-            var previous = Region;
-            Region = new Region(path);
-            previous?.Dispose();
+            var size = new Size(Width, Height);
+            if (size == _appliedRegionSize && Region is not null)
+            {
+                // An embedded host resize delivers a burst of WM_WINDOWPOSCHANGED
+                // at the same final size. Rebuilding an identical region per
+                // message churns a GDI region handle per button per message for
+                // no visual change.
+                return;
+            }
+            try
+            {
+                using var path = RoundedPath(new Rectangle(0, 0, size.Width, size.Height), CornerRadius);
+                var previous = Region;
+                Region = new Region(path);
+                previous?.Dispose();
+                _appliedRegionSize = size;
+            }
+            catch (Exception ex) when (ex is ExternalException or ArgumentException)
+            {
+                // GDI can refuse the region mid-resize. The rounded corner is
+                // cosmetic, but this runs inside WndProc: letting it escape
+                // reaches Application.ThreadException and takes down the
+                // renderer the host is embedding. Square corners are the
+                // correct fallback.
+                _appliedRegionSize = Size.Empty;
+            }
         }
 
         protected override void OnPaint(PaintEventArgs pevent)

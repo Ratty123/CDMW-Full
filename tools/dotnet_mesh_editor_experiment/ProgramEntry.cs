@@ -81,6 +81,7 @@ internal static class Program
             }
 
             ApplicationConfiguration.Initialize();
+            InstallUiExceptionGuard(options, IsEmbedded(args));
             using var form = new ExperimentForm(options, document, sourceParseCount);
             Application.Run(form);
             _ = form.DrainPerformanceReport(TimeSpan.FromSeconds(2));
@@ -94,9 +95,8 @@ internal static class Program
             {
                 ExperimentForm.WriteStatus(options, "error", ex.Message, null);
             }
-            var suppressDialog = Array.Exists(args, arg =>
-                string.Equals(arg, "--embedded", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
+            var suppressDialog = IsEmbedded(args) || Array.Exists(args, arg =>
+                string.Equals(arg, "--headless-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-edit-mesh-layout-smoke", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-frame-pacing-soak", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(arg, "--headless-gpu-sparse-soak", StringComparison.OrdinalIgnoreCase)
@@ -110,5 +110,63 @@ internal static class Program
             }
             return 1;
         }
+    }
+
+    private static bool IsEmbedded(string[] args) => Array.Exists(
+        args,
+        arg => string.Equals(arg, "--embedded", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Report UI-thread faults to the host instead of opening a modal dialog.
+    /// </summary>
+    /// <remarks>
+    /// Without this, WinForms answers any exception escaping a WndProc with its
+    /// own Continue/Quit dialog. The embedded helper is a borderless child of
+    /// the host window, so that dialog is effectively invisible while it blocks
+    /// the message loop: the host stops receiving protocol traffic and reports
+    /// a hang rather than a fault. Writing the status file and exiting non-zero
+    /// gives the host's supervisor a real failure it can retry.
+    /// </remarks>
+    private static void InstallUiExceptionGuard(LaunchOptions options, bool embedded)
+    {
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, threadEvent) =>
+            ReportFatalException(options, threadEvent.Exception, embedded);
+        AppDomain.CurrentDomain.UnhandledException += (_, domainEvent) =>
+            ReportFatalException(options, domainEvent.ExceptionObject as Exception, embedded, terminating: true);
+    }
+
+    private static void ReportFatalException(
+        LaunchOptions options,
+        Exception? exception,
+        bool embedded,
+        bool terminating = false)
+    {
+        var message = exception?.ToString() ?? "The .NET mesh editor faulted without exception detail.";
+        try
+        {
+            ExperimentForm.WriteStatus(options, "error", message, null);
+        }
+        catch (Exception)
+        {
+            // The status file is best effort; stderr below is the fallback.
+        }
+        try
+        {
+            Console.Error.WriteLine(message);
+            Console.Error.Flush();
+        }
+        catch (IOException)
+        {
+        }
+        if (terminating)
+        {
+            return;
+        }
+        if (!embedded)
+        {
+            MessageBox.Show(message, "CDMW .NET Mesh Editor Experiment", MessageBoxButtons.OK, MessageBoxIcon.Error);
+        }
+        Environment.Exit(1);
     }
 }
