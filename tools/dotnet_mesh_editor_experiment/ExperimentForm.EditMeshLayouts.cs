@@ -24,6 +24,7 @@ internal sealed partial class ExperimentForm
         Transform,
         Brush,
         Topology,
+        Colour,
         MorphRefit,
     }
 
@@ -317,14 +318,14 @@ internal sealed partial class ExperimentForm
             Name = "EditMeshToolRail",
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 6,
+            RowCount = 7,
             Margin = new Padding(0),
             Padding = new Padding(6, 8, 6, 8),
             BackColor = ThemeRailBackground,
         };
         rail.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
         var buttonHeight = ScaleToolPanelWidth(ToolRailButtonHeight);
-        for (var row = 0; row < 5; row++)
+        for (var row = 0; row < 6; row++)
         {
             rail.RowStyles.Add(new RowStyle(SizeType.Absolute, buttonHeight));
         }
@@ -338,7 +339,9 @@ internal sealed partial class ExperimentForm
             "Smooth, Inflate and Pinch with radius, strength and falloff.");
         AddToolRailButton(rail, ToolRailPage.Topology, "△", "Topo", 3,
             "Subdivide and Refine Smooth.");
-        AddToolRailButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 4,
+        AddToolRailButton(rail, ToolRailPage.Colour, "◧", "Colour", 4,
+            "Per-part tint, recolour and glow for the current selection.");
+        AddToolRailButton(rail, ToolRailPage.MorphRefit, "◑", "Morph", 5,
             "Definition profiles, shape sliders and garment refit binding.");
         return rail;
     }
@@ -373,6 +376,7 @@ internal sealed partial class ExperimentForm
         ToolRailPage.Transform => "Transform",
         ToolRailPage.Brush => "Brush",
         ToolRailPage.Topology => "Topology",
+        ToolRailPage.Colour => "Colour",
         _ => "Morph & Refit",
     };
 
@@ -688,6 +692,7 @@ internal sealed partial class ExperimentForm
             AddRailSection(_toolRailPages[ToolRailPage.Transform], _transformSection);
             AddRailSection(_toolRailPages[ToolRailPage.Brush], _brushSection);
             AddRailSection(_toolRailPages[ToolRailPage.Topology], _topologySection);
+            AddRailSection(_toolRailPages[ToolRailPage.Colour], _colourSection);
             AddRailSection(_toolRailPages[ToolRailPage.MorphRefit], _morphRefitSection);
 
             // Right: the scene groups every tool reads and changes, all visible.
@@ -1030,6 +1035,13 @@ internal sealed partial class ExperimentForm
             && !RailPageOwnsTool(page, _viewport.ActiveTool))
         {
             ActivateTool(defaultTool, ToolRailPageTitle(page));
+        }
+        if (page == ToolRailPage.Colour)
+        {
+            // Colour edits land on the base texture, and the editable viewport
+            // defaults to Wire + Vertices, which draws no surface at all. Opening
+            // the page in that mode would hide every edit it makes.
+            EnsureColourVisibleDisplayMode();
         }
         foreach (var pair in _toolRailPages)
         {

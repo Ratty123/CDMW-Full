@@ -212,7 +212,8 @@ def _source_parts_outliner_step_020(_state):
     _state.part_material_tint_r_spin = _state._make_double_spin_helper(255.0, 0.0, 255.0, 0, 1.0)
     _state.part_material_tint_g_spin = _state._make_double_spin_helper(255.0, 0.0, 255.0, 0, 1.0)
     _state.part_material_tint_b_spin = _state._make_double_spin_helper(255.0, 0.0, 255.0, 0, 1.0)
-    _state.part_material_controls = (_state.part_material_brightness_spin, _state.part_material_contrast_spin, _state.part_material_saturation_spin, _state.part_material_gamma_spin, _state.part_material_tint_r_spin, _state.part_material_tint_g_spin, _state.part_material_tint_b_spin)
+    _state.part_material_colourise_strength_spin = _state._make_double_spin_helper(0.0, 0.0, 100.0, 0, 1.0, '%')
+    _state.part_material_controls = (_state.part_material_brightness_spin, _state.part_material_contrast_spin, _state.part_material_saturation_spin, _state.part_material_gamma_spin, _state.part_material_tint_r_spin, _state.part_material_tint_g_spin, _state.part_material_tint_b_spin, _state.part_material_colourise_strength_spin)
     for _state.prefix, _state.spin in (('R ', _state.part_material_tint_r_spin), ('G ', _state.part_material_tint_g_spin), ('B ', _state.part_material_tint_b_spin)):
         _state.spin.setPrefix(_state.prefix)
     for _state.spin in _state.part_material_controls:
@@ -228,17 +229,54 @@ def _source_parts_outliner_step_020(_state):
     _state.part_material_gamma_label = _state.QLabel(_state.source_part_inspector_control_text['material_gamma_label'])
     _state.part_material_gamma_widget = _state._part_spin_with_slider(_state.part_material_gamma_spin, scale=100.0, slider_minimum=0.25, slider_maximum=4.0, tooltip=_state.part_material_tooltip)
     _state.part_material_tint_label = _state.QLabel(_state.source_part_inspector_control_text['material_tint_label'])
+    _state.part_material_tint_pick_button = _state.QPushButton(_state.source_part_inspector_control_text['material_tint_pick'])
+    _state.part_material_tint_pick_button.setObjectName('MeshAlignmentPartTintPickButton')
+    _state.part_material_tint_pick_button.setToolTip(_state.source_part_inspector_control_text['material_tint_pick_tooltip'])
+    _state.part_material_colourise_label = _state.QLabel(_state.source_part_inspector_control_text['material_colourise_label'])
+    _state.part_material_colourise_pick_button = _state.QPushButton(_state.source_part_inspector_control_text['material_colourise_pick'])
+    _state.part_material_colourise_pick_button.setObjectName('MeshAlignmentPartColourisePickButton')
+    _state.part_material_colourise_pick_button.setToolTip(_state.source_part_inspector_control_text['material_colourise_pick_tooltip'])
+    _state.part_material_colourise_strength_spin.setObjectName('MeshAlignmentPartColouriseStrengthSpin')
+    _state.part_material_colourise_strength_spin.setToolTip(_state.source_part_inspector_control_text['material_colourise_strength_tooltip'])
+    _state.part_material_colourise_strength_widget = _state._part_spin_with_slider(_state.part_material_colourise_strength_spin, scale=1.0, slider_minimum=0.0, slider_maximum=100.0, tooltip=_state.source_part_inspector_control_text['material_colourise_strength_tooltip'])
+    _state.part_material_reset_button = _state.QPushButton(_state.source_part_inspector_control_text['material_reset'])
+    _state.part_material_reset_button.setObjectName('MeshAlignmentPartColourResetButton')
+    _state.part_material_reset_button.setToolTip(_state.source_part_inspector_control_text['material_reset_tooltip'])
     _state.part_layout.addWidget(_state.part_material_label, 13, 0)
     _state.part_layout.addWidget(_state.part_material_brightness_widget, 13, 1)
     _state.part_layout.addWidget(_state.part_material_contrast_widget, 13, 2)
     _state.part_layout.addWidget(_state.part_material_saturation_widget, 13, 3)
     _state.part_layout.addWidget(_state.part_material_gamma_label, 14, 0)
     _state.part_layout.addWidget(_state.part_material_gamma_widget, 14, 1)
+    _state.part_layout.addWidget(_state.part_material_tint_pick_button, 14, 2)
+    _state.part_layout.addWidget(_state.part_material_reset_button, 14, 3)
     _state.part_layout.addWidget(_state.part_material_tint_label, 15, 0)
     _state.part_layout.addWidget(_state.part_material_tint_r_spin, 15, 1)
     _state.part_layout.addWidget(_state.part_material_tint_g_spin, 15, 2)
     _state.part_layout.addWidget(_state.part_material_tint_b_spin, 15, 3)
-    _state.part_material_tuning_widgets = (_state.part_material_label, _state.part_material_brightness_widget, _state.part_material_contrast_widget, _state.part_material_saturation_widget, _state.part_material_gamma_label, _state.part_material_gamma_widget, _state.part_material_tint_label, _state.part_material_tint_r_spin, _state.part_material_tint_g_spin, _state.part_material_tint_b_spin)
+    _state.part_layout.addWidget(_state.part_material_colourise_label, 16, 0)
+    _state.part_layout.addWidget(_state.part_material_colourise_pick_button, 16, 1)
+    _state.part_layout.addWidget(_state.part_material_colourise_strength_widget, 16, 2, 1, 2)
+    _state.part_emissive_label = _state.QLabel(_state.source_part_inspector_control_text['emissive_label'])
+    _state.part_emissive_checkbox = _state.QCheckBox(_state.source_part_inspector_control_text['emissive_checkbox'])
+    _state.part_emissive_checkbox.setObjectName('MeshAlignmentPartEmissiveCheckBox')
+    _state.part_emissive_checkbox.setToolTip(_state.source_part_inspector_control_text['emissive_checkbox_tooltip'])
+    _state.part_emissive_pick_button = _state.QPushButton(_state.source_part_inspector_control_text['emissive_pick'])
+    _state.part_emissive_pick_button.setObjectName('MeshAlignmentPartEmissivePickButton')
+    _state.part_emissive_pick_button.setToolTip(_state.source_part_inspector_control_text['emissive_pick_tooltip'])
+    _state.part_emissive_strength_spin = _state._make_double_spin_helper(1.0, 0.0, 20.0, 2, 0.1)
+    _state.part_emissive_strength_spin.setObjectName('MeshAlignmentPartEmissiveStrengthSpin')
+    _state.part_emissive_strength_spin.setToolTip(_state.source_part_inspector_control_text['emissive_strength_tooltip'])
+    _state.part_layout.addWidget(_state.part_emissive_label, 17, 0)
+    _state.part_layout.addWidget(_state.part_emissive_checkbox, 17, 1)
+    _state.part_layout.addWidget(_state.part_emissive_pick_button, 17, 2)
+    _state.part_layout.addWidget(_state.part_emissive_strength_spin, 17, 3)
+    _state.part_emissive_widgets = (_state.part_emissive_label, _state.part_emissive_checkbox, _state.part_emissive_pick_button, _state.part_emissive_strength_spin)
+    # Advanced per-part texture tuning stays behind the Modify Original opt-in.
+    _state.part_material_tuning_widgets = (_state.part_material_label, _state.part_material_brightness_widget, _state.part_material_contrast_widget, _state.part_material_saturation_widget, _state.part_material_gamma_label, _state.part_material_gamma_widget)
+    # Colour is not an expert control: recolouring a shipped part is the common
+    # case, so these stay visible even when the advanced block is collapsed.
+    _state.part_material_colour_widgets = (_state.part_material_tint_label, _state.part_material_tint_r_spin, _state.part_material_tint_g_spin, _state.part_material_tint_b_spin, _state.part_material_tint_pick_button, _state.part_material_reset_button, _state.part_material_colourise_label, _state.part_material_colourise_pick_button, _state.part_material_colourise_strength_widget)
 
 def _source_parts_outliner_step_021(_state):
 
@@ -246,6 +284,8 @@ def _source_parts_outliner_step_021(_state):
         visible = not bool(_state.modify_original_clone_mode) or _state._modify_original_texture_tuning_enabled()
         for widget in _state.part_material_tuning_widgets:
             widget.setVisible(bool(visible))
+        for widget in _state.part_material_colour_widgets:
+            widget.setVisible(True)
     _state._refresh_part_material_tuning_visibility = _refresh_part_material_tuning_visibility
 
 def _source_parts_outliner_step_022(_state):
@@ -267,6 +307,14 @@ def _source_parts_outliner_step_022(_state):
     _state._update_selected_part_adjustment = _state.alignment_selected_part_adjustment_callbacks._update_selected_part_adjustment
     _state.alignment_selected_part_control_callbacks = _state.create_alignment_selected_part_control_callbacks({**_state.context, **_state._factory_globals, **vars(_state)})
     _state._update_selected_part_material_adjustment = _state.alignment_selected_part_control_callbacks._update_selected_part_material_adjustment
+    _state._pick_selected_part_tint_colour = _state.alignment_selected_part_control_callbacks._pick_selected_part_tint_colour
+    _state._pick_selected_part_colourise_colour = _state.alignment_selected_part_control_callbacks._pick_selected_part_colourise_colour
+    _state._reset_selected_part_colour = _state.alignment_selected_part_control_callbacks._reset_selected_part_colour
+    _state._toggle_selected_part_emissive = _state.alignment_selected_part_control_callbacks._toggle_selected_part_emissive
+    _state._pick_selected_part_emissive_colour = _state.alignment_selected_part_control_callbacks._pick_selected_part_emissive_colour
+    _state._set_selected_part_emissive_strength = _state.alignment_selected_part_control_callbacks._set_selected_part_emissive_strength
+    _state._commit_selected_part_emissive = _state.alignment_selected_part_control_callbacks._commit_selected_part_emissive
+    _state._refresh_part_emissive_controls = _state.alignment_selected_part_control_callbacks._refresh_part_emissive_controls
     _state._refresh_selected_part_copied_texture_controls = _state.alignment_selected_part_control_callbacks._refresh_selected_part_copied_texture_controls
     _state._use_copied_original_texture_for_selected_source = _state.alignment_selected_part_control_callbacks._use_copied_original_texture_for_selected_source
     _state._use_route_texture_for_selected_copied_source = _state.alignment_selected_part_control_callbacks._use_route_texture_for_selected_copied_source
@@ -306,6 +354,12 @@ def _source_parts_outliner_step_022(_state):
     for _state.part_material_spin in _state.part_material_controls:
         _state.part_material_spin.valueChanged.connect(_state._update_selected_part_material_adjustment)
         _state.part_material_spin.editingFinished.connect(lambda spin=_state.part_material_spin: (_state._commit_spinbox_text(spin), _state._update_selected_part_material_adjustment()))
+    _state.part_emissive_checkbox.toggled.connect(_state._toggle_selected_part_emissive)
+    _state.part_emissive_pick_button.clicked.connect(lambda _checked=False: _state._pick_selected_part_emissive_colour())
+    _state.part_emissive_strength_spin.valueChanged.connect(lambda _value=0.0: _state._set_selected_part_emissive_strength())
+    _state.part_material_tint_pick_button.clicked.connect(lambda _checked=False: _state._pick_selected_part_tint_colour())
+    _state.part_material_colourise_pick_button.clicked.connect(lambda _checked=False: _state._pick_selected_part_colourise_colour())
+    _state.part_material_reset_button.clicked.connect(lambda _checked=False: _state._reset_selected_part_colour())
     _state.part_source_combo.currentIndexChanged.connect(_state._selected_part_source_changed)
     _state.part_enabled_checkbox.toggled.connect(_state._update_selected_part_adjustment)
     _state.part_role_combo.currentIndexChanged.connect(_state._set_selected_source_role)
@@ -369,13 +423,13 @@ def _source_parts_outliner_step_025(_state):
     })
 
 def _source_parts_outliner_step_026(_state):
-    _state._factory_result_values.update({'label_text': vars(_state).get('label_text'), 'low_confidence_filter_checkbox': vars(_state).get('low_confidence_filter_checkbox'), 'mapping_progress_label': vars(_state).get('mapping_progress_label'), 'mapping_status_label': vars(_state).get('mapping_status_label'), 'mapping_table_action_control_text': vars(_state).get('mapping_table_action_control_text'), 'mapping_table_build_requested': vars(_state).get('mapping_table_build_requested'), 'mapping_table_build_state': vars(_state).get('mapping_table_build_state'), 'mapping_table_build_timer': vars(_state).get('mapping_table_build_timer'), 'mapping_targets': vars(_state).get('mapping_targets'), 'mapping_tree': vars(_state).get('mapping_tree'), 'mappings_by_target': vars(_state).get('mappings_by_target'), 'merge_source_button': vars(_state).get('merge_source_button'), 'mirror_duplicate_part_button': vars(_state).get('mirror_duplicate_part_button'), 'mirrored': vars(_state).get('mirrored'), 'original_button_panel': vars(_state).get('original_button_panel'), 'original_part_clipboard_action_text': vars(_state).get('original_part_clipboard_action_text'), 'original_parts_label': vars(_state).get('original_parts_label'), 'original_tree': vars(_state).get('original_tree'), 'part_add_target_button': vars(_state).get('part_add_target_button'), 'part_controls': vars(_state).get('part_controls'), 'part_copied_texture_status_label': vars(_state).get('part_copied_texture_status_label'), 'part_enabled_checkbox': vars(_state).get('part_enabled_checkbox'), 'part_inspector': vars(_state).get('part_inspector'), 'part_inspector_loading': vars(_state).get('part_inspector_loading'), 'part_name_label': vars(_state).get('part_name_label'), 'part_nudge_step_spin': vars(_state).get('part_nudge_step_spin'), 'part_material_brightness_spin': vars(_state).get('part_material_brightness_spin'), 'part_material_contrast_spin': vars(_state).get('part_material_contrast_spin'), 'part_material_controls': vars(_state).get('part_material_controls'), 'part_material_gamma_spin': vars(_state).get('part_material_gamma_spin'), 'part_material_saturation_spin': vars(_state).get('part_material_saturation_spin'), 'part_material_tint_b_spin': vars(_state).get('part_material_tint_b_spin'), 'part_material_tint_g_spin': vars(_state).get('part_material_tint_g_spin'), 'part_material_tint_r_spin': vars(_state).get('part_material_tint_r_spin'), 'part_nudge_x_minus_button': vars(_state).get('part_nudge_x_minus_button'), 'part_nudge_x_plus_button': vars(_state).get('part_nudge_x_plus_button'), 'part_nudge_y_minus_button': vars(_state).get('part_nudge_y_minus_button'), 'part_nudge_y_plus_button': vars(_state).get('part_nudge_y_plus_button'), 'part_nudge_z_minus_button': vars(_state).get('part_nudge_z_minus_button'), 'part_nudge_z_plus_button': vars(_state).get('part_nudge_z_plus_button'), 'part_offset_x_spin': vars(_state).get('part_offset_x_spin'), 'part_offset_y_spin': vars(_state).get('part_offset_y_spin'), 'part_offset_z_spin': vars(_state).get('part_offset_z_spin'), 'part_remove_copied_texture_button': vars(_state).get('part_remove_copied_texture_button'), 'part_remove_target_button': vars(_state).get('part_remove_target_button')})
+    _state._factory_result_values.update({'label_text': vars(_state).get('label_text'), 'low_confidence_filter_checkbox': vars(_state).get('low_confidence_filter_checkbox'), 'mapping_progress_label': vars(_state).get('mapping_progress_label'), 'mapping_status_label': vars(_state).get('mapping_status_label'), 'mapping_table_action_control_text': vars(_state).get('mapping_table_action_control_text'), 'mapping_table_build_requested': vars(_state).get('mapping_table_build_requested'), 'mapping_table_build_state': vars(_state).get('mapping_table_build_state'), 'mapping_table_build_timer': vars(_state).get('mapping_table_build_timer'), 'mapping_targets': vars(_state).get('mapping_targets'), 'mapping_tree': vars(_state).get('mapping_tree'), 'mappings_by_target': vars(_state).get('mappings_by_target'), 'merge_source_button': vars(_state).get('merge_source_button'), 'mirror_duplicate_part_button': vars(_state).get('mirror_duplicate_part_button'), 'mirrored': vars(_state).get('mirrored'), 'original_button_panel': vars(_state).get('original_button_panel'), 'original_part_clipboard_action_text': vars(_state).get('original_part_clipboard_action_text'), 'original_parts_label': vars(_state).get('original_parts_label'), 'original_tree': vars(_state).get('original_tree'), 'part_add_target_button': vars(_state).get('part_add_target_button'), 'part_controls': vars(_state).get('part_controls'), 'part_copied_texture_status_label': vars(_state).get('part_copied_texture_status_label'), 'part_enabled_checkbox': vars(_state).get('part_enabled_checkbox'), 'part_inspector': vars(_state).get('part_inspector'), 'part_inspector_loading': vars(_state).get('part_inspector_loading'), 'part_name_label': vars(_state).get('part_name_label'), 'part_nudge_step_spin': vars(_state).get('part_nudge_step_spin'), 'part_material_brightness_spin': vars(_state).get('part_material_brightness_spin'), 'part_material_contrast_spin': vars(_state).get('part_material_contrast_spin'), 'part_material_controls': vars(_state).get('part_material_controls'), 'part_material_gamma_spin': vars(_state).get('part_material_gamma_spin'), 'part_material_saturation_spin': vars(_state).get('part_material_saturation_spin'), 'part_material_tint_b_spin': vars(_state).get('part_material_tint_b_spin'), 'part_material_tint_g_spin': vars(_state).get('part_material_tint_g_spin'), 'part_material_tint_r_spin': vars(_state).get('part_material_tint_r_spin'), 'part_material_tint_pick_button': vars(_state).get('part_material_tint_pick_button'), 'part_material_colourise_pick_button': vars(_state).get('part_material_colourise_pick_button'), 'part_material_colourise_strength_spin': vars(_state).get('part_material_colourise_strength_spin'), 'part_material_colourise_strength_widget': vars(_state).get('part_material_colourise_strength_widget'), 'part_material_colourise_label': vars(_state).get('part_material_colourise_label'), 'part_material_reset_button': vars(_state).get('part_material_reset_button'), 'part_material_colour_widgets': vars(_state).get('part_material_colour_widgets'), 'part_emissive_checkbox': vars(_state).get('part_emissive_checkbox'), 'part_emissive_pick_button': vars(_state).get('part_emissive_pick_button'), 'part_emissive_strength_spin': vars(_state).get('part_emissive_strength_spin'), 'part_emissive_widgets': vars(_state).get('part_emissive_widgets'), 'part_nudge_x_minus_button': vars(_state).get('part_nudge_x_minus_button'), 'part_nudge_x_plus_button': vars(_state).get('part_nudge_x_plus_button'), 'part_nudge_y_minus_button': vars(_state).get('part_nudge_y_minus_button'), 'part_nudge_y_plus_button': vars(_state).get('part_nudge_y_plus_button'), 'part_nudge_z_minus_button': vars(_state).get('part_nudge_z_minus_button'), 'part_nudge_z_plus_button': vars(_state).get('part_nudge_z_plus_button'), 'part_offset_x_spin': vars(_state).get('part_offset_x_spin'), 'part_offset_y_spin': vars(_state).get('part_offset_y_spin'), 'part_offset_z_spin': vars(_state).get('part_offset_z_spin'), 'part_remove_copied_texture_button': vars(_state).get('part_remove_copied_texture_button'), 'part_remove_target_button': vars(_state).get('part_remove_target_button')})
 
 def _source_parts_outliner_step_027(_state):
     _state._factory_result_values.update({'part_replace_target_button': vars(_state).get('part_replace_target_button'), 'part_role_combo': vars(_state).get('part_role_combo'), 'part_rotate_x_spin': vars(_state).get('part_rotate_x_spin'), 'part_rotate_y_spin': vars(_state).get('part_rotate_y_spin'), 'part_rotate_z_spin': vars(_state).get('part_rotate_z_spin'), 'part_scale_x_spin': vars(_state).get('part_scale_x_spin'), 'part_scale_y_spin': vars(_state).get('part_scale_y_spin'), 'part_scale_z_spin': vars(_state).get('part_scale_z_spin'), 'part_source_combo': vars(_state).get('part_source_combo'), 'part_target_combo': vars(_state).get('part_target_combo'), 'part_target_label': vars(_state).get('part_target_label'), 'part_transform_sliders': vars(_state).get('part_transform_sliders'), 'part_uniform_spin': vars(_state).get('part_uniform_spin'), 'part_use_copied_texture_button': vars(_state).get('part_use_copied_texture_button'), 'part_use_route_texture_button': vars(_state).get('part_use_route_texture_button'), 'parts_outliner_cache_state': vars(_state).get('parts_outliner_cache_state'), 'parts_outliner_item_update_guard': vars(_state).get('parts_outliner_item_update_guard'), 'parts_outliner_source_items': vars(_state).get('parts_outliner_source_items'), 'parts_outliner_target_items': vars(_state).get('parts_outliner_target_items'), 'parts_outliner_tree': vars(_state).get('parts_outliner_tree'), 'preview_target_button': vars(_state).get('preview_target_button'), 'previous_blocked': vars(_state).get('previous_blocked'), 'remove_part_button': vars(_state).get('remove_part_button'), 'remove_source_button': vars(_state).get('remove_source_button'), 'reset_geometry_button': vars(_state).get('reset_geometry_button'), 'reset_part_button': vars(_state).get('reset_part_button'), 'role_value': vars(_state).get('role_value'), 'scale': vars(_state).get('scale'), 'slider_maximum': vars(_state).get('slider_maximum'), 'slider_minimum': vars(_state).get('slider_minimum'), 'source_part_inspector_control_text': vars(_state).get('source_part_inspector_control_text'), 'source_parts_group': vars(_state).get('source_parts_group'), 'source_parts_pending_label': vars(_state).get('source_parts_pending_label'), 'source_tree': vars(_state).get('source_tree'), 'source_tree_context_selection_state': vars(_state).get('source_tree_context_selection_state'), 'source_tree_item_update_guard': vars(_state).get('source_tree_item_update_guard'), 'source_tree_layout_state': vars(_state).get('source_tree_layout_state'), 'source_tree_population_state': vars(_state).get('source_tree_population_state'), 'source_tree_population_timer': vars(_state).get('source_tree_population_timer'), 'source_tree_progress_label': vars(_state).get('source_tree_progress_label'), 'target': vars(_state).get('target'), 'target_slots_label': vars(_state).get('target_slots_label'), 'tooltip': vars(_state).get('tooltip'), 'tree': vars(_state).get('tree'), 'undo_geometry_button': vars(_state).get('undo_geometry_button')})
 
 def _source_parts_outliner_step_028(_state):
-    _state._factory_result_values.update({'value': vars(_state).get('value'), 'values': vars(_state).get('values')})
+    _state._factory_result_values.update({'value': vars(_state).get('value'), 'values': vars(_state).get('values'), '_pick_selected_part_tint_colour': vars(_state).get('_pick_selected_part_tint_colour'), '_pick_selected_part_colourise_colour': vars(_state).get('_pick_selected_part_colourise_colour'), '_reset_selected_part_colour': vars(_state).get('_reset_selected_part_colour'), '_toggle_selected_part_emissive': vars(_state).get('_toggle_selected_part_emissive'), '_pick_selected_part_emissive_colour': vars(_state).get('_pick_selected_part_emissive_colour'), '_set_selected_part_emissive_strength': vars(_state).get('_set_selected_part_emissive_strength'), '_commit_selected_part_emissive': vars(_state).get('_commit_selected_part_emissive'), '_refresh_part_emissive_controls': vars(_state).get('_refresh_part_emissive_controls')})
 
 STEPS = (
     _source_parts_outliner_step_018,

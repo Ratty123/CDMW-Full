@@ -10,7 +10,7 @@
     "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py::create_alignment_preview_shell_section": 772,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py::prompt_archive_static_replacement_options": 333,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py::finish_static_replacement_prompt_open": 162,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py::create_static_replacement_prompt_setup": 468,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py::create_static_replacement_prompt_setup": 476,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py::create_static_replacement_prompt_shell": 333,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py::create_static_replacement_prompt_state_callbacks": 468,
     "cdmw/ui/archive_browser/static_replacement_dialog_selection_mapping.py::create_alignment_selection_mapping_helpers": 563,

@@ -29,6 +29,8 @@ def test_registry_classifies_every_automatic_and_manual_key_once() -> None:
         "edge_relief",
         "edge_relief_source",
         "accent_glow",
+        "part_colourise_color",
+        "part_colourise_strength",
         "part_glow_color",
         "part_glow_strength",
     }
@@ -165,6 +167,9 @@ def test_baked_channels_force_identity_residual_parameters() -> None:
             "contrast": 1.0,
             "post_contrast_brightness": 1.0,
             "saturation": 1.0,
+            "base_tint_color": [1.0, 1.0, 1.0],
+            "base_tint_strength": 0.0,
+            "base_tint_authored": False,
             "tint_color": [1.0, 1.0, 1.0],
             "base_color_lift": 0,
             "value_max": 255,

@@ -188,6 +188,11 @@ internal sealed partial class D3D11MaterialViewport
                 parameters.Contrast ?? 1.0f,
                 parameters.Saturation ?? 1.0f,
                 parameters.Gamma ?? 1.0f),
+            MaterialBaseTintAuthored = new Vector4(
+                parameters.BaseTintAuthored == true ? 1.0f : 0.0f,
+                0.0f,
+                0.0f,
+                0.0f),
             MaterialBaseTint = new Vector4(baseTint, parameters.BaseTintColor.HasValue ? 1.0f : 0.0f),
             MaterialBaseTintPolicy = new Vector4(
                 baseTintStrength,

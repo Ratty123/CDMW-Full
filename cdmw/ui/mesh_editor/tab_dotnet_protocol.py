@@ -5,6 +5,7 @@ from typing import Mapping
 
 from cdmw.ui.mesh_editor.tab_compat import facade_globals as _tab
 from cdmw.ui.mesh_editor import tab_dotnet_material_commit as _material_commit
+from cdmw.ui.mesh_editor.tab_dotnet_part_colour import MeshEditorDotNetPartColourMixin
 from cdmw.ui.mesh_editor.tab_dotnet_resources import MeshEditorDotNetResourceProtocolMixin
 from cdmw.ui.mesh_editor.process_io import DOTNET_PROTOCOL_EVENT_LIMIT
 
@@ -44,7 +45,10 @@ def _dotnet_event_requires_correlation(event: str, payload: Mapping[str, object]
     return event in _CORRELATED_HELPER_REQUEST_EVENTS or any(field in payload for field in _CORRELATION_FIELDS)
 
 
-class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
+class MeshEditorDotNetProtocolMixin(
+    MeshEditorDotNetPartColourMixin,
+    MeshEditorDotNetResourceProtocolMixin,
+):
     def _append_dotnet_protocol_event(self, payload: Mapping[str, object]) -> None:
         self.standalone_dotnet_protocol_events.append(dict(payload))
         if len(self.standalone_dotnet_protocol_events) > DOTNET_PROTOCOL_EVENT_LIMIT:
@@ -233,6 +237,8 @@ class MeshEditorDotNetProtocolMixin(MeshEditorDotNetResourceProtocolMixin):
             return self._handle_embedded_viewport_display_mode(
                 str(payload.get("mode", "") or "")
             )
+        if event == "part_material_edit_request":
+            return self._handle_dotnet_part_material_edit_request(payload)
         if event == "placement_transform_request":
             handler = getattr(self.active_builder(), "_mesh_editor_apply_dotnet_placement_state", None)
             placement = payload.get("placement")

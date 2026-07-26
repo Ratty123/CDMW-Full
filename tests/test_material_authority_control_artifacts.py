@@ -238,7 +238,14 @@ def test_parameter_backed_controls_change_the_canonical_parameter(
 
 
 def test_effect_matrix_covers_every_normal_control_exactly_once() -> None:
-    artifact_keys = {case[0] for case in _ARTIFACT_CASES} | {"part_glow_color"}
+    # Per-part controls are authored on the source-part adjustment rather than
+    # the material profile, so they have no profile-driven generation case
+    # above; they are still artifact controls that rewrite the baked channel.
+    artifact_keys = {case[0] for case in _ARTIFACT_CASES} | {
+        "part_glow_color",
+        "part_colourise_color",
+        "part_colourise_strength",
+    }
     parameter_keys = {
         "accent_glow",
         "part_glow_strength",

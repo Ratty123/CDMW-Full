@@ -95,6 +95,17 @@ def _selected_part_control_step_001(_state):
     _state.part_material_controls = _state.context.get('part_material_controls') or ()
     _state.part_material_gamma_spin = _state.context.get('part_material_gamma_spin')
     _state.part_material_saturation_spin = _state.context.get('part_material_saturation_spin')
+    _state.QColor = _state.context.get('QColor')
+    _state.QColorDialog = _state.context.get('QColorDialog')
+    _state.part_emissive_checkbox = _state.context.get('part_emissive_checkbox')
+    _state.part_emissive_pick_button = _state.context.get('part_emissive_pick_button')
+    _state.part_emissive_strength_spin = _state.context.get('part_emissive_strength_spin')
+    _state.part_role_combo = _state.context.get('part_role_combo')
+    _state.part_material_colourise_pick_button = _state.context.get('part_material_colourise_pick_button')
+    _state.part_material_colourise_strength_spin = _state.context.get('part_material_colourise_strength_spin')
+    _state.part_material_colour_widgets = _state.context.get('part_material_colour_widgets') or ()
+    _state.part_material_reset_button = _state.context.get('part_material_reset_button')
+    _state.part_material_tint_pick_button = _state.context.get('part_material_tint_pick_button')
     _state.part_material_tint_b_spin = _state.context.get('part_material_tint_b_spin')
     _state.part_material_tint_g_spin = _state.context.get('part_material_tint_g_spin')
     _state.part_material_tint_r_spin = _state.context.get('part_material_tint_r_spin')
@@ -175,23 +186,37 @@ def _selected_part_control_step_004(_state):
 def _selected_part_control_step_005(_state):
 
     def _set_part_material_controls_enabled(enabled: bool) -> None:
-        effective_enabled = bool(enabled) and (not bool(_state.modify_original_clone_mode) or not callable(_state._modify_original_texture_tuning_enabled) or bool(_state._modify_original_texture_tuning_enabled()))
+        advanced_enabled = bool(enabled) and (not bool(_state.modify_original_clone_mode) or not callable(_state._modify_original_texture_tuning_enabled) or bool(_state._modify_original_texture_tuning_enabled()))
+        # Colour controls follow the selection alone. Advanced texture tuning
+        # gates only the brightness/contrast/saturation/gamma spins.
+        colour_controls = {
+            id(_state.part_material_tint_r_spin),
+            id(_state.part_material_tint_g_spin),
+            id(_state.part_material_tint_b_spin),
+            id(_state.part_material_colourise_strength_spin),
+        }
         for spin in tuple(_state.part_material_controls or ()):
             if hasattr(spin, 'setEnabled'):
-                spin.setEnabled(effective_enabled)
+                spin.setEnabled(bool(enabled) if id(spin) in colour_controls else advanced_enabled)
+        for button in (_state.part_material_tint_pick_button, _state.part_material_colourise_pick_button, _state.part_material_reset_button):
+            if button is not None and hasattr(button, 'setEnabled'):
+                button.setEnabled(bool(enabled))
     _state._set_part_material_controls_enabled = _set_part_material_controls_enabled
 
 def _selected_part_control_step_006(_state):
 
     def _set_part_material_controls(adjustment: object | None, *, enabled: bool) -> None:
         _state._set_part_material_controls_enabled(enabled)
-        values = (float(getattr(adjustment, 'material_brightness', 0.0) or 0.0) if adjustment is not None else 0.0, float(getattr(adjustment, 'material_contrast', 0.0) or 0.0) if adjustment is not None else 0.0, float(getattr(adjustment, 'material_saturation', 0.0) or 0.0) if adjustment is not None else 0.0, float(getattr(adjustment, 'material_gamma', 1.0) or 1.0) if adjustment is not None else 1.0, *_state._material_tint_values(adjustment))
+        colourise_percent = round(100.0 * float(getattr(adjustment, 'material_colourise_strength', 0.0) or 0.0)) if adjustment is not None else 0.0
+        values = (float(getattr(adjustment, 'material_brightness', 0.0) or 0.0) if adjustment is not None else 0.0, float(getattr(adjustment, 'material_contrast', 0.0) or 0.0) if adjustment is not None else 0.0, float(getattr(adjustment, 'material_saturation', 0.0) or 0.0) if adjustment is not None else 0.0, float(getattr(adjustment, 'material_gamma', 1.0) or 1.0) if adjustment is not None else 1.0, *_state._material_tint_values(adjustment), float(colourise_percent))
         for spin, value in zip(tuple(_state.part_material_controls or ()), values):
             _state._set_double_spin_value_silently_helper(spin, float(value))
             try:
                 _state._sync_part_slider_from_spin(spin)
             except (AttributeError, RuntimeError, TypeError, ValueError):
                 pass
+        _state._refresh_part_colour_swatches(adjustment, enabled=enabled)
+        _state._refresh_part_emissive_controls(adjustment, enabled=enabled)
     _state._set_part_material_controls = _set_part_material_controls
 
 def _selected_part_control_step_007(_state):
@@ -265,11 +290,11 @@ def _selected_part_control_step_012(_state):
     def _update_selected_part_material_adjustment(_signal_value: object=None, *, push_undo: bool=True) -> bool:
         if _state.part_inspector_loading['active']:
             return False
-        if bool(_state.modify_original_clone_mode) and callable(_state._modify_original_texture_tuning_enabled):
-            if not _state._modify_original_texture_tuning_enabled():
-                return False
+        # Colour is authored regardless of the Modify Original advanced texture
+        # tuning opt-in, and the advanced spins mirror the stored adjustment
+        # while hidden, so writing them back stays an identity.
         source_index = int(_state.selected_source_part.get('index', -1))
-        material_state = _state._source_part_material_adjustment_state_helper(_state.source_part_adjustments, source_index=source_index, selected_source_indices=_state._selected_source_indices_from_tree(), brightness=_state.part_material_brightness_spin.value(), contrast=_state.part_material_contrast_spin.value(), saturation=_state.part_material_saturation_spin.value(), gamma=_state.part_material_gamma_spin.value(), tint_rgb=(_state.part_material_tint_r_spin.value(), _state.part_material_tint_g_spin.value(), _state.part_material_tint_b_spin.value()), default_adjustment=_state.StaticSourcePartAdjustment)
+        material_state = _state._source_part_material_adjustment_state_helper(_state.source_part_adjustments, source_index=source_index, selected_source_indices=_state._selected_source_indices_from_tree(), brightness=_state.part_material_brightness_spin.value(), contrast=_state.part_material_contrast_spin.value(), saturation=_state.part_material_saturation_spin.value(), gamma=_state.part_material_gamma_spin.value(), tint_rgb=(_state.part_material_tint_r_spin.value(), _state.part_material_tint_g_spin.value(), _state.part_material_tint_b_spin.value()), default_adjustment=_state.StaticSourcePartAdjustment, colourise_rgb=_state._part_colourise_rgb_from_controls(), colourise_strength=float(_state.part_material_colourise_strength_spin.value()) / 100.0)
         if not getattr(material_state, 'available', False) or not getattr(material_state, 'changed', False):
             return False
         if _state._active_mesh_edit_material_tuning_mutation_blocked():
@@ -284,6 +309,10 @@ def _selected_part_control_step_012(_state):
             adjustment.material_gamma = float(material_state.gamma)
             tint_rgb = tuple((int(value) for value in tuple(material_state.tint_rgb or ())[:3]))
             adjustment.material_tint_rgb = () if tint_rgb == (255, 255, 255) else tint_rgb
+            colourise_strength = float(getattr(material_state, 'colourise_strength', 0.0) or 0.0)
+            colourise_rgb = tuple((int(value) for value in tuple(getattr(material_state, 'colourise_rgb', ()) or ())[:3]))
+            adjustment.material_colourise_strength = colourise_strength
+            adjustment.material_colourise_rgb = colourise_rgb if colourise_strength > 0.0 else ()
             if callable(_state._is_default_source_part_adjustment) and _state._is_default_source_part_adjustment(adjustment):
                 _state.source_part_adjustments.pop(int(target_source_index), None)
         _state.texture_overrides_dirty['dirty'] = True
@@ -504,6 +533,12 @@ def _selected_part_control_step_018(_state):
                 emissive_strength=getattr(role_adjustment, 'emissive_strength', None) if role_adjustment is not None else None,
             ) or resident_updated
         _state._load_part_glow_color_controls(_state.source_part_adjustments.get(action_state.source_index))
+        # Keep the inspector's Emits light box in step with the Role box, in
+        # whichever direction the user changed it.
+        _state._refresh_part_emissive_controls(
+            _state.source_part_adjustments.get(action_state.source_index),
+            enabled=True,
+        )
         _state._refresh_source_assignment_columns(lightweight=True)
         try:
             _state._refresh_parts_outliner()

@@ -82,6 +82,8 @@ class SourcePartMaterialAdjustmentState:
     saturation: float
     gamma: float
     tint_rgb: tuple[int, int, int]
+    colourise_rgb: tuple[int, int, int] = (255, 255, 255)
+    colourise_strength: float = 0.0
 
 
 def _source_part_rgb(values: Sequence[object]) -> tuple[int, int, int]:
@@ -240,6 +242,8 @@ def source_part_material_adjustment_state(
     gamma: object,
     tint_rgb: Sequence[object],
     default_adjustment: Callable[[int], object],
+    colourise_rgb: Sequence[object] = (255, 255, 255),
+    colourise_strength: object = 0.0,
 ) -> SourcePartMaterialAdjustmentState:
     try:
         normalized_source_index = int(source_index)
@@ -250,6 +254,10 @@ def source_part_material_adjustment_state(
     normalized_saturation = _source_part_clamped_float(saturation, default=0.0, minimum=-100.0, maximum=100.0)
     normalized_gamma = _source_part_clamped_float(gamma, default=1.0, minimum=0.25, maximum=4.0)
     normalized_tint = _source_part_rgb(tint_rgb)
+    normalized_colourise = _source_part_rgb(colourise_rgb)
+    normalized_colourise_strength = _source_part_clamped_float(
+        colourise_strength, default=0.0, minimum=0.0, maximum=1.0
+    )
     if normalized_source_index < 0:
         return SourcePartMaterialAdjustmentState(
             available=False,
@@ -260,6 +268,8 @@ def source_part_material_adjustment_state(
             saturation=normalized_saturation,
             gamma=normalized_gamma,
             tint_rgb=normalized_tint,
+            colourise_rgb=normalized_colourise,
+            colourise_strength=normalized_colourise_strength,
         )
     target_indices = source_part_normalized_target_indices(normalized_source_index, selected_source_indices)
     changed = source_part_material_adjustment_values_changed(
@@ -271,6 +281,8 @@ def source_part_material_adjustment_state(
         gamma=normalized_gamma,
         tint_rgb=normalized_tint,
         default_adjustment=default_adjustment,
+        colourise_rgb=normalized_colourise,
+        colourise_strength=normalized_colourise_strength,
     )
     return SourcePartMaterialAdjustmentState(
         available=bool(target_indices),
@@ -281,6 +293,8 @@ def source_part_material_adjustment_state(
         saturation=normalized_saturation,
         gamma=normalized_gamma,
         tint_rgb=normalized_tint,
+        colourise_rgb=normalized_colourise,
+        colourise_strength=normalized_colourise_strength,
     )
 
 
@@ -294,8 +308,11 @@ def source_part_material_adjustment_values_changed(
     gamma: float,
     tint_rgb: Sequence[int],
     default_adjustment: Callable[[int], object],
+    colourise_rgb: Sequence[int] = (255, 255, 255),
+    colourise_strength: float = 0.0,
 ) -> bool:
     expected_tint = _source_part_rgb(tint_rgb)
+    expected_colourise = _source_part_rgb(colourise_rgb)
     for target_source_index in tuple(target_indices or ()):
         try:
             normalized_index = int(target_source_index)
@@ -308,12 +325,20 @@ def source_part_material_adjustment_values_changed(
         current_tint = tuple(getattr(adjustment, "material_tint_rgb", ()) or ())
         if not current_tint:
             current_tint = (255, 255, 255)
+        current_colourise = tuple(getattr(adjustment, "material_colourise_rgb", ()) or ())
+        if not current_colourise:
+            current_colourise = (255, 255, 255)
         if (
             abs(float(getattr(adjustment, "material_brightness", 0.0) or 0.0) - float(brightness)) > 1e-8
             or abs(float(getattr(adjustment, "material_contrast", 0.0) or 0.0) - float(contrast)) > 1e-8
             or abs(float(getattr(adjustment, "material_saturation", 0.0) or 0.0) - float(saturation)) > 1e-8
             or abs(float(getattr(adjustment, "material_gamma", 1.0) or 1.0) - float(gamma)) > 1e-8
             or _source_part_rgb(current_tint) != expected_tint
+            or abs(
+                float(getattr(adjustment, "material_colourise_strength", 0.0) or 0.0)
+                - float(colourise_strength)
+            ) > 1e-8
+            or _source_part_rgb(current_colourise) != expected_colourise
         ):
             return True
     return False

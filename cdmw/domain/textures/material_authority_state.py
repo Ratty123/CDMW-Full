@@ -116,6 +116,8 @@ _CONTROL_SPECS = (
     _spec("edge_relief", "automatic", channels=("normal", "height", "material_mask"), parameters=("height_scale",)),
     _spec("edge_relief_source", "automatic", channels=("normal", "height", "material_mask"), parameters=("height_scale",)),
     _spec("accent_glow", "automatic", channels=("emissive",), parameters=("emissive_intensity",)),
+    _spec("part_colourise_color", "automatic", channels=("base",)),
+    _spec("part_colourise_strength", "automatic", channels=("base",)),
     _spec("part_glow_color", "automatic", channels=("emissive",)),
     _spec("part_glow_strength", "automatic", channels=("emissive",), parameters=("emissive_intensity",)),
     # Manual routing and artifact controls.
@@ -277,7 +279,7 @@ def material_authority_control_states(
             reason = "The emissive route is Disabled."
         elif spec.key in {"part_glow_color", "part_glow_strength"} and not has_explicit_glow_part:
             capability = MaterialAuthorityCapability.INAPPLICABLE
-            reason = "Exactly one source part must be assigned Glow / emissive."
+            reason = "At least one source part must be assigned Glow / emissive."
         elif spec.key == "allow_factor_only_authority" and factor_only_base_applicable is False:
             capability = MaterialAuthorityCapability.INAPPLICABLE
             reason = "No source part has a missing base DDS with an imported base-color factor."
@@ -344,6 +346,12 @@ _BAKED_PARAMETER_IDENTITIES: Mapping[str, Mapping[str, object]] = {
         "saturation": 1.0,
         "gamma": 1.0,
         "tint_color": [1.0, 1.0, 1.0],
+        # The recolour is baked into the published base DDS, so the
+        # fast-preview parameter must return to identity or the exact result
+        # would be repainted a second time by the shader.
+        "base_tint_color": [1.0, 1.0, 1.0],
+        "base_tint_strength": 0.0,
+        "base_tint_authored": False,
         "base_color_lift": 0,
         "value_max": 255,
         "auto_balance": 0,

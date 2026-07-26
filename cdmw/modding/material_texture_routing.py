@@ -1177,6 +1177,9 @@ def _source_part_has_texture_adjustment(adjustment: object) -> bool:
         or abs(values.saturation_percent) > 0.0001
         or abs(values.gamma_multiplier - 1.0) > 0.0001
         or any(abs(component - 1.0) > 0.0001 for component in values.tint_adjustment)
+        # A recolour must clone the texture set too, or one part's new colour
+        # would repaint every sibling sharing the same source material.
+        or values.colourise_strength > 0.0001
     )
 
 
@@ -1192,6 +1195,8 @@ def _source_part_adjusted_slot(source_slot: ReplacementTextureSlot, adjustment: 
         base_color_gamma=values.gamma,
         base_color_saturation=values.saturation,
         base_color_tone_contrast=values.tone_contrast,
+        base_colourise_rgb=values.colourise_color,
+        base_colourise_strength=values.colourise_strength,
     )
 
 

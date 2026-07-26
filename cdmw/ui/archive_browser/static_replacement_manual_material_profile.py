@@ -144,6 +144,8 @@ _MATERIAL_RESOURCE_CHANNELS = {
     "emissive_color_saturation": ("emissive",),
     "emissive_color_value_max": ("emissive",),
     "accent_glow": ("emissive",),
+    "part_colourise_color": ("base",),
+    "part_colourise_strength": ("base",),
     "part_glow_color": ("emissive",),
     "part_glow_strength": ("emissive",),
 }

@@ -44,6 +44,8 @@ class MaterialParameterEvaluation:
     emissive_intensity: float | None
     emissive_color: tuple[float, ...]
     emissive_role: str
+    colourise_color: tuple[float, ...] = ()
+    colourise_strength: float = 0.0
 
 
 def _float(value: object, default: float, minimum: float, maximum: float) -> float:
@@ -252,6 +254,50 @@ def effective_emissive_intensity(
     return max(0.0, min(20.0, base_strength * boost))
 
 
+def normalize_colourise_strength(value: object) -> float:
+    """Clamp a recolour strength to 0-1, accepting 0-100 percent input."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    if not math.isfinite(number) or number <= 0.0:
+        return 0.0
+    if number > 1.0:
+        number /= 100.0
+    return min(1.0, number)
+
+
+def _resolved_colourise(
+    source: object | None,
+    part_adjustment: object | None,
+) -> tuple[tuple[float, ...], float]:
+    """Resolve the recolour operand, preferring an explicit part override.
+
+    The part adjustment is the authoring surface; the slot carries the same
+    values so a cloned texture set can re-evaluate them at bake time without
+    the adjustment object.
+    """
+    for owner, colour_attr, strength_attr in (
+        (part_adjustment, "material_colourise_rgb", "material_colourise_strength"),
+        (source, "base_colourise_rgb", "base_colourise_strength"),
+    ):
+        if owner is None:
+            continue
+        strength = normalize_colourise_strength(getattr(owner, strength_attr, 0.0))
+        if strength <= 0.0:
+            continue
+        raw_colour = tuple(getattr(owner, colour_attr, ()) or ())
+        # Same convention as the emissive colour below: integer triples are
+        # 0-255 authoring bytes, floats are already normalized.
+        byte_values = bool(raw_colour) and all(
+            isinstance(component, int) for component in raw_colour[:3]
+        )
+        colour = _normalized_color(raw_colour, byte_values=byte_values)
+        if len(colour) >= 3:
+            return colour, strength
+    return (), 0.0
+
+
 def _combined_tint(source: object | None, part_adjustment: object | None) -> tuple[tuple[float, ...], tuple[float, ...]]:
     source_tint = _normalized_color(getattr(source, "base_color_factor", ()) if source is not None else ())
     part_tint = _normalized_color(
@@ -323,6 +369,7 @@ def evaluate_material_parameters(
         )
     raw_emissive_color = emissive_color or getattr(part_adjustment, "emissive_color_rgb", ()) or getattr(profile, "accent_glow_color_rgb", ())
     color_uses_bytes = bool(raw_emissive_color) and all(isinstance(value, int) for value in tuple(raw_emissive_color)[:3])
+    colourise_color, colourise_strength = _resolved_colourise(source_slot, part_adjustment)
 
     return MaterialParameterEvaluation(
         base_brightness=_float(base_brightness, 1.0, 0.1, 3.0),
@@ -359,6 +406,8 @@ def evaluate_material_parameters(
         emissive_intensity=intensity,
         emissive_color=_normalized_color(raw_emissive_color, byte_values=color_uses_bytes) if role_enabled else (),
         emissive_role=role_name,
+        colourise_color=colourise_color,
+        colourise_strength=colourise_strength,
     )
 
 
@@ -392,6 +441,15 @@ def material_parameter_renderer_overrides(evaluation: MaterialParameterEvaluatio
     for key, value in (("roughness", roughness), ("metalness", metalness), ("specular", specular), ("height_scale", evaluation.height_scale), ("emissive_intensity", evaluation.emissive_intensity)):
         if value is not None:
             payload[key] = float(value)
+    if evaluation.colourise_strength > 0.0 and len(evaluation.colourise_color) >= 3:
+        # Fast-preview lane. `base_tint_authored` tells the resident shader to
+        # skip the metal-category damping it applies to inferred sidecar tints,
+        # so the preview matches the baked base DDS on metal parts too. The
+        # exact result still comes from that DDS; this resets to identity once
+        # the baked resource lands.
+        payload["base_tint_color"] = [float(value) for value in evaluation.colourise_color[:3]]
+        payload["base_tint_strength"] = float(evaluation.colourise_strength)
+        payload["base_tint_authored"] = True
     if len(evaluation.emissive_color) >= 3:
         payload["emissive_color"] = [float(value) for value in evaluation.emissive_color[:3]]
     if evaluation.emissive_role:
@@ -426,6 +484,7 @@ __all__ = [
     "evaluate_material_parameters",
     "material_parameter_renderer_overrides",
     "normalize_basic_control_percent",
+    "normalize_colourise_strength",
     "normalize_edge_relief_source",
     "normalize_global_gloss_reduction",
     "normalize_signed_basic_control_percent",

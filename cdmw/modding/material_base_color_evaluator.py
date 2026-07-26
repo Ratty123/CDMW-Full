@@ -3,6 +3,67 @@
 from __future__ import annotations
 
 
+# Mirrors the recolour block in D3D11MaterialShaders.hlsl. The shader damps
+# this branch on submeshes the renderer classified as metal; a user-authored
+# recolour has no such classification, so this port implements the plain
+# non-metal path and the baked DDS it produces is the exact result.
+_COLOURISE_LUMA_FLOOR = 0.08
+_COLOURISE_BIAS_MIN = 0.38
+_COLOURISE_BIAS_MAX = 1.72
+_COLOURISE_BLEND = 0.58
+
+
+def colourise_strength_from(values: object) -> float:
+    """Return the clamped recolour strength declared by an evaluation."""
+    try:
+        strength = float(getattr(values, "colourise_strength", 0.0) or 0.0)
+    except (TypeError, ValueError, OverflowError):
+        return 0.0
+    return max(0.0, min(1.0, strength))
+
+
+def colourise_color_from(values: object) -> tuple[float, float, float] | None:
+    """Return the clamped normalized recolour operand, if one is declared."""
+    colour = tuple(getattr(values, "colourise_color", ()) or ())
+    if len(colour) < 3:
+        return None
+    try:
+        clamped = tuple(max(0.0, min(1.0, float(component))) for component in colour[:3])
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return clamped
+
+
+def _colourised_rgb(rgb: object, values: object) -> object:
+    """Repaint toward the declared hue while preserving source luminance."""
+    import numpy as np
+
+    strength = colourise_strength_from(values)
+    colour = colourise_color_from(values)
+    if strength <= 0.0 or colour is None:
+        return rgb
+    luma_weights = np.asarray((0.299, 0.587, 0.114), dtype=np.float32)
+    tint = np.asarray(colour, dtype=np.float32)
+    tint_luma = max(float(np.dot(tint, luma_weights)), _COLOURISE_LUMA_FLOOR)
+    tint_bias = np.clip(
+        tint / np.float32(tint_luma),
+        np.float32(_COLOURISE_BIAS_MIN),
+        np.float32(_COLOURISE_BIAS_MAX),
+    )
+    scaled = np.float32(strength)
+    albedo_luma = np.sum(rgb * luma_weights, axis=2, keepdims=True)
+    lifted_luma = np.clip(
+        albedo_luma * (np.float32(1.05) + scaled * np.float32(0.35))
+        + np.float32(0.10) * scaled,
+        0.0,
+        1.0,
+    )
+    multiplied = np.clip(rgb * tint_bias, 0.0, 1.0)
+    colorized = np.clip(lifted_luma * tint_bias, 0.0, 1.0)
+    blended = multiplied + (colorized - multiplied) * np.float32(_COLOURISE_BLEND)
+    return np.clip(rgb + (blended - rgb) * scaled, 0.0, 1.0)
+
+
 def shader_equivalent_base_color_rgba(
     rgba: object,
     values: object,
@@ -15,6 +76,7 @@ def shader_equivalent_base_color_rgba(
 
     pixels = np.asarray(rgba, dtype=np.float32) / np.float32(255.0)
     rgb = pixels[..., :3]
+    rgb = _colourised_rgb(rgb, values)
     tint = tuple(getattr(values, "tint_color", ()) or ())
     tint = tint[:3] if len(tint) >= 3 else (1.0, 1.0, 1.0)
     brightness = max(
@@ -66,4 +128,8 @@ def shader_equivalent_base_color_rgba(
     return Image.fromarray(result, "RGBA")
 
 
-__all__ = ["shader_equivalent_base_color_rgba"]
+__all__ = [
+    "colourise_color_from",
+    "colourise_strength_from",
+    "shader_equivalent_base_color_rgba",
+]

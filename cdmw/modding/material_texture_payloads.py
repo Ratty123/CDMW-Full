@@ -1140,6 +1140,7 @@ def _source_slot_needs_base_color_adjustment(source_slot: ReplacementTextureSlot
         or values.auto_balance > 0
         or values.shadow_lift > 0
         or abs(values.tone_contrast) > 0.0001
+        or values.colourise_strength > 0.0001
     )
 
 
@@ -1173,17 +1174,21 @@ def _source_slot_png_with_base_color_factor_path(
     shadow_lift = values.shadow_lift
     tone_contrast = values.tone_contrast
     source_path = source_slot.source_path
+    colourise_key = "{}|{:.6f}".format(
+        tuple(round(float(part), 6) for part in (values.colourise_color or ())[:3]),
+        values.colourise_strength,
+    )
     try:
         stat = source_path.stat()
         fingerprint = (
             f"{source_path}|{stat.st_mtime_ns}|{stat.st_size}|{factor}|{alpha_factor:.6f}|"
             f"{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
-            f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}"
+            f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}|{colourise_key}"
         )
     except OSError:
         fingerprint = (
             f"{source_path}|{factor}|{alpha_factor:.6f}|{scale_rgb:.6f}|{lift}|{gamma:.6f}|{saturation:.6f}|{value_max}|"
-            f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}"
+            f"{auto_balance}|{shadow_lift}|{tone_contrast:.6f}|{colourise_key}"
         )
     digest = hashlib.sha1(fingerprint.encode("utf-8", errors="ignore")).hexdigest()[:12]
     root = Path(output_root) if output_root is not None else Path(tempfile.gettempdir()) / "cdmw_synthetic_materials"

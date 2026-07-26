@@ -80,6 +80,38 @@ def source_part_inspector_control_text() -> dict[str, str]:
             "Per-part live material adjustment. Brightness, contrast, saturation, gamma, and tint are applied "
             "to this source part's base/emissive texture preview and loose export."
         ),
+        "material_colour_label": "Colour",
+        "material_tint_pick": "Tint...",
+        "material_tint_pick_tooltip": (
+            "Pick the multiply tint for this part. Multiply darkens and shifts the existing texture colour; "
+            "it cannot brighten a dark texture. Use Recolour for that."
+        ),
+        "material_colourise_label": "Recolour",
+        "material_colourise_pick": "Colour...",
+        "material_colourise_pick_tooltip": (
+            "Pick a new colour for this part. Recolour repaints toward the chosen hue while keeping the "
+            "texture's light and shade, so a dark leather can become a bright red."
+        ),
+        "material_colourise_strength_tooltip": (
+            "How far to repaint toward the chosen colour. 0% keeps the original colour, 100% fully repaints. "
+            "The preview is approximate on metal parts; the built texture uses the exact value."
+        ),
+        "material_reset": "Reset Colour",
+        "material_reset_tooltip": (
+            "Clear this part's tint, recolour, brightness, contrast, saturation, and gamma."
+        ),
+        "emissive_label": "Glow",
+        "emissive_checkbox": "Emits light",
+        "emissive_checkbox_tooltip": (
+            "Make this part glow. This assigns the Glow / emissive role, so the Role box above "
+            "follows it. Clearing it returns the role to Auto / inferred and keeps the glow "
+            "colour and strength stored for when you turn it back on."
+        ),
+        "emissive_pick": "Colour...",
+        "emissive_pick_tooltip": "Pick the colour this part glows. Requires Emits light.",
+        "emissive_strength_tooltip": (
+            "Glow strength before the global Accent Glow boost (0-20). Requires Emits light."
+        ),
     }
 
 

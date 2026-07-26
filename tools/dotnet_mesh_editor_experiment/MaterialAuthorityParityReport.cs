@@ -245,8 +245,8 @@ internal static class MaterialAuthorityParityReport
 
         var expectedControls = Cases().Select(item => item.Key).Order(StringComparer.Ordinal).ToArray();
         var uniqueControls = expectedControls.Distinct(StringComparer.Ordinal).ToArray();
-        var controlsComplete = expectedControls.Length == 38 && uniqueControls.Length == 38;
-        var allRowsPass = rows.Count == 38 && rows.All(row => row.GetValueOrDefault("ok") is true);
+        var controlsComplete = expectedControls.Length == 40 && uniqueControls.Length == 40;
+        var allRowsPass = rows.Count == 40 && rows.All(row => row.GetValueOrDefault("ok") is true);
         var hidden = host.IsHandleCreated
             && viewport.IsHandleCreated
             && !host.Visible
@@ -296,6 +296,8 @@ internal static class MaterialAuthorityParityReport
         new("edge_relief", new[] { "normal", "height", "material" }, "add"),
         new("edge_relief_source", new[] { "normal", "height", "material" }),
         new("accent_glow", Array.Empty<string>(), Parameter: "emissive_intensity", BeforeParameter: 1.0f, AfterParameter: 5.5f),
+        new("part_colourise_color", new[] { "base" }),
+        new("part_colourise_strength", new[] { "base" }),
         new("part_glow_color", new[] { "emissive" }),
         new("part_glow_strength", Array.Empty<string>(), Parameter: "emissive_intensity", BeforeParameter: 1.0f, AfterParameter: 3.0f),
         new("base_binding_mode", new[] { "base" }, "remove"),

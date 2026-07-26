@@ -99,6 +99,14 @@ class SourcePartGlowColorControlsState:
     style_sheet: str
 
 
+@dataclass(frozen=True, slots=True)
+class SourcePartColourSwatchState:
+    enabled: bool
+    hex_color: str
+    style_sheet: str
+    active: bool
+
+
 def source_part_control_state(
     *,
     source_index: int,
@@ -437,6 +445,43 @@ def source_part_glow_color_controls_state(
     )
 
 
+def source_part_colour_hex(values: Sequence[object]) -> str:
+    """Return the ``#RRGGBB`` form of a 0-255 part colour triple."""
+    red, green, blue = source_part_glow_rgb(values)
+    return f"#{red:02X}{green:02X}{blue:02X}"
+
+
+def source_part_colour_swatch_state(
+    *,
+    rgb: Sequence[object],
+    enabled: bool,
+    neutral: Sequence[object] = (255, 255, 255),
+) -> SourcePartColourSwatchState:
+    """Resolve a colour swatch button's paint and enabled state.
+
+    The swatch always shows its colour so a recoloured part is visible at a
+    glance, and reports ``active`` when the colour is no longer the neutral
+    default so callers can badge the part list.
+    """
+    normalized = source_part_glow_rgb(rgb)
+    hex_color = source_part_colour_hex(normalized)
+    is_active = normalized != source_part_glow_rgb(neutral)
+    # Keep the label readable whatever colour was chosen.
+    luminance = (0.299 * normalized[0] + 0.587 * normalized[1] + 0.114 * normalized[2]) / 255.0
+    foreground = "#0d1117" if luminance > 0.55 else "#f0f6fc"
+    style_sheet = (
+        f"QPushButton {{ background-color: {hex_color}; color: {foreground}; }}"
+        if enabled
+        else ""
+    )
+    return SourcePartColourSwatchState(
+        enabled=bool(enabled),
+        hex_color=hex_color,
+        style_sheet=style_sheet,
+        active=bool(is_active),
+    )
+
+
 def source_part_normalized_target_indices(
     source_index: int,
     selected_source_indices: Sequence[int],
@@ -480,6 +525,7 @@ def source_part_target_button_state(
 
 
 __all__ = [
+    "SourcePartColourSwatchState",
     "SourcePartControlState",
     "SourcePartCheckToggleState",
     "SourcePartCopiedTextureControlsState",
@@ -490,6 +536,8 @@ __all__ = [
     "SourcePartSourceComboSelectionState",
     "SourcePartTargetButtonState",
     "SourcePartTargetComboSelectionState",
+    "source_part_colour_hex",
+    "source_part_colour_swatch_state",
     "source_part_control_state",
     "source_part_check_toggle_state",
     "source_part_control_load_state",

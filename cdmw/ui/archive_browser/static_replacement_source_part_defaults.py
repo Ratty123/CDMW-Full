@@ -20,6 +20,7 @@ def is_default_source_part_adjustment(adjustment: object) -> bool:
         and abs(float(getattr(adjustment, "material_saturation", 0.0) or 0.0)) <= 1e-8
         and abs(float(getattr(adjustment, "material_gamma", 1.0) or 1.0) - 1.0) <= 1e-8
         and (not material_tint or tuple(int(value) for value in material_tint[:3]) == (255, 255, 255))
+        and abs(float(getattr(adjustment, "material_colourise_strength", 0.0) or 0.0)) <= 1e-8
     )
 
 

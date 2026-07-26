@@ -338,12 +338,22 @@ def material_authority_source_role_signature_rows(
             material_gamma = 1.0
         material_tint = tuple(getattr(adjustment, "material_tint_rgb", ()) or ())
         material_tint_rgb = tuple(int(value) for value in material_tint[:3]) if material_tint else ()
+        colourise = tuple(getattr(adjustment, "material_colourise_rgb", ()) or ())
+        colourise_rgb = tuple(int(value) for value in colourise[:3]) if colourise else ()
+        try:
+            colourise_strength = round(
+                max(0.0, min(1.0, float(getattr(adjustment, "material_colourise_strength", 0.0) or 0.0))),
+                4,
+            )
+        except (TypeError, ValueError, OverflowError):
+            colourise_strength = 0.0
         has_material_adjustment = (
             abs(material_brightness) > 0.0001
             or abs(material_contrast) > 0.0001
             or abs(material_saturation) > 0.0001
             or abs(material_gamma - 1.0) > 0.0001
             or bool(material_tint_rgb)
+            or colourise_strength > 0.0001
         )
         if not material_role.strip() and not glow_rgb and emissive_strength is None and not has_material_adjustment:
             continue
@@ -358,6 +368,8 @@ def material_authority_source_role_signature_rows(
                 material_saturation,
                 material_gamma,
                 material_tint_rgb,
+                colourise_rgb,
+                colourise_strength,
             )
         )
     return tuple(rows)
