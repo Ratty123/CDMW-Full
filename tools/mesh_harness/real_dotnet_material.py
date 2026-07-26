@@ -181,6 +181,25 @@ def resident_material_gates(state: SimpleNamespace) -> dict[str, bool]:
     }
 
 
+def _sent_material_state(state: SimpleNamespace, generation: object) -> dict[str, object]:
+    """Return the material state production sent for this generation.
+
+    The gates below describe what the renderer was actually given, so they have
+    to read the transmitted payload. A payload the harness recomputes can
+    disagree with it — notably its resource list comes out empty while the
+    renderer reports reusing fifteen resources.
+    """
+
+    try:
+        wanted = int(generation or 0)
+    except (TypeError, ValueError):
+        return {}
+    for payload in reversed(tuple(getattr(state, "sent_material_states", ()) or ())):
+        if int(payload.get("generation", 0) or 0) == wanted:
+            return dict(payload)
+    return {}
+
+
 def _perturb_material_state_for_update(state: SimpleNamespace, toggle_index: int) -> bool:
     """Flip one submesh's texture V-flip so the update is a genuine change.
 
@@ -262,9 +281,11 @@ def exercise_resident_material_update(
     )
     if second_applied.get("event") != "material_state_applied":
         return base_error(state, str(second_applied.get("message") or "Second resident .NET material update was not acknowledged."))
-    state.material_state_payloads = (first_payload, second_payload)
+    first_sent = _sent_material_state(state, first_applied.get("generation")) or first_payload
+    second_sent = _sent_material_state(state, second_applied.get("generation")) or second_payload
+    state.material_state_payloads = (first_sent, second_sent)
     state.material_state_applied_events = (first_applied, second_applied)
-    state.material_state_payload = second_payload
+    state.material_state_payload = second_sent
     state.material_state_applied = second_applied
     metrics_event = wait_protocol_event(state, "metrics", len(state.tab.standalone_dotnet_protocol_events), 2.0)
     renderer_after = second_applied.get("renderer")
