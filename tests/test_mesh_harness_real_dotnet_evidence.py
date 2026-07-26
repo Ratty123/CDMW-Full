@@ -286,9 +286,14 @@ def test_dotnet_real_game_resident_material_gates_require_reuse_and_one_process(
         material_process_pid_after=77,
         material_window_identity_before={"form_hwnd": 10, "viewport_hwnd": 11},
         material_window_identity_after={"form_hwnd": 10, "viewport_hwnd": 11},
+        material_dedup_ok=True,
     )
 
     assert all(resident_material_gates(state).values())
+
+    state.material_dedup_ok = False
+    assert resident_material_gates(state)["resident_material_dedup_respected"] is False
+    state.material_dedup_ok = True
 
     state.material_process_pid_after = 78
     state.material_lifecycle_after = dict(after_counts, package_build_count=2)

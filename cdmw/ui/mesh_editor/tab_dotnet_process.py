@@ -93,12 +93,21 @@ class MeshEditorDotNetProcessMixin:
             if self.standalone_dotnet_target_embedded:
                 self._set_embedded_dotnet_state("failed", active=False)
             return False
+        previous_process_generation = int(self.standalone_dotnet_process_generation or 0)
         self.standalone_dotnet_editor_process = controller.process
         self.standalone_dotnet_process_generation = int(controller.process_generation)
         self.standalone_dotnet_update_queue.set_context(
             session_id=self.standalone_dotnet_lifecycle_session_id,
             process_generation=self.standalone_dotnet_process_generation,
         )
+        # The shared resident controller owns the QProcess, so the tab no
+        # longer observes QProcess.started directly; a process-generation
+        # increase at load time is the launch the lifecycle counters track.
+        if (
+            self.standalone_dotnet_process_generation > previous_process_generation
+            and controller.process is not None
+        ):
+            self._handle_dotnet_process_started(controller.process)
         self._record_mesh_dotnet_event(
             "mesh_dotnet_shared_host_load",
             embedded=bool(self.standalone_dotnet_target_embedded),
