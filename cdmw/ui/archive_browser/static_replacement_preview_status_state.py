@@ -68,6 +68,22 @@ def alignment_preview_camera_button_specs() -> tuple[tuple[str, str, str], ...]:
     )
 
 
+def preview_grid_visible(checkbox: object) -> bool:
+    """Read the one authoritative grid flag shared by both resident panes.
+
+    Both panes have to be told the same thing in the same update; the resident
+    renderer keeps a presentation context per pane and only writes the active
+    one back, so anything less lets one pane keep a stale grid state.
+    """
+    is_checked = getattr(checkbox, "isChecked", None)
+    if not callable(is_checked):
+        return True
+    try:
+        return bool(is_checked())
+    except RuntimeError:
+        return True
+
+
 def alignment_preview_control_text() -> dict[str, str]:
     return {
         "title": "Live Alignment Preview",
@@ -86,6 +102,11 @@ def alignment_preview_control_text() -> dict[str, str]:
         "overlay_original_locked": "Original locked",
         "overlay_original_locked_tooltip": (
             "In Overlay mode, keep the original reference fixed and move only the replacement preview."
+        ),
+        "grid": "Grid",
+        "grid_tooltip": (
+            "Show the ground grid in both preview panes. This is a display-only overlay and does not change the mesh, "
+            "its placement, or anything that gets exported."
         ),
         "gizmo": "Gizmo",
         "gizmo_tooltip": (
@@ -247,6 +268,7 @@ __all__ = [
     "alignment_preview_render_control_text",
     "alignment_preview_view_sync_initial_state",
     "preview_controls_ready_initial_state",
+    "preview_grid_visible",
     "preview_performance_status",
     "static_preview_refresh_interval_ms",
     "static_preview_refresh_performance_status",

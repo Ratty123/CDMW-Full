@@ -946,3 +946,38 @@ def test_real_dotnet_harness_has_dedicated_resident_side_by_side_zoom_proof() ->
     assert "_send_mouse_wheel_input(1)" in input_source
     assert '"non_target_camera_unchanged"' in input_source
     assert '"inverse_camera_restored_exactly"' in input_source
+
+
+def test_overlay_visibility_reaches_every_presentation_context() -> None:
+    """Both panes draw from their own context, so both must be written.
+
+    `SaveActivePresentationContext` only stamps the active context, so leaving
+    grid/gizmo out of the fan-out let the two panes drift: one could keep
+    drawing a grid the host had turned off, or lose one it had turned on, until
+    it next became active.
+    """
+    settings_source = _source("MeshViewport.PresentationSettings.cs")
+    fan_out = settings_source.split(
+        "private void SynchronizePresentationDisplaySettings()", maxsplit=1
+    )[1].split("public bool TrySetSynchronizedDisplayMode", maxsplit=1)[0]
+
+    assert "foreach (var context in _presentationContexts.Values)" in fan_out
+    assert "context.GridVisible = _presentationGridVisible;" in fan_out
+    assert "context.GizmoVisible = _presentationGizmoVisible;" in fan_out
+
+
+def test_a_resident_package_swap_keeps_the_host_overlay_choice() -> None:
+    """Grid/gizmo visibility is a host toggle, not package content.
+
+    Adopting the incoming scene's values dropped the grid whenever the package
+    came from a builder that writes `"grid": {"visible": false}`.
+    """
+    package_source = _source("MeshViewport.ResidentPackage.cs")
+    replace = package_source.split("public void ReplaceResidentPackage(", maxsplit=1)[1]
+
+    assert "_presentationGridVisible = scene.GridVisible;" not in replace
+    assert "_presentationGizmoVisible = scene.GizmoVisible;" not in replace
+    assert (
+        "_scene.SetPresentationOverlayVisibility(_presentationGridVisible, _presentationGizmoVisible);"
+        in replace
+    )

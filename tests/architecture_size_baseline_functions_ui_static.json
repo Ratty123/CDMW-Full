@@ -1,5 +1,6 @@
 {
   "functions": {
+    "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py::_texture_original_texture_material_step_009": 152,
     "cdmw/ui/archive_browser/static_replacement_dialog_custom_icon_callbacks.py::create_alignment_custom_icon_callbacks": 192,
     "cdmw/ui/archive_browser/static_replacement_dialog_manual_profile_callbacks.py::create_manual_material_profile_runtime_callbacks": 421,
     "cdmw/ui/archive_browser/static_replacement_dialog_material_authority_callbacks.py::_queue_material_resource_update": 287,
@@ -7,8 +8,8 @@
     "cdmw/ui/archive_browser/static_replacement_dialog_material_authority_callbacks.py::create_material_authority_adjustment_callbacks": 657,
     "cdmw/ui/archive_browser/static_replacement_dialog_mesh_diagnostics_callbacks.py::create_alignment_mesh_diagnostics_callbacks": 283,
     "cdmw/ui/archive_browser/static_replacement_dialog_mesh_diagnostics_callbacks.py::create_alignment_mesh_diagnostics_callbacks._refresh_mesh_editor_diagnostics": 160,
-    "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py::create_alignment_preview_shell_section": 772,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py::prompt_archive_static_replacement_options": 333,
+    "cdmw/ui/archive_browser/static_replacement_dialog_preview_shell.py::create_alignment_preview_shell_section": 820,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py::prompt_archive_static_replacement_options": 343,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py::finish_static_replacement_prompt_open": 162,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py::create_static_replacement_prompt_setup": 476,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py::create_static_replacement_prompt_shell": 333,

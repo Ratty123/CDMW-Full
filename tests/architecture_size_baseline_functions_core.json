@@ -15,7 +15,7 @@
     "cdmw/core/archive_loose_export.py::audit_loose_package_active_file_authority": 201,
     "cdmw/core/archive_loose_export.py::export_archive_mesh_payloads_to_mod_ready_loose": 361,
     "cdmw/core/archive_media_preview.py::build_dds_header_detail_text": 229,
-    "cdmw/core/archive_mesh_export.py::export_archive_mesh": 252,
+    "cdmw/core/archive_mesh_export.py::export_archive_mesh": 256,
     "cdmw/core/archive_model_preview.py::_attach_hkx_physics_overlay_to_model_preview": 229,
     "cdmw/core/archive_model_references.py::_parse_archive_model_sidecar_texture_bindings": 243,
     "cdmw/core/archive_model_references.py::_score_model_related_entry_candidate": 162,

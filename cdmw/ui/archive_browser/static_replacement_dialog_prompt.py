@@ -218,10 +218,20 @@ def prompt_archive_static_replacement_options(
             return callback(*args, **kwargs)
         return None
 
+    def _clear_all_part_selections_when_ready(*args, **kwargs):
+        # The prompt shell only exposes a no-op placeholder at this point; the
+        # real implementation arrives with the source parts outliner during
+        # replacement setup, so this has to resolve at call time.
+        callback = prompt_shell_context.get("_clear_all_part_selections")
+        if callable(callback):
+            return callback(*args, **kwargs)
+        return None
+
     alignment_preview_shell_context = {
         **prompt_shell_context,
         **locals(),
         '_sync_highlight_sets': _sync_highlight_sets_when_ready,
+        '_clear_all_part_selections': _clear_all_part_selections_when_ready,
     }
     alignment_preview_shell_section = _builder_construction_step(
         "preview_shell",
@@ -247,7 +257,7 @@ def prompt_archive_static_replacement_options(
         main_splitter, mesh_edit_control_content_min_width, mesh_edit_control_max_width, mesh_edit_control_min_width,
         mesh_editor_diagnostics_state, object_name, original_dialog_preview, overlay_dialog_preview,
         overlay_original_locked_checkbox, preview_depth_spin, preview_disable_brightness_checkbox, preview_disable_tint_checkbox,
-        preview_disable_uv_scale_checkbox, preview_gizmo_checkbox, preview_mesh_edit_checkbox,
+        preview_disable_uv_scale_checkbox, preview_grid_checkbox, preview_gizmo_checkbox, preview_mesh_edit_checkbox,
         mesh_edit_enabled_checkbox, preview_part_pick_checkbox, preview_help, preview_mode_combo,
         preview_mesh_view_combo,
         preview_panel, preview_performance_label, preview_render_mode_combo, preview_render_settings,
@@ -275,7 +285,7 @@ def prompt_archive_static_replacement_options(
             "main_splitter", "mesh_edit_control_content_min_width", "mesh_edit_control_max_width", "mesh_edit_control_min_width",
             "mesh_editor_diagnostics_state", "object_name", "original_dialog_preview", "overlay_dialog_preview",
             "overlay_original_locked_checkbox", "preview_depth_spin", "preview_disable_brightness_checkbox", "preview_disable_tint_checkbox",
-            "preview_disable_uv_scale_checkbox", "preview_gizmo_checkbox", "preview_mesh_edit_checkbox",
+            "preview_disable_uv_scale_checkbox", "preview_grid_checkbox", "preview_gizmo_checkbox", "preview_mesh_edit_checkbox",
             "mesh_edit_enabled_checkbox", "preview_part_pick_checkbox", "preview_help", "preview_mode_combo",
             "preview_mesh_view_combo",
             "preview_panel", "preview_performance_label", "preview_render_mode_combo", "preview_render_settings",

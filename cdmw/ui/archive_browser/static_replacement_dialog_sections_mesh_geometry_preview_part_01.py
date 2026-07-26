@@ -4,6 +4,9 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
     builder_presentation_state,
     effective_builder_comparison_mode,
 )
+from cdmw.ui.archive_browser.static_replacement_preview_status_state import (
+    preview_grid_visible,
+)
 
 def _mesh_geometry_preview_step_001(_state):
     _state.CollapsibleSection = _state.context.get('CollapsibleSection')
@@ -54,6 +57,7 @@ def _mesh_geometry_preview_step_001(_state):
     _state._mesh_edit_action_control_text_helper = _state.context.get('_mesh_edit_action_control_text_helper')
     _state._mesh_edit_dialog_title_helper = _state.context.get('_mesh_edit_dialog_title_helper')
     _state.preview_mesh_edit_checkbox = _state.context.get('preview_mesh_edit_checkbox')
+    _state.preview_grid_checkbox = _state.context.get('preview_grid_checkbox')
     _state.preview_gizmo_checkbox = _state.context.get('preview_gizmo_checkbox')
     _state.preview_part_pick_checkbox = _state.context.get('preview_part_pick_checkbox')
     _state._current_alignment_preview_render_settings = _state.context.get('_current_alignment_preview_render_settings')
@@ -387,7 +391,7 @@ def _bind_embedded_mesh_editor_preview(_state):
             display_mode=_state.preview_mesh_view_combo.currentData(),
             camera=camera,
             render_settings=settings,
-            grid_visible=True,
+            grid_visible=preview_grid_visible(_state.preview_grid_checkbox),
             gizmo_visible=bool(_state.preview_gizmo_checkbox.isChecked()),
             part_pick_enabled=bool(_state.preview_part_pick_checkbox.isChecked()),
             mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()),

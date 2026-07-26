@@ -551,32 +551,30 @@ def _run_wheel_zoom_for_role(
         restored_panes=restored_panes,
     )
     return {
-        {
-            "role": role,
-            "pointer_screen_position": [screen_x, screen_y],
-            "target_hwnd": target_hwnd,
-            "target_pid": target_pid,
-            "initial_zoom": initial_zoom,
-            "zoomed_out_zoom": zoomed_zoom,
-            "expected_ratio": 0.75,
-            "initial_active_camera_context": initial_presentation.get(
-                "active_camera_context"
-            ),
-            "zoomed_active_camera_context": zoomed_presentation.get(
-                "active_camera_context"
-            ),
-            "restored_active_camera_context": restored_presentation.get(
-                "active_camera_context"
-            ),
-            "fitted_pane": fitted_panes.get(role, {}),
-            "zoomed_out_pane": zoomed_panes.get(role, {}),
-            "restored_pane": restored_panes.get(role, {}),
-            "initial_cameras": initial_cameras,
-            "zoomed_cameras": zoomed_cameras,
-            "restored_cameras": restored_cameras,
-            "gates": gates,
-            "ok": all(gates.values()),
-        }
+        "role": role,
+        "pointer_screen_position": [screen_x, screen_y],
+        "target_hwnd": target_hwnd,
+        "target_pid": target_pid,
+        "initial_zoom": initial_zoom,
+        "zoomed_out_zoom": zoomed_zoom,
+        "expected_ratio": 0.75,
+        "initial_active_camera_context": initial_presentation.get(
+            "active_camera_context"
+        ),
+        "zoomed_active_camera_context": zoomed_presentation.get(
+            "active_camera_context"
+        ),
+        "restored_active_camera_context": restored_presentation.get(
+            "active_camera_context"
+        ),
+        "fitted_pane": fitted_panes.get(role, {}),
+        "zoomed_out_pane": zoomed_panes.get(role, {}),
+        "restored_pane": restored_panes.get(role, {}),
+        "initial_cameras": initial_cameras,
+        "zoomed_cameras": zoomed_cameras,
+        "restored_cameras": restored_cameras,
+        "gates": gates,
+        "ok": all(gates.values()),
     }
 
 

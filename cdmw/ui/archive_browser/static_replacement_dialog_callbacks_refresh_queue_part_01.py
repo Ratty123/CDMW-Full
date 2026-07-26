@@ -140,10 +140,13 @@ def _refresh_queue_step_005(_state):
 
 def _refresh_queue_step_006(_state):
 
-    def _load_original_reference_texture_preview() -> None:
+    def _load_original_reference_texture_preview() -> str:
         callback = _state.context.get('_load_original_reference_texture_preview')
         if callable(callback) and callback is not _state._load_original_reference_texture_preview:
-            callback()
+            # The outcome tells a caller waiting on the resident textured view
+            # whether a material acknowledgement is still coming.
+            return str(callback() or 'started')
+        return 'unavailable'
     _state._load_original_reference_texture_preview = _load_original_reference_texture_preview
 
 def _refresh_queue_step_007(_state):

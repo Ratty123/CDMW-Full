@@ -102,6 +102,9 @@ class MeshEditorDotNetResourceProtocolMixin(
         if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
             return
         self.standalone_dotnet_pending_textured_view = False
+        watchdog = getattr(self, "standalone_dotnet_pending_textured_view_timer", None)
+        if watchdog is not None:
+            watchdog.stop()
         requested_mode = str(
             getattr(
                 self,

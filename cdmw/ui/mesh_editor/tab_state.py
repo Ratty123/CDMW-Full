@@ -19,6 +19,12 @@ from cdmw.ui.mesh_editor.tab_support import _validation_report_json_payload
 from cdmw.ui.mesh_editor.tab_dotnet_presentation import MeshEditorDotNetPresentationMixin
 
 
+# How long a requested textured view waits for its resident material
+# acknowledgement before the controls are put back to what the viewport is
+# actually drawing.
+PENDING_TEXTURED_VIEW_TIMEOUT_MS = 20_000
+
+
 class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
     def _entry_path(self, entry: object) -> str:
         return str(getattr(entry, "path", "") or getattr(entry, "name", "") or "").strip()
@@ -764,11 +770,11 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
                 use_presentation_state=use_presentation_state,
                 texture_request_pending=True,
             )
-            request_textures()
             self.status_message_requested.emit(
                 "Loading Mesh Editor textures in the resident viewport...",
                 False,
             )
+            self._settle_requested_textured_view(request_textures())
             return True
         self.standalone_dotnet_pending_textured_view = False
         self.standalone_dotnet_pending_textured_view_mode = "textured"
@@ -780,6 +786,51 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
         if sent:
             self.sync_viewport_display_combos(normalized)
         return sent
+
+    def _settle_requested_textured_view(self, outcome: object) -> None:
+        """Resolve a textured-view request whose resolver started no worker.
+
+        A resolver that returns without starting anything sends no material
+        update, so no `material_state_applied` is coming and nothing would ever
+        clear `standalone_dotnet_pending_textured_view`. The viewport then sat
+        on the untextured fallback while the Mesh view control still read
+        "Solid (Textured)".
+        """
+        if not bool(self.standalone_dotnet_pending_textured_view):
+            return
+        normalized = str(outcome or "started").strip().lower()
+        if normalized in {"unavailable", "failed"}:
+            self._finish_pending_textured_view(success=False)
+            self.status_message_requested.emit(
+                "No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
+                True,
+            )
+            return
+        if (
+            normalized == "already_loaded"
+            and self.standalone_dotnet_material_generation
+            <= self.standalone_dotnet_completed_material_generation
+        ):
+            # The resolved materials were already resident, so the republish
+            # deduplicated and there is no acknowledgement left to wait for.
+            self._finish_pending_textured_view(success=True)
+            return
+        self._arm_pending_textured_view_watchdog()
+
+    def _arm_pending_textured_view_watchdog(self) -> None:
+        timer = getattr(self, "standalone_dotnet_pending_textured_view_timer", None)
+        if timer is None:
+            return
+        timer.start(PENDING_TEXTURED_VIEW_TIMEOUT_MS)
+
+    def _handle_pending_textured_view_timeout(self) -> None:
+        if not bool(self.standalone_dotnet_pending_textured_view):
+            return
+        self._finish_pending_textured_view(success=False)
+        self.status_message_requested.emit(
+            "Mesh Editor textures did not reach the resident viewport in time; the untextured scene remains active.",
+            True,
+        )
 
     def _send_requested_viewport_display_mode(
         self,

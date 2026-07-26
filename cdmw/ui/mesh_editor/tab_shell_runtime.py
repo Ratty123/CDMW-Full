@@ -115,6 +115,11 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_pending_textured_view = False
         self.standalone_dotnet_pending_textured_view_mode = "textured"
         self.standalone_dotnet_pending_textured_view_uses_presentation = False
+        self.standalone_dotnet_pending_textured_view_timer = QTimer(self)
+        self.standalone_dotnet_pending_textured_view_timer.setSingleShot(True)
+        self.standalone_dotnet_pending_textured_view_timer.timeout.connect(
+            self._handle_pending_textured_view_timeout
+        )
         self.standalone_dotnet_material_ready_flush_token = (0, 0)
         self.standalone_dotnet_pending_clone_material_model: object | None = None
         self.standalone_dotnet_pending_reference_material_model: object | None = None

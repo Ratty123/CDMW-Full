@@ -5,7 +5,7 @@
     "tests/test_alignment_dialog_source_guards.py::AlignmentDialogSourceGuardTests.test_alignment_dialog_has_obj_mesh_edit_controls_and_revision_hooks": 204,
     "tests/test_alignment_dialog_source_guards.py::AlignmentDialogSourceGuardTests.test_alignment_dialog_has_resident_dotnet_vortice_preview_mode": 299,
     "tests/test_alignment_dialog_source_guards.py::AlignmentDialogSourceGuardTests.test_modify_original_clone_uses_exact_geometry_preview_and_target_highlight": 314,
-    "tests/test_alignment_dialog_source_guards.py::AlignmentDialogSourceGuardTests.test_modify_original_startup_defers_heavy_alignment_tables": 211,
+    "tests/test_alignment_dialog_source_guards.py::AlignmentDialogSourceGuardTests.test_modify_original_startup_defers_heavy_alignment_tables": 214,
     "tests/test_alignment_dialog_source_guards.py::AlignmentDialogSourceGuardTests.test_parts_outliner_has_click_edit_contract_and_copied_part_safety": 209,
     "tests/test_alignment_dialog_source_guards.py::AlignmentDialogSourceGuardTests.test_texture_plan_has_single_bulk_apply_action": 296,
     "tests/test_archive_browser_asset_understanding_ui_source_guards.py::ArchiveBrowserAssetUnderstandingUiSourceGuards.test_mod_generation_ui_uses_target_manager_checklists": 286,

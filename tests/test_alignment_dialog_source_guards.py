@@ -4351,7 +4351,10 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("initial_static_preview_refreshed = False", source)
         self.assertIn("if not _state.initial_static_preview_refreshed:", texture_section_source)
         self.assertIn("Advanced DDS Overrides can be expanded after the material contract loads.", advanced_dds_state_source)
-        self.assertIn("def _load_original_reference_texture_preview() -> None:", source)
+        # The resolver reports what it did so a caller waiting on the resident
+        # textured view is never left waiting for an update that never starts.
+        self.assertIn("def _load_original_reference_texture_preview() -> str:", source)
+        self.assertIn("_settle_deferred_original_reference_texture_request(load_state.outcome)", source)
         self.assertIn("_queue_alignment_post_open_task(_load_original_reference_texture_preview)", source)
         post_open_start = source.index("dialog.finished.connect(_modeless_alignment_dialog_finished)")
         post_open_end = source.index("build_footer = _make_alignment_build_footer_helper(", post_open_start)
@@ -4398,7 +4401,7 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         )
         reference_required_block = original_texture_preview_state_source[reference_required_start:reference_required_end]
         self.assertNotIn("original_texture_preview_state", reference_required_block)
-        original_load_start = texture_callback_source.index("def _load_original_reference_texture_preview() -> None:")
+        original_load_start = texture_callback_source.index("def _load_original_reference_texture_preview() -> str:")
         original_load_end = texture_callback_source.index("def _highlight_texture_plan_item", original_load_start)
         original_load_block = texture_callback_source[original_load_start:original_load_end]
         self.assertNotIn("original_texture_preview_state", original_load_block)

@@ -59,8 +59,11 @@ internal sealed partial class MeshViewport
         _partAdjacency.Clear();
         _presentationContexts.Clear();
         _activeCameraContextId = "editable";
-        _presentationGridVisible = scene.GridVisible;
-        _presentationGizmoVisible = scene.GizmoVisible;
+        // Grid and gizmo visibility are host-owned display toggles, not package
+        // content. Adopting the incoming scene's values here made a package
+        // swap silently drop the grid whenever the package was written by a
+        // builder that defaults it off.
+        _scene.SetPresentationOverlayVisibility(_presentationGridVisible, _presentationGizmoVisible);
         _presentationStateFingerprint = string.Empty;
         FrameMesh();
         InitializePresentationContexts();

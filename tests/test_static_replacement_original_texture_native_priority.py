@@ -99,6 +99,7 @@ def _captured_original_texture_resolver(*, native_batches: int) -> tuple[object,
         progress_message="Loading",
         detail="Loading",
         performance=SimpleNamespace(summary="Loading", details="Loading"),
+        outcome="started",
     )
     owner = SimpleNamespace(
         texconv_path_edit=_TextValue(),
