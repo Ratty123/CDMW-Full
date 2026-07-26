@@ -553,7 +553,15 @@ static std::array<float, 4> tint_for_layer(
 ) {
     std::vector<std::string> candidates;
     if (layer_role == "grime") {
-        candidates = {"scratchTintColor" + channel, "tintColor" + channel, "dyeingDetailLayerColorMask" + channel};
+        // _tintColor{R,G,B} is the base tint of the three layers the
+        // _colorBlendingMaskTexture selects; it sits alongside
+        // _grimeDiffuseTexture{R,G,B} one-for-one in the PAC.
+        // _scratchTintColor{R,G,B} is the wear accent for the same channels and
+        // carries a low alpha strength, so it is an overlay rather than the
+        // surface colour. Preferring scratch here painted the blade of
+        // cd_phm_02_sword_0014 near-white (#dbdbdb) and its grip yellow
+        // (#dbc03e) instead of the authored #ae8c54 gold and #625142 brown.
+        candidates = {"tintColor" + channel, "dyeingDetailLayerColorMask" + channel, "scratchTintColor" + channel};
     } else if (layer_role == "detail") {
         candidates = {"dyeingDetailLayerColorMask" + channel, "dyeingColorMask" + channel, "tintColor" + channel};
     } else if (layer_role == "overlay") {
