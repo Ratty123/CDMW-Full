@@ -641,7 +641,17 @@ static std::string role_from_parameter_shader_and_name(
     if (p.find("roughness") != std::string::npos || t.find("roughness") != std::string::npos) return "roughness";
     if (p.find("metallic") != std::string::npos || p.find("metalness") != std::string::npos || t.find("metallic") != std::string::npos || t.find("metalness") != std::string::npos) return "metalness";
     if (p.find("occlusion") != std::string::npos || p.find("ambientocclusion") != std::string::npos || t.find("_ao.dds") != std::string::npos) return "occlusion";
-    if (p.find("specular") != std::string::npos || p.find("_sp") != std::string::npos || t.find("_sp.dds") != std::string::npos) return "specular";
+    // The authored parameter outranks the file suffix: SkinnedMeshStandard writes its
+    // packed roughness/metal map to _materialTexture and still names the file _sp.dds,
+    // so matching the suffix first strands it in the specular slot and drops the batch
+    // onto the legacy specular-gloss response. Skin keeps the suffix reading below.
+    const bool parameter_declares_material_map =
+        p.find("material") != std::string::npos && shader_rule != "skin";
+    if (
+        p.find("specular") != std::string::npos
+        || p.find("_sp") != std::string::npos
+        || (t.find("_sp.dds") != std::string::npos && !parameter_declares_material_map)
+    ) return "specular";
     if (p.find("gloss") != std::string::npos || p.find("smoothness") != std::string::npos || t.find("gloss") != std::string::npos || t.find("smoothness") != std::string::npos) return "specular";
     if ((p.find("diffuse") != std::string::npos || p.find("basecolor") != std::string::npos || p.find("albedo") != std::string::npos) && p.find("mask") == std::string::npos) return "base";
     if (p.find("material") != std::string::npos || p.find("colorblendingmask") != std::string::npos || p.find("blending") != std::string::npos || t.find("_ma.dds") != std::string::npos || t.find("_m.dds") != std::string::npos) return "material";
