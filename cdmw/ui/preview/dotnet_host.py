@@ -13,8 +13,12 @@ from PySide6.QtCore import QObject, QRunnable, QThreadPool, Qt, Signal
 from PySide6.QtGui import QImage, QResizeEvent
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget
 
-from cdmw.services.mesh_dotnet_experiment import MeshDotNetExperimentPackage
+from cdmw.services.mesh_dotnet_experiment import (
+    MeshDotNetExperimentPackage,
+    resolve_mesh_dotnet_experiment_editor,
+)
 from cdmw.services.mesh_dotnet_preview_package import build_dotnet_preview_prewarm_package
+from cdmw.services.mesh_dotnet_runtime_status import mesh_dotnet_provenance_file_sha256
 from cdmw.ui.preview.dotnet_session import DotNetPreviewSessionController
 from cdmw.ui.preview.profile import DotNetPreviewProfile
 
@@ -46,14 +50,35 @@ class _DotNetPreviewPrewarmSignals(QObject):
 
 
 class _DotNetPreviewPrewarmTask(QRunnable):
-    def __init__(self, cache_root: Path) -> None:
+    def __init__(self, cache_root: Path, executable: Path | None = None) -> None:
         super().__init__()
         self.cache_root = Path(cache_root)
+        self.executable = Path(executable) if executable else None
         self.signals = _DotNetPreviewPrewarmSignals()
+
+    def _seed_provenance_hashes(self) -> None:
+        """Warm the provenance digest cache while already off the UI thread.
+
+        Launching the helper verifies its SHA-256 on the UI thread; for the
+        packaged single-file executable that is a >150 MB read. Hashing here
+        makes the launch-time check a cache hit.
+        """
+
+        executable = self.executable
+        if executable is None or not executable.is_file():
+            return
+        try:
+            mesh_dotnet_provenance_file_sha256(executable)
+            shader_path = executable.parent / "D3D11MaterialShaders.hlsl"
+            if shader_path.is_file():
+                mesh_dotnet_provenance_file_sha256(shader_path)
+        except OSError:
+            pass
 
     def run(self) -> None:
         started_at = time.perf_counter()
         try:
+            self._seed_provenance_hashes()
             package = build_dotnet_preview_prewarm_package(self.cache_root)
             result = {
                 "package": package,
@@ -261,7 +286,13 @@ class DotNetPreviewHostFrame(QFrame):
             return False
         if self.controller.is_running or self.controller.desired_package_path:
             return False
-        task = _DotNetPreviewPrewarmTask(Path(cache_root))
+        try:
+            configured = getattr(self.controller, "_configured_executable", None)
+            resolution = resolve_mesh_dotnet_experiment_editor(configured)
+            executable = Path(resolution.resolved_path) if resolution.resolved_path else None
+        except (OSError, RuntimeError, TypeError, ValueError):
+            executable = None
+        task = _DotNetPreviewPrewarmTask(Path(cache_root), executable=executable)
         task.signals.completed.connect(self._finish_background_prewarm)
         self._prewarm_task = task
         QThreadPool.globalInstance().start(task)

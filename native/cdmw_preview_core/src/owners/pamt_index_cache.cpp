@@ -7,36 +7,72 @@ static size_t resident_pamt_index_count() {
     return resident_pamt_index_cache().size();
 }
 
-// The key most recently served, so a completed job can keep that one index and
-// drop the rest.
-static std::string& last_resident_pamt_key() {
-    static std::string key;
-    return key;
+// Recency ticks per cache key, so a completed job keeps the indexes that are
+// actually being used and evicts only the coldest ones.
+static std::map<std::string, std::uint64_t>& resident_pamt_index_recency() {
+    static std::map<std::string, std::uint64_t> recency;
+    return recency;
 }
+
+static std::uint64_t next_resident_pamt_index_tick() {
+    static std::uint64_t tick = 0;
+    return ++tick;
+}
+
+// Approximate in-memory footprint of one index. Each ArchiveEntryRef holds
+// three std::strings and two wide fs::paths plus hash-bucket overhead, which
+// measures ~500-700 bytes per entry on MSVC against real game archives
+// (33 indexes ~690 MB resident), so 600 bytes per entry lands close.
+static std::uint64_t approximate_pamt_index_resident_bytes(const PamtIndex& index) {
+    return 64ull * 1024ull + static_cast<std::uint64_t>(index.entry_count) * 600ull;
+}
+
+// Byte budget for resident indexes. The service recycles itself at 512 MB
+// private bytes and the decoded-entry cache recycle threshold is 192 MB, so
+// this budget keeps the healthy steady state well below the recycle guard.
+// The count bound matches the package-root scan cap and only matters for
+// roots full of tiny indexes.
+static constexpr std::uint64_t kResidentPamtIndexMaxBytes = 224ull * 1024ull * 1024ull;
+static constexpr size_t kResidentPamtIndexMaxCount = 64;
 
 static void release_resident_pamt_indexes() {
     std::map<std::string, PamtIndex> empty;
     resident_pamt_index_cache().swap(empty);
-    last_resident_pamt_key().clear();
+    resident_pamt_index_recency().clear();
 }
 
-// Bound the resident set to the index the next job is most likely to ask for
-// instead of dropping everything. Reloading it costs about 115 ms per job even
-// from the on-disk cache, and consecutive previews almost always come from the
-// same .pamt. One index is roughly 10 MB against the service's 512 MB
-// private-bytes recycle guard, so the memory ceiling this replaces still holds.
+// Bound the resident set by recency and bytes instead of dropping everything.
+// The previous policy kept only the most recently touched index, which evicted
+// the primary index whenever a job ended on a cross-package lookup and forced
+// every following job to reload it at ~100 ms even from the on-disk cache.
 static void trim_resident_pamt_indexes() {
     auto& cache = resident_pamt_index_cache();
-    if (cache.size() <= 1) return;
-    const std::string keep = last_resident_pamt_key();
-    auto it = keep.empty() ? cache.end() : cache.find(keep);
-    if (it == cache.end()) {
-        release_resident_pamt_indexes();
-        return;
+    auto& recency = resident_pamt_index_recency();
+    for (auto it = recency.begin(); it != recency.end();) {
+        it = cache.count(it->first) ? std::next(it) : recency.erase(it);
     }
-    std::map<std::string, PamtIndex> retained;
-    retained.emplace(it->first, std::move(it->second));
-    cache.swap(retained);
+    std::vector<std::pair<std::uint64_t, std::string>> by_recency;
+    by_recency.reserve(cache.size());
+    std::uint64_t total_bytes = 0;
+    for (const auto& [key, index] : cache) {
+        auto found = recency.find(key);
+        by_recency.emplace_back(found == recency.end() ? 0 : found->second, key);
+        total_bytes += approximate_pamt_index_resident_bytes(index);
+    }
+    std::sort(by_recency.begin(), by_recency.end());
+    size_t evicted = 0;
+    for (const auto& [_tick, key] : by_recency) {
+        const bool over_count = cache.size() > kResidentPamtIndexMaxCount;
+        const bool over_bytes = total_bytes > kResidentPamtIndexMaxBytes && cache.size() > 1;
+        if (!over_count && !over_bytes) break;
+        auto found = cache.find(key);
+        if (found == cache.end()) continue;
+        total_bytes -= std::min(total_bytes, approximate_pamt_index_resident_bytes(found->second));
+        cache.erase(found);
+        recency.erase(key);
+        ++evicted;
+    }
+    (void)evicted;
 }
 
 static const PamtIndex& cached_pamt_index(
@@ -72,6 +108,6 @@ static const PamtIndex& cached_pamt_index(
             it = cache.emplace(key, std::move(parsed)).first;
         }
     }
-    last_resident_pamt_key() = key;
+    resident_pamt_index_recency()[key] = next_resident_pamt_index_tick();
     return it->second;
 }

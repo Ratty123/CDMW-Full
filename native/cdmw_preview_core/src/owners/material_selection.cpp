@@ -365,6 +365,17 @@ static void release_resident_parsed_material_sidecar_cache() {
     resident_parsed_material_sidecar_cache().swap(empty);
 }
 
+// Parsed sidecars are small (extracted refs and hints, not the XML), but a
+// long session can accumulate one per model. Keep them resident so repeat
+// previews skip the decode+parse, and clear only past a generous bound.
+static constexpr size_t kResidentParsedMaterialSidecarMaxCount = 4096;
+
+static void trim_resident_parsed_material_sidecar_cache() {
+    if (resident_parsed_material_sidecar_cache().size() > kResidentParsedMaterialSidecarMaxCount) {
+        release_resident_parsed_material_sidecar_cache();
+    }
+}
+
 static const ParsedMaterialSidecar& cached_parsed_material_sidecar(const ArchiveEntryRef& sidecar) {
     auto& cache = resident_parsed_material_sidecar_cache();
     const std::string key = archive_ref_identity(sidecar);

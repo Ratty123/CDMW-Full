@@ -2,13 +2,28 @@
 static size_t resident_preview_metadata_cache_count() {
     return resident_pathc_cache_count()
         + resident_material_graph_metadata_count()
-        + resident_parsed_material_sidecar_cache_count();
+        + resident_parsed_material_sidecar_cache_count()
+        + resident_cross_package_scan_cache_count();
 }
 
 static void release_resident_preview_metadata_caches() {
     release_resident_pathc_cache();
     release_resident_material_graph_metadata();
     release_resident_parsed_material_sidecar_cache();
+    release_resident_cross_package_scan_cache();
+}
+
+// The healthy job-completion path bounds the metadata caches instead of
+// releasing them: rebuilding the technique index alone decodes every
+// .technique/.material entry of a .pamt and costs about a second per job. The
+// error path and the service recycle guards still clear everything outright.
+static void trim_resident_preview_metadata_caches() {
+    trim_resident_pathc_cache();
+    trim_resident_material_graph_metadata();
+    trim_resident_parsed_material_sidecar_cache();
+    // The scan results stay resident; only the stat-pass memo resets so the
+    // next job re-validates the on-disk .pamt set exactly once.
+    invalidate_cross_package_scan_signatures();
 }
 
 struct PreviewCacheReleaseStats {
@@ -25,11 +40,13 @@ static PreviewCacheReleaseStats release_preview_job_caches() {
     stats.pamt_before = resident_pamt_index_count();
     stats.metadata_before = resident_preview_metadata_cache_count();
     stats.archive_lite_lookup_before = resident_archive_lite_lookup_count();
-    // Trimmed rather than released: keeping the last index resident is what
-    // stops every job paying to reload it. The error path below still clears
-    // the cache outright.
+    // Trimmed rather than released: keeping recently used indexes and material
+    // metadata resident is what stops every job paying to rebuild them. The
+    // error path below still clears the caches outright, and the archive-lite
+    // lookup is always released because it holds an open handle on its index
+    // file, which must stay replaceable between jobs.
     trim_resident_pamt_indexes();
-    release_resident_preview_metadata_caches();
+    trim_resident_preview_metadata_caches();
     release_resident_archive_lite_lookup();
     stats.pamt_after = resident_pamt_index_count();
     stats.metadata_after = resident_preview_metadata_cache_count();
@@ -44,15 +61,24 @@ static void append_preview_cache_release_report(
     out << "\"native_pamt_index_resident_before_release\":" << stats.pamt_before << ","
         << "\"native_pamt_index_resident_after_release\":" << stats.pamt_after << ","
         << "\"native_pamt_index_cache_released\":" << (stats.pamt_after == 0 ? "true" : "false") << ","
-        // The job-completion path keeps at most the most recently used index;
+        // The job-completion path keeps a bounded recency set of indexes;
         // anything above that means the trim failed to bound the resident set.
-        << "\"native_pamt_index_cache_bounded\":" << (stats.pamt_after <= 1 ? "true" : "false") << ","
+        << "\"native_pamt_index_cache_bounded\":" << (stats.pamt_after <= kResidentPamtIndexMaxCount ? "true" : "false") << ","
         << "\"native_metadata_cache_resident_before_release\":" << stats.metadata_before << ","
         << "\"native_metadata_cache_resident_after_release\":" << stats.metadata_after << ","
         << "\"native_metadata_cache_released\":" << (stats.metadata_after == 0 ? "true" : "false") << ",";
     out << "\"archive_lite_lookup_resident_before_release\":" << stats.archive_lite_lookup_before << ","
         << "\"archive_lite_lookup_resident_after_release\":" << stats.archive_lite_lookup_after << ","
         << "\"archive_lite_lookup_released\":" << (stats.archive_lite_lookup_after == 0 ? "true" : "false") << ",";
+}
+
+// Per-phase wall times so a slow preview shows where the job spent it without
+// re-instrumenting the pipeline.
+static void append_native_phase_timing_report(std::ostringstream& out, const NativePackage& package) {
+    out << "\"native_pamt_index_ms\":" << package.pamt_index_ms << ","
+        << "\"native_mesh_parse_ms\":" << package.mesh_parse_ms << ","
+        << "\"native_material_binding_ms\":" << package.material_binding_ms << ","
+        << "\"native_package_write_ms\":" << package.package_write_ms << ",";
 }
 
 static NativePackage try_generate_native_package(const EntryJob& job, const std::vector<char>& data) {
@@ -65,6 +91,7 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     package.pamt_index_entries = index.entry_count;
     package.pamt_index_cache_hit = index.persistent_cache_hit;
     package.pamt_index_cache_path = index.persistent_cache_path.string();
+    const auto mesh_parse_started = std::chrono::steady_clock::now();
     if (job.extension == ".pac") {
         parsed.meshes = parse_pac_submeshes(data);
         parsed.parser = "native_pac_par_sections";
@@ -176,6 +203,9 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
     }
     package.mesh_parse = parsed.parser;
     package.lod_count = parsed.lod_count;
+    package.mesh_parse_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - mesh_parse_started).count();
+    const auto material_binding_started = std::chrono::steady_clock::now();
     std::vector<TextureBinding> bindings;
     if (job.use_textures) {
         bindings = build_material_bindings(job, index, parsed.meshes, package);
@@ -193,7 +223,13 @@ static NativePackage try_generate_native_package(const EntryJob& job, const std:
         package.texture_resolution = "none";
         package.notes.push_back("native package emitted geometry with fallback batch colors because no direct DDS bindings were resolved");
     }
-    return write_d3d11_package(job, parsed.meshes, bindings, package);
+    package.material_binding_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - material_binding_started).count();
+    const auto package_write_started = std::chrono::steady_clock::now();
+    NativePackage written = write_d3d11_package(job, parsed.meshes, bindings, package);
+    written.package_write_ms = std::chrono::duration<double, std::milli>(
+        std::chrono::steady_clock::now() - package_write_started).count();
+    return written;
 }
 
 static void reset_preview_dependency_report() {
@@ -318,10 +354,10 @@ std::string preview_report_for_job(const fs::path& job_path) {
         << "\"lod_count\":" << package.lod_count << ","
         << "\"dds_candidates\":" << package.dds_candidates << ","
         << "\"dds_extracted\":" << package.dds_extracted << ","
-        << "\"native_pamt_index_ms\":" << package.pamt_index_ms << ","
         << "\"native_pamt_index_entries\":" << package.pamt_index_entries << ","
         << "\"native_pamt_index_cache_hit\":" << (package.pamt_index_cache_hit ? "true" : "false") << ","
         << "\"native_pamt_index_cache_path\":\"" << json_escape(package.pamt_index_cache_path) << "\",";
+    append_native_phase_timing_report(out, package);
     append_preview_cache_release_report(out, cache_release);
     out << "\"asset_family_reference_count\":" << package.asset_family_reference_count << ","
         << "\"archive_lookup_backend\":\"" << json_escape(archive_lite_lookup_backend()) << "\","
