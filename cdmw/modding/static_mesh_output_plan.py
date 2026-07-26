@@ -163,6 +163,7 @@ def plan_static_output_draw_sections(
             or abs(float(getattr(adjustment, "material_saturation", 0.0) or 0.0)) > 0.0001
             or abs(float(getattr(adjustment, "material_gamma", 1.0) or 1.0) - 1.0) > 0.0001
             or bool(material_tint)
+            or abs(float(getattr(adjustment, "material_colourise_strength", 0.0) or 0.0)) > 0.0001
         )
         if not role and not glow_rgb and not has_material_adjustment:
             return ""

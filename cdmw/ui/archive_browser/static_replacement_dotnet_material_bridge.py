@@ -23,6 +23,9 @@ _PARAMETER_KEYS = (
     "saturation",
     "gamma",
     "tint_color",
+    "base_tint_color",
+    "base_tint_strength",
+    "base_tint_authored",
     "base_color_lift",
     "value_max",
     "auto_balance",
@@ -279,6 +282,12 @@ def source_part_material_parameter_values(material_state: object) -> dict[str, o
             material_gamma=getattr(material_state, "material_gamma" if is_adjustment else "gamma", 1.0),
             material_tint_rgb=tint,
             material_role=role,
+            material_colourise_rgb=getattr(material_state, "material_colourise_rgb", ())
+            if is_adjustment
+            else getattr(material_state, "colourise_rgb", ()),
+            material_colourise_strength=getattr(material_state, "material_colourise_strength", 0.0)
+            if is_adjustment
+            else getattr(material_state, "colourise_strength", 0.0),
             emissive_color_rgb=getattr(material_state, "emissive_color_rgb", ()),
             emissive_strength=getattr(material_state, "emissive_strength", None),
         )

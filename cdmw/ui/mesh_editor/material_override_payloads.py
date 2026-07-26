@@ -23,6 +23,9 @@ MATERIAL_OVERRIDE_KEYS = (
     "saturation",
     "gamma",
     "tint_color",
+    "base_tint_color",
+    "base_tint_strength",
+    "base_tint_authored",
 )
 
 SCALAR_MATERIAL_OVERRIDE_KEYS = (
@@ -35,9 +38,10 @@ SCALAR_MATERIAL_OVERRIDE_KEYS = (
     "contrast",
     "saturation",
     "gamma",
+    "base_tint_strength",
 )
 
-COLOR_MATERIAL_OVERRIDE_KEYS = ("emissive_color", "tint_color")
+COLOR_MATERIAL_OVERRIDE_KEYS = ("emissive_color", "tint_color", "base_tint_color")
 
 BOOLEAN_MATERIAL_OVERRIDE_KEYS = (
     "roughness_hint_present",
@@ -45,6 +49,7 @@ BOOLEAN_MATERIAL_OVERRIDE_KEYS = (
     "specular_hint_present",
     "emissive_color_authoritative",
     "emissive_scalar_mask",
+    "base_tint_authored",
 )
 
 DEFAULT_MATERIAL_OVERRIDES: Mapping[str, object] = {
@@ -64,6 +69,9 @@ DEFAULT_MATERIAL_OVERRIDES: Mapping[str, object] = {
     "saturation": 1.0,
     "gamma": 1.0,
     "tint_color": [1.0, 1.0, 1.0],
+    "base_tint_color": [1.0, 1.0, 1.0],
+    "base_tint_strength": 0.0,
+    "base_tint_authored": False,
 }
 
 

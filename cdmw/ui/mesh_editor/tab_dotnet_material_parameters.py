@@ -45,6 +45,7 @@ class MeshEditorDotNetMaterialParameterMixin:
                 key in group
                 for key in (
                     "texture_brightness", "contrast", "saturation", "gamma", "tint_color",
+                    "base_tint_color", "base_tint_strength", "base_tint_authored",
                     "post_contrast_brightness", "base_color_lift", "value_max", "auto_balance", "shadow_lift",
                     "roughness", "metalness", "metallic", "specular", "height_scale",
                     "roughness_hint", "metalness_hint", "specular_hint",

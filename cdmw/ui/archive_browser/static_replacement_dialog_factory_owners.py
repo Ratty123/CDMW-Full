@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from cdmw.ui.archive_browser.static_replacement_dialog_factory_runtime import run_static_replacement_factory
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_selected_part_control_part_01 as _selected_part_control_part_01
+from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_selected_part_colour_part_01 as _selected_part_colour_part_01
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_source_part_assignment_part_01 as _source_part_assignment_part_01
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_source_tree_selection_part_01 as _source_tree_selection_part_01
 from cdmw.ui.archive_browser import static_replacement_dialog_callbacks_accept_build_part_01 as _accept_build_part_01
@@ -26,7 +27,7 @@ from cdmw.ui.archive_browser import static_replacement_dialog_sections_source_pa
 
 def create_alignment_selected_part_control_callbacks(context: dict[str, object], module_globals: dict[str, object]):
     return run_static_replacement_factory(
-        context, module_globals, ('SimpleNamespace', '__file__', '__name__', 'annotations', 'clone_mesh_for_static_replacement_native_first', 'create_alignment_accept_dispatch_callbacks', 'create_alignment_custom_icon_callbacks', 'create_alignment_mesh_diagnostics_callbacks', 'create_alignment_source_mix_callbacks', 'create_alignment_source_role_tree_callbacks', 'create_alignment_texture_detail_uv_callbacks', 'create_manual_material_profile_runtime_callbacks', 'create_material_authority_adjustment_callbacks',), (*_selected_part_control_part_01.STEPS,),
+        context, module_globals, ('SimpleNamespace', '__file__', '__name__', 'annotations', 'clone_mesh_for_static_replacement_native_first', 'create_alignment_accept_dispatch_callbacks', 'create_alignment_custom_icon_callbacks', 'create_alignment_mesh_diagnostics_callbacks', 'create_alignment_source_mix_callbacks', 'create_alignment_source_role_tree_callbacks', 'create_alignment_texture_detail_uv_callbacks', 'create_manual_material_profile_runtime_callbacks', 'create_material_authority_adjustment_callbacks',), (*_selected_part_control_part_01.STEPS, *_selected_part_colour_part_01.STEPS),
     )
 
 def create_alignment_source_part_assignment_callbacks(context: dict[str, object], module_globals: dict[str, object]):

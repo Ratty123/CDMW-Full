@@ -118,4 +118,7 @@ internal struct D3D11CameraConstants
     public Vector4 MaterialAlphaPolicy;
     public Vector4 MaterialAdditionalMaps;
     public Vector4 MaterialFamilyPolicy;
+    // x: the base tint is user-authored, so the shader skips its metal-category
+    // damping. Mirrors MaterialBaseTintAuthored in the HLSL cbuffer.
+    public Vector4 MaterialBaseTintAuthored;
 }

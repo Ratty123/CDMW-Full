@@ -1892,8 +1892,13 @@ class AlignmentDialogSourceGuardTests(unittest.TestCase):
         self.assertIn("additional_supplemental_files=[] if modify_original_options_mode else", callbacks_source)
         self.assertIn("def _material_authority_preview_route_enabled() -> bool:", callbacks_source)
         self.assertIn("if bool(modify_original_clone_mode) and callable(_modify_original_texture_tuning_enabled):", callbacks_source)
-        self.assertIn("effective_enabled = bool(enabled) and (", callbacks_source)
-        self.assertIn("if not _state._modify_original_texture_tuning_enabled():\n                return False", callbacks_source)
+        # Advanced per-part texture tuning stays gated by the Modify Original
+        # opt-in, but the per-part colour controls are deliberately exempt:
+        # recolouring a shipped part is the normal case, not an expert one.
+        self.assertIn("advanced_enabled = bool(enabled) and (", callbacks_source)
+        self.assertIn("spin.setEnabled(bool(enabled) if id(spin) in colour_controls else advanced_enabled)", callbacks_source)
+        self.assertIn("_state.part_material_colour_widgets = (", outliner_source)
+        self.assertIn("for widget in _state.part_material_colour_widgets:\n            widget.setVisible(True)", outliner_source)
         self.assertIn("complete_enabled=_material_authority_preview_route_enabled()", callbacks_source)
         self.assertIn("auto_brightness_balance=0.0 if _state.modify_original_clone_mode else", callbacks_source)
         self.assertIn("modify_original_tuning_enabled = _state._modify_original_tuning_enabled_value()", remaining_source)

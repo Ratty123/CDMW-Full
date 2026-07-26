@@ -208,6 +208,7 @@ internal sealed partial class NetMaterialSet
             BaseTintColor = OptionalColor(group, "base_tint_color", 0.0f, 1.5f, "base_color"),
             BaseTintStrength = OptionalFloat(group, "base_tint_strength", 0.0f, 1.0f),
             BaseTintMetallic = OptionalBoolean(group, "base_tint_metallic"),
+            BaseTintAuthored = OptionalBoolean(group, "base_tint_authored"),
             TintColor = OptionalColor(group, "texture_tint", 0.0f, 4.0f, "tint_color", "tint"),
             BaseColorLift = OptionalInteger(group, "base_color_lift", 0, 254),
             ValueMax = OptionalInteger(group, "value_max", 0, 255),
@@ -395,6 +396,7 @@ internal sealed partial class NetMaterialSet
             "editor_role", "material_name", "texture_name",
             "texture_brightness", "brightness", "contrast", "post_contrast_brightness", "saturation", "gamma",
             "base_tint_color", "base_color", "base_tint_strength", "base_tint_metallic",
+            "base_tint_authored",
             "texture_tint", "tint_color", "tint",
             "base_color_lift", "value_max", "auto_balance", "shadow_lift",
             "roughness", "metalness", "metallic", "specular",
@@ -437,6 +439,7 @@ internal readonly record struct NetMaterialParameterDelta
     public NetOptionalParameter<Vector3> BaseTintColor { get; init; }
     public NetOptionalParameter<float> BaseTintStrength { get; init; }
     public NetOptionalParameter<bool> BaseTintMetallic { get; init; }
+    public NetOptionalParameter<bool> BaseTintAuthored { get; init; }
     public NetOptionalParameter<Vector3> TintColor { get; init; }
     public NetOptionalParameter<int> BaseColorLift { get; init; }
     public NetOptionalParameter<int> ValueMax { get; init; }
@@ -471,7 +474,7 @@ internal readonly record struct NetMaterialParameterDelta
     public bool HasChanges =>
         TextureBrightness.IsSpecified || Contrast.IsSpecified || PostContrastBrightness.IsSpecified
         || Saturation.IsSpecified || Gamma.IsSpecified || BaseTintColor.IsSpecified || BaseTintStrength.IsSpecified
-        || BaseTintMetallic.IsSpecified
+        || BaseTintMetallic.IsSpecified || BaseTintAuthored.IsSpecified
         || TintColor.IsSpecified || BaseColorLift.IsSpecified
         || ValueMax.IsSpecified || AutoBalance.IsSpecified || ShadowLift.IsSpecified || Roughness.IsSpecified
         || Metalness.IsSpecified || Specular.IsSpecified
@@ -496,6 +499,7 @@ internal readonly record struct NetMaterialParameters
     public Vector3? BaseTintColor { get; init; }
     public float? BaseTintStrength { get; init; }
     public bool? BaseTintMetallic { get; init; }
+    public bool? BaseTintAuthored { get; init; }
     public Vector3? TintColor { get; init; }
     public int? BaseColorLift { get; init; }
     public int? ValueMax { get; init; }
@@ -542,6 +546,7 @@ internal readonly record struct NetMaterialParameters
             BaseTintColor = delta.BaseTintColor.Apply(BaseTintColor),
             BaseTintStrength = delta.BaseTintStrength.Apply(BaseTintStrength),
             BaseTintMetallic = delta.BaseTintMetallic.Apply(BaseTintMetallic),
+            BaseTintAuthored = delta.BaseTintAuthored.Apply(BaseTintAuthored),
             TintColor = delta.TintColor.Apply(TintColor),
             BaseColorLift = delta.BaseColorLift.Apply(BaseColorLift),
             ValueMax = delta.ValueMax.Apply(ValueMax),

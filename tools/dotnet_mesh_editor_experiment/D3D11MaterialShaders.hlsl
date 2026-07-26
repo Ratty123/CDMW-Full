@@ -43,6 +43,9 @@ cbuffer CameraConstants : register(b0)
     float4 MaterialAlphaPolicy;
     float4 MaterialAdditionalMaps;
     float4 MaterialFamilyPolicy;
+    // x: the base tint was authored by the user rather than inferred from a
+    // sidecar, so the metal-category damping below must not apply. y/z/w spare.
+    float4 MaterialBaseTintAuthored;
 };
 
 Texture2D BaseTexture : register(t0);
@@ -378,12 +381,18 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             float3(1.72f, 1.72f, 1.72f));
         float tintChroma = max(previewTint.r, max(previewTint.g, previewTint.b))
             - min(previewTint.r, min(previewTint.g, previewTint.b));
-        bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f
+        // A user-authored recolour is a deliberate act, so it opts out of the
+        // metal damping below.  Without this a saturated colour on a metal part
+        // resolves to a 0.05 multiplier -- a 5% repaint that reads as a washed
+        // tint, while the baked DDS repaints in full.
+        bool authoredBaseTint = MaterialBaseTintAuthored.x > 0.5f;
+        bool earlyCategoryMetal = !authoredBaseTint
+            && MaterialBaseTintPolicy.y > 0.5f
             && MaterialBaseTintPolicy.y < 1.5f;
         float neutralMetalTint = earlyCategoryMetal ? saturate((0.12f - tintChroma) * 8.0f) : 0.0f;
         // Keep Archive Browser's source-tint authority.  Chromatic metal is
-        // already colored by its source-stable F0 below; amplifying this base
-        // tint a second time turns dark steel/copper sidecar hints into paint.
+        // already colored by its source-stable F0 below; amplifying an inferred
+        // base tint a second time turns dark steel/copper sidecar hints into paint.
         float strength = saturate(MaterialBaseTintPolicy.x
             * (earlyCategoryMetal ? lerp(0.05f, 1.25f, neutralMetalTint) : 1.0f));
         float albedoLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));

@@ -186,12 +186,16 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _parts_outliner_set_source_selection = alignment_source_parts_outliner_section._parts_outliner_set_source_selection
         _paste_alignment_part_clipboard_as_replacement_source = alignment_source_parts_outliner_section._paste_alignment_part_clipboard_as_replacement_source
         _physics_status_tooltip = alignment_source_parts_outliner_section._physics_status_tooltip
+        _pick_selected_part_colourise_colour = alignment_source_parts_outliner_section._pick_selected_part_colourise_colour
+        _pick_selected_part_emissive_colour = alignment_source_parts_outliner_section._pick_selected_part_emissive_colour
+        _pick_selected_part_tint_colour = alignment_source_parts_outliner_section._pick_selected_part_tint_colour
         _pick_selected_source_glow_color = alignment_source_parts_outliner_section._pick_selected_source_glow_color
         _prompt_assign_appended_mesh_parts = alignment_source_parts_outliner_section._prompt_assign_appended_mesh_parts
         _rebuild_source_part_widgets = alignment_source_parts_outliner_section._rebuild_source_part_widgets
         _reference_vertices_for_appended_part = alignment_source_parts_outliner_section._reference_vertices_for_appended_part
         _refresh_copied_original_texture_ui = alignment_source_parts_outliner_section._refresh_copied_original_texture_ui
         _refresh_original_reference_preview = alignment_source_parts_outliner_section._refresh_original_reference_preview
+        _refresh_part_emissive_controls = alignment_source_parts_outliner_section._refresh_part_emissive_controls
         _refresh_part_glow_color_controls_enabled = alignment_source_parts_outliner_section._refresh_part_glow_color_controls_enabled
         _refresh_parts_outliner = alignment_source_parts_outliner_section._refresh_parts_outliner
         _refresh_source_tree_selection_state = alignment_source_parts_outliner_section._refresh_source_tree_selection_state
@@ -206,6 +210,7 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _selected_source_indices_from_tree = alignment_source_parts_outliner_section._selected_source_indices_from_tree
         _selected_target_index = alignment_source_parts_outliner_section._selected_target_index
         _set_mapping_indices = alignment_source_parts_outliner_section._set_mapping_indices
+        _set_selected_part_emissive_strength = alignment_source_parts_outliner_section._set_selected_part_emissive_strength
         _set_selected_source_glow_color = alignment_source_parts_outliner_section._set_selected_source_glow_color
         _set_source_parts_apply_pending = alignment_source_parts_outliner_section._set_source_parts_apply_pending
         _set_source_parts_preview_rebuild_pending = alignment_source_parts_outliner_section._set_source_parts_preview_rebuild_pending
@@ -217,6 +222,9 @@ def create_static_replacement_prompt_setup(context: dict[str, object]) -> Simple
         _source_physics_status_text = alignment_source_parts_outliner_section._source_physics_status_text
         _source_selection_changed = alignment_source_parts_outliner_section._source_selection_changed
         _sync_part_slider_from_spin = alignment_source_parts_outliner_section._sync_part_slider_from_spin
+        _toggle_selected_part_emissive = alignment_source_parts_outliner_section._toggle_selected_part_emissive
+        _commit_selected_part_emissive = alignment_source_parts_outliner_section._commit_selected_part_emissive
+        _reset_selected_part_colour = alignment_source_parts_outliner_section._reset_selected_part_colour
         _sync_target_mapping_tree_item = alignment_source_parts_outliner_section._sync_target_mapping_tree_item
         _target_physics_status_text = alignment_source_parts_outliner_section._target_physics_status_text
         _target_selection_changed = alignment_source_parts_outliner_section._target_selection_changed

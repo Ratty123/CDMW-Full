@@ -54,8 +54,20 @@ class StaticSourcePartAdjustment:
     material_saturation: float = 0.0
     material_gamma: float = 1.0
     material_tint_rgb: tuple[int, int, int] = ()
+    # Recolour is a separate operator from the multiply tint above: it
+    # repaints toward the chosen hue while preserving the source luminance,
+    # so a dark texture can become a bright colour instead of muddying.
+    material_colourise_rgb: tuple[int, int, int] = ()
+    material_colourise_strength: float = 0.0
 
     def __post_init__(self) -> None:
+        try:
+            strength = float(self.material_colourise_strength)
+        except (TypeError, ValueError, OverflowError):
+            strength = 0.0
+        self.material_colourise_strength = (
+            max(0.0, min(1.0, strength)) if math.isfinite(strength) else 0.0
+        )
         if self.emissive_strength is None:
             return
         try:

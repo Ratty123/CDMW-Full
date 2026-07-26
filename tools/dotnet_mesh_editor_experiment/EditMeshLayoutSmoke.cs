@@ -11,6 +11,7 @@ internal static class EditMeshLayoutSmoke
         "Transform",
         "Brush",
         "Topology",
+        "Colour",
         "Morph & Refit",
     };
 
@@ -117,6 +118,7 @@ internal static class EditMeshLayoutSmoke
             NewSection("Transform"),
             NewSection("Brush"),
             NewSection("Topology"),
+            NewSection("Colour"),
         };
         var inspectorSections = new[]
         {
@@ -189,6 +191,7 @@ internal static class EditMeshLayoutSmoke
         EditMeshLayoutContracts.MoveControl(editSections[2], pages["Transform"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[3], pages["Brush"], DockStyle.Top);
         EditMeshLayoutContracts.MoveControl(editSections[4], pages["Topology"], DockStyle.Top);
+        EditMeshLayoutContracts.MoveControl(editSections[5], pages["Colour"], DockStyle.Top);
         foreach (var section in inspectorSections)
         {
             AddRow(compactInspector, section);
