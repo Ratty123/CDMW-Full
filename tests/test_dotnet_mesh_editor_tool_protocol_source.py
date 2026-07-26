@@ -931,11 +931,16 @@ def test_real_dotnet_harness_has_dedicated_resident_side_by_side_zoom_proof() ->
     input_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_input.py").read_text(
         encoding="utf-8"
     )
+    # _start_embedded_editor moved to real_dotnet_session; its call site and the
+    # zoom smoke entry point are still in real_dotnet.py.
+    session_source = (ROOT / "tools" / "mesh_harness" / "real_dotnet_session.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "def run_real_archive_mesh_editor_dotnet_zoom_smoke(" in source
     assert "_start_embedded_editor(state, side_by_side_camera=True)" in source
-    assert 'lambda: "side_by_side" if side_by_side_camera else "replacement_only"' in source
-    assert 'lambda: "placement" if side_by_side_camera else "mesh_edit"' in source
+    assert 'lambda: "side_by_side" if side_by_side_camera else "replacement_only"' in session_source
+    assert 'lambda: "placement" if side_by_side_camera else "mesh_edit"' in session_source
     assert "exercise_side_by_side_wheel_zoom(" in source
     assert "_send_mouse_wheel_input(-1)" in input_source
     assert "_send_mouse_wheel_input(1)" in input_source

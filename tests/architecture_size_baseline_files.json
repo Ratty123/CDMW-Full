@@ -115,7 +115,6 @@
     "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs": 1156,
     "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.cs": 1015,
     "tools/dotnet_mesh_editor_experiment/Program.cs": 1226,
-    "tools/mesh_harness/real_dotnet.py": 1444,
     "tools/mesh_harness/visual_audit_review.py": 1378,
     "tools/texture_replacer_headless_harness.py": 1515
   }
