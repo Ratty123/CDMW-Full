@@ -192,11 +192,25 @@ def test_packaged_startup_result_readback_requires_post_construction(tmp_path: P
     valid = tmp_path / "valid.json"
     builder = tmp_path / "builder.json"
     invalid = tmp_path / "invalid.json"
-    valid.write_text('{"ok":true,"pid":42,"stage":"post_construction","target":"default"}\n', encoding="utf-8")
-    builder.write_text(
-        '{"ok":true,"pid":43,"stage":"post_construction","target":"mesh_builder"}\n',
+    # A packaged run also reports how each helper shipping inside the package
+    # resolved, and the verifier rejects a result without it. These fixtures
+    # carry the same shape a real run writes so this test keeps proving the
+    # stage/target/pid readback rather than tripping over that newer section.
+    resolved_helpers = (
+        '"bundled_helpers":['
+        '{"key":"openimageio","status":"available","source":"bundled_lookup","path":"oiio"},'
+        '{"key":"cdmw_mesh_core","status":"available","source":"bundled_lookup","path":"mesh"}]'
+    )
+    valid.write_text(
+        '{"ok":true,"pid":42,"stage":"post_construction","target":"default",' + resolved_helpers + "}\n",
         encoding="utf-8",
     )
+    builder.write_text(
+        '{"ok":true,"pid":43,"stage":"post_construction","target":"mesh_builder",' + resolved_helpers + "}\n",
+        encoding="utf-8",
+    )
+    # Left without the section on purpose: the stage check runs first, so this
+    # still has to fail for being pre-construction rather than for its helpers.
     invalid.write_text('{"ok":true,"pid":42,"stage":"pre_window","target":"default"}\n', encoding="utf-8")
     command = f"""
 . '{str(STARTUP_VERIFIER).replace("'", "''")}' -ExecutablePath ignored
