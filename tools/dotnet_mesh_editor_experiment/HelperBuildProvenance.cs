@@ -23,6 +23,7 @@ internal static class HelperBuildProvenance
         "resident_scene_state_v1",
         "authoritative_resident_scene_frame_v2",
         "helper_build_provenance_v1",
+        "renderer_status_request_v1",
         "deterministic_offscreen_capture_v1",
         "performance_capture_v1",
         "resident_package_load_v1",
