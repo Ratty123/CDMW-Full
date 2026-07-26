@@ -174,9 +174,27 @@ def test_edit_mesh_text_controls_expand_for_the_active_font() -> None:
     button_row = controls.split("private static Control ButtonRow", 1)[1]
     button_row = button_row.split("private static GroupBox AddSection", 1)[0]
     assert "control.GetPreferredSize(Size.Empty).Width" in button_row
-    assert "panel.MinimumSize = new Size(minimumRowWidth, 0);" in button_row
+    # The row's floor is one button, not the whole row: a row held at its full
+    # single-line width can never reflow inside a narrower tool column, so its
+    # buttons overlap each other instead of wrapping.
+    assert "panel.MinimumSize = new Size(widestCellWidth, 0);" in button_row
+    assert "panel.Configure(cellWidths);" in button_row
     assert "MinimumRightWidth = 360" in preferences
     assert "_submeshList.HorizontalScrollbar = true;" in program
+
+
+def test_button_rows_reflow_instead_of_overlapping_in_a_narrow_column() -> None:
+    row = _source("ExperimentForm.ButtonRow.cs")
+
+    assert "private sealed class MeshEditorButtonRow : TableLayoutPanel" in row
+    assert "protected override void OnLayout" in row
+    # The parent resizes the row after the layout pass that picked the column
+    # count, so the count has to be re-checked on the new width.
+    assert "protected override void OnSizeChanged" in row
+    assert "private int ColumnsThatFit(int available)" in row
+    assert "private bool FitsWithColumns(int columns, int available)" in row
+    assert "var columnWidth = available / columns;" in row
+    assert "SetCellPosition(cell, new TableLayoutPanelCellPosition(column, row));" in row
 
 
 def test_panel_reveal_is_atomic_and_has_no_recursive_width_forcing() -> None:
@@ -197,6 +215,30 @@ def test_panel_reveal_is_atomic_and_has_no_recursive_width_forcing() -> None:
     assert "MeshEditorBufferedPanel" in controls
     assert "MeshEditorBufferedTableLayoutPanel" in controls
     assert "MeshEditorBufferedSplitContainer" in controls
+
+
+def test_reveal_restores_the_active_layout_widths_not_the_classic_ones() -> None:
+    """A scene update with mesh edit already on must not shrink the tool rail.
+
+    The embedded host re-runs the interaction-mode controls on every scene
+    update. Uncollapsing the flanks against the saved *classic* widths left the
+    rail's property column at the classic minimum, where its own tool pages no
+    longer fit.
+    """
+    controls = _source("ExperimentForm.Controls.cs")
+    layout = _source("ExperimentForm.EditMeshLayouts.cs")
+
+    reveal = controls.split("private void ApplyEmbeddedToolPanelVisibility", 1)[1]
+    reveal = reveal.split("private Control SceneComparisonControl", 1)[0]
+    assert "if (IsToolRailActive)" in reveal
+    assert reveal.index("ApplyToolRailSplitterLayout();") < reveal.index(
+        "ApplySavedToolPanelLayout();"
+    )
+
+    already_active = layout.split("if (_activeEditMeshLayout == layout)", 1)[1]
+    already_active = already_active.split("var requestedBeforeSwitch", 1)[0]
+    assert "if (layout == EditMeshLayoutMode.ToolRail)" in already_active
+    assert "ApplyToolRailSplitterLayout();" in already_active
 
 
 def test_tool_rail_is_the_default_and_reuses_the_live_editor_controls() -> None:

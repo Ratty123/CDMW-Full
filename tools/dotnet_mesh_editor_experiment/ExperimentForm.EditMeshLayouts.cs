@@ -602,6 +602,13 @@ internal sealed partial class ExperimentForm
     {
         if (_activeEditMeshLayout == layout)
         {
+            // A scene update can arrive with mesh edit already on. The sections
+            // are still in place, but the flanks were just uncollapsed against
+            // the classic saved widths, so the dock width has to be re-asserted.
+            if (layout == EditMeshLayoutMode.ToolRail)
+            {
+                ApplyToolRailSplitterLayout();
+            }
             return true;
         }
         var requestedBeforeSwitch = _requestedEditMeshLayout;

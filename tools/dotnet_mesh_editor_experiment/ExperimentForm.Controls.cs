@@ -467,31 +467,26 @@ internal sealed partial class ExperimentForm
 
     private static Control ButtonRow(params Control[] controls)
     {
-        var panel = new TableLayoutPanel
-        {
-            ColumnCount = Math.Max(1, controls.Length),
-            RowCount = 1,
-            AutoSize = true,
-            AutoSizeMode = AutoSizeMode.GrowAndShrink,
-            BackColor = ThemeSectionBackground,
-            Margin = new Padding(0, 0, 0, 6),
-            Padding = new Padding(0)
-        };
-        var minimumRowWidth = 0;
+        var panel = new MeshEditorButtonRow(controls);
+        var cellWidths = new int[controls.Length];
+        var widestCellWidth = 0;
         for (var index = 0; index < controls.Length; index++)
         {
-            panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100.0f / controls.Length));
             var control = controls[index];
             control.Margin = new Padding(index == 0 ? 0 : 3, 0, index == controls.Length - 1 ? 0 : 3, 0);
             var preferredWidth = Math.Max(64, control.GetPreferredSize(Size.Empty).Width);
             control.MinimumSize = new Size(
                 Math.Max(control.MinimumSize.Width, preferredWidth),
                 control.MinimumSize.Height);
-            minimumRowWidth += control.MinimumSize.Width + control.Margin.Horizontal;
+            cellWidths[index] = control.MinimumSize.Width;
+            widestCellWidth = Math.Max(widestCellWidth, control.MinimumSize.Width);
             control.Dock = DockStyle.Fill;
-            panel.Controls.Add(control, index, 0);
         }
-        panel.MinimumSize = new Size(minimumRowWidth, 0);
+        // Only the widest single button is a hard floor. Claiming the whole row
+        // as the minimum instead would hold the row wider than a narrow tool
+        // column can ever be, so it could never reflow and would overlap.
+        panel.Configure(cellWidths);
+        panel.MinimumSize = new Size(widestCellWidth, 0);
         return panel;
     }
 
@@ -1050,7 +1045,19 @@ internal sealed partial class ExperimentForm
         {
             _leftToolSplit.Panel1Collapsed = false;
             _rightToolSplit.Panel2Collapsed = false;
-            ApplySavedToolPanelLayout();
+            // The saved widths describe the classic side panels. Re-entering
+            // mesh edit while the tool rail owns the flanks has to restore the
+            // rail's own dock width instead, or every entry after the first
+            // leaves the property column at the classic minimum and its tool
+            // pages overlap.
+            if (IsToolRailActive)
+            {
+                ApplyToolRailSplitterLayout();
+            }
+            else
+            {
+                ApplySavedToolPanelLayout();
+            }
         }
         finally
         {

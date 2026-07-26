@@ -88,7 +88,10 @@ internal sealed partial class ExperimentForm
         ConfigureMorphStatusLabel(_morphDriverStatus, "Driver: not set");
         ConfigureMorphStatusLabel(_morphBindingStatus, "Garment: not bound");
         ConfigureMorphStatusLabel(_morphDiagnosticStatus, "Select or author a topology-matched profile.");
-        _morphDiagnosticStatus.MaximumSize = new Size(460, 0);
+        // Wrap inside the narrowest column this section is shown in. A wider
+        // bound leaves the tail of every diagnostic clipped by the tool rail's
+        // property column instead of wrapping onto a second line.
+        _morphDiagnosticStatus.MaximumSize = new Size(ScaleToolPanelWidth(ToolPropertyWidth - 40), 0);
 
         _morphSliderStack.Name = "MorphSliderStack";
         _morphSliderStack.ColumnCount = 1;
@@ -411,7 +414,8 @@ internal sealed partial class ExperimentForm
             _morphSectionBody.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             _morphSectionBody.Padding = new Padding(0);
             _morphSectionBody.Visible = _morphClassicExpanded;
-            _morphDiagnosticStatus.MaximumSize = new Size(460, 0);
+            _morphDiagnosticStatus.MaximumSize =
+                new Size(ScaleToolPanelWidth(ToolPropertyWidth - 40), 0);
             _morphCompactLayoutActive = false;
         }
         finally
