@@ -4,6 +4,18 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+from cdmw.ui.shell.settings_bridge import read_bool_setting
+
+
+def _control_group_separator(QFrame, parent):
+    """A thin rule that keeps the preview control clusters visually apart."""
+    separator = QFrame(parent)
+    separator.setObjectName("MeshAlignmentPreviewControlSeparator")
+    separator.setFrameShape(QFrame.VLine)
+    separator.setFrameShadow(QFrame.Plain)
+    separator.setFixedWidth(1)
+    return separator
+
 
 def _legacy_preview_rows(QWidget, QHBoxLayout, parent):
     legacy_preview_controls_widget = QWidget(parent)
@@ -59,6 +71,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     _alignment_preview_mode_initial_state_helper = context.get('_alignment_preview_mode_initial_state_helper')
     _alignment_preview_render_control_text_helper = context.get('_alignment_preview_render_control_text_helper')
     _alignment_preview_view_sync_initial_state_helper = context.get('_alignment_preview_view_sync_initial_state_helper')
+    _clear_all_part_selections = context.get('_clear_all_part_selections')
     _custom_item_icon_control_text_helper = context.get('_custom_item_icon_control_text_helper')
     _mesh_editor_diagnostics_initial_state_helper = context.get('_mesh_editor_diagnostics_initial_state_helper')
     _original_texture_preview_material_preview_enabled_helper = context.get('_original_texture_preview_material_preview_enabled_helper')
@@ -88,6 +101,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     tuple = context.get('tuple')
     value = context.get('value')
 
+    alignment_grid_visible_settings_key = "ui/mesh_alignment/grid_visible"
     root_layout = QVBoxLayout(dialog)
     alignment_control_min_width = 420 if embedded_alignment_builder else 640
     alignment_control_content_min_width = 0 if embedded_alignment_builder else 700
@@ -110,6 +124,10 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_panel = QWidget(dialog)
     preview_panel.setMinimumWidth(alignment_preview_min_width)
     preview_panel_layout = QVBoxLayout(preview_panel)
+    # The splitter already separates this column, so the default frame margins
+    # and row spacing are height the editor could be using instead.
+    preview_panel_layout.setContentsMargins(0, 0, 0, 0)
+    preview_panel_layout.setSpacing(3)
     preview_header = QVBoxLayout()
     preview_header.setContentsMargins(0, 0, 0, 0)
     preview_header.setSpacing(3)
@@ -157,16 +175,32 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_mode_combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
     preview_mode_combo.setMaximumWidth(220)
     preview_controls_row.addWidget(preview_mode_combo)
-    overlay_original_locked_checkbox = QCheckBox(alignment_preview_control_text["overlay_original_locked"])
+    # The original reference is always locked, so this only ever read back a
+    # permanently checked, permanently disabled box. Keep the widget for the
+    # callbacks that still read it, but take it out of the row.
+    overlay_original_locked_checkbox = QCheckBox(
+        alignment_preview_control_text["overlay_original_locked"], preview_panel
+    )
+    overlay_original_locked_checkbox.setObjectName("MeshAlignmentOverlayOriginalLockedCheckbox")
     overlay_original_locked_checkbox.setChecked(True)
     overlay_original_locked_checkbox.setEnabled(False)
     overlay_original_locked_checkbox.setToolTip(alignment_preview_control_text["overlay_original_locked_tooltip"])
-    preview_controls_row.addWidget(overlay_original_locked_checkbox)
+    overlay_original_locked_checkbox.setVisible(False)
+    preview_controls_row.addWidget(_control_group_separator(QFrame, preview_panel))
+    preview_grid_checkbox = QCheckBox(alignment_preview_control_text["grid"])
+    preview_grid_checkbox.setObjectName("MeshAlignmentGridVisibleCheckbox")
+    preview_grid_checkbox.setChecked(
+        read_bool_setting(self.settings, alignment_grid_visible_settings_key, True)
+    )
+    preview_grid_checkbox.setToolTip(alignment_preview_control_text["grid_tooltip"])
+    preview_controls_row.addWidget(preview_grid_checkbox)
     preview_gizmo_checkbox = QCheckBox(alignment_preview_control_text["gizmo"])
+    preview_gizmo_checkbox.setObjectName("MeshAlignmentGizmoVisibleCheckbox")
     preview_gizmo_checkbox.setChecked(True)
     preview_gizmo_checkbox.setToolTip(alignment_preview_control_text["gizmo_tooltip"])
     preview_controls_row.addWidget(preview_gizmo_checkbox)
     preview_part_pick_checkbox = QCheckBox(alignment_preview_control_text["part_pick"])
+    preview_part_pick_checkbox.setObjectName("MeshAlignmentPartPickCheckbox")
     preview_part_pick_checkbox.setChecked(False)
     preview_part_pick_checkbox.setToolTip(alignment_preview_control_text["part_pick_tooltip"])
     preview_controls_row.addWidget(preview_part_pick_checkbox)
@@ -176,6 +210,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_mesh_edit_checkbox.setToolTip("Enable viewport mesh editing tools for the current replacement preview.")
     preview_controls_row.addWidget(preview_mesh_edit_checkbox)
     mesh_edit_enabled_checkbox = preview_mesh_edit_checkbox
+    preview_controls_row.addWidget(_control_group_separator(QFrame, preview_panel))
     preview_mesh_view_combo = QComboBox()
     preview_mesh_view_combo.setObjectName("MeshAlignmentViewportDisplayModeCombo")
     _populate_combo_options_helper(
@@ -224,6 +259,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_view_mode_combo.setMaximumWidth(190)
     preview_controls_row.addWidget(QLabel(alignment_preview_control_text["dotnet_view_label"]))
     preview_controls_row.addWidget(alignment_d3d11_view_mode_combo)
+    preview_controls_row.addWidget(_control_group_separator(QFrame, preview_panel))
     alignment_preview_settings_button = QPushButton(alignment_preview_control_text["settings_button"])
     alignment_preview_settings_button.setToolTip(alignment_preview_default_help.settings_tooltip)
     alignment_use_global_preview_button = QPushButton(alignment_preview_control_text["use_global"], preview_panel)
@@ -496,14 +532,15 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     alignment_d3d11_preview_status_label.setObjectName("HintLabel")
     alignment_d3d11_preview_status_label.setAlignment(Qt.AlignCenter)
     alignment_d3d11_preview_status_label.setWordWrap(False)
-    alignment_d3d11_preview_status_label.setMinimumHeight(24)
-    alignment_d3d11_preview_status_label.setMaximumHeight(32)
+    # One line of progress text: the spare height above it belongs to the editor.
+    alignment_d3d11_preview_status_label.setMinimumHeight(18)
+    alignment_d3d11_preview_status_label.setMaximumHeight(24)
     alignment_d3d11_preview_status_label.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
     alignment_d3d11_loading_spinner_label = QLabel("")
     alignment_d3d11_loading_spinner_label.setObjectName("AlignmentD3D11LoadingSpinner")
     alignment_d3d11_loading_spinner_label.setAlignment(Qt.AlignCenter)
     alignment_d3d11_loading_spinner_label.setTextFormat(Qt.RichText)
-    alignment_d3d11_loading_spinner_label.setFixedSize(36, 30)
+    alignment_d3d11_loading_spinner_label.setFixedSize(30, 22)
     alignment_d3d11_loading_spinner_label.setVisible(False)
     alignment_d3d11_status_row = QHBoxLayout()
     alignment_d3d11_status_row.setContentsMargins(0, 0, 0, 0)
@@ -653,6 +690,16 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
             return
         _clear_all_part_selections()
 
+    def _preview_grid_toggled(checked: bool = False) -> None:
+        try:
+            self.settings.setValue(alignment_grid_visible_settings_key, bool(checked))
+        except (AttributeError, RuntimeError):
+            pass
+        # The resident overlay flags ride along with the highlight state, so
+        # this reaches both panes through the same update.
+        _sync_highlight_sets()
+
+    preview_grid_checkbox.toggled.connect(_preview_grid_toggled)
     preview_gizmo_checkbox.toggled.connect(lambda *_args: _sync_highlight_sets())
     preview_part_pick_checkbox.toggled.connect(_preview_part_pick_toggled)
     preview_stack = QStackedWidget(preview_panel)
@@ -664,14 +711,26 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
     preview_help.setMaximumHeight(24)
     preview_help.setObjectName("HintLabel")
     preview_help.setToolTip(alignment_preview_default_help.tooltip)
-    preview_panel_layout.addWidget(preview_help)
     preview_performance_initial_status = _alignment_preview_initial_performance_status_helper()
     preview_performance_label = QLabel(preview_performance_initial_status.text)
     preview_performance_label.setObjectName("HintLabel")
     preview_performance_label.setWordWrap(False)
     preview_performance_label.setMaximumHeight(24)
     preview_performance_label.setToolTip(preview_performance_initial_status.tooltip)
-    preview_panel_layout.addWidget(preview_performance_label)
+    # Both hints are one line each. Stacking them cost the editor a whole row of
+    # height for text that fits side by side. Neither label wraps, so their size
+    # hint is the full string: an ignored horizontal policy keeps that hint from
+    # raising the dialog's minimum width, and the tooltips carry the full text
+    # when a narrow panel clips them.
+    preview_help.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+    preview_performance_label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Fixed)
+    preview_performance_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+    preview_status_row = QHBoxLayout()
+    preview_status_row.setContentsMargins(0, 0, 0, 0)
+    preview_status_row.setSpacing(12)
+    preview_status_row.addWidget(preview_help, 3)
+    preview_status_row.addWidget(preview_performance_label, 2)
+    preview_panel_layout.addLayout(preview_status_row)
 
     alignment_dialog_layout_state = _alignment_dialog_layout_initial_state_helper()
     previous_dialog_resize_event = dialog.resizeEvent
@@ -764,6 +823,7 @@ def create_alignment_preview_shell_section(context: dict[str, object]) -> Simple
         preview_disable_brightness_checkbox=locals().get('preview_disable_brightness_checkbox'),
         preview_disable_tint_checkbox=locals().get('preview_disable_tint_checkbox'),
         preview_disable_uv_scale_checkbox=locals().get('preview_disable_uv_scale_checkbox'),
+        preview_grid_checkbox=locals().get('preview_grid_checkbox'),
         preview_gizmo_checkbox=locals().get('preview_gizmo_checkbox'),
         preview_mesh_edit_checkbox=locals().get('preview_mesh_edit_checkbox'),
         preview_mesh_view_combo=locals().get('preview_mesh_view_combo'),

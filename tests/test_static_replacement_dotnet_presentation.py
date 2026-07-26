@@ -315,6 +315,7 @@ def test_embedded_builder_presentation_getter_reads_current_render_settings() ->
         self=SimpleNamespace(settings=SimpleNamespace(setValue=lambda *_args: None)),
         preview_mode_combo=_PreviewValueControl("replacement_only"),
         preview_mesh_view_combo=_PreviewValueControl("untextured_wire"),
+        preview_grid_checkbox=_PreviewValueControl(True),
         preview_gizmo_checkbox=_PreviewValueControl(True),
         preview_part_pick_checkbox=_PreviewValueControl(True),
         mesh_edit_enabled_checkbox=_PreviewValueControl(False),

@@ -100,6 +100,13 @@ internal sealed partial class MeshViewport
             context.DisplayMode = DisplayMode;
             context.MaterialDebugMode = MaterialDebugMode;
             context.TexturesEnabled = TexturesEnabled;
+            // Grid and gizmo visibility are host-wide, but every pane draws
+            // from its own context and only the active one is ever written
+            // back. Leaving these out let the two panes drift apart, so a pane
+            // could keep drawing a grid the host had turned off, or lose one it
+            // had turned on, until it next became active.
+            context.GridVisible = _presentationGridVisible;
+            context.GizmoVisible = _presentationGizmoVisible;
         }
     }
 

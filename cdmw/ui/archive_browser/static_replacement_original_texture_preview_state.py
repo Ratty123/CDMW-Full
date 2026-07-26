@@ -29,12 +29,21 @@ class OriginalReferenceTexturePreviewReadyState:
     performance: OriginalReferenceTexturePreviewPerformance
 
 
+# What a texture-resolve request actually did, so a caller waiting on the
+# resident textured view knows whether an acknowledgement is still coming.
+ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED = "started"
+ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT = "in_flight"
+ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED = "already_loaded"
+ORIGINAL_REFERENCE_TEXTURE_REQUEST_UNAVAILABLE = "unavailable"
+
+
 @dataclass(frozen=True)
 class OriginalReferenceTexturePreviewLoadStartState:
     should_start: bool
     progress_message: str
     detail: str
     performance: OriginalReferenceTexturePreviewPerformance
+    outcome: str = ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED
 
 
 @dataclass(frozen=True)
@@ -278,20 +287,43 @@ def original_reference_texture_preview_mark_loading(state: MutableMapping[str, o
     state["native_package_path"] = ""
 
 
+def original_reference_texture_preview_request_outcome(
+    state: Mapping[str, object],
+    *,
+    has_original_reference_model: bool,
+) -> str:
+    """Classify why a texture-resolve request will or will not start a worker."""
+    if not bool(has_original_reference_model):
+        return ORIGINAL_REFERENCE_TEXTURE_REQUEST_UNAVAILABLE
+    if bool(state.get("loading")):
+        return ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT
+    if bool(state.get("loaded")):
+        return ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED
+    return ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED
+
+
 def original_reference_texture_preview_load_start_state(
     state: MutableMapping[str, object],
     *,
     has_original_reference_model: bool,
 ) -> OriginalReferenceTexturePreviewLoadStartState:
+    outcome = original_reference_texture_preview_request_outcome(
+        state,
+        has_original_reference_model=has_original_reference_model,
+    )
     if not original_reference_texture_preview_can_start_load(
         state,
         has_original_reference_model=has_original_reference_model,
     ):
+        # The caller still has to act on this: a request that quietly starts
+        # nothing leaves anyone waiting on the resident textured view stuck on
+        # the untextured fallback forever.
         return OriginalReferenceTexturePreviewLoadStartState(
             should_start=False,
             progress_message="",
             detail="",
             performance=OriginalReferenceTexturePreviewPerformance(summary=""),
+            outcome=outcome,
         )
     original_reference_texture_preview_mark_loading(state)
     return OriginalReferenceTexturePreviewLoadStartState(
@@ -299,6 +331,7 @@ def original_reference_texture_preview_load_start_state(
         progress_message=original_reference_texture_preview_resolving_progress_message(),
         detail=original_reference_texture_preview_loading_message(),
         performance=original_reference_texture_preview_loading_performance(),
+        outcome=ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
     )
 
 
@@ -435,6 +468,10 @@ def original_reference_texture_preview_exception_state(
 
 
 __all__ = [
+    "ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED",
+    "ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT",
+    "ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED",
+    "ORIGINAL_REFERENCE_TEXTURE_REQUEST_UNAVAILABLE",
     "OriginalReferenceTexturePreviewPerformance",
     "OriginalReferenceTexturePreviewErrorState",
     "OriginalReferenceTexturePreviewExceptionState",
@@ -474,6 +511,7 @@ __all__ = [
     "original_reference_texture_preview_ready_result_state",
     "original_reference_texture_preview_ready_state",
     "original_reference_texture_preview_readiness",
+    "original_reference_texture_preview_request_outcome",
     "original_reference_texture_preview_required",
     "original_reference_texture_preview_resolve_failed_performance",
     "original_reference_texture_preview_resolving_progress_message",

@@ -2,6 +2,12 @@ from __future__ import annotations
 
 import copy
 
+from cdmw.ui.archive_browser import static_replacement_preview_materials as preview_materials
+from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
+    ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED,
+    ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT,
+)
+
 def _texture_original_texture_material_step_001(_state):
     _state.ARCHIVE_MESH_EXTENSIONS = _state.context.get('ARCHIVE_MESH_EXTENSIONS')
     _state.AlignmentOriginalTexturePreviewWorker = _state.context.get('AlignmentOriginalTexturePreviewWorker')
@@ -308,10 +314,68 @@ def _texture_original_texture_material_step_008(_state):
 
 def _texture_original_texture_material_step_009(_state):
 
-    def _load_original_reference_texture_preview() -> None:
-        load_state = _state._original_reference_texture_preview_load_start_state_helper(_state.original_reference_texture_preview_state, has_original_reference_model=_state.original_reference_preview_model is not None)
-        if not load_state.should_start:
+    def _prompt_context() -> dict:
+        context = getattr(_state, 'context', None)
+        return context if isinstance(context, dict) else {}
+
+    def _resolved_original_reference_preview_model() -> object | None:
+        # The bound snapshot goes stale once the texture worker publishes a
+        # resolved model, so prefer the live getter when the prompt exposes one.
+        getter = _prompt_context().get('_get_original_reference_preview_model')
+        if callable(getter):
+            try:
+                resolved = getter()
+            except RuntimeError:
+                resolved = None
+            if resolved is not None:
+                return resolved
+        return _state.original_reference_preview_model
+
+    def _context_value(name: str) -> object | None:
+        context = _prompt_context()
+        getter = context.get(f'_get_{name}')
+        if callable(getter):
+            try:
+                return getter()
+            except RuntimeError:
+                return None
+        return context.get(name, getattr(_state, name, None))
+
+    def _settle_deferred_original_reference_texture_request(outcome: str) -> None:
+        """Answer a texture request that started no worker.
+
+        `_load_original_reference_texture_preview` is what the resident Mesh
+        Editor calls when the user picks a textured Mesh view, and it then
+        waits for a material acknowledgement before leaving the untextured
+        fallback. Returning silently because the textures happen to be resolved
+        already left that wait outstanding forever, so the viewport stayed
+        untextured while the Mesh view control still read "Solid (Textured)".
+        """
+        if str(outcome) == ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT:
+            # A worker is already resolving these textures and will publish and
+            # acknowledge them on its own.
             return
+        preview_model = _resolved_original_reference_preview_model()
+        if str(outcome) == ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED and preview_model is not None:
+            preview_materials.apply_resolved_original_materials_to_resident_editor(
+                dialog=_state.dialog,
+                replacement_mesh_base=_context_value('replacement_mesh_base_for_mapping'),
+                replacement_mesh=_context_value('replacement_mesh_for_mapping'),
+                preview_model=preview_model,
+                modify_original_clone_mode=bool(_state.modify_original_clone_mode),
+                publish_resident_updates=True,
+            )
+            return
+        notify_failure = getattr(_state.dialog, '_mesh_editor_embedded_texture_request_failed', None)
+        if callable(notify_failure):
+            notify_failure('No resolved original textures are available for this preview.')
+    _state._settle_deferred_original_reference_texture_request = _settle_deferred_original_reference_texture_request
+
+    def _load_original_reference_texture_preview() -> str:
+        load_state = _state._original_reference_texture_preview_load_start_state_helper(_state.original_reference_texture_preview_state, has_original_reference_model=_resolved_original_reference_preview_model() is not None)
+        if not load_state.should_start:
+            _settle_deferred_original_reference_texture_request(load_state.outcome)
+            return str(load_state.outcome)
         _state._set_alignment_d3d11_progress(10, load_state.progress_message, stage='source_textures', detail=load_state.detail)
         _state._set_preview_performance_status(load_state.performance.summary, details=load_state.performance.details)
         try:
@@ -387,6 +451,7 @@ def _texture_original_texture_material_step_009(_state):
             )
             _state._alignment_d3d11_record_original_texture_worker_refs_helper(_state.alignment_d3d11_state, worker=worker, thread=thread)
             thread.start()
+            return str(load_state.outcome)
         except Exception as exc:
             exception_state = _state._original_reference_texture_preview_exception_state_helper(_state.original_reference_texture_preview_state, exc)
             _state._record_runtime_event('mesh_alignment_original_texture_preview_failed', path=getattr(_state.entry, 'path', ''), dialog_title=_state.dialog_title, message=str(exc), modify_original_clone=_state.modify_original_clone_mode)
@@ -397,6 +462,7 @@ def _texture_original_texture_material_step_009(_state):
             if callable(notify_failure):
                 notify_failure(exception_state.message)
             _state._original_reference_texture_preview_clear_loading_helper(_state.original_reference_texture_preview_state)
+            return 'failed'
     _state._load_original_reference_texture_preview = _load_original_reference_texture_preview
 
 def _texture_original_texture_material_step_010(_state):

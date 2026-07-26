@@ -5,6 +5,9 @@ from cdmw.ui.archive_browser.static_replacement_dotnet_presentation import (
     effective_builder_comparison_mode,
     send_resident_presentation_state,
 )
+from cdmw.ui.archive_browser.static_replacement_preview_status_state import (
+    preview_grid_visible,
+)
 from cdmw.ui.archive_browser.static_replacement_viewport_display_modes import (
     normalize_mesh_preview_display_mode,
 )
@@ -96,6 +99,7 @@ def _preview_mode_step_007(_state):
     _state.original_dialog_preview = _state.context.get('original_dialog_preview')
     _state.overlay_dialog_preview = _state.context.get('overlay_dialog_preview')
     _state.overlay_original_locked_checkbox = _state.context.get('overlay_original_locked_checkbox')
+    _state.preview_grid_checkbox = _state.context.get('preview_grid_checkbox')
     _state.preview_gizmo_checkbox = _state.context.get('preview_gizmo_checkbox')
     _state.preview_part_pick_checkbox = _state.context.get('preview_part_pick_checkbox')
     _state.preview_help = _state.context.get('preview_help')
@@ -170,7 +174,7 @@ def _preview_mode_step_009(_state):
             highlighted_original_indices=tuple(selection_state['highlighted_original_indices']),
             hovered_source_index=hovered_source_index,
             hidden_source_indices=tuple(_state._disabled_source_indices()),
-            grid_visible=True,
+            grid_visible=preview_grid_visible(_state.preview_grid_checkbox),
             gizmo_visible=bool(_state.preview_gizmo_checkbox.isChecked()),
             part_pick_enabled=part_pick_checked,
             mesh_edit_active=bool(_state.mesh_edit_enabled_checkbox.isChecked()),
