@@ -9,6 +9,16 @@ Set-StrictMode -Version Latest
 
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+# DirectXTex's shader step runs `cmake -E env ... CompileShaders.cmd`, naming the
+# .cmd relatively and relying on WORKING_DIRECTORY to resolve it. When
+# NoDefaultCurrentDirectoryInExePath is set, neither CreateProcess nor cmd.exe
+# searches the working directory, so the spawn fails with a bare
+# "no such file or directory" and MSBuild surfaces only MSB8066. Some parent
+# processes export it, so clear it inside each cmd.exe we spawn -- doing it with
+# `set` keeps the change scoped to the child instead of leaking into the caller's
+# session, which a script-level $env: assignment would do.
+$clearCurrentDirectoryGuard = 'set "NoDefaultCurrentDirectoryInExePath="'
+
 function Resolve-VisualStudioRoot {
     $roots = New-Object System.Collections.Generic.List[string]
     $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"
@@ -129,11 +139,11 @@ function Invoke-NativeBuild {
     }
     New-Item -ItemType Directory -Path $buildDir -Force | Out-Null
 
-    $configure = "`"$vcvars`" && `"$cmake`" -S `"$ProjectDir`" -B `"$buildDir`" -G `"Visual Studio 17 2022`" -A x64"
+    $configure = "$clearCurrentDirectoryGuard && `"$vcvars`" && `"$cmake`" -S `"$ProjectDir`" -B `"$buildDir`" -G `"Visual Studio 17 2022`" -A x64"
     if ($usesDirectXTex -and (Test-Path -LiteralPath $directXTexSourceCacheDir)) {
         $configure += " -DFETCHCONTENT_SOURCE_DIR_DIRECTXTEX=`"$directXTexSourceCacheDir`" -DFETCHCONTENT_UPDATES_DISCONNECTED=ON"
     }
-    $build = "`"$vcvars`" && `"$cmake`" --build `"$buildDir`" --config $Configuration"
+    $build = "$clearCurrentDirectoryGuard && `"$vcvars`" && `"$cmake`" --build `"$buildDir`" --config $Configuration"
     cmd.exe /d /s /c $configure
     if ($LASTEXITCODE -ne 0) {
         throw "CMake configure failed for $ProjectDir with exit code $LASTEXITCODE."
