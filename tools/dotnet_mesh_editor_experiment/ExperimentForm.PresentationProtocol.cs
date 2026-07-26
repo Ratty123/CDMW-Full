@@ -33,7 +33,7 @@ internal sealed partial class ExperimentForm
         {
             region.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
             region.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-            region.RowStyles.Add(new RowStyle(SizeType.Absolute, Math.Max(58, _statusLabel.Height + 8)));
+            region.RowStyles.Add(new RowStyle(SizeType.Absolute, Math.Max(32, _statusLabel.Height + 6)));
         }
         var selector = new TableLayoutPanel
         {
@@ -128,7 +128,7 @@ internal sealed partial class ExperimentForm
             ColumnCount = 2,
             RowCount = 1,
             Margin = new Padding(0),
-            Padding = new Padding(10, 4, 10, 4),
+            Padding = new Padding(10, 2, 10, 2),
             BackColor = ThemeStatusBackground,
         };
         footer.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));

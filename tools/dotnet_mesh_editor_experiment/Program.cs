@@ -221,11 +221,16 @@ internal sealed partial class ExperimentForm : Form
         _fpsLabel.AutoEllipsis = true;
         _fpsLabel.Text = "FPS -- | Frame -- ms";
         _statusLabel.AutoSize = false;
-        _statusLabel.Height = Math.Max(52, (Font.Height * 2) + 12);
+        // One line, not two: the second line was empty for every message the
+        // editor actually shows, and the row it reserved is height the viewport
+        // and the tool columns need. Long messages ellipsize into the tooltip.
+        _statusLabel.Height = Math.Max(26, Font.Height + 10);
         _statusLabel.ForeColor = ThemeText;
         _statusLabel.BackColor = ThemeStatusBackground;
         _statusLabel.Dock = DockStyle.Fill;
+        _statusLabel.TextAlign = ContentAlignment.MiddleLeft;
         _statusLabel.AutoEllipsis = true;
+        _statusLabel.TextChanged += (_, _) => _helpToolTip.SetToolTip(_statusLabel, _statusLabel.Text);
         _statusLabel.Text = $"Loaded package. materials={_materials.SlotCount} textureRefs={_materials.TextureReferenceCount} resolved={_materials.ExistingTextureFileCount}/{_materials.ResolvedTextureReferenceCount} decodable={_textureSet.DecodedCount}/{_materials.DecodableTextureFileCount}. Solid view is on; wire overlay is optional.";
 
         // Display state both profiles drive over the protocol, so it is
