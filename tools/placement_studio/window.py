@@ -42,6 +42,7 @@ from .editing import EditSession
 from .model import PlacementBinding, Vec3
 from .session import PlacementSession
 from .glossary import as_html as glossary_html, tip
+from .report_style import inspector_html
 from .viewport import SkeletonViewport
 from .window_animation import AnimationTabMixin
 from .window_editing import EditPanelMixin
@@ -50,6 +51,7 @@ from .window_carry import CarryPickerMixin
 from .window_clips import ClipBrowserMixin
 from .window_constraints import SecondaryMotionMixin
 from .window_playback import PlaybackMixin
+from .window_rig_behaviour import RigBehaviourMixin
 
 class PosedMesh:
     """Deformed geometry the viewport can draw without a per-frame Vec3 rebuild.
@@ -140,7 +142,8 @@ def fit_popup(combo) -> None:
 
 class PlacementStudioWindow(
     EditPanelMixin, AnimationTabMixin, PlaybackMixin, ClipBrowserMixin,
-    CarryPickerMixin, ArmourPickerMixin, SecondaryMotionMixin, QMainWindow
+    CarryPickerMixin, ArmourPickerMixin, SecondaryMotionMixin, RigBehaviourMixin,
+    QMainWindow
 ):
     """Read-only inspector for one character's socket placement."""
 
@@ -333,12 +336,12 @@ class PlacementStudioWindow(
         mono.setStyleHint(QFont.Monospace)
         mono.setPointSize(9)
 
-        self._inspector = QPlainTextEdit()
-        self._inspector.setReadOnly(True)
+        # Rich text, not plain: these two panels are read by scanning, and colour carrying
+        # meaning is what makes a socket name or a warning findable in them.
+        self._inspector = QTextBrowser()
         self._inspector.setFont(mono)
 
-        self._diff_view = QPlainTextEdit()
-        self._diff_view.setReadOnly(True)
+        self._diff_view = QTextBrowser()
         self._diff_view.setFont(mono)
 
         self._lower = QTabWidget()
@@ -354,10 +357,16 @@ class PlacementStudioWindow(
             "Bones that follow other bones: muscle bulge, joint creasing, and the few "
             "jiggle chains. The viewport cannot show it; the game solves it at runtime.",
         )
+        self._lower.addTab(self._build_rig_behaviour_tab(), "Rig behaviour")
+        self._lower.setTabToolTip(
+            4,
+            "Pose-modifier settings the game actually runs: look-at ranges, spine lag, "
+            "IK reach, vehicle suspension. Keyed by skeleton.",
+        )
         self._lower.addTab(self._diff_view, "Pending changes")
-        self._lower.setTabToolTip(4, tip("Pending changes"))
+        self._lower.setTabToolTip(5, tip("Pending changes"))
         self._lower.addTab(self._build_help_tab(), "Help")
-        self._lower.setTabToolTip(5, "What the words mean, and how to move a weapon.")
+        self._lower.setTabToolTip(6, "What the words mean, and how to move a weapon.")
 
         # Viewport and the edit strip stack; the tabs get their own full-height column.
         # Sharing the vertical space left the Animation tab a few rows tall, which is not
@@ -980,7 +989,7 @@ class PlacementStudioWindow(
             self._selected_socket = socket_name
             self._viewport.set_selected(socket_name)
             self._viewport.set_attachments({})
-            self._inspector.setPlainText(self._describe_socket(socket_name))
+            self._inspector.setHtml(inspector_html(self._describe_socket(socket_name)))
             self._lower.setCurrentIndex(0)
             self._update_gizmo_anchor()
         elif part_name:
@@ -991,7 +1000,7 @@ class PlacementStudioWindow(
         else:
             self._selected_socket = ""
             self._viewport.set_selected("")
-            self._inspector.setPlainText("")
+            self._inspector.setHtml(inspector_html(""))
         self._refresh_edit_panel()
 
     def _select_socket(self, socket_name: str) -> None:
@@ -1007,7 +1016,7 @@ class PlacementStudioWindow(
                     return
         self._selected_socket = socket_name
         self._viewport.set_selected(socket_name)
-        self._inspector.setPlainText(self._describe_socket(socket_name))
+        self._inspector.setHtml(inspector_html(self._describe_socket(socket_name)))
         self._refresh_edit_panel()
         self._update_gizmo_anchor()
 
@@ -1026,12 +1035,12 @@ class PlacementStudioWindow(
             return
         binding = next((b for b in self._bindings if b.part_name == part_name), None)
         if binding is None:
-            self._inspector.setPlainText(f"No descriptor row named {part_name}")
+            self._inspector.setHtml(inspector_html(f"No descriptor row named {part_name}"))
             return
         points = session.binding_points(binding)
         self._viewport.set_attachments(points)
         self._viewport.set_selected(binding.part.in_socket)
-        self._inspector.setPlainText(describe_part(session, binding, points))
+        self._inspector.setHtml(inspector_html(describe_part(session, binding, points)))
 
 
 def launch(baseline: Optional[Baseline] = None) -> int:
