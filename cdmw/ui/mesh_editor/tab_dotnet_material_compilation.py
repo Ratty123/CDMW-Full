@@ -153,7 +153,10 @@ class MeshEditorDotNetMaterialCompilationMixin:
                 "Could not send the compiled resident material payload.",
                 error=True,
             )
-            self._finish_pending_textured_view(success=False)
+            self._finish_pending_textured_view(
+                success=False,
+                reason="material_payload_send_failed",
+            )
             return
         _material_commit.remember_sent_material_resources(
             self,
@@ -198,7 +201,10 @@ class MeshEditorDotNetMaterialCompilationMixin:
             f"Could not compile resident PAC materials: {message}",
             error=True,
         )
-        self._finish_pending_textured_view(success=False)
+        self._finish_pending_textured_view(
+            success=False,
+            reason=f"material_compile_failed: {message}",
+        )
         QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
 
     def _notify_dotnet_material_resources_finished(

@@ -24,6 +24,12 @@ from cdmw.ui.mesh_editor.tab_dotnet_presentation import MeshEditorDotNetPresenta
 # actually drawing.
 PENDING_TEXTURED_VIEW_TIMEOUT_MS = 20_000
 
+# The watchdog is there for a helper that never answers, not for work that is
+# still running. Reading a full character's original textures out of the archive
+# and compiling them routinely outlasts one interval, so each interval that ends
+# with the compiler still busy buys another one, up to this many.
+PENDING_TEXTURED_VIEW_MAX_EXTENSIONS = 9
+
 
 class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
     def _entry_path(self, entry: object) -> str:
@@ -720,6 +726,9 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
         use_presentation_state: bool = False,
     ) -> bool:
         normalized = str(mode or "textured").strip().lower() or "textured"
+        # Any explicit request supersedes a textured view this tab is still
+        # hoping to restore on its own, so it must never snap back later.
+        self._forget_deferred_textured_view()
         if not bool(getattr(self.active_builder(), "_mesh_editor_embedded_dotnet_active", False)):
             self.status_message_requested.emit("Embedded .NET viewport is not ready yet.", True)
             return False
@@ -765,6 +774,7 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
             self.standalone_dotnet_pending_textured_view_uses_presentation = bool(
                 use_presentation_state
             )
+            self.standalone_dotnet_pending_textured_view_extensions = 0
             self._send_requested_viewport_display_mode(
                 untextured_fallback_display_mode(normalized),
                 use_presentation_state=use_presentation_state,
@@ -800,7 +810,10 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
             return
         normalized = str(outcome or "started").strip().lower()
         if normalized in {"unavailable", "failed"}:
-            self._finish_pending_textured_view(success=False)
+            self._finish_pending_textured_view(
+                success=False,
+                reason=f"texture_resolver_{normalized}",
+            )
             self.status_message_requested.emit(
                 "No resolved textures are available for this Mesh Editor preview; the untextured scene remains active.",
                 True,
@@ -826,7 +839,26 @@ class MeshEditorStateMixin(MeshEditorDotNetPresentationMixin):
     def _handle_pending_textured_view_timeout(self) -> None:
         if not bool(self.standalone_dotnet_pending_textured_view):
             return
-        self._finish_pending_textured_view(success=False)
+        # Abandoning a compile that is still running is what left the viewport
+        # flat: the materials landed seconds later and the acknowledgement then
+        # had nothing left to complete. While the compiler is genuinely busy the
+        # wait is making progress, so extend it instead of declaring failure.
+        if (
+            self._dotnet_material_compile_active()
+            and self.standalone_dotnet_pending_textured_view_extensions
+            < PENDING_TEXTURED_VIEW_MAX_EXTENSIONS
+        ):
+            self.standalone_dotnet_pending_textured_view_extensions += 1
+            self._arm_pending_textured_view_watchdog()
+            self.status_message_requested.emit(
+                "Still preparing Mesh Editor textures for the resident viewport...",
+                False,
+            )
+            return
+        self._finish_pending_textured_view(
+            success=False,
+            reason="acknowledgement_timeout",
+        )
         self.status_message_requested.emit(
             "Mesh Editor textures did not reach the resident viewport in time; the untextured scene remains active.",
             True,

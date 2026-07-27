@@ -115,6 +115,9 @@ class MeshEditorTabShellRuntimeMixin:
         self.standalone_dotnet_pending_textured_view = False
         self.standalone_dotnet_pending_textured_view_mode = "textured"
         self.standalone_dotnet_pending_textured_view_uses_presentation = False
+        self.standalone_dotnet_pending_textured_view_extensions = 0
+        self.standalone_dotnet_deferred_textured_view_mode = ""
+        self.standalone_dotnet_deferred_textured_view_uses_presentation = False
         self.standalone_dotnet_pending_textured_view_timer = QTimer(self)
         self.standalone_dotnet_pending_textured_view_timer.setSingleShot(True)
         self.standalone_dotnet_pending_textured_view_timer.timeout.connect(

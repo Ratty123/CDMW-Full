@@ -4,6 +4,34 @@ from __future__ import annotations
 
 from collections.abc import MutableMapping
 
+from PySide6.QtCore import QEventLoop
+from PySide6.QtWidgets import QApplication
+
+
+def paint_alignment_startup_progress(progress: object) -> bool:
+    """Get the Builder's startup progress dialog actually drawn.
+
+    Builder construction never yields between showing this dialog and finishing
+    the Builder, and QProgressDialog only pumps events for itself while it is
+    modal. This one is deliberately non-modal, so nothing ever serviced its
+    paint: the user saw an empty window frame with a title and a blank white
+    body for the whole build.
+
+    show() alone does not fix that. Until the platform has delivered the expose
+    event the window has no backing store and repaint() is a no-op, so the first
+    pass has to let Qt run -- with user input excluded, which keeps a stray click
+    or key away from the half-built dialog behind it. Once exposed, repaint()
+    draws synchronously and no further pumping is needed.
+    """
+    try:
+        handle = progress.windowHandle()
+        if handle is None or not handle.isExposed():
+            QApplication.processEvents(QEventLoop.ExcludeUserInputEvents)
+        progress.repaint()
+    except (AttributeError, RuntimeError):
+        return False
+    return True
+
 
 def alignment_startup_step_initial_state() -> dict[str, float]:
     return {"started_at": 0.0}
@@ -87,4 +115,5 @@ __all__ = [
     "alignment_startup_step_initial_state",
     "alignment_startup_step_text",
     "alignment_startup_texture_plan_progress_text",
+    "paint_alignment_startup_progress",
 ]

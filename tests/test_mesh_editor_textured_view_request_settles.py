@@ -16,6 +16,10 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import QApplication
 
+from cdmw.services.mesh_dotnet_experiment import mesh_dotnet_material_input_signature
+from cdmw.services.mesh_dotnet_material_compiler import (
+    snapshot_mesh_dotnet_material_inputs,
+)
 from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state import (
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_ALREADY_LOADED,
     ORIGINAL_REFERENCE_TEXTURE_REQUEST_IN_FLIGHT,
@@ -25,6 +29,7 @@ from cdmw.ui.archive_browser.static_replacement_original_texture_preview_state i
     original_reference_texture_preview_load_start_state,
 )
 from cdmw.ui.mesh_editor import MeshEditorTab
+from cdmw.ui.mesh_editor.tab_state import PENDING_TEXTURED_VIEW_MAX_EXTENSIONS
 from tests.mesh_builder_driver import open_mesh_builder
 from tests.test_mesh_editor_action_bar import (
     _EmbeddedMeshBuilder,
@@ -147,6 +152,167 @@ def test_a_resolver_that_starts_work_arms_the_watchdog_and_still_times_out() -> 
     assert tab.standalone_dotnet_pending_textured_view is False
     assert _display_modes(process)[-1] == "untextured_faces"
     assert combo.currentData() == "untextured_faces"
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def _acknowledge_material_state(tab: MeshEditorTab, process: _FakeProcess) -> None:
+    """Deliver the acknowledgement a finished resident material update sends."""
+    tab.standalone_dotnet_material_generation = 1
+    process.emit_stdout(
+        json.dumps(
+            {
+                "event": "material_state_applied",
+                "generation": 1,
+                "material_signature": "resident-materials",
+            }
+        )
+        + "\n"
+    )
+
+
+def test_a_busy_compiler_extends_the_wait_instead_of_failing_it() -> None:
+    """The watchdog must not abandon the compile it is waiting on.
+
+    Reading a full character's original textures out of the archive and
+    compiling them outlasts one interval, and giving up parked the viewport on
+    the untextured fallback while the work that would have textured it was still
+    running.
+    """
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewBusyCompiler",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    combo = tab.embedded_workspace.viewport_display_combo
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    tab.standalone_dotnet_material_update_worker = object()
+    assert tab._dotnet_material_compile_active()
+
+    tab._handle_pending_textured_view_timeout()
+
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert tab.standalone_dotnet_pending_textured_view_extensions == 1
+    assert tab.standalone_dotnet_pending_textured_view_timer.isActive()
+    # Still waiting, so nothing has been put back yet.
+    assert _display_modes(process)[-1] == "untextured_faces"
+    assert tab.standalone_dotnet_deferred_textured_view_mode == ""
+
+    # A compile that never finishes still has to surface, so the extensions are
+    # bounded rather than unlimited.
+    tab.standalone_dotnet_pending_textured_view_extensions = (
+        PENDING_TEXTURED_VIEW_MAX_EXTENSIONS
+    )
+    tab._handle_pending_textured_view_timeout()
+    assert tab.standalone_dotnet_pending_textured_view is False
+    assert combo.currentData() == "untextured_faces"
+
+    tab.standalone_dotnet_material_update_worker = None
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_textures_that_land_after_the_wait_still_restore_the_textured_view() -> None:
+    """Giving up on the wait does not cancel the resolve or the compile.
+
+    Those finish anyway, so the acknowledgement arrives after the controls were
+    put back. Dropping it left the viewport flat for the rest of the session
+    even though the resident scene was holding exactly the requested materials.
+    """
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewLateArrival",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    combo = tab.embedded_workspace.viewport_display_combo
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    tab._handle_pending_textured_view_timeout()
+    assert combo.currentData() == "untextured_faces"
+    assert tab.standalone_dotnet_deferred_textured_view_mode == "textured"
+
+    _acknowledge_material_state(tab, process)
+
+    assert tab.standalone_dotnet_deferred_textured_view_mode == ""
+    assert _display_modes(process)[-1] == "textured"
+    assert combo.currentData() == "textured"
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def test_a_later_mode_choice_cancels_the_restore() -> None:
+    """Whatever the user picked after the failure is what they get to keep."""
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewSuperseded",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    combo = tab.embedded_workspace.viewport_display_combo
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    tab._handle_pending_textured_view_timeout()
+    assert tab.standalone_dotnet_deferred_textured_view_mode == "textured"
+
+    assert tab._handle_embedded_viewport_display_mode("vertices")
+    assert tab.standalone_dotnet_deferred_textured_view_mode == ""
+
+    _acknowledge_material_state(tab, process)
+
+    assert _display_modes(process)[-1] == "vertices"
+    assert combo.currentData() == "vertices"
+
+    tab.deleteLater()
+    builder.deleteLater()
+    app.processEvents()
+
+
+def _resident_material_signature(tab: MeshEditorTab) -> str:
+    controller = tab._dotnet_target_controller()
+    package = getattr(tab, "standalone_dotnet_experiment_package", None)
+    return str(
+        mesh_dotnet_material_input_signature(
+            snapshot_mesh_dotnet_material_inputs(
+                controller.working_mesh(clone=False),
+                scene_material_slot_indices=tuple(
+                    getattr(package, "scene_material_slot_indices", ()) or ()
+                ),
+                submesh_index_offset=0,
+            )
+        )
+    )
+
+
+def test_a_deduplicated_material_publish_completes_the_textured_view() -> None:
+    """Resolved materials the helper already holds still have to settle the wait.
+
+    The publish path returns success after deduplicating, having sent nothing,
+    so no material_state_applied is coming. That left the viewport on the
+    untextured fallback for the full watchdog interval before the Mesh view
+    control silently snapped back to "Faces (No Textures)".
+    """
+    app, tab, builder, process = _mounted_tab(
+        "MeshEditorTexturedViewDeduplicated",
+        lambda: ORIGINAL_REFERENCE_TEXTURE_REQUEST_STARTED,
+    )
+    combo = tab.embedded_workspace.viewport_display_combo
+
+    assert tab._handle_embedded_viewport_display_mode("textured")
+    assert tab.standalone_dotnet_pending_textured_view is True
+    assert _display_modes(process)[-1] == "untextured_faces"
+
+    # The resolver's model carries exactly the materials the helper reported at
+    # ready, so publishing it deduplicates instead of sending an update.
+    tab.standalone_dotnet_material_signature = _resident_material_signature(tab)
+    assert tab._send_dotnet_material_state(reason="late_exact_clone_resources")
+    assert tab.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] == 1
+
+    assert tab.standalone_dotnet_pending_textured_view is False
+    assert not tab.standalone_dotnet_pending_textured_view_timer.isActive()
+    assert _display_modes(process)[-1] == "textured"
+    assert combo.currentData() == "textured"
 
     tab.deleteLater()
     builder.deleteLater()
