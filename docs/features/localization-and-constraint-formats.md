@@ -46,6 +46,48 @@ as `questdialog` because that is what its keys are called.
 `character/model/**/<rig>.papr`, twenty files, one per character rig. This holds the
 bones that follow *other bones* rather than an animation clip.
 
+### There is no evidence the game loads it
+
+Searching the shipped binaries for the schema turned up something more useful than a
+schema: nothing reads these files.
+
+| Check | Result |
+|---|---|
+| `papr` as a standalone token in the 40+ binaries in `bin64/` | **0** |
+| `pac` / `pab` / `paseq` / `pamlod` / `meshinfo` / `pathc`, same search | 8 / 6 / 4 / 2 / 2 / 2 |
+| `Local_Euler`, `ExposeTransform` (the vocabulary *inside* `.papr`) in any binary, ASCII or UTF-16 | **0** |
+| 1,015 character descriptor and model files mentioning `papr` | **0** |
+| Files shipped | 20, against 316,059 `.paa` and 12,962 `.pac` |
+
+The contents are 3ds Max constructs — Expose Transform helpers and MAXScript controller
+expressions like `amin(((Local_Euler_Y-(degToRad 63.748))*0.7)+1.0) 0`. The reading that
+fits everything is that `.papr` is an **authoring artifact** that shipped in the archives
+and that no runtime code reads. An edit to one is very unlikely to do anything.
+
+This is strong evidence, not proof: a reference could exist in data outside the 1,015
+files scanned, or the loader could build the extension string at runtime. But every
+comparable extension appears as a plain string, so that is unlikely — and a modder
+deserves to be told before spending an evening on it. The panel leads with this warning
+and a test asserts it is on screen.
+
+**What to use instead.** Two live files turned up in the same search, both plain XML
+already in the archives and needing no decoding at all:
+
+- `character/descriptors/jiggledescriptor.xml` — 1.2 KB, the real jiggle knobs.
+  `LinearDamping`, `AngularDamping` and a `MaskBone` list per creature (`bear`, `Wolf`),
+  naming the same `B_Jiggle_*` bones the `.papr` defines.
+- `character/descriptors/posemodifierdata/posemodifierdata.xml` — 119 KB of runtime
+  pose-modifier data keyed by `.pab` skeleton, covering `Vehicle`, `AimIK`, `RootBoneIK`,
+  `SpineTrain`, `LimbIK`, `LookAt`, `Multileg`, `FishingRod`, `BoneAim`, `Harness` and
+  `WorldSpaceSpecificBoneModifier`. Wheel radii, suspension lengths, yaw and pitch
+  limits, damping coefficients — all as text attributes.
+
+The engine's own vocabulary for this system is `pa::engineScript::PoseModifier*`, visible
+in the RTTI names, which is what confirms these two files are the ones with a runtime
+behind them.
+
+### The format itself
+
 **It is mostly not what the `B_Jiggle_*` names suggest.** Counted across all 471 chains
 in the twenty rigs: **259 are corrective deformation** (`UpperFMuscle`, `Bip01 L
 Knee_Sub`, `Thigh_Front`, twist bones), 67 are pivots, 56 are exposed transforms, 29 are
