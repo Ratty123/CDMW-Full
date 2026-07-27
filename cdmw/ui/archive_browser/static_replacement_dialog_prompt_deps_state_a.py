@@ -450,6 +450,7 @@ from cdmw.ui.archive_browser.static_replacement_startup_state import (
     alignment_startup_step_initial_state as _alignment_startup_step_initial_state_helper,
     alignment_startup_step_text as _alignment_startup_step_text_helper,
     alignment_startup_texture_plan_progress_text as _alignment_startup_texture_plan_progress_text_helper,
+    paint_alignment_startup_progress as _paint_alignment_startup_progress_helper,
 )
 from cdmw.ui.archive_browser.static_replacement_texture_diagnostics import (
     texture_target_diagnostics_html as _texture_target_diagnostics_html,

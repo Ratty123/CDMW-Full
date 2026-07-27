@@ -702,7 +702,10 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
                     "ready" if has_resident_scene else "failed",
                     active=has_resident_scene,
                 )
-            self._finish_pending_textured_view(success=False)
+            self._finish_pending_textured_view(
+                success=False,
+                reason="package_error",
+            )
             self._set_dotnet_status(str(message or ".NET/Vortice package update failed."), error=True)
 
     def _handle_shared_dotnet_package_applied(
@@ -733,7 +736,10 @@ class MeshEditorTabShellMixin(MeshEditorTabShellRuntimeMixin):
         del package_path, generation
         if controller is not self._active_shared_dotnet_controller():
             return
-        self._finish_pending_textured_view(success=False)
+        self._finish_pending_textured_view(
+            success=False,
+            reason="package_update_failed",
+        )
         self._set_dotnet_status(
             f"Mesh Editor package update failed; the resident scene was kept: {message}",
             error=True,

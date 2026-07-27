@@ -65,6 +65,8 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
     startup_progress_closed = _alignment_startup_progress_initial_state_helper()
     alignment_startup_step_state = _alignment_startup_step_initial_state_helper()
 
+    _paint_alignment_startup_progress_helper(startup_progress)
+
     def _alignment_startup_step(message: str) -> None:
         if _alignment_startup_progress_closed_helper(startup_progress_closed):
             return
@@ -83,6 +85,7 @@ def create_static_replacement_prompt_shell(context: dict[str, object]) -> Simple
         )
         startup_progress.setLabelText(message)
         startup_progress.setValue(0)
+        _paint_alignment_startup_progress_helper(startup_progress)
 
     def _finish_alignment_startup_progress() -> None:
         if not _alignment_startup_progress_mark_closed_helper(startup_progress_closed):

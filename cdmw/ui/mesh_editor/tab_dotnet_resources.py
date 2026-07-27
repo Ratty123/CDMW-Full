@@ -65,6 +65,7 @@ class MeshEditorDotNetResourceProtocolMixin(
                 f"Mesh materials updated in the resident .NET session (generation {generation})."
             )
             self._finish_pending_textured_view(success=True)
+            self._restore_deferred_textured_view()
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return True
         if event == "material_state_failed":
@@ -86,11 +87,17 @@ class MeshEditorDotNetResourceProtocolMixin(
                 f"Mesh material update failed; keeping last valid resources: {message}",
                 error=True,
             )
-            self._finish_pending_textured_view(success=False)
+            self._finish_pending_textured_view(
+                success=False,
+                reason="material_state_failed",
+            )
             QTimer.singleShot(0, self._flush_pending_dotnet_reference_material_resources)
             return False
         if event == "material_reload_required":
-            self._finish_pending_textured_view(success=False)
+            self._finish_pending_textured_view(
+                success=False,
+                reason="material_reload_required",
+            )
             self._set_dotnet_status(
                 "This .NET helper cannot update materials in place. Update the helper to enable Textured view; the current untextured scene remains active.",
                 error=True,
@@ -98,10 +105,50 @@ class MeshEditorDotNetResourceProtocolMixin(
             return False
         return False
 
-    def _finish_pending_textured_view(self, *, success: bool) -> None:
+    def _forget_deferred_textured_view(self) -> None:
+        self.standalone_dotnet_deferred_textured_view_mode = ""
+        self.standalone_dotnet_deferred_textured_view_uses_presentation = False
+
+    def _restore_deferred_textured_view(self) -> bool:
+        """Honour a textured view that was abandoned before its textures landed.
+
+        Giving up on the wait only parks the controls on what the viewport is
+        drawing; it does not cancel the resolve or the compile behind it. When
+        those finish anyway the viewport now holds exactly the materials that
+        were asked for, so the abandoned mode is re-sent rather than leaving the
+        user looking at a flat scene they never chose.
+        """
+        requested_mode = str(
+            getattr(self, "standalone_dotnet_deferred_textured_view_mode", "") or ""
+        )
+        if not requested_mode or bool(
+            getattr(self, "standalone_dotnet_pending_textured_view", False)
+        ):
+            return False
+        use_presentation_state = bool(
+            getattr(
+                self,
+                "standalone_dotnet_deferred_textured_view_uses_presentation",
+                False,
+            )
+        )
+        self._forget_deferred_textured_view()
+        if not self._send_requested_viewport_display_mode(
+            requested_mode,
+            use_presentation_state=use_presentation_state,
+        ):
+            return False
+        self.sync_viewport_display_combos(requested_mode)
+        self._set_dotnet_status(
+            f"Mesh Editor textures arrived; the {requested_mode} view is active again."
+        )
+        return True
+
+    def _finish_pending_textured_view(self, *, success: bool, reason: str = "") -> None:
         if not bool(getattr(self, "standalone_dotnet_pending_textured_view", False)):
             return
         self.standalone_dotnet_pending_textured_view = False
+        self.standalone_dotnet_pending_textured_view_extensions = 0
         watchdog = getattr(self, "standalone_dotnet_pending_textured_view_timer", None)
         if watchdog is not None:
             watchdog.stop()
@@ -123,6 +170,7 @@ class MeshEditorDotNetResourceProtocolMixin(
         self.standalone_dotnet_pending_textured_view_mode = "textured"
         self.standalone_dotnet_pending_textured_view_uses_presentation = False
         if success:
+            self._forget_deferred_textured_view()
             self._send_requested_viewport_display_mode(
                 requested_mode,
                 use_presentation_state=use_presentation_state,
@@ -131,6 +179,30 @@ class MeshEditorDotNetResourceProtocolMixin(
             return
         # Textures did not arrive, so the controls must show what the viewport
         # actually fell back to rather than a textured mode it never entered.
+        # Every route here only spoke through a transient status message, which
+        # is why a report of "it falls back on its own" could not be traced to
+        # one of them; the event name carries "failed" so it is persisted.
+        # The mode is remembered for _restore_deferred_textured_view: giving up
+        # on the wait does not stop the work, and materials that land afterwards
+        # should still texture the scene the user asked to see.
+        self.standalone_dotnet_deferred_textured_view_mode = requested_mode
+        self.standalone_dotnet_deferred_textured_view_uses_presentation = (
+            use_presentation_state
+        )
+        self._record_mesh_dotnet_event(
+            "mesh_dotnet_textured_view_failed",
+            reason=str(reason or "unspecified"),
+            requested_mode=requested_mode,
+            uses_presentation_state=use_presentation_state,
+            material_generation=int(self.standalone_dotnet_material_generation),
+            completed_material_generation=int(
+                self.standalone_dotnet_completed_material_generation
+            ),
+            applied_material_generation=int(
+                self.standalone_dotnet_applied_material_generation
+            ),
+            material_compile_active=bool(self._dotnet_material_compile_active()),
+        )
         self.sync_viewport_display_combos(
             untextured_fallback_display_mode(requested_mode)
         )
@@ -164,7 +236,10 @@ class MeshEditorDotNetResourceProtocolMixin(
                 continue
 
     def _handle_embedded_texture_request_failed(self, message: str) -> None:
-        self._finish_pending_textured_view(success=False)
+        self._finish_pending_textured_view(
+            success=False,
+            reason=f"texture_request_failed: {message}",
+        )
         self._set_dotnet_status(
             f"Mesh Editor texture loading failed; the untextured scene remains active: {message}",
             error=True,
@@ -346,6 +421,11 @@ class MeshEditorDotNetResourceProtocolMixin(
                 <= self.standalone_dotnet_completed_material_generation
             ):
                 self.standalone_dotnet_lifecycle_counts["material_state_deduplicated_count"] += 1
+                # Nothing goes out, so no material_state_applied is coming. A
+                # textured Mesh view waiting on one would sit on the untextured
+                # fallback until its watchdog gave up; the resident helper
+                # already holds exactly these materials, so honour the mode now.
+                self._finish_pending_textured_view(success=True)
                 return True
             generation = self.standalone_dotnet_material_generation + 1
             request = MeshDotNetMaterialCompileRequest(
