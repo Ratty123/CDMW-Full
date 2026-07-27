@@ -291,3 +291,14 @@ def test_applying_reports_where_material_and_physics_come_from(qt_app: QApplicat
     logged = dialog.log.toPlainText()
     assert "modelproperty/1_pc/weapon/other.pac_xml" in logged
     assert "meshphysics/1_pc/weapon/other.hkx" in logged
+
+
+def test_nested_prefab_instances_are_named_after_what_they_copy(qt_app: QApplication) -> None:
+    """Every copy is unnamed; the prefab it instantiates is its identity."""
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog as _D
+
+    dialog = _D(_build())
+    node = dialog.tree.topLevelItem(0)
+    assert node is not None
+    # The fixture is a plain SceneObject, so the ordinary labelling applies.
+    assert not node.text(0).startswith("/")

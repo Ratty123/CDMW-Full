@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.domain.archives.prefab_companions import companion_paths
+from cdmw.domain.archives.prefab_values import describe_value
 from cdmw.domain.archives.prefab_glossary import (
     asset_role,
     describe_component,
@@ -276,16 +277,33 @@ class PrefabInspectorDialog(QDialog):
             self.tree.addTopLevelItem(root_item)
             for name, item in document.root_values:
                 self._add_value_row(root_item, name, item.text, editable)
-            self._add_fields_row(root_item, document.root_members, document.root_values)
+            self._add_number_rows(root_item, document.root_numbers)
+            self._add_fields_row(
+                root_item, document.root_members, document.root_values, document.root_numbers
+            )
             root_item.setExpanded(True)
         for obj in document.objects:
-            node = QTreeWidgetItem(
-                [obj.name or "(unnamed)", describe_component(obj.component_type) or obj.component_type, ""]
-            )
+            # A nested prefab instance has no name of its own; the prefab it
+            # instantiates is its identity, so lead with that rather than
+            # labelling every copy "(unnamed)".
+            nested = obj.component_type.startswith("/")
+            if nested:
+                label = obj.name or obj.component_type.rsplit("/", 1)[-1]
+                detail = "a copy of another prefab"
+            else:
+                label = obj.name or "(unnamed)"
+                detail = describe_component(obj.component_type) or obj.component_type
+            node = QTreeWidgetItem([label, detail, ""])
+            if nested:
+                # Keep the full path reachable without letting it crowd out the
+                # values column, which is the part worth reading.
+                node.setToolTip(0, obj.component_type)
+                node.setToolTip(1, obj.component_type)
             self.tree.addTopLevelItem(node)
             for name, item in obj.values:
                 self._add_value_row(node, name, item.text, editable)
-            self._add_fields_row(node, obj.member_names, obj.values)
+            self._add_number_rows(node, obj.numbers)
+            self._add_fields_row(node, obj.member_names, obj.values, obj.numbers)
             node.setExpanded(True)
 
     def _add_value_row(
@@ -302,14 +320,28 @@ class PrefabInspectorDialog(QDialog):
             row.setToolTip(2, "Double-click to repoint this asset. Any length is allowed.")
         parent.addChild(row)
 
+    def _add_number_rows(
+        self, parent: QTreeWidgetItem, numbers: tuple[tuple[str, str, bytes], ...]
+    ) -> None:
+        """Show the numeric values: placement, opacity, flags and the like."""
+        for field_name, type_name, raw in numbers:
+            rendered = describe_value(type_name, raw)
+            if not rendered:
+                continue
+            meaning = describe_field(field_name)
+            row = QTreeWidgetItem([meaning.label, meaning.detail, rendered])
+            row.setToolTip(0, f"{field_name}  ({type_name})")
+            parent.addChild(row)
+
     def _add_fields_row(
         self,
         parent: QTreeWidgetItem,
         names: tuple[str, ...],
         shown: tuple[tuple[str, object], ...],
+        numbers: tuple[tuple[str, str, bytes], ...] = (),
     ) -> None:
-        """List the set fields that carry no text value, so nothing looks missing."""
-        already = {name for name, _item in shown}
+        """List the set fields that carry no shown value, so nothing looks missing."""
+        already = {name for name, _item in shown} | {name for name, _t, _r in numbers}
         remaining = tuple(name for name in names if name not in already)
         if not remaining:
             return

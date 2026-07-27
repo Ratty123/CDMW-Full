@@ -145,6 +145,7 @@ class PrefabObject:
     resources: tuple[PrefabString, ...]
     texts: tuple[PrefabString, ...]
     values: tuple[tuple[str, PrefabString], ...]
+    numbers: tuple[tuple[str, str, bytes], ...]
     parent: int
 
 
@@ -173,6 +174,7 @@ class PrefabDocument:
     root_resources: tuple[PrefabString, ...]
     root_texts: tuple[PrefabString, ...]
     root_values: tuple[tuple[str, PrefabString], ...]
+    root_numbers: tuple[tuple[str, str, bytes], ...]
     pointers: tuple[PrefabPointer, ...]
     walk_complete: bool
     walk_note: str
@@ -390,6 +392,8 @@ class _Collected:
     texts: list[PrefabString] = field(default_factory=list)
     # Each recovered string paired with the member it came from, in order.
     ordered: list[tuple[str, PrefabString]] = field(default_factory=list)
+    # Inline numeric values as (member name, declared type, raw bytes).
+    numbers: list[tuple[str, str, bytes]] = field(default_factory=list)
 
 
 def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") -> None:
@@ -454,7 +458,9 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
 def _read_member(cursor: _BlobCursor, member: PrefabMember, into: _Collected, group_reader) -> None:
     flags = member.flags
     if flags in INLINE_KINDS:
-        cursor.take(member.value_size)
+        raw = cursor.take(member.value_size)
+        if member.value_size:
+            into.numbers.append((member.name, member.type_name, bytes(raw)))
         return
     if flags == KIND_STRING:
         recovered = cursor.text()
@@ -599,6 +605,7 @@ def _walk_group(
             resources=tuple(collected.resources),
             texts=tuple(collected.texts),
             values=tuple(collected.ordered),
+            numbers=tuple(collected.numbers),
             parent=parent if parent != NULL_OWNER else -1,
         ),
     )
@@ -694,6 +701,7 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         root_resources=tuple(root_values.resources),
         root_texts=tuple(root_values.texts),
         root_values=tuple(root_values.ordered),
+        root_numbers=tuple(root_values.numbers),
         pointers=pointers,
         walk_complete=complete,
         walk_note=note,
