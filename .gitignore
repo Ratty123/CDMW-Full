@@ -80,3 +80,5 @@ native/**/build/
 Thumbs.db
 tools/dotnet_mesh_editor_experiment/bin/
 tools/dotnet_mesh_editor_experiment/obj/
+tools/dotnet_bazel_launcher/bin/
+tools/dotnet_bazel_launcher/obj/
