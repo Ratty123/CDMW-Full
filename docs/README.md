@@ -28,6 +28,9 @@ Use this file to choose the right doc before opening everything.
     where they plug into services/workers.
   - `mesh-editing-pipeline.md`: mesh parser/rebuilder/editor map, metadata loss
     risks, and the first no-edit round-trip harness slice.
+  - `prefab-structural-decoding.md`: the `.prefab` grammar, why length-changing
+    edits are safe, measured coverage, what is left, and the dead ends worth
+    not re-running.
   - `prefab-json-import.md`: safe editable `.prefab` JSON import/export rules,
     current gates, owned code, and validation commands.
   - `mesh-editor-skeleton-discovery.md`: read-only reverse-engineering notes for
