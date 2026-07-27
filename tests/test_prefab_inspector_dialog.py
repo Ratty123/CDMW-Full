@@ -17,11 +17,8 @@ pytest.importorskip("PySide6.QtWidgets")
 
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from cdmw.ui.archive_browser.prefab_inspector_dialog import (  # noqa: E402
-    PrefabInspectorDialog,
-    _looks_like_asset_path,
-    _value_label,
-)
+from cdmw.domain.archives.prefab_glossary import asset_role, describe_field, is_asset_path  # noqa: E402
+from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog  # noqa: E402
 
 PATH = "character/model/1_pc/weapon/sword.pac"
 
@@ -42,9 +39,11 @@ def _member(name: str, type_name: str, flags: int, size: int) -> bytes:
 
 def _build() -> bytes:
     types = bytearray()
-    types += _text("SceneObject") + struct.pack("<H", 2)
+    types += _text("SceneObject") + struct.pack("<H", 3)
     types += _member("_socketName", "IndexedStringA", KIND_STRING, 1)
     types += _member("_meshFile", "ReflectObjectPtr", KIND_POINTER, 8)
+    # Declared but never set, so the "only fields in use" filter has something to hide.
+    types += _member("_unusedFlag", "bool", 0x0000, 1)
     types += _text("ResourceReferencePath_SkinnedMesh") + struct.pack("<H", 0)
 
     header = bytearray()
@@ -79,7 +78,10 @@ def _rows(dialog: PrefabInspectorDialog) -> list[tuple[str, str]]:
 
 def test_dialog_lists_resources_and_schema(qt_app: QApplication) -> None:
     dialog = PrefabInspectorDialog(_build())
-    assert ("file path", PATH) in _rows(dialog)
+    # Rows are labelled by the field the value came from, not guessed from the
+    # file extension, so an unknown field still reads sensibly.
+    assert ("Mesh file", PATH) in _rows(dialog)
+    assert ("Socket name", "Pelvis_R_Socket") in _rows(dialog)
     assert dialog.schema_tree.topLevelItemCount() == 2
     assert "Fully decoded" in dialog.banner.text()
 
@@ -128,5 +130,38 @@ def test_unreadable_payload_reports_instead_of_raising(qt_app: QApplication) -> 
     ],
 )
 def test_asset_path_detection(value: str, expected: bool) -> None:
-    assert _looks_like_asset_path(value) is expected
-    assert _value_label(value) == ("file path" if expected else "text")
+    assert is_asset_path(value) is expected
+
+
+def test_field_names_are_translated_for_humans() -> None:
+    """Declared names are unfriendly; the dialog must not show them raw."""
+    assert describe_field("_shrinkMaskDistance").label == "Shrink distance"
+    assert describe_field("_skinnedMeshFile").label == "Mesh"
+    # An unknown field still reads sensibly rather than vanishing.
+    assert describe_field("_someUnknownThing").label == "Some unknown thing"
+
+
+def test_asset_roles_name_what_the_file_is() -> None:
+    assert asset_role("a/b/c.pac") == "Model"
+    assert asset_role("a/b/c.sockets.xml") == "Socket data"
+    assert asset_role("a/b/c.pab") == "Skeleton"
+
+
+def test_all_fields_tab_defaults_to_fields_in_use(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    assert dialog.used_only_box.isChecked()
+    visible = _visible_schema_labels(dialog)
+    assert visible, "expected the fields actually used to be listed"
+    dialog.used_only_box.setChecked(False)
+    assert len(_visible_schema_labels(dialog)) > len(visible)
+
+
+def _visible_schema_labels(dialog: PrefabInspectorDialog) -> list[str]:
+    found: list[str] = []
+    for index in range(dialog.schema_tree.topLevelItemCount()):
+        parent = dialog.schema_tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if not child.isHidden():
+                found.append(child.text(0))
+    return found

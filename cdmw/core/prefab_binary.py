@@ -144,6 +144,7 @@ class PrefabObject:
     member_names: tuple[str, ...]
     resources: tuple[PrefabString, ...]
     texts: tuple[PrefabString, ...]
+    values: tuple[tuple[str, PrefabString], ...]
     parent: int
 
 
@@ -171,6 +172,7 @@ class PrefabDocument:
     objects: tuple[PrefabObject, ...]
     root_resources: tuple[PrefabString, ...]
     root_texts: tuple[PrefabString, ...]
+    root_values: tuple[tuple[str, PrefabString], ...]
     pointers: tuple[PrefabPointer, ...]
     walk_complete: bool
     walk_note: str
@@ -385,9 +387,11 @@ class _BlobCursor:
 class _Collected:
     resources: list[PrefabString] = field(default_factory=list)
     texts: list[PrefabString] = field(default_factory=list)
+    # Each recovered string paired with the member it came from, in order.
+    ordered: list[tuple[str, PrefabString]] = field(default_factory=list)
 
 
-def _read_pointer(cursor: _BlobCursor, into: _Collected) -> None:
+def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") -> None:
     """Consume a pointer record and its inline pointee.
 
     Records are closed by a short footer whose width follows the component
@@ -414,7 +418,9 @@ def _read_pointer(cursor: _BlobCursor, into: _Collected) -> None:
         probe = struct.unpack_from("<I", cursor.blob, cursor.pos)[0]
         consumed = cursor.pos - start
         if probe != consumed and 0 < probe <= _MAX_STRING and cursor.pos + 4 + probe <= len(cursor.blob):
-            into.resources.append(cursor.text())
+            recovered = cursor.text()
+            into.resources.append(recovered)
+            into.ordered.append((member_name, recovered))
     declared = cursor.u32()
     actual = cursor.pos - start - 4
     if declared != actual:
@@ -450,10 +456,12 @@ def _read_member(cursor: _BlobCursor, member: PrefabMember, into: _Collected, gr
         cursor.take(member.value_size)
         return
     if flags == KIND_STRING:
-        into.texts.append(cursor.text())
+        recovered = cursor.text()
+        into.texts.append(recovered)
+        into.ordered.append((member.name, recovered))
         return
     if flags in POINTER_KINDS:
-        _read_pointer(cursor, into)
+        _read_pointer(cursor, into, member.name)
         return
     if flags == KIND_COLLECTION:
         count = _read_collection_count(cursor)
@@ -566,6 +574,7 @@ def _walk_group(
             member_names=tuple(selected),
             resources=tuple(collected.resources),
             texts=tuple(collected.texts),
+            values=tuple(collected.ordered),
             parent=parent if parent != NULL_OWNER else -1,
         ),
     )
@@ -659,6 +668,7 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         objects=tuple(objects),
         root_resources=tuple(root_values.resources),
         root_texts=tuple(root_values.texts),
+        root_values=tuple(root_values.ordered),
         pointers=pointers,
         walk_complete=complete,
         walk_note=note,
