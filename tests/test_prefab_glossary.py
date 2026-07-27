@@ -75,6 +75,9 @@ def test_describe_fields_preserves_order() -> None:
         ("a/b/c.pac", "Model"),
         ("a/b/c.pab", "Skeleton"),
         ("a/b/c.dds", "Texture"),
+        # A .pami is an XML <StaticMeshInstance> naming a mesh and its
+        # materials, not a texture -- calling it "Material" misdirects.
+        ("a/b/c.pami", "Mesh instance"),
         ("a/b/c.sockets.xml", "Socket data"),
         ("a/b/c.unknownext", "File"),
         ("", "File"),

@@ -36,7 +36,9 @@ class FieldMeaning:
 # Fields worth understanding, keyed by their declared name.
 _FIELDS: dict[str, FieldMeaning] = {
     "_skinnedMeshFile": FieldMeaning("Mesh", "The model this object draws."),
-    "_staticMeshInstanceFileName": FieldMeaning("Mesh instance", "Placed copy of a static model."),
+    "_staticMeshInstanceFileName": FieldMeaning(
+        "Mesh instance", "Names the model and the materials drawn on it."
+    ),
     "_objectFilename": FieldMeaning("Object file", "The asset this object draws."),
     "_skinnedMeshFileName": FieldMeaning("Mesh name", "Name recorded alongside the mesh."),
     "_skeletonFileName": FieldMeaning("Skeleton", "Bone rig the mesh is bound to."),
@@ -146,7 +148,11 @@ _ASSET_ROLES: dict[str, str] = {
     ".pae": "Animation",
     ".paem": "Animation",
     ".dds": "Texture",
-    ".pami": "Material",
+    # A .pami is an XML <StaticMeshInstance>: it names the mesh and carries the
+    # material data for it. Checked on 300 sampled files -- all 300 have that
+    # root element and a <StaticMesh Path=...>, 299 a <MaterialData>. Calling
+    # it "Material" sends a modder looking for a texture file.
+    ".pami": "Mesh instance",
     ".pac_xml": "Material",
     ".pam_xml": "Material",
     ".hkx": "Physics",
