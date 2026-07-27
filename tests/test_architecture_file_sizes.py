@@ -1,3 +1,29 @@
+"""Per-file line caps for files that must stay *smaller* than the default.
+
+This guard is the tighter-than-default layer. It is **not** the universal
+limit: ``tests/test_architecture_size_ratchets.py`` already applies
+``DEFAULT_OWNER_FILE_LINE_LIMIT`` to every owned Python, native and C# file and
+grandfathers today's offenders in ``architecture_size_baseline*.json``. Anything
+absent from the table below is still capped there.
+
+So only list a file here when it has a reason to stay small -- a thin shim, a
+proxy, a callback surface -- and put that reason in the commit. A cap at or
+above the default protects nothing and is rejected by
+``test_limits_table_stays_meaningful``.
+
+The rule this guard exists to serve, which the number alone cannot express:
+
+    Never split a file solely to satisfy the counter. A split has to leave two
+    parts you can name. ``..._state_a`` / ``..._state_b`` is the shape of a
+    split made to get the build green, and it makes the code worse while
+    reporting success. When a file has honestly outgrown its cap, raise the cap
+    in the same commit and say why.
+
+Caps carry headroom on purpose: one sitting exactly at a file's current length
+turns an added comment into a build failure, which teaches people to delete
+comments rather than to think about structure.
+"""
+
 from __future__ import annotations
 
 import ast
@@ -6,49 +32,40 @@ from pathlib import Path
 from tests.architecture_limits import DEFAULT_OWNER_FILE_LINE_LIMIT
 
 
-LIMITS = {
-    "cdmw_app.py": 120,
-    "cdmw/rendering/material_combiner.py": 3200,
-    "cdmw/core/archive_hkx.py": 16500,
-    "cdmw/core/archive_hkx_collision_parser.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_corpus_evidence.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_corpus_files.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_corpus_planning.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_corpus_report.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_corpus_scan.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_descriptor.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_editable_geometry.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_editing.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_havok_xml.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_overlay.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_overlay_support.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_preview.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_preview_geometry.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_parser.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_patch_ops.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_record_constants.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_roles.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_summary.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_types.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_xml_import.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_xml_export_content.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_xml_export_physics.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_xml_export_reports.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/core/archive_hkx_xml_export_semantics.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/main_window.py": 120,
-    "cdmw/ui/shell/app_startup.py": 330,
-    "cdmw/ui/shell/app_window.py": 760,
-    "cdmw/ui/shell/main_window_proxy.py": 120,
-    "cdmw/ui/shell/workspace_layout.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/item_icons/controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
+ROOT = Path(__file__).resolve().parents[1]
+
+
+LIMITS: dict[str, int] = {
+    "cdmw/ui/archive_browser/asset_catalog_dialog.py": 930,
+    "cdmw/ui/archive_browser/hkx_related_models.py": 300,
+    "cdmw/ui/archive_browser/static_replacement_added_part_texture_items.py": 400,
+    "cdmw/ui/archive_browser/static_replacement_combo_options.py": 200,
+    "cdmw/ui/archive_browser/static_replacement_dialog.py": 200,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_base.py": 300,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_callbacks.py": 300,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_a.py": 600,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py": 200,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py": 520,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py": 380,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py": 530,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_transform.py": 120,
+    "cdmw/ui/archive_browser/static_replacement_native_manifest.py": 250,
+    "cdmw/ui/archive_browser/static_replacement_part_items.py": 400,
+    "cdmw/ui/archive_browser/static_replacement_preview_cache.py": 130,
+    "cdmw/ui/archive_browser/static_replacement_preview_models.py": 500,
+    "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py": 530,
+    "cdmw/ui/archive_browser/static_replacement_qt_helpers.py": 740,
+    "cdmw/ui/archive_browser/static_replacement_selection_view_state.py": 420,
+    "cdmw/ui/archive_browser/static_replacement_texture_table.py": 500,
+    "cdmw/ui/archive_browser/static_replacement_transform_state.py": 400,
+    "cdmw/ui/archive_browser/virtual_path_lookup.py": 400,
     "cdmw/ui/item_icons/panels.py": 400,
     "cdmw/ui/item_icons/state.py": 700,
     "cdmw/ui/item_icons/tab.py": 700,
-    "cdmw/ui/mesh_editor/shell_bridge.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
+    "cdmw/ui/main_window.py": 120,
     "cdmw/ui/model_library/actions.py": 700,
     "cdmw/ui/model_library/catalogue.py": 700,
     "cdmw/ui/model_library/commands.py": 700,
-    "cdmw/ui/model_library/controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
     "cdmw/ui/model_library/icon_output.py": 200,
     "cdmw/ui/model_library/local_rows.py": 700,
     "cdmw/ui/model_library/panels.py": 700,
@@ -61,212 +78,20 @@ LIMITS = {
     "cdmw/ui/model_library/texture_status.py": 700,
     "cdmw/ui/model_library/view_state.py": 700,
     "cdmw/ui/model_library/workers.py": 700,
-    "cdmw/ui/archive_browser/dds_preview_resolvers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/preview_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/reference_export.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/reference_preview.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/source_picker_dialog.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/source_mix_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/source_mix_overlay.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_preview_thumbnail.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_dialog.py": 200,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py": 1800,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py": 360,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py": 200,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py": 520,
-    "cdmw/ui/archive_browser/static_replacement_prompt_preflight.py": 500,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py": 530,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_transform.py": 120,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps.py": 1800,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_base.py": 300,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_a.py": 600,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_state_b.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_deps_callbacks.py": 300,
-    "cdmw/ui/archive_browser/static_replacement_camera.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_d3d11_cache.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_d3d11_package_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_d3d11_presentation_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_d3d11_request_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_d3d11_runtime_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_d3d11_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_d3d11_status_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_geometry_history.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_geometry_math.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_mesh_edit_payload.py": 1600,
-    "cdmw/ui/archive_browser/static_replacement_original_parts.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_preview_limits.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_preview_mapping.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_preview_materials.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_preview_models.py": 500,
-    "cdmw/ui/archive_browser/static_replacement_native_manifest.py": 250,
-    "cdmw/ui/archive_browser/static_replacement_preview_cache.py": 120,
-    "cdmw/ui/archive_browser/static_replacement_preview_textures.py": 1000,
-    "cdmw/ui/archive_browser/static_replacement_qt_helpers.py": 700,
-    "cdmw/ui/archive_browser/static_replacement_selection_view_state.py": 400,
-    "cdmw/ui/archive_browser/static_replacement_source_display.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_transform_state.py": 400,
-    "cdmw/ui/archive_browser/static_replacement_selection.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_diagnostics.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_dialog_helpers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_added_part_texture_items.py": 400,
-    "cdmw/ui/archive_browser/static_replacement_combo_options.py": 200,
-    "cdmw/ui/archive_browser/static_replacement_material_plan_items.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_part_items.py": 400,
-    "cdmw/ui/archive_browser/static_replacement_texture_diagnostics.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_texture_dialogs.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_texture_matching.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_texture_rows.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/static_replacement_texture_table.py": 500,
-    "cdmw/ui/archive_browser/actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/appearance_common.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/appearance_composite.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/appearance_swap.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/attachment_batch.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/attachment_placement_diff_dialog.py": 3000,
-    "cdmw/ui/archive_browser/attachment_donor_picker_helpers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/attachment_safe_placement_dialog.py": 1200,
-    "cdmw/ui/archive_browser/attachment_socket_editor.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/attachment_visual_dialog.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/asset_catalog.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/asset_catalog_dialog.py": 900,
-    "cdmw/ui/archive_browser/asset_catalog_scope.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/asset_family_dialog.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/asset_family_layout.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/asset_family_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/asset_family_references.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/binary_sidecar_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/character_dependency_export.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/controls_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/extraction.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/filters.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/files_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/filter_workers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/header.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/hkx_document_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/hkx_editor_dialog.py": 7545,
-    "cdmw/ui/archive_browser/hkx_editor_dialog_helpers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/hkx_related_models.py": 300,
-    "cdmw/ui/archive_browser/hkx_xml_highlighter.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/icon_pipeline.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/index_workers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/import_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/weapon_placement_studio.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/material_sidecar_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/material_sidecar_editor_dialog.py": 1100,
-    "cdmw/ui/archive_browser/material_sidecar_editor_helpers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mod_ready_export.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mod_package_retrofit_dialog.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mod_package_retrofit_view.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/tools/mod_package_retrofit.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/tools/mod_package_retrofit_tasks.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/tools/mod_package_retrofit_widget.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/tools/mod_package_retrofit_view.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/workers/mod_package_retrofit_workers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_dds_preview.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_direct_patch.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_import_export.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_builder_lifecycle.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_launch_flow.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_patch_flow.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_swap_support.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_swap_scope_dialog.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_modify_original.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/mesh_setup_helpers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/patch_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/render_lifecycle.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/scan_lifecycle.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/sidecar_index.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/ui_formatting.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/virtual_path_lookup.py": 400,
-    "cdmw/ui/archive_browser/preview_cache.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/preview_details.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/preview_layout.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/preview_loading.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/preview_result.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/preview_zoom.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/progress.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/archive_browser/attachment_donor_picker_dialog.py": 1450,
-    "cdmw/ui/archive_browser/workers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/activation_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/about_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/about_documentation.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/about_documentation_de.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/about_documentation_en.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/about_documentation_es.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/close_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/help_widgets.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/dashboard_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/language_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/log_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/menus.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/model_library_bridge.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/navigation_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/path_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/profile_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/responsiveness_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/root_layout.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/settings_autosave.py": 400,
-    "cdmw/ui/shell/settings_persistence.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/signal_wiring.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/startup_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/startup_splash.py": 300,
-    "cdmw/ui/shell/startup_restore.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/support_dialog.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/theme_controller.py": 850,
-    "cdmw/ui/shell/tool_tabs.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/utility_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/window_bootstrap_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/window_runtime_state.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/shell/workspace_controller.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/compare_preview.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/compare_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/dds_output_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/editor_async_task_ui.py": 120,
-    "cdmw/ui/texture_workflow/editor_adjustment_ui.py": 500,
-    "cdmw/ui/texture_workflow/editor_bridge.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/editor_brush_preset_ui.py": 300,
-    "cdmw/ui/texture_workflow/editor_channel_ui.py": 300,
-    "cdmw/ui/texture_workflow/editor_document_ui.py": 250,
-    "cdmw/ui/texture_workflow/editor_file_io_ui.py": 500,
-    "cdmw/ui/texture_workflow/editor_floating_ui.py": 500,
-    "cdmw/ui/texture_workflow/editor_handoff.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/editor_history_ui.py": 220,
-    "cdmw/ui/texture_workflow/editor_layer_ui.py": 500,
-    "cdmw/ui/texture_workflow/editor_refresh_ui.py": 560,
-    "cdmw/ui/texture_workflow/editor_selection_ui.py": 300,
-    "cdmw/ui/texture_workflow/editor_settings_persistence.py": 300,
-    "cdmw/ui/texture_workflow/editor_session_ui.py": 220,
-    "cdmw/ui/texture_workflow/editor_shortcuts_ui.py": 300,
-    "cdmw/ui/texture_workflow/editor_status_cache_ui.py": 160,
-    "cdmw/ui/texture_workflow/editor_tool_coordination.py": 240,
-    "cdmw/ui/texture_workflow/editor_tool_operation_ui.py": 320,
-    "cdmw/ui/texture_workflow/editor_ui_shell.py": 500,
-    "cdmw/ui/texture_workflow/editor_view_coordination.py": 500,
-    "cdmw/ui/texture_workflow/editor_worker_lifecycle.py": 200,
-    "cdmw/ui/texture_workflow/config_collection.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/paths_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/progress_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/settings_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/shell_controls.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/setup_overview_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/upscale_backend_panel.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/workflow_profiles_ui.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/texture_workflow/workers.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
-    "cdmw/ui/research/help_widgets.py": 120,
     "cdmw/ui/research/analysis_controller.py": 260,
+    "cdmw/ui/research/analysis_state.py": 360,
     "cdmw/ui/research/archive_picker_controller.py": 420,
     "cdmw/ui/research/archive_picker_state.py": 300,
-    "cdmw/ui/research/analysis_state.py": 360,
     "cdmw/ui/research/classification_review_controller.py": 650,
     "cdmw/ui/research/classification_review_state.py": 440,
     "cdmw/ui/research/display_preferences_state.py": 120,
+    "cdmw/ui/research/help_widgets.py": 120,
     "cdmw/ui/research/layout_state.py": 180,
-    "cdmw/ui/research/models.py": 500,
+    "cdmw/ui/research/models.py": 510,
     "cdmw/ui/research/notes_controller.py": 120,
     "cdmw/ui/research/notes_state.py": 100,
-    "cdmw/ui/research/preview_controls.py": 120,
     "cdmw/ui/research/preview_controller.py": 420,
+    "cdmw/ui/research/preview_controls.py": 120,
     "cdmw/ui/research/preview_state.py": 140,
     "cdmw/ui/research/progress_helpers.py": 80,
     "cdmw/ui/research/reference_controller.py": 240,
@@ -275,30 +100,83 @@ LIMITS = {
     "cdmw/ui/research/refresh_population_state.py": 170,
     "cdmw/ui/research/state.py": 760,
     "cdmw/ui/research/tab.py": 900,
-    "cdmw/ui/research/tab_builders.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
     "cdmw/ui/research/tab_side_panel_builders.py": 400,
-    "cdmw/ui/research/texture_group_state.py": 80,
+    "cdmw/ui/research/texture_group_state.py": 90,
     "cdmw/ui/research/tree_column_specs.py": 80,
     "cdmw/ui/research/tree_helpers.py": 120,
     "cdmw/ui/research/tree_population.py": 180,
     "cdmw/ui/research/workers.py": 400,
+    "cdmw/ui/shell/app_startup.py": 330,
+    "cdmw/ui/shell/app_window.py": 760,
+    "cdmw/ui/shell/main_window_proxy.py": 120,
+    "cdmw/ui/shell/settings_autosave.py": 400,
+    "cdmw/ui/shell/startup_splash.py": 300,
+    "cdmw/ui/shell/theme_controller.py": 850,
     "cdmw/ui/text_search/controller.py": 650,
-    "cdmw/ui/text_search/export_actions.py": DEFAULT_OWNER_FILE_LINE_LIMIT,
     "cdmw/ui/text_search/preview_panel.py": 900,
     "cdmw/ui/text_search/tab.py": 550,
     "cdmw/ui/text_search/workers.py": 700,
+    "cdmw/ui/texture_workflow/editor_adjustment_ui.py": 500,
+    "cdmw/ui/texture_workflow/editor_async_task_ui.py": 120,
+    "cdmw/ui/texture_workflow/editor_brush_preset_ui.py": 300,
+    "cdmw/ui/texture_workflow/editor_channel_ui.py": 300,
+    "cdmw/ui/texture_workflow/editor_document_ui.py": 250,
+    "cdmw/ui/texture_workflow/editor_file_io_ui.py": 530,
+    "cdmw/ui/texture_workflow/editor_floating_ui.py": 500,
+    "cdmw/ui/texture_workflow/editor_history_ui.py": 240,
+    "cdmw/ui/texture_workflow/editor_layer_ui.py": 500,
+    "cdmw/ui/texture_workflow/editor_refresh_ui.py": 560,
+    "cdmw/ui/texture_workflow/editor_selection_ui.py": 300,
+    "cdmw/ui/texture_workflow/editor_session_ui.py": 220,
+    "cdmw/ui/texture_workflow/editor_settings_persistence.py": 300,
+    "cdmw/ui/texture_workflow/editor_shortcuts_ui.py": 300,
+    "cdmw/ui/texture_workflow/editor_status_cache_ui.py": 160,
+    "cdmw/ui/texture_workflow/editor_tool_coordination.py": 240,
+    "cdmw/ui/texture_workflow/editor_tool_operation_ui.py": 320,
+    "cdmw/ui/texture_workflow/editor_ui_shell.py": 500,
+    "cdmw/ui/texture_workflow/editor_view_coordination.py": 500,
+    "cdmw/ui/texture_workflow/editor_worker_lifecycle.py": 200,
+    "cdmw_app.py": 120,
 }
 
 
+def _line_count(relative_path: str) -> int:
+    return len((ROOT / relative_path).read_text(encoding="utf-8").splitlines())
+
+
 def test_selected_architecture_file_size_limits() -> None:
-    for path_text, limit in LIMITS.items():
-        source = Path(path_text).read_text(encoding="utf-8")
-        line_count = len(source.splitlines())
-        assert line_count <= limit, f"{path_text} has {line_count} lines, limit is {limit}"
+    """Report every file over its cap, not just the first one found."""
+    failures = [
+        f"{path_text} has {count} lines, limit is {limit}"
+        for path_text, limit in sorted(LIMITS.items())
+        if (count := _line_count(path_text)) > limit
+    ]
+    assert not failures, "Files over their declared cap:\n  " + "\n  ".join(failures)
+
+
+def test_limits_table_stays_meaningful() -> None:
+    """Stop the table rotting back into fossils and dangling entries.
+
+    Two ways it decayed before: caps left far above a file that had since been
+    split (one file of 109 lines carried a cap of 7545), and entries kept for
+    files at the default, which the universal ratchet already covers.
+    """
+    missing = sorted(path for path in LIMITS if not (ROOT / path).is_file())
+    assert not missing, f"LIMITS names files that no longer exist: {missing}"
+
+    redundant = sorted(
+        f"{path} (cap {limit})"
+        for path, limit in LIMITS.items()
+        if limit >= DEFAULT_OWNER_FILE_LINE_LIMIT
+    )
+    assert not redundant, (
+        "These caps are at or above the universal default, so they add nothing "
+        "beyond test_architecture_size_ratchets.py -- drop them: " + ", ".join(redundant)
+    )
 
 
 def test_main_window_owns_feature_controllers_instead_of_feature_mixins() -> None:
-    tree = ast.parse(Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"))
+    tree = ast.parse((ROOT / "cdmw/ui/shell/app_window.py").read_text(encoding="utf-8"))
     main_window = next(
         node
         for node in ast.walk(tree)
@@ -307,7 +185,7 @@ def test_main_window_owns_feature_controllers_instead_of_feature_mixins() -> Non
 
     assert [ast.unparse(base) for base in main_window.bases] == ["QMainWindow"]
 
-    source = Path("cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
+    source = (ROOT / "cdmw/ui/shell/app_window.py").read_text(encoding="utf-8")
     assert "WindowFeatureController(self, SHELL_FEATURE_PROVIDERS)" in source
     assert "WindowFeatureController(self, ARCHIVE_FEATURE_PROVIDERS)" in source
     assert "WindowFeatureController(self, TEXTURE_FEATURE_PROVIDERS)" in source
