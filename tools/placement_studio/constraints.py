@@ -1,15 +1,23 @@
-"""Secondary motion: find a character's `.papr`, group it into chains, and ship edits.
+"""Driven bones: find a character's `.papr`, group it into chains, and ship edits.
 
-A `.papr` is the rig's *secondary* motion — the bones that follow other bones instead of
-an animation clip. Hair, cloth, tassels, pistons, `B_Jiggle_*`. This module turns one
-into something a person can reason about and then exports the result as a mod.
+A `.papr` holds the bones that follow *other bones* instead of an animation clip.
+
+It is worth being precise about what that turns out to be, because the `B_Jiggle_*`
+names in the two smallest creature rigs invite the wrong guess. Counted across all 471
+chains in the twenty shipped rigs: **259 are corrective deformation** (`UpperFMuscle`,
+`Bip01 L Knee_Sub`, `Thigh_Front`, twist bones), 67 are pivots, 56 are exposed
+transforms, 29 are mechanical parts on the golems and tanks, and **only 5 are jiggle** --
+on the dog and the bear. No rig contains hair or cloth.
+
+So on a player character this file is the *deformation* rig: how a muscle bulges and how
+a knee creases as the body moves. That is what a physique or body mod needs to touch, and
+it is a different thing from the hair physics the `Jiggle` names suggest.
 
 Two things make it presentable rather than a flat list of 437 bones:
 
-**Chains, not bones.** A driven bone hangs off a parent that is often itself driven. A
-braid is six entries in the file and one thing in the modder's head, so entries are
-grouped by walking parent links up to the first bone that is not itself driven. That
-root is the chain's anchor, and its name is what the chain is called.
+**Chains, not bones.** A driven bone hangs off a parent that is often itself driven, so
+entries are grouped by walking parent links up to the first bone that is not itself
+driven. That root is the chain's anchor, and its name is what the chain is called.
 
 **Strength, not weights.** Every driven bone carries influence weights as whole
 percentages. A chain's strength is the mean of its weights, which is the number worth
@@ -40,9 +48,46 @@ from cdmw.core.papr_format import (
 
 from . import corpus
 
-#: Chains whose anchor name contains one of these read as soft furnishings. Used only to
-#: order the list so the interesting things are at the top, never to filter.
-_SOFT_HINTS = ("jiggle", "hair", "cloth", "skirt", "tail", "cape", "cloak", "braid")
+#: What a chain is for, read off its bone names. Counted across the twenty shipped rigs:
+#: 259 deformation, 67 pivot, 56 exposed transform, 29 mechanical, 5 jiggle, 55 other.
+#: There is no hair or cloth in any of them.
+#:
+#: This ordering matters: `jiggle` is checked before `deform` because `B_Jiggle_M_Pelvis`
+#: would otherwise match on nothing and `Bip01 L Knee_Sub` must not read as jiggle.
+_CATEGORY_HINTS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("jiggle", ("jiggle",)),
+    ("soft", ("hair", "cloth", "skirt", "cape", "cloak", "braid", "tail")),
+    ("expose", ("exposetransform",)),
+    ("mechanical", ("syl", "piston", "golem", "machine", "robot", "track")),
+    ("deformation", ("muscle", "knee", "elbow", "twist", "joint",
+                     "_front", "_in", "_side", "_back", "_sub")),
+)
+
+#: Shown in the panel so a modder knows what a row governs before touching it.
+CATEGORY_LABELS = {
+    "deformation": "Deformation — muscle bulge and joint creasing",
+    "jiggle": "Jiggle — secondary motion that swings",
+    "soft": "Soft body — hair or cloth",
+    "expose": "Exposed transform — engine plumbing",
+    "pivot": "Pivot — a helper the rig rotates around",
+    "mechanical": "Mechanical — pistons and moving machine parts",
+    "other": "Unclassified",
+}
+
+#: Categories a modder is likely to want to change, in the order they should appear.
+_CATEGORY_ORDER = ("jiggle", "soft", "deformation", "mechanical", "pivot", "expose", "other")
+
+
+def classify_chain(name: str, anchor: str = "") -> str:
+    """What a chain is for, from its names. Ordering the list only; never a filter."""
+
+    text = f"{name} {anchor}".lower()
+    for category, hints in _CATEGORY_HINTS:
+        if any(hint in text for hint in hints):
+            return category
+    if name.lower().startswith("p_") or "_pivot" in text:
+        return "pivot"
+    return "other"
 
 
 @dataclass(frozen=True)
@@ -53,6 +98,8 @@ class ChainMember:
     name: str
     parent: str
     weights: Tuple[WeightSite, ...]
+    #: `canonical` when every byte of this bone's config block is understood.
+    shape: str = "opaque"
 
     @property
     def strength(self) -> float:
@@ -90,9 +137,22 @@ class Chain:
         return sum(site.value for site in sites) / len(sites)
 
     @property
-    def soft(self) -> bool:
-        text = f"{self.anchor} {self.name}".lower()
-        return any(hint in text for hint in _SOFT_HINTS)
+    def category(self) -> str:
+        return classify_chain(self.name, self.anchor)
+
+    @property
+    def label(self) -> str:
+        return CATEGORY_LABELS.get(self.category, CATEGORY_LABELS["other"])
+
+    @property
+    def fully_understood(self) -> bool:
+        """Every bone in the chain has a config block whose every byte is decoded.
+
+        Edits are equally safe either way -- undecoded bytes are carried verbatim --
+        but a modder is entitled to know which is which before trusting a result.
+        """
+
+        return bool(self.members) and all(m.shape == "canonical" for m in self.members)
 
     def sites(self) -> Tuple[WeightSite, ...]:
         return tuple(site for member in self.members for site in member.weights)
@@ -149,6 +209,7 @@ def build_chains(document: PaprDocument) -> Tuple[Chain, ...]:
             name=entry.name,
             parent=entry.parent,
             weights=tuple(sites_by_entry.get(index, ())),
+            shape=entry.block_shape,
         )
         grouped.setdefault(anchor_of(entry), []).append(member)
 
@@ -156,8 +217,9 @@ def build_chains(document: PaprDocument) -> Tuple[Chain, ...]:
         Chain(anchor=anchor, members=tuple(sorted(members, key=lambda m: m.entry_index)))
         for anchor, members in grouped.items()
     ]
-    # Soft furnishings first, then the biggest chains: the things worth tuning on top.
-    chains.sort(key=lambda c: (not c.soft, -c.bone_count, c.name))
+    # The categories worth tuning first, then the biggest chains inside each.
+    order = {name: index for index, name in enumerate(_CATEGORY_ORDER)}
+    chains.sort(key=lambda c: (order.get(c.category, 99), -c.bone_count, c.name))
     return tuple(chains)
 
 
@@ -268,6 +330,55 @@ def changed_files(original: bytes, rig: RigConstraints) -> Mapping[str, bytes]:
     if rebuilt == original:
         return {}
     return {rig.game_path: rebuilt}
+
+
+#: What the panel is allowed to promise. Kept next to the code that enforces it so the
+#: two cannot drift, and surfaced verbatim in the UI's "What you can do here" box.
+CAPABILITIES: Tuple[Tuple[bool, str], ...] = (
+    (True, "Change how strongly a chain follows its drivers"),
+    (True, "Switch a chain off completely"),
+    (True, "Rename a bone, or repoint its parent"),
+    (True, "Move a bone's rest transform"),
+    (False, "Add a new chain — needs a config block"),
+    (False, "Edit driver expressions or limits — not decoded"),
+    (False, "Preview it — the game solves these at runtime"),
+)
+
+
+def export_packages(
+    rig: RigConstraints,
+    original: bytes,
+    *,
+    out_root,
+    name: str,
+    author: str = "",
+    version: str = "1.0.0",
+    description: str = "",
+    managers: Sequence[str] = ("CDUMM", "DMM", "JMM"),
+):
+    """Write one mod package per manager. Returns the results, or () when unchanged."""
+
+    files = changed_files(original, rig)
+    if not files:
+        return ()
+    from .ops import Plan
+    from .packaging import PackageMetadata, build_all
+
+    metadata = PackageMetadata(
+        name=name,
+        version=version,
+        author=author,
+        description=description or f"Secondary motion tuning for {rig.game_path}.",
+    )
+    return tuple(
+        build_all(
+            Plan(name=name),
+            files,
+            metadata,
+            out_root=Path(out_root),
+            managers=tuple(managers),
+        )
+    )
 
 
 def describe_changes(original: RigConstraints, edited: RigConstraints) -> Tuple[str, ...]:

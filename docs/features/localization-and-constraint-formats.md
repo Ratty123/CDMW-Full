@@ -41,11 +41,21 @@ The `category` id has no name in the file. `describe_categories` reports the dom
 prefix per category from the data instead of inventing labels, so category 38 comes back
 as `questdialog` because that is what its keys are called.
 
-## `.papr` — secondary motion
+## `.papr` — driven bones
 
-`character/model/**/<rig>.papr`, twenty files, one per character rig. This is what drives
-the bones an animation clip does not: hair, cloth, tassels, pistons, and the `B_Jiggle_*`
-chains.
+`character/model/**/<rig>.papr`, twenty files, one per character rig. This holds the
+bones that follow *other bones* rather than an animation clip.
+
+**It is mostly not what the `B_Jiggle_*` names suggest.** Counted across all 471 chains
+in the twenty rigs: **259 are corrective deformation** (`UpperFMuscle`, `Bip01 L
+Knee_Sub`, `Thigh_Front`, twist bones), 67 are pivots, 56 are exposed transforms, 29 are
+mechanical parts on the golems and tanks, and **only 5 are jiggle** — on the dog and the
+bear. No rig contains hair or cloth at all.
+
+So on a player character `.papr` is the *deformation* rig: how a muscle bulges and how a
+knee creases as the body moves. That is squarely what a physique or body mod needs, and
+it is a different capability from the hair physics the naming implies. An earlier version
+of this document generalised from those five jiggle chains and got it wrong.
 
     'PAR ' u8 0x35 u8 0x01 b'\x00\x01...\x09'   container header; 0x35 is ASCII '5'
     u32 zero
@@ -125,8 +135,8 @@ and `tools/placement_studio/window_constraints.py` is the panel over it.
 
 **Chains, not bones.** A driven bone hangs off a parent that is often itself driven, so
 entries are grouped by walking parent links up to the first bone that is not driven. That
-turns `golem_imp_boss`'s 437 entries into 13 chains and `phm_01`'s 190 into 71. A braid
-is one row, not six.
+turns `golem_imp_boss`'s 437 entries into 13 chains and `phm_01`'s 190 into 71. A muscle
+group is one row, not six.
 
 **Strength, not weights.** A chain's strength is the mean of its weights. Moving it
 scales every weight in the chain proportionally. That is one number per chain instead of
@@ -138,20 +148,34 @@ each supported manager. An unchanged rig exports nothing rather than an identica
 
 ### The panel
 
-It lives in the Placement & Animation Studio as a **Secondary motion** tab rather than in
-its own tool, because tuning hair is only meaningful next to the rig, the armour on it,
-and a clip playing — a standalone editor would have to rebuild all of that first.
+It lives in the Placement & Animation Studio as a **Driven bones** tab rather than in its
+own tool, because a driven bone is only meaningful next to the rig, the armour on it, and
+a clip playing — a standalone editor would have to rebuild all of that first.
 
-- Chain list on the left: name, bone count, strength. Soft-looking chains (hair, cloth,
-  skirt, tail, cape, braid) sort to the top; the hint only orders the list, never filters
-  it.
-- Detail on the right: every driven bone in the chain with its driver and weight.
-- A strength slider in whole percent, plus **Off** and **Reset**. The slider only writes
-  on release, so dragging does not churn the document.
+- **Chain list**: name, what it is, bone count, strength, and how much of it is decoded.
+  The *what it is* column is the important one — it says `deformation`, `jiggle`,
+  `pivot`, `expose` or `mechanical` per row, so nobody has to infer from bone names that
+  `Bip01 L UpperFMuscle` is a muscle bulge and not hair. Rows sort by category, most
+  edit-worthy first.
+- **Decoded column**: `full` when every byte of that chain's config is understood,
+  `partial` otherwise. Editing is equally safe either way — undecoded bytes are written
+  back unchanged — but a modder is entitled to know which is which.
+- **Detail** on the right: every driven bone in the chain with what drives it and at what
+  weight.
+- **Softer / Stiffer / Off / Reset**, plus a strength slider in whole percent. The intent
+  buttons come first because that is how people think about it; the slider is there when
+  they want the number. The slider only writes on release, so dragging does not churn the
+  document.
+- **"What you can do here"**: two columns, can and cannot, generated from
+  `constraints.CAPABILITIES` so the UI cannot promise something the code will not do. A
+  test asserts every "can" has a function behind it and that adding a chain is listed as
+  impossible.
+- **Export**: mod name and author, then one button that writes a package per manager.
+  Disabled until something actually changes.
 
 **The panel says it cannot preview the result, and that is deliberate.** CDMW plays a
-clip's baked bone tracks; secondary motion is solved by the game at runtime. There is no
-honest way to show a jiggle change in the viewport, so the panel states that instead of
+clip's baked bone tracks; these bones are solved by the game at runtime. There is no
+honest way to show the change in the viewport, so the panel states that instead of
 implying the opposite. A test asserts the notice is present.
 
 ## What is not decoded
