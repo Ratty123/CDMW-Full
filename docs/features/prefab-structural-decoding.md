@@ -97,10 +97,10 @@ Measured on 12,000 archive-extracted prefabs:
 | | |
 |---|---|
 | header, type table, pool, data header | 12,000 / 12,000 |
-| structural heap walk completes | 54.3% overall |
+| structural heap walk completes | 54.4% overall |
 | ... of files declaring one component type | 93.2% |
-| objects recovered | 125,419 |
-| numeric values recovered | 143,917 |
+| objects recovered | 128,142 |
+| numeric values recovered | 149,696 |
 | length-changing round-trips re-decoding cleanly | 1,500 / 1,500 |
 
 A partial walk is reported, never hidden: `walk_complete` is false,
@@ -141,9 +141,14 @@ Roughly in order of value:
    best candidate scored 4.0%, i.e. noise. Those groups only decode when the
    fallback heuristic (smallest candidate type whose member count fits the
    mask) happens to guess right, which is why every mask-width variation
-   reshuffles which files pass without a net gain. Closing this needs a
-   discriminator from outside the element header. Editing is disabled for
-   incomplete walks, so this costs coverage, not safety.
+   reshuffles which files pass without a net gain. The best discriminator found
+   outside the header is declaration order -- nested types appear in the schema
+   in the order they are first referenced, which held for 301 of 304 completed
+   walks -- and using it for unstated types is worth +4 files and +2,723
+   objects against one regression. It is a small gain because the property was
+   measured on walks that already complete, so it describes success rather than
+   predicting it. Editing is disabled for incomplete walks, so the remainder
+   costs coverage, not safety.
 3. **Glossary descriptions are inferred** from field names and declared types,
    not from documentation. 87 entries cover 98.8% of set-field occurrences;
    entries whose names do not support a confident reading carry a label only.

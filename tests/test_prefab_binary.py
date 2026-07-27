@@ -170,3 +170,47 @@ def test_group_component_is_read_from_the_type_index_not_guessed() -> None:
     mask, type_index = _find_element_header(cursor)
     assert mask == 0b101
     assert type_index == 7
+
+
+def _fake_type(name: str, member_count: int):
+    from cdmw.core.prefab_binary import PrefabMember, PrefabType
+
+    members = tuple(
+        PrefabMember(name=f"_m{index}", type_name="bool", flags=0, value_size=1, attr_flags=0, extra=0)
+        for index in range(member_count)
+    )
+    return PrefabType(type_name=name, members=members, offset=0)
+
+
+def test_stated_type_index_wins_when_it_fits() -> None:
+    from cdmw.core.prefab_binary import _BlobCursor, _component_for
+
+    small, large = _fake_type("Small", 4), _fake_type("Large", 20)
+    cursor = _BlobCursor(b"", 0, (small, large))
+    chosen = _component_for(cursor, type_index=1, mask=0b11, components=(small, large), highest=2)
+    assert chosen.type_name == "Large"
+
+
+def test_unstated_type_takes_the_next_declared_one() -> None:
+    """Marker=1 groups have no room for a type index, so declaration order
+    decides: nested types appear in the order they are first referenced."""
+    from cdmw.core.prefab_binary import _BlobCursor, _component_for
+
+    first, second = _fake_type("First", 8), _fake_type("Second", 8)
+    cursor = _BlobCursor(b"", 0, (first, second))
+    components = (first, second)
+    # No usable index (-1): the first declared type that fits is taken...
+    one = _component_for(cursor, type_index=-1, mask=0b1, components=components, highest=1)
+    assert one.type_name == "First"
+    # ...and the next group cannot claim it again.
+    two = _component_for(cursor, type_index=-1, mask=0b1, components=components, highest=1)
+    assert two.type_name == "Second"
+
+
+def test_a_mask_too_wide_for_every_type_is_refused() -> None:
+    from cdmw.core.prefab_binary import _BlobCursor, _component_for
+
+    small = _fake_type("Small", 3)
+    cursor = _BlobCursor(b"", 0, (small,))
+    with pytest.raises(PrefabBinaryError, match="exceeds every candidate"):
+        _component_for(cursor, type_index=-1, mask=0xFFFF, components=(small,), highest=16)
