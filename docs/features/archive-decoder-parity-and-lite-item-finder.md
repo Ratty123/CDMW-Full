@@ -23,8 +23,16 @@ than importing the other product's source:
 
 - Each repository's `schemas/archive_content_capabilities.v1.json` declares the role, group,
   analyzer, maturity, readable/structured/reference/visual/playback flags, and
-  export capabilities for all 107 audited extensions. The split began from the
+  export capabilities for the audited extensions. The split began from the
   same manifest; coordinated version changes are now required to retain parity.
+- This repository's manifest additionally carries per-extension decode progress
+  (`origin`, `decode`, `write`, `priority`, `evidence`, `remaining`) and a derived
+  `progress` summary block, described in `docs/features/format-decode-progress.md`.
+  Those fields are additive and `schema_version` stays at `1`: `ArchiveContentRegistry`
+  ignores unmapped members, so a Lite snapshot without them still loads. Parity is
+  unaffected until Lite chooses to adopt them. The entry count moved from 107 to 108
+  when `.paac` was added; an extension present in one product's manifest and absent
+  from the other's is the parity risk to watch, not the extra fields.
 - Each repository's `Cdmw.Archive.Content` project owns bounded normalized documents for text/XML,
   generic binary, MeshInfo, effect metadata (`.pae`/`.paem`), BNK, PATHC, PAB,
   HKX/HKT, and the audited structured sidecar families. Full and Lite adapters
