@@ -18,13 +18,14 @@ byte length.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable
+from typing import Callable, Mapping, Sequence
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
+    QListWidget,
     QDialogButtonBox,
     QHBoxLayout,
     QHeaderView,
@@ -47,7 +48,12 @@ from cdmw.domain.archives.prefab_glossary import (
     is_asset_path,
     value_kind_hint,
 )
-from cdmw.services.prefab_structure_service import decode_prefab_binary, rewrite_prefab_paths
+from cdmw.services.prefab_structure_service import (
+    asset_extension_for,
+    decode_prefab_binary,
+    path_is_known,
+    rewrite_prefab_paths,
+)
 
 _EDIT_ROLE = Qt.ItemDataRole.UserRole + 1
 _USED_ROLE = Qt.ItemDataRole.UserRole + 2
@@ -74,6 +80,56 @@ def _retarget_warning(original: str, replacement: str) -> str:
     return ""
 
 
+class AssetPickerDialog(QDialog):
+    """Pick an existing archive path, filtered to one kind of asset."""
+
+    def __init__(self, candidates: Sequence[str], *, current: str = "", parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle("Choose an asset")
+        self.resize(760, 520)
+        self._candidates = tuple(candidates)
+        self.chosen = ""
+
+        layout = QVBoxLayout(self)
+        layout.addWidget(QLabel(f"{len(self._candidates):,} file(s) of this kind exist in the archives."))
+        self.filter_box = QLineEdit()
+        self.filter_box.setPlaceholderText("Type part of a name to narrow the list...")
+        self.filter_box.textChanged.connect(self._refresh)
+        layout.addWidget(self.filter_box)
+        self.list = QListWidget()
+        self.list.itemDoubleClicked.connect(lambda _item: self._accept_selection())
+        layout.addWidget(self.list, 1)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept_selection)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        # Seed with the current file's folder, not its name: the useful starting
+        # point is its siblings, and its own name matches only itself.
+        folder = current.rsplit("/", 1)[0] if "/" in current else ""
+        self.filter_box.setText(folder)
+        self._refresh(self.filter_box.text())
+
+    def _refresh(self, text: str) -> None:
+        needle = str(text or "").strip().lower()
+        matches = [item for item in self._candidates if needle in item.lower()] if needle else list(self._candidates)
+        self.list.clear()
+        # A full list of thousands is unusable and slow to build; narrow instead.
+        self.list.addItems(matches[:500])
+        if len(matches) > 500:
+            self.list.addItem(f"... {len(matches) - 500:,} more, keep typing to narrow")
+
+    def _accept_selection(self) -> None:
+        item = self.list.currentItem()
+        if item is None or item.text().startswith("... "):
+            return
+        self.chosen = item.text()
+        self.accept()
+
+
 @dataclass(frozen=True, slots=True)
 class PrefabInspectorResult:
     """What the dialog produced, if the user applied anything."""
@@ -92,12 +148,14 @@ class PrefabInspectorDialog(QDialog):
         title: str = "Prefab Inspector",
         parent: QWidget | None = None,
         on_save: Callable[[bytes, str], None] | None = None,
+        known_paths: Mapping[str, Sequence[str]] | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle(title)
         self.resize(980, 660)
         self._original = bytes(data or b"")
         self._on_save = on_save
+        self._known_paths: Mapping[str, Sequence[str]] = dict(known_paths or {})
         self.result_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
@@ -132,6 +190,11 @@ class PrefabInspectorDialog(QDialog):
         self.revert_button.setEnabled(False)
         self.revert_button.clicked.connect(self._revert_changes)
         row.addWidget(self.revert_button)
+        self.browse_button = QPushButton("Choose file...")
+        self.browse_button.setToolTip("Pick an existing asset of the same kind from the archives.")
+        self.browse_button.setEnabled(False)
+        self.browse_button.clicked.connect(self._browse_for_selected_row)
+        row.addWidget(self.browse_button)
         row.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
@@ -197,6 +260,7 @@ class PrefabInspectorDialog(QDialog):
         header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tree.itemChanged.connect(self._note_pending_edit)
+        self.tree.itemSelectionChanged.connect(self._refresh_browse_state)
         self._populate_objects()
         box.addWidget(self.tree, 1)
         return page
@@ -260,18 +324,49 @@ class PrefabInspectorDialog(QDialog):
             return
         current = item.text(2)
         changed = current != original
-        warning = _retarget_warning(original, current) if changed else ""
+        warning = self._warning_for(original, current) if changed else ""
         colour = _WARNING_COLOUR if warning else _CHANGED_COLOUR if changed else None
         item.setForeground(2, QBrush(colour) if colour else QBrush())
         item.setToolTip(2, warning or ("Changed." if changed else ""))
         self._refresh_pending_state()
 
+    def _warning_for(self, original: str, replacement: str) -> str:
+        """Shape check first, then existence when an index covers this kind."""
+        shape = _retarget_warning(original, replacement)
+        if shape:
+            return shape
+        if path_is_known(self._known_paths, replacement) is False:
+            return "No file with that path exists in the archives."
+        return ""
+
+    def _refresh_browse_state(self) -> None:
+        item = self.tree.currentItem()
+        editable = bool(item and item.flags() & Qt.ItemFlag.ItemIsEditable)
+        self.browse_button.setEnabled(editable and bool(self._candidates_for(item)))
+
+    def _candidates_for(self, item: QTreeWidgetItem | None) -> tuple[str, ...]:
+        if item is None:
+            return ()
+        original = item.data(2, _EDIT_ROLE)
+        if not isinstance(original, str):
+            return ()
+        return tuple(self._known_paths.get(asset_extension_for(original), ()))
+
+    def _browse_for_selected_row(self) -> None:
+        item = self.tree.currentItem()
+        candidates = self._candidates_for(item)
+        if item is None or not candidates:
+            return
+        picker = AssetPickerDialog(candidates, current=item.text(2), parent=self)
+        if picker.exec() and picker.chosen:
+            item.setText(2, picker.chosen)
+
     def _refresh_pending_state(self) -> None:
         replacements = self.collect_replacements()
         warnings = [
-            _retarget_warning(old, new)
+            self._warning_for(old, new)
             for old, new in replacements.items()
-            if _retarget_warning(old, new)
+            if self._warning_for(old, new)
         ]
         self.apply_button.setEnabled(self._can_edit() and bool(replacements))
         self.revert_button.setEnabled(bool(replacements))

@@ -29,6 +29,24 @@ def rewrite_prefab_paths(*args: Any, **kwargs: Any) -> Any:
     return owner(*args, **kwargs)
 
 
+def collect_asset_paths(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_asset_catalog import collect_asset_paths as owner
+
+    return owner(*args, **kwargs)
+
+
+def path_is_known(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_asset_catalog import path_is_known as owner
+
+    return owner(*args, **kwargs)
+
+
+def asset_extension_for(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_asset_catalog import extension_for as owner
+
+    return owner(*args, **kwargs)
+
+
 def prefab_binary_error() -> type[Exception]:
     """The exception type raised for payloads that break the grammar."""
     from cdmw.core.prefab_binary import PrefabBinaryError
@@ -37,7 +55,10 @@ def prefab_binary_error() -> type[Exception]:
 
 
 __all__ = [
+    "asset_extension_for",
+    "collect_asset_paths",
     "decode_prefab_binary",
+    "path_is_known",
     "plan_prefab_path_edits",
     "pointer_sites",
     "prefab_binary_error",

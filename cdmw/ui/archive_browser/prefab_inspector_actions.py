@@ -11,6 +11,11 @@ from cdmw.models import ArchiveEntry
 from cdmw.services.archive_mutation_service import ArchivePatchRequest
 from cdmw.services.archive_read_service import read_archive_entry_data
 from cdmw.services.archive_workflow_service import export_archive_payloads_to_mod_ready_loose
+from cdmw.services.prefab_structure_service import (
+    asset_extension_for,
+    collect_asset_paths,
+    decode_prefab_binary,
+)
 from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog
 
 
@@ -28,7 +33,53 @@ class ArchivePrefabInspectorActionsMixin:
             self.set_status_message(f"Could not read {entry.path}: {exc}", error=True)
             return
 
-        dialog = PrefabInspectorDialog(data, title=f"Prefab Inspector - {entry.basename}", parent=self)
+        def _index(log: Callable[[str], None]) -> dict[str, tuple[str, ...]]:
+            """Index the archives for the asset kinds this prefab references.
+
+            Built here rather than inside the dialog because the underlying
+            catalogue scan takes seconds, and a modal is the wrong place to
+            spend them.
+            """
+            package_root = str(self.archive_package_root_edit.text() or "").strip()
+            if not package_root:
+                return {}
+            try:
+                document = decode_prefab_binary(data)
+            except Exception:  # noqa: BLE001 - inspector still opens without an index
+                return {}
+            wanted = {
+                asset_extension_for(item.text)
+                for item in document.all_strings()
+                if asset_extension_for(item.text)
+            }
+            if not wanted:
+                return {}
+            log(f"Indexing archive paths for: {', '.join(sorted(wanted))}")
+            return collect_asset_paths(package_root, wanted)
+
+        def _open(result: object) -> None:
+            known = result if isinstance(result, dict) else {}
+            self._show_prefab_inspector(entry, data, known)
+
+        self._run_utility_task_when_idle(
+            status_message=f"Preparing Prefab Inspector for {entry.basename}...",
+            task=_index,
+            on_complete=_open,
+            show_archive_progress=False,
+        )
+
+    def _show_prefab_inspector(
+        self,
+        entry: ArchiveEntry,
+        data: bytes,
+        known_paths: dict[str, tuple[str, ...]],
+    ) -> None:
+        dialog = PrefabInspectorDialog(
+            data,
+            title=f"Prefab Inspector - {entry.basename}",
+            parent=self,
+            known_paths=known_paths,
+        )
         dialog.exec()
         payload = dialog.result_payload
         if payload is None or payload.data == data:
