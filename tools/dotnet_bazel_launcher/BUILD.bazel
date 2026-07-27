@@ -1,0 +1,30 @@
+"""WinForms front end for the Bazel build.
+
+Built by the same dotnet_publish rule as the other .NET helpers, so the build UI
+is itself a Bazel target:
+
+    bazel build //tools/dotnet_bazel_launcher:bazel_launcher_publish
+"""
+
+load("//build_defs:dotnet.bzl", "dotnet_publish")
+
+dotnet_publish(
+    name = "bazel_launcher_publish",
+    srcs = glob(
+        [
+            "**/*.cs",
+            "**/*.csproj",
+        ],
+        exclude = [
+            "bin/**",
+            "obj/**",
+        ],
+        allow_empty = False,
+    ),
+    project = "Cdmw.BazelLauncher.csproj",
+    # Developer tool, not a shipped helper: framework-dependent keeps it ~1 MB
+    # instead of ~110 MB, and Bazel already requires the .NET SDK to be present.
+    self_contained = False,
+    single_file = True,
+    visibility = ["//visibility:public"],
+)
