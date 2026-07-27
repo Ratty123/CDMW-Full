@@ -67,6 +67,29 @@ A change is done when all of these hold, and not before:
 - An escaped runtime regression has a focused reproducer that fails before the
   fix, passes after it, and is registered in the owning `scripts/codex_check.ps1`
   gate.
+- A user-visible change carries its `CHANGELOG.md` entry in the same commit.
+
+## Changelog and versioning
+
+The global changelog rules apply. Project specifics:
+
+- `CHANGELOG.md` uses `Added` / `Changed` / `Fixed` / `Docs`, newest first
+  within a section, one paragraph per entry. Entries name the affected surface
+  by its in-app label (`Archive Browser`, `Mesh Editor`, `Edit Mesh`,
+  `Item Finder`, `Material Authority`), state the root cause when it explains
+  the symptom, and carry measured numbers for any performance claim.
+- Everything unreleased goes under `## [Unreleased]`. The version sections below
+  it are shipped history: never append to one, even when the work extends a
+  feature it introduced.
+- Ask before every version bump. The version is stated in four places and all of
+  them move together: `APP_VERSION` in `cdmw/constants.py`, `README.md`,
+  `SECURITY.md`, and the tuple in `tests/test_build_metadata.py`. Find them with
+  `rg` on the outgoing version string, because packaging metadata and workspace
+  logs also carry it and only the first four are sources of truth.
+- Mesh Editor, Archive Browser, and preview work usually touches user-visible
+  behavior even when the commit reads as internal. A change that alters what a
+  preview renders, what a control reports, or how long an open takes belongs in
+  the changelog.
 
 ## Navigation
 

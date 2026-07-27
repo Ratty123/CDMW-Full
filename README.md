@@ -3,7 +3,7 @@
 Windows desktop workbench for Crimson Desert archive browsing, texture workflows,
 mesh preview/modding, material replacement, media preview, and research tooling.
 
-Latest release: `0.10.0-alpha.2`
+Latest release: `0.11.0-alpha.1`
 
 - Download: [GitHub Releases](https://github.com/Ratty123/crimson-desert-mod-workbench/releases)
 - Changelog: [CHANGELOG.md](CHANGELOG.md)

@@ -14,7 +14,7 @@ from cdmw.constants import APP_NAME, APP_ORGANIZATION, APP_REPOSITORY_URL, APP_T
 
 class BuildMetadataTests(unittest.TestCase):
     def test_windows_file_version_tuple_uses_prerelease_number_as_revision(self) -> None:
-        self.assertEqual((0, 10, 0, 2), windows_file_version_tuple("0.10.0-alpha.2"))
+        self.assertEqual((0, 11, 0, 1), windows_file_version_tuple("0.11.0-alpha.1"))
         self.assertEqual((1, 2, 3, 0), windows_file_version_tuple("1.2.3"))
         self.assertEqual((1, 2, 3, 4), windows_file_version_tuple("1.2.3-beta.4"))
 
