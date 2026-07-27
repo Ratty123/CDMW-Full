@@ -7,6 +7,8 @@ import subprocess
 import time
 from typing import Any, Mapping, Optional, Sequence
 
+from cdmw.services.process_job_service import breakaway_creation_flags
+
 
 DEFAULT_CRIMSON_GAME_ROOT = r"C:\games\Steam\steamapps\common\Crimson Desert"
 DEFAULT_CRIMSON_PROCESS_NAMES = ("crimsondesert.exe", "crimsondesert")
@@ -508,7 +510,13 @@ def launch_crimson_desert(
     if not exe.is_file():
         return 0, _diagnostic("game_exe_missing", f"Crimson Desert executable is missing: {exe}")
     try:
-        process = subprocess.Popen([str(exe), *[str(arg) for arg in game_args]], cwd=str(root))
+        # The game is the user's process, not an owned helper: it must survive
+        # the workbench closing, so it breaks out of the kill-on-close job.
+        process = subprocess.Popen(
+            [str(exe), *[str(arg) for arg in game_args]],
+            cwd=str(root),
+            creationflags=breakaway_creation_flags(),
+        )
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         return 0, _diagnostic("game_launch_failed", f"Could not launch Crimson Desert: {exc}")
     return int(process.pid), {"code": "game_launch_requested", "message": "Launched Crimson Desert process.", "pid": int(process.pid)}
