@@ -133,10 +133,17 @@ Roughly in order of value:
    matters more now that placement is editable: a wrong rotation convention
    would produce files that pass every test and sit at wrong angles in world.
    Needs a human with the game installed.
-2. **46% of prefabs do not walk to completion.** The dominant failure is
-   `mask exceeds every candidate component` -- the stated type index does not
-   resolve for those groups. Editing is disabled for them, so this costs
-   coverage, not safety.
+2. **46% of prefabs do not walk to completion**, and the reason is now known:
+   **marker=1 groups do not state their component type anywhere in the header.**
+   Markers 2 and 3 put the type index at `owner-3`; for marker=1 that byte is
+   the mask's own high byte, and anchoring against 375 marker=1 groups from
+   completed walks found no byte position holding the resolved index -- the
+   best candidate scored 4.0%, i.e. noise. Those groups only decode when the
+   fallback heuristic (smallest candidate type whose member count fits the
+   mask) happens to guess right, which is why every mask-width variation
+   reshuffles which files pass without a net gain. Closing this needs a
+   discriminator from outside the element header. Editing is disabled for
+   incomplete walks, so this costs coverage, not safety.
 3. **Glossary descriptions are inferred** from field names and declared types,
    not from documentation. 87 entries cover 98.8% of set-field occurrences;
    entries whose names do not support a confident reading carry a label only.
@@ -156,7 +163,12 @@ Recorded so they are not re-run:
 - **The presence mask's width is not the marker.** Four hand-analysed groups
   fit that rule perfectly; across the corpus `width=marker` and
   `width=min(marker,2)` both score ~53% complete walks against 54.3% for a
-  fixed `u16`. A correct rule would not trade completions for objects.
+  fixed `u16`. A correct rule would not trade completions for objects. Measured
+  per file rather than in aggregate, the narrow read gains 120 files and loses
+  275: both widths are right on some marker=1 groups and wrong on others.
+- **Picking the marker=1 mask width by which reading fits the stated type**
+  scores 53.0%, no better than always-narrow, because the type index those
+  files resolve to is not in the header either.
 - **`.pami` is not a material.** It is an XML `<StaticMeshInstance>` naming a
   mesh and carrying its material data -- 300/300 sampled files. Classing it as
   a material sends a modder looking for a texture.
