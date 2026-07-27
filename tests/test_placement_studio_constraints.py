@@ -263,6 +263,14 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(panel._constraint_pending.text(), "No changes.")
         self.assertEqual(panel.constraint_mod_files(), {})
 
+    def test_the_panel_warns_that_the_game_may_not_read_the_file(self) -> None:
+        """The most useful thing the tool knows is bad news, so it must be on screen."""
+
+        panel = self._panel()
+        text = panel._constraint_warning.text().lower()
+        self.assertIn("no evidence the game reads", text)
+        self.assertIn("jiggledescriptor.xml", text)
+
     def test_the_panel_says_it_cannot_preview(self) -> None:
         """The one thing the UI must not imply is that the viewport shows the result."""
 

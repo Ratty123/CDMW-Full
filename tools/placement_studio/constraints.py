@@ -334,14 +334,25 @@ def changed_files(original: bytes, rig: RigConstraints) -> Mapping[str, bytes]:
 
 #: What the panel is allowed to promise. Kept next to the code that enforces it so the
 #: two cannot drift, and surfaced verbatim in the UI's "What you can do here" box.
+#: Shown at the top of the panel. The single most useful thing the tool can tell a
+#: modder about this format, and it is bad news, so it goes first rather than in a
+#: footnote. See the module docstring of `cdmw/core/papr_format.py` for the evidence.
+LOADED_BY_GAME_WARNING = (
+    "No evidence the game reads .papr. The extension appears nowhere in any shipped "
+    "binary (pac, pab and paseq all do), and neither does the Local_Euler / "
+    "ExposeTransform vocabulary inside these files — they look like 3ds Max rig "
+    "exports left in the archives. Edits here may well do nothing in game. The live "
+    "equivalents are plain XML: jiggledescriptor.xml and posemodifierdata.xml."
+)
+
 CAPABILITIES: Tuple[Tuple[bool, str], ...] = (
     (True, "Change how strongly a chain follows its drivers"),
     (True, "Switch a chain off completely"),
     (True, "Rename a bone, or repoint its parent"),
     (True, "Move a bone's rest transform"),
+    (False, "Expect it to take effect — see the warning above"),
     (False, "Add a new chain — needs a config block"),
-    (False, "Edit driver expressions or limits — not decoded"),
-    (False, "Preview it — the game solves these at runtime"),
+    (False, "Edit driver expressions — inert authoring text"),
 )
 
 

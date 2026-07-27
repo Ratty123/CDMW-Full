@@ -46,7 +46,6 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.pab` | 257 | partial | none | medium | unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed |
 | `.pae` | 6,109 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
 | `.paem` | 560 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
-| `.papr` | 20 | partial | full | medium | the remaining 1,859 config blocks stay opaque: payloads of a type-04 member depend on the member id and that schema is not in the file, so blocks are carried verbatim and a new chain cannot be authored. u32@0x20 is the total tag-record count and is the oracle for a future attempt |
 | `.paschedule` | 4,143 | surface | none | medium | schedule entries not parsed - NPC routines cannot be retimed or rerouted |
 | `.paschedulepath` | 3,613 | surface | none | medium | schedule entries not parsed - NPC routines cannot be retimed or rerouted |
 | `.paseq` | 4,688 | surface | none | medium | track and event layout not parsed - cutscene authoring is closed |
@@ -69,6 +68,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.pamlod` | 32,884 | full | full | low | topology-changing rebuild is LOD0-only; LOD1+ can be read but not re-authored |
 | `.pampg` | 15,291 | surface | none | low | field semantics unknown |
 | `.pappt` | 1 | surface | none | low | record layout not parsed |
+| `.papr` | 20 | partial | full | low | no evidence the runtime reads this format: papr appears zero times as a standalone token across all 40+ shipped binaries where pac, pab, paseq, pamlod, meshinfo and pathc all appear, its internal Local_Euler / ExposeTransform vocabulary appears in no binary in ASCII or UTF-16, and 1,015 character descriptor and model files reference it nowhere. It reads as a 3ds Max rig export left in the archives. The live equivalents are plain XML already: character/descriptors/jiggledescriptor.xml and character/descriptors/posemodifierdata/posemodifierdata.xml. Block contents also stay opaque |
 | `.prefabdata_xml` | 2,613 | full | full | low | outside the structured sidecar editor, so edits are unchecked text edits |
 | `.road` | 1,697 | surface | none | low | spline data not parsed |
 | `.roadsector` | 5,787 | surface | none | low | spline data not parsed |

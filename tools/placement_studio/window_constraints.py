@@ -55,6 +55,7 @@ from PySide6.QtWidgets import (
 
 from .constraints import (
     CAPABILITIES,
+    LOADED_BY_GAME_WARNING,
     RigConstraints,
     changed_files,
     describe_changes,
@@ -86,6 +87,17 @@ class SecondaryMotionMixin:
         outer = QVBoxLayout(panel)
         outer.setContentsMargins(8, 8, 8, 8)
         outer.setSpacing(6)
+
+        # The warning goes above everything. Somebody who reads only one line of this
+        # panel should read the one that says their edit may not do anything.
+        warning = QLabel(LOADED_BY_GAME_WARNING)
+        warning.setWordWrap(True)
+        warning.setStyleSheet(
+            "QLabel { background: #4a3a12; color: #f3e2b3; border: 1px solid #7a5f1c;"
+            " padding: 6px; border-radius: 3px; }"
+        )
+        self._constraint_warning = warning
+        outer.addWidget(warning)
 
         self._constraint_header = QLabel(_NO_RIG)
         self._constraint_header.setWordWrap(True)

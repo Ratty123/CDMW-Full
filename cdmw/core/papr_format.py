@@ -1,5 +1,34 @@
 """Reader, writer, and editor for the Crimson Desert `.papr` constraint rig.
 
+## Read this first: there is no evidence the game loads these files
+
+A search of the shipped binaries and data found nothing that reads a `.papr`:
+
+* `papr` appears **zero** times as a standalone token across all 40+ executables and
+  DLLs in `bin64/`, while every comparable extension does -- `pac` 8, `pab` 6,
+  `paseq` 4, `pamlod` 2, `meshinfo` 2, `pathc` 2.
+* The vocabulary *inside* the files -- `Local_Euler_Z`, `ExposeTransform`, `amin(`,
+  `degToRad` -- appears nowhere in any binary, in ASCII or UTF-16. Those are 3ds Max
+  constructs: Expose Transform helpers and MAXScript controller expressions.
+* 1,015 character descriptor and model files from the archives mention `papr` nowhere.
+* Twenty files ship, one per rig, against 316,059 `.paa` and 12,962 `.pac`.
+
+The reading that fits all of it is that `.papr` is an **authoring artifact** -- a rig
+export from the DCC tool that shipped in the archives and that no runtime code reads.
+An edit to one is very unlikely to change anything in game.
+
+This is strong evidence rather than proof: a reference could exist in data outside the
+1,015 files scanned, or the loader could build the extension string at runtime. But the
+comparison against other extensions makes that unlikely, and a modder deserves to be
+told before spending an evening tuning numbers that go nowhere.
+
+The live equivalents are plain XML already in the archives and need no decoding at all:
+`character/descriptors/jiggledescriptor.xml` carries the real jiggle damping and
+per-bone masks, and `character/descriptors/posemodifierdata/posemodifierdata.xml` is
+119 KB of runtime pose-modifier data (vehicle suspension, IK, spine train, look-at)
+keyed by `.pab`.
+
+
 A `.papr` sits beside a character model and defines its *secondary* motion: the bones
 driven by other bones rather than by an animation clip. That is hair, cloth, tassels,
 pistons, and the `B_Jiggle_*` chains. Twenty ship with the game, one per rig.
