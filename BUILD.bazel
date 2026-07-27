@@ -1,0 +1,63 @@
+"""Root package.
+
+    bazel build //:CrimsonDesertModWorkbench     # the shipped .exe
+    bazel build //:native_helpers                # native C++ only
+    bazel test  //native/...
+
+See docs/bazel-migration.md for scope, deviations from the PowerShell build, and
+the non-hermetic edges (MSVC, fxc, dotnet SDK, the build venv).
+"""
+
+load("//build_defs:pyinstaller.bzl", "pyinstaller_package")
+
+filegroup(
+    name = "native_helpers",
+    srcs = [
+        "//native/cd_texture_dx:cd-texture-dx",
+        "//native/cdmw_archive_accelerator:cdmw-archive-accelerator",
+        "//native/cdmw_full_archive_core:cdmw-full-archive-core.dll",
+        "//native/cdmw_mesh_core:cdmw-mesh-core",
+        "//native/cdmw_preview_core:cdmw-preview-core",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# Everything the spec reads relative to SPECPATH. Bazel will not glob across a
+# package boundary, so native/, tools/, third_party/ and build_defs/ are excluded
+# automatically by their own BUILD files.
+APP_SOURCES = glob(
+    [
+        "cdmw/**/*.py",
+        "cdmw/**/*.txt",
+        "assets/**",
+        "schemas/**/*.json",
+        "pyinstaller_hooks/**/*.py",
+        ".tools/vgmstream/**",
+    ],
+    allow_empty = False,
+) + [
+    "cdmw_app.py",
+    "CrimsonDesertModWorkbench.spec",
+    "THIRD_PARTY_NOTICES.md",
+]
+
+pyinstaller_package(
+    name = "CrimsonDesertModWorkbench",
+    srcs = APP_SOURCES,
+    exe_name = "CrimsonDesertModWorkbench.exe",
+    mode = "onefile",
+    profile = "release",
+    spec = "CrimsonDesertModWorkbench.spec",
+    # Each artifact has to land where the spec's _add_native_binary paths look.
+    staged_artifacts = {
+        "//native/cd_texture_dx:cd-texture-dx": "native/cd_texture_dx/build/Release",
+        "//native/cdmw_preview_core:cdmw-preview-core": "native/cdmw_preview_core/build/Release",
+        "//native/cdmw_archive_accelerator:cdmw-archive-accelerator": "native/cdmw_archive_accelerator/build/Release",
+        "//native/cdmw_mesh_core:cdmw-mesh-core": "native/cdmw_mesh_core/build/Release",
+        "//tools/dotnet_mesh_editor_experiment:mesh_editor_publish": "native/cdmw_mesh_dotnet_editor/build/Release",
+        "//tools/dotnet_archive_backend:worker_publish": "native/cdmw_full_archive_backend/build/Release",
+        # The worker loads this from its own directory, so it ships beside it.
+        "//native/cdmw_full_archive_core:cdmw-full-archive-core.dll": "native/cdmw_full_archive_backend/build/Release",
+    },
+    visibility = ["//visibility:public"],
+)

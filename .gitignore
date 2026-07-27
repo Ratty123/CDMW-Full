@@ -33,6 +33,9 @@ workspace/
 tmp_*/
 
 .tools/
+# Bazel convenience junctions (see --symlink_prefix in .bazelrc). The output
+# base itself lives outside the repo entirely.
+.bazel/
 *.zip
 _ui_smoke.ini
 archive_scan_cache_probe/

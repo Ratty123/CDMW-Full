@@ -1,0 +1,3 @@
+"""Build files for externally fetched dependencies."""
+
+exports_files(["directxtex.BUILD"])

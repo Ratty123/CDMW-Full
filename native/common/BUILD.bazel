@@ -1,0 +1,15 @@
+"""Headers shared across the native helpers.
+
+The CMake builds pick this up implicitly through relative includes
+("../../common/native_diagnostics.h") without ever declaring a dependency.
+Bazel enforces declared inclusions, so the shared header becomes a real target
+that dependents must name.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+cc_library(
+    name = "native_diagnostics",
+    hdrs = ["native_diagnostics.h"],
+    visibility = ["//visibility:public"],
+)
