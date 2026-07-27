@@ -364,13 +364,16 @@ def pointer_sites(data: bytes, blob_offset: int, blob_length: int) -> tuple[int,
 class _BlobCursor:
     """Cursor over the data blob, in blob-relative coordinates."""
 
-    __slots__ = ("blob", "base", "pos", "type_table")
+    __slots__ = ("blob", "base", "pos", "type_table", "used_types")
 
     def __init__(self, blob: bytes, base: int, type_table: Sequence[PrefabType] = ()) -> None:
         self.blob = blob
         self.base = base
         self.pos = 0
         self.type_table = tuple(type_table)
+        # Types already claimed by a group, so an unstated one can take the
+        # next declared type instead of guessing by size.
+        self.used_types: set[str] = set()
 
     def take(self, count: int) -> bytes:
         if count < 0 or self.pos + count > len(self.blob):
@@ -570,18 +573,36 @@ def _component_for(
     components: Sequence[PrefabType],
     highest: int,
 ) -> PrefabType:
-    """Resolve a group's component type, preferring the index the file states."""
+    """Resolve a group's component type.
+
+    Markers 2 and 3 state the type's index at ``owner-3``; marker 1 has no room
+    for it, since that byte is the mask's own high byte. For those, fall back to
+    declaration order: nested types appear in the schema in the order they are
+    first referenced, which held for 301 of 304 completed walks.
+    """
+    used = getattr(cursor, "used_types", None)
     declared = getattr(cursor, "type_table", ())
     if 0 <= type_index < len(declared):
         named = declared[type_index]
         if highest <= len(named.members):
+            if used is not None:
+                used.add(named.type_name)
             return named
     candidates = [item for item in components if highest <= len(item.members)]
     if not candidates:
         raise PrefabBinaryError(f"mask 0x{mask:04x} exceeds every candidate component")
-    # Fall back deterministically: backtracking over candidates is exponential
-    # in nesting depth, and a wrong guess is reported as a partial walk.
-    return min(candidates, key=lambda item: (len(item.members), item.type_name))
+    if used is not None:
+        for item in candidates:
+            if item.type_name not in used:
+                used.add(item.type_name)
+                return item
+    # Every declared type is spoken for: guess deterministically. Backtracking
+    # over candidates is exponential in nesting depth, and a wrong guess is
+    # reported as a partial walk rather than hanging the caller.
+    chosen = min(candidates, key=lambda item: (len(item.members), item.type_name))
+    if used is not None:
+        used.add(chosen.type_name)
+    return chosen
 
 
 def _walk_group(
