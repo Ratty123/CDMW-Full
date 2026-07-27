@@ -9,6 +9,13 @@ The format is intentionally simple:
 - `Fixed` for bug fixes
 - `Docs` for README, guide, or release-note changes
 
+## [Unreleased]
+
+### Added
+- Added a structural `.prefab` decoder (`cdmw/core/prefab_binary.py`). A prefab is self-describing: it carries a flat table of type definitions naming every member, its declared type and its byte size, followed by a heap of pointer-addressed object records. The decoder parses that grammar rather than scavenging strings, so it recovers each scene object, its component type, which fields are actually set, and every resource path with the exact byte span that holds it. Header parsing covers 12,000/12,000 sampled archive prefabs including format versions 3 and 4 and schema revisions 13 to 15; the heap walk completes on ~93% of single-component-type files and degrades to a partial result, never a crash, on the rest.
+- Added length-changing resource path edits (`cdmw/core/prefab_binary_edit.py`). The blob stores absolute file offsets, so resizing a string moves everything after it; the rewriter relocates every pointer and pointee length field and updates the data header. Pointers are identified by an exact property — a u32 at blob-relative `k` is a pointer if and only if it stores `blobOffset + k + 4` — rather than by scanning for values that happen to match a string offset. Verified by round-tripping 1,500 real prefabs with both longer and shorter replacements, re-decoding each and requiring the structural walk to still complete.
+- Added the Prefab Inspector (Archive Browser context menu, "Open Prefab Inspector..."). One tab lists the prefab's objects with their component types, asset paths and set fields; the other lists every field the prefab declares with its type, byte size and a plain-English description of what it holds. Asset paths are editable in place and replacements are not restricted to the original byte length. When a prefab cannot be fully decoded the banner says so and editing is disabled, so an edit is never written to a file that is only partly understood.
+
 ## [0.11.0-alpha.1] - 2026-07-27
 
 ### Added
