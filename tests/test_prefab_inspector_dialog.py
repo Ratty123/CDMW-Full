@@ -501,3 +501,35 @@ def test_pole_orientation_is_warned_about(qt_app: QApplication) -> None:
     assert not PlacementEditDialog(level, title="body").pole_warning.isVisibleTo(
         PlacementEditDialog(level, title="body")
     )
+
+
+def test_banner_never_claims_everything_shown_is_accurate(qt_app: QApplication) -> None:
+    """It said so even for partial walks, where types are guessed."""
+    dialog = PrefabInspectorDialog(_build())
+    assert "Everything shown is accurate" not in dialog._banner_text()
+
+
+def test_banner_counts_guessed_objects(qt_app: QApplication) -> None:
+    import dataclasses
+
+    from cdmw.core.prefab_binary import PrefabObject
+
+    dialog = PrefabInspectorDialog(_build())
+    document = dialog._document
+    assert document is not None
+    guessed = PrefabObject(
+        index=0,
+        name="CD_Hand",
+        component_type="MeshComponent",
+        member_names=(),
+        resources=(),
+        texts=(),
+        values=(),
+        numbers=(),
+        parent=-1,
+        type_source="inferred",
+    )
+    dialog._document = dataclasses.replace(document, objects=(guessed,))
+    banner = dialog._banner_text()
+    assert "best guess" in banner
+    assert "may belong to something else" in banner

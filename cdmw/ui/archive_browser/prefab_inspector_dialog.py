@@ -220,12 +220,24 @@ class PrefabInspectorDialog(QDialog):
         if placements:
             parts.append(_count(placements, "placement"))
         head = ", ".join(parts) + "."
+        # Never claim the contents are accurate. Where the file does not state
+        # an object's kind the walk infers it from declaration order, and an
+        # inferred object looks exactly as tidy as a correct one.
+        guessed = len(document.inferred_objects)
+        caveat = (
+            ""
+            if not guessed
+            else (
+                f" {_count(guessed, 'object')} marked \"best guess\" below: the file does "
+                "not say what they are, so their fields may belong to something else."
+            )
+        )
         if document.walk_complete:
-            return f"Fully read. {head} Everything below can be changed."
+            return f"Fully read. {head} Everything below can be changed.{caveat}"
         return (
-            f"Partly read - saving is switched off. {head} Everything shown is accurate; "
-            "the rest of the file uses a structure this tool cannot follow yet, so it will "
-            "not write a file it does not fully understand."
+            f"Partly read - saving is switched off. {head} What is shown was read from "
+            "the file; the rest uses a structure this tool cannot follow yet, so it will "
+            f"not write a file it does not fully understand.{caveat}"
         )
 
     def _can_edit(self) -> bool:
@@ -335,7 +347,19 @@ class PrefabInspectorDialog(QDialog):
             else:
                 label = obj.name or "(unnamed)"
                 detail = describe_component(obj.component_type) or obj.component_type
+            if obj.type_is_inferred:
+                # The file never said what this is. It decoded cleanly, which
+                # is not the same as being right, and the warning has to travel
+                # with the row -- a banner at the top does not tell you which
+                # of eight objects is the guess.
+                detail = f"{detail} - best guess, the file does not say what this is"
             node = QTreeWidgetItem([label, detail, ""])
+            if obj.type_is_inferred:
+                node.setToolTip(
+                    1,
+                    "This object's kind was worked out from its position in the file, "
+                    "not read from it. The fields below may belong to something else.",
+                )
             if nested:
                 # Keep the full path reachable without letting it crowd out the
                 # values column, which is the part worth reading.

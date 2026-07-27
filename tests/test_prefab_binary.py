@@ -187,8 +187,9 @@ def test_stated_type_index_wins_when_it_fits() -> None:
 
     small, large = _fake_type("Small", 4), _fake_type("Large", 20)
     cursor = _BlobCursor(b"", 0, (small, large))
-    chosen = _component_for(cursor, type_index=1, mask=0b11, components=(small, large), highest=2)
+    chosen, stated = _component_for(cursor, type_index=1, mask=0b11, components=(small, large), highest=2)
     assert chosen.type_name == "Large"
+    assert stated is True
 
 
 def test_unstated_type_takes_the_next_declared_one() -> None:
@@ -200,10 +201,11 @@ def test_unstated_type_takes_the_next_declared_one() -> None:
     cursor = _BlobCursor(b"", 0, (first, second))
     components = (first, second)
     # No usable index (-1): the first declared type that fits is taken...
-    one = _component_for(cursor, type_index=-1, mask=0b1, components=components, highest=1)
+    one, stated = _component_for(cursor, type_index=-1, mask=0b1, components=components, highest=1)
     assert one.type_name == "First"
+    assert stated is False, "declaration order is inference, not something the file said"
     # ...and the next group cannot claim it again.
-    two = _component_for(cursor, type_index=-1, mask=0b1, components=components, highest=1)
+    two, _ = _component_for(cursor, type_index=-1, mask=0b1, components=components, highest=1)
     assert two.type_name == "Second"
 
 
@@ -214,3 +216,34 @@ def test_a_mask_too_wide_for_every_type_is_refused() -> None:
     cursor = _BlobCursor(b"", 0, (small,))
     with pytest.raises(PrefabBinaryError, match="exceeds every candidate"):
         _component_for(cursor, type_index=-1, mask=0xFFFF, components=(small,), highest=16)
+
+
+def test_marker_one_refuses_to_read_the_mask_as_a_type_index() -> None:
+    """With marker 1 the byte at owner-3 is the mask's own high byte.
+
+    Reading it would be reading the mask twice. It was never accepted
+    downstream -- the member count check rejected it on all 376 marker-1 groups
+    in the corpus -- but that was luck, not design.
+    """
+    from cdmw.core.prefab_binary import _BlobCursor, _find_element_header
+
+    blob = bytearray()
+    blob += struct.pack("<H", 1)  # marker 1
+    blob += struct.pack("<H", 0x0207)  # mask; high byte 0x02 looks like an index
+    blob += bytes((0x00, 0x00))  # tail is marker + 1 == 2 bytes
+    owner_at = len(blob)
+    blob += b"\x00" * 8
+    blob += struct.pack("<I", 1000 + owner_at + 8 + 4)
+    blob += b"\x00" * 16
+
+    mask, type_index = _find_element_header(_BlobCursor(bytes(blob), 1000))
+    assert mask == 0x0207
+    assert type_index == -1, "marker 1 states no type; it must not fall back to the mask"
+
+
+def test_objects_record_whether_their_type_was_stated() -> None:
+    document = decode_prefab_binary(_build())
+    assert all(item.type_source in {"stated", "inferred"} for item in document.objects)
+    assert document.inferred_objects == tuple(
+        item for item in document.objects if item.type_source == "inferred"
+    )
