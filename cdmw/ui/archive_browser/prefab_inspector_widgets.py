@@ -22,7 +22,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.domain.archives.prefab_values import Placement, degrees_to_rotation, rotation_degrees
+from cdmw.domain.archives.prefab_values import (
+    Placement,
+    degrees_to_rotation,
+    is_near_pole,
+    rotation_degrees,
+)
 
 
 class AssetPickerDialog(QDialog):
@@ -79,21 +84,41 @@ class PlacementEditDialog(QDialog):
     """Edit one transform as position, rotation and scale.
 
     Rotation is entered in degrees because quaternions are not something anyone
-    types, and converted on the way out. Euler angles are ambiguous, so the
-    conversion is one-way per edit -- what is stored is the quaternion.
+    types, and converted on the way out. Euler angles are ambiguous, so that
+    conversion is lossy -- which is why an untouched box is never converted at
+    all. Each of the three groups is written back only if the user actually
+    moved one of its boxes; otherwise the decoded value is reused verbatim.
+
+    Without that, nudging a position rewrote the rotation: measured over the
+    shipped archives, 0.60% of unit quaternions came back more than a degree
+    out, and the worst -- weapon child sockets, which sit at pitch 90 -- by a
+    full 90 degrees.
     """
 
     def __init__(self, placement: Placement, *, title: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Placement - {title}")
         self._tile = placement.tile
+        self._source = placement
         self.result_placement: Placement | None = None
 
         layout = QVBoxLayout(self)
         form = QFormLayout()
         self._position = [self._spin(value, -1e6, 1e6) for value in placement.position]
-        self._rotation = [self._spin(value, -360.0, 360.0) for value in rotation_degrees(placement.rotation)]
+        # Seed at more precision than the display rendering: a box that shows a
+        # rounded angle would report itself as edited the moment it is read back.
+        self._rotation = [
+            self._spin(value, -360.0, 360.0)
+            for value in rotation_degrees(placement.rotation, digits=6)
+        ]
         self._scale = [self._spin(value, 0.001, 1000.0) for value in placement.scale]
+        # Take the seeds from the widgets, not the source values: setValue
+        # quantises to the box's decimals, so this is the only comparison that
+        # can distinguish "untouched" from "typed the same number back".
+        self._seeds = {
+            id(group): tuple(box.value() for box in group)
+            for group in (self._position, self._rotation, self._scale)
+        }
         form.addRow("Position X, Y, Z", self._triple(self._position))
         form.addRow("Rotation yaw, pitch, roll", self._triple(self._rotation))
         form.addRow("Scale X, Y, Z", self._triple(self._scale))
@@ -101,6 +126,14 @@ class PlacementEditDialog(QDialog):
         layout.addWidget(
             QLabel("Rotation is in degrees. Scale and position are in world units.")
         )
+        self.pole_warning = QLabel(
+            "This part is rotated straight up or down. At that angle yaw and roll "
+            "turn about the same axis, so a rotation typed here will not read back "
+            "as the numbers you entered. Position and scale are unaffected."
+        )
+        self.pole_warning.setWordWrap(True)
+        self.pole_warning.setVisible(is_near_pole(placement.rotation))
+        layout.addWidget(self.pole_warning)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
@@ -127,11 +160,29 @@ class PlacementEditDialog(QDialog):
             row.addWidget(box)
         return holder
 
+    def _edited(self, group: list[QDoubleSpinBox]) -> bool:
+        """Did the user move any box in this group?"""
+        return any(box.value() != seed for box, seed in zip(group, self._seeds[id(group)]))
+
     def _accept(self) -> None:
         self.result_placement = Placement(
-            scale=tuple(box.value() for box in self._scale),  # type: ignore[arg-type]
-            rotation=degrees_to_rotation(*(box.value() for box in self._rotation)),
-            position=tuple(box.value() for box in self._position),  # type: ignore[arg-type]
+            scale=(
+                tuple(box.value() for box in self._scale)  # type: ignore[arg-type]
+                if self._edited(self._scale)
+                else self._source.scale
+            ),
+            # Only convert back through Euler when the angles were actually
+            # typed. Reusing the decoded quaternion is exact; converting is not.
+            rotation=(
+                degrees_to_rotation(*(box.value() for box in self._rotation))
+                if self._edited(self._rotation)
+                else self._source.rotation
+            ),
+            position=(
+                tuple(box.value() for box in self._position)  # type: ignore[arg-type]
+                if self._edited(self._position)
+                else self._source.position
+            ),
             tile=self._tile,
         )
         self.accept()

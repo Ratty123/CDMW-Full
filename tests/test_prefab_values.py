@@ -13,6 +13,7 @@ import struct
 import pytest
 
 from cdmw.domain.archives.prefab_values import (
+    degrees_to_rotation,
     describe_value,
     read_placement,
     rotation_degrees,
@@ -117,3 +118,38 @@ def test_degrees_convert_back_to_the_same_angles() -> None:
         recovered = rotation_degrees(quaternion)
         for original, value in zip(angles, recovered):
             assert abs(original - value) < 0.01
+
+
+def test_rotation_degrees_takes_a_precision() -> None:
+    """Two decimals reads well; an editor seeding boxes needs more than that."""
+    quaternion = degrees_to_rotation(12.3456789, 5.0, -7.5)
+    assert rotation_degrees(quaternion)[0] == round(rotation_degrees(quaternion)[0], 2)
+    fine = rotation_degrees(quaternion, digits=6)
+    assert abs(fine[0] - 12.3456789) < 1e-4
+
+
+def test_pole_orientations_are_flagged() -> None:
+    """Weapon child sockets sit at pitch 90, where yaw and roll collapse."""
+    from cdmw.domain.archives.prefab_values import is_near_pole
+
+    assert is_near_pole((0.5, 0.5, -0.5, 0.5))
+    assert not is_near_pole((0.0, 0.0, 0.0, 1.0))
+
+
+def test_euler_round_trip_is_lossy_at_the_pole() -> None:
+    """The reason an untouched rotation must never be reconverted.
+
+    This is not a defect being locked in -- it is why the placement editor
+    reuses the decoded quaternion for any group the user did not edit.
+    """
+    from cdmw.domain.archives.prefab_values import write_placement
+
+    pole = (0.5, 0.5, -0.5, 0.5)
+    rebuilt = degrees_to_rotation(*rotation_degrees(pole))
+    dot = min(1.0, abs(sum(a * b for a, b in zip(pole, rebuilt))))
+    assert math.degrees(2 * math.acos(dot)) > 45.0
+    assert write_placement(
+        read_placement(struct.pack("<10f", 1, 1, 1, *pole, 0, 0, 0))
+    ) != write_placement(
+        read_placement(struct.pack("<10f", 1, 1, 1, *rebuilt, 0, 0, 0))
+    )

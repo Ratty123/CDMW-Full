@@ -18,6 +18,8 @@ pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from cdmw.domain.archives.prefab_glossary import asset_role, describe_field, is_asset_path  # noqa: E402
+from cdmw.domain.archives.prefab_values import Placement, write_placement
+from cdmw.ui.archive_browser.prefab_inspector_widgets import PlacementEditDialog
 from cdmw.ui.archive_browser.prefab_inspector_dialog import PrefabInspectorDialog  # noqa: E402
 
 PATH = "character/model/1_pc/weapon/sword.pac"
@@ -445,3 +447,57 @@ def test_intro_does_not_hardcode_a_colour(qt_app: QApplication) -> None:
     """The app follows the system theme; a fixed grey is unreadable in one of them."""
     dialog = PrefabInspectorDialog(_build())
     assert "color:" not in dialog.intro.styleSheet()
+
+
+def _pole_placement() -> Placement:
+    """A weapon child socket: pitch 90, where the Euler round trip is worst."""
+    return Placement(
+        scale=(1.0, 1.0, 1.0),
+        rotation=(0.5, 0.5, -0.5, 0.5),
+        position=(1.25, -3.5, 0.75),
+    )
+
+
+def test_position_only_edit_leaves_rotation_and_scale_untouched(qt_app: QApplication) -> None:
+    """The 90-degree silent rotation. Editing position must not touch rotation."""
+    source = _pole_placement()
+    dialog = PlacementEditDialog(source, title="socket")
+    dialog._position[0].setValue(9.5)
+    dialog._accept()
+
+    result = dialog.result_placement
+    assert result is not None
+    assert result.position[0] == 9.5
+    assert result.rotation == source.rotation
+    assert result.scale == source.scale
+    assert write_placement(result)[12:28] == write_placement(source)[12:28]
+
+
+def test_rotation_only_edit_leaves_position_untouched(qt_app: QApplication) -> None:
+    source = _pole_placement()
+    dialog = PlacementEditDialog(source, title="socket")
+    dialog._rotation[0].setValue(45.0)
+    dialog._accept()
+
+    result = dialog.result_placement
+    assert result is not None
+    assert result.position == source.position
+    assert result.rotation != source.rotation
+
+
+def test_opening_and_accepting_without_typing_changes_nothing(qt_app: QApplication) -> None:
+    """Open, click OK, and the bytes must be identical -- including at a pole."""
+    source = _pole_placement()
+    dialog = PlacementEditDialog(source, title="socket")
+    dialog._accept()
+    assert write_placement(dialog.result_placement) == write_placement(source)
+
+
+def test_pole_orientation_is_warned_about(qt_app: QApplication) -> None:
+    at_pole = PlacementEditDialog(_pole_placement(), title="socket")
+    assert at_pole.pole_warning.isVisibleTo(at_pole)
+
+    level = Placement(scale=(1.0, 1.0, 1.0), rotation=(0.0, 0.0, 0.0, 1.0), position=(0.0, 0.0, 0.0))
+    assert not PlacementEditDialog(level, title="body").pole_warning.isVisibleTo(
+        PlacementEditDialog(level, title="body")
+    )
