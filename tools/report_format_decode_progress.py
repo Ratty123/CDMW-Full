@@ -23,6 +23,7 @@ from typing import Iterable, Mapping, Sequence
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = REPO_ROOT / "schemas" / "archive_content_capabilities.v1.json"
+INVENTORY_PATH = REPO_ROOT / "schemas" / "archive_extension_inventory.json"
 REPORT_PATH = REPO_ROOT / "docs" / "features" / "format-decode-progress.md"
 
 DECODE_WEIGHTS = {"full": 1.0, "partial": 0.6, "surface": 0.3, "none": 0.0}
@@ -30,7 +31,9 @@ WRITE_WEIGHTS = {"full": 1.0, "constrained": 0.5, "none": 0.0}
 ORIGINS = ("proprietary", "third_party", "open", "unknown")
 PRIORITIES = ("high", "medium", "low", "none")
 
-REQUIRED_FIELDS = ("origin", "decode", "write", "priority", "evidence", "remaining")
+REQUIRED_FIELDS = (
+    "origin", "decode", "write", "priority", "archive_files", "evidence", "remaining",
+)
 
 RUBRIC = {
     "decode": {
@@ -72,7 +75,31 @@ def load_manifest(path: Path = MANIFEST_PATH) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def load_inventory(path: Path = INVENTORY_PATH) -> Mapping[str, int]:
+    """Extension -> file count, read from the shipped build.
+
+    This is what keeps the manifest honest in both directions: it catches an
+    `archive_files` count that has drifted, and it names the extensions the game
+    ships that the manifest has never heard of.
+    """
+
+    if not path.exists():
+        return {}
+    return dict(json.loads(path.read_text(encoding="utf-8")).get("extensions", {}))
+
+
+def unlisted_extensions(entries: Sequence[Mapping[str, object]]) -> list[tuple[str, int]]:
+    """Extensions in the shipped build that the manifest does not describe."""
+
+    known = {str(entry["extension"]) for entry in entries}
+    return sorted(
+        ((ext, count) for ext, count in load_inventory().items() if ext not in known),
+        key=lambda row: (-row[1], row[0]),
+    )
+
+
 def validate(entries: Sequence[Mapping[str, object]]) -> None:
+    inventory = load_inventory()
     seen: set[str] = set()
     for entry in entries:
         extension = str(entry.get("extension") or "")
@@ -92,11 +119,26 @@ def validate(entries: Sequence[Mapping[str, object]]) -> None:
             raise ManifestError(f"{extension}: unknown write {entry['write']!r}")
         if entry["priority"] not in PRIORITIES:
             raise ManifestError(f"{extension}: unknown priority {entry['priority']!r}")
+        if not isinstance(entry["archive_files"], int) or entry["archive_files"] < 0:
+            raise ManifestError(f"{extension}: archive_files must be a count")
+        if inventory and entry["archive_files"] != inventory.get(extension, 0):
+            raise ManifestError(
+                f"{extension}: archive_files says {entry['archive_files']:,} but the "
+                f"inventory counts {inventory.get(extension, 0):,}"
+            )
         if not str(entry["evidence"]).strip():
             raise ManifestError(f"{extension}: evidence must say where the claim is backed")
         if entry["decode"] == "full" and entry["write"] == "full" and str(entry["remaining"]).strip():
             continue
-        if entry["priority"] == "none" and entry["decode"] in {"surface", "none"} and entry["origin"] == "proprietary":
+        # A format the shipped build does not contain has nothing to decode, so the
+        # "undecoded formats must carry a priority" rule cannot apply to it.
+        undecoded = entry["decode"] in {"surface", "none"}
+        if (
+            entry["priority"] == "none"
+            and undecoded
+            and entry["origin"] == "proprietary"
+            and entry["archive_files"]
+        ):
             raise ManifestError(f"{extension}: undecoded proprietary format cannot be priority 'none'")
         if entry["write"] != "full" and entry["priority"] != "none" and not str(entry["remaining"]).strip():
             raise ManifestError(f"{extension}: must say what is remaining")
@@ -119,9 +161,30 @@ def _bucket(entries: Sequence[Mapping[str, object]]) -> dict:
     }
 
 
+def _weighted_by_files(entries: Sequence[Mapping[str, object]]) -> dict:
+    """Coverage weighted by how many files each format accounts for.
+
+    Counting formats treats a rig constraint file the game ships twenty of the same as
+    the animation format it ships 316,059 of. Weighting by file count says how much of
+    what is actually in the archives can be read and written.
+    """
+
+    total = sum(int(e["archive_files"]) for e in entries)
+    if not total:
+        return {"files": 0, "decode_percent": 0.0, "write_percent": 0.0}
+    decode = sum(DECODE_WEIGHTS[str(e["decode"])] * int(e["archive_files"]) for e in entries)
+    write = sum(WRITE_WEIGHTS[str(e["write"])] * int(e["archive_files"]) for e in entries)
+    return {
+        "files": total,
+        "decode_percent": round(100.0 * decode / total, 1),
+        "write_percent": round(100.0 * write / total, 1),
+    }
+
+
 def summarize(entries: Sequence[Mapping[str, object]]) -> dict:
     proprietary = [e for e in entries if e["origin"] == "proprietary"]
     engine = [e for e in entries if e["origin"] in {"proprietary", "third_party"}]
+    shipped = [e for e in engine if e["archive_files"]]
     by_origin = {
         origin: _bucket([e for e in entries if e["origin"] == origin])
         for origin in ORIGINS
@@ -145,11 +208,17 @@ def summarize(entries: Sequence[Mapping[str, object]]) -> dict:
         "generated_by": "tools/report_format_decode_progress.py --write",
         "rubric": RUBRIC,
         "headline": {
-            "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work.",
+            "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
+            "shipped_engine_formats": _bucket(shipped),
             "engine_formats": _bucket(engine),
             "proprietary_formats": _bucket(proprietary),
             "all_formats": _bucket(list(entries)),
         },
+        "coverage_by_file_count": _weighted_by_files(shipped),
+        "unlisted_in_manifest": [
+            {"extension": ext, "archive_files": count}
+            for ext, count in unlisted_extensions(entries)
+        ],
         "by_origin": by_origin,
         "by_group": by_group,
         "priority": {p: sum(1 for e in entries if e["priority"] == p) for p in PRIORITIES},
@@ -188,7 +257,9 @@ def render_report(manifest: Mapping[str, object]) -> str:
     entries = list(manifest["extensions"])  # type: ignore[index]
     progress = summarize(entries)
     engine = progress["headline"]["engine_formats"]
+    shipped = progress["headline"]["shipped_engine_formats"]
     proprietary = progress["headline"]["proprietary_formats"]
+    by_files = progress["coverage_by_file_count"]
 
     out: list[str] = []
     out.append("# Format decode progress")
@@ -204,13 +275,27 @@ def render_report(manifest: Mapping[str, object]) -> str:
     out.append("")
     out.append(
         f"Of {len(entries)} known file formats, {engine['extensions']} are engine formats "
-        f"(Pearl Abyss or licensed middleware) that had to be reverse engineered. Those are the "
-        f"real measure of progress; the rest are public formats that arrive already understood."
+        f"(Pearl Abyss or licensed middleware) that had to be reverse engineered, and "
+        f"{shipped['extensions']} of those actually appear in the shipped build. That last "
+        f"number is the honest denominator: a format the game does not contain cannot be "
+        f"modded and should not count against progress."
     )
     out.append("")
     out.append(
         _table(
             [
+                [
+                    "**Engine formats the build ships**",
+                    str(shipped["extensions"]),
+                    f"**{shipped['decode_percent']}%**",
+                    f"**{shipped['write_percent']}%**",
+                ],
+                [
+                    "Weighted by archive file count",
+                    f"{by_files['files']:,} files",
+                    f"{by_files['decode_percent']}%",
+                    f"{by_files['write_percent']}%",
+                ],
                 [
                     "Engine formats (proprietary + middleware)",
                     str(engine["extensions"]),
@@ -267,16 +352,23 @@ def render_report(manifest: Mapping[str, object]) -> str:
     rows = []
     for entry in engine_entries:
         remaining = str(entry["remaining"]).strip() or "Nothing outstanding."
+        count = int(entry["archive_files"])
         rows.append(
             [
                 f"`{entry['extension']}`",
+                f"{count:,}" if count else "—",
                 str(entry["decode"]),
                 str(entry["write"]),
                 str(entry["priority"]),
                 remaining,
             ]
         )
-    out.append(_table(rows, ["Format", "Read", "Write", "Priority", "What is left"]))
+    out.append(_table(rows, ["Format", "Files", "Read", "Write", "Priority", "What is left"]))
+    out.append("")
+    out.append(
+        "A dash in Files means the shipped build contains no entry with that extension. "
+        "Those rows are carried for compatibility, not because there is work in them."
+    )
     out.append("")
     out.append("### Open formats")
     out.append("")
@@ -296,6 +388,31 @@ def render_report(manifest: Mapping[str, object]) -> str:
     for gap in progress["open_high_priority_gaps"]:
         out.append(f"- **`{gap['extension']}`** (read {gap['decode']}, write {gap['write']}) — {gap['remaining']}")
     out.append("")
+    unlisted = progress["unlisted_in_manifest"]
+    if unlisted:
+        out.append("## Not yet in the manifest")
+        out.append("")
+        out.append(
+            f"The shipped build contains {len(unlisted)} extensions this manifest has never "
+            f"described, {sum(row['archive_files'] for row in unlisted):,} files in total. They "
+            f"are absent from every percentage above, so treat those numbers as covering the "
+            f"formats we know about rather than everything the game ships."
+        )
+        out.append("")
+        out.append(
+            _table(
+                [[f"`{row['extension']}`", f"{row['archive_files']:,}"] for row in unlisted[:20]],
+                ["Extension", "Files"],
+            )
+        )
+        if len(unlisted) > 20:
+            out.append("")
+            out.append(
+                "Plus "
+                + ", ".join(f"`{row['extension']}`" for row in unlisted[20:])
+                + "."
+            )
+        out.append("")
     out.append("## Rubric")
     out.append("")
     for axis in ("decode", "write", "origin", "priority"):
