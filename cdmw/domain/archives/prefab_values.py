@@ -109,18 +109,35 @@ def degrees_to_rotation(yaw: float, pitch: float, roll: float) -> tuple[float, f
     return multiply(multiply(axis(1, yaw), axis(0, pitch)), axis(2, roll))
 
 
-def rotation_degrees(rotation: tuple[float, float, float, float]) -> tuple[float, float, float]:
-    """Quaternion (x, y, z, w) as yaw/pitch/roll degrees, for reading only.
+def rotation_degrees(
+    rotation: tuple[float, float, float, float], *, digits: int = 2
+) -> tuple[float, float, float]:
+    """Quaternion (x, y, z, w) as yaw/pitch/roll degrees, for reading.
 
-    Euler angles are ambiguous and degenerate at the poles, so these are for
-    display. Edits should go through the quaternion.
+    Euler angles are ambiguous and degenerate at the poles, so a value that
+    came from here must never be converted back and written unless the user
+    actually edited it -- see :data:`POLE_PITCH_DEGREES`.
+
+    ``digits`` defaults to 2 because that is a readable rendering. An editor
+    seeding input boxes wants more, or it quantises a rotation nobody touched.
     """
     x, y, z, w = rotation
     sin_pitch = max(-1.0, min(1.0, 2.0 * (w * x - y * z)))
     pitch = math.asin(sin_pitch)
     yaw = math.atan2(2.0 * (w * y + z * x), 1.0 - 2.0 * (x * x + y * y))
     roll = math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (x * x + z * z))
-    return tuple(round(math.degrees(v), 2) for v in (yaw, pitch, roll))  # type: ignore[return-value]
+    return tuple(round(math.degrees(v), digits) for v in (yaw, pitch, roll))  # type: ignore[return-value]
+
+
+# Beyond this pitch, yaw and roll rotate about nearly the same axis and cannot
+# be recovered separately: an edit entered in degrees will not come back as the
+# angles that were typed. Weapon child sockets sit at exactly pitch 90.
+POLE_PITCH_DEGREES = 89.5
+
+
+def is_near_pole(rotation: tuple[float, float, float, float]) -> bool:
+    """Is this orientation one where yaw and roll are not separable?"""
+    return abs(rotation_degrees(rotation, digits=6)[1]) > POLE_PITCH_DEGREES
 
 
 def _round(values: tuple[float, ...], places: int = 3) -> str:
@@ -163,9 +180,11 @@ def describe_value(type_name: str, raw: bytes) -> str:
 
 
 __all__ = [
+    "POLE_PITCH_DEGREES",
     "Placement",
     "degrees_to_rotation",
     "describe_value",
+    "is_near_pole",
     "read_placement",
     "rotation_degrees",
     "write_placement",
