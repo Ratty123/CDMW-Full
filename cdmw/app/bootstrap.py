@@ -18,6 +18,25 @@ from cdmw.app.startup_splash import (
     start_external_startup_splash,
     update_pyinstaller_boot_splash,
 )
+from cdmw.services.orphan_helper_reaper import reap_orphaned_helper_processes
+from cdmw.services.process_job_service import bind_process_tree_to_app_lifetime
+
+
+def _reap_stranded_helpers() -> None:
+    """Clean up helpers an earlier session leaked, without blocking startup on it."""
+
+    try:
+        reaped = reap_orphaned_helper_processes()
+    except Exception:
+        # Startup must survive anything the process snapshot throws: a failed
+        # sweep costs a stale helper, a raised one costs the whole launch.
+        return
+    if reaped:
+        write_bootstrap_report(
+            "orphaned_helpers_reaped",
+            f"Terminated {len(reaped)} helper process(es) stranded by an earlier session",
+            "\n".join(f"pid {pid}: {image_path}" for pid, image_path in reaped),
+        )
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
@@ -32,6 +51,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         from cdmw.services.model_library_preview import run_model_library_preview_worker
 
         return run_model_library_preview_worker(Path(args.input), Path(args.output))
+
+    # Before anything can spawn a helper. The helper modes above return early
+    # on purpose: they are already children of a bound app process, and their
+    # own job would only nest pointlessly.
+    bind_process_tree_to_app_lifetime()
+    # Synchronous, and before the archive cache is touched: a stranded worker
+    # holds a mapped cache file this session would otherwise fail to replace.
+    _reap_stranded_helpers()
 
     if args.cli and args.gui:
         parser.error("Choose only one of --cli or --gui.")

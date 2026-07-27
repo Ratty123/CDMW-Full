@@ -221,6 +221,14 @@ internal sealed partial class ExperimentForm
 
     private void MaintainEmbeddedHostSize(IntPtr parent)
     {
+        // Once the host is gone the close is already under way, and resizing to
+        // a dead parent only recreates a handle on a disposing form -- which
+        // faults into the UI exception guard and turns a clean exit into a
+        // reported crash.
+        if (_hostDisconnected || IsDisposed || Disposing)
+        {
+            return;
+        }
         if (!NativeWindowHost.TryGetClientSize(parent, out var desired))
         {
             return;

@@ -16,6 +16,7 @@ internal sealed partial class ExperimentForm
     private const string ViewportDisplayModesCapability = "viewport_display_modes_v1";
     private const string ResidentSceneCapability = "resident_scene_state_v1";
     private const string AuthoritativeResidentSceneCapability = "authoritative_resident_scene_frame_v2";
+    private volatile bool _hostDisconnected;
     private long _lastAppliedEditRevision;
     private long _lastObservedSessionRevision;
     private long _outgoingMutationRequestSequence;
@@ -234,6 +235,62 @@ internal sealed partial class ExperimentForm
             catch (IOException)
             {
             }
+            ShutdownAfterHostDisconnect();
+        });
+    }
+
+    /// <summary>
+    /// Leave when the host closes stdin, so a dead host cannot strand this helper.
+    /// </summary>
+    /// <remarks>
+    /// The reader loop ends on EOF or a broken pipe, and both mean the Python
+    /// host is gone -- cleanly, or through a crash or force-kill that never ran
+    /// its shutdown path. Without this the WinForms message loop keeps running
+    /// forever, holding a D3D11 device and the resident package cache.
+    ///
+    /// Only for <c>--embedded</c>: there the host owns the window and is the
+    /// only thing that can close it. A standalone launch has a console for
+    /// stdin and must not exit just because nobody is typing at it.
+    /// </remarks>
+    private void ShutdownAfterHostDisconnect()
+    {
+        if (!_options.Embedded)
+        {
+            return;
+        }
+        _hostDisconnected = true;
+        try
+        {
+            if (!IsDisposed && IsHandleCreated)
+            {
+                BeginInvoke(new Action(() =>
+                {
+                    try
+                    {
+                        Close();
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                    }
+                    Application.ExitThread();
+                }));
+            }
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        // The graceful path needs a live message loop, and EOF can arrive
+        // before Application.Run starts it or while the UI thread is wedged in
+        // a driver call. Nothing here is worth saving once the host is gone, so
+        // a short watchdog guarantees the exit either way.
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
+            Environment.Exit(0);
         });
     }
 

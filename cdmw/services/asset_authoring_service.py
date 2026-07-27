@@ -15,6 +15,7 @@ from typing import Mapping, Sequence
 
 from cdmw.modding.mesh_native_core import find_native_mesh_core_binary
 from cdmw.services.bundled_helper_availability import bundled_helper_path
+from cdmw.services.process_job_service import breakaway_creation_flags
 
 
 ASSET_AUTHORING_DISCOVERY_SCHEMA = "cdmw_asset_authoring_discovery_v1"
@@ -214,7 +215,13 @@ class AssetAuthoringService:
         command = self.material_maker_project_command(project_path, configured_paths)
         if not command.get("can_launch"):
             return command
-        process = subprocess.Popen(tuple(str(part) for part in command["argv"]), cwd=str(Path(project_path).expanduser().parent))
+        # An external editor the user works in directly, so it breaks out of
+        # the kill-on-close job rather than dying with the workbench.
+        process = subprocess.Popen(
+            tuple(str(part) for part in command["argv"]),
+            cwd=str(Path(project_path).expanduser().parent),
+            creationflags=breakaway_creation_flags(),
+        )
         return {**command, "status": "launched", "pid": process.pid}
 
     def material_maker_export_command(
