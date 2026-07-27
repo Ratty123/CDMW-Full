@@ -5,9 +5,15 @@ A decoded prefab is honest but unfriendly: it calls things
 This module turns that vocabulary into something a modder can act on, and says
 what each field is *for* rather than only what it is called.
 
-Curated entries cover the fields that actually matter for modding. Anything
-unknown falls back to de-camel-casing the declared name, so a field this table
-has never seen still reads sensibly instead of disappearing.
+Curated entries cover the fields that actually matter for modding, chosen by
+how often they are *set* across the shipped prefabs rather than how often they
+are declared -- a prefab declares far more than it uses.
+
+Descriptions are inferred from each field's name and declared type, not from
+engine documentation. Where a name does not support a confident reading the
+entry carries a label only, so the field still reads as prose without the
+inspector asserting something it cannot back up. Anything absent falls back to
+de-camel-casing the declared name.
 """
 
 from __future__ import annotations
@@ -68,6 +74,63 @@ _FIELDS: dict[str, FieldMeaning] = {
     "_gimmickAliasName": FieldMeaning("Gimmick alias", "Name other systems refer to it by."),
     "_socketName": FieldMeaning("Socket name", "Name of this attachment point."),
     "_path": FieldMeaning("Path", "Location of the referenced file."),
+    # Identity and editor presentation.
+    "_displayName": FieldMeaning("Display name", "Name shown for this object in the editor."),
+    "_key": FieldMeaning("Key", "Named lookup key for this entry."),
+    "_value": FieldMeaning("Value", "The value this entry carries."),
+    # Appearance and rendering.
+    "_diffuseTexture": FieldMeaning("Base texture", "Base colour texture."),
+    "_decalInfo": FieldMeaning("Decal", "Decal projected onto nearby surfaces."),
+    "_triplanarMode": FieldMeaning("Triplanar mapping", "Project the texture from three axes instead of using UVs."),
+    "_useTextureBuffer": FieldMeaning("Use texture buffer", "Read texture data from a buffer instead of a bound texture."),
+    "_thickness": FieldMeaning("Thickness", "How thick the generated geometry is."),
+    "_fade": FieldMeaning("Fade", "How this object fades in and out of view."),
+    "_fadeInTime": FieldMeaning("Fade-in time", "Seconds taken to fade in."),
+    "_fadeOutTime": FieldMeaning("Fade-out time", "Seconds taken to fade out."),
+    "_priority": FieldMeaning("Priority", "Ordering against other objects competing for the same slot."),
+    "_customRenderMaxPriority": FieldMeaning("Custom pass wins ties", "Give this object's custom render pass top priority."),
+    "_useInstanceOptimization": FieldMeaning("Instance optimisation", "Allow the engine to batch repeated copies."),
+    "_aggregation": FieldMeaning("Aggregate", "Merge this object with others for drawing."),
+    # Placement and repetition.
+    "_multiPosition": FieldMeaning("Repeat placement", "Placement used when this object is repeated."),
+    "_multiPositionLargeMode": FieldMeaning("Repeat over a large area"),
+    "_transforms": FieldMeaning("Placements", "Placement for each repeated copy."),
+    "_offsetRadius": FieldMeaning("Offset radius", "How far copies are scattered from the origin."),
+    "_position": FieldMeaning("Position", "Position in space."),
+    "_applyLevelOverrideTransform": FieldMeaning(
+        "Use level placement", "Take placement from the level rather than from this prefab."
+    ),
+    # Physics and collision.
+    "_ignoreCollisionMasks": FieldMeaning("Ignored collision layers", "Collision layers this object does not interact with."),
+    "_disableBreaking": FieldMeaning("Cannot break", "Stops this object from being broken."),
+    "_overrideToDynamicMotion": FieldMeaning("Force dynamic motion", "Make this object physics-driven rather than static."),
+    "_shapeId": FieldMeaning("Shape id"),
+    # Cloth and meshes.
+    "_attachingClothToMesh": FieldMeaning("Attached cloth", "Cloth simulation bound to this mesh."),
+    "_siblingMesh": FieldMeaning("Paired mesh", "Another mesh component this one is paired with."),
+    "_isSyncMeshComponent": FieldMeaning("Sync with mesh", "Keep this component in step with its mesh."),
+    "_instanceAnchorMeshNodeContainer": FieldMeaning("Instance anchors", "Mesh nodes that placed copies anchor to."),
+    "_externalLoadingInfo": FieldMeaning("Streaming info", "How this asset is streamed in."),
+    # Splines.
+    "_splineName": FieldMeaning("Spline", "Name of the spline this follows."),
+    "_splineObject": FieldMeaning("Spline object", "The spline this object is bound to."),
+    "_splineObjectUid": FieldMeaning("Spline id", "Identifier of the spline this belongs to."),
+    "_isClosed": FieldMeaning("Closed loop", "Whether the spline joins back to its start."),
+    "_rotationMode": FieldMeaning("Rotation mode", "How rotation follows the spline."),
+    "_pointList": FieldMeaning("Points", "Points making up this shape."),
+    "_smootingDistance": FieldMeaning("Smoothing distance", "How far smoothing reaches along the shape."),
+    # Gimmicks and linkage.
+    "_enableList": FieldMeaning("Enables", "Objects this switches on."),
+    "_disableList": FieldMeaning("Disables", "Objects this switches off."),
+    "_enableTargetList": FieldMeaning("Enable targets", "Objects targeted when switching on."),
+    "_disableTargetList": FieldMeaning("Disable targets", "Objects targeted when switching off."),
+    "_linkdataGroupList": FieldMeaning("Linked groups", "Groups of objects linked to this one."),
+    "_gimmickTriggerCheckTargetDataList": FieldMeaning("Trigger checks", "Objects checked when this gimmick triggers."),
+    "_switchOn": FieldMeaning("Starts on", "Whether this begins in the on state."),
+    "_isSavePresetTarget": FieldMeaning("Saved in presets", "Include this object when a preset is saved."),
+    "_socketList": FieldMeaning("Sockets", "Attachment points this object provides."),
+    "_autoUpdateCustomKey": FieldMeaning("Auto-update key", "Refresh the custom key automatically."),
+    "_customkey": FieldMeaning("Custom key", "Free-form value read by gameplay code."),
 }
 
 # What an asset is, by file extension.
