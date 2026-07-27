@@ -222,3 +222,40 @@ def test_retarget_warnings(replacement: str, fragment: str) -> None:
         assert fragment in warning
     else:
         assert warning == ""
+
+
+_KNOWN = {".pac": ("character/model/1_pc/weapon/real.pac", PATH)}
+
+
+def test_missing_target_is_reported_when_an_index_is_supplied(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build(), known_paths=_KNOWN)
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/typo.pac")
+    assert "No file with that path exists" in dialog.status.text()
+
+
+def test_existing_target_passes_validation(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build(), known_paths=_KNOWN)
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/real.pac")
+    assert "wrong" not in dialog.status.text()
+    assert dialog.apply_button.isEnabled()
+
+
+def test_without_an_index_nothing_is_claimed_about_existence(qt_app: QApplication) -> None:
+    """No archive means no existence claim -- silence, not a false alarm."""
+    dialog = PrefabInspectorDialog(_build())
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/typo.pac")
+    assert "exists" not in dialog.status.text()
+
+
+def test_browse_offers_only_files_of_the_same_kind(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build(), known_paths=_KNOWN)
+    row = _path_row(dialog)
+    dialog.tree.setCurrentItem(row)
+    assert dialog.browse_button.isEnabled()
+    assert dialog._candidates_for(row) == _KNOWN[".pac"]
+
+
+def test_browse_is_unavailable_without_an_index(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    dialog.tree.setCurrentItem(_path_row(dialog))
+    assert not dialog.browse_button.isEnabled()
