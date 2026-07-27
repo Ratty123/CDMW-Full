@@ -165,3 +165,60 @@ def _visible_schema_labels(dialog: PrefabInspectorDialog) -> list[str]:
             if not child.isHidden():
                 found.append(child.text(0))
     return found
+
+
+def _path_row(dialog: PrefabInspectorDialog):
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if child.text(2) == PATH:
+                return child
+    raise AssertionError("path row not found")
+
+
+def test_apply_is_off_until_something_changes(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    assert not dialog.apply_button.isEnabled()
+    assert not dialog.revert_button.isEnabled()
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    assert dialog.apply_button.isEnabled()
+    assert dialog.revert_button.isEnabled()
+    assert "1 path change ready" in dialog.status.text()
+
+
+def test_undo_restores_the_stored_paths(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build())
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    dialog._revert_changes()
+    assert dialog.collect_replacements() == {}
+    assert not dialog.apply_button.isEnabled()
+    assert dialog.status.text() == ""
+
+
+def test_swapping_a_model_for_a_texture_is_flagged(qt_app: QApplication) -> None:
+    """A wrong-kind path is the mistake most likely to slip through."""
+    dialog = PrefabInspectorDialog(_build())
+    _path_row(dialog).setText(2, "character/texture/1_pc/weapon/sword.dds")
+    assert "1 looks wrong" in dialog.status.text()
+    assert "texture file" in dialog.status.text()
+    # It is a warning, not a block: the modder may know better than we do.
+    assert dialog.apply_button.isEnabled()
+
+
+@pytest.mark.parametrize(
+    ("replacement", "fragment"),
+    [
+        ("", "empty"),
+        ("just-a-name", "does not look like a file path"),
+        ("character/model/1_pc/weapon/fine.pac", ""),
+    ],
+)
+def test_retarget_warnings(replacement: str, fragment: str) -> None:
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import _retarget_warning
+
+    warning = _retarget_warning(PATH, replacement)
+    if fragment:
+        assert fragment in warning
+    else:
+        assert warning == ""

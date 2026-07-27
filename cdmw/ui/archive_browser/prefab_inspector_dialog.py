@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QBrush, QColor
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -50,6 +51,27 @@ from cdmw.services.prefab_structure_service import decode_prefab_binary, rewrite
 
 _EDIT_ROLE = Qt.ItemDataRole.UserRole + 1
 _USED_ROLE = Qt.ItemDataRole.UserRole + 2
+
+_CHANGED_COLOUR = QColor("#7ec8ff")
+_WARNING_COLOUR = QColor("#ffb86b")
+
+
+def _retarget_warning(original: str, replacement: str) -> str:
+    """Why a replacement path looks wrong, or empty when it looks fine.
+
+    These are shape checks, not existence checks -- the dialog has no archive
+    to look the path up in, so it flags what it can prove from the text alone
+    rather than implying the target was verified.
+    """
+    text = replacement.strip()
+    if not text:
+        return "Path is empty."
+    if not is_asset_path(text):
+        return "That does not look like a file path (expected folders and a file extension)."
+    was, now = asset_role(original), asset_role(text)
+    if was != now:
+        return f"This field held a {was.lower()} file; the replacement looks like a {now.lower()} file."
+    return ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,11 +119,19 @@ class PrefabInspectorDialog(QDialog):
         tabs.addTab(self._build_schema_tab(), "All fields")
         layout.addWidget(tabs, 1)
 
+        self.status = QLabel("")
+        self.status.setWordWrap(True)
+        layout.addWidget(self.status)
+
         row = QHBoxLayout()
         self.apply_button = QPushButton("Apply path changes")
-        self.apply_button.setEnabled(self._can_edit())
+        self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self._apply_changes)
         row.addWidget(self.apply_button)
+        self.revert_button = QPushButton("Undo changes")
+        self.revert_button.setEnabled(False)
+        self.revert_button.clicked.connect(self._revert_changes)
+        row.addWidget(self.revert_button)
         row.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         buttons.rejected.connect(self.reject)
@@ -226,9 +256,45 @@ class PrefabInspectorDialog(QDialog):
         if column != 2:
             return
         original = item.data(2, _EDIT_ROLE)
+        if not isinstance(original, str):
+            return
         current = item.text(2)
-        if isinstance(original, str) and current != original:
-            self.log.appendPlainText(f"pending: {original} -> {current}")
+        changed = current != original
+        warning = _retarget_warning(original, current) if changed else ""
+        colour = _WARNING_COLOUR if warning else _CHANGED_COLOUR if changed else None
+        item.setForeground(2, QBrush(colour) if colour else QBrush())
+        item.setToolTip(2, warning or ("Changed." if changed else ""))
+        self._refresh_pending_state()
+
+    def _refresh_pending_state(self) -> None:
+        replacements = self.collect_replacements()
+        warnings = [
+            _retarget_warning(old, new)
+            for old, new in replacements.items()
+            if _retarget_warning(old, new)
+        ]
+        self.apply_button.setEnabled(self._can_edit() and bool(replacements))
+        self.revert_button.setEnabled(bool(replacements))
+        if not replacements:
+            self.status.setText("")
+            return
+        count = len(replacements)
+        note = f"{count} path change{'' if count == 1 else 's'} ready to apply."
+        if warnings:
+            verb = "looks" if len(warnings) == 1 else "look"
+            note += f"  {len(warnings)} {verb} wrong: " + " ".join(dict.fromkeys(warnings))
+        self.status.setText(note)
+
+    def _revert_changes(self) -> None:
+        """Put every edited row back to the value the file actually holds."""
+        for index in range(self.tree.topLevelItemCount()):
+            parent = self.tree.topLevelItem(index)
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                original = child.data(2, _EDIT_ROLE)
+                if isinstance(original, str) and child.text(2) != original:
+                    child.setText(2, original)
+        self.log.appendPlainText("Reverted to the paths stored in the file.")
 
     # -- schema tab ------------------------------------------------------
     def _build_schema_tab(self) -> QWidget:
