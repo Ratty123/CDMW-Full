@@ -139,3 +139,30 @@ def test_incomplete_decode_refuses_to_edit() -> None:
     assert not broken.walk_complete
     with pytest.raises(PrefabEditError, match="did not decode completely"):
         rewrite_prefab_paths(bytes(payload), {PATH: "new/path.pac"})
+
+
+def test_legacy_resize_refuses_rather_than_losing_a_pointer() -> None:
+    """The old offset-candidate scan corrupts real prefabs; it must fail loudly.
+
+    It relocates by looking for u32s that happen to equal a known string
+    offset, which cannot distinguish a pointer from a coincidence. On a real
+    prefab that drops an internal pointer, so the rebuild is now checked
+    against the exact pointer test and refused when one goes missing.
+    """
+    from cdmw.core.crimson_formats import _reject_if_pointers_were_lost
+
+    payload = _build()
+    # A rebuild that dropped a pointer: same length, pointer no longer
+    # addressing the byte past itself.
+    corrupted = bytearray(payload)
+    pointer = decode_prefab_binary(payload).pointers[0]
+    struct.pack_into("<I", corrupted, pointer.site, pointer.site + 64)
+    with pytest.raises(ValueError, match="internal pointer"):
+        _reject_if_pointers_were_lost(payload, bytes(corrupted))
+
+    # A faithful rebuild is left alone, so the guard cannot block correct work.
+    _reject_if_pointers_were_lost(payload, payload)
+
+    # And the structural path handles the resize the legacy scan cannot.
+    result = rewrite_prefab_paths(payload, {PATH: PATH + "_LONGER"})
+    assert decode_prefab_binary(result.data).walk_complete

@@ -550,7 +550,45 @@ def rebuild_prefab_resized_strings(data: bytes, replacements_by_field_index: Map
         cursor = span.end
     if cursor != len(payload):
         raise ValueError("Prefab layout rebuild did not account for the full payload.")
-    return bytes(rebuilt)
+    result = bytes(rebuilt)
+    _reject_if_pointers_were_lost(payload, result)
+    return result
+
+
+def _reject_if_pointers_were_lost(original: bytes, rebuilt: bytes) -> None:
+    """Fail rather than return a payload whose internal pointers stopped resolving.
+
+    This function relocates by scanning preserved bytes for u32s that happen to
+    equal a known string offset, which cannot tell a pointer from a number that
+    coincidentally matches. :mod:`cdmw.core.prefab_binary_edit` identifies
+    pointers exactly instead and should be preferred for real prefabs.
+
+    Where the payload is a real prefab, that exact test gives a check this
+    function can apply to its own output: a u32 at blob-relative ``k`` is a
+    pointer if and only if it stores ``blobOffset + k + 4``. Relocating
+    correctly preserves how many of those there are; rewriting the wrong u32
+    destroys one. Payloads that are not prefabs are left alone, since there is
+    nothing to check them against.
+    """
+    from cdmw.core.prefab_binary import (  # noqa: PLC0415 - avoids an import cycle
+        PrefabBinaryError,
+        decode_prefab_binary,
+        pointer_sites,
+    )
+
+    try:
+        before = decode_prefab_binary(original)
+        after = decode_prefab_binary(rebuilt)
+    except PrefabBinaryError:
+        return
+    lost = len(pointer_sites(original, before.blob_offset, before.blob_length)) - len(
+        pointer_sites(rebuilt, after.blob_offset, after.blob_length)
+    )
+    if lost > 0:
+        raise ValueError(
+            f"Prefab resize lost {lost} internal pointer(s); the offset-candidate scan "
+            "rewrote the wrong bytes. Use cdmw.core.prefab_binary_edit.rewrite_prefab_paths."
+        )
 
 
 def decode_meshinfo(data: bytes) -> CrimsonMeshInfoDecode:
