@@ -1,0 +1,7 @@
+"""Shared Starlark build definitions.
+
+Deliberately not placed under tools/ : bazelisk treats a `tools/bazel` entry as a
+launcher wrapper to exec, so a Bazel package at that path is a trap.
+"""
+
+exports_files(["unity.bzl"])

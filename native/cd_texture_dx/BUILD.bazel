@@ -1,0 +1,36 @@
+"""Texture helper. Mirrors native/cd_texture_dx/CMakeLists.txt.
+
+DirectXTex comes from @directxtex (pinned http_archive) instead of CMake
+FetchContent, so the shader pre-build and the 21 library sources are Bazel
+actions and get cached like everything else.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary")
+
+cc_binary(
+    name = "cd-texture-dx",
+    srcs = [
+        "src/common.cpp",
+        "src/encode.cpp",
+        "src/main.cpp",
+        "src/preview.cpp",
+        "src/self_test.cpp",
+        "src/texture_tool.h",
+        "src/texture_tool_internal.h",
+    ],
+    copts = [
+        "/std:c++20",
+        "/openmp",
+    ],
+    includes = ["src"],
+    linkopts = ["-DEFAULTLIB:windowscodecs.lib"],
+    local_defines = [
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//native/common:native_diagnostics",
+        "@directxtex//:directxtex",
+    ],
+)

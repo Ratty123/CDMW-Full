@@ -1,0 +1,8 @@
+"""Smallest native helper - the proving ground for the MSVC toolchain."""
+
+cc_binary(
+    name = "cdmw-archive-accelerator",
+    srcs = ["src/main.cpp"],
+    copts = ["/std:c++17"],
+    visibility = ["//visibility:public"],
+)

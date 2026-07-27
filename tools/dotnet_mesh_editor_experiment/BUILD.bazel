@@ -1,0 +1,23 @@
+"""Self-contained .NET Mesh Editor helper."""
+
+load("//build_defs:dotnet.bzl", "dotnet_publish")
+
+dotnet_publish(
+    name = "mesh_editor_publish",
+    srcs = glob(
+        [
+            "**/*.cs",
+            "**/*.csproj",
+            "**/*.hlsl",
+            "**/*.json",
+        ],
+        exclude = [
+            "bin/**",
+            "obj/**",
+        ],
+        allow_empty = False,
+    ),
+    project = "Cdmw.MeshEditorExperiment.csproj",
+    single_file = True,
+    visibility = ["//visibility:public"],
+)

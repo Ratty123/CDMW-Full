@@ -1,0 +1,27 @@
+"""Self-contained full archive worker.
+
+Published with PublishSingleFile=false, matching
+scripts/full_archive_backend_release.ps1 - the worker ships as a directory
+alongside cdmw-full-archive-core.dll rather than as one bundled executable.
+"""
+
+load("//build_defs:dotnet.bzl", "dotnet_publish")
+
+dotnet_publish(
+    name = "worker_publish",
+    srcs = glob(
+        [
+            "src/**/*.cs",
+            "src/**/*.csproj",
+            "src/**/*.json",
+        ],
+        exclude = [
+            "**/bin/**",
+            "**/obj/**",
+        ],
+        allow_empty = False,
+    ),
+    project = "src/Cdmw.FullArchive.Worker/Cdmw.FullArchive.Worker.csproj",
+    single_file = False,
+    visibility = ["//visibility:public"],
+)

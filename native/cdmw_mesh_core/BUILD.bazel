@@ -1,0 +1,131 @@
+"""Mesh core helper. Mirrors native/cdmw_mesh_core/CMakeLists.txt.
+
+Two things differ structurally from the other helpers:
+  * the 48 owner sources are one unity translation unit (see //build_defs:unity.bzl)
+  * the vendored third-party code mixes C (mikktspace, ufbx) and C++
+    (meshoptimizer, xatlas), so its defines have to be local_defines rather than
+    a global --cxxopt, which would not reach the C sources.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("//build_defs:unity.bzl", "cmake_unity_source")
+
+MESH_CORE_OWNER_SOURCES = [
+    "src/owners/protocol_types_01.cpp",
+    "src/owners/protocol_types_02.cpp",
+    "src/owners/payload_selection_01.cpp",
+    "src/owners/payload_selection_02.cpp",
+    "src/owners/payload_selection_03.cpp",
+    "src/owners/payload_selection_04.cpp",
+    "src/owners/geometry_uv_01.cpp",
+    "src/owners/geometry_uv_02.cpp",
+    "src/owners/geometry_uv_03.cpp",
+    "src/owners/geometry_uv_04.cpp",
+    "src/owners/edit_topology_01.cpp",
+    "src/owners/edit_topology_02.cpp",
+    "src/owners/edit_topology_03.cpp",
+    "src/owners/edit_topology_04.cpp",
+    "src/owners/edit_topology_05.cpp",
+    "src/owners/edit_topology_06.cpp",
+    "src/owners/edit_topology_07.cpp",
+    "src/owners/edit_topology_08.cpp",
+    "src/owners/edit_topology_09.cpp",
+    "src/owners/interchange_01.cpp",
+    "src/owners/interchange_02.cpp",
+    "src/owners/interchange_03.cpp",
+    "src/owners/reports_01.cpp",
+    "src/owners/reports_02.cpp",
+    "src/owners/reports_03.cpp",
+    "src/owners/reports_04.cpp",
+    "src/owners/preview_01.cpp",
+    "src/owners/preview_02.cpp",
+    "src/owners/session_state_01.cpp",
+    "src/owners/session_state_02.cpp",
+    "src/owners/session_selection_screen_01.cpp",
+    "src/owners/session_selection_screen_02.cpp",
+    "src/owners/session_state_03.cpp",
+    "src/owners/session_state_04.cpp",
+    "src/owners/session_lifecycle_01.cpp",
+    "src/owners/session_history_01.cpp",
+    "src/owners/session_export_01.cpp",
+    "src/owners/session_apply_prepare_01.cpp",
+    "src/owners/session_morph_01.cpp",
+    "src/owners/session_morph_fields_01.cpp",
+    "src/owners/session_apply_execute_01.cpp",
+    "src/owners/session_apply_commit_01.cpp",
+    "src/owners/session_apply_01.cpp",
+    "src/owners/session_state_05.cpp",
+    "src/owners/session_dispatch_01.cpp",
+    "src/owners/snapshot_report_01.cpp",
+    "src/owners/command_protocol_01.cpp",
+    "src/owners/service_01.cpp",
+]
+
+_MESH_CORE_DEFINES = [
+    "NOMINMAX",
+    "WIN32_LEAN_AND_MEAN",
+]
+
+cmake_unity_source(
+    name = "mesh_core_owners_unity",
+    srcs = MESH_CORE_OWNER_SOURCES,
+    code_after_include = "\n}  // namespace cdmw_mesh_core\n",
+    code_before_include = '#include "mesh_core_internal.hpp"\nnamespace cdmw_mesh_core {\n',
+    out = "unity_mesh_core_owners_cxx.cpp",
+    strip_prefix = "native/cdmw_mesh_core/src/",
+)
+
+cc_library(
+    name = "mesh_core_third_party",
+    srcs = [
+        "third_party/meshoptimizer/allocator.cpp",
+        "third_party/meshoptimizer/indexanalyzer.cpp",
+        "third_party/meshoptimizer/overdrawoptimizer.cpp",
+        "third_party/meshoptimizer/rasterizer.cpp",
+        "third_party/meshoptimizer/simplifier.cpp",
+        "third_party/meshoptimizer/spatialorder.cpp",
+        "third_party/meshoptimizer/vcacheoptimizer.cpp",
+        "third_party/meshoptimizer/vfetchoptimizer.cpp",
+        "third_party/mikktspace/mikktspace.c",
+        "third_party/ufbx/ufbx.c",
+        "third_party/xatlas/xatlas.cpp",
+    ],
+    hdrs = [
+        "third_party/meshoptimizer/meshoptimizer.h",
+        "third_party/mikktspace/mikktspace.h",
+        "third_party/ufbx/ufbx.h",
+        "third_party/xatlas/xatlas.h",
+    ],
+    includes = [
+        "third_party/meshoptimizer",
+        "third_party/mikktspace",
+        "third_party/ufbx",
+        "third_party/xatlas",
+    ],
+    local_defines = _MESH_CORE_DEFINES,
+)
+
+cc_library(
+    name = "mesh_core_headers",
+    includes = ["src"],
+    textual_hdrs = MESH_CORE_OWNER_SOURCES + [
+        "src/mesh_core.hpp",
+        "src/mesh_core_internal.hpp",
+    ],
+)
+
+cc_binary(
+    name = "cdmw-mesh-core",
+    srcs = [
+        "src/main.cpp",
+        ":mesh_core_owners_unity",
+    ],
+    copts = ["/std:c++17"],
+    includes = ["src"],
+    local_defines = _MESH_CORE_DEFINES,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":mesh_core_headers",
+        ":mesh_core_third_party",
+    ],
+)

@@ -1,0 +1,26 @@
+"""Bazel module for the Crimson Desert Mod Workbench build.
+
+Scope note: Bazel currently owns the native C++ helpers. The .NET publishes and
+the PyInstaller package are layered on after those are proven, because they are
+whole-directory outputs that need explicit rules rather than cc_* targets.
+"""
+
+module(
+    name = "crimson_desert_mod_workbench",
+    version = "0.10.0",
+)
+
+bazel_dep(name = "rules_cc", version = "0.0.9")
+bazel_dep(name = "platforms", version = "0.0.10")
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# Same commit native/cd_texture_dx/CMakeLists.txt pins via CDMW_DIRECTXTEX_COMMIT.
+# Keep the two in step until CMake stops building this project.
+http_archive(
+    name = "directxtex",
+    build_file = "//third_party:directxtex.BUILD",
+    sha256 = "df845413a179e2e993b30212baba3bb4d0bfe9f3fc9e3ce8ce8b652d35ef31ec",
+    strip_prefix = "DirectXTex-bf256afaed1c789ddd444fb45105ffbcab283efe",
+    urls = ["https://github.com/microsoft/DirectXTex/archive/bf256afaed1c789ddd444fb45105ffbcab283efe.tar.gz"],
+)

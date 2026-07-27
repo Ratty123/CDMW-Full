@@ -1,0 +1,45 @@
+# Keep the output base off the repo drive root and out of C:. Bazel must never
+# scan its own outputs, so this deliberately lives outside the workspace.
+startup --output_user_root=D:/bazel_cdmw
+
+# Group the convenience junctions under .bazel/ instead of scattering
+# bazel-out / bazel-bin / bazel-testlogs across the repo root, where the release
+# dirty-tree preflight would have to reason about them.
+build --symlink_prefix=.bazel/
+
+common --enable_platform_specific_config
+
+# This repo has a runtime directory named `workspace/` at its root. Windows is
+# case-insensitive, so Bazel's probe for a legacy `WORKSPACE` marker file opens
+# that directory instead and dies with "Access is denied". Bzlmod is the only
+# dependency mechanism used here, so turn the legacy file off and let
+# MODULE.bazel be the sole workspace-root marker.
+common --noenable_workspace
+
+# MSVC: /utf-8 matches what the CMake builds pass, and without it the MSVC
+# default codepage mangles string literals in these sources.
+build:windows --cxxopt=/utf-8
+build:windows --host_cxxopt=/utf-8
+
+# NOMINMAX / WIN32_LEAN_AND_MEAN are deliberately NOT set globally here. Each
+# CMakeLists applies them per target, and setting them as a global --cxxopt
+# would silently skip the C sources (mikktspace.c, ufbx.c), which do get them
+# from CMake's target_compile_definitions. They live in local_defines instead.
+
+# Bazel scrubs the action environment. The .NET SDK resolves its NuGet package
+# folder from USERPROFILE/APPDATA and fails restore with a bare
+# "Value cannot be null. (Parameter 'path1')" when they are absent. PyInstaller
+# needs a writable TEMP. These pass the client's values through rather than
+# pinning them, so the cache key still tracks them.
+build --action_env=USERPROFILE
+build --action_env=APPDATA
+build --action_env=LOCALAPPDATA
+build --action_env=ProgramFiles
+build --action_env=ProgramData
+build --action_env=ProgramW6432
+build --action_env=NUGET_PACKAGES
+build --action_env=TEMP
+build --action_env=TMP
+build --action_env=SystemRoot
+
+test --test_output=errors

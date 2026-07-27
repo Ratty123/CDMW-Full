@@ -1,0 +1,85 @@
+"""Full archive native core: shipped DLL plus its self-test gate.
+
+Mirrors native/cdmw_full_archive_core/CMakeLists.txt. The self-test deliberately
+links the real DLL (not a static copy of the same sources) and additionally
+recompiles archive_decode.cpp / partial_dds.cpp, because it exercises both the
+exported C API in cdmw_full_archive_core.h and internals from
+archive_core_internal.hpp. Statically linking everything would still compile,
+but it would stop testing the artifact that actually ships.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_import", "cc_test")
+
+# CMake sets MSVC_RUNTIME_LIBRARY "MultiThreaded", i.e. the static CRT (/MT).
+# Bazel defaults to the dynamic CRT, so this has to be requested explicitly or
+# the DLL picks up a runtime dependency the shipped build never had.
+_MSVC_FEATURES = ["static_link_msvcrt"]
+
+_WARNING_COPTS = [
+    "/W4",
+    "/WX",
+    "/permissive-",
+    "/std:c++17",
+]
+
+cc_binary(
+    name = "cdmw-full-archive-core.dll",
+    srcs = [
+        "src/archive_core.cpp",
+        "src/archive_core_internal.hpp",
+        "src/archive_decode.cpp",
+        "src/pamt_index.cpp",
+        "src/partial_dds.cpp",
+        "include/cdmw_full_archive_core.h",
+    ],
+    copts = _WARNING_COPTS,
+    features = _MSVC_FEATURES,
+    # CMake marks these PRIVATE, so they must not propagate: local_defines, not
+    # defines. The self-test deliberately gets none of them, matching CMake.
+    local_defines = [
+        "CDMW_FULL_ARCHIVE_CORE_EXPORTS",
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN",
+    ],
+    includes = [
+        "include",
+        "src",
+    ],
+    linkshared = True,
+    visibility = ["//visibility:public"],
+)
+
+# cc_import is the only way to feed a linkshared cc_binary back into a dependent
+# target. The .dll is the cc_binary's own default output, so it can be named
+# directly; the import .lib is only reachable through its output group (and the
+# `dynamic_library` group cannot be used for the .dll here, because it carries
+# more than one file and cc_import demands exactly one).
+filegroup(
+    name = "core_interface_library",
+    srcs = [":cdmw-full-archive-core.dll"],
+    output_group = "interface_library",
+)
+
+cc_import(
+    name = "core_import",
+    interface_library = ":core_interface_library",
+    shared_library = ":cdmw-full-archive-core.dll",
+)
+
+cc_test(
+    name = "cdmw-full-archive-core-self-test",
+    srcs = [
+        "src/archive_core_internal.hpp",
+        "src/archive_decode.cpp",
+        "src/partial_dds.cpp",
+        "tests/archive_core_tests.cpp",
+        "include/cdmw_full_archive_core.h",
+    ],
+    copts = _WARNING_COPTS,
+    features = _MSVC_FEATURES,
+    includes = [
+        "include",
+        "src",
+    ],
+    deps = [":core_import"],
+)

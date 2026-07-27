@@ -1,0 +1,81 @@
+"""Preview core helper. Mirrors native/cdmw_preview_core/CMakeLists.txt.
+
+The owner sources are compiled as one unity translation unit, exactly as the
+CMake build does. They are exposed to the compiler through textual_hdrs rather
+than srcs: listing them in srcs would make Bazel compile each one on its own,
+which fails because they are written to live inside `namespace cdmw_preview_core`.
+"""
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library")
+load("//build_defs:unity.bzl", "cmake_unity_source")
+
+PREVIEW_CORE_OWNER_SOURCES = [
+    "src/owners/protocol_json.cpp",
+    "src/owners/archive_decode.cpp",
+    "src/owners/archive_index.cpp",
+    "src/owners/pamt_index_cache.cpp",
+    "src/owners/archive_lite_index.cpp",
+    "src/owners/bounded_archive_dependencies.cpp",
+    "src/owners/geometry_pac.cpp",
+    "src/owners/geometry_static.cpp",
+    "src/owners/geometry_pat.cpp",
+    "src/owners/material_semantics.cpp",
+    "src/owners/material_graph.cpp",
+    "src/owners/material_resolution.cpp",
+    "src/owners/material_selection.cpp",
+    "src/owners/material_archive_lookup.cpp",
+    "src/owners/material_binding_build.cpp",
+    "src/owners/material_bindings.cpp",
+    "src/owners/geometry_package.cpp",
+    "src/owners/package_material_classification.cpp",
+    "src/owners/package_material_layers.cpp",
+    "src/owners/package_asset_report.cpp",
+    "src/owners/package_writer_types.cpp",
+    "src/owners/package_writer_selection.cpp",
+    "src/owners/package_writer_material.cpp",
+    "src/owners/package_writer_json.cpp",
+    "src/owners/package_writer_json_tail.cpp",
+    "src/owners/package_writer_manifest.cpp",
+    "src/owners/package_writer.cpp",
+    "src/owners/preview_report.cpp",
+    "src/owners/mesh_rebuild_pac.cpp",
+    "src/owners/mesh_rebuild_static.cpp",
+    "src/owners/mesh_rebuild_dispatch.cpp",
+    "src/owners/name_index_service.cpp",
+    "src/owners/command_dispatch.cpp",
+]
+
+cmake_unity_source(
+    name = "preview_core_owners_unity",
+    srcs = PREVIEW_CORE_OWNER_SOURCES,
+    code_after_include = "\n}  // namespace cdmw_preview_core\n",
+    code_before_include = '#include "preview_core_internal.hpp"\nnamespace cdmw_preview_core {\n',
+    out = "unity_preview_core_owners_cxx.cpp",
+    strip_prefix = "native/cdmw_preview_core/src/",
+)
+
+cc_library(
+    name = "preview_core_headers",
+    includes = ["src"],
+    textual_hdrs = PREVIEW_CORE_OWNER_SOURCES + [
+        "src/preview_core.hpp",
+        "src/preview_core_internal.hpp",
+    ],
+    deps = ["//native/common:native_diagnostics"],
+)
+
+cc_binary(
+    name = "cdmw-preview-core",
+    srcs = [
+        "src/main.cpp",
+        ":preview_core_owners_unity",
+    ],
+    copts = ["/std:c++20"],
+    includes = ["src"],
+    local_defines = [
+        "NOMINMAX",
+        "WIN32_LEAN_AND_MEAN",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [":preview_core_headers"],
+)
