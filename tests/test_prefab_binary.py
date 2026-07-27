@@ -145,3 +145,28 @@ def test_decoded_document_reports_walk_state() -> None:
 def test_truncated_payload_raises_rather_than_guessing() -> None:
     with pytest.raises(PrefabBinaryError):
         decode_prefab_binary(_build()[:12])
+
+
+def test_group_component_is_read_from_the_type_index_not_guessed() -> None:
+    """Two components can both accommodate a mask; only the index disambiguates.
+
+    The element header states the component's index into the type table at
+    three bytes before the owner field. Inferring the type from the mask picks
+    whichever candidate happens to be smallest, which is wrong as soon as a
+    prefab declares more than one component.
+    """
+    from cdmw.core.prefab_binary import _BlobCursor, _find_element_header
+
+    blob = bytearray()
+    blob += struct.pack("<H", 3)  # marker
+    blob += struct.pack("<H", 0b101)  # component mask
+    blob += bytes((0x00, 0x07, 0x00, 0x00))  # tail; type index sits at owner-3
+    owner_at = len(blob)
+    blob += b"\x00" * 8  # owner
+    blob += struct.pack("<I", 1000 + owner_at + 8 + 4)  # self-relative pointer
+    blob += b"\x00" * 16  # the header search needs room to look ahead
+
+    cursor = _BlobCursor(bytes(blob), 1000)
+    mask, type_index = _find_element_header(cursor)
+    assert mask == 0b101
+    assert type_index == 7
