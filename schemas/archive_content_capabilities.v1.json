@@ -42,71 +42,226 @@
       }
     },
     "headline": {
-      "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work.",
-      "engine_formats": {
-        "extensions": 58,
-        "decode_percent": 47.2,
-        "write_percent": 25.0,
+      "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
+      "shipped_engine_formats": {
+        "extensions": 46,
+        "decode_percent": 48.5,
+        "write_percent": 27.2,
         "decode": {
-          "full": 13,
-          "none": 6,
-          "partial": 9,
-          "surface": 30
+          "full": 10,
+          "none": 2,
+          "partial": 7,
+          "surface": 27
         },
         "write": {
           "constrained": 5,
-          "full": 12,
-          "none": 41
+          "full": 10,
+          "none": 31
+        }
+      },
+      "engine_formats": {
+        "extensions": 58,
+        "decode_percent": 47.4,
+        "write_percent": 29.3,
+        "decode": {
+          "full": 14,
+          "none": 7,
+          "partial": 8,
+          "surface": 29
+        },
+        "write": {
+          "constrained": 6,
+          "full": 14,
+          "none": 38
         }
       },
       "proprietary_formats": {
         "extensions": 52,
-        "decode_percent": 48.7,
-        "write_percent": 25.0,
+        "decode_percent": 48.8,
+        "write_percent": 29.8,
         "decode": {
-          "full": 13,
-          "none": 4,
-          "partial": 6,
-          "surface": 29
+          "full": 14,
+          "none": 5,
+          "partial": 5,
+          "surface": 28
         },
         "write": {
-          "constrained": 2,
-          "full": 12,
-          "none": 38
+          "constrained": 3,
+          "full": 14,
+          "none": 35
         }
       },
       "all_formats": {
         "extensions": 108,
-        "decode_percent": 59.8,
-        "write_percent": 33.8,
+        "decode_percent": 59.9,
+        "write_percent": 36.1,
         "decode": {
-          "full": 46,
-          "none": 9,
-          "partial": 9,
-          "surface": 44
+          "full": 47,
+          "none": 10,
+          "partial": 8,
+          "surface": 43
         },
         "write": {
-          "constrained": 5,
-          "full": 34,
-          "none": 69
+          "constrained": 6,
+          "full": 36,
+          "none": 66
         }
       }
     },
+    "coverage_by_file_count": {
+      "files": 1289511,
+      "decode_percent": 68.5,
+      "write_percent": 57.7
+    },
+    "unlisted_in_manifest": [
+      {
+        "extension": ".padxil",
+        "archive_files": 89824
+      },
+      {
+        "extension": ".imp",
+        "archive_files": 1489
+      },
+      {
+        "extension": ".parg",
+        "archive_files": 750
+      },
+      {
+        "extension": ".pbd",
+        "archive_files": 584
+      },
+      {
+        "extension": ".save",
+        "archive_files": 328
+      },
+      {
+        "extension": ".paatt",
+        "archive_files": 223
+      },
+      {
+        "extension": ".pcg",
+        "archive_files": 92
+      },
+      {
+        "extension": ".spline2d",
+        "archive_files": 87
+      },
+      {
+        "extension": ".spline",
+        "archive_files": 59
+      },
+      {
+        "extension": ".impostor",
+        "archive_files": 45
+      },
+      {
+        "extension": ".pasg",
+        "archive_files": 40
+      },
+      {
+        "extension": ".ies",
+        "archive_files": 36
+      },
+      {
+        "extension": ".pamt",
+        "archive_files": 33
+      },
+      {
+        "extension": ".mi",
+        "archive_files": 24
+      },
+      {
+        "extension": ".pashv",
+        "archive_files": 24
+      },
+      {
+        "extension": ".ttf",
+        "archive_files": 19
+      },
+      {
+        "extension": ".dat",
+        "archive_files": 17
+      },
+      {
+        "extension": ".pasound",
+        "archive_files": 16
+      },
+      {
+        "extension": ".technique",
+        "archive_files": 16
+      },
+      {
+        "extension": ".paproj",
+        "archive_files": 9
+      },
+      {
+        "extension": ".pas",
+        "archive_files": 2
+      },
+      {
+        "extension": ".pma",
+        "archive_files": 2
+      },
+      {
+        "extension": ".roadidx",
+        "archive_files": 2
+      },
+      {
+        "extension": ".binarygimmickcacheddata",
+        "archive_files": 1
+      },
+      {
+        "extension": ".binarygimmickframeevent",
+        "archive_files": 1
+      },
+      {
+        "extension": ".binarystring",
+        "archive_files": 1
+      },
+      {
+        "extension": ".linkedsceneobject",
+        "archive_files": 1
+      },
+      {
+        "extension": ".paacdesc",
+        "archive_files": 1
+      },
+      {
+        "extension": ".paasmt",
+        "archive_files": 1
+      },
+      {
+        "extension": ".paprojdesc",
+        "archive_files": 1
+      },
+      {
+        "extension": ".paschedulectx",
+        "archive_files": 1
+      },
+      {
+        "extension": ".paseqh",
+        "archive_files": 1
+      },
+      {
+        "extension": ".questgaugecount",
+        "archive_files": 1
+      }
+    ],
     "by_origin": {
       "proprietary": {
         "extensions": 52,
-        "decode_percent": 48.7,
-        "write_percent": 25.0,
+        "decode_percent": 48.8,
+        "write_percent": 29.8,
         "decode": {
-          "full": 13,
-          "none": 4,
-          "partial": 6,
-          "surface": 29
+          "full": 14,
+          "none": 5,
+          "partial": 5,
+          "surface": 28
         },
         "write": {
-          "constrained": 2,
-          "full": 12,
-          "none": 38
+          "constrained": 3,
+          "full": 14,
+          "none": 35
         }
       },
       "third_party": {
@@ -152,7 +307,7 @@
       "animation_scene": {
         "extensions": 14,
         "decode_percent": 32.9,
-        "write_percent": 3.6,
+        "write_percent": 14.3,
         "decode": {
           "full": 1,
           "none": 2,
@@ -160,8 +315,9 @@
           "surface": 10
         },
         "write": {
-          "constrained": 1,
-          "none": 13
+          "constrained": 2,
+          "full": 1,
+          "none": 11
         }
       },
       "audio_video": {
@@ -226,24 +382,24 @@
       },
       "user_interface_text": {
         "extensions": 14,
-        "decode_percent": 87.1,
-        "write_percent": 78.6,
+        "decode_percent": 87.9,
+        "write_percent": 85.7,
         "decode": {
-          "full": 11,
-          "partial": 1,
-          "surface": 2
+          "full": 12,
+          "none": 1,
+          "surface": 1
         },
         "write": {
-          "full": 11,
-          "none": 3
+          "full": 12,
+          "none": 2
         }
       }
     },
     "priority": {
-      "high": 10,
-      "medium": 19,
-      "low": 26,
-      "none": 53
+      "high": 7,
+      "medium": 15,
+      "low": 18,
+      "none": 68
     },
     "open_high_priority_gaps": [
       {
@@ -259,12 +415,6 @@
         "remaining": "placement records not parsed - level layout cannot be edited"
       },
       {
-        "extension": ".paa",
-        "decode": "full",
-        "write": "none",
-        "remaining": "no encoder - custom animations are impossible until one exists"
-      },
-      {
         "extension": ".paac",
         "decode": "partial",
         "write": "constrained",
@@ -277,16 +427,10 @@
         "remaining": "placement records not parsed - level layout cannot be edited"
       },
       {
-        "extension": ".paloc",
-        "decode": "partial",
-        "write": "none",
-        "remaining": "no writer and no table header/count model - blocks translation and item-name mods"
-      },
-      {
         "extension": ".papr",
         "decode": "surface",
-        "write": "none",
-        "remaining": "expression strings are recovered but the binding table is not parsed - cloth, hair and jiggle-bone tuning stays out of reach"
+        "write": "constrained",
+        "remaining": "the per-entry record is a typed opcode stream that is not solved: one rig walks on the simplest reading and the other 19 do not, so there is no writer and only in-place weight edits are allowed"
       },
       {
         "extension": ".pat",
@@ -299,128 +443,122 @@
         "decode": "partial",
         "write": "constrained",
         "remaining": "only resource paths are editable; transforms, arrays and value edits stay off, and ~7% of files decode partially"
-      },
-      {
-        "extension": ".ui",
-        "decode": "surface",
-        "write": "none",
-        "remaining": "widget tree not parsed - HUD and menu modding is at zero"
       }
     ]
   },
   "extensions": [
-    { "extension": ".bmp", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
-    { "extension": ".dds", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "dds", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "png"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "native/cd_texture_dx/ (DirectXTex); decode and encode both round-trip", "remaining": "" },
-    { "extension": ".gif", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
-    { "extension": ".hdr", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification only", "remaining": "no decoder wired up; rare in shipped archives" },
-    { "extension": ".jpeg", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
-    { "extension": ".jpg", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
-    { "extension": ".png", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/core/texture_pipeline/", "remaining": "" },
-    { "extension": ".tga", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
-    { "extension": ".tif", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
-    { "extension": ".tiff", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
-    { "extension": ".webp", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification only", "remaining": "no decoder wired up; rare in shipped archives" },
-    { "extension": ".texture", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "medium", "evidence": "no analyzer; raw bytes only", "remaining": "wrapper purpose unknown - likely a texture descriptor or streaming stub" },
+    { "extension": ".bmp", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
+    { "extension": ".dds", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "dds", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "png"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 282864, "evidence": "native/cd_texture_dx/ (DirectXTex); decode and encode both round-trip", "remaining": "" },
+    { "extension": ".gif", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
+    { "extension": ".hdr", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification only", "remaining": "no decoder wired up; rare in shipped archives" },
+    { "extension": ".jpeg", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
+    { "extension": ".jpg", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
+    { "extension": ".png", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 68, "evidence": "cdmw/core/texture_pipeline/", "remaining": "" },
+    { "extension": ".tga", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
+    { "extension": ".tif", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
+    { "extension": ".tiff", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; decoded by the image pipeline", "remaining": "not an authoring target; convert to .dds to ship a texture" },
+    { "extension": ".webp", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "image", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": true, "playback": false, "exports": ["raw", "image"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification only", "remaining": "no decoder wired up; rare in shipped archives" },
+    { "extension": ".texture", "role": "image", "group": "texture_image", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "no analyzer; raw bytes only", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: wrapper purpose unknown - likely a texture descriptor or streaming stub" },
 
-    { "extension": ".aac", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".bnk", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "bnk", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "surface", "write": "none", "priority": "medium", "evidence": "bnk analyzer recovers section tags and referenced ids", "remaining": "HIRC event/action tables not parsed, so sounds can be swapped but not added" },
-    { "extension": ".flac", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".m4a", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".mp3", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
-    { "extension": ".ogg", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
-    { "extension": ".wav", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": true, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/core/archive_audio.py writes .wav on export", "remaining": "" },
-    { "extension": ".wem", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "wem", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": true, "exports": ["raw", "wav"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "medium", "evidence": "cdmw/core/archive_audio.py: decodes to .wav and rebuilds PCM .wem", "remaining": "only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored" },
-    { "extension": ".wma", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".avi", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".bk2", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".m4v", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".mov", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".mp4", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
-    { "extension": ".mpeg", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".mpg", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".webm", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
-    { "extension": ".wmv", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".aac", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".bnk", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "bnk", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 3186, "evidence": "bnk analyzer recovers section tags and referenced ids", "remaining": "HIRC event/action tables not parsed, so sounds can be swapped but not added" },
+    { "extension": ".flac", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".m4a", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".mp3", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
+    { "extension": ".ogg", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
+    { "extension": ".wav", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": true, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "cdmw/core/archive_audio.py writes .wav on export", "remaining": "" },
+    { "extension": ".wem", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "wem", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": true, "exports": ["raw", "wav"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "medium", "archive_files": 375762, "evidence": "cdmw/core/archive_audio.py: decodes to .wav and rebuilds PCM .wem", "remaining": "only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored" },
+    { "extension": ".wma", "role": "audio", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".avi", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".bk2", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".m4v", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".mov", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".mp4", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "proven", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 742, "evidence": "public format; identified and playable", "remaining": "not an authoring target" },
+    { "extension": ".mpeg", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".mpg", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".webm", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
+    { "extension": ".wmv", "role": "video", "group": "audio_video", "container": "binary", "analyzer": "media", "maturity": "header_only", "readable": true, "structured": false, "references": false, "visual": false, "playback": true, "exports": ["raw"], "origin": "open", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "header identification; playback delegated to the OS decoder", "remaining": "" },
 
-    { "extension": ".cfg", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".css", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".csv", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".dae", "role": "text", "group": "model_mesh_physics", "container": "text", "analyzer": "text_model", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "none", "priority": "low", "evidence": "text model, readable", "remaining": "no export or import route; use glTF/OBJ" },
-    { "extension": ".gltf", "role": "text", "group": "model_mesh_physics", "container": "text", "analyzer": "text_model", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "glTF export target", "remaining": "" },
-    { "extension": ".obj", "role": "text", "group": "model_mesh_physics", "container": "text", "analyzer": "obj", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/modding/mesh_exporter.py / mesh_importer.py", "remaining": "" },
-    { "extension": ".html", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".thtml", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".h", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".hpp", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".ini", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".json", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "json", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".log", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".lua", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".material", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "evidence": "plain-text material document; the material_text analyzer reads it and every value is visible in the text, so nothing is hidden behind a binary layout", "remaining": "no schema model, so edits are unchecked text edits" },
-    { "extension": ".mtl", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "written beside .obj on export", "remaining": "" },
-    { "extension": ".paloc", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "high", "evidence": "cdmw/core/archive_format.py:_looks_like_paloc_payload proves the record shape: u32-length numeric key then u32-length UTF-8 text", "remaining": "no writer and no table header/count model - blocks translation and item-name mods" },
-    { "extension": ".shader", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "evidence": "text; readable and editable. The shipped shader cache is the ground truth for what the parameters mean", "remaining": "no schema model, so edits are unchecked text edits" },
-    { "extension": ".txt", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".ui", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "header_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "high", "evidence": "embedded strings only", "remaining": "widget tree not parsed - HUD and menu modding is at zero" },
-    { "extension": ".xml", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".yaml", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".yml", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
-    { "extension": ".app_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "evidence": "XML dialect; readable and shippable as text", "remaining": "outside the structured sidecar editor, so edits are unchecked text edits" },
-    { "extension": ".pac_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
-    { "extension": ".pam_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
-    { "extension": ".pamlod_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
-    { "extension": ".pami", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
-    { "extension": ".prefabdata_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "evidence": "XML dialect; readable and shippable as text", "remaining": "outside the structured sidecar editor, so edits are unchecked text edits" },
-    { "extension": ".prefab_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "evidence": "XML dialect; readable and shippable as text", "remaining": "outside the structured sidecar editor, so edits are unchecked text edits" },
+    { "extension": ".cfg", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".css", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 176, "evidence": "the game's UI styling: 176 stylesheets under ui/, editable as text today", "remaining": "" },
+    { "extension": ".csv", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".dae", "role": "text", "group": "model_mesh_physics", "container": "text", "analyzer": "text_model", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 0, "evidence": "text model, readable", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: no export or import route; use glTF/OBJ" },
+    { "extension": ".gltf", "role": "text", "group": "model_mesh_physics", "container": "text", "analyzer": "text_model", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "glTF export target", "remaining": "" },
+    { "extension": ".obj", "role": "text", "group": "model_mesh_physics", "container": "text", "analyzer": "obj", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "cdmw/modding/mesh_exporter.py / mesh_importer.py", "remaining": "" },
+    { "extension": ".html", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 160, "evidence": "the game's UI layer is HTML: 160 documents under ui/, editable as text today", "remaining": "" },
+    { "extension": ".thtml", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 27, "evidence": "templated UI markup: 27 documents under ui/, editable as text today", "remaining": "" },
+    { "extension": ".h", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".hpp", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".ini", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".json", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "json", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".log", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".lua", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".material", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 400, "evidence": "plain-text material document; the material_text analyzer reads it and every value is visible in the text, so nothing is hidden behind a binary layout", "remaining": "no schema model, so edits are unchecked text edits" },
+    { "extension": ".mtl", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "written beside .obj on export", "remaining": "" },
+    { "extension": ".paloc", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 14, "evidence": "cdmw/core/paloc_format.py: flat records of category, key and text with the count as a u32 footer. All 14 shipped language tables, 2,625,294 records, rebuild byte for byte, and the footer count agrees with the record walk in every one", "remaining": "the category field is an opaque id; describe_categories reports the dominant key prefix per category from the data rather than the engine's own name for it" },
+    { "extension": ".shader", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "text; readable and editable. The shipped shader cache is the ground truth for what the parameters mean", "remaining": "no schema model, so edits are unchecked text edits" },
+    { "extension": ".txt", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 4, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".ui", "role": "text", "group": "user_interface_text", "container": "text", "analyzer": "text", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "no .ui entries exist in the shipped build. The extension was carried in this manifest without ever being seen in an archive", "remaining": "nothing: the game's UI is authored as HTML and CSS under ui/, which CDMW already reads and writes. There is no binary widget format to decode" },
+    { "extension": ".xml", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 7498, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".yaml", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".yml", "role": "text", "group": "material_metadata", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "plain text; readable and shippable as a loose mod file", "remaining": "" },
+    { "extension": ".app_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 5645, "evidence": "XML dialect; readable and shippable as text", "remaining": "outside the structured sidecar editor, so edits are unchecked text edits" },
+    { "extension": ".pac_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 12886, "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
+    { "extension": ".pam_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
+    { "extension": ".pamlod_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
+    { "extension": ".pami", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 67759, "evidence": "cdmw/core/material_sidecar_editor.py + cdmw/domain/pac_xml_editor.py: structured parse, typed parameter editing, and re-encode", "remaining": "" },
+    { "extension": ".prefabdata_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 2613, "evidence": "XML dialect; readable and shippable as text", "remaining": "outside the structured sidecar editor, so edits are unchecked text edits" },
+    { "extension": ".prefab_xml", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "material_text", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "XML dialect; readable and shippable as text", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: outside the structured sidecar editor, so edits are unchecked text edits" },
 
-    { "extension": ".3ds", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "none", "write": "none", "priority": "low", "evidence": "not analyzed", "remaining": "third-party interchange; import goes through glTF/GLB instead" },
-    { "extension": ".fbx", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "none", "write": "none", "priority": "low", "evidence": "not analyzed", "remaining": "third-party interchange; import goes through glTF/GLB instead" },
-    { "extension": ".glb", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "header_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/modding/mesh_glb_interchange.py: import path for authored meshes", "remaining": "" },
-    { "extension": ".mesh", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "unknown", "decode": "none", "write": "none", "priority": "low", "evidence": "not analyzed", "remaining": "provenance unconfirmed; may not be engine content at all" },
-    { "extension": ".mdl", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "unknown", "decode": "none", "write": "none", "priority": "low", "evidence": "not analyzed", "remaining": "provenance unconfirmed; may not be engine content at all" },
-    { "extension": ".model", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "unknown", "decode": "none", "write": "none", "priority": "low", "evidence": "not analyzed", "remaining": "provenance unconfirmed; may not be engine content at all" },
-    { "extension": ".pac", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pac", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "glb", "fbx"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/modding/mesh_parser.py + mesh_pac_builder.py: parse, render, edit and byte-level rebuild", "remaining": "" },
-    { "extension": ".pam", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pam", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "glb", "fbx"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "evidence": "cdmw/modding/mesh_parser.py + mesh_pam_builder.py: parse, render, edit and byte-level rebuild", "remaining": "" },
-    { "extension": ".pamlod", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pamlod", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "glb", "fbx"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "evidence": "cdmw/modding/mesh_pamlod_builder.py: parse, render, edit and rebuild", "remaining": "topology-changing rebuild is LOD0-only; LOD1+ can be read but not re-authored" },
-    { "extension": ".pat", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pat", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "high", "evidence": "cdmw/core/pat_decoder.py + the native preview core: LOD0 bounds, quantised vertices/normals/UVs, 16-bit indices, draw ranges and material candidates; OBJ export", "remaining": "no builder, and LOD1+ plus unrecognised vertex layouts stay explicitly undecoded - static world geometry is view-only" },
-    { "extension": ".patx", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "medium", "evidence": "no analyzer; raw bytes only", "remaining": "container purpose unknown" },
-    { "extension": ".pab", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pab", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "evidence": "cdmw/modding/skeleton_parser.py: fixed-layout parse of bind pose, hierarchy and bone-name hashes, proven by driving .paa playback against the rig", "remaining": "unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed" },
-    { "extension": ".hkx", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "hkx", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "high", "evidence": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate", "remaining": "structural edits (topology, counts, references, strings, arrays) blocked pending semantic rebuild proof - no new collision shapes or ragdoll bodies" },
-    { "extension": ".hkt", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "hkx", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "medium", "evidence": "shares the .hkx owners", "remaining": "same structural gate as .hkx" },
+    { "extension": ".3ds", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "not analyzed", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: third-party interchange; import goes through glTF/GLB instead" },
+    { "extension": ".fbx", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "not analyzed", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: third-party interchange; import goes through glTF/GLB instead" },
+    { "extension": ".glb", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "header_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "open", "decode": "full", "write": "full", "priority": "none", "archive_files": 0, "evidence": "cdmw/modding/mesh_glb_interchange.py: import path for authored meshes", "remaining": "" },
+    { "extension": ".mesh", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "unknown", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "not analyzed", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: provenance unconfirmed; may not be engine content at all" },
+    { "extension": ".mdl", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "unknown", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "not analyzed", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: provenance unconfirmed; may not be engine content at all" },
+    { "extension": ".model", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "unknown", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "not analyzed", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: provenance unconfirmed; may not be engine content at all" },
+    { "extension": ".pac", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pac", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "glb", "fbx"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 12962, "evidence": "cdmw/modding/mesh_parser.py + mesh_pac_builder.py: parse, render, edit and byte-level rebuild", "remaining": "" },
+    { "extension": ".pam", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pam", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "glb", "fbx"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 51466, "evidence": "cdmw/modding/mesh_parser.py + mesh_pam_builder.py: parse, render, edit and byte-level rebuild", "remaining": "" },
+    { "extension": ".pamlod", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pamlod", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "glb", "fbx"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 32884, "evidence": "cdmw/modding/mesh_pamlod_builder.py: parse, render, edit and rebuild", "remaining": "topology-changing rebuild is LOD0-only; LOD1+ can be read but not re-authored" },
+    { "extension": ".pat", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pat", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": true, "playback": false, "exports": ["raw", "obj", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "high", "archive_files": 1397, "evidence": "cdmw/core/pat_decoder.py + the native preview core: LOD0 bounds, quantised vertices/normals/UVs, 16-bit indices, draw ranges and material candidates; OBJ export", "remaining": "no builder, and LOD1+ plus unrecognised vertex layouts stay explicitly undecoded - static world geometry is view-only" },
+    { "extension": ".patx", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "none", "archive_files": 0, "evidence": "no analyzer; raw bytes only", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: container purpose unknown" },
+    { "extension": ".pab", "role": "model", "group": "model_mesh_physics", "container": "binary", "analyzer": "pab", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 257, "evidence": "cdmw/modding/skeleton_parser.py: fixed-layout parse of bind pose, hierarchy and bone-name hashes, proven by driving .paa playback against the rig", "remaining": "unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed" },
+    { "extension": ".hkx", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "hkx", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 58031, "evidence": "cdmw/core/archive_hkx*.py: records, layouts, collision, ragdolls, relationship graph, Havok XML export/import, per-category fixed-size patch gate", "remaining": "structural edits (topology, counts, references, strings, arrays) blocked pending semantic rebuild proof - no new collision shapes or ragdoll bodies" },
+    { "extension": ".hkt", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "hkx", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "third_party", "decode": "partial", "write": "constrained", "priority": "none", "archive_files": 0, "evidence": "shares the .hkx owners", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: same structural gate as .hkx" },
 
-    { "extension": ".meshinfo", "role": "metadata", "group": "model_mesh_physics", "container": "binary", "analyzer": "meshinfo", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "cdmw/core/crimson_formats.py:decode_meshinfo recovers references and declared field names; the .NET analyzer adds candidate integers and vectors and marks them heuristic", "remaining": "count/offset tables are unproven, which is why mesh replacement treats .meshinfo as read-only - physics bounds and socket context cannot be edited" },
-    { "extension": ".paa", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "none", "priority": "high", "evidence": "tools/paa_motion/format.py and docs/features/paa-motion-format.md: container, flags, track table, quantised codec and bind-pose-relative keys, corpus-gated by recomputing key_bytes; glTF/GLB export and live playback", "remaining": "no encoder - custom animations are impossible until one exists" },
-    { "extension": ".paa_metabin", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "companion metadata scrape", "remaining": "record layout not parsed" },
-    { "extension": ".pae", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "effect", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "effect metadata document: names and references", "remaining": "parameter tables not parsed - VFX authoring is closed" },
-    { "extension": ".paem", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "effect", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "effect metadata document: names and references", "remaining": "parameter tables not parsed - VFX authoring is closed" },
-    { "extension": ".motionblending", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "reference scrape", "remaining": "blend graph not parsed" },
-    { "extension": ".papr", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "high", "evidence": "cdmw/core/archive_binary_preview_papr_0.py classifies constraint and driver expressions, limit expressions and bone references", "remaining": "expression strings are recovered but the binding table is not parsed - cloth, hair and jiggle-bone tuning stays out of reach" },
-    { "extension": ".paseq", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
-    { "extension": ".paseqc", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
-    { "extension": ".paschedule", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },
-    { "extension": ".paschedulepath", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },
-    { "extension": ".pastage", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
-    { "extension": ".paac", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "evidence": "tools/placement_studio/paac.py: length-prefixed string table indexed and retargeted", "remaining": "chart node structure around the strings is not parsed, so only same-length retargets are allowed" },
-    { "extension": ".ani", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "evidence": "no analyzer; raw bytes only", "remaining": "unknown; rare in shipped archives" },
-    { "extension": ".pai", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "evidence": "no analyzer; raw bytes only", "remaining": "unknown; rare in shipped archives" },
+    { "extension": ".meshinfo", "role": "metadata", "group": "model_mesh_physics", "container": "binary", "analyzer": "meshinfo", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 35310, "evidence": "cdmw/core/crimson_formats.py:decode_meshinfo recovers references and declared field names; the .NET analyzer adds candidate integers and vectors and marks them heuristic", "remaining": "count/offset tables are unproven, which is why mesh replacement treats .meshinfo as read-only - physics bounds and socket context cannot be edited" },
+    { "extension": ".paa", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 316059, "evidence": "tools/paa_motion/format.py and docs/features/paa-motion-format.md decode the container, flags, track table and quantised codec; tools/paa_motion/encode.py writes them back. 12,000 clips sampled from the archives across 45 distinct flag words plus all 188 in the extracted tree rebuild byte for byte", "remaining": "the u32 at the head of a packed clip's prelude, the bounds frames and the two bytes before each float translation key are carried verbatim rather than modelled, so they can be preserved but not authored from nothing" },
+    { "extension": ".paa_metabin", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 162179, "evidence": "companion metadata scrape", "remaining": "record layout not parsed" },
+    { "extension": ".pae", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "effect", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 6109, "evidence": "effect metadata document: names and references", "remaining": "parameter tables not parsed - VFX authoring is closed" },
+    { "extension": ".paem", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "effect", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 560, "evidence": "effect metadata document: names and references", "remaining": "parameter tables not parsed - VFX authoring is closed" },
+    { "extension": ".motionblending", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 1637, "evidence": "reference scrape", "remaining": "blend graph not parsed" },
+    { "extension": ".papr", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "constrained", "priority": "high", "archive_files": 20, "evidence": "cdmw/core/papr_format.py: container header, u16-length strings, entry name/parent pairs, and the driver bone/influence-weight pairs. 1,774 weights across the 20 shipped rigs, every one a whole percentage between 1 and 100. A no-op edit is byte-identical on all 20", "remaining": "the per-entry record is a typed opcode stream that is not solved: one rig walks on the simplest reading and the other 19 do not, so there is no writer and only in-place weight edits are allowed" },
+    { "extension": ".paseq", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 4688, "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
+    { "extension": ".paseqc", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 2938, "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
+    { "extension": ".paschedule", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 4143, "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },
+    { "extension": ".paschedulepath", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 3613, "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },
+    { "extension": ".pastage", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 3321, "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
+    { "extension": ".paac", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 520, "evidence": "tools/placement_studio/paac.py: length-prefixed string table indexed and retargeted", "remaining": "chart node structure around the strings is not parsed, so only same-length retargets are allowed" },
+    { "extension": ".ani", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "no analyzer; raw bytes only", "remaining": "unknown; rare in shipped archives" },
+    { "extension": ".pai", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "no analyzer; raw bytes only", "remaining": "unknown; rare in shipped archives" },
 
-    { "extension": ".prefab", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "evidence": "cdmw/core/prefab_binary.py: self-describing type table plus pointer-addressed heap walk; headers cover 12,000/12,000 sampled archive prefabs, heap walk completes on ~93%. cdmw/core/prefab_binary_edit.py rewrites resource paths including length changes, round-tripped over 1,500 real prefabs", "remaining": "only resource paths are editable; transforms, arrays and value edits stay off, and ~7% of files decode partially" },
-    { "extension": ".pappt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
-    { "extension": ".pamhc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
-    { "extension": ".paccd", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
-    { "extension": ".seqmt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
-    { "extension": ".levelinfo", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "high", "evidence": "world metadata scrape: names and references", "remaining": "placement records not parsed - level layout cannot be edited" },
-    { "extension": ".palevel", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "high", "evidence": "world metadata scrape: names and references", "remaining": "placement records not parsed - level layout cannot be edited" },
-    { "extension": ".roadsector", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "world metadata scrape", "remaining": "spline data not parsed" },
-    { "extension": ".road", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "world metadata scrape", "remaining": "spline data not parsed" },
-    { "extension": ".nav", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "world metadata scrape", "remaining": "navmesh geometry not parsed - NPCs cannot be taught new ground" },
-    { "extension": ".pabc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".pabv", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".pabgb", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".pabgh", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".pathc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "pathc", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "evidence": "dedicated PATHC normalized document", "remaining": "no writer, and the payload beyond the parsed header is unmodelled" },
-    { "extension": ".uianiminit", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "evidence": "structured_metadata scrape", "remaining": "record layout not parsed" },
-    { "extension": ".binarygimmick", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
-    { "extension": ".pagbg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
-    { "extension": ".pampg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" }
+    { "extension": ".prefab", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "constrained", "priority": "high", "archive_files": 47343, "evidence": "cdmw/core/prefab_binary.py: self-describing type table plus pointer-addressed heap walk; headers cover 12,000/12,000 sampled archive prefabs, heap walk completes on ~93%. cdmw/core/prefab_binary_edit.py rewrites resource paths including length changes, round-tripped over 1,500 real prefabs", "remaining": "only resource paths are editable; transforms, arrays and value edits stay off, and ~7% of files decode partially" },
+    { "extension": ".pappt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 1, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
+    { "extension": ".pamhc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 1, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
+    { "extension": ".paccd", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 1644, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
+    { "extension": ".seqmt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 614, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
+    { "extension": ".levelinfo", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "high", "archive_files": 14478, "evidence": "world metadata scrape: names and references", "remaining": "placement records not parsed - level layout cannot be edited" },
+    { "extension": ".palevel", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "high", "archive_files": 21119, "evidence": "world metadata scrape: names and references", "remaining": "placement records not parsed - level layout cannot be edited" },
+    { "extension": ".roadsector", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 5787, "evidence": "world metadata scrape", "remaining": "spline data not parsed" },
+    { "extension": ".road", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 1697, "evidence": "world metadata scrape", "remaining": "spline data not parsed" },
+    { "extension": ".nav", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "world_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "world metadata scrape", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: navmesh geometry not parsed - NPCs cannot be taught new ground" },
+    { "extension": ".pabc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 459, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
+    { "extension": ".pabv", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 101, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
+    { "extension": ".pabgb", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 134, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
+    { "extension": ".pabgh", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 134, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
+    { "extension": ".pathc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "pathc", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 1, "evidence": "dedicated PATHC normalized document", "remaining": "no writer, and the payload beyond the parsed header is unmodelled" },
+    { "extension": ".uianiminit", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 883, "evidence": "structured_metadata scrape", "remaining": "record layout not parsed" },
+    { "extension": ".binarygimmick", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 13461, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
+    { "extension": ".pagbg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: field semantics unknown" },
+    { "extension": ".pampg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 15291, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" }
   ]
 }

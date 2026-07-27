@@ -39,8 +39,31 @@ def test_manifest_entries_are_valid(entries: list[dict]) -> None:
 
 def test_every_entry_carries_progress_fields(entries: list[dict]) -> None:
     for entry in entries:
-        for field in ("origin", "decode", "write", "priority", "evidence", "remaining"):
+        for field in ("origin", "decode", "write", "priority", "archive_files", "evidence", "remaining"):
             assert field in entry, f"{entry['extension']} is missing {field}"
+
+
+def test_archive_counts_match_the_shipped_build_inventory(entries: list[dict]) -> None:
+    from tools.report_format_decode_progress import load_inventory
+
+    inventory = load_inventory()
+    assert inventory, "the extension inventory should be committed alongside the manifest"
+    for entry in entries:
+        expected = inventory.get(entry["extension"], 0)
+        assert entry["archive_files"] == expected, (
+            f"{entry['extension']} claims {entry['archive_files']} files, inventory says {expected}"
+        )
+
+
+def test_formats_absent_from_the_build_are_not_claimed_as_gaps(entries: list[dict]) -> None:
+    # .ui was carried here for years as a high-priority binary format. The build ships
+    # none, so it cannot be a gap; the guard stops that being reintroduced silently.
+    for entry in entries:
+        if entry["archive_files"] == 0:
+            assert entry["priority"] == "none", (
+                f"{entry['extension']} is not in the shipped build but is ranked "
+                f"{entry['priority']}"
+            )
 
 
 def test_stored_progress_matches_recomputed(manifest: dict, entries: list[dict]) -> None:
