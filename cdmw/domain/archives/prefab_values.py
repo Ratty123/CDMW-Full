@@ -62,6 +62,53 @@ def read_placement(raw: bytes) -> Placement | None:
     )
 
 
+def write_placement(placement: Placement) -> bytes:
+    """Encode a placement back to its 40- or 44-byte form.
+
+    The inverse of :func:`read_placement`. Fixed size, so a caller can splice
+    the result over the original without moving anything around it.
+    """
+    raw = struct.pack(
+        "<10f",
+        *placement.scale,
+        *placement.rotation,
+        *placement.position,
+    )
+    if placement.tile is None:
+        return raw
+    return raw + struct.pack("<i", placement.tile)
+
+
+def degrees_to_rotation(yaw: float, pitch: float, roll: float) -> tuple[float, float, float, float]:
+    """Yaw/pitch/roll degrees back to a quaternion (x, y, z, w).
+
+    The inverse of :func:`rotation_degrees` for the same convention. Euler
+    angles are ambiguous, so this is for turning user input into a quaternion,
+    not for round-tripping one.
+    """
+    # rotation_degrees extracts pitch about X, yaw about Y and roll about Z;
+    # its inverse composes them in the order yaw, then pitch, then roll.
+    def axis(index: int, degrees: float) -> tuple[float, float, float, float]:
+        half = math.radians(degrees) / 2.0
+        parts = [0.0, 0.0, 0.0, math.cos(half)]
+        parts[index] = math.sin(half)
+        return (parts[0], parts[1], parts[2], parts[3])
+
+    def multiply(
+        left: tuple[float, float, float, float], right: tuple[float, float, float, float]
+    ) -> tuple[float, float, float, float]:
+        ax, ay, az, aw = left
+        bx, by, bz, bw = right
+        return (
+            aw * bx + ax * bw + ay * bz - az * by,
+            aw * by - ax * bz + ay * bw + az * bx,
+            aw * bz + ax * by - ay * bx + az * bw,
+            aw * bw - ax * bx - ay * by - az * bz,
+        )
+
+    return multiply(multiply(axis(1, yaw), axis(0, pitch)), axis(2, roll))
+
+
 def rotation_degrees(rotation: tuple[float, float, float, float]) -> tuple[float, float, float]:
     """Quaternion (x, y, z, w) as yaw/pitch/roll degrees, for reading only.
 
@@ -115,4 +162,11 @@ def describe_value(type_name: str, raw: bytes) -> str:
     return data.hex(" ")
 
 
-__all__ = ["Placement", "describe_value", "read_placement", "rotation_degrees"]
+__all__ = [
+    "Placement",
+    "degrees_to_rotation",
+    "describe_value",
+    "read_placement",
+    "rotation_degrees",
+    "write_placement",
+]

@@ -302,3 +302,65 @@ def test_nested_prefab_instances_are_named_after_what_they_copy(qt_app: QApplica
     assert node is not None
     # The fixture is a plain SceneObject, so the ordinary labelling applies.
     assert not node.text(0).startswith("/")
+
+
+def _transform_fixture() -> bytes:
+    from tests.test_prefab_binary_edit import _build_with_transform
+
+    return _build_with_transform()
+
+
+def test_placement_rows_are_editable_and_apply_without_resizing(qt_app: QApplication) -> None:
+    """Placement is fixed-size, so applying one must not move a single byte."""
+    from cdmw.domain.archives.prefab_values import Placement, read_placement, write_placement
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import _PLACEMENT_ROLE
+
+    payload = _transform_fixture()
+    dialog = PrefabInspectorDialog(payload)
+    row = None
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if child.data(0, _PLACEMENT_ROLE):
+                row = child
+    assert row is not None, "expected an editable placement row"
+
+    offset, _type_name, raw = row.data(0, _PLACEMENT_ROLE)
+    placement = read_placement(raw)
+    moved = Placement(
+        scale=placement.scale,
+        rotation=placement.rotation,
+        position=(7.0, 8.0, 9.0),
+        tile=placement.tile,
+    )
+    dialog._placement_edits[offset] = write_placement(moved)
+    dialog._refresh_pending_state()
+    assert "1 placement" in dialog.status.text()
+    assert dialog.apply_button.isEnabled()
+
+    dialog._apply_changes()
+    assert dialog.result_payload is not None
+    assert len(dialog.result_payload.data) == len(payload)
+    document = decode_prefab_binary(dialog.result_payload.data)
+    assert document.walk_complete
+    written = next(n for n in document.root_numbers if n.offset == offset)
+    assert read_placement(written.raw).position == (7.0, 8.0, 9.0)
+
+
+def test_undo_clears_pending_placements(qt_app: QApplication) -> None:
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import _PLACEMENT_ROLE
+
+    dialog = PrefabInspectorDialog(_transform_fixture())
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            stored = child.data(0, _PLACEMENT_ROLE)
+            if stored:
+                dialog._placement_edits[stored[0]] = b"\x00" * len(stored[2])
+    dialog._refresh_pending_state()
+    assert dialog.apply_button.isEnabled()
+    dialog._revert_changes()
+    assert dialog._placement_edits == {}
+    assert not dialog.apply_button.isEnabled()

@@ -27,6 +27,8 @@ from PySide6.QtWidgets import (
     QDialog,
     QListWidget,
     QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
@@ -41,7 +43,14 @@ from PySide6.QtWidgets import (
 )
 
 from cdmw.domain.archives.prefab_companions import companion_paths
-from cdmw.domain.archives.prefab_values import describe_value
+from cdmw.domain.archives.prefab_values import (
+    Placement,
+    degrees_to_rotation,
+    describe_value,
+    read_placement,
+    rotation_degrees,
+    write_placement,
+)
 from cdmw.domain.archives.prefab_glossary import (
     asset_role,
     describe_component,
@@ -55,10 +64,12 @@ from cdmw.services.prefab_structure_service import (
     decode_prefab_binary,
     path_is_known,
     rewrite_prefab_paths,
+    rewrite_prefab_placements,
 )
 
 _EDIT_ROLE = Qt.ItemDataRole.UserRole + 1
 _USED_ROLE = Qt.ItemDataRole.UserRole + 2
+_PLACEMENT_ROLE = Qt.ItemDataRole.UserRole + 3
 
 _CHANGED_COLOUR = QColor("#7ec8ff")
 _WARNING_COLOUR = QColor("#ffb86b")
@@ -132,6 +143,68 @@ class AssetPickerDialog(QDialog):
         self.accept()
 
 
+class PlacementEditDialog(QDialog):
+    """Edit one transform as position, rotation and scale.
+
+    Rotation is entered in degrees because quaternions are not something anyone
+    types, and converted on the way out. Euler angles are ambiguous, so the
+    conversion is one-way per edit -- what is stored is the quaternion.
+    """
+
+    def __init__(self, placement: Placement, *, title: str, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Placement - {title}")
+        self._tile = placement.tile
+        self.result_placement: Placement | None = None
+
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        self._position = [self._spin(value, -1e6, 1e6) for value in placement.position]
+        self._rotation = [self._spin(value, -360.0, 360.0) for value in rotation_degrees(placement.rotation)]
+        self._scale = [self._spin(value, 0.001, 1000.0) for value in placement.scale]
+        form.addRow("Position X, Y, Z", self._triple(self._position))
+        form.addRow("Rotation yaw, pitch, roll", self._triple(self._rotation))
+        form.addRow("Scale X, Y, Z", self._triple(self._scale))
+        layout.addLayout(form)
+        layout.addWidget(
+            QLabel("Rotation is in degrees. Scale and position are in world units.")
+        )
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self._accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+    @staticmethod
+    def _spin(value: float, low: float, high: float) -> QDoubleSpinBox:
+        box = QDoubleSpinBox()
+        box.setDecimals(4)
+        box.setRange(low, high)
+        box.setSingleStep(0.1)
+        box.setValue(float(value))
+        return box
+
+    @staticmethod
+    def _triple(boxes: list[QDoubleSpinBox]) -> QWidget:
+        holder = QWidget()
+        row = QHBoxLayout(holder)
+        row.setContentsMargins(0, 0, 0, 0)
+        for box in boxes:
+            row.addWidget(box)
+        return holder
+
+    def _accept(self) -> None:
+        self.result_placement = Placement(
+            scale=tuple(box.value() for box in self._scale),  # type: ignore[arg-type]
+            rotation=degrees_to_rotation(*(box.value() for box in self._rotation)),
+            position=tuple(box.value() for box in self._position),  # type: ignore[arg-type]
+            tile=self._tile,
+        )
+        self.accept()
+
+
 @dataclass(frozen=True, slots=True)
 class PrefabInspectorResult:
     """What the dialog produced, if the user applied anything."""
@@ -158,6 +231,7 @@ class PrefabInspectorDialog(QDialog):
         self._original = bytes(data or b"")
         self._on_save = on_save
         self._known_paths: Mapping[str, Sequence[str]] = dict(known_paths or {})
+        self._placement_edits: dict[int, bytes] = {}
         self.result_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
@@ -263,6 +337,7 @@ class PrefabInspectorDialog(QDialog):
         header.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tree.itemChanged.connect(self._note_pending_edit)
         self.tree.itemSelectionChanged.connect(self._refresh_browse_state)
+        self.tree.itemDoubleClicked.connect(self._edit_placement)
         self._populate_objects()
         box.addWidget(self.tree, 1)
         return page
@@ -320,17 +395,18 @@ class PrefabInspectorDialog(QDialog):
             row.setToolTip(2, "Double-click to repoint this asset. Any length is allowed.")
         parent.addChild(row)
 
-    def _add_number_rows(
-        self, parent: QTreeWidgetItem, numbers: tuple[tuple[str, str, bytes], ...]
-    ) -> None:
+    def _add_number_rows(self, parent: QTreeWidgetItem, numbers: tuple[object, ...]) -> None:
         """Show the numeric values: placement, opacity, flags and the like."""
-        for field_name, type_name, raw in numbers:
-            rendered = describe_value(type_name, raw)
+        for number in numbers:
+            rendered = describe_value(number.type_name, number.raw)
             if not rendered:
                 continue
-            meaning = describe_field(field_name)
+            meaning = describe_field(number.name)
             row = QTreeWidgetItem([meaning.label, meaning.detail, rendered])
-            row.setToolTip(0, f"{field_name}  ({type_name})")
+            row.setToolTip(0, f"{number.name}  ({number.type_name})")
+            if self._can_edit() and read_placement(number.raw) is not None:
+                row.setData(0, _PLACEMENT_ROLE, (number.offset, number.type_name, number.raw))
+                row.setToolTip(2, "Double-click to move, rotate or rescale this.")
             parent.addChild(row)
 
     def _add_fields_row(
@@ -338,16 +414,40 @@ class PrefabInspectorDialog(QDialog):
         parent: QTreeWidgetItem,
         names: tuple[str, ...],
         shown: tuple[tuple[str, object], ...],
-        numbers: tuple[tuple[str, str, bytes], ...] = (),
+        numbers: tuple[object, ...] = (),
     ) -> None:
         """List the set fields that carry no shown value, so nothing looks missing."""
-        already = {name for name, _item in shown} | {name for name, _t, _r in numbers}
+        already = {name for name, _item in shown} | {number.name for number in numbers}
         remaining = tuple(name for name in names if name not in already)
         if not remaining:
             return
         row = QTreeWidgetItem(["Also set", "values not shown here", ", ".join(describe_fields(remaining))])
         row.setToolTip(2, ", ".join(remaining))
         parent.addChild(row)
+
+    def _edit_placement(self, item: QTreeWidgetItem, _column: int) -> None:
+        """Open the placement editor for a transform row."""
+        stored = item.data(0, _PLACEMENT_ROLE)
+        if not stored:
+            return
+        offset, type_name, original_raw = stored
+        current = self._placement_edits.get(offset, original_raw)
+        placement = read_placement(current)
+        if placement is None:
+            return
+        editor = PlacementEditDialog(placement, title=item.text(0), parent=self)
+        if not editor.exec() or editor.result_placement is None:
+            return
+        new_raw = write_placement(editor.result_placement)
+        if new_raw == original_raw:
+            self._placement_edits.pop(offset, None)
+        else:
+            self._placement_edits[offset] = new_raw
+        item.setText(2, describe_value(type_name, new_raw))
+        item.setForeground(
+            2, QBrush(_CHANGED_COLOUR) if offset in self._placement_edits else QBrush()
+        )
+        self._refresh_pending_state()
 
     def _note_pending_edit(self, item: QTreeWidgetItem, column: int) -> None:
         if column != 2:
@@ -431,13 +531,19 @@ class PrefabInspectorDialog(QDialog):
             for old, new in replacements.items()
             if self._warning_for(old, new)
         ]
-        self.apply_button.setEnabled(self._can_edit() and bool(replacements))
-        self.revert_button.setEnabled(bool(replacements))
-        if not replacements:
+        pending = len(replacements) + len(self._placement_edits)
+        self.apply_button.setEnabled(self._can_edit() and bool(pending))
+        self.revert_button.setEnabled(bool(pending))
+        if not pending:
             self.status.setText("")
             return
-        count = len(replacements)
-        note = f"{count} path change{'' if count == 1 else 's'} ready to apply."
+        parts = []
+        if replacements:
+            parts.append(f"{len(replacements)} path change{'' if len(replacements) == 1 else 's'}")
+        if self._placement_edits:
+            moved = len(self._placement_edits)
+            parts.append(f"{moved} placement{'' if moved == 1 else 's'}")
+        note = " and ".join(parts) + " ready to apply."
         if warnings:
             verb = "looks" if len(warnings) == 1 else "look"
             note += f"  {len(warnings)} {verb} wrong: " + " ".join(dict.fromkeys(warnings))
@@ -452,7 +558,15 @@ class PrefabInspectorDialog(QDialog):
                 original = child.data(2, _EDIT_ROLE)
                 if isinstance(original, str) and child.text(2) != original:
                     child.setText(2, original)
-        self.log.appendPlainText("Reverted to the paths stored in the file.")
+                stored = child.data(0, _PLACEMENT_ROLE)
+                if stored:
+                    offset, type_name, original_raw = stored
+                    if offset in self._placement_edits:
+                        child.setText(2, describe_value(type_name, original_raw))
+                        child.setForeground(2, QBrush())
+        self._placement_edits.clear()
+        self.log.appendPlainText("Reverted to the values stored in the file.")
+        self._refresh_pending_state()
 
     # -- schema tab ------------------------------------------------------
     def _build_schema_tab(self) -> QWidget:
@@ -561,18 +675,27 @@ class PrefabInspectorDialog(QDialog):
         if not self._can_edit():
             return
         replacements = self.collect_replacements()
-        if not replacements:
-            self.log.appendPlainText("Nothing to apply: no paths were changed.")
+        if not replacements and not self._placement_edits:
+            self.log.appendPlainText("Nothing to apply: nothing was changed.")
             return
         try:
-            result = rewrite_prefab_paths(self._original, replacements)
+            # Placements first: they are fixed-size, so their byte offsets are
+            # still valid. Path edits move bytes and would invalidate them.
+            payload = self._original
+            if self._placement_edits:
+                moved = rewrite_prefab_placements(payload, self._placement_edits)
+                payload = moved.data
+                for line in moved.proof_lines:
+                    self.log.appendPlainText(line)
+            result = rewrite_prefab_paths(payload, replacements)
         except Exception as exc:  # noqa: BLE001 - reported to the user
             self.log.appendPlainText(f"Refused: {exc}")
             return
         delta = result.byte_delta
         movement = "grew" if delta > 0 else "shrank" if delta < 0 else "stayed the same"
         summary = (
-            f"Applied {len(result.edits)} path change(s); file {movement}"
+            f"Applied {len(result.edits)} path change(s) and "
+            f"{len(self._placement_edits)} placement(s); file {movement}"
             f"{f' by {abs(delta)} byte(s)' if delta else ''}, "
             f"{result.relocated_pointers} internal reference(s) rewritten to match."
         )

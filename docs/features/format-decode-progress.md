@@ -8,11 +8,11 @@ Of 108 known file formats, 58 are engine formats (Pearl Abyss or licensed middle
 
 | Scope | Formats | Read coverage | Write coverage |
 |---|---|---|---|
-| **Engine formats the build ships** | 46 | **48.5%** | **27.2%** |
+| **Engine formats the build ships** | 46 | **49.1%** | **28.3%** |
 | Weighted by archive file count | 1,289,511 files | 68.5% | 57.7% |
-| Engine formats (proprietary + middleware) | 58 | 47.4% | 29.3% |
-| Pearl Abyss formats only | 52 | 48.8% | 29.8% |
-| All formats | 108 | 59.9% | 36.1% |
+| Engine formats (proprietary + middleware) | 58 | 47.9% | 30.2% |
+| Pearl Abyss formats only | 52 | 49.4% | 30.8% |
+| All formats | 108 | 60.2% | 36.6% |
 
 Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `partial` = 0.6, decode `surface` = 0.3, decode `none` = 0.0; write `full` = 1.0, write `constrained` = 0.5, write `none` = 0.0.
 
@@ -20,7 +20,7 @@ Coverage is a weighted mean, not a file count: decode `full` = 1.0, decode `part
 
 | Area | Formats | Read | Write |
 |---|---|---|---|
-| `animation_scene` | 14 | `#######.............` 32.9% | `###.................` 14.3% |
+| `animation_scene` | 14 | `#######.............` 35.0% | `####................` 17.9% |
 | `audio_video` | 18 | `#########...........` 47.2% | `##..................` 8.3% |
 | `material_metadata` | 32 | `############........` 62.5% | `#########...........` 45.3% |
 | `model_mesh_physics` | 18 | `###########.........` 53.9% | `########............` 38.9% |
@@ -37,7 +37,6 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.levelinfo` | 14,478 | surface | none | high | placement records not parsed - level layout cannot be edited |
 | `.paac` | 520 | partial | constrained | high | chart node structure around the strings is not parsed, so only same-length retargets are allowed |
 | `.palevel` | 21,119 | surface | none | high | placement records not parsed - level layout cannot be edited |
-| `.papr` | 20 | surface | constrained | high | the per-entry record is a typed opcode stream that is not solved: one rig walks on the simplest reading and the other 19 do not, so there is no writer and only in-place weight edits are allowed |
 | `.pat` | 1,397 | partial | none | high | no builder, and LOD1+ plus unrecognised vertex layouts stay explicitly undecoded - static world geometry is view-only |
 | `.prefab` | 47,343 | partial | constrained | high | only resource paths are editable; transforms, arrays and value edits stay off, and ~7% of files decode partially |
 | `.bnk` | 3,186 | surface | none | medium | HIRC event/action tables not parsed, so sounds can be swapped but not added |
@@ -47,6 +46,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.pab` | 257 | partial | none | medium | unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed |
 | `.pae` | 6,109 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
 | `.paem` | 560 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
+| `.papr` | 20 | partial | full | medium | block contents stay opaque: the per-entry tag stream is schema-driven and the schema is not in the file, so blocks are carried verbatim and a new constraint chain cannot be authored from nothing. One rig does not tile and is rejected |
 | `.paschedule` | 4,143 | surface | none | medium | schedule entries not parsed - NPC routines cannot be retimed or rerouted |
 | `.paschedulepath` | 3,613 | surface | none | medium | schedule entries not parsed - NPC routines cannot be retimed or rerouted |
 | `.paseq` | 4,688 | surface | none | medium | track and event layout not parsed - cutscene authoring is closed |
@@ -106,7 +106,6 @@ Every format marked `high`: closing it opens a modding category that is currentl
 - **`.levelinfo`** (read surface, write none) — placement records not parsed - level layout cannot be edited
 - **`.paac`** (read partial, write constrained) — chart node structure around the strings is not parsed, so only same-length retargets are allowed
 - **`.palevel`** (read surface, write none) — placement records not parsed - level layout cannot be edited
-- **`.papr`** (read surface, write constrained) — the per-entry record is a typed opcode stream that is not solved: one rig walks on the simplest reading and the other 19 do not, so there is no writer and only in-place weight edits are allowed
 - **`.pat`** (read partial, write none) — no builder, and LOD1+ plus unrecognised vertex layouts stay explicitly undecoded - static world geometry is view-only
 - **`.prefab`** (read partial, write constrained) — only resource paths are editable; transforms, arrays and value edits stay off, and ~7% of files decode partially
 

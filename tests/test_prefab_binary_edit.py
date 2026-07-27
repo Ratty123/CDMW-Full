@@ -66,6 +66,37 @@ def _build(path: str = PATH) -> bytes:
     return bytes(header + pool + data_header + blob)
 
 
+def _build_with_transform() -> bytes:
+    """A prefab whose root carries a world transform as well as a path."""
+    types = bytearray()
+    types += _text("SceneObject") + struct.pack("<H", 3)
+    types += _member("_socketName", "IndexedStringA", KIND_STRING, 1)
+    types += _member("_worldTransform", "Transform", 0x0000, 40)
+    types += _member("_meshFile", "ReflectObjectPtr", KIND_POINTER, 8)
+    types += _text("ResourceReferencePath_SkinnedMesh") + struct.pack("<H", 0)
+
+    header = bytearray()
+    header += struct.pack("<HHH", 0xFFFF, 4, 0) + b"\x00" * 8
+    header += struct.pack("<I", 15) + struct.pack("<H", 2) + types
+    pool = struct.pack("<I", 0)
+    blob_offset = len(header) + len(pool) + 28
+
+    blob = bytearray()
+    blob += struct.pack("<H", 2)
+    blob += (0b111).to_bytes(6, "little")
+    blob += _text("Pelvis_R_Socket")
+    blob += struct.pack("<10f", 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 2.0, 3.0)
+    blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    blob += struct.pack("<I", blob_offset + len(blob) + 4)
+    pointee = bytearray(struct.pack("<I", 0) + _text(PATH))
+    blob += pointee + struct.pack("<I", len(pointee)) + b"\x00" * 5
+
+    data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
+    data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    data_header += struct.pack("<II", blob_offset, len(blob))
+    return bytes(header + pool + data_header + blob)
+
+
 def test_fixture_decodes_with_a_complete_walk() -> None:
     document = decode_prefab_binary(_build())
     assert document.walk_complete, document.walk_note
@@ -166,3 +197,45 @@ def test_legacy_resize_refuses_rather_than_losing_a_pointer() -> None:
     # And the structural path handles the resize the legacy scan cannot.
     result = rewrite_prefab_paths(payload, {PATH: PATH + "_LONGER"})
     assert decode_prefab_binary(result.data).walk_complete
+
+
+def test_placement_edit_keeps_the_file_the_same_size() -> None:
+    """Transforms are fixed size, so a move must not shift a single byte."""
+    from cdmw.core.prefab_binary_edit import rewrite_prefab_placements
+    from cdmw.domain.archives.prefab_values import Placement, read_placement, write_placement
+
+    payload = _build_with_transform()
+    document = decode_prefab_binary(payload)
+    number = next(n for n in document.root_numbers if n.type_name == "Transform")
+    placement = read_placement(number.raw)
+    assert placement is not None
+    moved = Placement(
+        scale=placement.scale,
+        rotation=placement.rotation,
+        position=(99.0, -5.0, 12.0),
+        tile=placement.tile,
+    )
+    result = rewrite_prefab_placements(payload, {number.offset: write_placement(moved)})
+    assert len(result.data) == len(payload)
+    assert result.byte_delta == 0
+    again = decode_prefab_binary(result.data)
+    assert again.walk_complete
+    written = next(n for n in again.root_numbers if n.offset == number.offset)
+    assert read_placement(written.raw).position == (99.0, -5.0, 12.0)
+
+
+def test_placement_edit_refuses_an_offset_it_did_not_decode() -> None:
+    from cdmw.core.prefab_binary_edit import rewrite_prefab_placements
+
+    with pytest.raises(PrefabEditError, match="No decoded value"):
+        rewrite_prefab_placements(_build_with_transform(), {0x999999: b"\x00" * 40})
+
+
+def test_placement_edit_refuses_a_wrong_sized_replacement() -> None:
+    from cdmw.core.prefab_binary_edit import rewrite_prefab_placements
+
+    payload = _build_with_transform()
+    document = decode_prefab_binary(payload)
+    number = next(n for n in document.root_numbers if n.type_name == "Transform")
+    with pytest.raises(PrefabEditError, match="byte"):
+        rewrite_prefab_placements(payload, {number.offset: b"\x00" * 8})

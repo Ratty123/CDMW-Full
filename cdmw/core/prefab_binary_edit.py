@@ -187,6 +187,72 @@ def rewrite_prefab_paths(
     )
 
 
+@dataclass(frozen=True, slots=True)
+class PrefabPlacementEdit:
+    """One transform replacement, addressed by its byte offset."""
+
+    offset: int
+    old_raw: bytes
+    new_raw: bytes
+
+
+def rewrite_prefab_placements(
+    data: bytes,
+    replacements: Mapping[int, bytes],
+) -> PrefabRewriteResult:
+    """Write transforms back in place, keyed by byte offset.
+
+    Transforms are fixed size, so nothing moves and no pointer needs
+    relocating -- this is strictly safer than a path edit. Each write is
+    checked against the bytes currently at that offset, so an offset from a
+    stale decode is refused rather than splicing over whatever is there now.
+    """
+    payload = bytearray(data or b"")
+    document = decode_prefab_binary(bytes(payload))
+    if not document.walk_complete:
+        raise PrefabEditError(
+            "Prefab did not decode completely, so edits would be unsafe: "
+            + (document.walk_note or "unknown")
+        )
+    known = {
+        number.offset: number
+        for source in (document.root_numbers, *(obj.numbers for obj in document.objects))
+        for number in source
+    }
+    edits: list[PrefabPlacementEdit] = []
+    for offset, new_raw in dict(replacements or {}).items():
+        number = known.get(int(offset))
+        if number is None:
+            raise PrefabEditError(f"No decoded value sits at 0x{int(offset):x}")
+        if len(new_raw) != len(number.raw):
+            raise PrefabEditError(
+                f"Value at 0x{number.offset:x} is {len(number.raw)} byte(s); "
+                f"replacement is {len(new_raw)}"
+            )
+        if bytes(payload[number.offset : number.end]) != number.raw:
+            raise PrefabEditError(
+                f"Bytes at 0x{number.offset:x} changed since decoding; refusing to write"
+            )
+        if bytes(new_raw) == number.raw:
+            continue
+        edits.append(
+            PrefabPlacementEdit(offset=number.offset, old_raw=number.raw, new_raw=bytes(new_raw))
+        )
+    for edit in edits:
+        payload[edit.offset : edit.offset + len(edit.new_raw)] = edit.new_raw
+    proof = [
+        "Transforms are fixed size, so nothing moved and no pointer needed relocating.",
+        f"Rewrote {len(edits)} value(s) in place.",
+    ]
+    return PrefabRewriteResult(
+        data=bytes(payload),
+        edits=(),
+        byte_delta=0,
+        relocated_pointers=0,
+        proof_lines=tuple(proof),
+    )
+
+
 def _patch_data_header(rebuilt: bytearray, document: PrefabDocument, delta: int) -> None:
     """Update the declared file size and blob length after a resize."""
     header_at = document.blob_offset - 28
@@ -199,6 +265,8 @@ def _patch_data_header(rebuilt: bytearray, document: PrefabDocument, delta: int)
 
 __all__ = [
     "PrefabEditError",
+    "PrefabPlacementEdit",
+    "rewrite_prefab_placements",
     "PrefabPathEdit",
     "PrefabRewriteResult",
     "plan_prefab_path_edits",
