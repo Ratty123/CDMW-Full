@@ -60,35 +60,99 @@ the length counts a trailing NUL.
 
 Owner: `cdmw/core/papr_format.py`. Tests: `tests/test_papr_format.py`.
 
-**Status: read at the surface, write constrained. The grammar is not solved.**
+**Status: entry structure decoded, writer complete, block contents still opaque.**
 
-The per-entry record after the name/parent pair is a typed opcode stream — triplets like
-`05 03 00 | 10 01 01 | 10 01 02` that vary between entries and select what follows. One
-rig (`cd_m0001_00_bear`, the smallest at 357 bytes) walks cleanly on the simplest reading
-and the other nineteen do not. There is deliberately no `encode_papr`: a writer built on
-a guessed grammar would emit files that load and then misbehave, which is worse than no
-writer at all.
+### How the entry chain was found
 
-What *is* solid is the part a modder wants. Inside those records the driver lists are
-plain: a bone name followed immediately by an `f32` influence weight as a percentage.
-Across the twenty rigs that locates 1,774 weights, and **every one is a whole number
-between 1 and 100** — 98.6% of them multiples of five. That is what hand-authored
-percentages look like and not what a misread float looks like.
+The obvious approach — find each block's closing `07 05 00` — does not work. Those three
+bytes also occur inside float payloads and inside the expression strings some rigs carry
+(`ExposeTransform_Bip01 R Forearm:5`, `-Local_Euler...`), so the first match is often too
+early and the walk desyncs. Searching later matches does not help either, because the
+error is in the other direction on other files.
 
-Editing one is a four-byte overwrite. Nothing moves, nothing is relocated, and a no-op
-edit is byte-identical on all twenty rigs. `set_weights` refuses to write unless the
-caller states the value it expects to replace, so a site located against the wrong file
-fails loudly instead of quietly corrupting a rig.
+What works is locating entry **starts** instead: two name-shaped strings followed by a
+tail whose third byte is 0 or 1. Requiring that chain to be exactly `entry_count` long
+and to tile the file is a strong constraint — **19 of the 20 shipped rigs tile exactly**.
+Block extents then fall out as the gap between one entry's header and the next start.
 
-**What this opens.** Tuning secondary motion without touching HKX, whose structural edits
-are correctly gated off: soften a cloak, stiffen a braid, take the jiggle out of armour
-that flails, or `scale_weights(data, sites, 0.0)` to switch a chain off entirely.
+Two other pieces fell out of this:
 
-**One trap worth recording.** The first version of the confidence rule accepted "any
-whole number in 0..100", and denormals like `3.6e-43` — four bytes of a neighbouring
+- The third tail byte selects a **40-byte transform frame** — `scale[3]`, `rotation[4]`,
+  `translation[3]`, the same shape as the `.paa` bounds frame. 703 of them across the
+  corpus, previously unread.
+- `u32` at `0x20` is the **total tag-record count** across all blocks. Bear declares 12
+  and has two blocks of six records; dog declares 30 and has five. It is an independent
+  check on any future attempt at the block grammar.
+
+`cd_m0001_00_circusmachine_boss` finds 236 starts against a declared 237 and is
+**rejected rather than guessed at**.
+
+### What is still opaque
+
+Blocks are a stream of 3-byte `(tag, type, value)` records. Type `0x03` opens, `0x05`
+closes, `0x01` is a scalar, and `0x04` introduces a member whose payload depends on the
+member id — some carry nothing, some two bytes, some a `u8 count` and that many
+`(u16 name, f32 weight)` driver pairs. Those rules are schema-driven and the schema is
+not in the file, so this module does not interpret block contents. It carries them
+verbatim, which means an edit can never corrupt a construct we do not understand.
+
+### What can be edited
+
+`encode_papr` rebuilds a rig from its parsed form, and **all 19 parsed rigs rebuild byte
+for byte** across 2,734 bones, 703 transform frames and 1,632 weights. On top of that:
+
+| Edit | Notes |
+|---|---|
+| Influence weights | Four-byte overwrite. `set_weights` refuses to write unless the caller states the value it expects to replace. |
+| Bone and parent names | May change length: nothing is offset-addressed and `payload_bytes` is recomputed. |
+| Transform frames | Ten floats in place. Adding a frame where there is none is refused — it would change the entry shape. |
+
+What cannot be done is authoring a new constraint chain from nothing, because that needs
+a block, and blocks can only come from a parse.
+
+**One trap worth recording.** The first version of the weight-confidence rule accepted
+"any whole number in 0..100", and denormals like `3.6e-43` — four bytes of a neighbouring
 integer read as a float — passed it, because they round to zero. The rule now needs a
-whole number of at least 1. That guard is a test, not a comment, because getting it wrong
-silently offers garbage sites as editable weights.
+whole number of at least 1. A second trap follows from it: `scale_weights` rounds to
+whole percent, because halving 15 to 7.5 would leave a value the locator no longer
+offers, and the *second* edit in a session would silently find nothing. Both are tests,
+not comments.
+
+## Making mods with this
+
+`tools/placement_studio/constraints.py` turns a rig into something a person can act on,
+and `tools/placement_studio/window_constraints.py` is the panel over it.
+
+**Chains, not bones.** A driven bone hangs off a parent that is often itself driven, so
+entries are grouped by walking parent links up to the first bone that is not driven. That
+turns `golem_imp_boss`'s 437 entries into 13 chains and `phm_01`'s 190 into 71. A braid
+is one row, not six.
+
+**Strength, not weights.** A chain's strength is the mean of its weights. Moving it
+scales every weight in the chain proportionally. That is one number per chain instead of
+1,632 across the corpus.
+
+The export path reuses the Studio's existing packager: `changed_files()` returns
+`{game path: bytes}`, which `packaging.build_package()` turns into a real mod package for
+each supported manager. An unchanged rig exports nothing rather than an identical file.
+
+### The panel
+
+It lives in the Placement & Animation Studio as a **Secondary motion** tab rather than in
+its own tool, because tuning hair is only meaningful next to the rig, the armour on it,
+and a clip playing — a standalone editor would have to rebuild all of that first.
+
+- Chain list on the left: name, bone count, strength. Soft-looking chains (hair, cloth,
+  skirt, tail, cape, braid) sort to the top; the hint only orders the list, never filters
+  it.
+- Detail on the right: every driven bone in the chain with its driver and weight.
+- A strength slider in whole percent, plus **Off** and **Reset**. The slider only writes
+  on release, so dragging does not churn the document.
+
+**The panel says it cannot preview the result, and that is deliberate.** CDMW plays a
+clip's baked bone tracks; secondary motion is solved by the game at runtime. There is no
+honest way to show a jiggle change in the viewport, so the panel states that instead of
+implying the opposite. A test asserts the notice is present.
 
 ## What is not decoded
 

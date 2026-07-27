@@ -135,6 +135,24 @@ class PrefabString:
 
 
 @dataclass(frozen=True, slots=True)
+class PrefabNumber:
+    """One inline numeric value, with the byte span that holds it.
+
+    ``offset`` is absolute, so a fixed-size value can be written straight back
+    without moving anything around it.
+    """
+
+    name: str
+    type_name: str
+    raw: bytes
+    offset: int
+
+    @property
+    def end(self) -> int:
+        return self.offset + len(self.raw)
+
+
+@dataclass(frozen=True, slots=True)
 class PrefabObject:
     """One scene object recovered from the heap."""
 
@@ -145,7 +163,7 @@ class PrefabObject:
     resources: tuple[PrefabString, ...]
     texts: tuple[PrefabString, ...]
     values: tuple[tuple[str, PrefabString], ...]
-    numbers: tuple[tuple[str, str, bytes], ...]
+    numbers: tuple[PrefabNumber, ...]
     parent: int
 
 
@@ -174,7 +192,7 @@ class PrefabDocument:
     root_resources: tuple[PrefabString, ...]
     root_texts: tuple[PrefabString, ...]
     root_values: tuple[tuple[str, PrefabString], ...]
-    root_numbers: tuple[tuple[str, str, bytes], ...]
+    root_numbers: tuple[PrefabNumber, ...]
     pointers: tuple[PrefabPointer, ...]
     walk_complete: bool
     walk_note: str
@@ -392,8 +410,7 @@ class _Collected:
     texts: list[PrefabString] = field(default_factory=list)
     # Each recovered string paired with the member it came from, in order.
     ordered: list[tuple[str, PrefabString]] = field(default_factory=list)
-    # Inline numeric values as (member name, declared type, raw bytes).
-    numbers: list[tuple[str, str, bytes]] = field(default_factory=list)
+    numbers: list[PrefabNumber] = field(default_factory=list)
 
 
 def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") -> None:
@@ -458,9 +475,17 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
 def _read_member(cursor: _BlobCursor, member: PrefabMember, into: _Collected, group_reader) -> None:
     flags = member.flags
     if flags in INLINE_KINDS:
+        start = cursor.pos
         raw = cursor.take(member.value_size)
         if member.value_size:
-            into.numbers.append((member.name, member.type_name, bytes(raw)))
+            into.numbers.append(
+                PrefabNumber(
+                    name=member.name,
+                    type_name=member.type_name,
+                    raw=bytes(raw),
+                    offset=cursor.base + start,
+                )
+            )
         return
     if flags == KIND_STRING:
         recovered = cursor.text()

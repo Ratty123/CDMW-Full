@@ -45,65 +45,65 @@
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
         "extensions": 46,
-        "decode_percent": 48.5,
-        "write_percent": 27.2,
+        "decode_percent": 49.1,
+        "write_percent": 28.3,
         "decode": {
           "full": 10,
           "none": 2,
-          "partial": 7,
-          "surface": 27
+          "partial": 8,
+          "surface": 26
         },
         "write": {
-          "constrained": 5,
-          "full": 10,
+          "constrained": 4,
+          "full": 11,
           "none": 31
         }
       },
       "engine_formats": {
         "extensions": 58,
-        "decode_percent": 47.4,
-        "write_percent": 29.3,
+        "decode_percent": 47.9,
+        "write_percent": 30.2,
         "decode": {
           "full": 14,
           "none": 7,
-          "partial": 8,
-          "surface": 29
+          "partial": 9,
+          "surface": 28
         },
         "write": {
-          "constrained": 6,
-          "full": 14,
+          "constrained": 5,
+          "full": 15,
           "none": 38
         }
       },
       "proprietary_formats": {
         "extensions": 52,
-        "decode_percent": 48.8,
-        "write_percent": 29.8,
+        "decode_percent": 49.4,
+        "write_percent": 30.8,
         "decode": {
           "full": 14,
           "none": 5,
-          "partial": 5,
-          "surface": 28
+          "partial": 6,
+          "surface": 27
         },
         "write": {
-          "constrained": 3,
-          "full": 14,
+          "constrained": 2,
+          "full": 15,
           "none": 35
         }
       },
       "all_formats": {
         "extensions": 108,
-        "decode_percent": 59.9,
-        "write_percent": 36.1,
+        "decode_percent": 60.2,
+        "write_percent": 36.6,
         "decode": {
           "full": 47,
           "none": 10,
-          "partial": 8,
-          "surface": 43
+          "partial": 9,
+          "surface": 42
         },
         "write": {
-          "constrained": 6,
-          "full": 36,
+          "constrained": 5,
+          "full": 37,
           "none": 66
         }
       }
@@ -250,17 +250,17 @@
     "by_origin": {
       "proprietary": {
         "extensions": 52,
-        "decode_percent": 48.8,
-        "write_percent": 29.8,
+        "decode_percent": 49.4,
+        "write_percent": 30.8,
         "decode": {
           "full": 14,
           "none": 5,
-          "partial": 5,
-          "surface": 28
+          "partial": 6,
+          "surface": 27
         },
         "write": {
-          "constrained": 3,
-          "full": 14,
+          "constrained": 2,
+          "full": 15,
           "none": 35
         }
       },
@@ -306,17 +306,17 @@
     "by_group": {
       "animation_scene": {
         "extensions": 14,
-        "decode_percent": 32.9,
-        "write_percent": 14.3,
+        "decode_percent": 35.0,
+        "write_percent": 17.9,
         "decode": {
           "full": 1,
           "none": 2,
-          "partial": 1,
-          "surface": 10
+          "partial": 2,
+          "surface": 9
         },
         "write": {
-          "constrained": 2,
-          "full": 1,
+          "constrained": 1,
+          "full": 2,
           "none": 11
         }
       },
@@ -396,8 +396,8 @@
       }
     },
     "priority": {
-      "high": 7,
-      "medium": 15,
+      "high": 6,
+      "medium": 16,
       "low": 18,
       "none": 68
     },
@@ -425,12 +425,6 @@
         "decode": "surface",
         "write": "none",
         "remaining": "placement records not parsed - level layout cannot be edited"
-      },
-      {
-        "extension": ".papr",
-        "decode": "surface",
-        "write": "constrained",
-        "remaining": "the per-entry record is a typed opcode stream that is not solved: one rig walks on the simplest reading and the other 19 do not, so there is no writer and only in-place weight edits are allowed"
       },
       {
         "extension": ".pat",
@@ -531,7 +525,7 @@
     { "extension": ".pae", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "effect", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 6109, "evidence": "effect metadata document: names and references", "remaining": "parameter tables not parsed - VFX authoring is closed" },
     { "extension": ".paem", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "effect", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 560, "evidence": "effect metadata document: names and references", "remaining": "parameter tables not parsed - VFX authoring is closed" },
     { "extension": ".motionblending", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 1637, "evidence": "reference scrape", "remaining": "blend graph not parsed" },
-    { "extension": ".papr", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "constrained", "priority": "high", "archive_files": 20, "evidence": "cdmw/core/papr_format.py: container header, u16-length strings, entry name/parent pairs, and the driver bone/influence-weight pairs. 1,774 weights across the 20 shipped rigs, every one a whole percentage between 1 and 100. A no-op edit is byte-identical on all 20", "remaining": "the per-entry record is a typed opcode stream that is not solved: one rig walks on the simplest reading and the other 19 do not, so there is no writer and only in-place weight edits are allowed" },
+    { "extension": ".papr", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "animation", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "full", "priority": "medium", "archive_files": 20, "evidence": "cdmw/core/papr_format.py: container header, entry chain of bone/parent pairs, per-entry 40-byte transform frames, and driver bone/influence-weight pairs. Entry starts are located by shape and required to tile the file exactly. 19 of the 20 shipped rigs parse and rebuild byte for byte across 2,734 bones, 703 transform frames and 1,632 weights; the 20th finds 236 starts against a declared 237 and is rejected rather than guessed", "remaining": "block contents stay opaque: the per-entry tag stream is schema-driven and the schema is not in the file, so blocks are carried verbatim and a new constraint chain cannot be authored from nothing. One rig does not tile and is rejected" },
     { "extension": ".paseq", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 4688, "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
     { "extension": ".paseqc", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 2938, "evidence": "cdmw/core/archive_binary_preview_paseq_0.py: sequence reference graph", "remaining": "track and event layout not parsed - cutscene authoring is closed" },
     { "extension": ".paschedule", "role": "animation", "group": "animation_scene", "container": "binary", "analyzer": "sequence", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 4143, "evidence": "sequence reference graph", "remaining": "schedule entries not parsed - NPC routines cannot be retimed or rerouted" },

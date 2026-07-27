@@ -97,3 +97,23 @@ def test_scalar_rendering(type_name: str, raw: bytes, expected: str) -> None:
 
 def test_unknown_type_falls_back_to_bytes_not_silence() -> None:
     assert describe_value("SomethingElse", b"\xde\xad") == "de ad"
+
+
+def test_placement_round_trips_through_bytes() -> None:
+    from cdmw.domain.archives.prefab_values import write_placement
+
+    raw = _transform((1.5, 2.5, 3.5), (0.0, 0.0, 0.0, 1.0), (10.0, -20.0, 30.0), tile=4)
+    placement = read_placement(raw)
+    assert placement is not None
+    assert write_placement(placement) == raw
+
+
+def test_degrees_convert_back_to_the_same_angles() -> None:
+    from cdmw.domain.archives.prefab_values import degrees_to_rotation
+
+    for angles in [(0.0, 0.0, 90.0), (45.0, 0.0, 0.0), (0.0, 30.0, 0.0), (10.0, 20.0, 30.0)]:
+        quaternion = degrees_to_rotation(*angles)
+        assert abs(math.sqrt(sum(v * v for v in quaternion)) - 1.0) < 1e-6
+        recovered = rotation_degrees(quaternion)
+        for original, value in zip(angles, recovered):
+            assert abs(original - value) < 0.01
