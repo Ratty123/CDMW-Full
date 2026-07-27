@@ -165,6 +165,14 @@ class PrefabObject:
     values: tuple[tuple[str, PrefabString], ...]
     numbers: tuple[PrefabNumber, ...]
     parent: int
+    #: ``"stated"`` when the file named this object's component type, and
+    #: ``"inferred"`` when the walk had to work it out from declaration order.
+    #: An inferred object can be entirely wrong while still looking complete.
+    type_source: str = "stated"
+
+    @property
+    def type_is_inferred(self) -> bool:
+        return self.type_source != "stated"
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +205,16 @@ class PrefabDocument:
     walk_complete: bool
     walk_note: str
     byte_length: int
+
+    @property
+    def inferred_objects(self) -> tuple[PrefabObject, ...]:
+        """Objects whose component type was worked out rather than read.
+
+        A completed walk is not the same as a correct one: these decoded
+        cleanly but their identity is a guess, so nothing should present them
+        with the same confidence as the rest.
+        """
+        return tuple(item for item in self.objects if item.type_is_inferred)
 
     @property
     def component_types(self) -> tuple[PrefabType, ...]:
@@ -538,7 +556,13 @@ def _find_element_header(cursor: _BlobCursor) -> tuple[int, int]:
         cursor.u16()
         mask = cursor.u16()
         cursor.take(tail)
-        type_index = cursor.blob[cursor.pos - 3] if cursor.pos >= 3 else -1
+        # Only markers 2 and 3 leave room for a type index. With marker 1 the
+        # byte at owner-3 is the mask's own high byte -- confirmed on all 376
+        # marker-1 groups in the corpus -- so reading it would be reading the
+        # mask twice. It has never been accepted downstream, because the member
+        # count check rejects it; refusing it here means that is by design
+        # rather than by luck.
+        type_index = -1 if marker == 1 else (cursor.blob[cursor.pos - 3] if cursor.pos >= 3 else -1)
         return mask, type_index
     raise PrefabBinaryError(f"no element header near 0x{base:x}")
 
@@ -572,13 +596,17 @@ def _component_for(
     mask: int,
     components: Sequence[PrefabType],
     highest: int,
-) -> PrefabType:
-    """Resolve a group's component type.
+) -> tuple[PrefabType, bool]:
+    """Resolve a group's component type, and say whether the file stated it.
 
     Markers 2 and 3 state the type's index at ``owner-3``; marker 1 has no room
     for it, since that byte is the mask's own high byte. For those, fall back to
     declaration order: nested types appear in the schema in the order they are
     first referenced, which held for 301 of 304 completed walks.
+
+    The second element is ``True`` only when the index came out of the file.
+    Everything else is inference, and the caller has to be able to tell the
+    difference -- a wrong guess still produces a tidy, complete-looking object.
     """
     used = getattr(cursor, "used_types", None)
     declared = getattr(cursor, "type_table", ())
@@ -587,7 +615,7 @@ def _component_for(
         if highest <= len(named.members):
             if used is not None:
                 used.add(named.type_name)
-            return named
+            return named, True
     candidates = [item for item in components if highest <= len(item.members)]
     if not candidates:
         raise PrefabBinaryError(f"mask 0x{mask:04x} exceeds every candidate component")
@@ -595,14 +623,14 @@ def _component_for(
         for item in candidates:
             if item.type_name not in used:
                 used.add(item.type_name)
-                return item
+                return item, False
     # Every declared type is spoken for: guess deterministically. Backtracking
     # over candidates is exponential in nesting depth, and a wrong guess is
     # reported as a partial walk rather than hanging the caller.
     chosen = min(candidates, key=lambda item: (len(item.members), item.type_name))
     if used is not None:
         used.add(chosen.type_name)
-    return chosen
+    return chosen, False
 
 
 def _walk_group(
@@ -628,7 +656,7 @@ def _walk_group(
     if not components:
         raise PrefabBinaryError("no component type for group")
     highest = mask.bit_length()
-    component = _component_for(cursor, type_index, mask, components, highest)
+    component, type_stated = _component_for(cursor, type_index, mask, components, highest)
     collected = _Collected()
     selected: list[str] = []
     depth_index = len(sink)
@@ -653,6 +681,7 @@ def _walk_group(
             values=tuple(collected.ordered),
             numbers=tuple(collected.numbers),
             parent=parent if parent != NULL_OWNER else -1,
+            type_source="stated" if type_stated else "inferred",
         ),
     )
 
