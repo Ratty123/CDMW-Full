@@ -21,18 +21,16 @@ from dataclasses import dataclass
 from typing import Callable, Mapping, Sequence
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor
+from PySide6.QtGui import QAction, QBrush, QColor, QGuiApplication, QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
-    QListWidget,
     QDialogButtonBox,
-    QDoubleSpinBox,
-    QFormLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QLineEdit,
+    QMenu,
     QPlainTextEdit,
     QPushButton,
     QTabWidget,
@@ -45,10 +43,8 @@ from PySide6.QtWidgets import (
 from cdmw.domain.archives.prefab_companions import companion_paths
 from cdmw.domain.archives.prefab_values import (
     Placement,
-    degrees_to_rotation,
     describe_value,
     read_placement,
-    rotation_degrees,
     write_placement,
 )
 from cdmw.domain.archives.prefab_glossary import (
@@ -58,6 +54,10 @@ from cdmw.domain.archives.prefab_glossary import (
     describe_fields,
     is_asset_path,
     value_kind_hint,
+)
+from cdmw.ui.archive_browser.prefab_inspector_widgets import (
+    AssetPickerDialog,
+    PlacementEditDialog,
 )
 from cdmw.services.prefab_structure_service import (
     asset_extension_for,
@@ -73,6 +73,12 @@ _PLACEMENT_ROLE = Qt.ItemDataRole.UserRole + 3
 
 _CHANGED_COLOUR = QColor("#7ec8ff")
 _WARNING_COLOUR = QColor("#ffb86b")
+
+
+def _count(number: int, noun: str, plural: str = "") -> str:
+    """``1 object`` / ``2 objects`` -- never ``1 object(s)``."""
+    word = noun if number == 1 else (plural or f"{noun}s")
+    return f"{number:,} {word}"
 
 
 def _retarget_warning(original: str, replacement: str) -> str:
@@ -91,118 +97,6 @@ def _retarget_warning(original: str, replacement: str) -> str:
     if was != now:
         return f"This field held a {was.lower()} file; the replacement looks like a {now.lower()} file."
     return ""
-
-
-class AssetPickerDialog(QDialog):
-    """Pick an existing archive path, filtered to one kind of asset."""
-
-    def __init__(self, candidates: Sequence[str], *, current: str = "", parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle("Choose an asset")
-        self.resize(760, 520)
-        self._candidates = tuple(candidates)
-        self.chosen = ""
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(QLabel(f"{len(self._candidates):,} file(s) of this kind exist in the archives."))
-        self.filter_box = QLineEdit()
-        self.filter_box.setPlaceholderText("Type part of a name to narrow the list...")
-        self.filter_box.textChanged.connect(self._refresh)
-        layout.addWidget(self.filter_box)
-        self.list = QListWidget()
-        self.list.itemDoubleClicked.connect(lambda _item: self._accept_selection())
-        layout.addWidget(self.list, 1)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self._accept_selection)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-        # Seed with the current file's folder, not its name: the useful starting
-        # point is its siblings, and its own name matches only itself.
-        folder = current.rsplit("/", 1)[0] if "/" in current else ""
-        self.filter_box.setText(folder)
-        self._refresh(self.filter_box.text())
-
-    def _refresh(self, text: str) -> None:
-        needle = str(text or "").strip().lower()
-        matches = [item for item in self._candidates if needle in item.lower()] if needle else list(self._candidates)
-        self.list.clear()
-        # A full list of thousands is unusable and slow to build; narrow instead.
-        self.list.addItems(matches[:500])
-        if len(matches) > 500:
-            self.list.addItem(f"... {len(matches) - 500:,} more, keep typing to narrow")
-
-    def _accept_selection(self) -> None:
-        item = self.list.currentItem()
-        if item is None or item.text().startswith("... "):
-            return
-        self.chosen = item.text()
-        self.accept()
-
-
-class PlacementEditDialog(QDialog):
-    """Edit one transform as position, rotation and scale.
-
-    Rotation is entered in degrees because quaternions are not something anyone
-    types, and converted on the way out. Euler angles are ambiguous, so the
-    conversion is one-way per edit -- what is stored is the quaternion.
-    """
-
-    def __init__(self, placement: Placement, *, title: str, parent: QWidget | None = None) -> None:
-        super().__init__(parent)
-        self.setWindowTitle(f"Placement - {title}")
-        self._tile = placement.tile
-        self.result_placement: Placement | None = None
-
-        layout = QVBoxLayout(self)
-        form = QFormLayout()
-        self._position = [self._spin(value, -1e6, 1e6) for value in placement.position]
-        self._rotation = [self._spin(value, -360.0, 360.0) for value in rotation_degrees(placement.rotation)]
-        self._scale = [self._spin(value, 0.001, 1000.0) for value in placement.scale]
-        form.addRow("Position X, Y, Z", self._triple(self._position))
-        form.addRow("Rotation yaw, pitch, roll", self._triple(self._rotation))
-        form.addRow("Scale X, Y, Z", self._triple(self._scale))
-        layout.addLayout(form)
-        layout.addWidget(
-            QLabel("Rotation is in degrees. Scale and position are in world units.")
-        )
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(self._accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    @staticmethod
-    def _spin(value: float, low: float, high: float) -> QDoubleSpinBox:
-        box = QDoubleSpinBox()
-        box.setDecimals(4)
-        box.setRange(low, high)
-        box.setSingleStep(0.1)
-        box.setValue(float(value))
-        return box
-
-    @staticmethod
-    def _triple(boxes: list[QDoubleSpinBox]) -> QWidget:
-        holder = QWidget()
-        row = QHBoxLayout(holder)
-        row.setContentsMargins(0, 0, 0, 0)
-        for box in boxes:
-            row.addWidget(box)
-        return holder
-
-    def _accept(self) -> None:
-        self.result_placement = Placement(
-            scale=tuple(box.value() for box in self._scale),  # type: ignore[arg-type]
-            rotation=degrees_to_rotation(*(box.value() for box in self._rotation)),
-            position=tuple(box.value() for box in self._position),  # type: ignore[arg-type]
-            tile=self._tile,
-        )
-        self.accept()
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,16 +152,17 @@ class PrefabInspectorDialog(QDialog):
         layout.addWidget(self.status)
 
         row = QHBoxLayout()
-        self.apply_button = QPushButton("Apply path changes")
+        self.apply_button = QPushButton("Save changes")
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self._apply_changes)
+        self.apply_button.setToolTip("Write the changes into a copy; the game files are never touched.")
         row.addWidget(self.apply_button)
-        self.revert_button = QPushButton("Undo changes")
+        self.revert_button = QPushButton("Undo all changes")
         self.revert_button.setEnabled(False)
         self.revert_button.clicked.connect(self._revert_changes)
+        self.revert_button.setToolTip("Put every row back to the value stored in the file.")
         row.addWidget(self.revert_button)
         self.browse_button = QPushButton("Choose file...")
-        self.browse_button.setToolTip("Pick an existing asset of the same kind from the archives.")
         self.browse_button.setEnabled(False)
         self.browse_button.clicked.connect(self._browse_for_selected_row)
         row.addWidget(self.browse_button)
@@ -277,10 +172,12 @@ class PrefabInspectorDialog(QDialog):
         row.addWidget(buttons)
         layout.addLayout(row)
 
+        # Hidden until there is something to say: an empty box that large just
+        # pushes the content the modder came for off the screen.
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
-        self.log.setMaximumHeight(110)
-        self.log.setPlaceholderText("Edits and their effect on the file appear here.")
+        self.log.setMaximumHeight(120)
+        self.log.hide()
         layout.addWidget(self.log)
 
     def _banner_text(self) -> str:
@@ -293,20 +190,37 @@ class PrefabInspectorDialog(QDialog):
             for _name, item in self._all_values()
             if is_asset_path(item.text)
         )
-        head = f"{objects} object(s), {paths} asset reference(s)."
+        placements = sum(
+            1
+            for number in self._all_numbers()
+            if read_placement(number.raw) is not None
+        )
+        parts = [_count(objects, "object")]
+        if paths:
+            parts.append(_count(paths, "asset reference"))
+        if placements:
+            parts.append(_count(placements, "placement"))
+        head = ", ".join(parts) + "."
         if document.walk_complete:
-            return (
-                head
-                + " Fully decoded - you can repoint any asset path below, to a name of any length."
-            )
+            return f"Fully read. {head} Everything below can be changed."
         return (
-            head
-            + " Only partly decoded, so editing is switched off rather than risk writing a file"
-            + f" we do not fully understand ({document.walk_note})."
+            f"Partly read - saving is switched off. {head} Everything shown is accurate; "
+            "the rest of the file uses a structure this tool cannot follow yet, so it will "
+            "not write a file it does not fully understand."
         )
 
     def _can_edit(self) -> bool:
         return self._document is not None and self._document.walk_complete
+
+    def _all_numbers(self) -> tuple[object, ...]:
+        """Every inline numeric value in the file."""
+        document = self._document
+        if document is None:
+            return ()
+        found = list(document.root_numbers)
+        for obj in document.objects:
+            found.extend(obj.numbers)
+        return tuple(found)
 
     def _all_values(self) -> tuple[tuple[str, object], ...]:
         """Every recovered value, paired with the field it came from."""
@@ -322,12 +236,7 @@ class PrefabInspectorDialog(QDialog):
     def _build_objects_tab(self) -> QWidget:
         page = QWidget()
         box = QVBoxLayout(page)
-        box.addWidget(
-            QLabel(
-                "Each object below is one piece of this prefab. Double-click an asset "
-                "path to point it somewhere else."
-            )
-        )
+        box.addWidget(QLabel(self._objects_hint()))
         self.tree = QTreeWidget()
         self.tree.setColumnCount(3)
         self.tree.setHeaderLabels(["Object / field", "What it is", "Value"])
@@ -338,9 +247,30 @@ class PrefabInspectorDialog(QDialog):
         self.tree.itemChanged.connect(self._note_pending_edit)
         self.tree.itemSelectionChanged.connect(self._refresh_browse_state)
         self.tree.itemDoubleClicked.connect(self._edit_placement)
+        self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.tree.customContextMenuRequested.connect(self._show_row_menu)
+        copy = QShortcut(QKeySequence.StandardKey.Copy, self.tree)
+        copy.activated.connect(self._copy_selected_value)
         self._populate_objects()
         box.addWidget(self.tree, 1)
         return page
+
+    def _objects_hint(self) -> str:
+        """Say what can be done here, which depends on whether editing is on."""
+        if self._document is None:
+            return "Nothing could be read from this file."
+        if not self._can_edit():
+            return (
+                "Each row is one piece of this prefab. This file is read-only because it "
+                "was only partly read - you can look, copy and compare, but not save."
+            )
+        actions = []
+        if any(is_asset_path(item.text) for _name, item in self._all_values()):
+            actions.append("a path to repoint it")
+        if any(read_placement(number.raw) is not None for number in self._all_numbers()):
+            actions.append("a placement to move it")
+        how = f"Double-click {' or '.join(actions)}. " if actions else ""
+        return f"Each row is one piece of this prefab. {how}Ctrl+C copies the selected value."
 
     def _populate_objects(self) -> None:
         document = self._document
@@ -354,7 +284,11 @@ class PrefabInspectorDialog(QDialog):
                 self._add_value_row(root_item, name, item.text, editable)
             self._add_number_rows(root_item, document.root_numbers)
             self._add_fields_row(
-                root_item, document.root_members, document.root_values, document.root_numbers
+                root_item,
+                document.root_members,
+                document.root_values,
+                document.root_numbers,
+                self._collection_members(document.root_type),
             )
             root_item.setExpanded(True)
         for obj in document.objects:
@@ -378,7 +312,13 @@ class PrefabInspectorDialog(QDialog):
             for name, item in obj.values:
                 self._add_value_row(node, name, item.text, editable)
             self._add_number_rows(node, obj.numbers)
-            self._add_fields_row(node, obj.member_names, obj.values, obj.numbers)
+            self._add_fields_row(
+                node,
+                obj.member_names,
+                obj.values,
+                obj.numbers,
+                self._collection_members(obj.component_type),
+            )
             node.setExpanded(True)
 
     def _add_value_row(
@@ -390,17 +330,41 @@ class PrefabInspectorDialog(QDialog):
         row = QTreeWidgetItem([meaning.label, detail, value])
         row.setData(2, _EDIT_ROLE, value)
         row.setToolTip(0, field_name)
+        row.setToolTip(2, value)
         if editable and path_like:
             row.setFlags(row.flags() | Qt.ItemFlag.ItemIsEditable)
             row.setToolTip(2, "Double-click to repoint this asset. Any length is allowed.")
         parent.addChild(row)
 
+    def _collection_members(self, type_name: str) -> frozenset[str]:
+        """Members that hold child objects, which appear as rows of their own."""
+        document = self._document
+        if document is None:
+            return frozenset()
+        for declared in document.types:
+            if declared.type_name == type_name:
+                return frozenset(
+                    member.name for member in declared.members if member.is_collection
+                )
+        return frozenset()
+
     def _add_number_rows(self, parent: QTreeWidgetItem, numbers: tuple[object, ...]) -> None:
         """Show the numeric values: placement, opacity, flags and the like."""
+        seen_placements: dict[str, str] = {}
         for number in numbers:
             rendered = describe_value(number.type_name, number.raw)
             if not rendered:
                 continue
+            if read_placement(number.raw) is not None:
+                # World and tiled placement usually hold identical values;
+                # printing both in full doubles the rows and says nothing new.
+                match = seen_placements.get(rendered)
+                if match:
+                    rendered = f"same as {match.lower()}"
+                else:
+                    seen_placements[describe_value(number.type_name, number.raw)] = (
+                        describe_field(number.name).label
+                    )
             meaning = describe_field(number.name)
             row = QTreeWidgetItem([meaning.label, meaning.detail, rendered])
             row.setToolTip(0, f"{number.name}  ({number.type_name})")
@@ -415,15 +379,61 @@ class PrefabInspectorDialog(QDialog):
         names: tuple[str, ...],
         shown: tuple[tuple[str, object], ...],
         numbers: tuple[object, ...] = (),
+        collections: frozenset[str] = frozenset(),
     ) -> None:
-        """List the set fields that carry no shown value, so nothing looks missing."""
-        already = {name for name, _item in shown} | {number.name for number in numbers}
+        """List set fields with nothing else to show, so none look missing.
+
+        Collections are excluded: their contents are the child rows, so listing
+        them as having no value to show contradicts what is on screen.
+        """
+        already = (
+            {name for name, _item in shown}
+            | {number.name for number in numbers}
+            | set(collections)
+        )
         remaining = tuple(name for name in names if name not in already)
         if not remaining:
             return
-        row = QTreeWidgetItem(["Also set", "values not shown here", ", ".join(describe_fields(remaining))])
+        row = QTreeWidgetItem(
+            ["Also set", "on, but with no value to show", ", ".join(describe_fields(remaining))]
+        )
         row.setToolTip(2, ", ".join(remaining))
         parent.addChild(row)
+
+    def _log(self, text: str) -> None:
+        """Append to the activity log, revealing it on first use."""
+        self.log.show()
+        self.log.appendPlainText(text)
+
+    def _copy_selected_value(self) -> None:
+        """Copy the selected row's value, so a path can be pasted elsewhere."""
+        item = self.tree.currentItem()
+        if item is None:
+            return
+        text = item.text(2) or item.text(0)
+        if text:
+            QGuiApplication.clipboard().setText(text)
+            self._log(f"Copied: {text}")
+
+    def _show_row_menu(self, position) -> None:
+        item = self.tree.itemAt(position)
+        if item is None:
+            return
+        self.tree.setCurrentItem(item)
+        menu = QMenu(self.tree)
+        copy_action = QAction("Copy value", menu)
+        copy_action.triggered.connect(self._copy_selected_value)
+        menu.addAction(copy_action)
+        if item.flags() & Qt.ItemFlag.ItemIsEditable:
+            retarget = QAction("Repoint this asset...", menu)
+            retarget.triggered.connect(self._browse_for_selected_row)
+            retarget.setEnabled(bool(self._candidates_for(item)))
+            menu.addAction(retarget)
+        if item.data(0, _PLACEMENT_ROLE):
+            move = QAction("Move, rotate or rescale...", menu)
+            move.triggered.connect(lambda: self._edit_placement(item, 2))
+            menu.addAction(move)
+        menu.exec(self.tree.viewport().mapToGlobal(position))
 
     def _edit_placement(self, item: QTreeWidgetItem, _column: int) -> None:
         """Open the placement editor for a transform row."""
@@ -503,9 +513,20 @@ class PrefabInspectorDialog(QDialog):
         return ""
 
     def _refresh_browse_state(self) -> None:
+        """Enable Choose file..., and have it say why when it cannot help."""
         item = self.tree.currentItem()
         editable = bool(item and item.flags() & Qt.ItemFlag.ItemIsEditable)
-        self.browse_button.setEnabled(editable and bool(self._candidates_for(item)))
+        candidates = self._candidates_for(item)
+        self.browse_button.setEnabled(editable and bool(candidates))
+        if not self._can_edit():
+            reason = "This file is read-only because it was only partly read."
+        elif not editable:
+            reason = "Select a path row to choose a different file for it."
+        elif not candidates:
+            reason = "No index of this asset kind is loaded, so there is nothing to pick from."
+        else:
+            reason = f"Pick from the {len(candidates):,} files of this kind in the archives."
+        self.browse_button.setToolTip(reason)
 
     def _candidates_for(self, item: QTreeWidgetItem | None) -> tuple[str, ...]:
         if item is None:
@@ -565,7 +586,7 @@ class PrefabInspectorDialog(QDialog):
                         child.setText(2, describe_value(type_name, original_raw))
                         child.setForeground(2, QBrush())
         self._placement_edits.clear()
-        self.log.appendPlainText("Reverted to the values stored in the file.")
+        self._log("Reverted to the values stored in the file.")
         self._refresh_pending_state()
 
     # -- schema tab ------------------------------------------------------
@@ -676,7 +697,7 @@ class PrefabInspectorDialog(QDialog):
             return
         replacements = self.collect_replacements()
         if not replacements and not self._placement_edits:
-            self.log.appendPlainText("Nothing to apply: nothing was changed.")
+            self._log("Nothing to apply: nothing was changed.")
             return
         try:
             # Placements first: they are fixed-size, so their byte offsets are
@@ -686,10 +707,10 @@ class PrefabInspectorDialog(QDialog):
                 moved = rewrite_prefab_placements(payload, self._placement_edits)
                 payload = moved.data
                 for line in moved.proof_lines:
-                    self.log.appendPlainText(line)
+                    self._log(line)
             result = rewrite_prefab_paths(payload, replacements)
         except Exception as exc:  # noqa: BLE001 - reported to the user
-            self.log.appendPlainText(f"Refused: {exc}")
+            self._log(f"Refused: {exc}")
             return
         delta = result.byte_delta
         movement = "grew" if delta > 0 else "shrank" if delta < 0 else "stayed the same"
@@ -700,10 +721,10 @@ class PrefabInspectorDialog(QDialog):
             f"{result.relocated_pointers} internal reference(s) rewritten to match."
         )
         for edit in result.edits:
-            self.log.appendPlainText(f"{edit.old_text} -> {edit.new_text}")
+            self._log(f"{edit.old_text} -> {edit.new_text}")
             for note in self._companion_notes(edit.new_text):
-                self.log.appendPlainText(f"    {note}")
-        self.log.appendPlainText(summary)
+                self._log(f"    {note}")
+        self._log(summary)
         self.result_payload = PrefabInspectorResult(data=result.data, summary=summary)
         if self._on_save is not None:
             self._on_save(result.data, summary)

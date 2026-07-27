@@ -83,7 +83,7 @@ def test_dialog_lists_resources_and_schema(qt_app: QApplication) -> None:
     assert ("Mesh file", PATH) in _rows(dialog)
     assert ("Socket name", "Pelvis_R_Socket") in _rows(dialog)
     assert dialog.schema_tree.topLevelItemCount() == 2
-    assert "Fully decoded" in dialog.banner.text()
+    assert "Fully read" in dialog.banner.text()
 
 
 def test_applying_a_longer_path_produces_a_valid_prefab(qt_app: QApplication) -> None:
@@ -110,7 +110,7 @@ def test_partly_decoded_prefab_disables_editing(qt_app: QApplication) -> None:
     struct.pack_into("<I", payload, pointer.site, pointer.site + 64)
     dialog = PrefabInspectorDialog(bytes(payload))
     assert not dialog.apply_button.isEnabled()
-    assert "not fully understand" in dialog.banner.text()
+    assert "saving is switched off" in dialog.banner.text()
 
 
 def test_unreadable_payload_reports_instead_of_raising(qt_app: QApplication) -> None:
@@ -364,3 +364,62 @@ def test_undo_clears_pending_placements(qt_app: QApplication) -> None:
     dialog._revert_changes()
     assert dialog._placement_edits == {}
     assert not dialog.apply_button.isEnabled()
+
+
+def test_hint_names_only_what_the_file_offers(qt_app: QApplication) -> None:
+    """Telling a modder to double-click a path in a file with no paths is a lie."""
+    with_paths = PrefabInspectorDialog(_build())
+    assert "path to repoint" in with_paths._objects_hint()
+
+    with_placement = PrefabInspectorDialog(_transform_fixture())
+    hint = with_placement._objects_hint()
+    assert "placement to move" in hint
+
+
+def test_read_only_file_does_not_invite_editing(qt_app: QApplication) -> None:
+    payload = bytearray(_build())
+    pointer = decode_prefab_binary(bytes(payload)).pointers[0]
+    struct.pack_into("<I", payload, pointer.site, pointer.site + 64)
+    dialog = PrefabInspectorDialog(bytes(payload))
+    hint = dialog._objects_hint()
+    assert "read-only" in hint
+    assert "Double-click" not in hint
+
+
+def test_banner_counts_read_naturally(qt_app: QApplication) -> None:
+    text = PrefabInspectorDialog(_build()).banner.text()
+    assert "(s)" not in text, text
+    # Singular and plural both read naturally.
+    assert "1 asset reference." in text
+    assert "0 objects" in text
+
+
+def test_repeated_placement_is_summarised_not_repeated(qt_app: QApplication) -> None:
+    """World and tiled placement usually agree; printing both in full is noise."""
+    from cdmw.domain.archives.prefab_values import read_placement
+    from cdmw.ui.archive_browser.prefab_inspector_dialog import _PLACEMENT_ROLE
+
+    dialog = PrefabInspectorDialog(_transform_fixture())
+    rows = []
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            rows.append(parent.child(child_index))
+    placements = [row for row in rows if row.data(0, _PLACEMENT_ROLE)]
+    assert placements, "expected at least one placement row"
+    # The underlying value is still intact even where the text is summarised.
+    for row in placements:
+        _offset, _type_name, raw = row.data(0, _PLACEMENT_ROLE)
+        assert read_placement(raw) is not None
+
+
+def test_collections_are_not_listed_as_having_no_value(qt_app: QApplication) -> None:
+    """Their contents are the child rows, so saying otherwise contradicts the view."""
+    dialog = PrefabInspectorDialog(_build())
+    for index in range(dialog.tree.topLevelItemCount()):
+        parent = dialog.tree.topLevelItem(index)
+        for child_index in range(parent.childCount()):
+            child = parent.child(child_index)
+            if child.text(0) == "Also set":
+                assert "Components" not in child.text(2)
+                assert "Child objects" not in child.text(2)
