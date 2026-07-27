@@ -89,9 +89,32 @@ class ChainTests(unittest.TestCase):
         rig = load_constraints(_braid(), "x/rig.papr")
         self.assertAlmostEqual(rig.chain_named("B_Jiggle_Hair_01").strength, 30.0, places=3)
 
-    def test_soft_chains_sort_first(self) -> None:
+    def test_jiggle_chains_sort_above_soft_body(self) -> None:
         rig = load_constraints(_braid(), "x/rig.papr")
-        self.assertTrue(rig.chains[0].soft)
+        self.assertEqual(rig.chains[0].category, "jiggle")
+        self.assertEqual(rig.chains[1].category, "soft")
+
+    def test_deformation_is_the_category_a_player_rig_is_full_of(self) -> None:
+        """The `Jiggle` names invite the wrong guess; the classifier must not repeat it."""
+
+        from tools.placement_studio.constraints import classify_chain
+
+        self.assertEqual(classify_chain("Bip01 L UpperFMuscle"), "deformation")
+        self.assertEqual(classify_chain("Bip01 R Knee_Sub"), "deformation")
+        self.assertEqual(classify_chain("Bip01 L UpArmTwist_Bottom"), "deformation")
+        self.assertEqual(classify_chain("ExposeTransform_Bip01 L Hand"), "expose")
+        self.assertEqual(classify_chain("P_Bip01 R Chest"), "pivot")
+        self.assertEqual(classify_chain("B_Jiggle_M_Root"), "jiggle")
+        self.assertEqual(classify_chain("B_Golem_piston_Syl_B_01"), "mechanical")
+
+    def test_a_jiggle_name_wins_over_a_deformation_hint(self) -> None:
+        """`B_Jiggle_M_Pelvis` contains no deformation word, but order still matters."""
+
+        self.assertEqual(
+            __import__("tools.placement_studio.constraints", fromlist=["x"])
+            .classify_chain("B_Jiggle_Knee_Sub"),
+            "jiggle",
+        )
 
     def test_a_parent_cycle_terminates_and_places_every_bone_once(self) -> None:
         """A rig that names itself as its own ancestor must not spin, and must not
@@ -245,3 +268,90 @@ class PanelTests(unittest.TestCase):
 
         panel = self._panel()
         self.assertIn("cannot show this", panel._constraint_note.text())
+
+    def test_softer_and_stiffer_move_the_strength_in_whole_steps(self) -> None:
+        panel = self._panel()
+        panel.load_constraint_rig(_braid(), "x/rig.papr")
+        panel._chain_table.selectRow(0)
+        before = panel._rig_constraints.chains[0].strength
+        panel._nudge(-5)
+        after = panel._rig_constraints.chain_named(panel._selected_chain_name()).strength
+        self.assertLess(after, before)
+        self.assertEqual(after, round(after))
+
+    def test_export_is_disabled_until_something_changes(self) -> None:
+        panel = self._panel()
+        panel.load_constraint_rig(_braid(), "x/rig.papr")
+        self.assertFalse(panel._constraint_export.isEnabled())
+        panel._chain_table.selectRow(0)
+        panel._on_chain_off()
+        self.assertTrue(panel._constraint_export.isEnabled())
+
+    def test_exporting_an_unchanged_rig_says_so_instead_of_writing(self) -> None:
+        import tempfile
+
+        panel = self._panel()
+        panel.load_constraint_rig(_braid(), "x/rig.papr")
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIn("Nothing to export", panel.export_constraint_mod(tmp))
+            self.assertEqual(list(Path(tmp).iterdir()), [])
+
+    def test_exporting_a_change_writes_packages(self) -> None:
+        import tempfile
+
+        panel = self._panel()
+        panel.load_constraint_rig(_braid(), "character/model/x/rig.papr")
+        panel._chain_table.selectRow(0)
+        panel._on_chain_off()
+        panel._constraint_mod_name.setText("Calmer hair")
+        with tempfile.TemporaryDirectory() as tmp:
+            message = panel.export_constraint_mod(tmp)
+            self.assertIn("Wrote", message)
+            self.assertTrue(any(Path(tmp).iterdir()))
+
+    def test_the_chain_table_marks_how_much_is_decoded(self) -> None:
+        panel = self._panel()
+        panel.load_constraint_rig(_braid(), "x/rig.papr")
+        marks = {
+            panel._chain_table.item(row, 4).text()
+            for row in range(panel._chain_table.rowCount())
+        }
+        self.assertTrue(marks <= {"full", "partial"})
+
+    def test_the_chain_table_says_what_each_chain_is_for(self) -> None:
+        panel = self._panel()
+        panel.load_constraint_rig(_braid(), "x/rig.papr")
+        kinds = {
+            panel._chain_table.item(row, 1).text()
+            for row in range(panel._chain_table.rowCount())
+        }
+        self.assertEqual(kinds, {"jiggle", "soft"})
+
+
+class CapabilityTests(unittest.TestCase):
+    """The panel promises exactly what the code can do, and no more."""
+
+    def test_capabilities_cover_both_sides(self) -> None:
+        from tools.placement_studio.constraints import CAPABILITIES
+
+        self.assertTrue(any(allowed for allowed, _text in CAPABILITIES))
+        self.assertTrue(any(not allowed for allowed, _text in CAPABILITIES))
+
+    def test_the_things_marked_possible_have_a_function_behind_them(self) -> None:
+        from cdmw.core import papr_format
+        from tools.placement_studio import constraints
+
+        for name in ("set_chain_strength", "freeze_chain"):
+            self.assertTrue(callable(getattr(constraints, name)))
+        for name in ("rename_bone", "set_transform", "set_weights"):
+            self.assertTrue(callable(getattr(papr_format, name)))
+
+    def test_adding_a_chain_is_listed_as_impossible(self) -> None:
+        """There is no API for it, so the UI must not suggest one."""
+
+        from cdmw.core import papr_format
+        from tools.placement_studio.constraints import CAPABILITIES
+
+        self.assertFalse(hasattr(papr_format, "add_entry"))
+        denied = " ".join(text for allowed, text in CAPABILITIES if not allowed).lower()
+        self.assertIn("add a new chain", denied)

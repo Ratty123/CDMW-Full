@@ -262,7 +262,7 @@ class PlacementStudioWindow(
         )
         self._measure_clipping_button.clicked.connect(self._request_clipping)
 
-        carry_box, carry_match, carry_swap, carry_status = self._build_carry_controls()
+        carry_box, history_button, carry_swap, carry_status = self._build_carry_controls()
 
         # Two rows, not one. What is being edited goes on top; how it is displayed goes
         # underneath. On one row these controls asked for a 2,522 px window before anything
@@ -289,8 +289,8 @@ class PlacementStudioWindow(
         display = QHBoxLayout()
         # The two animation actions sit on the second row: the first is already five controls
         # wide, and adding them there pushed the window minimum past a 1600 px monitor.
-        display.addWidget(carry_match)
         display.addWidget(carry_swap)
+        display.addWidget(history_button)
         display.addSpacing(16)
         display.addWidget(QLabel("Show:"))
         display.addWidget(self._mesh_role_box)
@@ -348,9 +348,11 @@ class PlacementStudioWindow(
         self._lower.setTabToolTip(1, "Find a motion clip and play it on the character.")
         self._lower.addTab(self._build_armour_tab(), "Armour")
         self._lower.setTabToolTip(2, "Dress the character, to check an item against real gear.")
-        self._lower.addTab(self._build_secondary_motion_tab(), "Secondary motion")
+        self._lower.addTab(self._build_secondary_motion_tab(), "Driven bones")
         self._lower.setTabToolTip(
-            3, "Tune hair, cloth and jiggle. The viewport cannot show it; the game solves it."
+            3,
+            "Bones that follow other bones: muscle bulge, joint creasing, and the few "
+            "jiggle chains. The viewport cannot show it; the game solves it at runtime.",
         )
         self._lower.addTab(self._diff_view, "Pending changes")
         self._lower.setTabToolTip(4, tip("Pending changes"))

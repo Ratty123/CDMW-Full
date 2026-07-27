@@ -30,15 +30,32 @@ records each; dog declares 30 and has five blocks of six.
 ## The block, and what is still opaque
 
 Blocks are a stream of 3-byte `(tag, type, value)` records. Type `0x03` opens, type
-`0x05` closes (`07 05 00` ends every block that ends with a record), type `0x01` is a
-scalar, and type `0x04` introduces a member whose payload depends on the member id --
-which is where this stops being solved. Some type-04 members carry nothing, some carry
-two bytes, and some carry a `u8 count` followed by that many `(u16 name, f32 weight)`
-driver pairs. Those payload rules are schema-driven and the schema is not in the file.
+`0x05` closes (`07 05 00` is the closing record), type `0x01` is a scalar, and type
+`0x04` introduces a member. What is *known* about the payloads:
+
+* `05 03 00` / `06 04 00` / `07 05 00` / `10 01 xx` carry no payload.
+* `0a 04 00` is always followed by exactly two bytes, in all 1,084 occurrences.
+* A driver list is `u8 count`, then that many `(u16 name, f32 weight)` pairs, then a
+  `0x00` sentinel. It is introduced by `03 04 00` or `04 04 00`.
+* The tag vocabulary across the corpus is `01 03 04 05 06 07 09 0a 10 11 12` against
+  types `01 03 04 05`.
+
+**26.8% of blocks (682 of 2,541) are one canonical 27-byte shape** -- `05 03 00`, three
+`10 01 xx`, `06 04 00`, three `10 01 xx`, `07 05 00`, nine records exactly. Those are
+fully understood and `block_shape` reports them as `canonical`.
+
+The rest are not solved. The payload of a type-04 member depends on the member id, the
+rules differ per id, and the schema that would say so is not in the file. Fitting the
+remaining shapes against the corpus produces rules that consume 73% of block bytes and
+are plainly overfitted (a `11 01` "string then ten floats then four bytes" is not a
+struct anyone wrote), so none of that guesswork is in this module.
 
 So this module does **not** interpret block contents. It finds each block's exact
 extent and carries the bytes verbatim. That is enough for everything below, and it
 means an edit can never corrupt a construct we do not understand.
+
+`record_count` at 0x20 remains the oracle for whoever attacks this next: any candidate
+grammar has to make the per-block record counts sum to it.
 
 Block extents come from locating entry *starts* rather than block ends: a start is two
 name-shaped strings followed by a tail whose third byte is 0 or 1, and the chain of
@@ -93,6 +110,23 @@ class PaprFormatError(ValueError):
     """Raised when a buffer is not a `.papr` constraint rig this reader understands."""
 
 
+#: The one block shape that is fully decoded: nine 3-byte records and nothing else.
+#: `05 03 00`, three `10 01 xx`, `06 04 00`, three `10 01 xx`, `07 05 00`.
+_CANONICAL_BLOCK_BYTES = 27
+
+
+def is_canonical_block(block: bytes) -> bool:
+    """True for the 9-record block shape whose every byte is accounted for."""
+
+    if len(block) != _CANONICAL_BLOCK_BYTES:
+        return False
+    if block[0:3] != b"\x05\x03\x00" or block[12:15] != b"\x06\x04\x00":
+        return False
+    if block[24:27] != b"\x07\x05\x00":
+        return False
+    return all(block[at:at + 2] == b"\x10\x01" for at in (3, 6, 9, 15, 18, 21))
+
+
 @dataclass(frozen=True)
 class PaprHeader:
     version: Tuple[int, int]
@@ -123,6 +157,18 @@ class ConstraintEntry:
         """True when the entry carries a configuration block rather than just a link."""
 
         return bool(self.kind)
+
+    @property
+    def block_shape(self) -> str:
+        """`none`, `canonical` for the fully understood 9-record form, else `opaque`.
+
+        The UI uses this to say which entries are completely understood rather than
+        implying the same confidence everywhere.
+        """
+
+        if not self.block:
+            return "none"
+        return "canonical" if is_canonical_block(self.block) else "opaque"
 
 
 @dataclass(frozen=True)

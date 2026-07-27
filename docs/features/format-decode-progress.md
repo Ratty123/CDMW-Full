@@ -46,7 +46,7 @@ Engine formats only, worst first. Open formats are listed at the end for complet
 | `.pab` | 257 | partial | none | medium | unknown and truncated variants fall back to a best-effort scan, and there is no writer - bones cannot be added, removed or renamed |
 | `.pae` | 6,109 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
 | `.paem` | 560 | surface | none | medium | parameter tables not parsed - VFX authoring is closed |
-| `.papr` | 20 | partial | full | medium | block contents stay opaque: the per-entry tag stream is schema-driven and the schema is not in the file, so blocks are carried verbatim and a new constraint chain cannot be authored from nothing. One rig does not tile and is rejected |
+| `.papr` | 20 | partial | full | medium | the remaining 1,859 config blocks stay opaque: payloads of a type-04 member depend on the member id and that schema is not in the file, so blocks are carried verbatim and a new chain cannot be authored. u32@0x20 is the total tag-record count and is the oracle for a future attempt |
 | `.paschedule` | 4,143 | surface | none | medium | schedule entries not parsed - NPC routines cannot be retimed or rerouted |
 | `.paschedulepath` | 3,613 | surface | none | medium | schedule entries not parsed - NPC routines cannot be retimed or rerouted |
 | `.paseq` | 4,688 | surface | none | medium | track and event layout not parsed - cutscene authoring is closed |
