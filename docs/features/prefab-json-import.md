@@ -1,6 +1,6 @@
 # Prefab JSON Import
 
-Last reviewed: 2026-07-10
+Last reviewed: 2026-07-27
 
 ## Purpose
 
@@ -35,11 +35,12 @@ not mutate game archives directly.
 - V1 import only permits proven fixed-size edits. Same-length resource/reference
   edits and supported placement/socket string edits are allowed only when they do
   not move following binary data.
-- Length-changing import remains gated off until no-edit rebuilds are
-  byte-identical across representative real prefab coverage and all affected
-  counts, offsets, alignment, padding, and descriptors are understood.
-- Transform value editing, array resizing, and unknown semantic rewrites remain
-  disabled unless a later parser/rebuild gate proves them safe.
+- Length-changing edits are supported by the structural decoder, not by this
+  JSON path. See `prefab-structural-decoding.md`: pointers are identified by an
+  exact test rather than a scan, so relocation is arithmetic. This JSON format
+  remains same-length only.
+- Array resizing and unknown semantic rewrites remain disabled unless a later
+  parser/rebuild gate proves them safe.
 - Game archives and extracted game payloads are read-only inputs and must not be
   committed.
 
@@ -53,6 +54,12 @@ not mutate game archives directly.
   layout rebuild checks with length-changing import still disabled.
 - Corpus reports classify parser capability gates so unsupported edit classes
   fail closed instead of silently producing output.
+- These "no-edit rebuild" and "layout" checks pass by construction: the layout
+  splits a payload into recovered strings plus opaque "preserved" spans, so a
+  rebuild that copies both back is byte-identical whether or not the format is
+  understood. Read them as regression guards on the string recovery, not as
+  evidence the structure is decoded. `cdmw/core/prefab_binary.py` parses the
+  actual grammar and reports what it could not walk.
 
 ## Validation
 
