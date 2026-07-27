@@ -7,6 +7,7 @@ from typing import Callable
 from PySide6.QtWidgets import QMessageBox
 
 from cdmw.domain.archives.mesh_contracts import ArchiveLooseExportResult
+from cdmw.domain.archives.prefab_companions import companion_extensions
 from cdmw.models import ArchiveEntry
 from cdmw.services.archive_mutation_service import ArchivePatchRequest
 from cdmw.services.archive_read_service import read_archive_entry_data
@@ -54,6 +55,9 @@ class ArchivePrefabInspectorActionsMixin:
             }
             if not wanted:
                 return {}
+            # Companion kinds are never referenced by the prefab, so they have
+            # to be added explicitly or their existence can never be checked.
+            wanted |= companion_extensions()
             log(f"Indexing archive paths for: {', '.join(sorted(wanted))}")
             return collect_asset_paths(package_root, wanted)
 
