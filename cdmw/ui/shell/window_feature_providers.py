@@ -57,8 +57,10 @@ from cdmw.ui.archive_browser.mesh_swap_scope_dialog import ArchiveMeshSwapScopeD
 from cdmw.ui.archive_browser.mesh_swap_support import ArchiveMeshSwapSupportMixin
 from cdmw.ui.archive_browser.mod_ready_export import ArchiveModReadyExportMixin
 from cdmw.ui.archive_browser.patch_actions import ArchivePatchActionsMixin
+from cdmw.ui.archive_browser.prefab_inspector_actions import ArchivePrefabInspectorActionsMixin
 from cdmw.ui.archive_browser.prefab_json_actions import ArchivePrefabJsonActionsMixin
 from cdmw.ui.archive_browser.preview_cache import ArchivePreviewCacheMixin
+from cdmw.ui.archive_browser.preview_core_prewarm import ArchivePreviewCorePrewarmMixin
 from cdmw.ui.archive_browser.preview_d3d11_parts import ArchivePreviewD3D11PartsMixin
 from cdmw.ui.archive_browser.preview_dotnet_lifecycle import ArchivePreviewDotNetLifecycleMixin
 from cdmw.ui.archive_browser.preview_details import ArchivePreviewDetailsMixin
@@ -209,6 +211,7 @@ ARCHIVE_FEATURE_PROVIDERS = (
     ArchiveAppearanceCompositeMixin,
     ArchiveAppearanceSwapMixin,
     ArchiveBinarySidecarActionsMixin,
+    ArchivePrefabInspectorActionsMixin,
     ArchivePrefabJsonActionsMixin,
     ArchiveHkxDocumentActionsMixin,
     ArchiveHkxEditorDialogMixin,
@@ -247,6 +250,7 @@ ARCHIVE_FEATURE_PROVIDERS = (
     ArchiveSourceMixActionsMixin,
     ArchiveSourceMixOverlayMixin,
     ArchivePreviewCacheMixin,
+    ArchivePreviewCorePrewarmMixin,
     ArchivePreviewTextToolsMixin,
 )
 

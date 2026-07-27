@@ -501,6 +501,11 @@ class ArchiveBrowserActionMixin:
             export_sidecar_json_action = menu.addAction(menu_icons["data"], "Export Decode JSON...")
             export_sidecar_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_binary_sidecar_json())
             if entry.extension == ".prefab":
+                inspect_prefab_action = menu.addAction(menu_icons["data"], "Open Prefab Inspector...")
+                inspect_prefab_action.setToolTip(
+                    "Browse the prefab's objects and declared fields, and retarget its asset paths."
+                )
+                inspect_prefab_action.triggered.connect(lambda _checked=False: self._open_current_archive_prefab_inspector())
                 export_prefab_edit_json_action = menu.addAction(menu_icons["data"], "Export Prefab Edit JSON...")
                 export_prefab_edit_json_action.triggered.connect(lambda _checked=False: self._export_current_archive_prefab_edit_json())
                 import_prefab_edit_json_action = menu.addAction(menu_icons["data"], "Import Prefab Edit JSON...")
