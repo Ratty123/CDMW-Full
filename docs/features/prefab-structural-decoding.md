@@ -174,6 +174,13 @@ Recorded so they are not re-run:
 - **Picking the marker=1 mask width by which reading fits the stated type**
   scores 53.0%, no better than always-narrow, because the type index those
   files resolve to is not in the header either.
+- **The owning collection does not identify the type either.** Its `extra`
+  matches the resolved type index 6.1% of the time and the group's position in
+  the collection 6.0% -- both noise. `attr_flags` does separate the two *kinds*
+  of collection (`0x1008` holds components, `0x1028` holds child scene objects
+  and nested prefab instances), but restricting the candidate list accordingly
+  changes no outcomes and costs ~600 objects, because the groups that need a
+  fallback sit under `_components`, where the constraint is already implied.
 - **`.pami` is not a material.** It is an XML `<StaticMeshInstance>` naming a
   mesh and carrying its material data -- 300/300 sampled files. Classing it as
   a material sends a modder looking for a texture.

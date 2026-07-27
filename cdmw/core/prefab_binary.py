@@ -680,12 +680,9 @@ def _walk_blob(
         for index, member in enumerate(root.members):
             if not (mask >> index) & 1:
                 continue
-            if member.flags == KIND_COLLECTION:
-                count = _read_collection_count(cursor)
-                for _ in range(count):
-                    _walk_group(cursor, components, objects, 1)
-            else:
-                _read_member(cursor, member, collected, nested)
+            # Collections at the root read exactly as they do anywhere else, so
+            # let _read_member own that in one place.
+            _read_member(cursor, member, collected, nested)
     except PrefabBinaryError as exc:
         return selected, objects, False, str(exc), collected
     # The blob closes with the final record's footer plus a terminator; its
