@@ -40,6 +40,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cdmw.domain.archives.prefab_companions import companion_paths
 from cdmw.domain.archives.prefab_glossary import (
     asset_role,
     describe_component,
@@ -330,6 +331,32 @@ class PrefabInspectorDialog(QDialog):
         item.setToolTip(2, warning or ("Changed." if changed else ""))
         self._refresh_pending_state()
 
+    def _companion_notes(self, mesh_path: str) -> list[str]:
+        """What travels with a mesh but is not carried by this prefab.
+
+        The prefab references only the mesh; material and physics are resolved
+        by path convention, so a retarget silently swaps those too.
+        """
+        notes: list[str] = []
+        for companion in companion_paths(mesh_path):
+            known = path_is_known(self._known_paths, companion.path)
+            if known is None:
+                notes.append(f"{companion.role} ({companion.detail}) comes from {companion.path}")
+            elif known:
+                notes.append(f"{companion.role} ({companion.detail}) will come from {companion.path}")
+            else:
+                notes.append(
+                    f"{companion.role} ({companion.detail}) is MISSING: nothing at {companion.path}"
+                )
+        return notes
+
+    def _missing_companions(self, mesh_path: str) -> list[str]:
+        return [
+            companion.role
+            for companion in companion_paths(mesh_path)
+            if path_is_known(self._known_paths, companion.path) is False
+        ]
+
     def _warning_for(self, original: str, replacement: str) -> str:
         """Shape check first, then existence when an index covers this kind."""
         shape = _retarget_warning(original, replacement)
@@ -337,6 +364,10 @@ class PrefabInspectorDialog(QDialog):
             return shape
         if path_is_known(self._known_paths, replacement) is False:
             return "No file with that path exists in the archives."
+        missing = self._missing_companions(replacement)
+        if missing:
+            joined = " and ".join(missing).lower()
+            return f"That mesh has no {joined} file of its own, so its {joined} will not load."
         return ""
 
     def _refresh_browse_state(self) -> None:
@@ -515,6 +546,8 @@ class PrefabInspectorDialog(QDialog):
         )
         for edit in result.edits:
             self.log.appendPlainText(f"{edit.old_text} -> {edit.new_text}")
+            for note in self._companion_notes(edit.new_text):
+                self.log.appendPlainText(f"    {note}")
         self.log.appendPlainText(summary)
         self.result_payload = PrefabInspectorResult(data=result.data, summary=summary)
         if self._on_save is not None:

@@ -259,3 +259,35 @@ def test_browse_is_unavailable_without_an_index(qt_app: QApplication) -> None:
     dialog = PrefabInspectorDialog(_build())
     dialog.tree.setCurrentItem(_path_row(dialog))
     assert not dialog.browse_button.isEnabled()
+
+
+_MESH = "character/model/1_pc/weapon/sword.pac"
+_WITH_COMPANIONS = {
+    ".pac": (_MESH, "character/model/1_pc/weapon/other.pac"),
+    ".pac_xml": ("character/modelproperty/1_pc/weapon/other.pac_xml",),
+    ".hkx": ("character/bin__/meshphysics/1_pc/weapon/other.hkx",),
+}
+
+
+def test_mesh_without_its_own_material_is_flagged(qt_app: QApplication) -> None:
+    """Retargeting a mesh swaps its material too, by path convention."""
+    known = dict(_WITH_COMPANIONS)
+    known[".pac_xml"] = ()  # the replacement mesh has no material sidecar
+    dialog = PrefabInspectorDialog(_build(), known_paths=known)
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    assert "no material file of its own" in dialog.status.text()
+
+
+def test_mesh_with_companions_passes(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build(), known_paths=_WITH_COMPANIONS)
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    assert "wrong" not in dialog.status.text()
+
+
+def test_applying_reports_where_material_and_physics_come_from(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_build(), known_paths=_WITH_COMPANIONS)
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    dialog._apply_changes()
+    logged = dialog.log.toPlainText()
+    assert "modelproperty/1_pc/weapon/other.pac_xml" in logged
+    assert "meshphysics/1_pc/weapon/other.hkx" in logged
