@@ -50,6 +50,7 @@ worker signals execute on the owning QApplication thread.
 .\tools\dotnet_archive_backend\scripts\test_full_archive_backend.ps1 -Configuration Release
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_backend_contracts.py tests/test_archive_backend_client.py tests/test_archive_catalogue_service.py tests/test_archive_remote_catalogue_controller.py tests/test_archive_remote_paged_model.py tests/test_archive_remote_window_bridge.py tests/test_archive_remote_query.py tests/test_archive_remote_preview_dependencies.py tests/test_archive_remote_export.py tests/test_archive_backend_mode.py tests/test_archive_backend_failure_recovery.py
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_mutation_service.py tests/test_archive_patch_preflight.py
+.\.venv\Scripts\python.exe -m pytest tests/test_format_decode_progress.py
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_service_boundaries.py tests/test_architecture_import_boundaries.py::test_ui_does_not_import_archive_compatibility_facades
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_hkx_decomposition.py tests/test_archive_hkx_helper_decomposition.py tests/test_native_hkx_decomposition.py tests/test_hkx_editor_dialog_decomposition.py tests/test_hkx_preview.py tests/test_hkx_native_backend.py tests/test_hkx_ui_source_guards.py
 .\.venv\Scripts\python.exe -m pytest tests/test_archive_binary_preview_decomposition.py tests/test_archive_binary_preview_helper_decomposition.py tests/test_archive_structured_asset_preview.py
