@@ -63,6 +63,8 @@ from cdmw.services.prefab_structure_service import (
     asset_extension_for,
     decode_prefab_binary,
     path_is_known,
+    PrefabPathEdit,
+    prefab_source_digest,
     rewrite_prefab_paths,
     rewrite_prefab_placements,
 )
@@ -70,6 +72,9 @@ from cdmw.services.prefab_structure_service import (
 _EDIT_ROLE = Qt.ItemDataRole.UserRole + 1
 _USED_ROLE = Qt.ItemDataRole.UserRole + 2
 _PLACEMENT_ROLE = Qt.ItemDataRole.UserRole + 3
+#: Byte offset of the string a row shows, so an edit names one occurrence
+#: rather than every copy of the same path in the file.
+_OFFSET_ROLE = Qt.ItemDataRole.UserRole + 4
 
 _CHANGED_COLOUR = QColor("#7ec8ff")
 _WARNING_COLOUR = QColor("#ffb86b")
@@ -125,7 +130,9 @@ class PrefabInspectorDialog(QDialog):
         self._original = bytes(data or b"")
         self._on_save = on_save
         self._known_paths: Mapping[str, Sequence[str]] = dict(known_paths or {})
-        self._placement_edits: dict[int, bytes] = {}
+        # (expected_old, new) per offset: the expected bytes are what makes
+        # the staleness check in rewrite_prefab_placements able to fail.
+        self._placement_edits: dict[int, tuple[bytes, bytes]] = {}
         self.result_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
@@ -326,7 +333,7 @@ class PrefabInspectorDialog(QDialog):
             root_item = QTreeWidgetItem(["This prefab", "Placement and sockets", ""])
             self.tree.addTopLevelItem(root_item)
             for name, item in document.root_values:
-                self._add_value_row(root_item, name, item.text, editable)
+                self._add_value_row(root_item, name, item.text, editable, item.offset)
             self._add_number_rows(root_item, document.root_numbers)
             self._add_fields_row(
                 root_item,
@@ -367,7 +374,7 @@ class PrefabInspectorDialog(QDialog):
                 node.setToolTip(1, obj.component_type)
             self.tree.addTopLevelItem(node)
             for name, item in obj.values:
-                self._add_value_row(node, name, item.text, editable)
+                self._add_value_row(node, name, item.text, editable, item.offset)
             self._add_number_rows(node, obj.numbers)
             self._add_fields_row(
                 node,
@@ -379,13 +386,19 @@ class PrefabInspectorDialog(QDialog):
             node.setExpanded(True)
 
     def _add_value_row(
-        self, parent: QTreeWidgetItem, field_name: str, value: str, editable: bool
+        self,
+        parent: QTreeWidgetItem,
+        field_name: str,
+        value: str,
+        editable: bool,
+        offset: int = -1,
     ) -> None:
         meaning = describe_field(field_name)
         path_like = is_asset_path(value)
         detail = meaning.detail or (f"a {asset_role(value).lower()} file" if path_like else "")
         row = QTreeWidgetItem([meaning.label, detail, value])
         row.setData(2, _EDIT_ROLE, value)
+        row.setData(2, _OFFSET_ROLE, int(offset))
         row.setToolTip(0, field_name)
         row.setToolTip(2, value)
         if editable and path_like:
@@ -498,7 +511,8 @@ class PrefabInspectorDialog(QDialog):
         if not stored:
             return
         offset, type_name, original_raw = stored
-        current = self._placement_edits.get(offset, original_raw)
+        pending = self._placement_edits.get(offset)
+        current = pending[1] if pending else original_raw
         placement = read_placement(current)
         if placement is None:
             return
@@ -509,7 +523,7 @@ class PrefabInspectorDialog(QDialog):
         if new_raw == original_raw:
             self._placement_edits.pop(offset, None)
         else:
-            self._placement_edits[offset] = new_raw
+            self._placement_edits[offset] = (original_raw, new_raw)
         item.setText(2, describe_value(type_name, new_raw))
         item.setForeground(
             2, QBrush(_CHANGED_COLOUR) if offset in self._placement_edits else QBrush()
@@ -736,23 +750,38 @@ class PrefabInspectorDialog(QDialog):
             parent.setHidden(shown == 0)
 
     # -- editing ---------------------------------------------------------
-    def collect_replacements(self) -> dict[str, str]:
-        """Pending path changes as ``{original: replacement}``."""
-        replacements: dict[str, str] = {}
+    def collect_path_edits(self) -> tuple[PrefabPathEdit, ...]:
+        """Pending path changes, one per edited row, addressed by byte offset.
+
+        Addressing by offset rather than by the old text is what lets two rows
+        that happen to share a path be retargeted to different files. Keyed by
+        text, the second row silently overwrote the first.
+        """
+        edits: list[PrefabPathEdit] = []
         for index in range(self.tree.topLevelItemCount()):
             parent = self.tree.topLevelItem(index)
             for child_index in range(parent.childCount()):
                 child = parent.child(child_index)
                 original = child.data(2, _EDIT_ROLE)
+                offset = child.data(2, _OFFSET_ROLE)
                 current = child.text(2).strip()
-                if isinstance(original, str) and current and current != original:
-                    replacements[original] = current
-        return replacements
+                if not isinstance(original, str) or not current or current == original:
+                    continue
+                if not isinstance(offset, int) or offset < 0:
+                    continue
+                edits.append(
+                    PrefabPathEdit(offset=offset, old_text=original, new_text=current)
+                )
+        return tuple(edits)
+
+    def collect_replacements(self) -> dict[str, str]:
+        """The same pending changes as ``{original: replacement}``, for display."""
+        return {edit.old_text: edit.new_text for edit in self.collect_path_edits()}
 
     def _apply_changes(self) -> None:
         if not self._can_edit():
             return
-        replacements = self.collect_replacements()
+        replacements = self.collect_path_edits()
         if not replacements and not self._placement_edits:
             self._log("Nothing to apply: nothing was changed.")
             return
@@ -761,7 +790,11 @@ class PrefabInspectorDialog(QDialog):
             # still valid. Path edits move bytes and would invalidate them.
             payload = self._original
             if self._placement_edits:
-                moved = rewrite_prefab_placements(payload, self._placement_edits)
+                moved = rewrite_prefab_placements(
+                    payload,
+                    self._placement_edits,
+                    source_digest=prefab_source_digest(self._original),
+                )
                 payload = moved.data
                 for line in moved.proof_lines:
                     self._log(line)

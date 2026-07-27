@@ -47,6 +47,27 @@ def asset_extension_for(*args: Any, **kwargs: Any) -> Any:
     return owner(*args, **kwargs)
 
 
+def prefab_source_digest(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_binary_edit import prefab_source_digest as owner
+
+    return owner(*args, **kwargs)
+
+
+def __getattr__(name: str) -> Any:
+    """Re-export owned dataclasses lazily.
+
+    Callers need :class:`PrefabPathEdit` as a type, not just as a factory, so a
+    wrapper function will not do -- but importing it eagerly would pull
+    ``cdmw.core`` in at module load, which is exactly what this facade exists
+    to prevent.
+    """
+    if name in {"PrefabPathEdit", "PrefabPlacementEdit", "PrefabRewriteResult"}:
+        from cdmw.core import prefab_binary_edit
+
+        return getattr(prefab_binary_edit, name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 def rewrite_prefab_placements(*args, **kwargs):
     from cdmw.core.prefab_binary_edit import rewrite_prefab_placements as owner
 
@@ -66,6 +87,8 @@ __all__ = [
     "decode_prefab_binary",
     "path_is_known",
     "plan_prefab_path_edits",
+    "PrefabPathEdit",
+    "prefab_source_digest",
     "pointer_sites",
     "prefab_binary_error",
     "rewrite_prefab_paths",
