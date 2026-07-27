@@ -369,7 +369,7 @@ def test_undo_clears_pending_placements(qt_app: QApplication) -> None:
 def test_hint_names_only_what_the_file_offers(qt_app: QApplication) -> None:
     """Telling a modder to double-click a path in a file with no paths is a lie."""
     with_paths = PrefabInspectorDialog(_build())
-    assert "path to repoint" in with_paths._objects_hint()
+    assert "swap it for another" in with_paths._objects_hint()
 
     with_placement = PrefabInspectorDialog(_transform_fixture())
     hint = with_placement._objects_hint()
@@ -423,3 +423,25 @@ def test_collections_are_not_listed_as_having_no_value(qt_app: QApplication) -> 
             if child.text(0) == "Also set":
                 assert "Components" not in child.text(2)
                 assert "Child objects" not in child.text(2)
+
+
+def test_opens_with_something_selected_so_buttons_are_live(qt_app: QApplication) -> None:
+    """Otherwise every action is greyed until you guess a row must be selected."""
+    known = {".pac": (PATH, "character/model/1_pc/weapon/other.pac")}
+    dialog = PrefabInspectorDialog(_build(), known_paths=known)
+    assert dialog.tree.currentItem() is not None
+    assert dialog.browse_button.isEnabled()
+    assert "exist in the game" in dialog.browse_button.toolTip()
+
+
+def test_says_what_a_prefab_is_and_that_saving_is_safe(qt_app: QApplication) -> None:
+    """A first-time modder needs to know the game files are not touched."""
+    intro = PrefabInspectorDialog(_build()).intro.text()
+    assert "parts list" in intro
+    assert "never changed" in intro
+
+
+def test_intro_does_not_hardcode_a_colour(qt_app: QApplication) -> None:
+    """The app follows the system theme; a fixed grey is unreadable in one of them."""
+    dialog = PrefabInspectorDialog(_build())
+    assert "color:" not in dialog.intro.styleSheet()

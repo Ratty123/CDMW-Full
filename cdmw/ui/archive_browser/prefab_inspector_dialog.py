@@ -142,9 +142,25 @@ class PrefabInspectorDialog(QDialog):
         self.banner.setWordWrap(True)
         layout.addWidget(self.banner)
 
+        # A modder meeting a prefab for the first time needs to know what kind
+        # of thing it is before any of the rows mean anything.
+        self.intro = QLabel(
+            "A prefab is a parts list: which files an object is built from, and where each "
+            "part sits. Saving writes a separate mod package - your game files are never "
+            "changed."
+        )
+        self.intro.setWordWrap(True)
+        # No hard-coded colour: the app follows the system light/dark theme, and a
+        # fixed grey turns unreadable in one of them.
+        font = self.intro.font()
+        font.setItalic(True)
+        self.intro.setFont(font)
+        self.intro.setMinimumHeight(self.intro.fontMetrics().height() * 2)
+        layout.addWidget(self.intro)
+
         tabs = QTabWidget(self)
         tabs.addTab(self._build_objects_tab(), "What this prefab contains")
-        tabs.addTab(self._build_schema_tab(), "All fields")
+        tabs.addTab(self._build_schema_tab(), "Fields explained")
         layout.addWidget(tabs, 1)
 
         self.status = QLabel("")
@@ -162,7 +178,7 @@ class PrefabInspectorDialog(QDialog):
         self.revert_button.clicked.connect(self._revert_changes)
         self.revert_button.setToolTip("Put every row back to the value stored in the file.")
         row.addWidget(self.revert_button)
-        self.browse_button = QPushButton("Choose file...")
+        self.browse_button = QPushButton("Swap for another file...")
         self.browse_button.setEnabled(False)
         self.browse_button.clicked.connect(self._browse_for_selected_row)
         row.addWidget(self.browse_button)
@@ -179,6 +195,9 @@ class PrefabInspectorDialog(QDialog):
         self.log.setMaximumHeight(120)
         self.log.hide()
         layout.addWidget(self.log)
+
+        # Last, so the selection can drive button state that now exists.
+        self._select_first_editable_row()
 
     def _banner_text(self) -> str:
         if self._document is None:
@@ -255,6 +274,20 @@ class PrefabInspectorDialog(QDialog):
         box.addWidget(self.tree, 1)
         return page
 
+    def _select_first_editable_row(self) -> None:
+        """Start on something changeable, so the buttons are live on open.
+
+        Otherwise every action button is greyed until the modder guesses that a
+        row has to be selected first.
+        """
+        for index in range(self.tree.topLevelItemCount()):
+            parent = self.tree.topLevelItem(index)
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                if child.flags() & Qt.ItemFlag.ItemIsEditable or child.data(0, _PLACEMENT_ROLE):
+                    self.tree.setCurrentItem(child)
+                    return
+
     def _objects_hint(self) -> str:
         """Say what can be done here, which depends on whether editing is on."""
         if self._document is None:
@@ -266,9 +299,9 @@ class PrefabInspectorDialog(QDialog):
             )
         actions = []
         if any(is_asset_path(item.text) for _name, item in self._all_values()):
-            actions.append("a path to repoint it")
+            actions.append("a file to swap it for another")
         if any(read_placement(number.raw) is not None for number in self._all_numbers()):
-            actions.append("a placement to move it")
+            actions.append("a placement to move or resize it")
         how = f"Double-click {' or '.join(actions)}. " if actions else ""
         return f"Each row is one piece of this prefab. {how}Ctrl+C copies the selected value."
 
@@ -333,7 +366,7 @@ class PrefabInspectorDialog(QDialog):
         row.setToolTip(2, value)
         if editable and path_like:
             row.setFlags(row.flags() | Qt.ItemFlag.ItemIsEditable)
-            row.setToolTip(2, "Double-click to repoint this asset. Any length is allowed.")
+            row.setToolTip(2, "Double-click to swap this for a different file. Any name length is fine.")
         parent.addChild(row)
 
     def _collection_members(self, type_name: str) -> frozenset[str]:
@@ -425,7 +458,7 @@ class PrefabInspectorDialog(QDialog):
         copy_action.triggered.connect(self._copy_selected_value)
         menu.addAction(copy_action)
         if item.flags() & Qt.ItemFlag.ItemIsEditable:
-            retarget = QAction("Repoint this asset...", menu)
+            retarget = QAction("Swap for another file...", menu)
             retarget.triggered.connect(self._browse_for_selected_row)
             retarget.setEnabled(bool(self._candidates_for(item)))
             menu.addAction(retarget)
@@ -521,11 +554,11 @@ class PrefabInspectorDialog(QDialog):
         if not self._can_edit():
             reason = "This file is read-only because it was only partly read."
         elif not editable:
-            reason = "Select a path row to choose a different file for it."
+            reason = "Select a row with a file in it, then pick a replacement."
         elif not candidates:
             reason = "No index of this asset kind is loaded, so there is nothing to pick from."
         else:
-            reason = f"Pick from the {len(candidates):,} files of this kind in the archives."
+            reason = f"Pick from the {len(candidates):,} files of this kind that exist in the game."
         self.browse_button.setToolTip(reason)
 
     def _candidates_for(self, item: QTreeWidgetItem | None) -> tuple[str, ...]:
