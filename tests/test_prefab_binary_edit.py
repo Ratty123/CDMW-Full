@@ -33,7 +33,7 @@ def _member(name: str, type_name: str, flags: int, size: int) -> bytes:
 PATH = "character/model/1_pc/weapon/sword.pac"
 
 
-def _build(path: str = PATH) -> bytes:
+def _build(path: str = PATH, socket: str = "Pelvis_R_Socket") -> bytes:
     """A prefab whose root holds one string member and one pointer to a path."""
     types = bytearray()
     types += _text("SceneObject") + struct.pack("<H", 2)
@@ -51,7 +51,7 @@ def _build(path: str = PATH) -> bytes:
     blob = bytearray()
     blob += struct.pack("<H", 2)
     blob += (0b11).to_bytes(6, "little")
-    blob += _text("Pelvis_R_Socket")
+    blob += _text(socket)
     blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
     pointer_at = blob_offset + len(blob)
     blob += struct.pack("<I", pointer_at + 4)
@@ -95,6 +95,20 @@ def _build_with_transform() -> bytes:
     data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
     data_header += struct.pack("<II", blob_offset, len(blob))
     return bytes(header + pool + data_header + blob)
+
+
+def _build_with_two_copies_of_the_path() -> bytes:
+    """The same path in two places, so an edit has to name which one."""
+    return _build(socket=PATH)
+
+
+def _first_placement(document):
+    from cdmw.domain.archives.prefab_values import read_placement
+
+    for number in document.root_numbers:
+        if read_placement(number.raw) is not None:
+            return number
+    raise AssertionError("fixture has no placement")
 
 
 def test_fixture_decodes_with_a_complete_walk() -> None:
@@ -239,3 +253,75 @@ def test_placement_edit_refuses_a_wrong_sized_replacement() -> None:
     number = next(n for n in document.root_numbers if n.type_name == "Transform")
     with pytest.raises(PrefabEditError, match="byte"):
         rewrite_prefab_placements(payload, {number.offset: b"\x00" * 8})
+
+
+def test_two_rows_sharing_a_path_get_independent_replacements() -> None:
+    """Keyed by text, the second edit silently overwrote the first."""
+    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.core.prefab_binary_edit import PrefabPathEdit
+
+    payload = _build_with_two_copies_of_the_path()
+    document = decode_prefab_binary(payload)
+    sites = [item for item in document.all_strings() if item.text == PATH]
+    assert len(sites) == 2, "fixture must contain the same path twice"
+
+    edits = plan_prefab_path_edits(
+        document,
+        [
+            PrefabPathEdit(offset=sites[0].offset, old_text=PATH, new_text="a/first.pac"),
+            PrefabPathEdit(offset=sites[1].offset, old_text=PATH, new_text="a/second.pac"),
+        ],
+    )
+    assert [edit.new_text for edit in edits] == ["a/first.pac", "a/second.pac"]
+
+    # The mapping form still means "every occurrence", which is the useful
+    # default for retargeting a mesh -- but it cannot express the above.
+    both = plan_prefab_path_edits(document, {PATH: "a/only.pac"})
+    assert [edit.new_text for edit in both] == ["a/only.pac", "a/only.pac"]
+
+
+def test_an_offset_holding_something_else_is_refused() -> None:
+    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.core.prefab_binary_edit import PrefabPathEdit
+
+    document = decode_prefab_binary(_build())
+    site = document.all_strings()[0]
+    with pytest.raises(PrefabEditError, match="not"):
+        plan_prefab_path_edits(
+            document,
+            [PrefabPathEdit(offset=site.offset, old_text="never/here.pac", new_text="x.pac")],
+        )
+
+
+def test_placement_write_checks_the_bytes_the_caller_expected() -> None:
+    """The old check compared the payload against itself and could not fail."""
+    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.core.prefab_binary_edit import rewrite_prefab_placements
+
+    payload = _build_with_transform()
+    number = _first_placement(decode_prefab_binary(payload))
+    replacement = bytes(len(number.raw))
+
+    # Correct expectation: accepted.
+    result = rewrite_prefab_placements(payload, {number.offset: (number.raw, replacement)})
+    assert result.data != payload
+
+    # Stale expectation: refused, where the bare-bytes form would have written.
+    wrong = bytes(b"\xff" * len(number.raw))
+    with pytest.raises(PrefabEditError, match="not what was read"):
+        rewrite_prefab_placements(payload, {number.offset: (wrong, replacement)})
+
+
+def test_a_changed_source_file_rejects_the_whole_batch() -> None:
+    from cdmw.core.prefab_binary import decode_prefab_binary
+    from cdmw.core.prefab_binary_edit import prefab_source_digest, rewrite_prefab_placements
+
+    payload = _build_with_transform()
+    number = _first_placement(decode_prefab_binary(payload))
+    stale = prefab_source_digest(payload + b"\x00")
+    with pytest.raises(PrefabEditError, match="changed since it was read"):
+        rewrite_prefab_placements(
+            payload,
+            {number.offset: (number.raw, bytes(len(number.raw)))},
+            source_digest=stale,
+        )

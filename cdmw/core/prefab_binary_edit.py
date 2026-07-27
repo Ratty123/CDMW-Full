@@ -22,6 +22,7 @@ Three things need adjusting after a length change:
 
 from __future__ import annotations
 
+import hashlib
 import struct
 from bisect import bisect_right
 from dataclasses import dataclass
@@ -80,11 +81,29 @@ def _shift_for(boundaries: Sequence[int], deltas: Sequence[int], offset: int) ->
     return deltas[index - 1] if index else 0
 
 
+def prefab_source_digest(data: bytes) -> str:
+    """Fingerprint of the payload a caller decoded, for staleness checks."""
+    return hashlib.sha256(bytes(data or b"")).hexdigest()
+
+
 def plan_prefab_path_edits(
     document: PrefabDocument,
-    replacements: Mapping[str, str],
+    replacements: Mapping[str, str] | Sequence[PrefabPathEdit],
 ) -> tuple[PrefabPathEdit, ...]:
-    """Match ``replacements`` (old path -> new path) against decoded strings."""
+    """Work out which bytes to replace.
+
+    Two forms, and the difference matters:
+
+    * a **sequence of** :class:`PrefabPathEdit` names one occurrence each, by
+      byte offset, and every offset is checked against the decoded string that
+      sits there. Use this when the caller is acting on specific rows;
+    * a **mapping** of old path to new path replaces *every* occurrence of that
+      path in the file. That is the right default for retargeting a mesh, but
+      it cannot express two different replacements for the same path, and it
+      will change occurrences the caller never looked at.
+    """
+    if not isinstance(replacements, Mapping):
+        return _plan_from_occurrences(document, replacements)
     wanted = {
         str(old or "").replace("\\", "/").strip(): str(new or "").replace("\\", "/").strip()
         for old, new in dict(replacements or {}).items()
@@ -97,6 +116,27 @@ def plan_prefab_path_edits(
         if not replacement or replacement == current:
             continue
         edits.append(PrefabPathEdit(offset=item.offset, old_text=item.text, new_text=replacement))
+    edits.sort(key=lambda item: item.offset)
+    return tuple(edits)
+
+
+def _plan_from_occurrences(
+    document: PrefabDocument, requested: Sequence[PrefabPathEdit]
+) -> tuple[PrefabPathEdit, ...]:
+    """Validate offset-addressed edits against what actually decoded there."""
+    decoded = {item.offset: item.text for item in document.all_strings()}
+    edits: list[PrefabPathEdit] = []
+    for edit in requested:
+        found = decoded.get(edit.offset)
+        if found is None:
+            raise PrefabEditError(f"No decoded string sits at 0x{edit.offset:x}")
+        if found != edit.old_text:
+            raise PrefabEditError(
+                f"String at 0x{edit.offset:x} is {found!r}, not {edit.old_text!r}; "
+                "refusing to write over something the caller has not seen"
+            )
+        if edit.new_text and edit.new_text != found:
+            edits.append(edit)
     edits.sort(key=lambda item: item.offset)
     return tuple(edits)
 
@@ -187,6 +227,22 @@ def rewrite_prefab_paths(
     )
 
 
+def _split_placement_request(request: object) -> tuple[bytes | None, bytes]:
+    """Accept either ``new`` alone or ``(expected_old, new)``.
+
+    Bare bytes are the older, unverified form: nothing is checked beyond the
+    offset existing and the size matching.
+    """
+    if isinstance(request, (bytes, bytearray, memoryview)):
+        return None, bytes(request)
+    if isinstance(request, Sequence) and len(request) == 2:
+        expected_old, new_raw = request
+        return bytes(expected_old), bytes(new_raw)
+    raise PrefabEditError(
+        "A placement replacement must be bytes, or an (expected_old, new) pair"
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class PrefabPlacementEdit:
     """One transform replacement, addressed by its byte offset."""
@@ -198,16 +254,31 @@ class PrefabPlacementEdit:
 
 def rewrite_prefab_placements(
     data: bytes,
-    replacements: Mapping[int, bytes],
+    replacements: Mapping[int, bytes] | Mapping[int, tuple[bytes, bytes]],
+    *,
+    source_digest: str | None = None,
 ) -> PrefabRewriteResult:
     """Write transforms back in place, keyed by byte offset.
 
     Transforms are fixed size, so nothing moves and no pointer needs
-    relocating -- this is strictly safer than a path edit. Each write is
-    checked against the bytes currently at that offset, so an offset from a
-    stale decode is refused rather than splicing over whatever is there now.
+    relocating -- this is strictly safer than a path edit.
+
+    Each value may be either the replacement bytes alone, or a
+    ``(expected_old, new)`` pair. Pass the pair: it is the only form that can
+    detect a stale offset. An earlier version claimed to check "the bytes
+    currently at that offset", but it decoded the very payload it then compared
+    against, so the comparison could never fail. Only the caller knows what it
+    read, so only the caller can say what it expects to still be there.
+
+    ``source_digest`` is :func:`prefab_source_digest` of the payload the caller
+    decoded. Supplying it rejects the whole batch if the file has changed
+    underneath, rather than catching it one offset at a time.
     """
     payload = bytearray(data or b"")
+    if source_digest is not None and prefab_source_digest(bytes(payload)) != source_digest:
+        raise PrefabEditError(
+            "This prefab has changed since it was read; reopen it before saving."
+        )
     document = decode_prefab_binary(bytes(payload))
     if not document.walk_complete:
         raise PrefabEditError(
@@ -220,7 +291,8 @@ def rewrite_prefab_placements(
         for number in source
     }
     edits: list[PrefabPlacementEdit] = []
-    for offset, new_raw in dict(replacements or {}).items():
+    for offset, request in dict(replacements or {}).items():
+        expected_old, new_raw = _split_placement_request(request)
         number = known.get(int(offset))
         if number is None:
             raise PrefabEditError(f"No decoded value sits at 0x{int(offset):x}")
@@ -229,9 +301,9 @@ def rewrite_prefab_placements(
                 f"Value at 0x{number.offset:x} is {len(number.raw)} byte(s); "
                 f"replacement is {len(new_raw)}"
             )
-        if bytes(payload[number.offset : number.end]) != number.raw:
+        if expected_old is not None and bytes(expected_old) != number.raw:
             raise PrefabEditError(
-                f"Bytes at 0x{number.offset:x} changed since decoding; refusing to write"
+                f"Value at 0x{number.offset:x} is not what was read there; refusing to write"
             )
         if bytes(new_raw) == number.raw:
             continue
