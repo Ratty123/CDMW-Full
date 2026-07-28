@@ -307,8 +307,8 @@ class LaneTests(unittest.TestCase):
         texts = [lane.child(i).text(0) for i in range(lane.childCount())]
 
         joined = " ".join(texts)
-        self.assertIn("Drawing", joined)
-        self.assertIn("Sheathing", joined)
+        self.assertIn("Draw", joined)
+        self.assertIn("Put away", joined)
 
     def test_every_row_can_be_watched_not_only_the_ambiguous_ones(self) -> None:
         played = []
@@ -551,14 +551,29 @@ class RowNamesBothFamiliesTests(unittest.TestCase):
             out.extend(lane.child(j).text(0) for j in range(lane.childCount()))
         return out
 
-    def test_both_families_appear_when_they_differ(self) -> None:
+    def test_both_families_appear_when_the_donors_differ(self) -> None:
+        """Only then. A swap runs one way, so naming the donor on every row restates the
+        sentence at the top of the dialog once per row and carries no information."""
+
+        rows = self._rows([
+            (self._entry("cd_phm_dualsword_00_01_nor_std_weapon_out_00"),
+             self._entry("cd_phm_longsword_00_01_nor_std_weapon_out_00"), ()),
+            (self._entry("cd_phm_sword_00_01_nor_std_weapon_in_00"),
+             self._entry("cd_phm_swds_00_01_nor_std_weapon_in_00"), ()),
+        ])
+        joined = " ".join(rows).lower()
+
+        self.assertIn("dual", joined)
+        self.assertIn("←", joined)
+
+    def test_one_donor_family_is_not_named_on_every_row(self) -> None:
         target = self._entry("cd_phm_dualsword_00_01_nor_std_weapon_out_00")
         donor = self._entry("cd_phm_longsword_00_01_nor_std_weapon_out_00")
 
-        row = self._rows([(target, donor, (donor,))])[0].lower()
+        row = self._rows([(target, donor, (donor,))])[0]
 
-        self.assertIn("dual", row)
-        self.assertIn("←", row)
+        self.assertIn("dual", row.lower())
+        self.assertNotIn("←", row)
 
     def test_one_family_is_not_repeated_when_they_match(self) -> None:
         """Nothing is being restyled there, so naming it twice is noise."""

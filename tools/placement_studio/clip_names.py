@@ -42,10 +42,16 @@ _CONTEXT: Tuple[Tuple[str, str], ...] = (
 )
 
 #: What the clip actually does.
+#: Longest first: `weapon_ing` contains `weapon_in`, so the order is what keeps a switch from
+#: reading as a sheathe. The underscore-less spellings are the same actions written differently
+#: in a run of mounted clips; without them those rows fell through to raw words and read
+#: `Att skill weaponout f handr swing forward`.
 _ACTION: Tuple[Tuple[str, str], ...] = (
+    ("weapon_ing", "switching weapons"),
     ("weapon_out", "drawing the weapon"),
     ("weapon_in", "sheathing the weapon"),
-    ("weapon_ing", "switching weapons"),
+    ("weaponout", "drawing the weapon"),
+    ("weaponin", "sheathing the weapon"),
 )
 
 _DIRECTION: Dict[str, str] = {
@@ -170,20 +176,28 @@ def group_key(stem: str) -> str:
 
 #: The equipped weapon a clip family belongs to, in words. Two decisions that differ only by
 #: this were previously indistinguishable on screen.
+#: Short on purpose. These sit inside a row that already names the action and the situation,
+#: so `One-handed sword ← Two-handed sword` spent forty characters restating the one sentence
+#: at the top of the dialog. Damian's rapier families were missing outright and showed as `rpr`.
 FAMILY_LABELS: Dict[str, str] = {
-    "sword": "One-handed sword",
-    "dualsword": "Dual swords",
-    "dlsd": "Dual swords",
-    "swds": "Sword and shield",
-    "swd": "Sword",
-    "longsword": "Two-handed sword",
-    "lswd": "Two-handed sword",
+    "sword": "one-hand",
+    "dualsword": "dual swords",
+    "dlsd": "dual swords",
+    "swds": "sword + shield",
+    "swd": "sword",
+    "longsword": "two-hand",
+    "lswd": "two-hand",
+    "rpr": "rapier",
+    "2rpr": "dual rapiers",
 }
 
 
 def family_label(stem: str) -> str:
-    parts = stem.split("_")
-    family = parts[2] if len(parts) > 2 else ""
+    """The weapon family, read past any context tokens — see `carry.family_of`."""
+
+    from .carry import family_of
+
+    family = family_of(stem)
     return FAMILY_LABELS.get(family, family)
 
 
@@ -229,10 +243,13 @@ def distinct_labels(stems) -> "List[str]":
 
 #: The action, said as briefly as it can be. The context is the lane heading, so repeating
 #: "Standing —" on every row inside the Standing lane was pure noise.
+#: A row already sits under a heading naming the situation, so the action does not need a
+#: sentence. `Drawing the weapon · dual swords ← two-handed sword (2 files)` is seventy
+#: characters of which four carry the decision.
 _SHORT_ACTION: Dict[str, str] = {
-    "drawing the weapon": "Drawing the weapon",
-    "sheathing the weapon": "Sheathing the weapon",
-    "switching weapons": "Switching weapons",
+    "drawing the weapon": "Draw",
+    "sheathing the weapon": "Put away",
+    "switching weapons": "Switch",
 }
 
 
