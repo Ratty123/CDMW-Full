@@ -24,7 +24,7 @@
     "cdmw/core/model_catalogue.py": 1269,
     "cdmw/core/model_preview.py": 1345,
     "cdmw/core/pipeline.py": 1341,
-    "cdmw/core/prefab_binary.py": 1151,
+    "cdmw/core/prefab_binary.py": 1142,
     "cdmw/core/recolor_variants.py": 1324,
     "cdmw/core/research_texture_analysis.py": 1478,
     "cdmw/core/texture_native.py": 1242,
