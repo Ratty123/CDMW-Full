@@ -6,7 +6,7 @@ Security fixes are most likely to land in the latest release line or beta line.
 
 Current priority:
 
-- `0.11.0-alpha.1` pre-release builds
+- `0.11.0-alpha.2` pre-release builds
 
 Older `0.10.0` alpha builds and every `0.9.x` or earlier line may receive no
 fixes. Upgrade to the newest published build before reporting a vulnerability
