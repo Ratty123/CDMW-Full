@@ -111,6 +111,23 @@ behind compatibility wrappers.
   they do not launch a renderer. The retired `cdmw-d3d11-preview.exe`, native
   project, HWND/WM_COPYDATA protocol, and packaged payload are forbidden by
   source and release-package guards.
+- `tools/placement_studio/`, `tools/format_explorer/`, and
+  `tools/translation_studio/`: user-facing tool tabs. Each exposes a `tab.py`
+  widget that `cdmw/ui/shell/tool_tabs.py` registers as a lazy shell tool, so
+  they are app surfaces rather than developer harnesses despite living under
+  `tools/`. Their domain logic sits beside them (`catalogue.py`,
+  `table_model.py`, and the placement studio's per-topic owners) over
+  `cdmw/core/` format modules.
+- `tools/paa_motion/`: read-only `.paa` motion clip reader. No UI; see
+  `docs/features/paa-motion-format.md`.
+- `tools/dotnet_bazel_launcher/`: build-time launcher used by the Bazel rules;
+  it is not part of the running app.
+
+The three tool tabs above are the one place a UI surface reads `cdmw.core`
+format modules directly. The Layer Rules below hold for `cdmw/ui/`, and the
+import-boundary guards enforce them only there, so `tools/` is currently
+outside both. Treat that as an unresolved boundary question, not as licence to
+add more: a new feature tab belongs in `cdmw/ui/<feature>/` behind a service.
 
 Focused owner source files use a shared 1,000-line default ceiling. Smaller
 feature-specific caps remain valid. A cohesive, static-data, or generated owner
