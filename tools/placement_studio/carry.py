@@ -186,11 +186,23 @@ FAMILY_COUNTERPARTS: Dict[str, Tuple[str, ...]] = {
 }
 
 
+#: Tokens that sit between the character and the family instead of being one. Kliff's mounted
+#: clips fold the context into the character slot — `cd_prh_swd_...` — so the family is still
+#: third. Damian's keep her name and add the context after it: `cd_damian_rd_prh_lswd_...`,
+#: which put `rd` in the family slot and made every mounted clip of hers unplaceable.
+_CONTEXT_TOKENS = frozenset({"rd", "prh"})
+
+
 def family_of(clip_stem: str) -> str:
-    """The animation family a clip belongs to — the third token of its name."""
+    """The animation family a clip belongs to — the third token, past any context tokens."""
 
     parts = clip_stem.split("_")
-    return parts[2] if len(parts) > 2 and parts[0] == "cd" else ""
+    if len(parts) < 3 or parts[0] != "cd":
+        return ""
+    index = 2
+    while index < len(parts) - 1 and parts[index] in _CONTEXT_TOKENS:
+        index += 1
+    return parts[index]
 
 
 #: How many trailing variant numbers to try when the exact one has no counterpart.
@@ -464,15 +476,18 @@ def is_draw(name: str) -> bool:
     """Does this clip name a draw or a sheathe?
 
     The only naming convention this module trusts, and only to decide what is worth
-    measuring — `weapon_out` and `weapon_in` are used consistently across every rig.
+    measuring. Not quite as consistent as it looked: `weapon_out` and `weapon_in` are the usual
+    spelling, but a run of mounted clips writes them without the underscore, and reading only
+    the usual one classified every mounted draw as ordinary locomotion.
     """
 
     lowered = name.lower()
-    return "weapon_out" in lowered or "weapon_in" in lowered
+    return any(word in lowered for word in ("weapon_out", "weapon_in", "weaponout", "weaponin"))
 
 
 def is_sheathe(name: str) -> bool:
-    return "weapon_in" in name.lower()
+    lowered = name.lower()
+    return "weapon_in" in lowered or "weaponin" in lowered
 
 
 class CarryIndex:

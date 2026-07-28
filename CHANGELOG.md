@@ -12,6 +12,9 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Fixed
+- **Two naming shapes the convention turned out not to be consistent about, both of which hid real draws.** A run of mounted clips spells the action `weaponout`/`weaponin` rather than `weapon_out`/`weapon_in`, and reading only the usual spelling classified every one of them as ordinary locomotion. And the family is the third token only when the context is folded into the character slot — Kliff's `cd_prh_swd_...` — where Damian keeps her name and adds the context after it, `cd_damian_rd_prh_lswd_...`, which put `rd` in the family slot and made all of her mounted clips unplaceable. Damian's one-handed draws go from 6 to 28, and her swappable draw pairs from 8 to 10; Kliff's go from 54 to 56.
+
+### Fixed
 - A Move-dialog row named only the clip it replaces, so `Drawing the weapon · dual swords` sat next to a Watch button that plays a two-handed draw from the back. Reading the row as a description of what you are about to watch is the obvious reading and it was wrong. Rows now name both — `Drawing the weapon · dual swords ← two-handed sword` — using the same arrow the tooltip has always used for target ← donor.
 
 ### Fixed

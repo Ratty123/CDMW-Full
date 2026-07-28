@@ -302,3 +302,41 @@ class BorrowedAnimationTests(unittest.TestCase):
             "cd_phw_rpr_00_01_nor_std_weapon_out_00",
             "cd_phw_lswd_00_01_nor_std_weapon_out_00",
         ))
+
+
+class ClipNamingShapeTests(unittest.TestCase):
+    """Two spellings the naming convention turned out not to be consistent about.
+
+    Both classified real draws as ordinary locomotion, so they never reached the Move dialog —
+    which is what made Damian look as though she had almost no draws to restyle.
+    """
+
+    def test_a_draw_written_without_the_underscore_still_counts(self) -> None:
+        """A run of mounted clips writes `weaponout`, not `weapon_out`."""
+
+        self.assertTrue(carry.is_draw("cd_damian_rd_prh_lswd_01_01_nor_base_std_weaponout_00"))
+        self.assertTrue(carry.is_draw("cd_damian_rd_prh_spr_00_01_nor_base_std_weaponin_00"))
+        self.assertTrue(carry.is_sheathe("cd_damian_rd_prh_spr_00_01_nor_base_std_weaponin_00"))
+
+    def test_the_usual_spelling_is_unaffected(self) -> None:
+        self.assertTrue(carry.is_draw("cd_phm_sword_00_01_nor_std_weapon_out_00"))
+        self.assertFalse(carry.is_draw("cd_phm_sword_00_01_nor_std_idle_00"))
+
+    def test_the_family_is_found_past_the_context_tokens(self) -> None:
+        """Kliff folds the context into the character slot; Damian adds it after her name.
+
+        `cd_prh_swd_...` keeps the family third, but `cd_damian_rd_prh_lswd_...` puts `rd`
+        there — so every mounted clip of hers was read as family `rd` and dropped.
+        """
+
+        self.assertEqual(
+            carry.family_of("cd_damian_rd_prh_lswd_01_01_nor_base_std_weaponout_00"), "lswd"
+        )
+        self.assertEqual(carry.family_of("cd_prh_swd_01_01_nor_std_weapon_out_00"), "swd")
+
+    def test_an_ordinary_name_still_reads_its_third_token(self) -> None:
+        self.assertEqual(carry.family_of("cd_phm_sword_00_01_nor_std_weapon_out_00"), "sword")
+        self.assertEqual(carry.family_of("cd_phw_rpr_00_01_nor_std_weapon_out_00"), "rpr")
+
+    def test_a_name_that_is_all_context_does_not_run_off_the_end(self) -> None:
+        self.assertEqual(carry.family_of("cd_damian_rd_prh"), "prh")
