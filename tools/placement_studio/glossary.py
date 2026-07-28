@@ -19,6 +19,11 @@ from __future__ import annotations
 #: a minute. The name now says the question it answers, and the cost is on the button.
 MATCH_LABEL = "Find which draws fit"
 
+#: The button that aims an item using the selected point. Short because it shares the bottom
+#: bar with a dozen other controls; held here so the walkthrough and the status message that
+#: name it cannot drift from what the button actually says.
+AIM_LABEL = "Aim with this"
+
 import re
 from dataclasses import dataclass
 from html import escape as html_escape
@@ -231,7 +236,7 @@ TROUBLESHOOTING: Tuple[Tuple[str, str], ...] = (
     (
         "The item hangs at a strange angle after I moved it",
         "The game defines no angle for the new spot. Select the socket you want it aimed at "
-        "and press <b>Use as orientation</b>, or aim it by hand with Rotate and Tilt.",
+        "and press <b>" + AIM_LABEL + "</b>, or aim it by hand with Rotate and Tilt.",
     ),
     (
         "No draws were found for the position I chose",

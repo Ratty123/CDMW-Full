@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+- **The editing bar is two rows of grouped controls instead of a nine-column grid.** A grid ties every row to the same column widths, so `Undo my changes to this point` sitting in column 4 made column 4 that wide on *every* row — which is why `Step:` sat a hand's width from the nudge buttons above it and most of the bar was gap. Each group is its own box now, so a wide button widens only its own group. Writing the mod out moved to the top row, which had the room the bottom one did not, and is not an editing control anyway. Button labels are short, with the sentence on the tooltip: spelled out, five of them wanted 1,052 px and the bar asked for 2,262 in a 1,500 px window, so Qt clipped them and they were unreadable regardless. The bar now asks for 1,410.
+
 ### Fixed
 - **Changing character stalled for several seconds.** Two causes, both things that were cheap against the old stand-in body and are not against a real one. Clipping was measured *live* whenever no clip was loaded — 5.5 million triangle tests against a 28,316-triangle anatomy, 6.2 s, on every mesh refresh, to answer a question nobody had asked; it is measured on request now, which is what the `Check Fit/Clipping` button and its tooltip already said. And the chart index was rebuilt from all 212 charts on every call and called twice per switch, 1.4 s of it, re-deriving something that had not changed. Switching character goes from 3.9 s to 2.0 s, and the six-second stall is gone entirely.
 
