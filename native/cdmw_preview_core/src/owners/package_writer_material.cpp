@@ -44,9 +44,18 @@ static void prepare_package_batch_runtime(PackageWriteState& state, PackageBatch
             || rule.find("alphacutout") != std::string::npos
             || rule.find("cutout") != std::string::npos) batch.has_alpha_test = true;
     }
-    batch.uses_alpha_cutout = batch.is_hair || batch.is_eye_surface || batch.has_alpha_test;
+    // A tear shell is coverage-driven: without a cutout its whole card draws.
+    batch.is_tear_shell = std::any_of(
+        batch.bindings.begin(),
+        batch.bindings.end(),
+        [](const TextureBinding* binding) {
+            return binding != nullptr && binding->shader_rule == "tear";
+        });
+    batch.uses_alpha_cutout = batch.is_hair || batch.is_eye_surface || batch.has_alpha_test
+        || batch.is_tear_shell;
     batch.alpha_threshold = batch.is_hair ? 0.18f
-        : (batch.is_eye_surface ? 0.05f : (batch.has_alpha_test ? 0.08f : 0.0f));
+        : (batch.is_eye_surface ? 0.05f
+            : (batch.is_tear_shell ? 0.35f : (batch.has_alpha_test ? 0.08f : 0.0f)));
     batch.material_hints = material_hints_for_bindings(batch.bindings);
     if (batch.base != nullptr) return;
     for (const TextureBinding* binding : batch.bindings) {
@@ -61,6 +70,7 @@ static void prepare_package_batch_runtime(PackageWriteState& state, PackageBatch
             std::clamp(tint[1], 0.05f, 1.0f),
             std::clamp(tint[2], 0.05f, 1.0f),
         };
+        batch.color_is_batch_palette = false;
         state.package.base_quality_notes.push_back(
             "batch " + std::to_string(batch.index) + " " + mesh.material
             + ": native material tint fallback used because no true base DDS was selected");
@@ -75,6 +85,7 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
         && binding_is_tintable_visible_layer_base(batch.base)
         && tint_color_is_visible(batch.base->tint_color)) {
         batch.color = preview_tint_rgb_for_binding(batch.base);
+        batch.color_is_batch_palette = false;
         batch.visible_layer_tint_applied = true;
         batch.visible_layer_tint_color = batch.base->tint_color;
         state.package.notes.push_back(
@@ -96,6 +107,7 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
         std::array<float, 4> sidecar_tint{1.0f, 1.0f, 1.0f, 1.0f};
         if (preview_sidecar_tint_for_surface(batch.base, mesh, batch.material_layers, &sidecar_tint)) {
             batch.color = preview_tint_rgb_for_color(sidecar_tint);
+            batch.color_is_batch_palette = false;
             batch.visible_layer_tint_applied = true;
             batch.visible_layer_tint_color = sidecar_tint;
             state.package.notes.push_back(
@@ -107,10 +119,12 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
     if (batch.visible_layer_tint_applied) {
         filter_material_layers_for_visible_tint(batch.material_layers, batch.visible_layer_tint_color, mesh);
     }
+    // The map the batch actually renders from is the classifier's best evidence.
+    const TextureBinding* selected_surface = batch.material != nullptr ? batch.material : batch.specular;
     batch.material_category = material_category_for_bindings(
-        batch.bindings, mesh, batch.base, batch.material_layers);
+        batch.bindings, mesh, batch.base, batch.material_layers, selected_surface);
     batch.material_category_reason = material_category_reason_for_bindings(
-        batch.material_category, batch.bindings, mesh, batch.base, batch.material_layers);
+        batch.material_category, batch.bindings, mesh, batch.base, batch.material_layers, selected_surface);
     batch.material_category_confidence = material_category_confidence(
         batch.material_category, batch.bindings, batch.base);
     batch.effective_material_hints = clamp_material_hints_for_category(
@@ -130,9 +144,24 @@ static void prepare_package_batch_material(PackageWriteState& state, PackageBatc
     if (nonmetal_equipment_texturelayer_without_tint(
         batch.base, mesh, batch.material_category, batch.visible_layer_tint_applied)) {
         batch.color = fallback_nonmetal_equipment_layer_color(batch.material_category, mesh, batch.base);
+        batch.color_is_batch_palette = false;
         state.package.base_quality_notes.push_back(
             "batch " + std::to_string(batch.index) + " " + mesh.material
             + ": raw equipment texture-layer albedo muted because no visible sidecar tint was decoded");
+    }
+    if (batch.color_is_batch_palette) {
+        // No albedo texture, no authored tint, no visible layer: the source says
+        // nothing about this surface's colour. The renderer shows the published
+        // colour directly when no base map is bound, so publish a neutral grey
+        // instead of the per-batch palette hue. Some shipped assets reference
+        // textures that were never built -- cd_phm_02_cannon_ball_0065 is one --
+        // and painting those peach or mauve reads as a material defect rather
+        // than as absent source. The geometry blob keeps its palette colour, so
+        // the untextured view still separates submeshes.
+        batch.color = {0.62f, 0.62f, 0.62f};
+        state.package.base_quality_notes.push_back(
+            "batch " + std::to_string(batch.index) + " " + mesh.material
+            + ": neutral placeholder albedo because the source declares no base texture, tint, or visible layer");
     }
     batch.material_response_promoted = batch.material_category == "metal"
         && promoted_global_material_response(batch.material);

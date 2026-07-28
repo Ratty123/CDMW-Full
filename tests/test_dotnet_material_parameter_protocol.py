@@ -247,7 +247,16 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     assert "float neutralMetalTint = earlyCategoryMetal" in shader
     assert "float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f)" in shader
     assert "float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);" in shader
-    assert "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);" in shader
+    # `colorized` replaces the texture's own value with a lifted flat luma and
+    # `multiplied` is a luma-normalised hue shift. They used to share one
+    # strength, so damping the painty colourise path to suppress it also damped
+    # the hue shift and resolved authored brass and gold to grey steel. A
+    # chromatic metal now routes through `multiplied` alone.
+    assert "float metalHueOnly = earlyCategoryMetal ? (1.0f - neutralMetalTint) : 0.0f;" in shader
+    assert (
+        "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint) * (1.0f - metalHueOnly);"
+        in shader
+    )
     assert "baseColor.rgb = lerp(baseColor.rgb, lerp(multiplied, colorized, colorizeStrength), strength);" in shader
     assert "baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x" in shader
     base_tint = shader.index("float tintLuma = max(dot(previewTint")
@@ -281,7 +290,11 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     assert "MaterialHasEmissive > 0.5f" in shader
     assert "float emissiveIntensity = saturate(" in shader
     assert "MaterialHasEmissive > 0.5f ? 4.0f : 0.0f" in shader
-    assert "/ 12.0f);" in shader
+    # The divisor normalises a declared intensity whose scale runs above 1.0. A
+    # 535-asset sweep found 27 emissive batches declaring only 1.0, 4.0 and 0.14,
+    # so /12 put the brightest emitter at 0.33 and the common case at 0.083 --
+    # unlit. /4 normalises the brightest authored emitter to full.
+    assert "/ 4.0f);" in shader
     assert "float3(2.0f, 2.0f, 2.0f)" in shader
     assert "emissive = emissiveColor" in shader
     assert "* saturate(emissiveSample.r)" in shader

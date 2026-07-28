@@ -8,7 +8,7 @@ from typing import Optional, Tuple
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QTabWidget, QVBoxLayout, QWidget
 
-from cdmw.ui.shell.lazy_tool_tab import LazyToolTab
+from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, as_label
 from cdmw.ui.shell.tab_registry import DetachedToolWindow
 from cdmw.ui.widgets import QuickStartDialog
 
@@ -103,17 +103,23 @@ class NavigationControllerMixin:
         self._tool_widgets_by_key[key] = widget
         self._tool_titles_by_key[key] = title
         tab_widget = self._find_tool_tab_widget(widget)
+        # These labels only ever go back into `insertTab`, so they are kept in the escaped
+        # form a tab bar draws — `tabText` already returns it that way for tabs that exist.
         if tab_widget is not None:
             self._tool_tab_widgets_by_key[key] = tab_widget
             index = tab_widget.indexOf(widget)
-            self._tool_tab_labels_by_key[key] = tab_widget.tabText(index) if index >= 0 else title
+            self._tool_tab_labels_by_key[key] = (
+                tab_widget.tabText(index) if index >= 0 else as_label(title)
+            )
+            if index >= 0:
+                self._tool_tab_home_index_by_key[key] = index
         else:
-            self._tool_tab_labels_by_key[key] = title
+            self._tool_tab_labels_by_key[key] = as_label(title)
 
     def _build_window_tool_menu_actions(self) -> None:
         for key in self._detachable_tool_order:
             title = self._tool_titles_by_key[key]
-            action = self.window_menu.addAction(f"Show {title}")
+            action = self.window_menu.addAction(as_label(f"Show {title}"))
             action.triggered.connect(lambda _checked=False, tool_key=key: self._activate_tool_key(tool_key))
             self._tool_window_actions[key] = action
         self._update_window_menu_state()
@@ -167,7 +173,10 @@ class NavigationControllerMixin:
             order_index = self._detachable_tool_order.index(key)
         except ValueError:
             return tab_widget.count()
-        preferred_index = 0
+        # Where the tool sat when the shell built it. Zero is only right for a tab bar that
+        # holds nothing but tools; `main_tabs` also holds the Assets/Textures/Research/Tools
+        # groups, so a tool living there would otherwise reattach in front of Assets.
+        preferred_index = self._tool_tab_home_index_by_key.get(key, 0)
         for previous_key in self._detachable_tool_order[:order_index]:
             if self._tool_tab_widgets_by_key.get(previous_key, self.main_tabs) is not tab_widget:
                 continue
@@ -203,7 +212,7 @@ class NavigationControllerMixin:
         if tab_index < 0:
             return
         placeholder = self._create_detached_tool_placeholder(key)
-        tab_label = self._tool_tab_labels_by_key.get(key, title)
+        tab_label = self._tool_tab_labels_by_key.get(key, as_label(title))
         tab_widget.removeTab(tab_index)
         tab_widget.insertTab(tab_index, placeholder, tab_label)
         self._select_tab_widget(tab_widget, placeholder)
@@ -265,7 +274,9 @@ class NavigationControllerMixin:
             tab_widget.removeTab(tab_index)
         else:
             tab_index = self._preferred_tool_tab_index(key)
-        tab_label = self._tool_tab_labels_by_key.get(key, self._tool_titles_by_key.get(key, key))
+        tab_label = self._tool_tab_labels_by_key.get(
+            key, as_label(self._tool_titles_by_key.get(key, key))
+        )
         tab_widget.insertTab(tab_index, widget, tab_label)
         widget.updateGeometry()
         if select_after:

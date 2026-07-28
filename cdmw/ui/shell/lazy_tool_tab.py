@@ -99,4 +99,18 @@ def created_tool_widget(widget: object) -> QWidget | None:
     return widget if isinstance(widget, QWidget) else None
 
 
-__all__ = ["LazyToolTab", "created_tool_widget"]
+def as_label(title: str) -> str:
+    """A tool title as Qt should *draw* it, not read it.
+
+    Tab bars and menu items treat `&` as a mnemonic marker: it vanishes and underlines the
+    next letter. "Placement & Animation Studio" therefore appeared as
+    "Placement_Animation Studio", which read as the tool's actual name. Doubling escapes it.
+
+    Titles are stored unescaped — window titles and labels do not interpret `&`, and would
+    show the doubled one literally — so escaping belongs at the two places that draw them.
+    """
+
+    return str(title).replace("&", "&&")
+
+
+__all__ = ["LazyToolTab", "as_label", "created_tool_widget"]

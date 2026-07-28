@@ -58,6 +58,12 @@ internal sealed partial class D3D11MaterialViewport
             ["diffuse_light_scale"] = settings.DiffuseLightScale,
             ["specular_base"] = settings.SpecularBase,
             ["specular_max"] = settings.SpecularMax,
+            ["background_color_linear"] = new[]
+            {
+                settings.BackgroundColor.X,
+                settings.BackgroundColor.Y,
+                settings.BackgroundColor.Z,
+            },
             ["color_pipeline"] = "srgb_srv_linear_shader_srgb_rtv",
             ["anti_aliasing_mode"] = AntiAliasingMode,
             ["sample_count"] = _renderSampleCount,
@@ -327,6 +333,17 @@ internal sealed partial class D3D11MaterialViewport
             settings.SpecularBase,
             materials.LayerMask is null ? 0.0f : 1.0f,
             materialFamilyCode);
+        // The anisotropic highlight needs both a strand direction to orient it and
+        // a surface that actually has strands. The flow role also carries
+        // `_ssdmDirectionTexture`, a screen-space displacement direction that is
+        // not a strand tangent, so the hair family has to agree before the lobe
+        // switches. The second component shifts the two Kajiya-Kay lobes apart.
+        var hairFamily = string.Equals(shaderFamily, "hair", StringComparison.OrdinalIgnoreCase);
+        constants.MaterialHairAnisotropy = new Vector4(
+            materials.Flow is not null && hairFamily ? 1.0f : 0.0f,
+            0.06f,
+            0.0f,
+            0.0f);
         constants.MaterialAlphaPolicy = BuildAlphaPolicy(materialSubmeshIndex);
         constants.MaterialAdditionalMaps = new Vector4(
             materials.Opacity is null ? 0.0f : 1.0f,

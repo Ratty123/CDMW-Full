@@ -163,12 +163,12 @@ internal sealed partial class ExperimentForm
         {
             ContinuePendingPerformanceCapture();
             var now = DateTime.UtcNow;
-            if (_options.Embedded && _options.ParentHwnd > 0 && _embeddedViewportActive)
+            if (_options.Embedded && _embeddedParentHwnd > 0 && _embeddedViewportActive)
             {
                 if ((now - _lastEmbeddedHostMaintenanceUtc).TotalMilliseconds >= 8)
                 {
                     _lastEmbeddedHostMaintenanceUtc = now;
-                    MaintainEmbeddedHostSize(new IntPtr(_options.ParentHwnd));
+                    MaintainEmbeddedHostSize(new IntPtr(_embeddedParentHwnd));
                 }
                 if ((now - _lastEmbeddedCloseCheckUtc).TotalMilliseconds >= 100)
                 {

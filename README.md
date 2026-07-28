@@ -51,7 +51,7 @@ is smaller and safer to hand to someone who is not modding.
 | Workspace | What you can do |
 |---|---|
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
-| **Mesh Preview & Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path, inspect referenced textures, edit resident meshes through the native edit core, with OBJ/FBX export and OBJ/DAE/glTF/GLB import preview. |
+| **Mesh Preview & Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path with the game's layered materials composited as layers, inspect referenced textures, edit resident meshes through the native edit core, with OBJ/FBX export and OBJ/DAE/glTF/GLB import preview. |
 | **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
 | **Image Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. Finished work goes to `Texture Replacer` or `Icon Creator` from the Send To menu. |
@@ -87,7 +87,7 @@ the combined mod. `.paac` strings are length-prefixed (`<len+1><ASCII><NUL>`),
 verified 30 of 30 across the corpus, which is what makes a same-length retarget
 provably safe rather than folklore.
 
-Open it from **Tools → Placement & Animation Studio**, or standalone with
+Open it from the **Placement & Animation Studio** tab, or standalone with
 `python scripts/placement_studio.py`. 163 unit tests cover it and none need a
 game install.
 
@@ -369,9 +369,32 @@ Other entry points:
 | `build.bat onefile release` | Same as above, through the batch wrapper |
 | `build.bat onedir release` | Folder package instead of a single file |
 | `build.bat` | Graphical build picker |
-| `.tools\build-ui\cdmw-build.exe` | Build UI covering both Bazel and release paths |
-| `.tools\bazel\bazel.exe build //:CrimsonDesertModWorkbench` | Fast Bazel build, no release gates |
-| `.tools\bazel\bazel.exe test //native/...` | Native helper unit tests |
+| `bazel build //:CrimsonDesertModWorkbench` | Fast Bazel build, no release gates |
+| `bazel test //native/...` | Native helper unit tests |
+
+### Bazel and the build UI
+
+Both are optional, and neither is in the repository: `.tools/` is gitignored, so
+a fresh clone will not have them. The PowerShell release path above needs
+neither.
+
+**Bazel** is not vendored. Install [bazelisk](https://github.com/bazelbuild/bazelisk)
+and either put it on `PATH` or drop it at `.tools\bazel\bazel.exe` — the build UI
+prefers the repo-local copy and falls back to `PATH`, so the version in
+`.bazelversion` is what gets used either way. `BAZEL_VC` must point at the VC
+directory if Bazel cannot detect MSVC on its own.
+
+**The build UI** is built from source in this repository:
+
+```powershell
+dotnet publish tools\dotnet_bazel_launcher\Cdmw.BazelLauncher.csproj -c Release -o .tools\build-ui
+```
+
+That produces `.tools\build-ui\cdmw-build.exe`, a WinForms front end covering
+both build paths: `bazel build //:CrimsonDesertModWorkbench` for a fast build,
+and `build.bat onefile release` for the gated release. It finds the workspace by
+walking up for `MODULE.bazel` and sets `BAZEL_VC` itself. See
+[docs/bazel-migration.md](docs/bazel-migration.md).
 
 ---
 

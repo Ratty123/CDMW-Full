@@ -46,6 +46,9 @@ cbuffer CameraConstants : register(b0)
     // x: the base tint was authored by the user rather than inferred from a
     // sidecar, so the metal-category damping below must not apply. y/z/w spare.
     float4 MaterialBaseTintAuthored;
+    // x: a strand-direction (flow) map is bound. y: shift of the secondary
+    // highlight along the strand. z/w spare.
+    float4 MaterialHairAnisotropy;
 };
 
 Texture2D BaseTexture : register(t0);
@@ -58,6 +61,7 @@ Texture2D EmissiveTexture : register(t6);
 Texture2D LayerMaskTexture : register(t7);
 Texture2D OpacityTexture : register(t8);
 Texture2D OcclusionTexture : register(t9);
+Texture2D FlowTexture : register(t10);
 SamplerState MaterialSampler : register(s0);
 
 cbuffer OverlayConstants : register(b1)
@@ -97,6 +101,22 @@ float3 SrgbUiColorToLinear(float3 color)
     float3 lower = color / 12.92f;
     float3 upper = pow((color + 0.055f) / 1.055f, 2.4f);
     return lerp(upper, lower, step(color, float3(0.04045f, 0.04045f, 0.04045f)));
+}
+
+float LinearToSrgbScalar(float value)
+{
+    float clamped = saturate(value);
+    return clamped <= 0.0031308f
+        ? clamped * 12.92f
+        : 1.055f * pow(clamped, 1.0f / 2.4f) - 0.055f;
+}
+
+float SrgbToLinearScalar(float value)
+{
+    float clamped = saturate(value);
+    return clamped <= 0.04045f
+        ? clamped / 12.92f
+        : pow((clamped + 0.055f) / 1.055f, 2.4f);
 }
 
 float3 AcesToneMap(float3 color)
@@ -390,18 +410,45 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             && MaterialBaseTintPolicy.y > 0.5f
             && MaterialBaseTintPolicy.y < 1.5f;
         float neutralMetalTint = earlyCategoryMetal ? saturate((0.12f - tintChroma) * 8.0f) : 0.0f;
-        // Keep Archive Browser's source-tint authority.  Chromatic metal is
-        // already colored by its source-stable F0 below; amplifying an inferred
-        // base tint a second time turns dark steel/copper sidecar hints into paint.
+        // Two different operations were sharing one strength.  `colorized`
+        // replaces the texture's own value with a lifted flat luma, which is
+        // what turns a copper hint into paint, so chromatic metal was damped to
+        // 5% to suppress it -- and that took `multiplied` down with it.
+        // `multiplied` is a luma-normalised hue shift: it recolours without
+        // changing brightness and keeps every texel of the source. Splitting
+        // them lets an authored brass or gold tint reach the surface (and, via
+        // F0, its reflection) while the painty path stays suppressed. 217 of
+        // 280 sampled metal parts carry a chromatic tint, so at 5% most of the
+        // game's brass and gold was resolving to grey steel.
+        float metalHueOnly = earlyCategoryMetal ? (1.0f - neutralMetalTint) : 0.0f;
         float strength = saturate(MaterialBaseTintPolicy.x
-            * (earlyCategoryMetal ? lerp(0.05f, 1.25f, neutralMetalTint) : 1.0f));
+            * (earlyCategoryMetal ? lerp(1.0f, 1.25f, neutralMetalTint) : 1.0f));
         float albedoLuma = dot(baseColor.rgb, float3(0.299f, 0.587f, 0.114f));
         float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f) + 0.10f * strength);
-        float3 multiplied = saturate(baseColor.rgb * tintBias);
+        // The metal tint exists to colour a shared library tile, and those tiles
+        // are authored neutral -- of six sampled, four measure a chroma of
+        // 0.001 or less, so the sidecar tint is the only thing saying brass or
+        // verdigris. A few carry their own colour, though, and there the tint
+        // would apply it twice and oversaturate, so the hue shift fades out as
+        // the source texture's own chroma rises.
+        float albedoChroma = max(baseColor.r, max(baseColor.g, baseColor.b))
+            - min(baseColor.r, min(baseColor.g, baseColor.b));
+        float sourceCarriesColor = saturate((albedoChroma - 0.05f) * 5.0f);
+        float3 hueBias = lerp(
+            tintBias,
+            float3(1.0f, 1.0f, 1.0f),
+            sourceCarriesColor * metalHueOnly);
+        float3 multiplied = saturate(baseColor.rgb * hueBias);
         float3 colorized = saturate(liftedLuma.xxx * tintBias);
         float neutralMetalLuma = saturate(albedoLuma * (0.55f + tintLuma * 0.45f) + 0.012f);
         colorized = lerp(colorized, saturate(neutralMetalLuma.xxx * tintBias), neutralMetalTint);
-        float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);
+        // Routing a chromatic metal tint through the colourise path was tried, on
+        // the reasoning that the library tiles these materials draw from measure
+        // 0.04 to 0.09 linear and a luma-normalised hue shift cannot brighten
+        // them. It does help a gilded weapon or two, but measured against the
+        // assets' own base textures over 130 weapons it cost 12% of colour
+        // reproduction (0.958 to 0.883) for that, so it is not taken.
+        float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint) * (1.0f - metalHueOnly);
         baseColor.rgb = lerp(baseColor.rgb, lerp(multiplied, colorized, colorizeStrength), strength);
     }
     baseColor.rgb = saturate(baseColor.rgb * max(MaterialBaseAdjustments.x, 0.1f));
@@ -884,11 +931,22 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
             * metalGeometry
             * metalFresnel
             / metalDenominator;
-        float metalDirectSpecularScale = 0.35f + metallic * 0.35f;
+        // This scale reached 0.70 at most, under a 0.52 specular cap, so the
+        // metal lobe ran at about a third of the strength Cook-Torrance
+        // returns. Both numbers were fitted while a specular map stood in for
+        // F0 at roughly ten times the physical value and had to be divided
+        // back out -- the same fitting already lifted for dielectrics once a
+        // real roughness map is bound. Where the source supplies a metal map,
+        // F0 is its own albedo and the GGX term is already energy-normalised,
+        // so dividing it down only removes the compact highlight that is what
+        // makes metal read as metal rather than as grey plastic. The 0.85
+        // ceiling still holds the hotspot below white.
+        float metalDirectSpecularScale = hasSourceMetallicMap
+            ? 1.0f
+            : (0.35f + metallic * 0.35f) * saturate(PresentationMaterialTuning.y);
         spec = min(
             metalCookTorrance
                 * metalNdotL
-                * saturate(PresentationMaterialTuning.y)
                 * metalDirectSpecularScale,
             float3(0.85f, 0.85f, 0.85f));
     }
@@ -914,31 +972,81 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         float nonmetalDirectSpecularScale = hasSourceRoughnessMap
             ? 0.32f
             : (glossyNonmetal ? 0.18f : (conservativeNonmetal ? 0.025f : 0.08f));
-        spec = SourceStableFresnel(
-            nonmetalCameraShape,
-            resolvedSurfaceF0)
-            * nonmetalDirectLobe
-            * saturate(PresentationMaterialTuning.y)
-            * nonmetalDirectSpecularScale;
+        // Hair is not a smooth surface: its highlight runs as a band across the
+        // strands, not as a round blob on the surface normal. Crimson ships the
+        // strand direction as a two-channel BC5 `_f` map in UV space, so where one
+        // is bound the isotropic lobe above is replaced with a Kajiya-Kay pair of
+        // shifted anisotropic highlights along that direction. Two lobes, because
+        // hair has a sharp near-white primary reflection at the cuticle and a
+        // broader coloured secondary scattered back through the strand; a single
+        // lobe reads as wet plastic.
+        if (MaterialHairAnisotropy.x > 0.5f)
+        {
+            float2 flow = FlowTexture.Sample(MaterialSampler, uv).xy * 2.0f - 1.0f;
+            // A flat or unauthored region leaves the strand running along the
+            // bitangent, which is how these sheets are laid out.
+            float2 flowDirection = dot(flow, flow) > 0.0004f ? normalize(flow) : float2(0.0f, 1.0f);
+            float3 strandTangent = SafeNormalize(
+                normalize(input.Tangent) * flowDirection.x
+                    + normalize(input.Bitangent) * flowDirection.y,
+                normalize(input.Bitangent));
+            float primaryExponent = lerp(24.0f, 96.0f, nonmetalSmoothness);
+            float secondaryExponent = max(primaryExponent * 0.35f, 8.0f);
+            float3 primaryTangent = SafeNormalize(
+                strandTangent + normal * -MaterialHairAnisotropy.y,
+                strandTangent);
+            float3 secondaryTangent = SafeNormalize(
+                strandTangent + normal * MaterialHairAnisotropy.y * 1.75f,
+                strandTangent);
+            float primaryBand = pow(
+                sqrt(saturate(1.0f - dot(primaryTangent, halfVector) * dot(primaryTangent, halfVector))),
+                primaryExponent);
+            float secondaryBand = pow(
+                sqrt(saturate(1.0f - dot(secondaryTangent, halfVector) * dot(secondaryTangent, halfVector))),
+                secondaryExponent);
+            float3 fresnel = SourceStableFresnel(nonmetalCameraShape, resolvedSurfaceF0);
+            spec = saturate(ndotl * 1.25f)
+                * saturate(PresentationMaterialTuning.y)
+                * nonmetalDirectSpecularScale
+                * (fresnel * primaryBand
+                    // The secondary lobe carries the strand's own colour, which is
+                    // what separates hair from a plastic sheen.
+                    + materialReferenceAlbedo * secondaryBand * 0.55f);
+        }
+        else
+        {
+            spec = SourceStableFresnel(
+                nonmetalCameraShape,
+                resolvedSurfaceF0)
+                * nonmetalDirectLobe
+                * saturate(PresentationMaterialTuning.y)
+                * nonmetalDirectSpecularScale;
+        }
     }
     float3 emissive = float3(0.0f, 0.0f, 0.0f);
-    // The /12 divisor normalises a declared intensity whose scale runs well
-    // above 1.0 (the parity fixtures exercise 3.0 and 5.5).  Shipped assets seen
-    // so far declare exactly 1.0, which lands at 0.083 and reads as unlit -- but
-    // three samples from one asset is not enough to say the divisor is wrong
-    // rather than those assets being authored dim, so it stands until a wider
-    // sample of declared _emissiveIntensity values settles the scale.
+    // The divisor normalises a declared intensity whose scale runs above 1.0.
+    // It was 12, left standing until a wider sample of declared
+    // _emissiveIntensity values settled the scale. A 535-asset sweep of the
+    // shipped archive found 27 emissive batches declaring only three values:
+    // 1.0 (20 of them), 4.0 (4) and 0.14 (3). Nothing authored above 4.0, so /12
+    // put the brightest emitter in the game at 0.33 and the common case at 0.083,
+    // which reads as unlit. /4 normalises the brightest authored emitter to full
+    // and leaves the common case visible.
     float emissiveIntensity = saturate(
         (MaterialEmissiveOverrideFlags.y > 0.5f
             ? MaterialEmissiveOverride.w
             : (MaterialHasEmissive > 0.5f ? 4.0f : 0.0f))
-        / 12.0f);
+        / 4.0f);
+    // Neutral when the material declares no emissive colour: the `_emi` map
+    // carries the colour it emits. The fallback was a fixed cyan, which is the
+    // one colour greek fire, a lightning thrower and an ancient giant's runes
+    // could not all be.
     float3 emissiveColor = MaterialEmissiveOverrideFlags.x > 0.5f
         ? clamp(
             MaterialEmissiveOverride.rgb,
             float3(0.0f, 0.0f, 0.0f),
             float3(2.0f, 2.0f, 2.0f))
-        : float3(0.35f, 0.68f, 1.0f);
+        : float3(1.0f, 1.0f, 1.0f);
     if (MaterialHasEmissive > 0.5f)
     {
         float4 emissiveSample = EmissiveTexture.Sample(MaterialSampler, uv);
@@ -1052,16 +1160,54 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
         * max(PresentationToneTuning.w, 0.0f)
         * categoryEnvironmentScale
         * environmentMaterialScale;
-    if (categoryMetal)
+    // The diffuse term below is cut wherever the source supplies a metal map,
+    // so the reflection that has to replace it must answer to the same
+    // condition. Gating this compensation on the *category* instead left a part
+    // that carries real metalness but classifies as something else -- a metal
+    // boss on a leather shield, studs read as generic -- losing its diffuse with
+    // nothing given back. Measured over 998 assets with a real surface map, 35%
+    // of that group rendered below half the brightness their own albedo carries,
+    // against 0% for metal that is also classified metal. The weight is the
+    // metal fraction itself, so a mostly-cloth part only takes it where the map
+    // actually says metal, and a classified metal surface is unchanged.
+    float metalReflectionWeight = categoryMetal
+        ? 1.0f
+        : (hasSourceMetallicMap ? saturate(metallic) : 0.0f);
+    if (metalReflectionWeight > 0.001f)
     {
         float metalCameraShape = saturate(abs(dot(normal, viewDirection)));
-        float metalEnvironmentScale = 0.55f
-            + metallic * lerp(0.45f, 1.10f, smoothness);
-        environmentSpecular = environmentRadiance
+        // The energy the diffuse term no longer supplies has to arrive through
+        // the reflection instead -- that is the whole point of the change.
+        // This lobe is sampled about the reflection vector, so it sweeps as the
+        // surface curves and gives metal the moving highlight that separates it
+        // from a painted surface, where the diffuse it replaces did not vary at
+        // all.
+        float metalEnvironmentScale = hasSourceMetallicMap
+            ? 0.85f + metallic * lerp(0.90f, 2.00f, smoothness)
+            : 0.55f + metallic * lerp(0.45f, 1.10f, smoothness);
+        float3 metalEnvironmentSpecular = environmentRadiance
             * SourceStableFresnel(metalCameraShape, sourceStableF0)
             * max(PresentationToneTuning.w, 0.0f)
             * categoryEnvironmentScale
             * metalEnvironmentScale;
+        environmentSpecular = lerp(
+            environmentSpecular,
+            metalEnvironmentSpecular,
+            metalReflectionWeight);
+        // Metal has no diffuse lobe, so away from a highlight its tone comes
+        // entirely from wide-angle reflection.  This environment concentrates
+        // its energy in five narrow softboxes, so that wide component was
+        // missing: the diffuse path was scaled to a third and floored at 0.24,
+        // and nothing replaced it.  Sampling the same environment fully blurred
+        // about the normal recovers the broad term the softboxes leave out,
+        // tinted by F0 so steel stays steel and bronze stays bronze.
+        float3 metalIrradiance = PreviewEnvironmentRadiance(normal, 1.0f)
+            * sourceStableF0
+            * max(PresentationToneTuning.w, 0.0f)
+            * metallic
+            * lerp(1.35f, 0.85f, smoothness)
+            * ambientOcclusion;
+        environmentSpecular += metalIrradiance;
     }
     if (MaterialDebugMode > 5.5f && MaterialDebugMode < 6.5f)
     {
@@ -1083,20 +1229,37 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     // Keep physically shaded metal source-readable in the neutral workbench.
     // The GGX and environment lobes remain authoritative for response, while
     // this floor prevents dark source albedo from collapsing between lobes.
-    float ambientFloor = categoryMetal ? 0.24f : (categorySkin ? 0.60f : (conservativeNonmetal ? 0.58f : 0.52f));
+    float ambientFloor = categoryMetal ? 0.24f : (categorySkin ? 0.56f : (conservativeNonmetal ? 0.50f : 0.47f));
     float diffuseDepth = saturate(
         ambientFloor * PresentationLightingTuning.w
         + PresentationLightingTuning.z * (keyLight * 0.58f + fillLight * 0.30f + rimShape * 0.12f));
+    // How much of the directional shading survives. These were low enough that
+    // a garment kept only a quarter of its light-to-shadow range, so a pale
+    // cloth sat at 0.90-0.93 everywhere and lost its folds -- readable as
+    // colour, shapeless as an object. The suppression existed because the old
+    // contrast operator crushed anything dark, so shading had to be held back
+    // to stop shadowed cloth going black. With contrast pivoting perceptually
+    // that headroom exists, and the surface can be shaped by its own normal.
     float depthAuthority = categoryMetal
         ? 1.0f
-        : (glossyNonmetal ? 0.72f
-            : (categorySkin ? 0.40f
-                : (categoryHair ? 0.38f
-                    : (categoryCloth ? 0.46f
-                        : (categoryLeather ? 0.52f : 0.50f)))));
+        : (glossyNonmetal ? 0.80f
+            : (categorySkin ? 0.50f
+                : (categoryHair ? 0.52f
+                    : (categoryCloth ? 0.68f
+                        : (categoryLeather ? 0.70f : 0.68f)))));
     diffuseDepth = lerp(1.0f, diffuseDepth, depthAuthority);
     float nonmetalTextureScale = conservativeNonmetal ? 1.03f : 1.0f;
-    float metalDiffuseScale = lerp(1.0f, 0.34f, saturate(metallic));
+    // A conductor has no diffuse lobe at all; every photon that leaves it left
+    // by reflection. Keeping a third of the diffuse term gave metal a large,
+    // view-independent glow that does not vary with the surface, so polished
+    // steel read as chalky white plaster -- bright everywhere, reflective
+    // nowhere. Where the source supplies a metal map the reflection paths can
+    // be trusted to carry the surface, so the residue drops to a floor that
+    // only keeps a very dark alloy from collapsing between lobes.
+    float metalDiffuseScale = lerp(
+        1.0f,
+        hasSourceMetallicMap ? 0.12f : 0.34f,
+        saturate(metallic));
     float3 litDiffuse = materialReferenceAlbedo
         * ambientOcclusion
         * nonmetalTextureScale
@@ -1135,10 +1298,29 @@ float4 PSMain(VSOutput input, bool isFrontFace : SV_IsFrontFace) : SV_Target
     float mappedLuma = AcesToneMap(exposedLuma.xxx).r;
     finalColor = exposedColor * (mappedLuma / max(exposedLuma, 1e-5f));
     float currentLuma = dot(finalColor, float3(0.2126f, 0.7152f, 0.0722f));
-    float contrastedLuma = (currentLuma - 0.5f)
-        * max(PresentationToneTuning.y, 0.01f) + 0.5f;
-    contrastedLuma = max(contrastedLuma, currentLuma * 0.55f);
+    // Contrast is a perceptual control, so it pivots about mid-grey in display
+    // space.  Pivoting about 0.5 in linear space subtracted a near-constant
+    // 0.04 from every pixel instead: 97% of a workbench frame sits below that
+    // pivot, so the operator crushed the whole image down and needed a 0.55
+    // floor to stop the darkest third collapsing to black.  That floor was
+    // doing the visible work -- a flat 45% cut on anything already dark, which
+    // is why metal, shields and weapons read as dim and low-contrast.
+    float displayLuma = LinearToSrgbScalar(currentLuma);
+    float contrastedDisplay = saturate(
+        (displayLuma - 0.5f) * max(PresentationToneTuning.y, 0.01f) + 0.5f);
+    // Mid-tone lift, in the same display space as the contrast above and applied
+    // to luminance only. Applied per-channel it raises a low channel
+    // proportionally more than a high one and so desaturates -- measured against
+    // the source textures, a 0.88 per-channel gamma took reproduction from 0.958
+    // to 0.747 while it was fixing brightness. Scaling all three channels by one
+    // luminance ratio leaves hue and saturation exactly where they were, and
+    // because it acts in display space it leaves white at white, so it lifts the
+    // body of the image without pushing anything new into clipping the way an
+    // exposure would.
+    contrastedDisplay = pow(contrastedDisplay, max(PresentationToneTuning.z, 0.01f));
+    float contrastedLuma = SrgbToLinearScalar(contrastedDisplay);
     finalColor *= max(contrastedLuma, 0.0f) / max(currentLuma, 1e-5f);
-    finalColor = pow(saturate(finalColor), max(PresentationToneTuning.z, 0.01f));
+    // The tone gamma is applied to luminance in the block above, not per-channel
+    // here, so that it cannot desaturate.
     return float4(saturate(finalColor), baseColor.a);
 }

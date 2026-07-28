@@ -129,7 +129,8 @@ static TextureBinding make_sidecar_texture_binding(
         binding.pbd_submesh_name = hint->submesh_name;
     }
     binding.linked_mesh_path = parsed.parameter_summary.linked_mesh_path;
-    binding.packed_channels = packed_channels_for_role(binding.role, basename, parameter_lower);
+    binding.packed_channels = packed_channels_for_role(
+        binding.role, basename, parameter_lower, binding.shader_rule);
     binding.srgb_mode = srgb_mode_for_role(binding.role, technique_parameter);
     binding.parameter_declared_by = technique_parameter != nullptr ? "technique" : "";
     binding.visible_class = visible_class_for_binding(binding.parameter_name, binding.archive_path, binding.role);
@@ -158,6 +159,18 @@ static TextureBinding make_sidecar_texture_binding(
         {"screenSpaceDisplacementScale", "detailScreenSpaceDisplacementScale", "heightIntensity"}, 0.0f), 0.0f, 1.0f);
     binding.emissive_intensity_hint = std::clamp(scalar_parameter_hint(ref.material_parameters,
         {"emissiveIntensity", "emissiveAmount", "emissivePower", "glowIntensity"}, 0.0f), 0.0f, 32.0f);
+    if (const MaterialParameterRecord* emissive_color = find_material_parameter(
+        ref.material_parameters,
+        {"emissiveColor", "emissiveTintColor", "glowColor", "emissiveLightColor"})) {
+        if (emissive_color->kind == "color") {
+            const auto value = color_parameter_value(emissive_color->value);
+            binding.emissive_color = {
+                std::clamp(value[0], 0.0f, 1.0f),
+                std::clamp(value[1], 0.0f, 1.0f),
+                std::clamp(value[2], 0.0f, 1.0f),
+            };
+        }
+    }
     if (binding.role == "emissive" && binding.emissive_intensity_hint <= 0.001f) {
         binding.emissive_intensity_hint = direct_emissive_texture_or_shader_evidence(
             ref.path, basename, shader_family) ? 4.0f : 0.0f;

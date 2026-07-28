@@ -436,8 +436,103 @@ static bool evidence_has_any_token(
     });
 }
 
+// What the bound surface maps actually measure, when they can be read.
+// `decoded` stays false for a submesh with no readable packed map, and the token
+// rules below remain the only evidence in that case.
+struct DecodedSurfaceEvidence {
+    bool decoded = false;
+    float metal_coverage = 0.0f;
+    float mean_roughness = 0.0f;
+};
+
+// Crimson's packed maps put metal in blue. A dielectric map measures ~0.00
+// coverage and a polished one ~1.00, so the middle band is a genuine mixed
+// surface -- a blade with a leather grip, or a garment with metal studs.
+static constexpr float kDecodedMetalDominantCoverage = 0.35f;
+static constexpr float kDecodedMetalAbsentCoverage = 0.06f;
+
+static bool binding_declares_readable_surface_response(const TextureBinding* binding) {
+    if (binding == nullptr || binding->source_path.empty()) return false;
+    if (binding->packed_channels.find("b=metalness") == std::string::npos) return false;
+    // A shipped placeholder describes no asset. cd_temp_* stands in for unfinished
+    // work and would otherwise be read as a real measurement.
+    const std::string name = lower_copy(
+        binding->texture_name.empty() ? binding->archive_path : binding->texture_name);
+    return name.find("cd_temp") == std::string::npos;
+}
+
+static DecodedSurfaceEvidence decoded_surface_evidence(
+    const std::vector<const TextureBinding*>& bindings,
+    const TextureBinding* surface
+) {
+    // The submesh's own selected surface map answers for the whole submesh.
+    if (binding_declares_readable_surface_response(surface)) {
+        const DdsChannelStatistics stats = inspect_dds_channel_statistics(surface->source_path);
+        if (stats.valid) {
+            DecodedSurfaceEvidence result;
+            result.decoded = true;
+            result.metal_coverage = stats.blue_coverage;
+            result.mean_roughness = stats.mean_green;
+            return result;
+        }
+    }
+    // Otherwise the response only exists per colour layer, and which layer owns a
+    // texel is decided by the colour-blending mask. That mask is readable too, and
+    // its per-channel mean is how much of the surface each layer covers, so the
+    // layers can be weighted by their own coverage instead of guessed at. Weighting
+    // matters: an unweighted maximum let one metallic grime layer from the shared
+    // tiling library declare a whole garment metal.
+    DdsChannelStatistics mask;
+    if (surface != nullptr
+        && !surface->source_path.empty()
+        && surface->packed_channels.rfind("layer:color_blending_mask", 0) == 0) {
+        mask = inspect_dds_channel_statistics(surface->source_path);
+    }
+    DecodedSurfaceEvidence result;
+    int readable = 0;
+    float lowest = 1.0f;
+    float highest = 0.0f;
+    float weight_total = 0.0f;
+    float weighted_metal = 0.0f;
+    float weighted_roughness = 0.0f;
+    for (const TextureBinding* binding : bindings) {
+        if (!binding_declares_readable_surface_response(binding)) continue;
+        const DdsChannelStatistics stats = inspect_dds_channel_statistics(binding->source_path);
+        if (!stats.valid) continue;
+        ++readable;
+        lowest = std::min(lowest, stats.blue_coverage);
+        highest = std::max(highest, stats.blue_coverage);
+        float weight = 1.0f;
+        if (mask.valid) {
+            const std::string channel = lower_copy(binding->layer_channel);
+            weight = channel == "g" ? mask.mean_green
+                : (channel == "b" ? mask.mean_blue : mask.mean_red);
+        }
+        weight = std::max(weight, 0.0f);
+        weight_total += weight;
+        weighted_metal += weight * stats.blue_coverage;
+        weighted_roughness += weight * stats.mean_green;
+    }
+    if (readable == 0) return result;
+    if (mask.valid && weight_total > 0.01f) {
+        result.decoded = true;
+        result.metal_coverage = weighted_metal / weight_total;
+        result.mean_roughness = weighted_roughness / weight_total;
+        return result;
+    }
+    // With no readable mask the layers speak only when they agree; layers that
+    // disagree describe different materials and their average belongs to neither.
+    if (highest >= kDecodedMetalAbsentCoverage && lowest < kDecodedMetalDominantCoverage) return result;
+    result.decoded = true;
+    result.metal_coverage = highest < kDecodedMetalAbsentCoverage ? highest : lowest;
+    result.mean_roughness = weighted_roughness / std::max(1.0f, static_cast<float>(readable));
+    return result;
+}
+
 struct MaterialCategoryEvidence {
     std::string local;
+    std::string identity;
+    std::string identity_shader;
     std::string all;
     bool cloth = false;
     bool leather_material = false;
@@ -467,6 +562,16 @@ static MaterialCategoryEvidence collect_material_category_evidence(
 ) {
     MaterialCategoryEvidence result;
     result.local = lower_copy(mesh.material + " " + mesh.name + " " + mesh.source_component_label + " " + mesh.source_model_path);
+    // The part's own identity: its mesh names plus the albedo it actually shows.
+    // Specialised families -- hair, skin, eye, tooth -- are read from this rather
+    // than from every pooled binding path, because a support texture shared with
+    // a neighbouring part is not evidence about this one. A `hair` token reaching
+    // the pool this way classified a lacquered cuirass and a lace vest as hair.
+    result.identity = result.local;
+    if (base != nullptr) {
+        result.identity += " " + lower_copy(base->archive_path + " " + base->texture_name + " " + base->parameter_name);
+        result.identity_shader = lower_copy(base->shader_rule + " " + base->shader_family);
+    }
     result.all = result.local;
     if (base != nullptr) {
         result.all += " " + lower_copy(base->archive_path + " " + base->texture_name + " " + base->parameter_name + " " + base->shader_rule + " " + base->shader_family);
@@ -499,18 +604,22 @@ static MaterialCategoryEvidence collect_material_category_evidence(
     result.glass = evidence_has_any_token(result.all, {"glass", "crystal"});
     result.gem = evidence_has_any_token(result.all, {"gem", "jewel", "diamond", "ruby", "sapphire", "emerald"});
     result.stone = evidence_has_any_token(result.all, {"stone", "rock", "ceramic"});
-    result.eye = evidence_contains_eye_surface_token(result.all);
-    result.tooth = evidence_has_any_token(result.all, {"tooth", "teeth"});
-    result.hair_shader = result.all.find("skinnedmeshhair") != std::string::npos
-        || result.all.find("skinnedmeshfur") != std::string::npos
-        || result.all.find("animalhair") != std::string::npos;
+    result.eye = evidence_contains_eye_surface_token(result.identity);
+    result.tooth = evidence_has_any_token(result.identity, {"tooth", "teeth"});
+    // The declared family of the albedo this part actually shows, not of every
+    // binding pooled onto it. A jacket that carries a fur collar contributes a
+    // SkinnedMeshFur binding to the pool, and reading the pool made the cloth body
+    // of that same jacket a hair surface.
+    result.hair_shader = result.identity_shader.find("skinnedmeshhair") != std::string::npos
+        || result.identity_shader.find("skinnedmeshfur") != std::string::npos
+        || result.identity_shader.find("animalhair") != std::string::npos;
     result.equipment_surface = mesh_has_crimson_armor_equipment_surface(mesh)
         || evidence_has_any_token(result.all, {"helmet", "helm", "armor", "armour", "plate"});
     result.actual_hair = !result.equipment_surface
-        && evidence_has_any_token(result.all, {"hair", "fur", "beard", "brow", "eyebrow", "lash", "eyelash"});
-    result.strong_skin = result.all.find("skinnedmeshskin") != std::string::npos
-        || evidence_has_any_token(result.all, {"skin", "nude", "body", "hand"});
-    result.head_skin = evidence_contains_token(result.all, "head") && !result.hair_shader && !result.actual_hair;
+        && evidence_has_any_token(result.identity, {"hair", "fur", "beard", "brow", "eyebrow", "lash", "eyelash"});
+    result.strong_skin = result.identity_shader.find("skinnedmeshskin") != std::string::npos
+        || evidence_has_any_token(result.identity, {"skin", "nude", "body", "hand"});
+    result.head_skin = evidence_contains_token(result.identity, "head") && !result.hair_shader && !result.actual_hair;
     result.strong_nonmetal = result.cloth_like || result.leather || result.wood || result.glass || result.gem
         || result.stone || result.eye || result.tooth || result.strong_skin || result.head_skin
         || result.hair_shader || result.actual_hair;
@@ -520,7 +629,8 @@ static MaterialCategoryEvidence collect_material_category_evidence(
 static bool material_category_has_metal(
     const std::vector<const TextureBinding*>& bindings,
     const NativeSubmesh& mesh,
-    const MaterialCategoryEvidence& evidence
+    const MaterialCategoryEvidence& evidence,
+    const TextureBinding* surface
 ) {
     const bool strong_structural = evidence_has_any_token(
         evidence.all, {"metal", "steel", "iron", "blade", "plate"});
@@ -572,6 +682,22 @@ static bool material_category_has_metal(
         && has_authoritative_model_family_material_response(bindings, mesh)
         && (!local_strong_nonmetal || shield_handle_response)
         && (local_metal || scalar_metal || material_response_metal);
+    // Where the surface map can be read it settles the question. The rules above
+    // infer metal from the equipment slot a model occupies, which is a guess that
+    // has to stand in for evidence -- and it is wrong for every soft item stored
+    // beside plate. A map measuring no metal is positive evidence of a dielectric,
+    // not merely the absence of evidence, so it withdraws the slot-based promotion
+    // while leaving a name that actually says metal alone.
+    const DecodedSurfaceEvidence decoded = decoded_surface_evidence(bindings, surface);
+    if (decoded.decoded) {
+        // The category names what the surface reads as overall. A minority metal
+        // region -- the chape on a leather scabbard, studs on a garment -- keeps
+        // its own metal because the shader honours the per-texel map, so a part
+        // that is mostly leather stays leather rather than being called metal by
+        // the equipment slot it happens to occupy.
+        if (decoded.metal_coverage >= kDecodedMetalDominantCoverage) return true;
+        return local_metal || (strong_structural && !evidence.strong_nonmetal);
+    }
     return local_metal || armor_response || weapon_response
         || (strong_structural && !evidence.strong_nonmetal)
         || ((metal_color || scalar_metal) && !evidence.strong_nonmetal)
@@ -582,13 +708,14 @@ static std::string material_category_for_bindings(
     const std::vector<const TextureBinding*>& bindings,
     const NativeSubmesh& mesh,
     const TextureBinding* base,
-    const std::vector<MaterialLayer>& layers
+    const std::vector<MaterialLayer>& layers,
+    const TextureBinding* surface
 ) {
     const MaterialCategoryEvidence evidence = collect_material_category_evidence(bindings, mesh, base, layers);
     if (evidence.eye) return "eye";
     if (evidence.tooth) return "tooth";
     if ((evidence.hair_shader || evidence.actual_hair) && (evidence.actual_hair || !evidence.strong_skin)) return "hair";
-    if (material_category_has_metal(bindings, mesh, evidence)) return "metal";
+    if (material_category_has_metal(bindings, mesh, evidence, surface)) return "metal";
     if (evidence.cloth_like) return "cloth";
     if (evidence.leather) return "leather";
     if (evidence.wood) return "wood";

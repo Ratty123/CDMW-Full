@@ -65,4 +65,8 @@ def test_builder_presentation_fields_are_consumed_by_the_vortice_renderer() -> N
     assert "materialAlpha *= saturate(MaterialAlphaPolicy.w)" in hlsl_source
     assert "OpacityFactorForSubmesh" in source
     assert "float mappedLuma = AcesToneMap(exposedLuma.xxx).r;" in hlsl_source
-    assert "contrastedLuma = max(contrastedLuma, currentLuma * 0.55f)" in hlsl_source
+    # The contrast now acts on luminance in display space, where it leaves white
+    # at white and cannot push anything new into clipping, so the old explicit
+    # crush floor is gone. What has to hold is that the ratio stays non-negative
+    # and cannot divide by a black pixel.
+    assert "finalColor *= max(contrastedLuma, 0.0f) / max(currentLuma, 1e-5f);" in hlsl_source

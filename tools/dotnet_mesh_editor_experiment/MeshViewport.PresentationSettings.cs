@@ -74,6 +74,7 @@ internal sealed partial class MeshViewport
             InvertOrbitY = JsonBool(quality, "invert_orbit_y", defaults.InvertOrbitY),
             InvertPanX = JsonBool(quality, "invert_pan_x", defaults.InvertPanX),
             InvertPanY = JsonBool(quality, "invert_pan_y", defaults.InvertPanY),
+            BackgroundColor = PresentationBackgroundColor(quality, defaults.BackgroundColor),
             UvScale = new Vector2(
                 SafeNonZero(JsonFloat(uv, "scale_u", defaults.UvScale.X)),
                 SafeNonZero(JsonFloat(uv, "scale_v", defaults.UvScale.Y))),
@@ -191,6 +192,38 @@ internal sealed partial class MeshViewport
             ? new Vector3(values[0], values[1], values[2])
             : fallback;
     }
+
+    /// <summary>
+    /// Reads an #RRGGBB viewport background and converts it to linear space, because the render
+    /// target is sRGB. An absent, empty, or malformed value keeps the caller's current background
+    /// rather than clearing to an arbitrary colour.
+    /// </summary>
+    private static Vector3 PresentationBackgroundColor(JsonElement quality, Vector3 fallback)
+    {
+        var text = JsonText(quality, "d3d11_background_color", string.Empty);
+        if (text.StartsWith('#'))
+        {
+            text = text[1..];
+        }
+        if (text.Length != 6
+            || !uint.TryParse(
+                text,
+                System.Globalization.NumberStyles.HexNumber,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var packed))
+        {
+            return fallback;
+        }
+        return new Vector3(
+            SrgbToLinear(((packed >> 16) & 0xFF) / 255.0f),
+            SrgbToLinear(((packed >> 8) & 0xFF) / 255.0f),
+            SrgbToLinear((packed & 0xFF) / 255.0f));
+    }
+
+    private static float SrgbToLinear(float channel) =>
+        channel <= 0.04045f
+            ? channel / 12.92f
+            : MathF.Pow((channel + 0.055f) / 1.055f, 2.4f);
 
     private static float SafeNonZero(float value) => Math.Abs(value) > 0.000001f ? value : 1.0f;
 

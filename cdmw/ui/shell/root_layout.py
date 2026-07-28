@@ -20,6 +20,9 @@ class ShellRootLayoutMixin:
 
         self.assets_tabs = QTabWidget()
         self.main_tabs.addTab(self.assets_tabs, "Assets")
+        # Placement & Animation Studio is added here in `tool_tabs.py`, at index 1, rather than
+        # inside the Tools group: it is a whole application — a viewport, seven panes and its
+        # own status bar — so nesting it put a second tab bar directly above its own.
         self.texture_tabs = QTabWidget()
         self.main_tabs.addTab(self.texture_tabs, "Textures")
         self.research_tabs = QTabWidget()

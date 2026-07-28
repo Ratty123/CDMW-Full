@@ -805,7 +805,8 @@ def test_visual_audit_renderer_contract_is_resident_direct_and_vortice_only() ->
     assert "cameraForCapture.WorldViewProjectionRowMajorArray()" in dotnet_capture
     assert "WorldViewProjection = camera.World * captureProjection" in dotnet_capture
     assert "return NetViewportCamera.Create(" not in dotnet_capture
-    assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings());" in batch
+    assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings\n" in batch
+    assert "DisableLighting = _unlit," in batch
     assert '["presentation"] = viewport.PresentationEvidencePayload()' in batch
     assert "_form.CreateControl();" in batch
     assert "viewport.CreateControl();" in batch

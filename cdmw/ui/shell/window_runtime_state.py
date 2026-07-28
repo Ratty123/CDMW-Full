@@ -374,6 +374,7 @@ class ShellWindowRuntimeStateMixin:
         self._tool_keys_by_placeholder: Dict[QWidget, str] = {}
         self._tool_tab_widgets_by_key: Dict[str, QTabWidget] = {}
         self._tool_tab_labels_by_key: Dict[str, str] = {}
+        self._tool_tab_home_index_by_key: Dict[str, int] = {}
         self._detached_tool_windows: Dict[str, DetachedToolWindow] = {}
         self._tool_window_actions: Dict[str, object] = {}
         self._dashboard_status_labels: Dict[str, QLabel] = {}

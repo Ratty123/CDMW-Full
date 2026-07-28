@@ -92,11 +92,20 @@ _RING_AXES = {"X": Vec3(1.0, 0.0, 0.0), "Y": Vec3(0.0, 1.0, 0.0), "Z": Vec3(0.0,
 _EDGE_ON_LIMIT = 0.12
 
 
+#: The studio's own stylesheet, set on the window so every pane inherits it.
+#:
 #: Group boxes carry the only headings in the window — "Find and play a clip", "Action chart
 #: contents". Qt draws a box title in the ordinary text colour at the ordinary weight, so it
 #: reads as one more line of content sitting on a border rather than as the name of what is
 #: below it. Bold and tinted, it says which pane you are looking at without being read.
-GROUP_BOX_STYLE = """
+#:
+#: The disabled-button rule is not decoration. Several buttons here spend most of their life
+#: disabled — "Bind pose" until a clip is loaded, "Play selected" until a row is picked — and
+#: the app theme draws a disabled button as #6f7680 on #252526, a contrast ratio of 3.3:1.
+#: Against this window's darker chrome that button was reported as simply not visible: not
+#: "greyed out", unreadable. These values are 5.1:1, which is legible, while staying plainly
+#: dimmer than an enabled button so the state still reads at a glance.
+WINDOW_STYLE = """
 QGroupBox {
     border: 1px solid #3a4152;
     border-radius: 4px;
@@ -110,6 +119,13 @@ QGroupBox::title {
     padding: 0 5px;
     color: #8fbcf0;
     font-weight: bold;
+}
+QPushButton:disabled {
+    color: #9aa4b4;
+    background: #2b3040;
+    border: 1px solid #4a5568;
+    border-radius: 4px;
+    padding: 3px 10px;
 }
 """
 

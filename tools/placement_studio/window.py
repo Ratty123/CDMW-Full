@@ -44,7 +44,7 @@ from .editing import EditSession
 from .model import PlacementBinding, Vec3
 from .session import PlacementSession
 from .glossary import as_html as glossary_html, tip
-from .palette import GROUP_BOX_STYLE
+from .palette import WINDOW_STYLE
 from .report_style import inspector_html
 from .viewport import SkeletonViewport
 from .window_animation import AnimationTabMixin
@@ -187,7 +187,7 @@ class PlacementStudioWindow(
     # ── construction ────────────────────────────────────────────────
 
     def _build_ui(self) -> None:
-        self.setStyleSheet(GROUP_BOX_STYLE)
+        self.setStyleSheet(WINDOW_STYLE)
         self._model_box = QComboBox()
         self._model_box.setToolTip(tip("Character"))
         self._model_box.currentIndexChanged.connect(self._on_model_changed)
@@ -423,10 +423,10 @@ class PlacementStudioWindow(
             return
         self._session = PlacementSession.from_baseline(self._baseline, model)
 
-        # Charts belong to one character, and the archive index arrives once — at startup,
-        # when whichever character loaded first got theirs. Without this the second character
-        # kept being shown the first one's.
-        self._load_archive_charts()
+        # Charts and weapon files both belong to one character, and the archive index arrives
+        # once — at startup, for whichever loaded first. Restarting the whole read, not the
+        # charts alone, also stops a mid-read switch leaving the new body the old one's weapons.
+        self._start_archive_content_load()
         self._populate_weapons(select_first=True)
 
     def _on_weapon_changed(self, _index: int) -> None:

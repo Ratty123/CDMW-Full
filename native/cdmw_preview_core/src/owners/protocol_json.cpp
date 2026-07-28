@@ -642,6 +642,10 @@ struct TextureBinding {
     float specular_hint = 0.0f;
     float height_scale_hint = 0.0f;
     float emissive_intensity_hint = 0.0f;
+    // Neutral unless the material authors an emissive colour. An `_emi` map
+    // already carries the colour it emits, so a non-neutral default would tint
+    // every glow in the game the same shade.
+    std::array<float, 3> emissive_color{1.0f, 1.0f, 1.0f};
     std::array<float, 4> tint_color{1.0f, 1.0f, 1.0f, 1.0f};
     int dds_width = 0;
     int dds_height = 0;

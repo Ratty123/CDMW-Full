@@ -53,6 +53,11 @@ internal sealed partial class NetTextureSet : IDisposable
     private void LoadTextures(NetMaterialSet materials)
     {
         _ = DecodeResources(materials.TextureLoadResources(), incremental: false);
+        foreach (var submeshIndex in materials.MaterialLayerSubmeshIndices())
+        {
+            _ = SynthesizedBaseReferenceForSubmesh(materials, submeshIndex);
+            _ = SynthesizedSurfaceReferenceForSubmesh(materials, submeshIndex);
+        }
     }
 
     public Bitmap? BitmapForPath(string path)

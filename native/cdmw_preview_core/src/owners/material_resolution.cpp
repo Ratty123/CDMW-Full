@@ -93,6 +93,119 @@ static DdsHeaderInfo inspect_dds_header_file(const std::string& path) {
     return info;
 }
 
+// Channel statistics for a packed surface map, read straight from the DDS.
+// Classification used to infer metal from the equipment folder a model sits in,
+// which called a grimy linen shirt and a velvet dress metal because they live
+// under /armor/. The map itself already answers the question, so read it.
+struct DdsChannelStatistics {
+    bool valid = false;
+    float mean_red = 0.0f;
+    float mean_green = 0.0f;
+    float mean_blue = 0.0f;
+    float blue_coverage = 0.0f;   // fraction of texels with blue above one half
+};
+
+static void accumulate_bc1_colour_block(
+    const unsigned char* block,
+    double& red_total,
+    double& green_total,
+    double& blue_total,
+    long long& blue_high,
+    long long& texels
+) {
+    const int c0 = block[0] | (block[1] << 8);
+    const int c1 = block[2] | (block[3] << 8);
+    int red[4];
+    int green[4];
+    int blue[4];
+    const int endpoints[2] = {c0, c1};
+    for (int index = 0; index < 2; ++index) {
+        red[index] = ((endpoints[index] >> 11) & 0x1F) * 255 / 31;
+        green[index] = ((endpoints[index] >> 5) & 0x3F) * 255 / 63;
+        blue[index] = (endpoints[index] & 0x1F) * 255 / 31;
+    }
+    if (c0 > c1) {
+        red[2] = (2 * red[0] + red[1]) / 3;
+        green[2] = (2 * green[0] + green[1]) / 3;
+        blue[2] = (2 * blue[0] + blue[1]) / 3;
+        red[3] = (red[0] + 2 * red[1]) / 3;
+        green[3] = (green[0] + 2 * green[1]) / 3;
+        blue[3] = (blue[0] + 2 * blue[1]) / 3;
+    } else {
+        red[2] = (red[0] + red[1]) / 2;
+        green[2] = (green[0] + green[1]) / 2;
+        blue[2] = (blue[0] + blue[1]) / 2;
+        red[3] = 0;
+        green[3] = 0;
+        blue[3] = 0;
+    }
+    for (int byte_index = 0; byte_index < 4; ++byte_index) {
+        const unsigned char indices = block[4 + byte_index];
+        for (int shift = 0; shift < 8; shift += 2) {
+            const int selector = (indices >> shift) & 0x03;
+            red_total += red[selector];
+            green_total += green[selector];
+            blue_total += blue[selector];
+            if (blue[selector] > 127) ++blue_high;
+            ++texels;
+        }
+    }
+}
+
+static DdsChannelStatistics inspect_dds_channel_statistics(const std::string& path) {
+    static std::map<std::string, DdsChannelStatistics> cache;
+    auto cached = cache.find(path);
+    if (cached != cache.end()) return cached->second;
+    DdsChannelStatistics stats;
+    const DdsHeaderInfo header = inspect_dds_header_file(path);
+    const std::string format = lower_copy(header.format);
+    // BC1 and BC3 share a colour block; BC3 prefixes eight alpha bytes. Every
+    // shipped Crimson `_sp` map seen so far is BC1. Other layouts stay unread
+    // rather than guessed, and the caller falls back to its token rules.
+    const bool bc1 = format == "dxt1";
+    const bool bc3 = format == "dxt5" || format == "dxt4";
+    if ((!bc1 && !bc3) || header.width <= 0 || header.height <= 0) {
+        if (cache.size() < 4096) cache.emplace(path, stats);
+        return stats;
+    }
+    std::ifstream in(fs::path(path), std::ios::binary);
+    if (!in) return stats;
+    in.seekg(128, std::ios::beg);
+    const size_t block_stride = bc3 ? 16u : 8u;
+    const size_t colour_offset = bc3 ? 8u : 0u;
+    const size_t blocks_wide = static_cast<size_t>((header.width + 3) / 4);
+    const size_t blocks_high = static_cast<size_t>((header.height + 3) / 4);
+    const size_t block_count = blocks_wide * blocks_high;
+    if (block_count == 0) return stats;
+    // Cap the read so a 2048x2048 map costs the same as a small one. The
+    // statistics only need to be representative, not exact.
+    constexpr size_t kMaximumBlocks = 16384;
+    const size_t stride = std::max<size_t>(1, block_count / kMaximumBlocks);
+    double red_total = 0.0;
+    double green_total = 0.0;
+    double blue_total = 0.0;
+    long long blue_high = 0;
+    long long texels = 0;
+    std::vector<unsigned char> block(block_stride, 0);
+    for (size_t index = 0; index < block_count; index += stride) {
+        in.seekg(static_cast<std::streamoff>(128 + index * block_stride), std::ios::beg);
+        in.read(reinterpret_cast<char*>(block.data()), static_cast<std::streamsize>(block_stride));
+        if (in.gcount() != static_cast<std::streamsize>(block_stride)) break;
+        accumulate_bc1_colour_block(
+            block.data() + colour_offset, red_total, green_total, blue_total, blue_high, texels);
+    }
+    if (texels > 0) {
+        stats.valid = true;
+        stats.mean_red = static_cast<float>(red_total / static_cast<double>(texels) / 255.0);
+        stats.mean_green = static_cast<float>(green_total / static_cast<double>(texels) / 255.0);
+        stats.mean_blue = static_cast<float>(blue_total / static_cast<double>(texels) / 255.0);
+        stats.blue_coverage = static_cast<float>(
+            static_cast<double>(blue_high) / static_cast<double>(texels));
+    }
+    if (cache.size() < 4096) cache.emplace(path, stats);
+    return stats;
+}
+
 static bool dds_format_is_data_only_for_visible_base(const std::string& raw_format) {
     const std::string format = lower_copy(raw_format);
     if (format.empty()) return false;
@@ -604,7 +717,11 @@ static bool selected_base_should_yield_to_overlay(
 ) {
     if (selected == nullptr) return true;
     if (!binding_is_authoritative_same_family_overlay_base(overlay, mesh)) return false;
-    if (mesh_has_apparel_slot_surface_for_base_selection(mesh) && binding_is_primary_apparel_base_color(*selected)) {
+    // Same reasoning as the overlay score in the selector: if what is already
+    // selected is the part's own primary base colour, an overlay has nothing to
+    // stand in for. The apparel-slot test that used to gate this only knew
+    // about torsos and legs, so gloves, hoods and boots still yielded.
+    if (binding_is_primary_apparel_base_color(*selected)) {
         return false;
     }
     const bool selected_wrong_layer = base_binding_is_wrong_family_layer_or_environment(*selected, mesh);

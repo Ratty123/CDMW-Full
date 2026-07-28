@@ -76,6 +76,11 @@ static bool placeholder_visible_base_path(const std::string& raw_path) {
     if (stem.find("nonetexture") != std::string::npos || stem.find("nulltexture") != std::string::npos || stem.find("dummytexture") != std::string::npos) return true;
     if (stem == "cd_common_default_overlay" || stem == "cd_common_default_overlay_old") return true;
     if (stem.find("common_default") != std::string::npos && stem.find("overlay") != std::string::npos) return true;
+    // cd_temp_* is unfinished authoring left in the shipped archive. The layer
+    // mask guard below already rejects it; a visible base has at least as much
+    // reason to. cd_phm_00_bag_0068 showed cd_temp_black.dds as the albedo of
+    // ten of its parts.
+    if (stem == "cd_temp" || stem.rfind("cd_temp_", 0) == 0) return true;
     return false;
 }
 
@@ -107,6 +112,39 @@ static bool technical_for_visible_base(const std::string& parameter_name, const 
     if (path_has_suffix_stem(raw_path, "_n") || path_has_suffix_stem(raw_path, "_disp") || path_has_suffix_stem(raw_path, "_ma")) return true;
     if (path_has_suffix_stem(raw_path, "_mg") || path_has_suffix_stem(raw_path, "_sp") || path_has_suffix_stem(raw_path, "_m")) return true;
     if (path_has_suffix_stem(raw_path, "_dr")) return true;
+    // A decal or blend input paints a local mark -- damage, scorch, an emblem --
+    // over a surface that already has a colour, and its alpha is the mark's own
+    // shape. Promoted to the visible base it paints the whole part with the decal
+    // sheet, including the rectangle around the mark. `_detailDiffuseBlend`
+    // pointing at cd_texturelayer_100_0044_dec.dds became the albedo of
+    // cd_phm_02_sword_0036_in this way, over the grime layers that hold its real
+    // colour. `_colorBlending*` is a layer selector handled above, not a decal.
+    if (compact_hint.find("blend") != std::string::npos
+        && compact_hint.find("colorblending") == std::string::npos) return true;
+    if (path_has_suffix_stem(raw_path, "_dec")) return true;
+    // An opacity mask carries coverage, not colour. `_overlayColorTexture` on the
+    // shared wrinkle material points at cd_common_00_ub_0001_wrinkle0_opacity.dds,
+    // and the parameter name alone does not say so.
+    if (path_has_suffix_stem(raw_path, "_opacity")) return true;
+    // `_tornPatternTexture` carries the shape of a tear, not a colour. Every one
+    // of its 13 bindings across 4,665 sampled assets points at
+    // cd_texturelayer_endpattern_0001_tp.dds, a shared library pattern; where it
+    // won the visible base the garment rendered as neon green and magenta
+    // stripes, which is that pattern sampled as albedo.
+    if (compact_hint.find("tornpattern") != std::string::npos) return true;
+    if (path_has_suffix_stem(raw_path, "_tp")) return true;
+    // Placeholders and unfinished authoring: the visible-base guard knew about
+    // these but only the layer paths consulted it, so the primary selector let a
+    // default overlay or a cd_temp_* texture become a part's albedo.
+    if (placeholder_visible_base_path(raw_path)) return true;
+    // The shared damage library paints wear over a surface that already has a
+    // colour. Same contract as a decal, without the `_dec` suffix that catches
+    // the rest of them.
+    const std::string stem = lower_copy(stem_from_path(raw_path));
+    if (stem.rfind("cd_texturelayer_damaged", 0) == 0) return true;
+    // Screen-space and condition FX noise is a modulation source, never albedo.
+    if (compact_hint.find("noise") != std::string::npos) return true;
+    if (stem.rfind("cdfx_", 0) == 0 && stem.find("noise") != std::string::npos) return true;
     if (path_has_suffix_stem(raw_path, "_orm") || path_has_suffix_stem(raw_path, "_rma") || path_has_suffix_stem(raw_path, "_mra")) return true;
     return false;
 }

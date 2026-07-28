@@ -55,7 +55,7 @@ internal sealed partial class NetMaterialSet
             submeshes[binding.SubmeshIndex] = binding;
         }
         var activeResourceIds = submeshes.Values
-            .SelectMany(binding => binding.ResourceChannels.Values)
+            .SelectMany(ActiveResourceIds)
             .ToHashSet(StringComparer.Ordinal);
         resources = resources
             .Where(pair => activeResourceIds.Contains(pair.Key))
@@ -253,6 +253,29 @@ internal sealed partial class NetMaterialSet
         return BindingForSubmesh(submeshIndex)?.TextureFlipVertical == true;
     }
 
+    public IReadOnlyList<NetMaterialLayerBinding> MaterialLayersForSubmesh(int submeshIndex)
+    {
+        return BindingForSubmesh(submeshIndex)?.MaterialLayers ?? Array.Empty<NetMaterialLayerBinding>();
+    }
+
+    public IEnumerable<int> MaterialLayerSubmeshIndices()
+    {
+        return Submeshes
+            .Where(binding => binding.MaterialLayers.Any(layer =>
+                !string.Equals(layer.LayerRole, "base", StringComparison.OrdinalIgnoreCase)))
+            .Select(binding => binding.SubmeshIndex);
+    }
+
+    public NetMaterialTextureReference TextureReferenceForResource(
+        string resourceId,
+        string semantic,
+        string colorSpace)
+    {
+        return !string.IsNullOrWhiteSpace(resourceId) && Resources.TryGetValue(resourceId, out var resource)
+            ? resource.ReferenceForSemantic(semantic, colorSpace, "native_preview_core_material_layer")
+            : NetMaterialTextureReference.Empty;
+    }
+
     public string AlphaModeForSubmesh(int submeshIndex)
     {
         var alphaMode = BindingForSubmesh(submeshIndex)?.AlphaMode;
@@ -330,11 +353,23 @@ internal sealed partial class NetMaterialSet
     public IEnumerable<NetMaterialResource> TextureLoadResources()
     {
         var activeResourceIds = Submeshes
-            .SelectMany(binding => binding.ResourceChannels.Values)
+            .SelectMany(ActiveResourceIds)
             .ToHashSet(StringComparer.Ordinal);
         return Resources.Values
             .Where(resource => activeResourceIds.Contains(resource.ResourceId))
             .OrderBy(resource => resource.ResourceId);
+    }
+
+    private static IEnumerable<string> ActiveResourceIds(NetSubmeshMaterialBinding binding)
+    {
+        foreach (var resourceId in binding.ResourceChannels.Values)
+        {
+            yield return resourceId;
+        }
+        foreach (var resourceId in binding.MaterialLayers.SelectMany(layer => layer.ResourceIds()))
+        {
+            yield return resourceId;
+        }
     }
 
     public IReadOnlyList<NetMaterialResource> FailedRequiredResources(IEnumerable<string> failedPaths)
@@ -490,7 +525,8 @@ internal sealed partial class NetMaterialSet
                 JsonText(item, "double_sided_authority"),
                 JsonText(item, "double_sided_reason"),
                 JsonStringArray(item, "unsupported_features"),
-                JsonArrayLength(item, "layer_bindings")));
+                JsonArrayLength(item, "layer_bindings"),
+                ParseMaterialLayers(item)));
         }
         return result;
     }
@@ -608,7 +644,8 @@ internal sealed record NetMaterialStateUpdate(
         var affected = AffectedSubmeshes.ToHashSet();
         return Submeshes
             .Where(binding => affected.Contains(binding.SubmeshIndex))
-            .SelectMany(binding => binding.ResourceChannels.Values)
+            .SelectMany(binding => binding.ResourceChannels.Values.Concat(
+                binding.MaterialLayers.SelectMany(layer => layer.ResourceIds())))
             .ToHashSet(StringComparer.Ordinal);
     }
 }
