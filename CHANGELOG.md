@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Went looking for `.prefab` component-resolution logic in `CrimsonDesert.exe` and found something that may reframe the format: **the reflection system behind it appears to be Havok's, not Pearl Abyss's.** The binary carries `hkReflect` RTTI throughout — `MutableTypeReg`, `BuiltinTypeReg`, `AttributeArrayWithOwnership`, `Version::PatchRegistry`, `Version::PatchSet`, `ClonerCallback` — with a Pearl Abyss layer above it (`AutoReflectBase@pa`, `ReflectObjectIterator@pa`, `IReflectObjectResourceBase@pa`, `CustomAttributeReflectObject@pa`). `ReflectObject` appears 737 times, `SceneObject` 504.
+- If component identity is resolved through a Havok **type registry** rather than through declaration order, marker-1 identity may be recoverable from that registry — and `hkReflect` is documented middleware rather than a format that must be derived from bytes. The project already treats Havok formats as `third_party` origin elsewhere. **Not confirmed:** the registry has not been located, and no link between it and the on-disk masks has been established. Recorded as a lead, with the same discipline that has now rejected four `.prefab` hypotheses that looked stronger than this one at the same stage.
+
+### Docs
 - Built the `.prefabdata_xml` ↔ `.prefab` pairing and measured it, and **the oracle does not help**. 2,609 stems pair, but **2,607 of them (99.9%) already walk to completion** — only 2 fail. The XML-paired set turns out to be almost exactly the easy subset: small character prefabs with simple roots like `HeadPrefabData` and `NudePrefabData`. The 40% of the corpus that fails has essentially no XML counterpart, so it offers no leverage at all on marker-1 component identity.
 - Measured before being built on, which was the point of recording it as unexploited rather than as a plan. Component selection still has no external discriminator, and that remains the single thing standing between the walk and the other 40%.
 
