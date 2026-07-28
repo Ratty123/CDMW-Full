@@ -32,6 +32,30 @@ variable-length, so the data header is not at a fixed offset.
 ``selfOffset`` values are absolute file offsets. A u32 at blob-relative ``k``
 is a pointer if and only if it equals ``blobOffset + k + 4``, which makes
 pointer relocation exact rather than heuristic.
+
+Other formats use this same container: ``.parg``, ``.pasg`` and ``.pcg`` all
+decode their header, type table and string pool here without modification.
+
+## Cross-checking the schema against the XML form
+
+The reflection system has a second serialisation, written by files carrying
+``ReflectObjectXMLData``: ``.spline``, ``.spline2d``, ``.pas``, ``.mi``, ``.pma``.
+Six types appear on both sides -- ``SplinePoint``, ``SplinePoint3D``,
+``SplineObject3D``, ``SplineDataInstance``, ``SplineData`` and
+``ResourceReferencePath_ITexture`` -- and 177 shipped ``.prefab`` files carry the
+3D spline types, so the two forms can be read against each other.
+
+Each side supplies what the other lacks. The XML gives semantics and values
+(``_position="1.000000 0.000000 0.000000"``, ``_thickness="0.050000"``) and no
+layout; the binary type table gives declaration order, declared type and byte
+size and no meaning. Together they establish, for instance, that
+``SplinePoint3D._position`` is a ``float3`` of 12 bytes while ``_scale`` is a
+single ``float`` -- which the XML alone would have got wrong, since it omits
+``_scale`` entirely, and the binary alone would not have explained.
+
+``.technique`` cannot be used for this. It is a shader-pipeline declaration
+(``Category``, ``Technique``, ``PipelineBinding``) sharing no type with any
+binary; it pairs with the ``.padxil`` shader cache instead.
 """
 
 from __future__ import annotations
@@ -45,16 +69,42 @@ SUPPORTED_VERSIONS = (3, 4)
 STRING_POOL_MIN_REVISION = 14
 
 # Member ``flags`` values, i.e. how a member's value is serialised.
+#
+# Surveyed over 1,482 reflection files (600 .prefab, 750 .parg, 92 .pcg, 40 .pasg).
+# The counts and the declared types below are what the corpus actually contains, and
+# the pairing 4:5 :: 6:7 -- singular then collection, by value then by pointer -- is
+# what makes the two unhandled kinds legible:
+#
+#   kind  count   value_size   declared types                       handled here
+#      0  49,538  4/1/16/12    bool, float, uint, uint32            yes, inline
+#      1  12,451  1            staticstringA, IndexedStringA, ...    yes, string
+#      2  10,114  1/4          enums (SplineDataType, ...)           yes, inline
+#      3   1,313  2/12/1/16    uint16, float3, uint8                 yes, inline
+#      4   2,628  8            ReflectObject                         yes, pointer-ish
+#      5   1,998  8            ReflectObjectPtr                      yes, pointer
+#      6      94  0            ReflectObject      <- by-value collection, NOT handled
+#      7   6,193  0            ReflectObjectPtr                      yes, collection
+#      8       4  32           OnTriggerBreak                        no
+#     10       6  1            staticstringA                         no
+#
+# Kind 6 is the only thing standing between this decoder and all 92 shipped ``.pcg``
+# convex-hull files. Treating it exactly like kind 7 clears the "unsupported member
+# kind" error but then leaves the walk short by 255-10,848 bytes, so its elements are
+# laid out differently from a pointer collection's -- which is the next thing to work
+# out, and is a smaller question than it was before the survey.
 KIND_INLINE = 0x0000
 KIND_STRING = 0x0001
 KIND_ENUM = 0x0002
 KIND_INLINE_12 = 0x0003
 KIND_OBJECT = 0x0004
 KIND_POINTER = 0x0005
+#: By-value object collection. Recognised so it can be named, not yet read.
+KIND_OBJECT_COLLECTION = 0x0006
 KIND_COLLECTION = 0x0007
 
 POINTER_KINDS = frozenset({KIND_OBJECT, KIND_POINTER})
 INLINE_KINDS = frozenset({KIND_INLINE, KIND_ENUM, KIND_INLINE_12})
+COLLECTION_KINDS = frozenset({KIND_OBJECT_COLLECTION, KIND_COLLECTION})
 
 NULL_OWNER = 0xFFFFFFFFFFFFFFFF
 _MAX_STRING = 4096
@@ -391,6 +441,46 @@ def pointer_sites(data: bytes, blob_offset: int, blob_length: int) -> tuple[int,
         if struct.unpack_from("<I", data, absolute)[0] == absolute + 4:
             sites.append(absolute)
     return tuple(sites)
+
+
+def recover_pointee_strings(
+    data: bytes, blob_offset: int, blob_length: int
+) -> tuple[PrefabString, ...]:
+    """Every length-prefixed string reachable from a pointer, without walking.
+
+    The heap walk is the richer reading -- it says which field a string belongs
+    to -- but it stops on the first structure it cannot follow, and 45.6% of
+    shipped prefabs stop somewhere. Pointer sites are found by the exact
+    identity test instead, which does not depend on the walk getting that far,
+    and a populated pointee is ``u32 0`` then a length-prefixed string.
+
+    Measured against the walk on 635 complete-walk prefabs: this recovers every
+    resource the walk found, at identical offsets and identical text, and 19
+    strings besides. So it is safe to use as the reference list when the walk
+    cannot supply one, and it never contradicts the walk where both apply.
+    """
+    payload = bytes(data or b"")
+    found: list[PrefabString] = []
+    for site in pointer_sites(payload, blob_offset, blob_length):
+        target = site + 4
+        if target + 8 > len(payload):
+            continue
+        # A populated pointee opens with zero; anything else is a record of a
+        # different shape, not a string.
+        if struct.unpack_from("<I", payload, target)[0] != 0:
+            continue
+        at = target + 4
+        length = struct.unpack_from("<I", payload, at)[0]
+        if not 0 < length <= _MAX_STRING or at + 4 + length > len(payload):
+            continue
+        try:
+            text = payload[at + 4 : at + 4 + length].decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if not text.isprintable():
+            continue
+        found.append(PrefabString(text=text, offset=at, length=4 + length))
+    return tuple(found)
 
 
 class _BlobCursor:

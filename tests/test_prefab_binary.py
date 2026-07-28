@@ -294,3 +294,72 @@ def test_the_walk_records_where_each_pointee_length_field_sits() -> None:
     assert recorded, "the walk consumed a pointee, so it must have recorded its field"
     for site, field in recorded.items():
         assert struct.unpack_from("<I", payload, field)[0] == field - (site + 4)
+
+
+def test_the_member_kind_taxonomy_matches_the_documented_survey() -> None:
+    """The kind constants are a claim about the corpus, so pin them.
+
+    The pairing 4:5 :: 6:7 -- singular then collection, by value then by pointer -- is
+    what identified kind 6 as the one blocking every shipped `.pcg`. A future edit that
+    renumbers or merges these would quietly invalidate that reasoning.
+    """
+    from cdmw.core import prefab_binary as pb
+
+    assert (pb.KIND_OBJECT, pb.KIND_POINTER) == (0x0004, 0x0005)
+    assert (pb.KIND_OBJECT_COLLECTION, pb.KIND_COLLECTION) == (0x0006, 0x0007)
+    assert pb.COLLECTION_KINDS == {pb.KIND_OBJECT_COLLECTION, pb.KIND_COLLECTION}
+    assert pb.POINTER_KINDS == {pb.KIND_OBJECT, pb.KIND_POINTER}
+    assert pb.INLINE_KINDS == {pb.KIND_INLINE, pb.KIND_ENUM, pb.KIND_INLINE_12}
+    # 6 is deliberately absent from the handled sets: it is named, not yet read.
+    assert pb.KIND_OBJECT_COLLECTION not in pb.POINTER_KINDS
+    assert pb.KIND_OBJECT_COLLECTION not in pb.INLINE_KINDS
+
+
+def test_an_unread_member_kind_fails_loudly_rather_than_guessing() -> None:
+    """Kind 6 must not be silently skipped: a wrong length would corrupt an edit."""
+    import pathlib
+
+    from cdmw.core import prefab_binary as pb
+
+    source = pathlib.Path(pb.__file__).read_text(encoding="utf-8")
+    assert "unsupported member kind" in source
+    # The handled-collection branch must not have quietly absorbed kind 6.
+    assert "if flags == KIND_COLLECTION:" in source
+
+
+def test_pointee_strings_are_recoverable_without_the_walk() -> None:
+    """45.6% of shipped prefabs stop mid-walk; the pointers are still exact.
+
+    Measured against 635 complete-walk prefabs, this recovers every resource
+    the walk found, at identical offsets and identical text.
+    """
+    from cdmw.core.prefab_binary import recover_pointee_strings
+
+    payload = _build_with_pointer()
+    document = decode_prefab_binary(payload)
+    recovered = recover_pointee_strings(payload, document.blob_offset, document.blob_length)
+    by_offset = {item.offset: item.text for item in recovered}
+    for item in document.resource_strings():
+        assert by_offset.get(item.offset) == item.text
+
+
+def test_recovery_still_works_when_the_walk_cannot_finish() -> None:
+    from cdmw.core.prefab_binary import recover_pointee_strings
+
+    payload = bytearray(_build_with_pointer())
+    intact = decode_prefab_binary(bytes(payload))
+    expected = [item.text for item in intact.resource_strings()]
+
+    # Declare a blob longer than the walk consumes, so it stops short while
+    # every pointer record stays exactly where it was. Corrupting a pointer
+    # instead would defeat recovery too, which is not the case under test.
+    payload += bytes(8)
+    struct.pack_into("<I", payload, intact.blob_offset - 4, intact.blob_length + 8)
+    struct.pack_into("<I", payload, intact.blob_offset - 24, len(payload))
+    broken = decode_prefab_binary(bytes(payload))
+    assert not broken.walk_complete, "the fixture must actually stop short"
+
+    recovered = recover_pointee_strings(
+        bytes(payload), broken.blob_offset, broken.blob_length
+    )
+    assert expected and all(text in [i.text for i in recovered] for text in expected)
