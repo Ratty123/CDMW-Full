@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- Brought the `.papr` row of the capability manifest up to date with what the decoder actually does now. Its evidence still said "682 of 2,541 config blocks are one fully decoded 9-record shape" and its remaining column still said "block contents also stay opaque", both of which stopped being true several commits ago. It now records 97.7% of blocks consuming exactly, the 894 recovered expression controllers, and the header-`record_count` agreement across nine rigs that is the reason to believe any of it — plus the 59 blocks that genuinely still refuse. The `decode` grade stays `partial` on purpose: the rubric reserves `full` for "no unexplained spans in the supported path", and 59 blocks is not none.
+
 ### Added
 - Took `.papr` block decoding to **2,482 of 2,541 blocks — 97.7%, from 96.1%** — and chains with every byte accounted for to 94.9%. Three small corrections, all of the same kind: bytes read as fixed zeros that are not. A bound node's lead byte is a flag that is 0 in most rigs and 1 in a few; its name is occasionally empty, meaning an unbound slot rather than a corrupt record; and a driver list may legitimately declare no drivers at all.
 - The evidence for these is much stronger than coverage alone. **Nine rigs now decode end to end and all nine reproduce their declared `record_count` exactly**, up from four, and they include the large ones: golem_imp_boss at 4,317 records, machinetank and warrobot at 1,660 each, golemdragon at 891. Nothing in this grammar can influence that header total, so nine independent agreements at that size is what makes the rules credible rather than merely permissive. The corpus gate asserts the count of agreeing rigs, so a future change that buys coverage by losing agreement fails.
