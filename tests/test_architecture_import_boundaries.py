@@ -32,10 +32,49 @@ def _imports_for(path: Path) -> set[str]:
     return imports
 
 
+# Packages under tools/ that register lazy shell tool tabs. Their Qt modules are
+# UI by role even though they sit outside cdmw/ui/, so the UI layer rule applies.
+_TOOL_TAB_PACKAGES = (
+    "tools/placement_studio",
+    "tools/format_explorer",
+    "tools/translation_studio",
+)
+_CORE_IMPLEMENTATION_ROOTS = ("cdmw.core", "cdmw.modding", "cdmw.rendering")
+
+
+def _imports_core_implementation(imports: set[str]) -> list[str]:
+    return sorted(
+        name
+        for name in imports
+        if any(name == root or name.startswith(f"{root}.") for root in _CORE_IMPLEMENTATION_ROOTS)
+    )
+
+
 def test_domain_does_not_import_pyside() -> None:
     for path in Path("cdmw/domain").rglob("*.py"):
         imports = _imports_for(path)
         assert not any(name.startswith("PySide6") for name in imports), path
+
+
+def test_tool_tab_ui_modules_do_not_import_core_implementations() -> None:
+    """Qt surfaces under tools/ obey the same layer rule as cdmw/ui/.
+
+    Reading a format belongs to the domain module beside the window, which is
+    what every one of these packages already does -- except that
+    window_rig_behaviour.py reached past its own rig_behaviour.py straight to
+    cdmw.core. Keying on PySide6 keeps the guard honest as modules are added:
+    if it draws, it is UI, and it goes through its sibling.
+    """
+
+    offenders: list[tuple[str, str]] = []
+    for package in _TOOL_TAB_PACKAGES:
+        for path in Path(package).rglob("*.py"):
+            imports = _imports_for(path)
+            if not any(name.startswith("PySide6") for name in imports):
+                continue
+            offenders.extend((path.as_posix(), name) for name in _imports_core_implementation(imports))
+
+    assert not offenders, f"Tool-tab UI modules importing core implementations: {offenders}"
 
 
 def test_domain_does_not_import_modding_layer() -> None:

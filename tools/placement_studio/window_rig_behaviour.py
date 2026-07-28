@@ -46,13 +46,12 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from cdmw.core.posemodifier_xml import PoseModifierError
-
 from .table_columns import proportional_columns
 from .what_is_this import guide_strip
 from .rig_behaviour import (
     GAME_PATH,
     SECTION_LABELS,
+    PoseModifierError,
     RigBehaviour,
     apply_edit,
     apply_scale,
