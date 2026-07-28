@@ -596,6 +596,24 @@ def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") 
     cursor.pointee_fields[site] = field_at
 
 
+def _is_trailer_run(blob: bytes, at: int) -> bool:
+    """Is everything from ``at`` to the end a run of ``01 <u32>`` records?
+
+    A completed walk's blob ends ``.. 00 00 00 01``, and the bytes left over
+    when a nearly-finished walk gives up are runs of the same five-byte record.
+    The trailer is a sequence of them, not the single one the fixed 5-or-6-byte
+    rule assumed.
+    """
+    pos = at
+    seen = 0
+    while pos + 5 <= len(blob):
+        if blob[pos] != 1:
+            return False
+        pos += 5
+        seen += 1
+    return seen > 0 and len(blob) - pos <= 1
+
+
 def _read_collection_count(cursor: _BlobCursor) -> int:
     """Read a collection's element count.
 
@@ -645,7 +663,17 @@ def _read_member(cursor: _BlobCursor, member: PrefabMember, into: _Collected, gr
     if flags == KIND_COLLECTION:
         count = _read_collection_count(cursor)
         for _ in range(count):
-            group_reader(cursor)
+            mark = cursor.pos
+            try:
+                group_reader(cursor)
+            except PrefabBinaryError:
+                # The declared count outruns the data on files that are
+                # otherwise complete. When what is left is only the trailer
+                # run, the collection has ended rather than broken.
+                if _is_trailer_run(cursor.blob, mark):
+                    cursor.pos = mark
+                    break
+                raise
         return
     raise PrefabBinaryError(f"unsupported member kind 0x{flags:04x} on {member.name}")
 
@@ -844,7 +872,7 @@ def _walk_blob(
     # The blob closes with the final record's footer plus a terminator; its
     # width follows the component family.
     remaining = len(blob) - cursor.pos
-    if 5 <= remaining <= 6:
+    if 5 <= remaining <= 6 or _is_trailer_run(blob, cursor.pos):
         cursor.pos += remaining
         remaining = 0
     if remaining:

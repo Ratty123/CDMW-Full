@@ -381,3 +381,22 @@ def test_a_stopped_walk_says_where_it_stopped() -> None:
     assert not stopped.walk_complete
     assert stopped.blob_offset <= stopped.walk_stop_offset <= len(payload)
     assert 0.0 < stopped.walk_progress <= 1.0
+
+
+def test_the_blob_trailer_is_a_run_of_records_not_a_fixed_width() -> None:
+    """A completed blob ends `.. 00 00 00 01`, and there can be several.
+
+    The trailer was accepted only at 5 or 6 bytes. Files carrying more of the
+    same five-byte record stopped with "no element header" at a median 99% of
+    the way through -- 1,036 of them, 18.9% of all incomplete walks.
+    """
+    from cdmw.core.prefab_binary import _is_trailer_run
+
+    one = bytes([1]) + struct.pack("<I", 0xAF)
+    assert _is_trailer_run(one, 0)
+    assert _is_trailer_run(one * 3, 0)
+    # One spare byte is tolerated; the records themselves must be intact.
+    assert _is_trailer_run(one * 2 + bytes(1), 0)
+    assert not _is_trailer_run(bytes([2]) + struct.pack("<I", 5), 0)
+    assert not _is_trailer_run(one + bytes([9, 9, 9, 9, 9]), 0)
+    assert not _is_trailer_run(b"", 0)
