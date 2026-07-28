@@ -157,11 +157,36 @@ Roughly in order of value:
 5. **No property-based testing of the rewriter.** The 1,500 round-trips used
    one substitution pattern; randomised multi-edit fuzzing would attack it
    harder.
+6. **The pointer test is necessary, not sufficient.** `value == offset + 4` is
+   an exact identity, but arbitrary inline bytes can satisfy it by coincidence,
+   and `_length_field_for` takes the first position whose u32 equals its own
+   distance from the pointee. Neither has produced a failure in 1,500 of 1,500
+   round-trips. Hardening them means validating record structure rather than
+   scanning, which is a larger change and is better attempted after a
+   successful in-game canary than before one.
 
 ## Dead Ends
 
 Recorded so they are not re-run:
 
+- **The version-4 header field is not a content hash.** The decoder called those
+  8 bytes a content hash on no evidence, which raised a real worry: neither
+  rewriter touches them, so if the engine validated the field every edited v4
+  file would be rejected in game. It does not, and it cannot. The field is two
+  independent u32s, not one value -- files pair off sharing one half and
+  differing in the other -- and, decisively, **six byte-identical bodies in the
+  corpus carry different values there**, so nothing about the content determines
+  it. No hash reproduces either half: crc32, adler32, FNV-1a/FNV-1 32, djb2,
+  sdbm and md5 were tried over five ranges (whole file with the field removed,
+  with it zeroed, everything after it, blob only, schema only) and against the
+  archive path, the stem and their lowercased forms; zero matches. Nor is it a
+  cross-reference: none of 1,467 sampled values appears inside any prefab body.
+  It is near-unique (11,654 distinct across 11,996 files, with 143 values shared
+  by 485 files) and clusters loosely by asset folder, which reads as an
+  authoring-time identifier. Preserving it verbatim -- what both rewriters
+  already do -- is therefore correct, and recomputing it would be the
+  regression. Locked in by
+  `test_the_version_4_header_identifier_survives_an_edit`.
 - **Companions are not same-stem siblings.** That guess scores 0/12,962. They
   live under a parallel role directory: `character/model/…/x.pac` implies
   `character/modelproperty/…/x.pac_xml` and `character/bin__/meshphysics/…/x.hkx`.

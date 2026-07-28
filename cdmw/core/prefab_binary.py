@@ -9,7 +9,7 @@ records.
 ::
 
     file    := header typedef*N pool datahdr(28) blob
-    header  := u16 magic=0xFFFF, u16 version, u16 ?, [u64 hash if v4],
+    header  := u16 magic=0xFFFF, u16 version, u16 ?, [u32 id, u32 id if v4],
                u32 revision, u16 N
     typedef := u32 len, TypeName, u16 memberCount, member*memberCount
     member  := u32 len, _name, u32 len, TypeName,
@@ -333,7 +333,14 @@ def _read_header(data: bytes) -> _Header:
         raise PrefabBinaryError(f"unsupported prefab version {version}")
     reader.u16()
     if version == 4:
-        # Version 4 inserts an 8-byte content hash before the revision field.
+        # Version 4 inserts 8 bytes before the revision field. Two independent
+        # u32s, not one value, and measurably *not* a checksum of the file: six
+        # bodies in the corpus are byte-identical yet carry different values
+        # here. No byte-range or string hash tried reproduces either half, and
+        # no prefab body references another's value, so it reads as an
+        # authoring-time identifier. Both rewriters preserve it untouched,
+        # which this evidence says is right -- the engine cannot be validating
+        # it against content that does not determine it.
         reader.pos = 14
     revision = reader.u32()
     type_count = reader.u16()
