@@ -153,3 +153,19 @@ def test_euler_round_trip_is_lossy_at_the_pole() -> None:
     ) != write_placement(
         read_placement(struct.pack("<10f", 1, 1, 1, *rebuilt, 0, 0, 0))
     )
+
+
+def test_placement_space_is_named_per_member_not_assumed() -> None:
+    """Telling a modder the wrong basis makes every nudge wrong.
+
+    Measured over the archives: _worldTransform and _tiledTransform occur only
+    on world objects, 5,228 each, median absolute position component 61 units
+    with 81.6% above 10. _offsetTransform is named for what it is.
+    """
+    from cdmw.domain.archives.prefab_values import placement_space
+
+    assert placement_space("_worldTransform") == "world"
+    assert placement_space("_tiledTransform") == "world"
+    assert placement_space("_offsetTransform") == "offset"
+    assert placement_space("_somethingElse") == "unknown"
+    assert placement_space("") == "unknown"

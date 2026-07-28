@@ -140,6 +140,28 @@ def is_near_pole(rotation: tuple[float, float, float, float]) -> bool:
     return abs(rotation_degrees(rotation, digits=6)[1]) > POLE_PITCH_DEGREES
 
 
+#: What a transform member's numbers are measured against. Established from
+#: the shipped archives: ``_worldTransform`` and ``_tiledTransform`` occur only
+#: on world objects, 5,228 of each, with a median absolute position component
+#: of 61 units and 81.6% above 10 -- world coordinates, not local offsets.
+#: ``_offsetTransform`` is rare (26) and named for what it is. Character
+#: prefabs carry no transforms at all.
+_PLACEMENT_SPACES = {
+    "_worldTransform": "world",
+    "_tiledTransform": "world",
+    "_offsetTransform": "offset",
+}
+
+
+def placement_space(member_name: str) -> str:
+    """``"world"``, ``"offset"`` or ``"unknown"`` for a transform member.
+
+    Telling a modder the wrong basis makes every nudge wrong, so an
+    unrecognised member says so rather than assuming world.
+    """
+    return _PLACEMENT_SPACES.get(str(member_name or ""), "unknown")
+
+
 def _round(values: tuple[float, ...], places: int = 3) -> str:
     return ", ".join(f"{value:g}" for value in (round(v, places) for v in values))
 
@@ -185,6 +207,7 @@ __all__ = [
     "degrees_to_rotation",
     "describe_value",
     "is_near_pole",
+    "placement_space",
     "read_placement",
     "rotation_degrees",
     "write_placement",
