@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- Hunted for an oracle to validate `.prefab` array resizing before writing any of it, and **there isn't one**. Over 3,000 sampled prefabs, only 6 pairs share a type signature and differ by exactly one object — and those are unrelated assets that coincide, not the same asset with a child added (`cd_gimmick_steam_engine_train_rail_0001` against `cd_tower_wooden_set13_06`). There is nothing equivalent to the 10,066 same-asset path pairs that validated the path rewriter against the game's own output.
+- That is why array editing stays off, and it is a stronger reason than "not implemented yet": a resize writer moves bytes, relocates pointers, rewrites counts and header sizes, and it would rest entirely on this decoder with no external check. If it is attempted it needs a different kind of validation — remove-then-re-add returning the original bytes, and structural invariants over the whole corpus — rather than ground truth. Worth knowing before the writer is built, not after.
+
 ### Fixed
 - **`posemodifierdata.xml` scanning missed one of the two comment terminators.** A tolerant parser ends a comment at `--!>` as well as `-->`, and the token pattern only knew `-->`, so a comment spelled that way would not end where the engine ends it: the scan would run straight past it and swallow the markup after it as comment text. The document would lose settings silently rather than fail, which is the worst shape for a module whose contract is that an unedited document re-emits its source byte for byte. Nothing in the shipped file uses that spelling — this is the class of bug that stays invisible until the day it is not. Found by CodeQL as `py/bad-tag-filter`.
 - The comment body now comes from its own capture group rather than a fixed `[4:-3]` slice, which would have left a stray `-` behind on the four-character terminator.
