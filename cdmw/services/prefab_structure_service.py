@@ -80,6 +80,12 @@ def recover_pointee_strings(*args: Any, **kwargs: Any) -> Any:
     return owner(*args, **kwargs)
 
 
+def rewrite_prefab_paths_same_length(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_binary_edit import rewrite_prefab_paths_same_length as owner
+
+    return owner(*args, **kwargs)
+
+
 def prefab_binary_error() -> type[Exception]:
     """The exception type raised for payloads that break the grammar."""
     from cdmw.core.prefab_binary import PrefabBinaryError
@@ -99,5 +105,6 @@ __all__ = [
     "prefab_binary_error",
     "recover_pointee_strings",
     "rewrite_prefab_paths",
+    "rewrite_prefab_paths_same_length",
     "rewrite_prefab_placements",
 ]

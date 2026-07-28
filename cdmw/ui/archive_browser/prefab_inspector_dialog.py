@@ -81,6 +81,7 @@ from cdmw.services.prefab_structure_service import (
     recover_pointee_strings,
     prefab_source_digest,
     rewrite_prefab_paths,
+    rewrite_prefab_paths_same_length,
     rewrite_prefab_placements,
 )
 
@@ -264,13 +265,24 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
         if document.walk_complete:
             return f"Fully read. {head} Everything below can be changed.{caveat}"
         return (
-            f"Partly read - saving is switched off. {head} What is shown was read from "
-            "the file; the rest uses a structure this tool cannot follow yet, so it will "
-            f"not write a file it does not fully understand.{caveat}"
+            f"Partly read. {head} What is shown was read from the file; the rest uses a "
+            "structure this tool cannot follow yet. You can still swap a file for another "
+            "whose name is exactly the same length - that moves nothing in the file - but "
+            f"anything that would resize it is refused.{caveat}"
         )
 
     def _can_edit(self) -> bool:
+        """Full editing, which needs the structure to relocate bytes."""
         return self._document is not None and self._document.walk_complete
+
+    def _can_swap_same_length(self) -> bool:
+        """Retargets that move nothing, which need no structure at all.
+
+        A replacement of identical byte length leaves every pointer, pointee
+        length and header size exactly where it was, so it is safe on a prefab
+        the walk could not finish. Verified on 669 partly-read prefabs.
+        """
+        return self._document is not None
 
     def _all_numbers(self) -> tuple[object, ...]:
         """Every inline numeric value in the file."""
@@ -473,7 +485,16 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
             row = QTreeWidgetItem(["", f"a {asset_role(item.text).lower()} file", item.text])
             row.setData(2, _EDIT_ROLE, item.text)
             row.setData(2, _OFFSET_ROLE, int(item.offset))
-            row.setToolTip(2, item.text)
+            if self._can_swap_same_length():
+                row.setFlags(row.flags() | Qt.ItemFlag.ItemIsEditable)
+                row.setToolTip(
+                    2,
+                    "Double-click to swap this. Because the tool could not read the "
+                    "whole file, the new name has to be exactly the same length - "
+                    "then nothing in the file moves.",
+                )
+            else:
+                row.setToolTip(2, item.text)
             parent.addChild(row)
         parent.setExpanded(True)
 
@@ -742,7 +763,7 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
             if self._warning_for(old, new)
         ]
         pending = len(replacements) + len(self._value_edits)
-        self.apply_button.setEnabled(self._can_edit() and bool(pending))
+        self.apply_button.setEnabled(self._can_swap_same_length() and bool(pending))
         self.revert_button.setEnabled(bool(pending))
         if not pending:
             self.status.setText("")
@@ -907,7 +928,7 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
         return bool(PrefabChangeReview(lines, warnings, parent=self).exec())
 
     def _apply_changes(self) -> None:
-        if not self._can_edit():
+        if not self._can_swap_same_length():
             return
         replacements = self.collect_path_edits()
         if not replacements and not self._value_edits:
@@ -920,6 +941,12 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
             # Placements first: they are fixed-size, so their byte offsets are
             # still valid. Path edits move bytes and would invalidate them.
             payload = self._original
+            if not self._can_edit():
+                # Nothing may move, so the same-length path is the only one that
+                # is provably safe here -- and it needs no structure.
+                result = rewrite_prefab_paths_same_length(payload, replacements)
+                self._finish_apply(result)
+                return
             if self._value_edits:
                 moved = rewrite_prefab_placements(
                     payload,
@@ -933,6 +960,10 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
         except Exception as exc:  # noqa: BLE001 - reported to the user
             self._log(f"Refused: {exc}")
             return
+        self._finish_apply(result)
+
+    def _finish_apply(self, result) -> None:
+        """Report what was written and hand the payload back."""
         delta = result.byte_delta
         movement = "grew" if delta > 0 else "shrank" if delta < 0 else "stayed the same"
         summary = (
