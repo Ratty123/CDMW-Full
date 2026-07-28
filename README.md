@@ -1,82 +1,293 @@
 # Crimson Desert Mod Workbench
 
-Windows desktop workbench for Crimson Desert archive browsing, texture workflows,
-mesh preview/modding, material replacement, media preview, and research tooling.
+[![Windows build](https://img.shields.io/github/actions/workflow/status/Ratty123/CDMW-Full/windows-build.yml?branch=main&style=flat-square&logo=github&label=Windows%20build)](https://github.com/Ratty123/CDMW-Full/actions/workflows/windows-build.yml)
+![version](https://img.shields.io/badge/version-0.11.0--alpha.2-1f6feb?style=flat-square)
+![platform](https://img.shields.io/badge/platform-Windows%2011%20x64-555555?style=flat-square)
+![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.14-3776AB?style=flat-square&logo=python&logoColor=white)
+![.NET](https://img.shields.io/badge/.NET-10-512BD4?style=flat-square&logo=dotnet&logoColor=white)
+![renderer](https://img.shields.io/badge/renderer-D3D11-brightgreen?style=flat-square)
+![archives](https://img.shields.io/badge/archives-explicit%20mutation-orange?style=flat-square)
+[![license](https://img.shields.io/badge/license-MIT-brightgreen?style=flat-square)](LICENSE)
 
-Latest release: `0.11.0-alpha.1`
+A Windows desktop workbench for modding **Crimson Desert**: browse and extract
+game archives, preview and edit meshes on a native D3D11 renderer, rebuild and
+author DDS textures, assemble material and mesh replacement packages, and read
+formats that had to be reverse engineered from the shipped build.
 
-- Download: [GitHub Releases](https://github.com/Ratty123/crimson-desert-mod-workbench/releases)
-- Changelog: [CHANGELOG.md](CHANGELOG.md)
-- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
-- Security: [SECURITY.md](SECURITY.md)
-- Architecture: [docs/architecture.md](docs/architecture.md)
+This is the full workbench. If you only need to look inside the archives, the
+read-only companion app [**CDMW Lite**](https://github.com/Ratty123/CDMW-Lite)
+is smaller and safer to hand to someone who is not modding.
 
-## Known Limitations
+| | |
+|---|---|
+| **Download** | [Releases](https://github.com/Ratty123/CDMW-Full/releases) |
+| **Changelog** | [CHANGELOG.md](CHANGELOG.md) |
+| **Architecture** | [docs/architecture.md](docs/architecture.md) |
+| **Format status** | [docs/features/format-decode-progress.md](docs/features/format-decode-progress.md) |
+| **Contributing** | [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md) |
 
-`Weapon Placement Studio` is currently disabled in the UI. This is intentional,
-not just unfinished polish: in-game testing showed that the true 1H/offhand and
-full behavior-swap paths need more than partial ItemInfo/PAAC edits and can hang
-or crash the game. The embedded D3D11 placement preview is also disabled because
-the host can freeze the app. The repo still keeps the learned socket templates
-and CTF smoke checks for manual package work, but the studio is not shipped as a
-supported workflow.
+> `0.11.0-alpha.2` is the current source version and has not been published as a
+> release yet. The newest build on the Releases page is `0.10.0-alpha.2`.
 
-## Features
+---
 
-- Browse `.pamt` / `.paz` archives with flat/tree views, filters, extraction,
-  cache reuse, text preview, media preview, and explicit patch/restore flows.
-- Preview supported `.pam`, `.pamlod`, and `.pac` meshes with the native D3D11
-  preview path, referenced texture inspection, OBJ/FBX export, and supported
-  OBJ/DAE/glTF/GLB import preview workflows.
-- Run DDS texture workflows with the bundled `cd-texture-dx.exe` native
-  DirectXTex helper, optional Real-ESRGAN NCNN/chaiNNer upscaling, texture
-  policy planning, compare review, and mod-package export.
-- Use `Texture Replacer` to replace edited PNG/DDS textures using the original game DDS as rebuild
-  authority, including package-prefixed loose output and manager metadata.
-- Edit visible textures in-app with layered projects, selections, masks,
-  adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen,
-  soften, and flattened PNG export.
-- Build and audit material/mesh replacement packages with Material Authority,
-  source-owned material routing, runtime XML preservation, diagnostics, and
-  final package preview.
-- Use supporting workspaces for Model Library, Mesh Editor, Icon Creator,
-  Recolor Variants, Texture Research, Text Search, settings/profile export,
-  diagnostic bundles, and detachable tabs.
+## Contents
 
-## Safety Model
+- [What it does](#what-it-does)
+- [File format decoding status](#file-format-decoding-status)
+- [Architecture](#architecture)
+- [Install](#install)
+- [Build from source](#build-from-source)
+- [Project layout](#project-layout)
+- [Safety model](#safety-model)
+- [Privacy](#privacy)
+- [Known limitations](#known-limitations)
+- [License](#license)
 
-Archive mutation is explicit. Browsing, previewing, extracting, scanning, and
-package building do not silently rewrite game archives. Supported archive patch
-flows use confirmation, preflight checks, backups, and restore support.
+---
 
-Keep local game archives, extracted assets, DDS payloads, build output, crash
-reports, restore points, and corpus data out of source control.
+## What it does
+
+| Workspace | What you can do |
+|---|---|
+| **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
+| **Mesh Preview & Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path, inspect referenced textures, edit resident meshes through the native edit core, and export OBJ/FBX or import OBJ/DAE/glTF/GLB for comparison. |
+| **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
+| **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
+| **Image Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. |
+| **Material Authority** | Build and audit material/mesh replacement packages with source-owned material routing, runtime XML preservation, diagnostics, and final package preview. |
+| **Supporting tools** | Model Library, Icon Creator, Recolor Variants, Texture Research, Text Search, settings/profile export, diagnostic bundles, detachable tabs. |
+
+---
+
+## File format decoding status
+
+Crimson Desert ships 141 distinct file extensions. 89 of them are engine formats
+— Pearl Abyss's own or licensed middleware — and **77 of those actually appear in
+the shipped build**. That last number is the honest denominator: a format the
+game does not contain cannot be modded and should not count against progress.
+
+| Scope | Formats | Read coverage | Write coverage |
+|---|---:|---:|---:|
+| **Engine formats the build ships** | 77 | **41.7%** | **26.0%** |
+| Weighted by archive file count | 1,383,187 files | 65.9% | 53.8% |
+| Engine formats (proprietary + middleware) | 89 | 41.9% | 27.5% |
+| Pearl Abyss formats only | 82 | 42.6% | 28.0% |
+| All formats, open ones included | 141 | 54.3% | 33.0% |
+
+Coverage is a weighted mean rather than a file count. Read: `full` = 1.0,
+`partial` = 0.6, `surface` = 0.3, `none` = 0.0. Write: `full` = 1.0,
+`constrained` = 0.5, `none` = 0.0.
+
+### By area
+
+| Area | Formats | Read | Write |
+|---|---:|---|---|
+| `user_interface_text` | 15 | `██████████████████░░` 88.7% | `████████████████░░░░` 80.0% |
+| `texture_image` | 12 | `████████████████░░░░` 80.0% | `███░░░░░░░░░░░░░░░░░` 16.7% |
+| `model_mesh_physics` | 19 | `███████████░░░░░░░░░` 54.2% | `███████░░░░░░░░░░░░░` 36.8% |
+| `audio_video` | 18 | `█████████░░░░░░░░░░░` 47.2% | `██░░░░░░░░░░░░░░░░░░` 8.3% |
+| `material_metadata` | 62 | `█████████░░░░░░░░░░░` 46.0% | `███████░░░░░░░░░░░░░` 33.1% |
+| `animation_scene` | 15 | `████████░░░░░░░░░░░░` 42.0% | `█████░░░░░░░░░░░░░░░` 23.3% |
+
+### What is finished
+
+These read and write completely, and are the formats the modding workflows are
+built on:
+
+`.pac` · `.pam` · `.pamlod` · `.pami` · `.paa` · `.paloc` · `.papr` ·
+`.paprojdesc` · `.pac_xml` · `.pam_xml` · `.pamlod_xml` · `.prefabdata_xml` ·
+`.material` · `.mi` · `.pas` · `.pma` · `.spline` · `.spline2d` · `.app_xml`
+
+Meshes, skeletal animation, textures, materials, and every line of localized
+text in the game round-trip byte for byte. `.papr` closed most recently: all
+twenty shipped jiggle/cloth rigs now tile to their declared entry counts and
+rebuild exactly, across 2,737 configuration blocks.
+
+### What is partly decoded
+
+| Format | Files | Read | Write | What is left |
+|---|---:|---|---|---|
+| `.prefab` | 47,343 | partial | constrained | 40% of archive prefabs do not walk to completion. Component identity is not stated at the failure sites, and the collection-header width rule is ambiguous at 87% of them. Value editing is scoped to objects whose type the file states. |
+| `.hkx` | 58,031 | partial | constrained | Structural edits — topology, counts, references, strings, arrays — are blocked pending semantic rebuild proof. No new collision shapes or ragdoll bodies. |
+| `.paac` | 520 | partial | constrained | The chart node structure around the strings is not parsed, so only same-length animation retargets are allowed. |
+| `.wem` | 375,762 | partial | constrained | Only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored. |
+| `.pat` | 1,397 | partial | none | No builder, and LOD1+ plus unrecognised vertex layouts stay undecoded — static world geometry is view-only. |
+| `.parg` `.pasg` `.pcg` | 882 | partial | none | The pointer-addressed heap walk stops at the pointee trailer, so nested values are not read. Closing `.parg` opens VFX modding; closing `.pcg` allows custom collision hulls. |
+| `.pab` | 257 | partial | none | Unknown and truncated variants fall back to a best-effort scan, and there is no writer — bones cannot be added, removed, or renamed. |
+
+### What is still closed
+
+The highest-value gaps, in the order they would pay off:
+
+- **`.palevel` / `.levelinfo`** (35,597 files) — placement records are not parsed,
+  so level layout cannot be edited.
+- **`.paseq` / `.paseqc` / `.pastage`** (10,947 files) — track and event layout is
+  not parsed, so cutscene authoring is closed.
+- **`.pae` / `.paem`** (6,669 files) — parameter tables are not parsed, so VFX
+  authoring is closed.
+- **`.meshinfo`** (35,310 files) — count/offset tables are unproven, which is why
+  mesh replacement treats it as read-only; physics bounds and socket context
+  cannot be edited.
+- **`.paschedule` / `.paschedulepath`** (7,756 files) — NPC routines cannot be
+  retimed or rerouted.
+- **`.bnk`** (3,186 files) — HIRC event/action tables are not parsed, so sounds
+  can be swapped but not added.
+- **`.padxil`** (89,824 files) — the shader bytecode is catalogued but not
+  disassembled here, and there is no route to recompile an edited shader back
+  into the cache.
+
+A handful of entries (`.save`, `.binarystring`, `.paseqh`, `.paasmt`,
+`.questgaugecount`, `.linkedsceneobject`) are encrypted with a key the project
+does not have. Nothing can be decoded there until that is solved.
+
+> The tables above are generated from
+> [`schemas/archive_content_capabilities.v1.json`](schemas/archive_content_capabilities.v1.json)
+> by `tools/report_format_decode_progress.py`, so the status a modder reads and
+> the status the Archive Browser reports cannot disagree. The full per-format
+> breakdown, including the evidence behind each rejected hypothesis, is in
+> [docs/features/format-decode-progress.md](docs/features/format-decode-progress.md).
+
+---
+
+## Architecture
+
+The workbench is one Python process that owns the UI and the domain rules, plus
+verified helper processes that own everything performance- or platform-critical.
+No surface silently falls back to a different renderer or a slower path: a
+helper that cannot do the job reports an explicit unavailable state.
+
+```mermaid
+flowchart LR
+    subgraph host["Python host process"]
+        direction TB
+        APP["cdmw/app<br/>bootstrap · single instance · splash"]
+        SHELL["cdmw/ui/shell<br/>MainWindow · tabs · controllers"]
+        FEAT["cdmw/ui feature packages<br/>archive · texture · mesh · research"]
+        SVC["cdmw/services + cdmw/domain<br/>coordination · rules · policy"]
+        WRK["cdmw/workers<br/>QThread jobs · cancellation"]
+        APP --> SHELL --> FEAT --> SVC --> WRK
+    end
+
+    subgraph native["Native helpers (C++)"]
+        direction TB
+        PREV["cdmw_preview_core<br/>archive decode · name index · packaging"]
+        MESH["cdmw_mesh_core<br/>resident mesh edit authority"]
+        TEX["cd_texture_dx<br/>DirectXTex encode/decode"]
+        HKX["cd_hkx<br/>Havok container reads"]
+    end
+
+    subgraph dotnet[".NET 10 helpers"]
+        direction TB
+        EDITOR["Cdmw.MeshEditorExperiment<br/>D3D11 / Vortice presentation + input host"]
+        ARCH["Cdmw.FullArchive.Worker<br/>archive backend service"]
+    end
+
+    WRK -->|stdio protocol| PREV
+    WRK -->|stdio protocol| ARCH
+    SVC -->|command protocol| MESH
+    WRK --> TEX
+    WRK --> HKX
+    FEAT -->|embedded HWND + scene protocol| EDITOR
+    PREV -->|schema-8 packages| EDITOR
+```
+
+### Layering rules
+
+Imports point one way. A layer may use the one below it and never the one above.
+
+```mermaid
+flowchart TD
+    UI["cdmw/ui — the only layer that may import PySide6 widgets"]
+    SERVICES["cdmw/services — coordination boundaries"]
+    DOMAIN["cdmw/domain — pure rules, no Qt"]
+    WORKERS["cdmw/workers — protocols, results, cancellation"]
+    CORE["cdmw/core · cdmw/modding · cdmw/rendering"]
+    NATIVE["native/ · tools/dotnet_* — helper processes"]
+
+    UI --> SERVICES --> DOMAIN
+    SERVICES --> WORKERS --> CORE --> NATIVE
+    UI -.->|via stable descriptors| WORKERS
+```
+
+`MainWindow` has only `QMainWindow` as a direct base. Feature behaviour is
+registered through stable descriptors bound to the window rather than through
+new window base classes, so call sites stay put while implementation owners are
+extracted. New behaviour belongs in a focused controller.
+
+### Mesh preview and editing
+
+One controller owns one verified helper process, with monotonic process and
+package generations so a stale result can never be shown.
+
+```mermaid
+sequenceDiagram
+    participant UI as Archive Browser
+    participant SESS as Preview session controller
+    participant PREV as cdmw_preview_core
+    participant NET as .NET D3D11 host
+
+    UI->>SESS: select entry
+    SESS->>PREV: prepare package (latest wins)
+    PREV-->>SESS: schema-8 package + material report
+    SESS->>NET: replace resident package
+    NET-->>SESS: Ready (consumed once per process)
+    SESS-->>UI: scene visible
+
+    Note over SESS,NET: A replacement prepares while the accepted scene stays on screen.
+    Note over SESS,PREV: Package/material failure is retryable and never recycles a healthy process.
+```
+
+The `preview` profile exposes read-only presentation, picking, overlays, and
+capture. The `authoring` profile adds the Mesh Editor mutation protocol and
+rehydrates from authoritative `MeshService` state after a recovery. `Edit Mesh`
+changes mutation permission — it does not choose or restart the renderer.
+
+### Build system
+
+Two build paths, both supported, driven from one UI:
+
+```mermaid
+flowchart LR
+    UIB[".tools/build-ui/cdmw-build.exe"]
+    BZL["bazel build //:CrimsonDesertModWorkbench<br/>fast · skips release gates"]
+    REL["build.bat onefile release<br/>full gates · publishes to dist/"]
+    NATIVE_T["bazel test //native/..."]
+    UIB --> BZL
+    UIB --> REL
+    UIB --> NATIVE_T
+```
+
+Bazel builds the shipped executable end to end — all five native C++ helpers,
+both self-contained .NET publishes, and the PyInstaller package — and is
+additive: the PowerShell release path is untouched and still owns the release
+gates. Bazel is installed repo-locally in `.tools/bazel/`; there is no
+system-wide install. See [docs/bazel-migration.md](docs/bazel-migration.md).
+
+---
 
 ## Install
 
 1. Download the latest Windows portable EXE from
-   [Releases](https://github.com/Ratty123/crimson-desert-mod-workbench/releases).
+   [Releases](https://github.com/Ratty123/CDMW-Full/releases).
 2. Run `CrimsonDesertModWorkbench-<version>-windows-portable.exe`.
-3. In `Texture Workflow > Setup`, initialize a workspace and configure roots.
-4. DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe`
-   helper automatically. Configure optional upscaling tools only if needed:
-   - Real-ESRGAN NCNN for direct upscaling
-   - chaiNNer for existing `.chn` chains
+3. In **Texture Workflow → Setup**, initialize a workspace and configure roots.
+4. DDS preview, staging, and rebuild use the bundled `cd-texture-dx.exe` helper
+   automatically. Configure optional upscaling tools only if you need them:
+   - **Real-ESRGAN NCNN** for direct upscaling
+   - **chaiNNer** for existing `.chn` chains
 
 Portable config is stored beside the EXE. App-managed folders live under
-`workspace/`, including original DDS files, staging, outputs, extracts,
-libraries, tools, cache, logs, sessions, projects, and research data.
+`workspace/`: original DDS files, staging, outputs, extracts, libraries, tools,
+cache, logs, sessions, projects, and research data.
 
-## Source Setup
+---
 
-Requirements:
+## Build from source
 
-- Windows
-- Python 3.11 or 3.14 (the two release-tested interpreters)
-- PowerShell
-- CMake/MSVC toolchain for native helper builds
-
-Install Python dependencies:
+**Requirements** — Windows 11 x64, Python 3.11 or 3.14 (the two release-tested
+interpreters), PowerShell, .NET 10 SDK, and a CMake/MSVC toolchain for the
+native helpers.
 
 ```powershell
 python -m venv .venv
@@ -86,7 +297,8 @@ python -m venv .venv
 .\.venv\Scripts\python.exe scripts\verify_release_dependencies.py
 ```
 
-Run tests:
+Run the tests (578 test modules covering behaviour, protocol contracts, and
+source guards):
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest
@@ -98,8 +310,6 @@ Run the app from source:
 .\.venv\Scripts\python.exe cdmw_app.py
 ```
 
-## Build
-
 Build a publishable onefile EXE:
 
 ```powershell
@@ -109,53 +319,78 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mod
 Release builds require the exact versions in `constraints-release.txt`, publish
 the bundled .NET Mesh Editor as a self-contained `win-x64` single file, and run
 an offscreen startup smoke. Output is published only after the atomic result
-marker reports `post_construction`.
-
-Expected output:
+marker reports `post_construction`:
 
 ```text
 dist\CrimsonDesertModWorkbench-<version>-windows-portable.exe
 ```
 
-Build a folder/onedir package:
+Other entry points:
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build_pyside6_app.ps1 -Mode onedir -BuildProfile release
+| Command | Result |
+|---|---|
+| `build.bat onefile release` | Same as above, through the batch wrapper |
+| `build.bat onedir release` | Folder package instead of a single file |
+| `build.bat` | Graphical build picker |
+| `.tools\build-ui\cdmw-build.exe` | Build UI covering both Bazel and release paths |
+| `.tools\bazel\bazel.exe build //:CrimsonDesertModWorkbench` | Fast Bazel build, no release gates |
+| `.tools\bazel\bazel.exe test //native/...` | Native helper unit tests |
+
+---
+
+## Project layout
+
+```text
+cdmw/                    application code
+  app/                   bootstrap, startup routing, single-instance handling
+  ui/shell/              MainWindow, tabs, controllers, close/diagnostics
+  ui/<feature>/          archive browser, texture workflow, mesh editor, research
+  ui/preview/            shared Qt host and resident preview session controller
+  services/              coordination boundaries, no PySide widget imports
+  domain/                pure rules: archive safety, texture policy, manifests
+  workers/               worker protocols, result types, cancellation
+  core/ modding/ rendering/   archive, DDS, import/export, packaging logic
+native/                  C++ helpers (preview core, mesh core, texture, hkx)
+tools/dotnet_*           .NET 10 helpers (D3D11 host, archive worker, build UI)
+schemas/                 versioned capability and package schemas
+tests/                   behaviour, protocol contract, and source-guard tests
+docs/                    guides, runbooks, and reverse-engineering notes
 ```
 
-Useful wrappers:
+Further reading: [Architecture](docs/architecture.md) ·
+[Docs index](docs/README.md) · [Startup flow](docs/runbooks/startup-flow.md) ·
+[Worker lifecycle](docs/runbooks/worker-lifecycle.md) ·
+[Archive safety model](docs/features/archive-safety-model.md)
 
-- `build.bat onefile release`
-- `build.bat onedir release`
-- `build.bat` for the graphical build picker
+---
 
-## Project Layout
+## Safety model
 
-- `cdmw/` - application code
-- `cdmw/core/` - archive, DDS, workflow, package, and research logic
-- `cdmw/modding/` - mesh/material replacement and import/export logic
-- `cdmw/rendering/` - native preview packaging, D3D11 host integration, capture tools
-- `cdmw/ui/` - PySide6 UI surfaces
-- `native/` - C++/Rust native helpers
-- `tests/` - behavior and source-guard tests
-- `tools/` - audit, capture, build, and research utilities
-- `docs/` - focused guides and reverse-engineering notes
+Archive mutation is explicit. Browsing, previewing, extracting, scanning, and
+package building never silently rewrite game archives. Supported archive patch
+flows use confirmation, preflight checks, backups, and restore support.
 
-Architecture details:
-
-- [Architecture](docs/architecture.md)
-- [Docs index](docs/README.md)
-- [Startup flow](docs/runbooks/startup-flow.md)
-- [Worker lifecycle](docs/runbooks/worker-lifecycle.md)
-- [Archive safety model](docs/features/archive-safety-model.md)
+Keep local game archives, extracted assets, DDS payloads, build output, crash
+reports, restore points, and corpus data out of source control.
 
 ## Privacy
 
-The app does not include telemetry, analytics, auto-update checks, or background
-network calls for normal offline use. Crash reports and diagnostic bundles stay
-local until you export and share them. It opens external pages only from
-explicit user actions such as download/help links.
+No telemetry, analytics, auto-update checks, or background network calls during
+normal offline use. Crash reports and diagnostic bundles stay local until you
+export and share them. External pages open only from explicit user actions such
+as download or help links.
+
+## Known limitations
+
+**Weapon Placement Studio is disabled in the UI.** This is intentional rather
+than unfinished polish: in-game testing showed that the true 1H/offhand and full
+behavior-swap paths need more than partial ItemInfo/PAAC edits, and can hang or
+crash the game. The embedded D3D11 placement preview is disabled for the same
+reason — the host can freeze the app. The repository still keeps the learned
+socket templates and CTF smoke checks for manual package work, but the studio is
+not shipped as a supported workflow.
 
 ## License
 
-See [LICENSE](LICENSE).
+[MIT](LICENSE). Third-party components and their licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
