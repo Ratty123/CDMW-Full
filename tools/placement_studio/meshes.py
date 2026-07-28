@@ -333,12 +333,69 @@ def weapon_mesh_path(weapon_id: str, model: str) -> str:
     are stripped rather than guessed at.
     """
 
+    return weapon_mesh_paths(weapon_id, model)[0]
+
+
+def weapon_mesh_paths(weapon_id: str, model: str) -> list:
+    """Every path a weapon's mesh might be at, likeliest first.
+
+    The side and case suffixes are usually the socket file's alone — `cd_phm_01_sword_0001_r`
+    is drawn by `cd_phm_01_sword_0001.pac`. Usually, not always: a fist weapon ships as
+    `cd_phm_13_cannon_0003_l.pac` and `..._r.pac`, two different meshes for the two hands. So
+    the name is tried as it stands as well as stripped, and the caller takes the one that is
+    actually in the archives.
+    """
+
     stem = weapon_id
     for suffix in ("_in", "_r", "_l"):
         while stem.endswith(suffix):
             stem = stem[: -len(suffix)]
-    category = "2_twohandweapon" if "_02_" in stem else "1_onehandweapon"
-    return f"character/model/1_pc/{model}/weapon/{category}/{stem}.pac"
+    folder = weapon_folder(stem)
+    root = f"character/model/1_pc/{model}/weapon"
+    seen = []
+    for candidate in (stem, weapon_id):
+        path = f"{root}/{folder}/{candidate}.pac"
+        if path not in seen:
+            seen.append(path)
+    return seen
+
+
+#: The number in a weapon's name is the folder its mesh lives in. `cd_phm_04_arw_0001` is in
+#: `4_bow`, not in `1_onehandweapon`.
+#:
+#: This used to be read as one bit — two-hand if the name contained `_02_`, one-hand otherwise —
+#: which sent every bow, shield, musket and torch to a path that does not exist. They loaded as
+#: weapons because their socket file is real, then drew nothing at all when selected.
+WEAPON_FOLDERS: Dict[str, str] = {
+    "00": "0_tools",
+    "01": "1_onehandweapon",
+    "02": "2_twohandweapon",
+    "03": "3_shield",
+    "04": "4_bow",
+    "05": "5_crossbow",
+    "06": "6_pistol",
+    "07": "7_shotgun",
+    "08": "8_musket",
+    "10": "10_thrownweapon",
+    "12": "12_pike",
+    "11": "11_trap",
+    "13": "13_fist",
+}
+
+
+def weapon_folder(stem: str) -> str:
+    """Which `weapon/` folder a stem belongs to, from the number it carries.
+
+    An unrecognised number falls back to one-hand, which is what the whole function used to
+    assume: no worse than before for anything it cannot place.
+    """
+
+    parts = stem.split("_")
+    if len(parts) > 2 and parts[2].isdigit():
+        folder = WEAPON_FOLDERS.get(parts[2])
+        if folder:
+            return folder
+    return "2_twohandweapon" if "_02_" in stem else "1_onehandweapon"
 
 
 BODY_SLOTS: Tuple[str, ...] = ("9_upperbody", "10_lowerbody")

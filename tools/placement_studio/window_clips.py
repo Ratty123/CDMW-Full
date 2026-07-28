@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from .glossary import MATCH_LABEL
 from .clip_names import rig_label, trimmed
+from .layout_util import fit_popup
 
 from pathlib import Path
 
@@ -212,6 +213,10 @@ class ClipBrowserMixin:
             # The code first, then whatever the install actually says about it. Nothing names
             # the other rigs, so they stay codes rather than being guessed at.
             self._clip_rig_box.addItem(rig_label(rig), rig)
+        # The closed control stays narrow so it does not widen the row, but the popup must not:
+        # elided down the middle, `10_pgw (playable)` came out as `10_pgw...yable)`, unreadable
+        # at both ends and identical to its neighbours.
+        fit_popup(self._clip_rig_box)
         if session_rig:
             position = self._clip_rig_box.findData(session_rig)
             if position >= 0:

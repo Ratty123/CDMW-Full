@@ -82,8 +82,9 @@ class BoneColumnTests(unittest.TestCase):
         """The caller skips the drift guard on this, so the flag has to be true only here."""
 
         rest = np.zeros((3, 4))
+        rig = _Rig(_HASHES)
         column, exact = _bone_column(
-            _pac_with_palette(_HASHES), [0, 5, 23], rest, _Rig(_HASHES)
+            _resolved_palette(_pac_with_palette(_HASHES), rig), [0, 5, 23], rest, rig
         )
 
         self.assertTrue(exact)
@@ -93,15 +94,19 @@ class BoneColumnTests(unittest.TestCase):
         """A slightly wrong body still beats no body — but it must be judged by drift."""
 
         rest = np.zeros((2, 4))
-        column, exact = _bone_column(b"\x00" * 512, [0, 1], rest, _Rig(_HASHES))
+        rig = _Rig(_HASHES)
+        column, exact = _bone_column(
+            _resolved_palette(b"\x00" * 512, rig), [0, 1], rest, rig
+        )
 
         self.assertFalse(exact)
         self.assertEqual(len(column), 2)
 
     def test_a_slot_outside_the_palette_never_indexes_off_the_end(self) -> None:
         rest = np.zeros((2, 4))
+        rig = _Rig(_HASHES)
         column, _exact = _bone_column(
-            _pac_with_palette(_HASHES), [0, 99], rest, _Rig(_HASHES)
+            _resolved_palette(_pac_with_palette(_HASHES), rig), [0, 99], rest, rig
         )
 
         self.assertEqual(column.tolist(), [0, 0])

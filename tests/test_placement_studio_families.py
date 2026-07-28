@@ -89,11 +89,19 @@ class CounterpartTests(unittest.TestCase):
         )
 
     def test_the_two_handed_direction_offers_every_candidate(self) -> None:
-        """`lswd` has three one-hand counterparts, so the caller picks the one that exists."""
+        """`lswd` has several one-hand counterparts, so the caller picks the one that exists.
+
+        Both characters' candidates are offered, not just the one whose clips are being asked
+        about. The sets are disjoint — Kliff has no `rpr` and Damian has no `swds` — so the
+        extra names simply miss, and pinning the count instead of the contents would fail every
+        time another character's families are learnt.
+        """
 
         names = carry.counterpart_names("cd_phm_lswd_00_01_sit_std_weapon_out_00")
+        families = {carry.family_of(n) for n in names}
 
-        self.assertEqual(len({carry.family_of(n) for n in names}), 3)
+        self.assertTrue({"swds", "dlsd", "swd"} <= families, families)
+        self.assertTrue({"rpr", "2rpr"} <= families, "Damian's rapier families are missing")
         self.assertIn("cd_phm_swds_00_01_sit_std_weapon_out_00", names)
         self.assertIn("cd_phm_dlsd_00_01_sit_std_weapon_out_00", names)
 
@@ -144,3 +152,109 @@ class SignatureTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DamianFamilyTests(unittest.TestCase):
+    """Damian shares exactly one weapon family with Kliff, and none of the sword ones.
+
+    His weapon *files* are named `cd_phw_01_sword_*`, which is what made this look settled. His
+    animations are not: he has no `sword`, `dualsword`, `dlsd`, `swds` or `swd` at all, so every
+    swap on him reported that no animation had a counterpart — and that reads as the tool being
+    broken rather than as a gap in a table.
+
+    The pairing was measured the way Kliff's was. Renaming the family token of his 640 `lswd`
+    clips lands on a real clip 394 times for `rpr` and 232 for `2rpr`; the best of Kliff's own
+    pairings lands 15% of the time.
+    """
+
+    def test_the_rapier_families_are_one_handed(self) -> None:
+        self.assertEqual(carry.CLIP_FAMILIES.get("rpr"), "1h")
+        self.assertEqual(carry.CLIP_FAMILIES.get("2rpr"), "1h")
+
+    def test_a_rapier_clip_pairs_back_to_the_longsword(self) -> None:
+        names = carry.counterpart_names("cd_phw_rpr_00_01_nor_std_weapon_out_00")
+
+        self.assertTrue(names, "a rapier draw must offer a two-handed counterpart")
+        self.assertEqual({carry.family_of(n) for n in names}, {"lswd"})
+
+    def test_the_character_token_is_never_swapped(self) -> None:
+        """Only the family changes — a counterpart is the same clip for another weapon."""
+
+        for name in carry.counterpart_names("cd_phw_lswd_00_01_nor_std_weapon_out_00"):
+            self.assertTrue(name.startswith("cd_phw_"), name)
+
+
+class PlayerPrefixTests(unittest.TestCase):
+    """A swap rewrites the player's own clips and nobody else's.
+
+    The motion tree is shared, so scope is the whole risk here — an unfiltered sweep once
+    rewrote 121 files including every boss's draw. The guard was right and its list was not:
+    hard-coded to Kliff's two prefixes, it matched nothing on Damian, so every swap on him
+    reported that no animation had a counterpart.
+    """
+
+    def test_each_character_gets_their_own_names(self) -> None:
+        self.assertIn("cd_phm_", carry.player_clip_prefixes("1_phm"))
+        self.assertIn("cd_phw_", carry.player_clip_prefixes("2_phw"))
+
+    def test_the_two_characters_never_overlap(self) -> None:
+        """Rewriting one character's animations for the other is the failure to avoid."""
+
+        kliff = set(carry.player_clip_prefixes("1_phm"))
+        damian = set(carry.player_clip_prefixes("2_phw"))
+
+        self.assertFalse(kliff & damian, f"{kliff} and {damian} share a prefix")
+
+    def test_mounted_clips_are_included_for_both(self) -> None:
+        self.assertIn("cd_prh_", carry.player_clip_prefixes("1_phm"))
+        self.assertIn("cd_damian_", carry.player_clip_prefixes("2_phw"))
+
+    def test_an_unknown_model_stays_narrow(self) -> None:
+        """Guessing wide would rewrite somebody else's animations; guessing narrow does not."""
+
+        self.assertEqual(carry.player_clip_prefixes("9_pgm"), ("cd_pgm_",))
+        self.assertEqual(carry.player_clip_prefixes(""), ())
+
+
+class WeaponFolderTests(unittest.TestCase):
+    """A weapon's mesh lives in the folder its number names, not in one of two.
+
+    The path was built by reading a single bit — two-hand if the name contained `_02_`, one-hand
+    otherwise — so every bow, shield, musket and torch resolved to a file that does not exist.
+    They still appeared in the dropdown, because their socket file is real, and then drew
+    nothing when selected.
+    """
+
+    def test_each_number_names_its_own_folder(self) -> None:
+        from tools.placement_studio.meshes import weapon_folder
+
+        self.assertEqual(weapon_folder("cd_phm_01_sword_0001"), "1_onehandweapon")
+        self.assertEqual(weapon_folder("cd_phm_02_sword_0001"), "2_twohandweapon")
+        self.assertEqual(weapon_folder("cd_phm_04_arw_0001"), "4_bow")
+        self.assertEqual(weapon_folder("cd_phw_03_shield_0001"), "3_shield")
+
+    def test_an_unknown_number_still_yields_a_path(self) -> None:
+        """No worse than the single bit this replaced, which assumed one-hand for everything."""
+
+        from tools.placement_studio.meshes import weapon_folder
+
+        self.assertEqual(weapon_folder("cd_phm_99_mystery_0001"), "1_onehandweapon")
+
+    def test_both_spellings_of_the_side_suffix_are_offered(self) -> None:
+        """Usually the suffix is the socket file's alone; for fist weapons it is the mesh's."""
+
+        from tools.placement_studio.meshes import weapon_mesh_paths
+
+        paths = weapon_mesh_paths("cd_phm_13_cannon_0003_l", "1_phm")
+
+        self.assertTrue(any(p.endswith("cd_phm_13_cannon_0003.pac") for p in paths))
+        self.assertTrue(any(p.endswith("cd_phm_13_cannon_0003_l.pac") for p in paths))
+
+    def test_every_category_is_named(self) -> None:
+        """`(?)` says nothing and reads as a fault."""
+
+        from tools.placement_studio.meshes import WEAPON_FOLDERS
+        from tools.placement_studio.resolver import WEAPON_CATEGORIES
+
+        for folder in WEAPON_FOLDERS.values():
+            self.assertIn(folder, WEAPON_CATEGORIES, f"{folder} would show as (?)")
