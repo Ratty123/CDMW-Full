@@ -363,3 +363,21 @@ def test_recovery_still_works_when_the_walk_cannot_finish() -> None:
         bytes(payload), broken.blob_offset, broken.blob_length
     )
     assert expected and all(text in [i.text for i in recovered] for text in expected)
+
+
+def test_a_stopped_walk_says_where_it_stopped() -> None:
+    """"Cannot follow this structure" is not something anyone can act on."""
+    payload = bytearray(_build_with_pointer())
+    intact = decode_prefab_binary(bytes(payload))
+    assert intact.walk_complete
+    assert intact.walk_stop_offset == -1
+    assert intact.walk_progress == 1.0
+
+    payload += bytes(8)
+    struct.pack_into("<I", payload, intact.blob_offset - 4, intact.blob_length + 8)
+    struct.pack_into("<I", payload, intact.blob_offset - 24, len(payload))
+    stopped = decode_prefab_binary(bytes(payload))
+
+    assert not stopped.walk_complete
+    assert stopped.blob_offset <= stopped.walk_stop_offset <= len(payload)
+    assert 0.0 < stopped.walk_progress <= 1.0

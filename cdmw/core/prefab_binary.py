@@ -262,6 +262,19 @@ class PrefabDocument:
     #: instead -- which corrupted 63 of 1,371 shipped prefabs before this
     #: existed. The walk consumes and validates the real one, so it knows.
     pointee_length_fields: tuple[tuple[int, int], ...] = ()
+    #: Absolute file offset where the walk stopped, or ``-1`` when it finished.
+    #: "Cannot follow this structure" is not a report anyone can act on; where
+    #: it happened, and how far in, is.
+    walk_stop_offset: int = -1
+
+    @property
+    def walk_progress(self) -> float:
+        """How much of the data section the walk got through, 0.0 to 1.0."""
+        if self.walk_complete:
+            return 1.0
+        if self.walk_stop_offset < 0 or self.blob_length <= 0:
+            return 0.0
+        return max(0.0, min(1.0, (self.walk_stop_offset - self.blob_offset) / self.blob_length))
 
     @property
     def inferred_objects(self) -> tuple[PrefabObject, ...]:
@@ -486,7 +499,7 @@ def recover_pointee_strings(
 class _BlobCursor:
     """Cursor over the data blob, in blob-relative coordinates."""
 
-    __slots__ = ("blob", "base", "pos", "type_table", "used_types", "pointee_fields")
+    __slots__ = ("blob", "base", "pos", "type_table", "used_types", "pointee_fields", "stopped_at")
 
     def __init__(self, blob: bytes, base: int, type_table: Sequence[PrefabType] = ()) -> None:
         self.blob = blob
@@ -498,6 +511,7 @@ class _BlobCursor:
         # an editor that has to search for it instead can land on a string's
         # own length prefix by coincidence.
         self.pointee_fields: dict[int, int] = {}
+        self.stopped_at = -1
         # Types already claimed by a group, so an unstated one can take the
         # next declared type instead of guessing by size.
         self.used_types: set[str] = set()
@@ -804,7 +818,7 @@ def _walk_blob(
     root: PrefabType,
     components: Sequence[PrefabType],
     all_types: Sequence[PrefabType] = (),
-) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, dict[int, int]]:
+) -> tuple[tuple[str, ...], list[PrefabObject], bool, str, _Collected, dict[int, int], int]:
     cursor = _BlobCursor(blob, base, all_types)
     objects: list[PrefabObject] = []
     cursor.take(2)
@@ -825,7 +839,8 @@ def _walk_blob(
             # let _read_member own that in one place.
             _read_member(cursor, member, collected, nested)
     except PrefabBinaryError as exc:
-        return selected, objects, False, str(exc), collected, cursor.pointee_fields
+        cursor.stopped_at = cursor.base + cursor.pos
+        return selected, objects, False, str(exc), collected, cursor.pointee_fields, cursor.stopped_at
     # The blob closes with the final record's footer plus a terminator; its
     # width follows the component family.
     remaining = len(blob) - cursor.pos
@@ -833,8 +848,9 @@ def _walk_blob(
         cursor.pos += remaining
         remaining = 0
     if remaining:
-        return selected, objects, False, f"walk ended {remaining} bytes short", collected, cursor.pointee_fields
-    return selected, objects, True, "", collected, cursor.pointee_fields
+        cursor.stopped_at = cursor.base + cursor.pos
+        return selected, objects, False, f"walk ended {remaining} bytes short", collected, cursor.pointee_fields, cursor.stopped_at
+    return selected, objects, True, "", collected, cursor.pointee_fields, cursor.stopped_at
 
 
 def decode_prefab_binary(data: bytes) -> PrefabDocument:
@@ -861,7 +877,7 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         and not item.type_name.startswith("ResourceReferencePath")
         and not item.is_nested_prefab
     ]
-    selected, objects, complete, note, root_values, pointee_fields = _walk_blob(
+    selected, objects, complete, note, root_values, pointee_fields, stopped_at = _walk_blob(
         blob, header.blob_offset, root, tuple(components), header.types
     )
     pointers = tuple(
@@ -891,4 +907,5 @@ def decode_prefab_binary(data: bytes) -> PrefabDocument:
         walk_note=note,
         byte_length=len(payload),
         pointee_length_fields=tuple(sorted(pointee_fields.items())),
+        walk_stop_offset=stopped_at,
     )

@@ -264,11 +264,19 @@ class PrefabInspectorDialog(PrefabEditingMixin, QDialog):
         )
         if document.walk_complete:
             return f"Fully read. {head} Everything below can be changed.{caveat}"
+        # Where it stopped, not just that it stopped: "cannot follow this
+        # structure" is not something a modder can report or act on.
+        where = ""
+        if document.walk_stop_offset >= 0:
+            where = (
+                f" It got {document.walk_progress:.0%} of the way through and stopped at "
+                f"byte {document.walk_stop_offset:,} ({document.walk_note})."
+            )
         return (
-            f"Partly read. {head} What is shown was read from the file; the rest uses a "
-            "structure this tool cannot follow yet. You can still swap a file for another "
-            "whose name is exactly the same length - that moves nothing in the file - but "
-            f"anything that would resize it is refused.{caveat}"
+            f"Partly read. {head}{where} What is shown was read from the file; the rest "
+            "uses a structure this tool cannot follow yet. You can still swap a file for "
+            "another whose name is exactly the same length - that moves nothing in the "
+            f"file - but anything that would resize it is refused.{caveat}"
         )
 
     def _can_edit(self) -> bool:
