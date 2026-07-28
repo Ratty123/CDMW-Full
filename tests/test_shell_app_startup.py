@@ -278,10 +278,18 @@ class ShellAppStartupTests(unittest.TestCase):
         self.assertTrue(window.released)
         self.assertTrue(app.process_events_called)
         self.assertTrue(window.finalized)
+        # The four stable fields are asserted exactly. `bundled_helpers` is a snapshot of
+        # which native helpers resolved on this machine, so its contents differ between a
+        # built checkout and a bare one; pinning them would make this fail on hardware
+        # rather than on behaviour.
         self.assertEqual(
             {"ok": True, "pid": os.getpid(), "stage": "post_construction", "target": "default"},
-            payload,
+            {key: payload[key] for key in ("ok", "pid", "stage", "target")},
         )
+        self.assertEqual(set(payload) - {"ok", "pid", "stage", "target"}, {"bundled_helpers"})
+        self.assertIsInstance(payload["bundled_helpers"], list)
+        for helper in payload["bundled_helpers"]:
+            self.assertIn("key", helper)
 
     def test_finish_gui_startup_smoke_can_activate_mesh_editor_target(self) -> None:
         QApplication.instance() or QApplication([])

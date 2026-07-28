@@ -381,47 +381,63 @@ def render_report(manifest: Mapping[str, object]) -> str:
         + "."
     )
     out.append("")
-    out.append("## Highest-value gaps")
+    out.extend(_render_gaps(progress))
+    out.extend(_render_unlisted(progress))
+    out.extend(_render_rubric())
+    return "\n".join(out).rstrip() + "\n"
+
+
+def _render_gaps(progress: Mapping[str, object]) -> list[str]:
+    out = ["## Highest-value gaps", ""]
+    out.append(
+        "Every format marked `high`: closing it opens a modding category that is currently at zero."
+    )
     out.append("")
-    out.append("Every format marked `high`: closing it opens a modding category that is currently at zero.")
-    out.append("")
-    for gap in progress["open_high_priority_gaps"]:
-        out.append(f"- **`{gap['extension']}`** (read {gap['decode']}, write {gap['write']}) — {gap['remaining']}")
-    out.append("")
-    unlisted = progress["unlisted_in_manifest"]
-    if unlisted:
-        out.append("## Not yet in the manifest")
-        out.append("")
+    for gap in progress["open_high_priority_gaps"]:  # type: ignore[index]
         out.append(
-            f"The shipped build contains {len(unlisted)} extensions this manifest has never "
-            f"described, {sum(row['archive_files'] for row in unlisted):,} files in total. They "
-            f"are absent from every percentage above, so treat those numbers as covering the "
-            f"formats we know about rather than everything the game ships."
+            f"- **`{gap['extension']}`** (read {gap['decode']}, write {gap['write']}) "
+            f"— {gap['remaining']}"
         )
-        out.append("")
-        out.append(
-            _table(
-                [[f"`{row['extension']}`", f"{row['archive_files']:,}"] for row in unlisted[:20]],
-                ["Extension", "Files"],
-            )
-        )
-        if len(unlisted) > 20:
-            out.append("")
-            out.append(
-                "Plus "
-                + ", ".join(f"`{row['extension']}`" for row in unlisted[20:])
-                + "."
-            )
-        out.append("")
-    out.append("## Rubric")
     out.append("")
+    return out
+
+
+def _render_unlisted(progress: Mapping[str, object]) -> list[str]:
+    """Extensions the build ships that the manifest has never described."""
+
+    unlisted = progress["unlisted_in_manifest"]  # type: ignore[index]
+    if not unlisted:
+        return []
+    out = ["## Not yet in the manifest", ""]
+    out.append(
+        f"The shipped build contains {len(unlisted)} extensions this manifest has never "
+        f"described, {sum(row['archive_files'] for row in unlisted):,} files in total. They "
+        f"are absent from every percentage above, so treat those numbers as covering the "
+        f"formats we know about rather than everything the game ships."
+    )
+    out.append("")
+    out.append(
+        _table(
+            [[f"`{row['extension']}`", f"{row['archive_files']:,}"] for row in unlisted[:20]],
+            ["Extension", "Files"],
+        )
+    )
+    if len(unlisted) > 20:
+        out.append("")
+        out.append("Plus " + ", ".join(f"`{row['extension']}`" for row in unlisted[20:]) + ".")
+    out.append("")
+    return out
+
+
+def _render_rubric() -> list[str]:
+    out = ["## Rubric", ""]
     for axis in ("decode", "write", "origin", "priority"):
         out.append(f"**{axis}**")
         out.append("")
         for key, description in RUBRIC[axis].items():  # type: ignore[index]
             out.append(f"- `{key}` — {description}")
         out.append("")
-    return "\n".join(out).rstrip() + "\n"
+    return out
 
 
 def main(argv: Sequence[str] | None = None) -> int:

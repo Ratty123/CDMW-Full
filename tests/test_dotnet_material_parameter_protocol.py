@@ -239,7 +239,10 @@ def test_shader_applies_explicit_surface_base_and_emissive_parameters() -> None:
     assert "float3 tintBias = clamp(" in shader
     assert "MaterialHasBase > 0.5f\n        ? BaseTexture.Sample(MaterialSampler, uv)\n        : (MaterialBaseTint.w > 0.5f" in shader
     assert "MaterialBaseTint.w > 0.5f && MaterialBaseTintPolicy.x" not in shader
-    assert "bool earlyCategoryMetal = MaterialBaseTintPolicy.y > 0.5f" in shader
+    # An authored base tint opts out of the metal damping; the category band is still
+    # bounded at both ends.
+    assert "bool earlyCategoryMetal = !authoredBaseTint" in shader
+    assert "MaterialBaseTintPolicy.y > 0.5f" in shader
     assert "MaterialBaseTintPolicy.y < 1.5f" in shader
     assert "float neutralMetalTint = earlyCategoryMetal" in shader
     assert "float liftedLuma = saturate(albedoLuma * (1.05f + strength * 0.35f)" in shader

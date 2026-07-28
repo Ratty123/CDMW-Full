@@ -638,7 +638,10 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn("min_refs_width = max(240, min(320, configured_refs_min or 300))", source)
         self.assertIn("max_refs_width = min(680", source)
         self.assertIn("Keep Asset Family visible even in compact or freshly reflowed layouts.", source)
-        self.assertIn("self.archive_preview_content_splitter.setCollapsible(1, not has_asset_relationships)", source)
+        # Collapsibility keys on whether the panel is actually open, not merely on
+        # whether the entry has relationships: the button's visibility still uses
+        # has_asset_relationships, but a pane that is showing must not collapse.
+        self.assertIn("self.archive_preview_content_splitter.setCollapsible(1, not panel_requested)", source)
         self.assertIn("self.archive_preview_content_splitter.setCollapsible(1, False)", source)
         self.assertNotIn("target_sizes = [total, 0]", source)
         self.assertIn("self.archive_preview_content_splitter.setSizes(target_sizes)", source)
@@ -1217,9 +1220,11 @@ class CrashReportingGuardTests(unittest.TestCase):
         self.assertIn('widget.setProperty("_cdmw_responsive_base_min_width", base_min_width)', source)
         self.assertIn("new_min_width = max(0, int(round(int(base_min_width) * scale)))", source)
         self.assertIn("widget.setMinimumWidth(new_min_width)", source)
-        self.assertIn("use_fast_widths = bool(", source)
-        self.assertIn('hasattr(self.archive_tree, "set_archive_state")', source)
-        self.assertIn("content_width = 0 if use_fast_widths else self.archive_tree.sizeHintForColumn(column) + 28", source)
+        # Column autofit measures loaded rows under a budget instead of asking the
+        # virtual tree for an unbounded sizeHintForColumn over every entry.
+        self.assertIn("def _measure_archive_tree_content_widths(self, *, row_budget: int = 400)", source)
+        self.assertIn("remaining = max(1, int(row_budget))", source)
+        self.assertNotIn("self.archive_tree.sizeHintForColumn(", source)
         self.assertIn("def _scale_density_metrics(metrics: Dict[str, int], scale: float) -> Dict[str, int]:", theme_source)
         self.assertIn("metrics = _scale_density_metrics(_density_metrics(density_key), layout_scale)", theme_source)
 

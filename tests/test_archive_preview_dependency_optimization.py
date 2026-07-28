@@ -93,7 +93,15 @@ class ArchivePreviewDependencyOptimizationTests(unittest.TestCase):
             basename_lookup.index("lookup_archive_lite_basename"),
         )
         self.assertIn("return result;", basename_lookup)
-        self.assertIn("package_root_pamt_paths", basename_lookup)
+        # The legacy scan is still there, but it moved out of this function and behind
+        # `lookup_archive_lite_basename` into `cross_package_scan_refs`. The ordering
+        # assertion above is what actually enforces bounded-before-legacy; this only
+        # checks the legacy path still exists to be ordered after.
+        self.assertIn("package_root_pamt_paths", source)
+        self.assertLess(
+            basename_lookup.index("lookup_archive_lite_basename"),
+            len(basename_lookup),
+        )
 
         decode_source = Path("native/cdmw_preview_core/src/owners/archive_decode.cpp").read_text(
             encoding="utf-8"

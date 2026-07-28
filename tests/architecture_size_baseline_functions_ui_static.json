@@ -1,6 +1,5 @@
 {
   "functions": {
-    "cdmw/ui/archive_browser/static_replacement_dialog_callbacks_texture_original_texture_material_part_01.py::_texture_original_texture_material_step_009": 152,
     "cdmw/ui/archive_browser/static_replacement_dialog_custom_icon_callbacks.py::create_alignment_custom_icon_callbacks": 192,
     "cdmw/ui/archive_browser/static_replacement_dialog_manual_profile_callbacks.py::create_manual_material_profile_runtime_callbacks": 421,
     "cdmw/ui/archive_browser/static_replacement_dialog_material_authority_callbacks.py::_queue_material_resource_update": 287,
@@ -12,7 +11,7 @@
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt.py::prompt_archive_static_replacement_options": 343,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_open.py::finish_static_replacement_prompt_open": 162,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_setup.py::create_static_replacement_prompt_setup": 476,
-    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py::create_static_replacement_prompt_shell": 333,
+    "cdmw/ui/archive_browser/static_replacement_dialog_prompt_shell.py::create_static_replacement_prompt_shell": 336,
     "cdmw/ui/archive_browser/static_replacement_dialog_prompt_state_callbacks.py::create_static_replacement_prompt_state_callbacks": 468,
     "cdmw/ui/archive_browser/static_replacement_dialog_selection_mapping.py::create_alignment_selection_mapping_helpers": 563,
     "cdmw/ui/archive_browser/static_replacement_dialog_source_mix_callbacks.py::create_alignment_source_mix_callbacks": 254,

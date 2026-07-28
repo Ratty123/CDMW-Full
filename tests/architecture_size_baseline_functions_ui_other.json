@@ -17,7 +17,7 @@
     "cdmw/ui/shell/about_documentation_es.py::AboutDocumentationSpanishMixin._build_about_document_for_spanish": 519,
     "cdmw/ui/shell/app_window.py::run_gui": 472,
     "cdmw/ui/shell/signal_wiring.py::ShellSignalWiringMixin._connect_shell_signals": 192,
-    "cdmw/ui/shell/window_runtime_state.py::ShellWindowRuntimeStateMixin._initialize_archive_runtime_state": 252,
+    "cdmw/ui/shell/window_runtime_state.py::ShellWindowRuntimeStateMixin._initialize_archive_runtime_state": 260,
     "cdmw/ui/startup_splash_host.py::run_startup_splash_host": 405,
     "cdmw/ui/text_search/tab.py::TextSearchTab.__init__": 332,
     "cdmw/ui/texture_editor_tab.py::TextureEditorTab.__init__": 1305,
