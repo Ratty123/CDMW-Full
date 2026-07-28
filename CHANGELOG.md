@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Docs
+- Took a serious run at `.paproj` and did not crack it, so the manifest now records what is ruled out rather than implying the work is undone. Stride analysis finds no fixed record in eight of the nine files — their strongest period is 4 bytes, which is the noise floor of a float array rather than a record boundary. The ninth, `projectileshotinfo`, does show a real 156-byte period from around offset 284, confirmed by its 312 harmonic and by `-1.0` markers sitting at consistent offsets inside it, but agreement is 0.548 against a 0.5 baseline and the fields decode as denormal noise, so the period is real while the layout over it is not established.
+- The reason this is harder than `.papr` is worth recording: `.papr` has a `record_count` in its header that no decoding rule can influence, and every candidate grammar could be checked against it. `.paproj` has no such counter, so a plausible-looking layout would have nothing to falsify it — which is exactly the situation that produced the discarded readings earlier in this format work.
+
 ### Added
 - Decoded `.paprojdesc` completely. Despite the name it has nothing to do with projects: these are **projectile** files, and this one is the index under `actionchart/` that says which projectile-info modules each package loads. It is a `u16` string count, then strings in the `.paac` convention (a length byte that counts the trailing NUL), a `u32` package count and module total, one 6-byte row per package, and a flat `u16` module list. All 139 bytes of the shipped file are accounted for and it rebuilds byte for byte.
 - It also has something almost no format here has: **ground truth**. `actionchart/xml/description/projectilepackagedescription.xml` is the source it was compiled from, so the corpus gate checks the decode against the XML rather than against itself — two packages, `ProjectileInfoPackage` and `GimmickPackage`, each loading the same three modules. That is what turned a plausible reading of the trailing 32 bytes into a confirmed one.
