@@ -555,3 +555,44 @@ def test_an_over_declared_collection_is_reported_rather_than_hidden() -> None:
 
     assert over_declared(honest) == 0
     assert over_declared(inflated) == 1
+
+
+def test_the_trailer_record_comes_in_two_widths() -> None:
+    """Width follows the component family, as it does for the footer search.
+
+    Reading only the five-byte record left 28 files in 1,500 stopping exactly
+    seven bytes short -- every one of them holding `01 01 06 00 00 00 01`, which
+    is one six-byte record and the terminator, not a structure the walk had
+    failed to follow.
+    """
+    from cdmw.core.prefab_binary import _is_trailer_run
+
+    six = bytes.fromhex("01 01 06 00 00 00")
+    assert _is_trailer_run(six + bytes([1]), 0), "the shipped tail, exactly"
+    assert _is_trailer_run(six, 0)
+    assert _is_trailer_run(six * 2, 0)
+    # Still a record run, not "any leftover starting with 01": the whole
+    # remainder has to be records, which is what stops this closing a lost walk.
+    assert not _is_trailer_run(six + bytes([1, 2, 3]), 0)
+    assert not _is_trailer_run(bytes.fromhex("02 01 06 00 00 00"), 0)
+
+
+def test_a_six_byte_trailer_closes_the_blob() -> None:
+    """End to end: the width matters because it decides `walk_complete`."""
+
+    from tests.prefab_collection_builder import build_with_collection
+
+    data = build_with_collection(("A", "B"))
+    # Swap the five-byte trailer this builder writes for the six-byte record
+    # plus terminator that the 28 shipped files carry.
+    grown = bytearray(data)
+    document = decode_prefab_binary(data)
+    end = document.blob_offset + document.blob_length
+    grown[end - 5: end] = bytes.fromhex("01 01 06 00 00 00 01")
+    struct.pack_into("<I", grown, document.blob_offset - 4, document.blob_length + 2)
+    struct.pack_into("<I", grown, document.blob_offset - 24, len(grown))
+
+    after = decode_prefab_binary(bytes(grown))
+
+    assert after.walk_complete, after.walk_note
+    assert len(after.objects) == 2

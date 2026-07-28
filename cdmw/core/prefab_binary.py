@@ -119,6 +119,8 @@ _FOOTER_SEARCH = 17
 _MAX_DEPTH = 32
 _MAX_GROUPS = 100_000
 _MARKER_SEARCH = 512
+#: Trailer record widths, narrow first. See :func:`_is_trailer_run`.
+_TRAILER_WIDTHS = (5, 6)
 
 
 class PrefabBinaryError(ValueError):
@@ -583,19 +585,36 @@ def _read_pointer(cursor: _BlobCursor, into: _Collected, member_name: str = "") 
 
 
 def _is_trailer_run(blob: bytes, at: int) -> bool:
-    """Is everything from ``at`` to the end a run of ``01 <u32>`` records?
+    """Is everything from ``at`` to the end a run of trailer records?
 
     A completed walk's blob ends ``.. 00 00 00 01``, and the bytes left over
-    when a nearly-finished walk gives up are runs of the same five-byte record.
-    The trailer is a sequence of them, not the single one the fixed 5-or-6-byte
+    when a nearly-finished walk gives up are runs of the same record. The
+    trailer is a sequence of them, not the single one the fixed 5-or-6-byte
     rule assumed.
+
+    Records come in two widths, which is the same "width follows the component
+    family" the footer search already deals with. Reading only the five-byte
+    one left 28 files in 1,500 stopping exactly seven bytes short, every one of
+    them holding ``01 01 06 00 00 00 01`` -- one six-byte record and the
+    terminator. Only single six-byte records are attested; the run is a
+    generalisation, made because the five-byte rule needed exactly the same one.
+    """
+    return any(_is_trailer_run_of(blob, at, width) for width in _TRAILER_WIDTHS)
+
+
+def _is_trailer_run_of(blob: bytes, at: int, width: int) -> bool:
+    """A run of ``width``-byte records, each opening ``01``, consuming the rest.
+
+    Exact consumption is what keeps this from closing a walk that is merely
+    lost: a leftover of any size has to be records all the way down, with at
+    most one byte spare.
     """
     pos = at
     seen = 0
-    while pos + 5 <= len(blob):
+    while pos + width <= len(blob):
         if blob[pos] != 1:
             return False
-        pos += 5
+        pos += width
         seen += 1
     return seen > 0 and len(blob) - pos <= 1
 
