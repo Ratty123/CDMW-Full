@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Checked whether the Havok reflection behind `.prefab` is documented, and **it is not**. The version is `Havok_2024` — 107 occurrences in the executable — and the classic reflection registry names are entirely absent: `hkTypeInfoRegistry`, `hkBuiltinTypeRegistry` and `hkDynamicClassNameRegistry` all occur **zero** times, against 191 for `hkReflect` and 54 for `hkSerialize`. This is the newer `hkReflect` system, not the `hkClass` one that public Havok documentation and the community `.hkx` tooling both target.
+- So the hopeful reading from the previous commit is closed off: component resolution has to be reverse engineered from this binary like anything else, and existing Havok knowledge is aimed at the wrong system. That is worth knowing before anyone spends a day looking for a spec. The registry itself still has not been located.
+
+### Docs
 - Went looking for `.prefab` component-resolution logic in `CrimsonDesert.exe` and found something that may reframe the format: **the reflection system behind it appears to be Havok's, not Pearl Abyss's.** The binary carries `hkReflect` RTTI throughout — `MutableTypeReg`, `BuiltinTypeReg`, `AttributeArrayWithOwnership`, `Version::PatchRegistry`, `Version::PatchSet`, `ClonerCallback` — with a Pearl Abyss layer above it (`AutoReflectBase@pa`, `ReflectObjectIterator@pa`, `IReflectObjectResourceBase@pa`, `CustomAttributeReflectObject@pa`). `ReflectObject` appears 737 times, `SceneObject` 504.
 - If component identity is resolved through a Havok **type registry** rather than through declaration order, marker-1 identity may be recoverable from that registry — and `hkReflect` is documented middleware rather than a format that must be derived from bytes. The project already treats Havok formats as `third_party` origin elsewhere. **Not confirmed:** the registry has not been located, and no link between it and the on-disk masks has been established. Recorded as a lead, with the same discipline that has now rejected four `.prefab` hypotheses that looked stronger than this one at the same stage.
 
