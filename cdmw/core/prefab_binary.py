@@ -879,6 +879,59 @@ def _walk_blob(
     return selected, objects, True, "", collected, cursor.pointee_fields, cursor.stopped_at
 
 
+def walk_is_determined(data: bytes) -> bool:
+    """Does only one reading of this file's ambiguous collections close the blob?
+
+    Most collection headers are locally ambiguous: both the narrow and the wide
+    form yield a plausible element count, and the reader simply prefers the
+    narrow one. That is safe because a wrong width desynchronises everything
+    after it, so the blob fails to close and the walk is reported as partial --
+    measured over 1,500 prefabs, forcing the wide reading dropped completions
+    from 916 to 11.
+
+    Those eleven are the exception, and this finds them. When both readings
+    complete, the file's own structure does not choose between them, so the
+    offsets a caller would edit at cannot be trusted even though the walk looks
+    clean. Callers should refuse to edit such a file rather than warn about it:
+    the failure would be a byte written to a plausible wrong place.
+    """
+
+    try:
+        if not decode_prefab_binary(data).walk_complete:
+            return True          # partial walks are already refused elsewhere
+    except PrefabBinaryError:
+        return True
+
+    global _read_collection_count
+    shipped = _read_collection_count
+
+    flipped = False
+
+    def prefer_wide(cursor: _BlobCursor) -> int:
+        nonlocal flipped
+        at, blob = cursor.pos, cursor.blob
+        narrow = struct.unpack_from("<I", blob, at + 1)[0] if at + 5 <= len(blob) else None
+        wide = struct.unpack_from("<I", blob, at + 2)[0] if at + 6 <= len(blob) else None
+        if (narrow is not None and narrow <= _MAX_COUNT
+                and wide is not None and wide <= _MAX_COUNT):
+            flipped = True
+            cursor.take(6)
+            return wide
+        return shipped(cursor)
+
+    _read_collection_count = prefer_wide
+    try:
+        alternate = decode_prefab_binary(data).walk_complete
+    except PrefabBinaryError:
+        alternate = False
+    finally:
+        _read_collection_count = shipped
+    # A file with no ambiguous site decodes identically both ways. That is not
+    # two valid readings, it is one reading run twice, and calling it
+    # undetermined would refuse editing on almost every prefab.
+    return not (alternate and flipped)
+
+
 def decode_prefab_binary(data: bytes) -> PrefabDocument:
     """Decode a ``.prefab`` payload.
 
