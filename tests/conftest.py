@@ -5,6 +5,32 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _restore_process_environment():
+    """Undo environment changes a test leaves behind, whoever made them.
+
+    The application sets process-wide flags during startup and clears them when
+    startup finishes -- `CDMW_DEFER_TEXTURE_PREVIEW` in `startup_controller` and
+    `startup_restore`, for instance. A test that builds the startup surface but
+    never completes startup leaves the flag set, and because it is read with a
+    bare `os.environ.get`, every later test in the session inherits it. That one
+    flag made `ensure_directxtex_dds_preview_pngs` return an empty result before
+    doing any work, which failed ten texture-backend tests and the decode-cache
+    concurrency test with symptoms that pointed nowhere near startup.
+
+    `monkeypatch.setenv` does not help here: the leak comes from application code
+    reached during the test, not from the test's own setup.
+    """
+
+    snapshot = dict(os.environ)
+    yield
+    if os.environ != snapshot:
+        os.environ.clear()
+        os.environ.update(snapshot)
+
 
 _CACHE_ENV = "CDMW_TEMP_CACHE_ROOT"
 _original_cache_root: str | None = None
