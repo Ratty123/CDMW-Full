@@ -161,8 +161,9 @@ class GroupingTests(unittest.TestCase):
         other = group_label("cd_phm_dualsword_00_01_nor_stand_weapon_out_00", 2)
         stance = group_label("cd_phm_sword_01_01_normal_stand_weapon_out_000", 2)
 
-        self.assertIn("One-handed sword", one)
-        self.assertIn("Dual swords", other)
+        # Short on purpose: the row already names the action and the situation.
+        self.assertIn("one-hand", one)
+        self.assertIn("dual swords", other)
         self.assertNotEqual(one, other)
         self.assertIn("state", stance)
         self.assertNotEqual(one, stance)

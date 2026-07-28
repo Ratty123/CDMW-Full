@@ -310,6 +310,12 @@ class MoveWeaponDialog(QDialog):
         # One row per thing you could decide about, not per file. Takes and distance copies
         # of the same moment differ only in ways the game picks for itself, so they share a
         # row, a tick and a style picker.
+        # Where every row borrows from the same family — which is the usual case, since a swap
+        # runs in one direction — naming it on each row restates the sentence at the top of the
+        # dialog twenty-eight times. It is shown only when rows actually differ.
+        donor_families = {family_label(row[1].name) for row in rows}
+        name_the_donor = len(donor_families) > 1
+
         lanes = {}
         merged = collections.OrderedDict()
         for row in rows:
@@ -341,7 +347,7 @@ class MoveWeaponDialog(QDialog):
             worn, borrowed_family = family_label(target.name), family_label(donor.name)
             if labels[(name, label)] > 1 or worn != borrowed_family:
                 text = f"{text}  ·  {worn.lower()}"
-                if borrowed_family and borrowed_family != worn:
+                if name_the_donor and borrowed_family and borrowed_family != worn:
                     text = f"{text}  ←  {borrowed_family.lower()}"
             if len(members) > 1:
                 text = f"{text}   ({len(members)} files)"

@@ -11,6 +11,13 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Changed
+- Move-dialog rows are much shorter. `Drawing the weapon · dual swords ← two-handed sword (2 files)` is seventy characters of which four carry the decision; it now reads `Draw · dual swords (2 files)`. The action is a word rather than a sentence, because the row already sits under a heading naming the situation; family names are short; and the family being borrowed *from* is named only when rows actually differ, since a swap runs in one direction and repeating it on every row restates the sentence at the top of the dialog.
+- Damian's rapier families had no readable names and showed as `rpr` and `2rpr`.
+
+### Fixed
+- `weaponout`/`weaponin` — the underscore-less spelling a run of mounted clips uses — had no entry in the action vocabulary, so those rows fell through to raw file words and read `Att skill weaponout f handr swing forward`. The switch action is also matched before the sheathe now: `weapon_ing` contains `weapon_in`, so order is what keeps a switch from reading as a put-away.
+
 ### Docs
 - Walked three more shot-data serialisers. `ProjectilePhysicsShotData` reads `+0x20` u32, `+0x24` u32, `+0x28` u32 and four u8 at `+0x2c`–`+0x2f`; `ProjectileGuideShotData` reads five u32 at `+0x20`–`+0x30`. Their vftables sit exactly `0x28` apart at `0x04f22848`, `…70`, `…98`, `…c0`, which confirms these are consecutive **sibling** classes — and so the read/write slot groups seen earlier in one vftable dump were the neighbours' tables, not one class's.
 - The owning class is not among them. `ClientProjectile_Shot` (vftable `0x04b64768`) is the likeliest container, but the triple scanner mis-parses its serialiser, returning a single implausible 515-byte read, so it needs following by hand. Recorded rather than guessed at.
