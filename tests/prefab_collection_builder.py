@@ -78,7 +78,7 @@ def build_with_collection(
     blob += struct.pack("<I", len(names) if declared is None else declared)
     for name in names:
         blob += element(base, len(blob), name, f"asset/{name.lower()}.pac")
-    blob += b"\x01" + b"\x00" * 4          # trailer
+    blob += b"\x01"                        # the terminator; see prefab_blob_tail
 
     data_header = struct.pack("<III", 1, base + len(blob), 0)
     data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)

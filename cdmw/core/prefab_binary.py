@@ -67,10 +67,8 @@ from typing import Iterator, Mapping, Sequence
 # Re-exported: callers have always imported PrefabCollection from here, and the
 # split is about file size rather than about the interface.
 from cdmw.core.prefab_collection_spans import PrefabCollection, over_declared
-# How the blob closes. `_is_trailer_run` is re-exported under its old name
-# because it is the run primitive the guards address by name.
 from cdmw.core.prefab_blob_tail import closes_blob as _closes_blob
-from cdmw.core.prefab_blob_tail import is_trailer_run as _is_trailer_run
+from cdmw.core.prefab_blob_tail import pointee_starts as _pointee_starts
 
 MAGIC = 0xFFFF
 SUPPORTED_VERSIONS = (3, 4)
@@ -477,7 +475,7 @@ class _BlobCursor:
 
     __slots__ = (
         "blob", "base", "pos", "type_table", "used_types", "pointee_fields",
-        "stopped_at", "collections", "wide_on_multiples",
+        "stopped_at", "collections", "wide_on_multiples", "_starts",
     )
 
     def __init__(
@@ -502,6 +500,7 @@ class _BlobCursor:
         self.stopped_at = -1
         # Collections in the order they were read, with their element spans.
         self.collections: list[PrefabCollection] = []
+        self._starts: frozenset[int] | None = None
         # Types already claimed by a group, so an unstated one can take the
         # next declared type instead of guessing by size.
         self.used_types: set[str] = set()
@@ -530,6 +529,12 @@ class _BlobCursor:
             offset=self.base + offset,
             length=length,
         )
+
+    def closes_here(self, at: int) -> bool:
+        """Is the rest of the blob an unread close rather than data?"""
+        if self._starts is None:
+            self._starts = _pointee_starts(self.blob, self.base)
+        return _closes_blob(self.blob, at, self._starts)
 
     def at_pointer(self) -> bool:
         """True when the cursor sits on a pointer record's owner field."""
@@ -723,7 +728,7 @@ def _read_member(
                 # The declared count outruns the data on files that are
                 # otherwise complete. When what is left is only the trailer
                 # run, the collection has ended rather than broken.
-                if _closes_blob(cursor.blob, mark):
+                if cursor.closes_here(mark):
                     cursor.pos = mark
                     break
                 raise
@@ -942,7 +947,19 @@ def _walk_blob(
     # The blob closes with the final record's footer plus a terminator; its
     # width follows the component family.
     remaining = len(blob) - cursor.pos
-    if 5 <= remaining <= 6 or _closes_blob(blob, cursor.pos):
+    # Two rules, and the difference between them matters.
+    #
+    # `closes_here` *validates*: every residual byte is a terminator or a
+    # pointee length field that names a real pointee. That is the one to trust.
+    #
+    # The 5-or-6 byte allowance below is the original *tolerance*, kept because
+    # it still earns 23 files the validated rule cannot explain. On real files
+    # the five-byte tail is a length field plus the terminator and validation
+    # covers it; where it does not, this is admitting the walk stopped early
+    # without knowing why. Anything that shrinks it is an improvement.
+    #
+    # A walk that consumed the blob exactly needs no tail at all.
+    if remaining and (cursor.closes_here(cursor.pos) or 5 <= remaining <= 6):
         cursor.pos += remaining
         remaining = 0
     if remaining:
