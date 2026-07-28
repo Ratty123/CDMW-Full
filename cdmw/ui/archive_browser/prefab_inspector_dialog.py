@@ -175,10 +175,17 @@ class PrefabInspectorDialog(QDialog):
         layout.addWidget(self.status)
 
         row = QHBoxLayout()
-        self.apply_button = QPushButton("Save changes")
+        # The ellipsis is load-bearing: this builds the edited file but does not
+        # write anything. The destination is chosen after the window closes, and
+        # the old label ("Save changes", "Write the changes into a copy") read as
+        # if the save had already happened.
+        self.apply_button = QPushButton("Save changes...")
         self.apply_button.setEnabled(False)
         self.apply_button.clicked.connect(self._apply_changes)
-        self.apply_button.setToolTip("Write the changes into a copy; the game files are never touched.")
+        self.apply_button.setToolTip(
+            "Build the edited file. You choose where to save the mod package after "
+            "closing this window; the game files are never touched."
+        )
         row.addWidget(self.apply_button)
         self.revert_button = QPushButton("Undo all changes")
         self.revert_button.setEnabled(False)
@@ -816,6 +823,13 @@ class PrefabInspectorDialog(QDialog):
             for note in self._companion_notes(edit.new_text):
                 self._log(f"    {note}")
         self._log(summary)
+        # Say plainly that nothing is on disk yet. Without this the log reads
+        # like a completed save, and the export prompt that appears on close
+        # comes as a surprise.
+        self._log(
+            "Nothing has been written yet. Close this window and you will be asked "
+            "where to save the mod package."
+        )
         self.result_payload = PrefabInspectorResult(data=result.data, summary=summary)
         if self._on_save is not None:
             self._on_save(result.data, summary)

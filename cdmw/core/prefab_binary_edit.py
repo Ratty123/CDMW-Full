@@ -60,19 +60,59 @@ class PrefabRewriteResult:
     proof_lines: tuple[str, ...]
 
 
-def _length_field_for(data: bytes, target: int, limit: int) -> int:
+def _length_field_candidates(
+    data: bytes, target: int, limit: int, in_string: bytes
+) -> list[int]:
+    """Every position that could be this pointee's trailing length field."""
+    end = min(len(data) - 4, target + limit)
+    return [
+        probe
+        for probe in range(target + 4, end + 1)
+        if struct.unpack_from("<I", data, probe)[0] == probe - target
+        and not in_string[probe]
+    ]
+
+
+def _length_field_for(
+    data: bytes, target: int, limit: int, in_string: bytes | None = None
+) -> int:
     """Offset of the trailing length field for the pointee starting at ``target``.
 
     The field stores the pointee's byte count, so it is the position ``q``
     where the stored u32 equals ``q - target``.
+
+    That test alone is not enough. Pointees nest, so the scan crosses string
+    data on its way to the outer pointee's field, and a string's own u32 length
+    prefix matches whenever the string happens to sit ``len(text)`` bytes from
+    the pointee start. Taking the first match then patches the *string's* length
+    prefix and leaves the real field stale -- corrupting the file. Measured on
+    the shipped archives, that hit 63 of 1,371 prefabs.
+
+    ``in_string`` marks every byte covered by a decoded string, prefix included.
+    A length field cannot live inside string data, so those candidates are
+    skipped and the scan continues to the genuine one.
     """
     # Start past the pointee's 4-byte head: it stores zero, which would match
     # the `q - target` test trivially at `q == target`.
     end = min(len(data) - 4, target + limit)
     for probe in range(target + 4, end + 1):
-        if struct.unpack_from("<I", data, probe)[0] == probe - target:
-            return probe
+        if struct.unpack_from("<I", data, probe)[0] != probe - target:
+            continue
+        if in_string is not None and in_string[probe]:
+            continue
+        return probe
     raise PrefabEditError(f"no pointee length field after 0x{target:x}")
+
+
+def _string_byte_mask(data: bytes, document: PrefabDocument) -> bytes:
+    """One flag per byte: is this byte part of a decoded string?"""
+    mask = bytearray(len(data))
+    for item in document.all_strings():
+        start = item.offset
+        stop = min(len(data), start + 4 + len(item.text.encode("utf-8")))
+        if 0 <= start < stop:
+            mask[start:stop] = b"\x01" * (stop - start)
+    return bytes(mask)
 
 
 def _shift_for(boundaries: Sequence[int], deltas: Sequence[int], offset: int) -> int:
@@ -167,7 +207,46 @@ def rewrite_prefab_paths(
         )
 
     sites = pointer_sites(payload, document.blob_offset, document.blob_length)
-    length_fields = {site: _length_field_for(payload, site + 4, _POINTEE_SCAN) for site in sites}
+    # A pointee's stored length is a distance, so it only needs rewriting when
+    # an edit lands *inside* that pointee. Every other field keeps its value:
+    # both of its endpoints shift by the same amount. Touching only what must
+    # change keeps the ambiguous ones (6.5% of pointees have more than one
+    # position satisfying the length test, and nothing in the file resolves
+    # which) out of the blast radius entirely.
+    in_string = _string_byte_mask(payload, document)
+    string_at = {item.offset: item for item in document.all_strings()}
+    edit_positions = [edit.offset for edit in edits]
+    length_fields: dict[int, int] = {}
+    for site in sites:
+        target = site + 4
+        # A pointee that opens with a decoded string has a *computable* field:
+        # 4 bytes of head, then the string, then the length. No scan, so no
+        # ambiguity -- and this is the shape every resource-path pointee takes,
+        # which is exactly where edits land.
+        held = string_at.get(target + 4)
+        if held is not None:
+            derived = target + 8 + len(held.text.encode("utf-8"))
+            if (
+                derived + 4 <= len(payload)
+                and struct.unpack_from("<I", payload, derived)[0] == derived - target
+            ):
+                if any(target <= position < derived + 4 for position in edit_positions):
+                    length_fields[site] = derived
+                continue
+        candidates = _length_field_candidates(payload, target, _POINTEE_SCAN, in_string)
+        if not candidates:
+            raise PrefabEditError(f"no pointee length field after 0x{target:x}")
+        # Widest possible extent, so "unaffected" is never claimed too eagerly.
+        extent = candidates[-1] + 4
+        if not any(target <= position < extent for position in edit_positions):
+            continue
+        if len(candidates) > 1:
+            raise PrefabEditError(
+                f"The pointee at 0x{target:x} has {len(candidates)} possible length "
+                "fields and the file does not say which; refusing to guess on an "
+                "edit inside it."
+            )
+        length_fields[site] = candidates[0]
 
     # Build the edited bytes and record where each edit shifts what follows.
     out = bytearray()
