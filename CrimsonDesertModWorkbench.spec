@@ -79,6 +79,9 @@ hiddenimports += collect_submodules("cdmw")
 # the cdmw sweep. Without this the tab imports fine from source and fails only in a frozen
 # build — the worst possible place to find out.
 hiddenimports += collect_submodules("tools.placement_studio")
+# Same reasoning for Translation Studio: its AI provider modules are imported from inside
+# button handlers, which is the shape static analysis is worst at following.
+hiddenimports += collect_submodules("tools.translation_studio")
 hiddenimports += [
     "cdmw.rendering.ingame_capture",
     "cdmw.rendering.preview_comparison",
