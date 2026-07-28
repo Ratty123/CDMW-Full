@@ -50,15 +50,15 @@ reading "at three times its Z rotation, offset 30.5 degrees, clamped at 8".
 
 ## How far it gets, and how that is known
 
-**Every block decodes: 2,737 of 2,737**, against 682 (26.8%) for the single canonical shape
+**Every block decodes: 2,541 of 2,541**, against 682 (26.8%) for the single canonical shape
 this replaces. Two independent checks keep that honest:
 
 * A block must be consumed to its final byte. The grammar has no per-block free
   parameters, so landing exactly on 1,857 block boundaries is not something arbitrary
   rules do.
 * `record_count` in the header is the total record count across every block, and nothing
-  in this grammar can influence it. **All twenty rigs reproduce their declared total
-  exactly**, from bear at 12 records to golem_imp_boss at 4,317. That check is also
+  in this grammar can influence it. **All nineteen rigs that parse reproduce their declared
+  total exactly**, from bear at 12 records to golem_imp_boss at 4,317. That check is also
   what settled the bound-node question -- counted as records, deerila and the two horse rigs
   overshot by 6, 11 and 11, precisely how many bound nodes they hold -- and it is what
   rejected an earlier reading of `01 03` that reached higher coverage with a four-float

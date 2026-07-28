@@ -322,3 +322,52 @@ def test_a_stale_expectation_is_refused_for_plain_values_too() -> None:
     assert wrong != number.raw, "the fake expectation must actually differ"
     with pytest.raises(PrefabEditError, match="not what was read"):
         rewrite_prefab_placements(payload, {number.offset: (wrong, replacement)})
+
+
+def test_the_rewriter_refuses_a_result_it_cannot_read_back() -> None:
+    """The checks that caught the old corruptions now run in production.
+
+    They lived only in this harness, which proves the cases it runs; this
+    refuses the case in front of the user. Every one of the 63 corruptions an
+    earlier length-field bug produced re-decoded as garbage, so this would have
+    stopped all of them before a mod was written.
+    """
+    from cdmw.core import prefab_binary_edit as edit_module
+
+    old = "character/model/1_pc/weapon/sword.pac"
+    new = "a/genuinely/much/longer/replacement/path/for/the/mesh.pac"
+    assert len(new) != len(old), "a same-length edit would move nothing and prove nothing"
+    payload = build_many([old, "character/model/1_pc/weapon/axe.pac"])
+    decoded = decode_prefab_binary(payload).resource_strings()
+    edits = [PrefabPathEdit(offset=decoded[0].offset, old_text=old, new_text=new)]
+
+    assert rewrite_prefab_paths(payload, edits).data != payload
+
+    for attribute, mutant in (
+        ("_patch_data_header", lambda *args, **kwargs: None),
+        ("_shift_for", lambda boundaries, deltas, offset: 0),
+    ):
+        original = getattr(edit_module, attribute)
+        setattr(edit_module, attribute, mutant)
+        try:
+            with pytest.raises(edit_module.PrefabEditError):
+                rewrite_prefab_paths(payload, edits)
+        finally:
+            setattr(edit_module, attribute, original)
+
+
+def test_the_postflight_shares_no_arithmetic_with_the_rewrite() -> None:
+    """A verifier that reuses the writer's shift table agrees with its bugs.
+
+    The first version located expected strings with ``_shift_for`` and passed a
+    file built with that table zeroed. It now compares the decoded strings as
+    an ordered sequence, which is a property of the result alone.
+    """
+    import inspect
+
+    from cdmw.core import prefab_binary_edit as edit_module
+
+    # A call, not a mention: the docstring explains why the helper is avoided.
+    source = inspect.getsource(edit_module._verify_rewrite)
+    assert "_shift_for(" not in source
+    assert "_shift_table(" not in source

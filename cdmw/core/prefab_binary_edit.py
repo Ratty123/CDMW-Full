@@ -367,6 +367,7 @@ def rewrite_prefab_paths(
         struct.pack_into("<I", rebuilt, moved_field, moved_field - moved_target)
 
     _patch_data_header(rebuilt, document, total)
+    _verify_rewrite(bytes(rebuilt), payload, document, edits, len(sites))
 
     proof = [
         "Pointers are identified by the exact test value == offset + 4, not by scanning for "
@@ -381,6 +382,62 @@ def rewrite_prefab_paths(
         relocated_pointers=len(sites),
         proof_lines=tuple(proof),
     )
+
+
+def _verify_rewrite(
+    rebuilt: bytes,
+    original: bytes,
+    before: PrefabDocument,
+    edits: Sequence[PrefabPathEdit],
+    pointer_count: int,
+) -> None:
+    """Read the rewritten file back and refuse it if anything is off.
+
+    These checks lived only in the fuzz harness, which is the wrong place: a
+    harness proves the cases it runs, while this refuses the case in front of
+    the user. The 63 corruptions an earlier length-field bug produced all
+    re-decoded as garbage, so this would have stopped every one of them before
+    a mod was written.
+
+    Deliberately shares no arithmetic with the rewrite. A first attempt located
+    the expected strings with ``_shift_for`` -- the writer's own shift table --
+    and consequently agreed with the writer even when the writer was wrong:
+    zeroing that table produced a broken file the check happily passed. Nothing
+    here computes a position. The strings are compared as an ordered sequence
+    of text, which is a property of the result alone.
+    """
+    try:
+        after = decode_prefab_binary(rebuilt)
+    except PrefabBinaryError as exc:
+        raise PrefabEditError(f"The rewritten prefab does not read back: {exc}") from exc
+    if not after.walk_complete:
+        raise PrefabEditError(
+            f"The rewritten prefab no longer reads all the way through: {after.walk_note}"
+        )
+
+    replaced = {edit.offset: edit.new_text for edit in edits}
+    expected = [replaced.get(item.offset, item.text) for item in before.all_strings()]
+    found = [item.text for item in after.all_strings()]
+    if found != expected:
+        differing = next(
+            (a, b) for a, b in zip(expected + [None], found + [None]) if a != b
+        )
+        raise PrefabEditError(
+            f"The rewritten prefab reads back {differing[1]!r} where {differing[0]!r} was expected"
+        )
+
+    if len(pointer_sites(rebuilt, after.blob_offset, after.blob_length)) != pointer_count:
+        raise PrefabEditError("Rewriting changed how many pointers the file contains")
+    stated = struct.unpack_from("<I", rebuilt, after.blob_offset - 24)[0]
+    if stated != len(rebuilt):
+        raise PrefabEditError(
+            f"The rewritten prefab declares {stated} bytes but is {len(rebuilt)}"
+        )
+    if len(rebuilt) != len(original) + sum(
+        len(edit.new_text.encode("utf-8")) - len(edit.old_text.encode("utf-8"))
+        for edit in edits
+    ):
+        raise PrefabEditError("The rewritten prefab is not the size the edits imply")
 
 
 def _split_placement_request(request: object) -> tuple[bytes | None, bytes]:
