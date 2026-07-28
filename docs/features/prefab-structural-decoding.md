@@ -127,6 +127,22 @@ edits, and first-plus-last together. It is seeded, so failures reproduce, and
 it is mutation-tested -- breaking the shift table or the length scan is caught
 by every case group.
 
+**Differential validation against the game's own authoring tool**
+(`scripts/prefab_vanilla_pair_oracle.py`) is the one check that does not rest on
+our own decoder. The archives ship thousands of prefabs that are the same asset
+with one path changed, so vanilla A rewritten to B's path must come out byte
+identical to vanilla B. Result: **15,742 of 15,750 pairs reproduced exactly,
+including 10,066 of 10,066 length-changing ones** -- the cases that exercise
+pointer relocation, pointee length fields and the data header. The remaining 8
+are refused as undecidable. Zero failures.
+
+Selecting genuine pairs is most of that work; the filters are documented in the
+script. It is mutation tested: turning the data-header patch into a no-op
+produces 296 failures and a non-zero exit. An earlier version of the harness
+classified residual differences as "not ours" when our output still matched A,
+and that hid the same mutation completely -- a missing update looks exactly
+like a faithful preservation, so the criterion is now plain byte equality.
+
 Its synthetic fixtures are flat, though, so they cannot exercise nesting. The
 run that matters is the same invariants over the shipped archives: 1,371
 complete-walk prefabs with resources, random multi-edits, checking that the
