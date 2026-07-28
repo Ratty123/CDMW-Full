@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Found what is very likely the external oracle `.prefab` component selection needs. **`.prefabdata_xml` — 2,613 files — is an XML serialisation of the same reflection data, and 399 of 400 sampled pair with a `.prefab` binary of the same stem.** Each names its root type and members outright: `<HeadPrefabData>` with `SkeletonVariationName`, `FacialAnimationIntensityMask`, `FacialAnimationMask`, `MorphTargetSet`, `SkeletonMorphMask`, `EmotionAnimationSet`. That is the same XML-pairing trick that confirmed `.paprojdesc`, and it is exactly the "external source for marker-1 component identity" the previous commit said was missing.
+- Recorded, not yet exploited. The next step is to check across the paired corpus whether the XML names the component the binary omits at marker-1 sites, and if so whether identity is recoverable from member-name signatures rather than from declaration order — the guess that all 247 sampled failures currently rest on.
+
+### Docs
 - Attacked `.prefab` component selection and rejected a hypothesis that fit the arithmetic exactly. At **every one of 247 sampled failures the file states no type index** — 100% out-of-range — so the walk is guessing the component by declaration order, and the mask error is the symptom rather than the cause. The masks do look explicable: strip the top set bit and all of them fit the members available (`0x0110` needs 5 against 5, `0x091a` needs 9 against 11, `0x0100` needs 0 against 8), which is a clean enough signature to be convincing.
 - It was implemented and measured anyway, and **rejected**: completion moved 59.6% → 59.8%, eight files out of 4,000. The old mask errors were simply replaced by new ones and by blob-string-length desyncs further along, meaning the walk gets past that point and then goes wrong elsewhere. A rule that fits every observed number without improving decoding is not the rule. Recorded so the next attempt does not re-derive it; what is actually needed is an external source for marker-1 component identity, because the file does not carry it at these sites.
 
