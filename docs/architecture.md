@@ -123,11 +123,14 @@ behind compatibility wrappers.
 - `tools/dotnet_bazel_launcher/`: build-time launcher used by the Bazel rules;
   it is not part of the running app.
 
-The three tool tabs above are the one place a UI surface reads `cdmw.core`
-format modules directly. The Layer Rules below hold for `cdmw/ui/`, and the
-import-boundary guards enforce them only there, so `tools/` is currently
-outside both. Treat that as an unresolved boundary question, not as licence to
-add more: a new feature tab belongs in `cdmw/ui/<feature>/` behind a service.
+These tool tabs follow the same layering as `cdmw/ui/`: the Qt module reads
+nothing from `cdmw.core` itself, and takes its format types from the domain
+module beside it (`window_constraints.py` through `constraints.py`,
+`tab.py` through `catalogue.py`). `test_tool_tab_ui_modules_do_not_import_core_implementations`
+enforces that, keyed on whether a module imports PySide6, because the general
+import-boundary guards scope to `cdmw/` and would otherwise leave `tools/`
+unchecked. A new feature tab still belongs in `cdmw/ui/<feature>/` behind a
+service; these predate that rule and stay where they are.
 
 Focused owner source files use a shared 1,000-line default ceiling. Smaller
 feature-specific caps remain valid. A cohesive, static-data, or generated owner
