@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Validated the relocation machinery that array resizing would have to reuse, by the one method available to it: **shrink a path, grow it back, demand the original bytes**. Over 700 sampled prefabs, **386 of 386 round trips are byte-exact and none differ.** The remaining 314 were skipped rather than failed — mostly partial walks, plus a handful the writer refused outright because a pointee had two possible length fields, which is the writer declining an ambiguous case rather than getting it wrong.
+- That is a real result for the resize question even though no resize writer exists yet. Moving bytes, relocating pointers by the self-relative rule, rewriting pointee length fields and correcting the data header all survive a shrink-and-regrow with no drift. Had it not, array resizing would have been off the table outright; instead the foundation is sound and what array resize still lacks is only its own count-writing step and a way to validate *that* — the shipped corpus offers no same-asset one-child-apart pairs to check it against.
+
+### Docs
 - Hunted for an oracle to validate `.prefab` array resizing before writing any of it, and **there isn't one**. Over 3,000 sampled prefabs, only 6 pairs share a type signature and differ by exactly one object — and those are unrelated assets that coincide, not the same asset with a child added (`cd_gimmick_steam_engine_train_rail_0001` against `cd_tower_wooden_set13_06`). There is nothing equivalent to the 10,066 same-asset path pairs that validated the path rewriter against the game's own output.
 - That is why array editing stays off, and it is a stronger reason than "not implemented yet": a resize writer moves bytes, relocates pointers, rewrites counts and header sizes, and it would rest entirely on this decoder with no external check. If it is attempted it needs a different kind of validation — remove-then-re-add returning the original bytes, and structural invariants over the whole corpus — rather than ground truth. Worth knowing before the writer is built, not after.
 
