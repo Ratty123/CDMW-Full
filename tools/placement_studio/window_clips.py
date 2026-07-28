@@ -1,9 +1,9 @@
 """The clip browser: find any of the install's motion clips and play it on the rig.
 
-Enumerating the archive tables takes a few seconds, which is far too long on the UI thread,
-so indexing runs on a worker and the browser stays usable — showing the pinned baseline —
-while it completes. The list is capped and reports what it is hiding, because a silently
-truncated result reads as "that clip is not in the game".
+Enumerating the archive tables takes a few seconds, which is far too long to spend in one
+call, so indexing advances a slice per event-loop turn and the browser stays usable — showing
+the pinned baseline — while it completes. The list is capped and reports what it is hiding,
+because a silently truncated result reads as "that clip is not in the game".
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from .layout_util import fit_popup
 
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QThread, Qt, Signal
+from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -24,41 +24,17 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QProgressBar,
     QPushButton,
     QVBoxLayout,
     QWidget,
 )
 
-from .clips import ALL_CATEGORIES, ANY, ClipIndex, index_archives, read_clip
+from .clips import ALL_CATEGORIES, ANY, ClipIndex, read_clip, scan_archives
 from .playback import PlaybackError, coverage, load_clip
 
 #: Rows past this are not worth painting; the filter is the way to find a clip, not scrolling.
 _LIST_LIMIT = 800
-
-
-class _IndexWorker(QObject):
-    """Reads the archive tables off the UI thread."""
-
-    done = Signal(object, str)
-
-    def __init__(self, game_root) -> None:
-        super().__init__()
-        self._game_root = game_root
-        self._stop = False
-
-    def stop(self) -> None:
-        self._stop = True
-
-    def run(self) -> None:
-        try:
-            index = index_archives(self._game_root, should_stop=lambda: self._stop)
-        except Exception as error:  # noqa: BLE001 - report, never take the window down
-            self.done.emit(None, str(error))
-            return
-        if self._stop:
-            self.done.emit(None, "")
-            return
-        self.done.emit(index, "")
 
 
 class ClipBrowserMixin:
@@ -66,8 +42,8 @@ class ClipBrowserMixin:
 
     def _build_clip_browser(self) -> QWidget:
         self._clip_index = ClipIndex()
-        self._clip_thread = None
-        self._clip_worker = None
+        self._clip_scan = None
+        self._clip_scan_timer = None
 
         panel = QWidget()
         layout = QVBoxLayout(panel)
@@ -149,6 +125,13 @@ class ClipBrowserMixin:
         footer = QHBoxLayout()
         self._clip_status = QLabel("Indexing the archives…")
         footer.addWidget(self._clip_status, 1)
+        # Progress rather than a spinner: the walk knows how many packages it will visit, and
+        # "half way" is the difference between waiting and wondering whether it has hung.
+        self._clip_progress = QProgressBar()
+        self._clip_progress.setMaximumWidth(140)
+        self._clip_progress.setTextVisible(False)
+        self._clip_progress.setRange(0, 0)  # busy until the package total is known
+        footer.addWidget(self._clip_progress)
         self._clip_load_button = QPushButton("Play selected")
         self._clip_load_button.setToolTip(
             "Pose the character with this clip. You can also double-click a row."
@@ -170,12 +153,37 @@ class ClipBrowserMixin:
         if not Path(root).is_dir():
             self._fall_back_to_baseline_clips(f"No game install at {root}")
             return
-        self._clip_thread = QThread(self)
-        self._clip_worker = _IndexWorker(root)
-        self._clip_worker.moveToThread(self._clip_thread)
-        self._clip_thread.started.connect(self._clip_worker.run)
-        self._clip_worker.done.connect(self._on_clip_index_ready)
-        self._clip_thread.start()
+        self._clip_scan = scan_archives(root)
+        timer = QTimer(self)
+        # Zero interval, not zero work: Qt runs the rest of the event loop between timeouts,
+        # so the window keeps painting and answering the mouse while the scan advances.
+        timer.setInterval(0)
+        timer.timeout.connect(self._step_clip_index)
+        self._clip_scan_timer = timer
+        timer.start()
+
+    def _step_clip_index(self) -> None:
+        """Advance the scan by one slice. Runs on the UI thread, briefly, many times."""
+
+        scan = self._clip_scan
+        if scan is None:
+            return
+        try:
+            done, total, index = next(scan)
+        except StopIteration:
+            # Only reached when the scan was stopped before it produced an index.
+            self._stop_clip_index()
+            return
+        except Exception as error:  # noqa: BLE001 - a missing install is not a crash
+            self._stop_clip_index()
+            self._fall_back_to_baseline_clips(str(error))
+            return
+        bar = getattr(self, "_clip_progress", None)
+        if bar is not None and total > 0:
+            bar.setRange(0, total)
+            bar.setValue(done)
+        if index is not None:
+            self._on_clip_index_ready(index)
 
     def _fall_back_to_baseline_clips(self, reason: str) -> None:
         """Without the install, the pinned baseline is still worth browsing."""
@@ -192,15 +200,10 @@ class ClipBrowserMixin:
         else:
             self._clip_status.setText(reason)
 
-    def _on_clip_index_ready(self, index, error: str) -> None:
-        if self._clip_thread is not None:
-            self._clip_thread.quit()
-            self._clip_thread.wait(2000)
-            self._clip_thread = None
-            self._clip_worker = None
-        if index is None:
-            self._fall_back_to_baseline_clips(error or "Indexing cancelled")
-            return
+    def _on_clip_index_ready(self, index) -> None:
+        """The scan finished. Failure never arrives here — the stepper falls back itself."""
+
+        self._stop_clip_index()
         self._clip_index = index
         self._populate_clip_rigs()
         self._refresh_clip_list()
@@ -316,13 +319,15 @@ class ClipBrowserMixin:
     def _stop_clip_index(self) -> None:
         """A running table scan must not outlive the window."""
 
-        if self._clip_worker is not None:
-            self._clip_worker.stop()
-        if self._clip_thread is not None:
-            self._clip_thread.quit()
-            self._clip_thread.wait(3000)
-            self._clip_thread = None
-            self._clip_worker = None
+        bar = getattr(self, "_clip_progress", None)
+        if bar is not None:
+            bar.hide()
+        timer = self._clip_scan_timer
+        self._clip_scan_timer = None
+        self._clip_scan = None
+        if timer is not None:
+            timer.stop()
+            timer.deleteLater()
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt virtual
         """Stop the playhead and the indexer before the widgets they touch go away."""

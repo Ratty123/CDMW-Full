@@ -568,7 +568,10 @@ def test_resident_role_views_share_resources_and_keep_normal_cameras_independent
     assert "var panes = PanesForFrame(replacementOnly, out var paneCount);" in d3d_renderer_source
     assert "for (var paneIndex = 0; paneIndex < paneCount; paneIndex++)" in d3d_renderer_source
     assert "ActivePaneIncludes(batch.SubmeshIndex)" in d3d_renderer_source
-    assert "_scene.IsPresentationVisible(submeshIndex)" in pane_renderer_source
+    # An explicit hide holds whatever the pane is showing. The role says which
+    # side of a comparison is on screen; it is not a statement about whether a
+    # part the caller hid should come back.
+    assert "_scene.IsHiddenByPresentation(submeshIndex)" in pane_renderer_source
     assert "HasRenderedBothRolePanes" in pane_renderer_source
     assert "ActivePaneIncludesForPicking(submeshIndex)" in picking_source
     assert "ActivePaneIncludesForPicking(submeshIndex)" in occlusion_source

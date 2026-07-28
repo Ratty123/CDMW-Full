@@ -784,7 +784,17 @@ class NativePreviewCoreTests(unittest.TestCase):
             'layer.layer_channel = base != nullptr && !base->layer_channel.empty() ? base->layer_channel : "r";',
             source,
         )
-        self.assertIn("if (!mask->layer_channel.empty())", source)
+        # The layer parameter says which channel of the mask selects it, so it
+        # outranks anything read off the mask binding. `_detailMaskTexture`
+        # resolves to a fixed "b", and letting that overwrite the layer put
+        # `_detailDiffuseMaskR`, `G` and `B` all on blue, collapsing a fully
+        # layered helmet to one flat tone. The mask's own channel stays the
+        # fallback for layers that name none.
+        self.assertIn("if (!mask->layer_channel.empty()", source)
+        self.assertIn(
+            "&& !layer_parameter_names_channel(binding->parameter_name)) {",
+            source,
+        )
         self.assertIn("layer.layer_channel = mask->layer_channel;", source)
 
     def test_d3d11_preview_does_not_overpaint_duplicate_base_material_layer(self) -> None:
@@ -798,6 +808,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
         layer_end = source.index("static std::string material_layer_json", layer_start)
         layer_source = source[layer_start:layer_end]
+        policy_start = source.index("static void apply_layer_weight_and_tint_policy")
+        policy_end = source.index("static std::vector<MaterialLayer> compile_material_layers", policy_start)
+        policy_source = source[policy_start:policy_end]
         tint_start = source.index("static bool weapon_metal_base_tint_should_stay_masked")
         tint_end = source.index("static bool mesh_prefers_sidecar_dye_tint", tint_start)
         tint_source = source[tint_start:tint_end]
@@ -806,10 +819,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("weapon_layer_stack", layer_source)
         self.assertIn("weapon_tinted_detail_layer", layer_source)
         self.assertIn("tint_color_is_visible(layer.tint)", layer_source)
-        self.assertIn("layer.weight = std::max(layer.weight, 0.44f);", layer_source)
+        self.assertIn("layer.weight = std::max(layer.weight, 0.44f);", policy_source)
         self.assertIn("binding_is_layer_diffuse(*binding, base, weapon_layer_stack && selected_base_layer)", layer_source)
-        self.assertIn("selected_base_layer ? 0.48f", layer_source)
-        self.assertIn("layer.tint[3] = detail_layer ? 0.68f : 0.55f;", layer_source)
+        self.assertIn("selected_base_layer ? 0.48f", policy_source)
+        self.assertIn("layer.tint[3] = detail_layer ? 0.68f : 0.55f;", policy_source)
         self.assertIn("std::stable_sort(overlays.begin(), overlays.end()", layer_source)
         self.assertIn('role.find("detail") != std::string::npos', layer_source)
         self.assertIn("weapon_metal_base_tint_should_stay_masked(base, mesh)", source)
@@ -1041,7 +1054,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('"helmet", "helm"', category_source)
         self.assertNotIn('"hel",', category_source)
         self.assertLess(
-            category_source.index("if (material_category_has_metal(bindings, mesh, evidence))"),
+            category_source.index("if (material_category_has_metal(bindings, mesh, evidence, surface))"),
             category_source.index("if (evidence.cloth_like)"),
         )
 
@@ -1196,6 +1209,9 @@ class NativePreviewCoreTests(unittest.TestCase):
         layer_start = source.index("static std::vector<MaterialLayer> compile_material_layers")
         layer_end = source.index("static std::string material_layer_json", layer_start)
         layer_source = source[layer_start:layer_end]
+        policy_start = source.index("static void apply_layer_weight_and_tint_policy")
+        policy_end = source.index("static std::vector<MaterialLayer> compile_material_layers", policy_start)
+        policy_source = source[policy_start:policy_end]
 
         self.assertLess(role_source.index('p.find("flow")'), role_source.index('t.find("_n.dds")'))
         self.assertIn('return "flow";', role_source)
@@ -1224,7 +1240,7 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn('binding.emissive_intensity_hint = direct_emissive_texture_or_shader_evidence', source)
         self.assertIn("emissive_binding_is_safe_for_preview", source)
         self.assertIn("generic emissive/effect texture suppressed", source)
-        self.assertIn('layer.weight <= 0.001f ? 0.14f : layer.weight', layer_source)
+        self.assertIn('layer.weight <= 0.001f ? 0.14f : layer.weight', policy_source)
         self.assertIn('binding_shader_rule == "hair"', layer_source)
         self.assertIn('binding_shader_rule == "skin"', layer_source)
         self.assertIn('binding_shader_family.find("skinnedmeshhair")', layer_source)
@@ -1254,11 +1270,14 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("pbd_cloth_hint_count", source)
         self.assertIn("evidence_contains_token", source)
         self.assertIn('result.all.find("skinnedmeshcloth")', source)
-        self.assertIn('result.all.find("skinnedmeshskin")', source)
+        self.assertIn('result.identity_shader.find("skinnedmeshskin")', source)
         category_start = source.index("struct MaterialCategoryEvidence")
         category_end = source.index("static float material_category_confidence", category_start)
         category_source = source[category_start:category_end]
-        self.assertLess(category_source.index('result.all.find("skinnedmeshcloth")'), category_source.index('result.all.find("skinnedmeshskin")'))
+        self.assertLess(
+            category_source.index('result.all.find("skinnedmeshcloth")'),
+            category_source.index('result.identity_shader.find("skinnedmeshskin")'),
+        )
         self.assertLess(category_source.index('"handle"'), category_source.index('"hand"'))
         self.assertNotIn("pbd_simulation_material_name", category_source)
         self.assertIn("result.equipment_surface", category_source)
@@ -1373,7 +1392,16 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("selected_base_should_yield_to_overlay", source)
         self.assertIn("mesh_has_apparel_slot_surface_for_base_selection", source)
         self.assertIn("binding_is_primary_apparel_base_color", source)
-        self.assertIn("apparel_slot_surface ? -120 : 260", source)
+        # The slot list was a proxy for the real question -- whether the part
+        # supplies a primary base colour of its own family -- and never covered
+        # gloves, hoods, boots, bags or rings, so 223 of 3,148 sampled parts
+        # rendered an `_o` overlay as their albedo with their own
+        # `_baseColorTexture` bound alongside.
+        self.assertIn("overlay_would_replace_real_base ? -120 : 260", source)
+        self.assertIn(
+            "apparel_slot_surface || availability.same_family_primary_base",
+            source,
+        )
         self.assertIn("binding_is_primary_apparel_base_color(binding)) score += 180", source)
         self.assertIn("tint_rgb_is_visible", source)
         self.assertIn("!tint_rgb_is_visible(base == nullptr", source)
@@ -1394,7 +1422,10 @@ class NativePreviewCoreTests(unittest.TestCase):
         self.assertIn("result.hair_shader", category_source)
         self.assertIn("result.actual_hair", category_source)
         self.assertIn('"skin", "nude", "body", "hand"', category_source)
-        self.assertIn('evidence_contains_token(result.all, "head")', category_source)
+        # Identity evidence, not the pooled evidence. A jacket with a fur collar
+        # contributes a SkinnedMeshFur binding to the pool, and reading the pool
+        # made the cloth body of that same jacket a hair surface.
+        self.assertIn('evidence_contains_token(result.identity, "head")', category_source)
         self.assertIn("evidence.actual_hair || !evidence.strong_skin", category_source)
         self.assertIn("evidence.strong_skin || evidence.head_skin", category_source)
         self.assertIn("&& !result.hair_shader", category_source)

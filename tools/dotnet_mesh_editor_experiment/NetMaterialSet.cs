@@ -106,6 +106,11 @@ internal sealed partial class NetMaterialSet
         return TexturePathForSubmesh(submeshIndex, "metallic");
     }
 
+    public string FlowTexturePathForSubmesh(int submeshIndex)
+    {
+        return TexturePathForSubmesh(submeshIndex, "flow");
+    }
+
     public string HeightTexturePathForSubmesh(int submeshIndex)
     {
         return TexturePathForSubmesh(submeshIndex, "height");
@@ -200,7 +205,8 @@ internal sealed partial class NetMaterialSet
                 JsonString(item, "double_sided_authority"),
                 JsonString(item, "double_sided_reason"),
                 JsonStringArray(item, "unsupported_features"),
-                JsonArrayLength(item, "layer_bindings")));
+                JsonArrayLength(item, "layer_bindings"),
+                ParseMaterialLayers(item)));
         }
         return result;
     }
@@ -273,6 +279,40 @@ internal sealed partial class NetMaterialSet
             ? value.GetArrayLength()
             : 0;
     }
+
+    private static IReadOnlyList<NetMaterialLayerBinding> ParseMaterialLayers(JsonElement element)
+    {
+        if (!element.TryGetProperty("material_layers", out var layers) || layers.ValueKind != JsonValueKind.Array)
+        {
+            return Array.Empty<NetMaterialLayerBinding>();
+        }
+        var result = new List<NetMaterialLayerBinding>();
+        foreach (var layer in layers.EnumerateArray())
+        {
+            if (layer.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+            var tint = layer.TryGetProperty("tint", out var tintValue) && tintValue.ValueKind == JsonValueKind.Array
+                ? tintValue.EnumerateArray()
+                    .Take(3)
+                    .Select(value => value.ValueKind == JsonValueKind.Number && value.TryGetSingle(out var number)
+                        && float.IsFinite(number) ? Math.Clamp(number, 0.0f, 2.0f) : 1.0f)
+                    .ToArray()
+                : Array.Empty<float>();
+            result.Add(new NetMaterialLayerBinding(
+                JsonString(layer, "layer_role"),
+                JsonString(layer, "mask_channel"),
+                Math.Clamp(JsonFloat(layer, "weight", 1.0f), 0.0f, 1.0f),
+                tint.Length == 3 ? tint[0] : 1.0f,
+                tint.Length == 3 ? tint[1] : 1.0f,
+                tint.Length == 3 ? tint[2] : 1.0f,
+                JsonString(layer, "diffuse_resource_id"),
+                JsonString(layer, "mask_resource_id"),
+                JsonString(layer, "material_resource_id")));
+        }
+        return result;
+    }
 }
 
 internal sealed record NetMaterialSlot(int Index, string Name, string Texture, Dictionary<string, string> Channels);
@@ -308,4 +348,24 @@ internal sealed record NetSubmeshMaterialBinding(
     string DoubleSidedAuthority,
     string DoubleSidedReason,
     IReadOnlyList<string> UnsupportedFeatures,
-    int LayerBindingCount);
+    int LayerBindingCount,
+    IReadOnlyList<NetMaterialLayerBinding> MaterialLayers);
+
+internal sealed record NetMaterialLayerBinding(
+    string LayerRole,
+    string MaskChannel,
+    float Weight,
+    float TintR,
+    float TintG,
+    float TintB,
+    string DiffuseResourceId,
+    string MaskResourceId,
+    string MaterialResourceId = "")
+{
+    public IEnumerable<string> ResourceIds()
+    {
+        if (!string.IsNullOrWhiteSpace(DiffuseResourceId)) yield return DiffuseResourceId;
+        if (!string.IsNullOrWhiteSpace(MaskResourceId)) yield return MaskResourceId;
+        if (!string.IsNullOrWhiteSpace(MaterialResourceId)) yield return MaterialResourceId;
+    }
+}

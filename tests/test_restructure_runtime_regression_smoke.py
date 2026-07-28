@@ -72,7 +72,14 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             for index in range(self.window.main_tabs.count())
             if self.window.main_tabs.isTabVisible(index)
         ]
-        self.assertEqual(["Assets", "Textures", "Research", "Tools"], visible_main_tabs)
+        # Placement & Animation Studio is a top-level tab, not a member of a group: it is a
+        # whole application, so nesting it put a second tab bar directly above its own. The
+        # doubled ampersand is how a tab bar stores a literal one — a single `&` is a
+        # mnemonic marker, and drew the name as "Placement_Animation Studio".
+        self.assertEqual(
+            ["Assets", "Placement && Animation Studio", "Textures", "Research", "Tools"],
+            visible_main_tabs,
+        )
         self.assertFalse(self.window.main_tabs.isTabVisible(self.window.main_tabs.indexOf(self.window.settings_tab)))
 
         expected_tools = {
@@ -87,6 +94,7 @@ class RestructureRuntimeRegressionSmokeTests(unittest.TestCase):
             "research",
             "text_search",
             "mod_package_retrofit",
+            "placement_studio",
             "settings",
         }
         self.assertTrue(expected_tools.issubset(self.window._tool_widgets_by_key))

@@ -12,6 +12,7 @@
     "tests/test_archive_relationships.py::ArchiveRelationshipTests.test_universal_twohand_sword_animation_alias_plan_is_conservative": 281,
     "tests/test_archive_structured_asset_preview.py::ArchiveStructuredAssetPreviewTests.test_encrypted_compressed_papr_validates_as_structured_par_payload": 266,
     "tests/test_dotnet_mesh_editor_tool_protocol_source.py::test_dotnet_tool_protocol_keeps_selection_strokes_and_vertex_refresh_in_sync": 162,
+    "tests/test_dotnet_preview_settings_contract.py::test_dotnet_material_diffuse_depth_matches_native_reference_operator": 169,
     "tests/test_external_model_audit_catalogue.py::ExternalModelAuditCatalogueTests.test_external_model_audit_checker_reports_blocking_and_review_gaps": 151,
     "tests/test_hkx_native_backend.py::HkxNativeBackendTests.test_converter_document_exposes_native_backend_report": 461,
     "tests/test_hkx_preview.py::HkxPreviewTests.test_editable_hkx_geometry_document_exports_and_reapplies_fixed_size_vertex_edits": 171,

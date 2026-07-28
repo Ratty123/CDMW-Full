@@ -173,7 +173,15 @@ static void append_package_batch_json_head(PackageWriteState& state, const Packa
         << "\"material_response_disposition\":\"" << json_escape(batch.material_response) << "\","
         << "\"base_tint_strength\":" << batch.base_tint_strength << ","
         << "\"emissive_intensity\":" << (batch.preview_emissive == nullptr ? 0.0f : batch.preview_emissive->emissive_intensity_hint) << ","
-        << "\"emissive_color\":[0.35,0.68,1.0],"
+        // The emissive colour comes from the source: an authored emissive colour
+        // parameter if the material declares one, otherwise neutral so the `_emi`
+        // map's own colour is what shows. This was a fixed cyan, which reported
+        // the same glow colour for greek fire, a lightning thrower and an ancient
+        // giant's runes -- every emissive surface in the game, tinted blue.
+        << "\"emissive_color\":["
+        << (batch.preview_emissive == nullptr ? 1.0f : batch.preview_emissive->emissive_color[0]) << ","
+        << (batch.preview_emissive == nullptr ? 1.0f : batch.preview_emissive->emissive_color[1]) << ","
+        << (batch.preview_emissive == nullptr ? 1.0f : batch.preview_emissive->emissive_color[2]) << "],"
         << "\"textures\":{},"
         << "\"dds_textures\":{";
     append_package_material_inputs(state, batch);

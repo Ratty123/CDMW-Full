@@ -53,6 +53,8 @@ class ArmourPickerMixin:
         self._armour_index = ArmourIndex()
         self._armour_thread = None
         self._armour_worker = None
+        self._archive_load = None
+        self._archive_load_timer = None
         self._armour_boxes: dict = {}
         self._weapon_socket_entries: dict = {}
         self._weapon_mesh_entries: dict = {}
@@ -122,8 +124,7 @@ class ArmourPickerMixin:
         # anatomy is reachable.
         self._invalidate_skinned()
         self._refresh_meshes()
-        self._load_archive_weapons()
-        self._load_archive_charts()
+        self._start_archive_content_load()
 
     def _populate_armour(self) -> None:
         model = self._session.model if self._session is not None else ""
@@ -171,7 +172,60 @@ class ArmourPickerMixin:
             box.blockSignals(False)
         self._on_armour_changed()
 
-    def _load_archive_weapons(self) -> None:
+    # ── archive content, a few files per event-loop turn ─────────────
+    #
+    # Weapons and charts are read straight out of the packages, one decompression per file.
+    # Called inline — which is where they were, in the index-ready slot — the two loops cost
+    # 5.9 and 2.3 seconds on the UI thread, and that eight-second block *was* the studio
+    # "freezing on open": nothing painted and nothing answered the mouse until both finished.
+    # Stepping them from a zero-interval timer costs the same total time and none of the
+    # freeze, exactly as `rig_files.scan_rig_files` does for the rig walk.
+
+    #: Files read between yields. One read is a few milliseconds, so this is a frame's worth.
+    _ARCHIVE_LOAD_SLICE = 4
+
+    def _start_archive_content_load(self, *, weapons: bool = True) -> None:
+        from PySide6.QtCore import QTimer
+
+        self._stop_archive_content_load()
+        self._archive_load = self._iter_archive_content(weapons=weapons)
+        timer = QTimer(self)
+        # Zero interval, not zero work: Qt runs the rest of the event loop between timeouts.
+        timer.setInterval(0)
+        timer.timeout.connect(self._step_archive_content_load)
+        self._archive_load_timer = timer
+        timer.start()
+
+    def _iter_archive_content(self, *, weapons: bool):
+        if weapons:
+            yield from self._iter_archive_weapons()
+        yield from self._iter_archive_charts()
+
+    def _step_archive_content_load(self) -> None:
+        """Advance the read by one slice. Runs on the UI thread, briefly, many times."""
+
+        loader = self._archive_load
+        if loader is None:
+            return
+        try:
+            next(loader)
+        except StopIteration:
+            self._stop_archive_content_load()
+        except Exception as error:  # noqa: BLE001 - a bad package is not a crash
+            self._stop_archive_content_load()
+            self.statusBar().showMessage(f"Could not read the archives: {error}")
+
+    def _stop_archive_content_load(self) -> None:
+        """A running read must not outlive the window or the character it was reading for."""
+
+        timer = getattr(self, "_archive_load_timer", None)
+        self._archive_load_timer = None
+        self._archive_load = None
+        if timer is not None:
+            timer.stop()
+            timer.deleteLater()
+
+    def _iter_archive_weapons(self):
         """Feed every weapon socket file into the resolver, so all of them are selectable.
 
         The pinned baseline holds eight; the packages hold the rest. A weapon needs its
@@ -184,6 +238,7 @@ class ArmourPickerMixin:
             return
         model = session.model
         added = 0
+        since_yield = 0
         for path, entry in self._weapon_socket_entries.items():
             if f"/{model}/" not in path or path in self._baseline:
                 continue
@@ -192,13 +247,19 @@ class ArmourPickerMixin:
                 added += 1
             except Exception:  # noqa: BLE001 - a file that will not parse is simply skipped
                 continue
+            since_yield += 1
+            if since_yield >= self._ARCHIVE_LOAD_SLICE:
+                since_yield = 0
+                yield
         if added:
+            # Repopulating mid-read would reset the weapon box under the user's cursor on
+            # every slice, so the list is rebuilt once, when all of them are in.
             self._populate_weapons()
             self.statusBar().showMessage(
                 f"{added} more weapon(s) available from the archives"
             )
 
-    def _load_archive_charts(self) -> None:
+    def _iter_archive_charts(self):
         """Give the edit session this character's own action charts.
 
         The pinned baseline holds Kliff's four. Damian was therefore shown Kliff's — the raw
@@ -216,6 +277,7 @@ class ArmourPickerMixin:
         if session is None or self._edits is None or index is None:
             return
         wanted = {}
+        since_yield = 0
         for piece in index.pieces(session.model, CHART_SLOT):
             if piece.path in self._baseline or piece.path in self._edits.paths:
                 continue
@@ -223,10 +285,16 @@ class ArmourPickerMixin:
                 wanted[piece.path] = read_armour(piece, index)
             except Exception:  # noqa: BLE001 - a chart that will not read is simply skipped
                 continue
+            since_yield += 1
+            if since_yield >= self._ARCHIVE_LOAD_SLICE:
+                since_yield = 0
+                yield
         if wanted and self._edits.add_base_files(wanted):
             self._refresh_animation()
 
+
     def _stop_armour_index(self) -> None:
+        self._stop_archive_content_load()
         if self._armour_worker is not None:
             self._armour_worker.stop()
         if self._armour_thread is not None:

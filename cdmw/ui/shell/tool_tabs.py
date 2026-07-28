@@ -6,7 +6,7 @@ from typing import Callable
 
 from PySide6.QtWidgets import QApplication, QWidget
 
-from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, created_tool_widget
+from cdmw.ui.shell.lazy_tool_tab import LazyToolTab, as_label, created_tool_widget
 
 
 _texture_editor_tab_class: type | None = None
@@ -40,11 +40,16 @@ class ShellToolTabsMixin:
         title: str,
         key: str,
         factory: Callable[[], QWidget],
+        *,
+        index: int | None = None,
     ) -> LazyToolTab:
         container = LazyToolTab(factory)
         container.setObjectName(key)
         container.when_created(self._finish_lazy_shell_tool)
-        tabs.addTab(container, title)
+        if index is None:
+            tabs.addTab(container, as_label(title))
+        else:
+            tabs.insertTab(index, container, as_label(title))
         return container
 
     def _finish_lazy_shell_tool(self, widget: QWidget) -> None:
@@ -398,11 +403,13 @@ class ShellToolTabsMixin:
             "mod_package_retrofit",
             self._create_mod_package_retrofit_tab,
         )
+        # Top level, immediately after Assets — not inside Tools. See `root_layout.py`.
         self.placement_studio_tab = self._add_lazy_shell_tool(
-            self.tools_tabs,
+            self.main_tabs,
             "Placement & Animation Studio",
             "placement_studio",
             self._create_placement_studio_tab,
+            index=1,
         )
         self.format_explorer_tab = self._add_lazy_shell_tool(
             self.tools_tabs,

@@ -11,15 +11,15 @@
     "tools/dotnet_mesh_editor_experiment/D3D11MaterialViewport.TextureRegions.cs::TryApplyTextureRegionImmediate#1": 177,
     "tools/dotnet_mesh_editor_experiment/D3D11TexturedMetalReadabilityProof.cs::Run#1": 356,
     "tools/dotnet_mesh_editor_experiment/EditMeshLayoutSmoke.cs::RunGate#1": 252,
-    "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs::StartProtocolReader#1": 159,
+    "tools/dotnet_mesh_editor_experiment/ExperimentForm.Protocol.cs::StartProtocolReader#1": 161,
     "tools/dotnet_mesh_editor_experiment/HeadlessGpuFramePacingSoak.cs::Execute#1": 156,
-    "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.cs::ExecuteWithNoVsync#1": 167,
+    "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.cs::ExecuteWithNoVsync#1": 171,
     "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.cs::ResidentTopologyPacketProof#1": 197,
     "tools/dotnet_mesh_editor_experiment/MaterialAuthorityParityReport.cs::Execute#1": 225,
     "tools/dotnet_mesh_editor_experiment/PreviewPerformanceReport.cs::Build#1": 210,
     "tools/dotnet_mesh_editor_experiment/Program.cs::BuildToolPanels#1": 205,
-    "tools/dotnet_mesh_editor_experiment/Program.cs::ExperimentForm#1": 163,
+    "tools/dotnet_mesh_editor_experiment/Program.cs::ExperimentForm#1": 164,
     "tools/dotnet_mesh_editor_experiment/VisualAuditBatch.cs::ApplyResidentMaterialStateIfRequested#1": 154,
-    "tools/dotnet_mesh_editor_experiment/VisualAuditBatch.cs::CaptureAsset#1": 227
+    "tools/dotnet_mesh_editor_experiment/VisualAuditBatch.cs::CaptureAsset#1": 262
   }
 }

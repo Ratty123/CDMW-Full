@@ -7,7 +7,7 @@ using System.Windows.Forms;
 
 namespace Cdmw.MeshEditorExperiment;
 
-internal static class VisualAuditBatch
+internal static partial class VisualAuditBatch
 {
     private const string ManifestArgument = "--visual-audit-batch";
     private const string ReportArgument = "--visual-audit-report";
@@ -56,7 +56,7 @@ internal static class VisualAuditBatch
             {
                 throw new InvalidDataException($"Visual-audit asset count must be between 1 and {MaximumAssets}.");
             }
-            using var session = new ResidentVisualAuditSession(width, height);
+            using var session = new ResidentVisualAuditSession(width, height, JsonBool(root, "unlit"));
             foreach (var asset in assets.EnumerateArray())
             {
                 rows.Add(CaptureAsset(asset, outputRoot, width, height, session));
@@ -132,7 +132,14 @@ internal static class VisualAuditBatch
         var rendererAdoptedTextures = false;
         try
         {
-            var scenePath = Path.Combine(packageDir, "scene.obj");
+            // A native preview package carries binary geometry behind manifest.json;
+            // only the older workbench packages ship a scene.obj. ObjDocument.Load
+            // dispatches on the filename, so preferring the manifest lets this audit
+            // run against exactly the packages Archive Lite hands the renderer.
+            var manifestScenePath = Path.Combine(packageDir, "manifest.json");
+            var scenePath = File.Exists(manifestScenePath)
+                ? manifestScenePath
+                : Path.Combine(packageDir, "scene.obj");
             var materialsPath = Path.Combine(packageDir, "net_materials.json");
             var sceneStatePath = Path.Combine(packageDir, "dotnet_scene.json");
             RequirePackageFile(packageDir, scenePath);
@@ -145,6 +152,7 @@ internal static class VisualAuditBatch
             var materials = NetMaterialSet.Load(materialsPath);
             var scene = NetSceneState.Load(sceneStatePath, document.Submeshes.Count);
             scene.SetPresentationOverlayVisibility(gridVisible: false, gizmoVisible: false);
+            ApplyRequestedSubmeshIsolation(asset, scene, document.Submeshes.Count);
             parseMs = phase.Elapsed.TotalMilliseconds;
 
             textures = NetTextureSet.Load(materials);
@@ -193,6 +201,33 @@ internal static class VisualAuditBatch
                 var pitch = JsonFloat(view, "pitch", 0.0f);
                 var rendererYaw = yaw;
                 var rendererPitch = pitch;
+                // The preview package carries the camera the app opens the asset
+                // on, chosen per equipment slot: weapons and shields overhead at
+                // pitch -89 so a flat face is toward the camera, helmets and
+                // torsos from the front. Ignoring it and imposing a fixed angle
+                // is what made captured shields read as edge-on slivers when the
+                // app had been showing them face-on all along -- an artefact of
+                // this harness, not of the renderer. Follow the package by
+                // default so a sheet shows what a viewer sees; `"use_package_
+                // camera": false` keeps a fixed angle where that is the point,
+                // such as an A/B against an earlier capture.
+                if (JsonBoolOrDefault(view, "use_package_camera",
+                        JsonBoolOrDefault(asset, "use_package_camera", true))
+                    && scene.HasArchivePreviewCamera)
+                {
+                    rendererYaw = scene.ArchivePreviewYawDegrees;
+                    rendererPitch = Math.Clamp(scene.ArchivePreviewPitchDegrees, -89.0f, 89.0f);
+                }
+                else if (JsonBool(view, "auto_frame") || JsonBool(asset, "auto_frame"))
+                {
+                    // Fallback for packages that declare no camera.
+                    var (autoYaw, autoPitch) = NetViewportCamera.FramingAnglesFor(
+                        document.Bounds(),
+                        yaw * MathF.PI / 180.0f,
+                        pitch * MathF.PI / 180.0f);
+                    rendererYaw = autoYaw * 180.0f / MathF.PI;
+                    rendererPitch = autoPitch * 180.0f / MathF.PI;
+                }
                 session.SetArchiveCamera(document, rendererYaw, rendererPitch);
                 Application.DoEvents();
                 var capturePath = Path.Combine(assetOutput, name + ".png");
@@ -566,13 +601,15 @@ internal static class VisualAuditBatch
     private sealed class ResidentVisualAuditSession : IDisposable
     {
         private readonly Form _form;
+        private readonly bool _unlit;
         private D3D11MaterialViewport? _viewport;
         private NetTextureSet? _activeTextures;
         private int _viewportCreateCount;
         private int _deviceInitializationCount;
 
-        public ResidentVisualAuditSession(int width, int height)
+        public ResidentVisualAuditSession(int width, int height, bool unlit = false)
         {
+            _unlit = unlit;
             _form = new Form
             {
                 ClientSize = new Size(width, height),
@@ -596,7 +633,13 @@ internal static class VisualAuditBatch
                 {
                     Dock = DockStyle.Fill,
                 };
-                viewport.ApplyPresentationSettings(new D3D11PresentationSettings());
+                // An unlit pass shows the albedo the renderer actually resolved,
+                // which is how a shading problem is told apart from a texture or
+                // colour-space one without guessing from the lit image.
+                viewport.ApplyPresentationSettings(new D3D11PresentationSettings
+                {
+                    DisableLighting = _unlit,
+                });
                 _form.Controls.Add(viewport);
                 try
                 {
@@ -905,6 +948,18 @@ internal static class VisualAuditBatch
         }
         return text;
     }
+
+    private static bool JsonBool(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind == JsonValueKind.True;
+
+    /// <summary>
+    /// Reads a boolean that defaults to something other than false, so an absent
+    /// key and an explicit <c>false</c> are distinguishable.
+    /// </summary>
+    private static bool JsonBoolOrDefault(JsonElement root, string name, bool fallback) =>
+        root.TryGetProperty(name, out var value) && value.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? value.ValueKind == JsonValueKind.True
+            : fallback;
 
     private static int JsonInt(JsonElement root, string name, int fallback) =>
         root.TryGetProperty(name, out var value) && value.TryGetInt32(out var parsed) ? parsed : fallback;

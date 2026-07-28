@@ -89,6 +89,7 @@ internal sealed partial class ExperimentForm : Form
     private bool _embeddedHostFailed;
     private bool _readyPublished;
     private bool _readyPendingFirstFrame;
+    private long _embeddedParentHwnd;
     private string _pendingTextureState = string.Empty;
     private string _pendingTextureError = string.Empty;
     private bool _syncingSubmeshListSelection;
@@ -111,6 +112,7 @@ internal sealed partial class ExperimentForm : Form
     public ExperimentForm(LaunchOptions options, ObjDocument document, long sourceParseCount)
     {
         _options = options;
+        _embeddedParentHwnd = options.ParentHwnd;
         _document = document;
         _sourceParseCount = Math.Max(0, sourceParseCount);
         _materials = NetMaterialSet.Load(options.MaterialsPath);
@@ -1266,6 +1268,7 @@ internal sealed partial class MeshViewport : Control
         _renderSurfaceResizeTimer.Tick += OnRenderSurfaceResizeTimerTick;
         InitializeGpuViewport();
         FrameMesh();
+        ApplyArchivePreviewInitialCamera();
         InitializePresentationContexts();
     }
 

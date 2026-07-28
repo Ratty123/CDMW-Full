@@ -206,4 +206,52 @@ internal readonly record struct NetViewportCamera(
     {
         return vector.LengthSquared() > 0.000001f ? Vector3.Normalize(vector) : fallback;
     }
+
+    /// <summary>
+    /// Framing angles for a model, derived from its own extents.
+    /// </summary>
+    /// <remarks>
+    /// A flat object -- a shield, a blade, a banner -- has one extent far
+    /// smaller than the other two, and a fixed viewing angle shows it edge-on:
+    /// a shield resting in its authored pose reads as a line, and a sword blade
+    /// presents its edge rather than its face. Looking down the thinnest axis
+    /// turns the largest face toward the camera. Anything roughly
+    /// equidimensional is left on the caller's angles, because there is no flat
+    /// face to prefer and the standard three-quarter view reads better.
+    /// A small tilt is kept off-axis so the result still shows form rather than
+    /// looking orthographic.
+    /// </remarks>
+    public static (float Yaw, float Pitch) FramingAnglesFor(
+        (Vec3 Min, Vec3 Max) bounds,
+        float defaultYaw,
+        float defaultPitch)
+    {
+        var ex = MathF.Abs(bounds.Max.X - bounds.Min.X);
+        var ey = MathF.Abs(bounds.Max.Y - bounds.Min.Y);
+        var ez = MathF.Abs(bounds.Max.Z - bounds.Min.Z);
+        var smallest = MathF.Min(ex, MathF.Min(ey, ez));
+        var largest = MathF.Max(ex, MathF.Max(ey, ez));
+        if (largest <= 0.000001f)
+        {
+            return (defaultYaw, defaultPitch);
+        }
+        // The middle extent is what decides flatness: comparing against the
+        // largest alone would call a long thin rod flat.
+        var middle = ex + ey + ez - smallest - largest;
+        if (middle <= 0.000001f || smallest > middle * 0.45f)
+        {
+            return (defaultYaw, defaultPitch);
+        }
+        const float Tilt = 0.20f;
+        if (smallest == ey)
+        {
+            // Lying flat in its authored pose: look down at the face.
+            return (defaultYaw, -MathF.PI * 0.5f + Tilt);
+        }
+        if (smallest == ex)
+        {
+            return (MathF.PI * 0.5f - Tilt, Tilt * 0.5f);
+        }
+        return (Tilt, Tilt * 0.5f);
+    }
 }

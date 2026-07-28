@@ -100,6 +100,7 @@ internal static partial class HeadlessGpuSparseSoak
             options.Smoke);
         var untexturedReadabilityProof = D3D11UntexturedReadabilityProof.Run();
         var texturedMetalReadabilityProof = D3D11TexturedMetalReadabilityProof.Run();
+        var materialLayerOrientationProof = D3D11MaterialLayerOrientationProof.Run();
 
         var dirtyIndex = new[] { 0 };
         var changed = new Dictionary<int, MeshVertexChannelChanges>
@@ -161,6 +162,8 @@ internal static partial class HeadlessGpuSparseSoak
             untexturedReadabilityProof.GetValueOrDefault("ok") is true;
         gates["textured_metal_readable_front_back_and_oblique"] =
             texturedMetalReadabilityProof.GetValueOrDefault("ok") is true;
+        gates["material_layers_preserve_rows_and_flip_once"] =
+            materialLayerOrientationProof.GetValueOrDefault("ok") is true;
         gates["native_windows_remained_hidden"] = host.IsHandleCreated
             && viewport.IsHandleCreated
             && !host.Visible
@@ -227,6 +230,7 @@ internal static partial class HeadlessGpuSparseSoak
         report["xray_overlay_proof"] = xrayOverlayProof;
         report["untextured_readability_proof"] = untexturedReadabilityProof;
         report["textured_metal_readability_proof"] = texturedMetalReadabilityProof;
+        report["material_layer_orientation_proof"] = materialLayerOrientationProof;
         return (report, ok);
     }
 

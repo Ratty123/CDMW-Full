@@ -100,7 +100,10 @@ def test_default_vortice_presentation_preserves_unclassified_real_pac_faces() ->
     assert "_presentationSettings.CullBackFaces ? CullMode.Back : CullMode.None" in viewport_settings
     assert "new RasterizerDescription(CullMode.Back, FillMode.Solid)" not in viewport
     assert "public bool CullBackFaces => _presentationSettings.CullBackFaces;" in viewport_settings
-    assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings());" in audit_batch
+    # The audit can render a batch unlit, which is how a shading problem is told
+    # apart from a texture or colour-space one without guessing from the lit image.
+    assert "viewport.ApplyPresentationSettings(new D3D11PresentationSettings\n" in audit_batch
+    assert "DisableLighting = _unlit," in audit_batch
     assert '["presentation"] = viewport.PresentationEvidencePayload()' in audit_batch
 
 
@@ -185,7 +188,14 @@ def test_dotnet_material_tone_mapping_matches_native_reference_operator() -> Non
     assert "2.51f * color + 0.03f" in shader
     assert "2.43f * color + 0.59f" in shader
     assert "float mappedLuma = AcesToneMap(exposedLuma.xxx).r;" in shader
-    assert "float contrastedLuma = (currentLuma - 0.5f)" in shader
+    # The tone gamma acts on luminance in display space and the result is applied
+    # as one ratio across all three channels. A per-channel gamma darkens a low
+    # channel proportionally more than a high one and so desaturates: measured
+    # against the source textures it took reproduction from 0.958 to 0.747 while
+    # it was fixing brightness.
+    assert "contrastedDisplay = pow(contrastedDisplay, max(PresentationToneTuning.z, 0.01f));" in shader
+    assert "float contrastedLuma = SrgbToLinearScalar(contrastedDisplay);" in shader
+    assert "finalColor *= max(contrastedLuma, 0.0f) / max(currentLuma, 1e-5f);" in shader
 
 
 def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> None:
@@ -286,8 +296,15 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "uv += viewDirection.xy * height * MaterialHeightScale;" not in shader
     assert "float3 metalTintBias = clamp(" in shader
     assert "materialReferenceAlbedo * metalTintBias" in shader
-    assert "lerp(0.05f, 1.25f, neutralMetalTint)" in shader
-    assert "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint);" in shader
+    # A chromatic metal tint now reaches the surface through the luma-normalised
+    # hue shift instead of being damped to 5%: 217 of 280 sampled metal parts
+    # carry one, so at 0.05f most of the game's brass and gold resolved to grey
+    # steel. The painty colourise path stays suppressed for them.
+    assert "lerp(1.0f, 1.25f, neutralMetalTint)" in shader
+    assert (
+        "float colorizeStrength = lerp(0.58f, 0.96f, neutralMetalTint) * (1.0f - metalHueOnly);"
+        in shader
+    )
     assert (
         "materialReferenceAlbedo * metalTintBias,\n"
         "            0.34f * saturate(MaterialBaseTintPolicy.x)));"
@@ -296,8 +313,11 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "float ambientFloor = categoryMetal ? 0.24f" in shader
     assert "float diffuseDepth = saturate(" in shader
     assert "float depthAuthority = categoryMetal" in shader
-    assert "glossyNonmetal ? 0.72f" in shader
-    assert "categoryLeather ? 0.52f" in shader
+    # Shading was held back so the old contrast operator could not crush shadowed
+    # cloth to black. With contrast pivoting perceptually that headroom exists, so
+    # each family can be shaped further by its own normal.
+    assert "glossyNonmetal ? 0.80f" in shader
+    assert "categoryLeather ? 0.70f : 0.68f" in shader
     assert "MaterialFamilyPolicy.w > 0.0f ? MaterialFamilyPolicy.w" not in shader
     assert "float nonmetalTextureScale = conservativeNonmetal ? 1.03f : 1.0f;" in shader
     assert "float3 litDiffuse = materialReferenceAlbedo" in shader
@@ -305,7 +325,12 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "float metalDistribution = DistributionGGX(metalNormal, metalHalfVector, roughness);" in shader
     assert "float metalGeometry = GeometrySmith(" in shader
     assert "float3 metalFresnel = SourceStableFresnel(metalHdotV, specularColor);" in shader
-    assert "float metalDirectSpecularScale = 0.35f + metallic * 0.35f;" in shader
+    # Where the source supplies a metal map, F0 is its own albedo and the GGX term
+    # is already energy-normalised, so dividing it down only removes the compact
+    # highlight that makes metal read as metal rather than grey plastic. The
+    # per-category scale remains as the no-map fallback, as it does for dielectrics.
+    assert "float metalDirectSpecularScale = hasSourceMetallicMap" in shader
+    assert "(0.35f + metallic * 0.35f) * saturate(PresentationMaterialTuning.y);" in shader
     assert "float3(0.85f, 0.85f, 0.85f)" in shader
     assert "float metalDirectLobe = pow(" not in shader
     assert "float broadMetalLobe = pow(" not in shader
@@ -323,7 +348,11 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "conservativeNonmetal ? 0.018f" in shader
     assert "* categoryEnvironmentScale" in shader
     assert "float metalCue = categoryMetal" in shader
-    assert "float metalDiffuseScale = lerp(1.0f, 0.34f, saturate(metallic));" in shader
+    # Where the source supplies a metal map the reflection paths can be trusted to
+    # carry the surface, so the diffuse residue drops to a floor that only keeps a
+    # very dark alloy from collapsing between lobes. Without one, 0.34 still stops
+    # steel reading as chalky white plaster -- bright everywhere, reflective nowhere.
+    assert "float metalDiffuseScale = lerp(\n        1.0f,\n        hasSourceMetallicMap ? 0.12f : 0.34f,\n        saturate(metallic));" in shader
     assert "litDiffuse += materialReferenceAlbedo * metalCue * 0.16f;" in shader
     assert "0.14f + roughness * 0.06f + (1.0f - ndotv) * 0.30f" in shader
     assert "if (categoryMetal)" in shader
@@ -332,7 +361,11 @@ def test_dotnet_material_diffuse_depth_matches_native_reference_operator() -> No
     assert "clamp(PresentationDiagnosticTuning.y, 0.02f, 0.08f)" in shader
     assert "materialReferenceAlbedo," in shader
     assert "float3 spec = float3(0.0f, 0.0f, 0.0f);" in shader
-    assert "float3 fresnel = SourceStableFresnel(" not in shader
+    # The isotropic dielectric path still takes its Fresnel inline from the
+    # source-stable F0 rather than through a named local. The single remaining one
+    # is the hair anisotropy branch, which reuses it across both strand lobes.
+    assert shader.count("float3 fresnel = SourceStableFresnel(") == 1
+    assert "if (MaterialHairAnisotropy.x > 0.5f)" in shader
     assert "float3 ambient = baseColor.rgb * AmbientColor" not in shader
 
 
@@ -375,7 +408,9 @@ def test_dotnet_material_category_authority_reaches_native_response_fallback() -
     # the metal response, hence it now follows sourceStableF0 rather than
     # feeding it, and both still precede every Fresnel use.
     assert source_fresnel < sampled_specular < metal_fresnel_use < environment_fresnel_use
-    assert "SourceStableFresnel(\n            nonmetalCameraShape,\n            resolvedSurfaceF0)" in shader
+    # Indented one level further than it used to be: the isotropic lobe is now the
+    # else-branch of the hair anisotropy test.
+    assert "SourceStableFresnel(\n                nonmetalCameraShape,\n                resolvedSurfaceF0)" in shader
     assert "float3 resolvedSurfaceF0 = sourceStableF0;" in shader
 
 

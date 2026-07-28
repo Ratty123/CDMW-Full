@@ -54,7 +54,8 @@ static void append_mesh_reference_bindings(
             binding.sidecar_path = "";
             binding.sidecar_kind = "embedded_mesh";
             binding.linked_mesh_path = mesh_source_path;
-            binding.packed_channels = packed_channels_for_role(binding.role, binding.texture_name, binding.parameter_name);
+            binding.packed_channels = packed_channels_for_role(
+                binding.role, binding.texture_name, binding.parameter_name, binding.shader_rule);
             binding.srgb_mode = srgb_mode_for_role(binding.role, nullptr);
             binding.parameter_declared_by = "mesh";
             binding.visible_class = visible_class_for_binding(binding.parameter_name, binding.archive_path, binding.role);

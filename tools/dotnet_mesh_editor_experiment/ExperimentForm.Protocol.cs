@@ -80,6 +80,7 @@ internal sealed partial class ExperimentForm
 
     private void StartProtocolReader()
     {
+        var rendererWindowHandle = Handle.ToInt64();
         _ = Task.Run(() =>
         {
             try
@@ -234,6 +235,7 @@ internal sealed partial class ExperimentForm
             }
             catch (IOException)
             {
+                // A broken input pipe carries the same meaning as end of input: the host is gone.
             }
             ShutdownAfterHostDisconnect();
         });
@@ -292,6 +294,38 @@ internal sealed partial class ExperimentForm
             await Task.Delay(TimeSpan.FromSeconds(5)).ConfigureAwait(false);
             Environment.Exit(0);
         });
+    }
+
+    /// <summary>
+    /// Standard input reaches end of input when the hosting application process ends, because the
+    /// host owns the write end of that pipe. The host arms its kill-on-close job object just after
+    /// launching this renderer, so a host that dies inside that window leaves nothing else to stop
+    /// an embedded previewer. Losing the host's input is that missing signal.
+    /// </summary>
+    /// <remarks>
+    /// Only embedded runs act on it. A standalone or developer run may legitimately be started
+    /// without redirected input, where end of input says nothing about a host.
+    /// </remarks>
+    private void RequestHostDisconnectShutdown()
+    {
+        if (!_options.Embedded)
+        {
+            return;
+        }
+        try
+        {
+            if (IsDisposed || !IsHandleCreated)
+            {
+                Environment.Exit(0);
+                return;
+            }
+            BeginInvoke(new Action(Close));
+        }
+        catch (Exception exception) when (exception is ObjectDisposedException or InvalidOperationException)
+        {
+            // The window is already going away or was never usable; the host is gone either way.
+            Environment.Exit(0);
+        }
     }
 
     private void HandleProtocolLine(string line)

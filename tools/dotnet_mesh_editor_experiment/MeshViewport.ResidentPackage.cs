@@ -35,6 +35,12 @@ internal sealed partial class MeshViewport
         }
         var renderer = _d3d11Viewport
             ?? throw new InvalidOperationException("The production D3D11 renderer is not available for resident package replacement.");
+        var preserveArchiveCamera = !string.IsNullOrWhiteSpace(_scene.ArchivePreviewSourcePath)
+            && string.Equals(
+                _scene.ArchivePreviewSourcePath,
+                scene.ArchivePreviewSourcePath,
+                StringComparison.OrdinalIgnoreCase);
+        var previousCamera = (_yaw, _pitch, _zoom, _panX, _panY);
 
         renderer.ReplaceResidentScene(document, materials, textureSet, scene);
         _document = document;
@@ -66,6 +72,14 @@ internal sealed partial class MeshViewport
         _scene.SetPresentationOverlayVisibility(_presentationGridVisible, _presentationGizmoVisible);
         _presentationStateFingerprint = string.Empty;
         FrameMesh();
+        if (preserveArchiveCamera)
+        {
+            (_yaw, _pitch, _zoom, _panX, _panY) = previousCamera;
+        }
+        else
+        {
+            ApplyArchivePreviewInitialCamera();
+        }
         InitializePresentationContexts();
         var hasTextureResources = materials.TextureLoadResources().Any()
             || textureSet.DecodedCount > 0
@@ -77,5 +91,36 @@ internal sealed partial class MeshViewport
             InitialResidentDisplayMode(hasTextureResources),
             out _);
         ApplySceneState();
+    }
+
+    private void ApplyArchivePreviewInitialCamera()
+    {
+        if (!_scene.HasArchivePreviewCamera)
+        {
+            // Only where the package declares nothing: the preview pipeline
+            // already frames by equipment slot -- weapons and shields overhead
+            // at pitch -89 so a flat face is toward the camera, helmets and
+            // torsos from the front -- and that authored choice outranks
+            // anything inferred from bounds here.
+            (_yaw, _pitch) = NetViewportCamera.FramingAnglesFor(
+                SceneBoundsForContext(_activeCameraContextId),
+                _yaw,
+                _pitch);
+            UpdateGpuViewport();
+            return;
+        }
+        _yaw = _scene.ArchivePreviewYawDegrees * MathF.PI / 180.0f;
+        _pitch = Math.Clamp(_scene.ArchivePreviewPitchDegrees, -89.0f, 89.0f) * MathF.PI / 180.0f;
+        _panX = 0.0f;
+        _panY = 0.0f;
+        if (_scene.ArchivePreviewFitToView)
+        {
+            var fitZoom = FitZoomForBounds(SceneBoundsForContext(_activeCameraContextId));
+            _zoom = CameraZoomPolicy.ApplyZoomFactor(
+                fitZoom,
+                fitZoom,
+                _scene.ArchivePreviewFitRelativeZoom);
+        }
+        UpdateGpuViewport();
     }
 }

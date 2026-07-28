@@ -4,7 +4,8 @@ static std::string material_category_reason_for_bindings(
     const std::vector<const TextureBinding*>& bindings,
     const NativeSubmesh& mesh,
     const TextureBinding* base,
-    const std::vector<MaterialLayer>& layers
+    const std::vector<MaterialLayer>& layers,
+    const TextureBinding* surface
 ) {
     std::string evidence = lower_copy(mesh.material + " " + mesh.name + " " + mesh.source_component_label + " " + mesh.source_model_path);
     if (base != nullptr) {
@@ -16,6 +17,21 @@ static std::string material_category_reason_for_bindings(
     }
     for (const MaterialLayer& layer : layers) {
         evidence += " " + lower_copy(layer.diffuse_archive_path + " " + layer.source_parameter + " " + layer.layer_role);
+    }
+    const DecodedSurfaceEvidence decoded = decoded_surface_evidence(bindings, surface);
+    if (decoded.decoded) {
+        // Report the measurement rather than the rule it replaced, so a reader can
+        // tell a decoded verdict from a slot-position guess.
+        if (category == "metal" && decoded.metal_coverage >= kDecodedMetalDominantCoverage) {
+            return "metal:decoded_metal_channel:"
+                + std::to_string(static_cast<int>(decoded.metal_coverage * 100.0f + 0.5f)) + "pct";
+        }
+        if (category != "metal" && decoded.metal_coverage < kDecodedMetalDominantCoverage) {
+            return decoded.metal_coverage < kDecodedMetalAbsentCoverage
+                ? "nonmetal:decoded_metal_channel_absent"
+                : "nonmetal:decoded_metal_channel_minority:"
+                    + std::to_string(static_cast<int>(decoded.metal_coverage * 100.0f + 0.5f)) + "pct";
+        }
     }
     if (category == "metal") {
         if (mesh_has_crimson_armor_equipment_surface(mesh) && has_authoritative_equipment_material_response(bindings, mesh)) {
@@ -190,6 +206,38 @@ static MaterialLayer make_base_material_layer(
 
 static bool tint_color_is_visible(const std::array<float, 4>& tint);
 
+// How much of the surface a layer is allowed to claim. A weapon's layer stack is
+// its whole finish rather than an accent, so those layers carry far more weight
+// than the general case, and a tinted detail layer on a weapon sits between the
+// two. An unauthored weight (<= 0.001) falls back to the band's default.
+static void apply_layer_weight_and_tint_policy(
+    MaterialLayer& layer,
+    bool weapon_layer_stack,
+    bool weapon_tinted_detail_layer,
+    bool selected_base_layer
+) {
+    if (weapon_layer_stack) {
+        const bool detail_layer = lower_copy(layer.layer_role).find("detail") != std::string::npos;
+        const float fallback_weight = selected_base_layer ? 0.48f : (detail_layer ? 0.44f : 0.36f);
+        const float minimum_weight = selected_base_layer ? 0.42f : (detail_layer ? 0.34f : 0.28f);
+        layer.weight = std::clamp(layer.weight <= 0.001f ? fallback_weight : layer.weight, 0.0f, 0.78f);
+        layer.weight = std::max(layer.weight, minimum_weight);
+        if (layer.tint[3] < 0.55f) {
+            layer.tint[3] = detail_layer ? 0.68f : 0.55f;
+        }
+        return;
+    }
+    if (weapon_tinted_detail_layer) {
+        layer.weight = std::clamp(layer.weight <= 0.001f ? 0.58f : layer.weight, 0.0f, 0.72f);
+        layer.weight = std::max(layer.weight, 0.44f);
+        if (layer.tint[3] < 0.68f) {
+            layer.tint[3] = 0.68f;
+        }
+        return;
+    }
+    layer.weight = std::clamp(layer.weight <= 0.001f ? 0.14f : layer.weight, 0.0f, 0.22f);
+}
+
 static std::vector<MaterialLayer> compile_material_layers(
     const std::vector<const TextureBinding*>& bindings,
     const NativeSubmesh& mesh,
@@ -261,7 +309,16 @@ static std::vector<MaterialLayer> compile_material_layers(
         if (placeholder_layer_mask_path(mask->archive_path) || placeholder_layer_mask_path(mask->texture_name)) {
             continue;
         }
-        if (!mask->layer_channel.empty()) {
+        // The layer parameter says which channel of the mask selects it, so it
+        // outranks anything read off the mask binding. `_detailMaskTexture`
+        // resolves to a fixed "b", and letting that overwrite the layer put
+        // `_detailDiffuseMaskR`, `G` and `B` all on the blue channel: two of the
+        // three layers painted in the wrong regions and the areas the red and
+        // green channels mark got nothing, which is why a fully layered helmet
+        // like cd_phm_00_hel_00_0354 collapsed to one flat tone. The mask's own
+        // channel is still the fallback for layers that name none.
+        if (!mask->layer_channel.empty()
+            && !layer_parameter_names_channel(binding->parameter_name)) {
             layer.layer_channel = mask->layer_channel;
         }
         layer.mask_source = mask->source_path;
@@ -271,24 +328,8 @@ static std::vector<MaterialLayer> compile_material_layers(
             mesh_has_crimson_weapon_surface(mesh)
             && lower_copy(layer.layer_role).find("detail") != std::string::npos
             && tint_color_is_visible(layer.tint);
-        if (weapon_layer_stack) {
-            const bool detail_layer = lower_copy(layer.layer_role).find("detail") != std::string::npos;
-            const float fallback_weight = selected_base_layer ? 0.48f : (detail_layer ? 0.44f : 0.36f);
-            const float minimum_weight = selected_base_layer ? 0.42f : (detail_layer ? 0.34f : 0.28f);
-            layer.weight = std::clamp(layer.weight <= 0.001f ? fallback_weight : layer.weight, 0.0f, 0.78f);
-            layer.weight = std::max(layer.weight, minimum_weight);
-            if (layer.tint[3] < 0.55f) {
-                layer.tint[3] = detail_layer ? 0.68f : 0.55f;
-            }
-        } else if (weapon_tinted_detail_layer) {
-            layer.weight = std::clamp(layer.weight <= 0.001f ? 0.58f : layer.weight, 0.0f, 0.72f);
-            layer.weight = std::max(layer.weight, 0.44f);
-            if (layer.tint[3] < 0.68f) {
-                layer.tint[3] = 0.68f;
-            }
-        } else {
-            layer.weight = std::clamp(layer.weight <= 0.001f ? 0.14f : layer.weight, 0.0f, 0.22f);
-        }
+        apply_layer_weight_and_tint_policy(
+            layer, weapon_layer_stack, weapon_tinted_detail_layer, selected_base_layer);
         if (base != nullptr && base->dds_width > 0 && base->dds_height > 0 && binding->dds_width > 0 && binding->dds_height > 0) {
             const int base_largest_dimension = std::max(base->dds_width, base->dds_height);
             const int layer_largest_dimension = std::max(binding->dds_width, binding->dds_height);

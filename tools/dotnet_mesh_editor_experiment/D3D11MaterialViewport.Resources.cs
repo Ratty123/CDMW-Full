@@ -9,7 +9,7 @@ namespace Cdmw.MeshEditorExperiment;
 
 internal sealed partial class D3D11MaterialViewport
 {
-    private static readonly ID3D11ShaderResourceView?[] EmptyMaterialShaderResources = new ID3D11ShaderResourceView?[10];
+    private static readonly ID3D11ShaderResourceView?[] EmptyMaterialShaderResources = new ID3D11ShaderResourceView?[11];
     private bool _materialResourcesDirty;
     private bool _textureResourceRefreshActive;
     private long _textureSrvCreateCount;
@@ -121,16 +121,32 @@ internal sealed partial class D3D11MaterialViewport
 
     private D3D11MaterialResources CreateMaterialResources(int submeshIndex)
     {
-        var baseTexture = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "base", "albedo", "diffuse"));
+        var baseReference = _textureSet.SynthesizedBaseReferenceForSubmesh(_materials, submeshIndex);
+        if (baseReference.IsEmpty)
+        {
+            baseReference = _materials.TextureReferenceForSubmesh(submeshIndex, "base", "albedo", "diffuse");
+        }
+        var baseTexture = CreateTextureSrv(baseReference);
         var normal = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "normal"));
         var specular = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "specular"));
-        var roughness = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "roughness"));
-        var metallic = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "metallic"));
+        // Where the surface response only exists per colour layer, one composite
+        // stands in for both channels; the declared component selectors still pick
+        // roughness out of green and metal out of blue.
+        var surfaceReference = _textureSet.SynthesizedSurfaceReferenceForSubmesh(_materials, submeshIndex);
+        var roughnessReference = surfaceReference.IsEmpty
+            ? _materials.TextureReferenceForSubmesh(submeshIndex, "roughness")
+            : surfaceReference;
+        var metallicReference = surfaceReference.IsEmpty
+            ? _materials.TextureReferenceForSubmesh(submeshIndex, "metallic")
+            : surfaceReference;
+        var roughness = CreateTextureSrv(roughnessReference);
+        var metallic = CreateTextureSrv(metallicReference);
         var height = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "height"));
         var emissive = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "emissive"));
         var layerMask = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "layer_mask", "mask"));
         var opacity = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "opacity"));
         var occlusion = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "occlusion", "ao"));
+        var flow = CreateTextureSrv(_materials.TextureReferenceForSubmesh(submeshIndex, "flow"));
         var resources = new D3D11MaterialResources(
             baseTexture.View,
             normal.View,
@@ -142,7 +158,8 @@ internal sealed partial class D3D11MaterialViewport
             layerMask.View,
             opacity.View,
             occlusion.View,
-            new[] { baseTexture.CacheKey, normal.CacheKey, specular.CacheKey, roughness.CacheKey, metallic.CacheKey, height.CacheKey, emissive.CacheKey, layerMask.CacheKey, opacity.CacheKey, occlusion.CacheKey }
+            flow.View,
+            new[] { baseTexture.CacheKey, normal.CacheKey, specular.CacheKey, roughness.CacheKey, metallic.CacheKey, height.CacheKey, emissive.CacheKey, layerMask.CacheKey, opacity.CacheKey, occlusion.CacheKey, flow.CacheKey }
                 .Where(key => !string.IsNullOrWhiteSpace(key))
                 .ToHashSet(StringComparer.OrdinalIgnoreCase));
         _materialBindingArrayCreateCount++;
@@ -488,6 +505,7 @@ internal sealed class D3D11MaterialResources : IDisposable
         ID3D11ShaderResourceView? layerMask,
         ID3D11ShaderResourceView? opacity,
         ID3D11ShaderResourceView? occlusion,
+        ID3D11ShaderResourceView? flow,
         IReadOnlySet<string> cacheKeys)
     {
         Base = baseTexture;
@@ -500,7 +518,8 @@ internal sealed class D3D11MaterialResources : IDisposable
         LayerMask = layerMask;
         Opacity = opacity;
         Occlusion = occlusion;
-        ShaderResources = new[] { Base, Normal, Specular, Roughness, Metallic, Height, Emissive, LayerMask, Opacity, Occlusion };
+        Flow = flow;
+        ShaderResources = new[] { Base, Normal, Specular, Roughness, Metallic, Height, Emissive, LayerMask, Opacity, Occlusion, Flow };
         CacheKeys = cacheKeys;
     }
 
@@ -514,6 +533,8 @@ internal sealed class D3D11MaterialResources : IDisposable
     public ID3D11ShaderResourceView? LayerMask { get; }
     public ID3D11ShaderResourceView? Opacity { get; }
     public ID3D11ShaderResourceView? Occlusion { get; }
+    // Strand direction in UV space; the input to the hair anisotropic highlight.
+    public ID3D11ShaderResourceView? Flow { get; }
     public ID3D11ShaderResourceView?[] ShaderResources { get; }
     public IReadOnlySet<string> CacheKeys { get; }
 
@@ -524,7 +545,7 @@ internal sealed class D3D11MaterialResources : IDisposable
         return new D3D11MaterialResources(
             resources[0], resources[1], resources[2], resources[3],
             resources[4], resources[5], resources[6], resources[7],
-            resources[8], resources[9], CacheKeys);
+            resources[8], resources[9], resources[10], CacheKeys);
     }
 
     public void Dispose()

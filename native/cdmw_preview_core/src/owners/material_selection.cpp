@@ -1,4 +1,82 @@
 
+// A preview report shows why a candidate was dropped, so every pre-scoring
+// rejection records one line naming the texture and the material it lost.
+static void note_rejected_support_binding(
+    std::vector<std::string>* rejected_examples,
+    const std::string& desired_role,
+    const std::string& reason,
+    const TextureBinding& binding,
+    const NativeSubmesh& mesh
+) {
+    if (rejected_examples == nullptr || rejected_examples->size() >= 16) return;
+    rejected_examples->push_back(
+        desired_role + " " + reason + " "
+        + (binding.texture_name.empty() ? basename_from_path(binding.archive_path) : binding.texture_name)
+        + " for " + mesh.material
+    );
+}
+
+// cd_temp_* and the none/null/dummy family are unfinished authoring left in the
+// shipped archive. Where a placeholder's absence is equivalent -- a flat normal,
+// a neutral surface -- letting it stand in costs nothing, so it is only demoted
+// and a real map outranks it.
+//
+// The colour-blending mask is deliberately excluded. There the same texture is a
+// real instruction -- "layer R at 100%" -- that the game reads the same way, and
+// 252 sampled assets that composite through it render correctly; rejecting it
+// would make the preview less faithful, not more.
+static bool binding_is_placeholder_support_texture(
+    const TextureBinding& binding,
+    const std::string& desired_role
+) {
+    return desired_role != "material"
+        && (placeholder_layer_mask_path(binding.archive_path)
+            || placeholder_layer_mask_path(binding.texture_name));
+}
+
+// Candidates that must not be scored at all, as opposed to merely demoted.
+static bool support_binding_rejected_before_scoring(
+    const TextureBinding& binding,
+    const NativeSubmesh& mesh,
+    const std::string& desired_role,
+    bool placeholder_support_texture,
+    std::vector<std::string>* rejected_examples
+) {
+    // Wrapper order says which of a model's materials a submesh uses. It is not a
+    // claim that a material's own maps belong to one submesh only: a model can
+    // bind the same material to several submeshes, and then only the one whose
+    // local index happens to equal the wrapper index accepted its normal and
+    // surface maps while the rest rendered flat. On cd_phm_00_bag_0035,
+    // CD_PHM_04_String_0001 is used by four submeshes and exactly one got its
+    // maps. Where the binding names the same material the mesh declares, identity
+    // is already established and wrapper order has nothing left to disambiguate.
+    const bool binding_declares_mesh_material =
+        !normalized_material_key(binding.material_name).empty()
+        && material_keys_match_for_identity(
+            normalized_material_key(binding.material_name),
+            normalized_material_key(mesh.material));
+    if (
+        binding.material_wrapper_order_authoritative
+        && binding.material_wrapper_index >= 0
+        && mesh.source_local_submesh_index >= 0
+        && binding.material_wrapper_index != mesh.source_local_submesh_index
+        && !binding_declares_mesh_material
+    ) {
+        note_rejected_support_binding(rejected_examples, desired_role, "rejected cross-wrapper candidate", binding, mesh);
+        return true;
+    }
+    // A placeholder that would *create* an effect the part does not otherwise
+    // have must not be used at all: cd_temp_r_m.dds decodes to (1, 0, 0), so as an
+    // emissive map it makes a part glow and as a height map its R drives maximum
+    // displacement across the whole surface.
+    if (placeholder_support_texture
+        && (desired_role == "emissive" || desired_role == "height")) {
+        note_rejected_support_binding(rejected_examples, desired_role, "rejected placeholder candidate", binding, mesh);
+        return true;
+    }
+    return false;
+}
+
 static const TextureBinding* best_binding_for_role(
     const std::vector<TextureBinding>& bindings,
     const NativeSubmesh& mesh,
@@ -13,19 +91,10 @@ static const TextureBinding* best_binding_for_role(
         if (binding.role != desired_role) {
             continue;
         }
-        if (
-            binding.material_wrapper_order_authoritative
-            && binding.material_wrapper_index >= 0
-            && mesh.source_local_submesh_index >= 0
-            && binding.material_wrapper_index != mesh.source_local_submesh_index
-        ) {
-            if (rejected_examples != nullptr && rejected_examples->size() < 16) {
-                rejected_examples->push_back(
-                    desired_role + " rejected cross-wrapper candidate "
-                    + (binding.texture_name.empty() ? basename_from_path(binding.archive_path) : binding.texture_name)
-                    + " for " + mesh.material
-                );
-            }
+        const bool placeholder_support_texture =
+            binding_is_placeholder_support_texture(binding, desired_role);
+        if (support_binding_rejected_before_scoring(
+                binding, mesh, desired_role, placeholder_support_texture, rejected_examples)) {
             continue;
         }
         if (support_role_requires_material_scope(desired_role) && !material_binding_matches_mesh_source(binding, mesh)) {
@@ -70,6 +139,8 @@ static const TextureBinding* best_binding_for_role(
         }
         int score = material_match_score(binding, mesh, desired_role);
         score += identity_score / 2;
+        // A real map of any provenance outranks unfinished authoring.
+        if (placeholder_support_texture) score -= 400;
         const std::string parameter_key = normalized_key(binding.parameter_name);
         const std::string layer_role = lower_copy(binding.layer_role);
         if (desired_role == "normal") {
@@ -84,7 +155,23 @@ static const TextureBinding* best_binding_for_role(
             if (parameter_key.find("materialtexture") != std::string::npos && layer_role != "damage" && layer_role != "detail" && layer_role != "grime") {
                 score += 140;
             }
-            if (layer_role == "damage" || layer_role == "detail" || layer_role == "grime") {
+            // A layer-named parameter can still hold the surface's own map. On
+            // SkinnedMeshStandard garments the unsuffixed _detailMaterialMask
+            // points at <mesh>_sp.dds -- the same family as the base albedo --
+            // while the channel-suffixed _detailMaterialMask{R,G,B} point at the
+            // shared cd_texturelayer_* tiling library. Penalising both alike gave
+            // the material slot to _colorBlendingMaskTexture, which selects a
+            // colour layer and carries no surface response, so the garment ended
+            // up with no roughness or metal at all. Stay below the +140 an
+            // authored _materialTexture earns so a real one still wins.
+            const bool own_family_material_response =
+                (layer_role == "damage" || layer_role == "detail" || layer_role == "grime")
+                && binding.packed_channels.rfind("layer:material_response", 0) == 0
+                && texture_family_key.find("texturelayer") == std::string::npos
+                && base_binding_texture_family_matches_mesh(binding, mesh);
+            if (own_family_material_response) {
+                score += 120;
+            } else if (layer_role == "damage" || layer_role == "detail" || layer_role == "grime") {
                 score -= 190;
             }
         }
@@ -116,13 +203,35 @@ struct BaseBindingAvailability {
     bool authoritative_sidecar = false;
     bool non_low_authority_visible = false;
     bool mesh_family_visible = false;
+    // The part binds a primary base colour of its own texture family -- the
+    // thing an overlay is painted on top of, not a substitute for it.
+    bool same_family_primary_base = false;
 };
+
+static bool mesh_binds_its_own_primary_base_color(
+    const std::vector<TextureBinding>& bindings,
+    const NativeSubmesh& mesh
+) {
+    for (const TextureBinding& binding : bindings) {
+        if (binding.source_path.empty() || binding.role != "base") continue;
+        if (placeholder_visible_base_path(binding.archive_path) || placeholder_visible_base_path(binding.texture_name)) continue;
+        if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)
+            || dds_format_is_data_only_for_visible_base(binding.dds_format)) continue;
+        if (!material_binding_matches_mesh_source(binding, mesh)) continue;
+        if (!binding_is_primary_apparel_base_color(binding)) continue;
+        if (base_binding_is_wrong_family_layer_or_environment(binding, mesh)) continue;
+        if (!base_binding_texture_family_matches_mesh(binding, mesh)) continue;
+        return true;
+    }
+    return false;
+}
 
 static BaseBindingAvailability inspect_base_binding_availability(
     const std::vector<TextureBinding>& bindings,
     const NativeSubmesh& mesh
 ) {
     BaseBindingAvailability availability;
+    availability.same_family_primary_base = mesh_binds_its_own_primary_base_color(bindings, mesh);
     for (const TextureBinding& binding : bindings) {
         if (binding.source_path.empty() || binding.role != "base") continue;
         if (technical_for_visible_base(binding.parameter_name, binding.archive_path, binding.role)
@@ -243,7 +352,17 @@ static const TextureBinding* best_base_binding_for_mode(
         int score = material_match_score(binding, mesh, "base");
         score += visible_class_priority(binding.visible_class) * 18;
         if (mesh_family_visible_base) score += 190;
-        if (same_family_overlay_base) score += apparel_slot_surface ? -120 : 260;
+        // An `_overlayColorTexture` is dirt, wear or a paint pass laid over a
+        // part's own colour, not the colour itself. It used to outrank the real
+        // base by 260 unless the part looked like a torso or legs, and that
+        // slot list never covered gloves, hoods, boots, bags or rings -- so
+        // across 3,148 sampled parts 223 rendered an `_o` overlay as their
+        // albedo, every one of them with its own `_baseColorTexture` bound
+        // alongside. The slot list was a proxy for the real question, which is
+        // whether the part supplies a primary base colour of its own family.
+        const bool overlay_would_replace_real_base =
+            apparel_slot_surface || availability.same_family_primary_base;
+        if (same_family_overlay_base) score += overlay_would_replace_real_base ? -120 : 260;
         if (apparel_slot_surface && binding_is_primary_apparel_base_color(binding)) score += 180;
         if (wrong_family_layer_base) score -= 320;
         if (authoritative_visible_base && identity_score >= 120) score += 155;
@@ -296,6 +415,10 @@ static std::string shader_rule_for_family(const std::string& family) {
     if (lower.find("skinnedmeshstandard_ver2") != std::string::npos) return "standard_v2";
     if (lower.find("skinnedmeshstandard") != std::string::npos) return "standard";
     if (lower.find("skinnedmeshhair") != std::string::npos || lower.find("skinnedmeshfur") != std::string::npos || lower.find("animalhair") != std::string::npos) return "hair";
+    // SkinnedMeshTear is a decal shell laid over a head. It declares a normal, a
+    // surface map and an `_m` atlas whose R, G and B are three selectable tear
+    // shapes; it has no colour of its own -- the tears take the skin beneath.
+    if (lower.find("skinnedmeshtear") != std::string::npos) return "tear";
     if (lower.find("emissive") != std::string::npos) return "emissive";
     if (lower.find("multitextured") != std::string::npos) return "static_multitextured";
     if (lower.find("standard") != std::string::npos) return "static_standard";
@@ -451,7 +574,46 @@ static const NativePbdSidecarHint* best_native_pbd_hint_for_binding(
     return best_score >= 80 ? best : nullptr;
 }
 
-static std::string packed_channels_for_role(const std::string& role, const std::string& name, const std::string& parameter_name) {
+// Crimson's `_sp` maps carry their surface response in G and B, read out of the
+// shipped shaders rather than inferred from the filename suffix:
+//
+//   Standard/Cloth/Fur/Emissive/...  sample G and B only. G is roughness,
+//                                    B is metalness. R and A are never sampled.
+//   Skin/SkinWrinkle/EyeCover        sample R, G and B. R is the subsurface
+//                                    term, which the preview has no lobe for,
+//                                    so it is dropped rather than folded into
+//                                    occlusion. G is roughness, B is metalness.
+//   Hair/AnimalHair/WhiteHornHair    sample G alone; hair carries no metal.
+//
+// R is *not* occlusion in any family. It is the most spatially detailed channel,
+// which is why it reads like a baked AO map, but only the skin shaders sample it
+// and they use it as subsurface. `_sp` files are BC1, so alpha is synthesised
+// opaque and never carries data; nothing may read it.
+static std::string material_response_channel_layout(const std::string& shader_rule) {
+    if (shader_rule == "hair") return "g=roughness";
+    // Skin packs its `_sp` differently and blue is not metal there. On equipment
+    // the red channel is a constant 1.0 filler and blue is metalness, varying by
+    // material -- cd_phm_03_handle_0004_sp measures B 0.005 and
+    // cd_phm_03_shield_0090_sp measures 0.877. A skin map does neither:
+    // cd_phm_00_head_0001_sp measures R 0.770, the subsurface term the skin
+    // shaders sample, and B 0.997 flat across the whole face.
+    //
+    // Read as metalness that says a face is 100% metal, which is what it did:
+    // 24 of 72 sampled heads classified metal rather than skin, and a metal
+    // classification takes the lower ambient floor and the cut diffuse, so the
+    // face rendered at 0.45 of the brightness its own albedo carries. Declaring
+    // only what the channel actually holds keeps the classifier, and the
+    // renderer, from reading a number that is not there.
+    if (shader_rule == "skin") return "g=roughness";
+    return "g=roughness,b=metalness";
+}
+
+static std::string packed_channels_for_role(
+    const std::string& role,
+    const std::string& name,
+    const std::string& parameter_name,
+    const std::string& shader_rule
+) {
     const std::string lower = lower_copy(name + " " + parameter_name);
     const std::string parameter_key = normalized_key(parameter_name);
     if (role == "material") {
@@ -460,6 +622,10 @@ static std::string packed_channels_for_role(const std::string& role, const std::
         if (lower.find("mra") != std::string::npos) return "r=metalness,g=roughness,b=occlusion";
         if (lower.find("arm") != std::string::npos) return "r=occlusion,g=roughness,b=metalness";
         if (parameter_key == "colorblendingmasktexture" && lower.find("_ma") != std::string::npos) {
+            // A colour-blending mask selects which authored colour layer owns a
+            // texel. Declaring it as packed occlusion/roughness/metal made the
+            // consumer read a layer weight as a surface property, which is how
+            // dyed cloth and leather picked up a metal response they never had.
             return "layer:color_blending_mask";
         }
         if (parameter_key == "detailmasktexture" || lower.find("_mg") != std::string::npos) {
@@ -471,15 +637,33 @@ static std::string packed_channels_for_role(const std::string& role, const std::
             || parameter_key.find("detailmaterialmask") != std::string::npos
             || parameter_key == "materialtexture"
         ) {
-            return "layer:material_response";
+            // Keep the layer marker for consumers that decode the map themselves,
+            // and declare the component layout so a consumer that samples the DDS
+            // directly binds roughness and metal to the channels the game reads.
+            return "layer:material_response," + material_response_channel_layout(shader_rule);
         }
         if (lower.find("_ma") != std::string::npos) return "diagnostic:crimson_material_mask";
         if (lower.find("_m") != std::string::npos) return "diagnostic:packed_material_mask";
     }
     if (role == "detail") return "layer:detail_grime_dye_mask";
-    if (role == "specular") return "layer:material_response";
+    if (role == "specular") {
+        // Only Crimson's `_sp` maps carry the G/B surface layout. A gloss or
+        // smoothness map that also lands in this slot is a different contract,
+        // so it keeps the bare marker and no component claim.
+        if (lower.find("_sp") != std::string::npos) {
+            return "layer:material_response," + material_response_channel_layout(shader_rule);
+        }
+        return "layer:material_response";
+    }
     if (role == "height") return "height";
     if (role == "normal") return "normal_xy";
+    if (role == "opacity") {
+        // R, G and B are three alternative tear shapes and the game picks one per
+        // character. A preview has no such choice, so it shows the first, which is
+        // the primary channel everywhere else in this format. Alpha is a broad
+        // unrelated field covering 42% of the sheet and is not coverage.
+        return lower.find("_m") != std::string::npos ? "r=opacity" : "";
+    }
     return "";
 }
 
@@ -494,6 +678,15 @@ static std::string layer_channel_from_parameter(const std::string& parameter_nam
     return "r";
 }
 
+// Whether the parameter itself names the mask channel that selects its layer.
+// `_detailDiffuseMaskR/G/B` do; `_detailMaskTexture` is the mask, not a layer,
+// and its "b" above is a fallback for layers that name no channel of their own.
+static bool layer_parameter_names_channel(const std::string& parameter_name) {
+    const std::string key = normalized_key(parameter_name);
+    if (key.find("detailmasktexture") != std::string::npos) return false;
+    return key.ends_with("r") || key.ends_with("g") || key.ends_with("b") || key.ends_with("a");
+}
+
 static int layer_channel_index(const std::string& channel) {
     const std::string value = lower_copy(channel);
     if (value == "g") return 1;
@@ -504,6 +697,11 @@ static int layer_channel_index(const std::string& channel) {
 
 static std::string layer_role_from_parameter(const std::string& parameter_name, const std::string& role) {
     const std::string key = normalized_key(parameter_name);
+    // Coverage is never a colour layer. The tear shell's mask arrives on
+    // `_baseColorTexture`, whose name matches the "colortexture" layer rule
+    // below, and a consumer that filters layer-only roles then discarded the
+    // one input that says which part of the shell is a tear.
+    if (role == "opacity") return "opacity";
     if (key.find("grime") != std::string::npos) return "grime";
     if (key.find("detail") != std::string::npos || key.find("dyeing") != std::string::npos) return "detail";
     if (key.find("damage") != std::string::npos) return "damage";
@@ -615,6 +813,28 @@ static std::string role_from_parameter_shader_and_name(
     if (shader_rule == "hair" && (p == "_flowtexture" || p.find("flowtexture") != std::string::npos || t.find("_f.dds") != std::string::npos)) return "flow";
     if (p.find("ssdm") != std::string::npos || p.find("direction") != std::string::npos || t.find("_dr.dds") != std::string::npos) return "flow";
     if ((p.find("alpha") != std::string::npos || p.find("opacity") != std::string::npos) && p.find("base") == std::string::npos) return "opacity";
+    // The tear shell's `_m` atlas arrives on a colour parameter, and the technique
+    // declares that parameter, so this has to precede the declared-parameter block
+    // below. Its three colour channels are tear-shape coverage, not albedo:
+    // routing it to opacity clips the shell to the tear itself, where leaving it
+    // rejected as a technical base drew the whole card as a grey sheet.
+    if (shader_rule == "tear"
+        && t.find("_m.dds") != std::string::npos
+        && (p.find("basecolor") != std::string::npos
+            || p.find("diffuse") != std::string::npos
+            || p.find("albedo") != std::string::npos)) {
+        return "opacity";
+    }
+    // `_tornPatternTexture` is the shape of a tear, not a surface input. It has
+    // no colour role, no normal, no response -- it selects where a garment is
+    // torn. Left to fall through it landed in the base role, and on
+    // cd_m0001_00_so_pgm_ub_belt_42008 the shared library pattern it points at
+    // became the albedo, rendering the garment as neon green and magenta
+    // stripes. Naming its own role keeps the binding on record as evidence
+    // while leaving it out of every channel the renderer samples.
+    if (p.find("tornpattern") != std::string::npos || t.find("_tp.dds") != std::string::npos) {
+        return "torn_pattern";
+    }
     if (technique_parameter != nullptr && technique_parameter->declared) {
         const std::string declared_type = lower_copy(technique_parameter->type);
         const std::string declared_default = lower_copy(technique_parameter->default_value);
