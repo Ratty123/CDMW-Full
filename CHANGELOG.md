@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **Damian was shown Kliff's action charts.** The pinned baseline holds one character's four, so the raw chart text on screen belonged to somebody else, and the socket list built from it filtered them out by model and came up empty — which read as "this character has no animations routed anywhere". His own five are in the packages. Charts are indexed alongside armour now, and the character's own are loaded when they are selected: Damian goes from 0 sockets listed to 4. Only the selected character's are read, because Kliff has 101 and paying for both bodies to show one of them would be a launch-time cost for nothing.
+
 ### Docs
 - Located `ProjectileShotData`'s RTTI in `CrimsonDesert.exe` — TypeDescriptor at rva `0x05f6a810`, complete object locator at `0x053c168c`, class hierarchy at `0x053c0df0` — and recorded two facts the next attempt needs. The hierarchy declares a single entry, the class itself, so **`ProjectileShotData` has no base class** and its layout is flat, with no inherited prefix to account for; that fits `projectileshotinfo.paproj` being the one file with a clean fixed period. But the class is polymorphic, so the in-memory object begins with an 8-byte vptr that cannot appear in the file — **the on-disk record is a serialised form, not a `memcpy` of the class**, and any field offsets taken from a constructor will be shifted relative to the file.
 - No disassembly was done: `capstone`, `dumpbin` and `objdump` are all absent from this checkout, and adding one is a tooling decision rather than something to slip into a format commit. That is recorded in the manifest so the gap is visible rather than looking like unfinished analysis.

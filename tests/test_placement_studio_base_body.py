@@ -70,3 +70,77 @@ class BaseBodyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ChartIndexTests(unittest.TestCase):
+    """Action charts are indexed per character, because the baseline only pins one set.
+
+    Damian was shown Kliff's charts: the raw chart text belonged to another character, and the
+    socket list built from it filtered them out by model and came up empty. His own five are in
+    the packages.
+    """
+
+    def test_a_chart_is_filed_under_the_character_it_belongs_to(self) -> None:
+        from tools.placement_studio.armour import CHART_SLOT, ArmourIndex, ArmourPiece
+
+        index = ArmourIndex([
+            ArmourPiece(
+                path="actionchart/bin__/upperaction/1_pc/2_phw/basic_upper.paac",
+                slot=CHART_SLOT, model="2_phw", source=object(),
+            ),
+            ArmourPiece(
+                path="actionchart/bin__/upperaction/1_pc/1_phm/basic_upper.paac",
+                slot=CHART_SLOT, model="1_phm", source=object(),
+            ),
+        ])
+
+        self.assertEqual(len(index.pieces("2_phw", CHART_SLOT)), 1)
+        self.assertEqual(len(index.pieces("1_phm", CHART_SLOT)), 1)
+
+    def test_the_pattern_reads_the_model_out_of_the_path(self) -> None:
+        from tools.placement_studio.armour import _CHART
+
+        match = _CHART.match("actionchart/bin__/loweraction/1_pc/2_phw/basic_lower.paac")
+
+        self.assertIsNotNone(match)
+        self.assertEqual(match.group(1), "2_phw")
+
+    def test_the_cache_was_versioned_past_the_chartless_index(self) -> None:
+        from tools.placement_studio.armour import _CACHE_VERSION
+
+        self.assertGreaterEqual(_CACHE_VERSION, 3)
+
+
+class ExtraBaseFileTests(unittest.TestCase):
+    def test_files_are_added_and_replayed_once(self) -> None:
+        """Replaying per file is right for one and quadratic for a hundred."""
+
+        from tools.placement_studio.editing import EditSession
+
+        session = EditSession({})
+        replays = []
+        original = session._replay
+
+        def _counted():
+            replays.append(1)
+            original()
+
+        session._replay = _counted
+        added = session.add_base_files({
+            "actionchart/bin__/upperaction/1_pc/2_phw/a.paac": b"\x01",
+            "actionchart/bin__/upperaction/1_pc/2_phw/b.paac": b"\x02",
+        })
+
+        self.assertEqual(added, 2)
+        self.assertEqual(len(replays), 1)
+
+    def test_a_file_already_pinned_is_left_alone(self) -> None:
+        """The pinned copy is what every command so far was replayed onto."""
+
+        from tools.placement_studio.editing import EditSession
+
+        path = "actionchart/bin__/upperaction/1_pc/1_phm/a.paac"
+        session = EditSession({path: b"original"})
+
+        self.assertEqual(session.add_base_files({path: b"different"}), 0)
+        self.assertEqual(session.chart_bytes(path), b"original")

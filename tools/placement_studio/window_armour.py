@@ -123,6 +123,7 @@ class ArmourPickerMixin:
         self._invalidate_skinned()
         self._refresh_meshes()
         self._load_archive_weapons()
+        self._load_archive_charts()
 
     def _populate_armour(self) -> None:
         model = self._session.model if self._session is not None else ""
@@ -196,6 +197,34 @@ class ArmourPickerMixin:
             self.statusBar().showMessage(
                 f"{added} more weapon(s) available from the archives"
             )
+
+    def _load_archive_charts(self) -> None:
+        """Give the edit session this character's own action charts.
+
+        The pinned baseline holds Kliff's four. Damian was therefore shown Kliff's — the raw
+        chart text belonged to another character, and the socket list built from it filtered
+        them out by model and came up empty. His own five are in the packages.
+
+        Only the selected character's are loaded. Kliff has 101; reading every chart of both
+        bodies to show one of them would be paid on every launch.
+        """
+
+        from .armour import CHART_SLOT, read_armour
+
+        session = self._session
+        index = getattr(self, "_armour_index", None)
+        if session is None or self._edits is None or index is None:
+            return
+        wanted = {}
+        for piece in index.pieces(session.model, CHART_SLOT):
+            if piece.path in self._baseline or piece.path in self._edits.paths:
+                continue
+            try:
+                wanted[piece.path] = read_armour(piece, index)
+            except Exception:  # noqa: BLE001 - a chart that will not read is simply skipped
+                continue
+        if wanted and self._edits.add_base_files(wanted):
+            self._refresh_animation()
 
     def _stop_armour_index(self) -> None:
         if self._armour_worker is not None:
