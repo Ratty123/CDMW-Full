@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Walked three more shot-data serialisers. `ProjectilePhysicsShotData` reads `+0x20` u32, `+0x24` u32, `+0x28` u32 and four u8 at `+0x2c`–`+0x2f`; `ProjectileGuideShotData` reads five u32 at `+0x20`–`+0x30`. Their vftables sit exactly `0x28` apart at `0x04f22848`, `…70`, `…98`, `…c0`, which confirms these are consecutive **sibling** classes — and so the read/write slot groups seen earlier in one vftable dump were the neighbours' tables, not one class's.
+- The owning class is not among them. `ClientProjectile_Shot` (vftable `0x04b64768`) is the likeliest container, but the triple scanner mis-parses its serialiser, returning a single implausible 515-byte read, so it needs following by hand. Recorded rather than guessed at.
+
+### Docs
 - Walked `ProjectileShotData`'s serialiser to the end. Its vftable holds a matching **read/write pair at slots 2 and 3** (rva `0x01ea11e0` and `0x01ea1260`), and both serialise the same four fields: `+0x10` u32, `+0x14` u32, `+0x18` u8, `+0x19` u8 — ten bytes of payload in an object whose first `0x10` bytes are the vptr and base data that never reach the file. Slots 7/8 and 12/13 are the same read/write pattern for neighbouring classes with 7 and 5 fields, and slots 4, 9 and 14 point into `.rdata` rather than code, which is what marks where this vftable ends and the next begins.
 - The consequence is the useful part: **ten serialised bytes cannot be the top-level record** of `projectileshotinfo.paproj`, whose measured period is 156 bytes. So `ProjectileShotData` is a component inside a larger record, not the record itself, and the earlier reading of that 156-byte period as "one struct per repeat" was wrong. The remaining work is to find the class that owns it and walk that class's serialiser the same way — the method now being proven end to end on a real class.
 
