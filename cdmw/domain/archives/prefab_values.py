@@ -162,6 +162,91 @@ def placement_space(member_name: str) -> str:
     return _PLACEMENT_SPACES.get(str(member_name or ""), "unknown")
 
 
+#: Which inline values a modder can be offered an editor for. Transforms have
+#: their own editor; anything whose declared type and byte width do not agree
+#: is left read-only rather than guessed at.
+def editable_kind(type_name: str, raw: bytes) -> str:
+    """``"bool"``, ``"float"``, ``"int"``, ``"float3"`` or ``""``.
+
+    Empty means "do not offer an editor". Writing a value whose type we have
+    not confirmed is how a tool turns a readable file into a broken one.
+    """
+    name = str(type_name or "")
+    size = len(bytes(raw or b""))
+    if name in _TRANSFORM_TYPES:
+        return ""
+    if name == "bool" and size == 1:
+        return "bool"
+    if name == "float" and size == 4:
+        return "float"
+    if name == "double" and size == 8:
+        return "float"
+    if name == "float3" and size == 12:
+        return "float3"
+    code = _UNSIGNED.get(name) or _SIGNED.get(name)
+    if code and size == struct.calcsize(f"<{code}"):
+        return "int"
+    return ""
+
+
+def value_limits(type_name: str) -> tuple[int, int] | None:
+    """Inclusive range for an integer member, or ``None`` if not an integer."""
+    name = str(type_name or "")
+    code = _UNSIGNED.get(name)
+    if code:
+        return 0, (1 << (8 * struct.calcsize(f"<{code}"))) - 1
+    code = _SIGNED.get(name)
+    if code:
+        bits = 8 * struct.calcsize(f"<{code}")
+        return -(1 << (bits - 1)), (1 << (bits - 1)) - 1
+    return None
+
+
+def encode_value(type_name: str, raw: bytes, value: object) -> bytes:
+    """Encode ``value`` back into the same byte width the member already uses.
+
+    Raises :class:`ValueError` rather than silently truncating: a value that
+    does not fit is a mistake worth stopping, not rounding.
+    """
+    name = str(type_name or "")
+    data = bytes(raw or b"")
+    kind = editable_kind(name, data)
+    if not kind:
+        raise ValueError(f"{name or 'value'} is not editable")
+    if kind == "bool":
+        return bytes([1 if value else 0])
+    if kind == "float":
+        return struct.pack("<f" if len(data) == 4 else "<d", float(value))  # type: ignore[arg-type]
+    if kind == "float3":
+        triple = tuple(float(item) for item in value)  # type: ignore[union-attr]
+        if len(triple) != 3:
+            raise ValueError("float3 needs exactly three numbers")
+        return struct.pack("<3f", *triple)
+    limits = value_limits(name)
+    number = int(value)  # type: ignore[arg-type]
+    if limits and not (limits[0] <= number <= limits[1]):
+        raise ValueError(f"{name} holds {limits[0]} to {limits[1]}; {number} does not fit")
+    code = _UNSIGNED.get(name) or _SIGNED.get(name)
+    return struct.pack(f"<{code}", number)
+
+
+def decode_value(type_name: str, raw: bytes) -> object:
+    """The current value of an editable member, in the shape its editor wants."""
+    name = str(type_name or "")
+    data = bytes(raw or b"")
+    kind = editable_kind(name, data)
+    if kind == "bool":
+        return bool(data[0])
+    if kind == "float":
+        return struct.unpack("<f" if len(data) == 4 else "<d", data)[0]
+    if kind == "float3":
+        return struct.unpack("<3f", data)
+    if kind == "int":
+        code = _UNSIGNED.get(name) or _SIGNED.get(name)
+        return struct.unpack(f"<{code}", data)[0]
+    raise ValueError(f"{name or 'value'} is not editable")
+
+
 def _round(values: tuple[float, ...], places: int = 3) -> str:
     return ", ".join(f"{value:g}" for value in (round(v, places) for v in values))
 
@@ -205,9 +290,13 @@ __all__ = [
     "POLE_PITCH_DEGREES",
     "Placement",
     "degrees_to_rotation",
+    "decode_value",
     "describe_value",
+    "editable_kind",
+    "encode_value",
     "is_near_pole",
     "placement_space",
+    "value_limits",
     "read_placement",
     "rotation_degrees",
     "write_placement",

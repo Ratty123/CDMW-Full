@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Sequence
 
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
@@ -18,12 +19,17 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QListWidget,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
 from cdmw.domain.archives.prefab_values import (
     Placement,
+    decode_value,
+    editable_kind,
+    encode_value,
+    value_limits,
     degrees_to_rotation,
     is_near_pole,
     rotation_degrees,
@@ -207,4 +213,102 @@ class PlacementEditDialog(QDialog):
         self.accept()
 
 
-__all__ = ["AssetPickerDialog", "PlacementEditDialog"]
+__all__ = ["AssetPickerDialog", "PlacementEditDialog", "ValueEditDialog"]
+
+
+class ValueEditDialog(QDialog):
+    """Edit one non-transform value: a flag, a number, or three numbers.
+
+    The widget follows the member's declared type, so an integer field cannot
+    be given a fraction and a bool is a tick rather than free text. Anything
+    whose type and byte width do not agree is never offered here at all.
+    """
+
+    def __init__(
+        self,
+        type_name: str,
+        raw: bytes,
+        *,
+        title: str,
+        detail: str = "",
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Value - {title}")
+        self._type_name = type_name
+        self._raw = bytes(raw)
+        self._kind = editable_kind(type_name, raw)
+        self.result_raw: bytes | None = None
+        current = decode_value(type_name, raw)
+
+        layout = QVBoxLayout(self)
+        if detail:
+            note = QLabel(detail)
+            note.setWordWrap(True)
+            layout.addWidget(note)
+        form = QFormLayout()
+        self._boxes: list[QDoubleSpinBox | QSpinBox] = []
+        self._flag: QCheckBox | None = None
+        if self._kind == "bool":
+            self._flag = QCheckBox("On")
+            self._flag.setChecked(bool(current))
+            form.addRow("Setting", self._flag)
+        elif self._kind == "int":
+            low, high = value_limits(type_name) or (-(2**31), 2**31 - 1)
+            box = QSpinBox()
+            # QSpinBox is 32-bit; clamp the offered range rather than crash on
+            # a 64-bit member, and let encode_value do the real bounds check.
+            box.setRange(max(low, -(2**31)), min(high, 2**31 - 1))
+            box.setValue(int(current))
+            self._boxes.append(box)
+            form.addRow("Whole number", box)
+        elif self._kind == "float":
+            box = QDoubleSpinBox()
+            box.setDecimals(6)
+            box.setRange(-1e12, 1e12)
+            box.setValue(float(current))
+            self._boxes.append(box)
+            form.addRow("Number", box)
+        elif self._kind == "float3":
+            holder = QWidget()
+            row = QHBoxLayout(holder)
+            row.setContentsMargins(0, 0, 0, 0)
+            for value in current:  # type: ignore[union-attr]
+                box = QDoubleSpinBox()
+                box.setDecimals(6)
+                box.setRange(-1e12, 1e12)
+                box.setValue(float(value))
+                self._boxes.append(box)
+                row.addWidget(box)
+            form.addRow("X, Y, Z", holder)
+        layout.addLayout(form)
+
+        self.error = QLabel("")
+        self.error.setWordWrap(True)
+        self.error.setVisible(False)
+        layout.addWidget(self.error)
+
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.buttons.accepted.connect(self._accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addWidget(self.buttons)
+
+    def _current(self) -> object:
+        if self._flag is not None:
+            return self._flag.isChecked()
+        if self._kind == "float3":
+            return tuple(box.value() for box in self._boxes)
+        return self._boxes[0].value()
+
+    def _accept(self) -> None:
+        try:
+            self.result_raw = encode_value(self._type_name, self._raw, self._current())
+        except (ValueError, TypeError) as exc:
+            # Refuse rather than truncate: a value that does not fit is a
+            # mistake worth stopping.
+            self.error.setText(str(exc))
+            self.error.setVisible(True)
+            return
+        self.accept()
