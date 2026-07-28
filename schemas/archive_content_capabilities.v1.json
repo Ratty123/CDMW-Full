@@ -44,251 +44,118 @@
     "headline": {
       "note": "Engine formats are the ones CDMW had to reverse engineer. Open formats are counted separately because decoding them is not the project's work. The shipped bucket drops engine formats the build does not actually contain, which is the number that reflects what a modder can reach.",
       "shipped_engine_formats": {
-        "extensions": 46,
-        "decode_percent": 49.1,
-        "write_percent": 28.3,
+        "extensions": 77,
+        "decode_percent": 39.9,
+        "write_percent": 24.7,
         "decode": {
-          "full": 10,
-          "none": 2,
-          "partial": 8,
-          "surface": 26
+          "full": 16,
+          "none": 23,
+          "partial": 11,
+          "surface": 27
         },
         "write": {
           "constrained": 4,
-          "full": 11,
-          "none": 31
+          "full": 17,
+          "none": 56
         }
       },
       "engine_formats": {
-        "extensions": 58,
-        "decode_percent": 47.9,
-        "write_percent": 30.2,
+        "extensions": 89,
+        "decode_percent": 40.3,
+        "write_percent": 26.4,
         "decode": {
-          "full": 14,
-          "none": 7,
-          "partial": 9,
-          "surface": 28
+          "full": 20,
+          "none": 28,
+          "partial": 12,
+          "surface": 29
         },
         "write": {
           "constrained": 5,
-          "full": 15,
-          "none": 38
+          "full": 21,
+          "none": 63
         }
       },
       "proprietary_formats": {
-        "extensions": 52,
-        "decode_percent": 49.4,
-        "write_percent": 30.8,
+        "extensions": 82,
+        "decode_percent": 40.9,
+        "write_percent": 26.8,
         "decode": {
-          "full": 14,
-          "none": 5,
-          "partial": 6,
+          "full": 20,
+          "none": 26,
+          "partial": 9,
           "surface": 27
         },
         "write": {
           "constrained": 2,
-          "full": 15,
-          "none": 35
+          "full": 21,
+          "none": 59
         }
       },
       "all_formats": {
-        "extensions": 108,
-        "decode_percent": 60.2,
-        "write_percent": 36.6,
+        "extensions": 141,
+        "decode_percent": 53.3,
+        "write_percent": 32.3,
         "decode": {
-          "full": 47,
-          "none": 10,
-          "partial": 9,
-          "surface": 42
+          "full": 55,
+          "none": 31,
+          "partial": 12,
+          "surface": 43
         },
         "write": {
           "constrained": 5,
-          "full": 37,
-          "none": 66
+          "full": 43,
+          "none": 93
         }
       }
     },
     "coverage_by_file_count": {
-      "files": 1289511,
-      "decode_percent": 68.5,
-      "write_percent": 57.7
+      "files": 1383187,
+      "decode_percent": 65.9,
+      "write_percent": 53.8
     },
-    "unlisted_in_manifest": [
-      {
-        "extension": ".padxil",
-        "archive_files": 89824
-      },
-      {
-        "extension": ".imp",
-        "archive_files": 1489
-      },
-      {
-        "extension": ".parg",
-        "archive_files": 750
-      },
-      {
-        "extension": ".pbd",
-        "archive_files": 584
-      },
-      {
-        "extension": ".save",
-        "archive_files": 328
-      },
-      {
-        "extension": ".paatt",
-        "archive_files": 223
-      },
-      {
-        "extension": ".pcg",
-        "archive_files": 92
-      },
-      {
-        "extension": ".spline2d",
-        "archive_files": 87
-      },
-      {
-        "extension": ".spline",
-        "archive_files": 59
-      },
-      {
-        "extension": ".impostor",
-        "archive_files": 45
-      },
-      {
-        "extension": ".pasg",
-        "archive_files": 40
-      },
-      {
-        "extension": ".ies",
-        "archive_files": 36
-      },
-      {
-        "extension": ".pamt",
-        "archive_files": 33
-      },
-      {
-        "extension": ".mi",
-        "archive_files": 24
-      },
-      {
-        "extension": ".pashv",
-        "archive_files": 24
-      },
-      {
-        "extension": ".ttf",
-        "archive_files": 19
-      },
-      {
-        "extension": ".dat",
-        "archive_files": 17
-      },
-      {
-        "extension": ".pasound",
-        "archive_files": 16
-      },
-      {
-        "extension": ".technique",
-        "archive_files": 16
-      },
-      {
-        "extension": ".paproj",
-        "archive_files": 9
-      },
-      {
-        "extension": ".pas",
-        "archive_files": 2
-      },
-      {
-        "extension": ".pma",
-        "archive_files": 2
-      },
-      {
-        "extension": ".roadidx",
-        "archive_files": 2
-      },
-      {
-        "extension": ".binarygimmickcacheddata",
-        "archive_files": 1
-      },
-      {
-        "extension": ".binarygimmickframeevent",
-        "archive_files": 1
-      },
-      {
-        "extension": ".binarystring",
-        "archive_files": 1
-      },
-      {
-        "extension": ".linkedsceneobject",
-        "archive_files": 1
-      },
-      {
-        "extension": ".paacdesc",
-        "archive_files": 1
-      },
-      {
-        "extension": ".paasmt",
-        "archive_files": 1
-      },
-      {
-        "extension": ".paprojdesc",
-        "archive_files": 1
-      },
-      {
-        "extension": ".paschedulectx",
-        "archive_files": 1
-      },
-      {
-        "extension": ".paseqh",
-        "archive_files": 1
-      },
-      {
-        "extension": ".questgaugecount",
-        "archive_files": 1
-      }
-    ],
+    "unlisted_in_manifest": [],
     "by_origin": {
       "proprietary": {
-        "extensions": 52,
-        "decode_percent": 49.4,
-        "write_percent": 30.8,
+        "extensions": 82,
+        "decode_percent": 40.9,
+        "write_percent": 26.8,
         "decode": {
-          "full": 14,
-          "none": 5,
-          "partial": 6,
+          "full": 20,
+          "none": 26,
+          "partial": 9,
           "surface": 27
         },
         "write": {
           "constrained": 2,
-          "full": 15,
-          "none": 35
+          "full": 21,
+          "none": 59
         }
       },
       "third_party": {
-        "extensions": 6,
-        "decode_percent": 35.0,
-        "write_percent": 25.0,
+        "extensions": 7,
+        "decode_percent": 34.3,
+        "write_percent": 21.4,
         "decode": {
           "none": 2,
           "partial": 3,
-          "surface": 1
+          "surface": 2
         },
         "write": {
           "constrained": 3,
-          "none": 3
+          "none": 4
         }
       },
       "open": {
-        "extensions": 47,
-        "decode_percent": 79.1,
-        "write_percent": 46.8,
+        "extensions": 49,
+        "decode_percent": 80.0,
+        "write_percent": 44.9,
         "decode": {
-          "full": 33,
+          "full": 35,
           "surface": 14
         },
         "write": {
           "full": 22,
-          "none": 25
+          "none": 27
         }
       },
       "unknown": {
@@ -305,18 +172,18 @@
     },
     "by_group": {
       "animation_scene": {
-        "extensions": 14,
-        "decode_percent": 35.0,
-        "write_percent": 17.9,
+        "extensions": 15,
+        "decode_percent": 39.3,
+        "write_percent": 23.3,
         "decode": {
-          "full": 1,
+          "full": 2,
           "none": 2,
           "partial": 2,
           "surface": 9
         },
         "write": {
           "constrained": 1,
-          "full": 2,
+          "full": 3,
           "none": 11
         }
       },
@@ -336,34 +203,35 @@
         }
       },
       "material_metadata": {
-        "extensions": 32,
-        "decode_percent": 62.5,
-        "write_percent": 45.3,
+        "extensions": 62,
+        "decode_percent": 44.4,
+        "write_percent": 31.5,
         "decode": {
-          "full": 14,
-          "partial": 2,
-          "surface": 16
+          "full": 20,
+          "none": 21,
+          "partial": 4,
+          "surface": 17
         },
         "write": {
           "constrained": 1,
-          "full": 14,
-          "none": 17
+          "full": 19,
+          "none": 42
         }
       },
       "model_mesh_physics": {
-        "extensions": 18,
-        "decode_percent": 53.9,
-        "write_percent": 38.9,
+        "extensions": 19,
+        "decode_percent": 54.2,
+        "write_percent": 36.8,
         "decode": {
           "full": 7,
           "none": 6,
-          "partial": 4,
+          "partial": 5,
           "surface": 1
         },
         "write": {
           "constrained": 2,
           "full": 6,
-          "none": 10
+          "none": 11
         }
       },
       "texture_image": {
@@ -381,25 +249,25 @@
         }
       },
       "user_interface_text": {
-        "extensions": 14,
-        "decode_percent": 87.9,
-        "write_percent": 85.7,
+        "extensions": 15,
+        "decode_percent": 88.7,
+        "write_percent": 80.0,
         "decode": {
-          "full": 12,
+          "full": 13,
           "none": 1,
           "surface": 1
         },
         "write": {
           "full": 12,
-          "none": 2
+          "none": 3
         }
       }
     },
     "priority": {
-      "high": 6,
-      "medium": 15,
-      "low": 19,
-      "none": 68
+      "high": 7,
+      "medium": 18,
+      "low": 45,
+      "none": 71
     },
     "open_high_priority_gaps": [
       {
@@ -425,6 +293,12 @@
         "decode": "surface",
         "write": "none",
         "remaining": "placement records not parsed - level layout cannot be edited"
+      },
+      {
+        "extension": ".parg",
+        "decode": "partial",
+        "write": "none",
+        "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding"
       },
       {
         "extension": ".pat",
@@ -553,6 +427,39 @@
     { "extension": ".uianiminit", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 883, "evidence": "structured_metadata scrape", "remaining": "record layout not parsed" },
     { "extension": ".binarygimmick", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "structured_metadata", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 13461, "evidence": "structured metadata scrape: names and references", "remaining": "record layout not parsed" },
     { "extension": ".pagbg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "none", "archive_files": 0, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "the shipped build contains no entry with this extension, so there is nothing here to decode; previously recorded as: field semantics unknown" },
-    { "extension": ".pampg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 15291, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" }
+    { "extension": ".pampg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "descriptor_table", "maturity": "heuristic", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "surface", "write": "none", "priority": "low", "archive_files": 15291, "evidence": "descriptor-table scrape: row counts and referenced paths", "remaining": "field semantics unknown" },
+    { "extension": ".padxil", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "header_only", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "third_party", "decode": "surface", "write": "none", "priority": "medium", "archive_files": 89824, "evidence": "the DXBC container magic identifies it as compiled DirectX shader bytecode; the shipped cache is 89,824 of them and is the ground truth for what a material parameter actually does", "remaining": "the bytecode itself is not disassembled here; that needs dxc/dxil-dis, and there is no route to recompile an edited shader back into the cache" },
+    { "extension": ".imp", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1489, "evidence": "magic IMP; unknown; 1,489 files", "remaining": "container identified, record layout unknown" },
+    { "extension": ".parg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "high", "archive_files": 750, "evidence": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 750 shipped files decode their header, type table and string pool with no failures, exposing EmitterRenderGroupData with 12 root members. Across the 882 reflection files the schema recovers 29 types, 237 distinct member names and 41 value types including ParticleAlignMode, ParticleBlendMode, ParticleGeometryType and MaterialParameterTexture", "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. This is the particle render schema, so closing it opens VFX modding" },
+    { "extension": ".pbd", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 584, "evidence": "magic PBD; unknown; 584 files", "remaining": "container identified, record layout unknown" },
+    { "extension": ".save", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 328, "evidence": "input presets and other saved state; extraction fails with a ChaCha20 validation error, so CDMW cannot read the plaintext at all", "remaining": "these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved" },
+    { "extension": ".paatt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 223, "evidence": "magic 01000000; unknown; 223 files, sits beside the action charts", "remaining": "container identified, record layout unknown" },
+    { "extension": ".pcg", "role": "physics", "group": "model_mesh_physics", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 92, "evidence": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 92 shipped files decode their header, type table and string pool with no failures, exposing ConvexGeometry and its _convexHullList member", "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet. Convex collision hulls, so a writer would allow custom collision" },
+    { "extension": ".spline2d", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 87, "evidence": "plain XML (SplinePresetData) carrying ReflectObjectXMLData, readable and shippable as text", "remaining": "no schema model, so edits are unchecked text edits" },
+    { "extension": ".spline", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 59, "evidence": "plain XML (SplineDataGroup) carrying ReflectObjectXMLData, readable and shippable as text", "remaining": "no schema model, so edits are unchecked text edits" },
+    { "extension": ".impostor", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 45, "evidence": "magic df892040; impostor billboards for distant objects", "remaining": "container identified, record layout unknown" },
+    { "extension": ".pasg", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "prefab", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "decode_json"], "origin": "proprietary", "decode": "partial", "write": "none", "priority": "medium", "archive_files": 40, "evidence": "cdmw/core/prefab_binary.py decodes it: same self-describing reflection container as .prefab (magic 0xFFFF, version 4, schema revision 14-15). All 40 shipped files decode their header, type table and string pool with no failures, exposing EmitterSimulationGroupData with 9 root members", "remaining": "the pointer-addressed heap walk does not complete, so nested values are not read; there is no writer for this extension yet" },
+    { "extension": ".ies", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "text", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 36, "evidence": "IESNA photometric light data, a published open format used unmodified", "remaining": "not an authoring target in CDMW" },
+    { "extension": ".pamt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 33, "evidence": "archive containers stored as entries inside another archive; extraction fails ChaCha20 validation", "remaining": "nested container copies, not content to decode" },
+    { "extension": ".mi", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 24, "evidence": "plain XML (SkinnedDecalProperty) carrying ReflectObjectXMLData", "remaining": "no schema model, so edits are unchecked text edits" },
+    { "extension": ".pashv", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 24, "evidence": "magic 15001a63; carries c_characterinfo_agenttype and interaction flag names", "remaining": "container identified, record layout unknown" },
+    { "extension": ".ttf", "role": "metadata", "group": "user_interface_text", "container": "binary", "analyzer": "generic_binary", "maturity": "proven", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "open", "decode": "full", "write": "none", "priority": "none", "archive_files": 19, "evidence": "TrueType font, a published open format used unmodified", "remaining": "not an authoring target in CDMW" },
+    { "extension": ".dat", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 17, "evidence": "magic 01000100; names level sectors such as intro_0001/sectorrootlevel", "remaining": "container identified, record layout unknown" },
+    { "extension": ".technique", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "none", "archive_files": 16, "evidence": "plain XML naming a shader Category and Technique; with the .padxil cache this is what makes texture and parameter semantics provable rather than guessed", "remaining": "" },
+    { "extension": ".pasound", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 16, "evidence": "magic 03004f05; names CONTROLLER_HEADPHONES/MOTION/SPEAKER routing targets", "remaining": "container identified, record layout unknown" },
+    { "extension": ".paproj", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 9, "evidence": "magic 00000000; projectile data; paired with the readable .paprojdesc", "remaining": "container identified, record layout unknown" },
+    { "extension": ".pas", "role": "metadata", "group": "material_metadata", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 2, "evidence": "plain XML (SplineObjects) carrying ReflectObjectXMLData, readable and shippable as text", "remaining": "no schema model, so edits are unchecked text edits" },
+    { "extension": ".pma", "role": "animation", "group": "animation_scene", "container": "text", "analyzer": "xml", "maturity": "proven", "readable": true, "structured": true, "references": true, "visual": false, "playback": false, "exports": ["raw", "text"], "origin": "proprietary", "decode": "full", "write": "full", "priority": "low", "archive_files": 2, "evidence": "plain XML (ARFaceAnimation / ARFacePoseRecordedData): recorded facial capture", "remaining": "no schema model, so edits are unchecked text edits" },
+    { "extension": ".roadidx", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 2, "evidence": "magic 2e000000; an index of road level paths", "remaining": "container identified, record layout unknown" },
+    { "extension": ".binarystring", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "gamedata/gamestring; extraction fails with a ChaCha20 validation error, so CDMW cannot read the plaintext at all", "remaining": "these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved" },
+    { "extension": ".linkedsceneobject", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "scene object links; extraction fails with a ChaCha20 validation error, so CDMW cannot read the plaintext at all", "remaining": "these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved" },
+    { "extension": ".questgaugecount", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "quest gauge counts; extraction fails with a ChaCha20 validation error, so CDMW cannot read the plaintext at all", "remaining": "these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved" },
+    { "extension": ".paasmt", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "the animation-set matching table; extraction fails with a ChaCha20 validation error, so CDMW cannot read the plaintext at all", "remaining": "these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved" },
+    { "extension": ".paseqh", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": [], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "the sequencer stage header; extraction fails with a ChaCha20 validation error, so CDMW cannot read the plaintext at all", "remaining": "these entries are encrypted with a key CDMW does not have; nothing can be decoded until that is solved" },
+    { "extension": ".paacdesc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 9c010d50; action chart descriptor naming upper-action packages", "remaining": "container identified, record layout unknown" },
+    { "extension": ".paprojdesc", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 05001650; projectile info package descriptor", "remaining": "container identified, record layout unknown" },
+    { "extension": ".paschedulectx", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 2f100000; schedule context naming sequencer spawn files", "remaining": "container identified, record layout unknown" },
+    { "extension": ".binarygimmickcacheddata", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 19000000; 4 MB of cached gimmick data", "remaining": "container identified, record layout unknown" },
+    { "extension": ".binarygimmickframeevent", "role": "metadata", "group": "material_metadata", "container": "binary", "analyzer": "generic_binary", "maturity": "raw_only", "readable": true, "structured": false, "references": true, "visual": false, "playback": false, "exports": ["raw"], "origin": "proprietary", "decode": "none", "write": "none", "priority": "low", "archive_files": 1, "evidence": "magic 300c0000; 4.9 MB of gimmick frame events", "remaining": "container identified, record layout unknown" }
   ]
 }

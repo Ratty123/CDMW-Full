@@ -116,7 +116,7 @@
     "tools/dotnet_mesh_editor_experiment/HeadlessGpuSparseSoak.cs": 1015,
     "tools/dotnet_mesh_editor_experiment/Program.cs": 1272,
     "tools/mesh_harness/visual_audit_review.py": 1378,
-    "tools/placement_studio/viewport.py": 1054,
+    "tools/placement_studio/viewport.py": 1063,
     "tools/placement_studio/window.py": 1057,
     "tools/placement_studio/window_editing.py": 1072,
     "tools/texture_replacer_headless_harness.py": 1515

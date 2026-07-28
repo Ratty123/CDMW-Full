@@ -20,7 +20,7 @@
     "tools/placement_studio/gates.py::cmd_package": 206,
     "tools/placement_studio/gates.py::cmd_retarget": 151,
     "tools/placement_studio/gates_clipping.py::cmd_clipping": 180,
-    "tools/placement_studio/viewport.py::SkeletonViewport._draw_meshes": 178,
+    "tools/placement_studio/viewport.py::SkeletonViewport._draw_meshes": 187,
     "tools/placement_studio/window.py::PlacementStudioWindow._build_ui": 204,
     "tools/placement_studio/window_editing.py::EditPanelMixin._build_edit_panel": 163,
     "tools/run_crimson_renderdoc_hotkey_capture.py::run_renderdoc_hotkey_capture": 169,
