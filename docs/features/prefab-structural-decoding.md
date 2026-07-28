@@ -443,6 +443,20 @@ Recorded so they are not re-run:
 - **`.pami` is not a material.** It is an XML `<StaticMeshInstance>` naming a
   mesh and carrying its material data -- 300/300 sampled files. Classing it as
   a material sends a modder looking for a texture.
+- **Allowing the root type as a group's component does not unblock "mask
+  exceeds every candidate".** That cause is the single largest, and the
+  arithmetic invites the fix: the failing masks need 9 or more bits, no declared
+  component has that many members, and the root `SceneObject` has 13. Since
+  `_childSceneObjects` holds child scene objects, resolving those groups to the
+  root type looks obviously right. It is not. Over 1,500 prefabs the cause
+  disappears completely -- 158 files down to zero -- and **completion moves
+  878 to 880**, with objects recovered up 78 and median partial progress up
+  0.7 points. The wall simply moves: 83 of those files then fail on
+  `blob string length 603980289` instead, a step later and no further through
+  the file. The group header resolves and the body immediately does not, which
+  says those groups are not root-shaped after all -- the correct type is
+  probably not in the file's type table at all. Worth knowing before spending a
+  session on the largest-looking cause: its size is not its cost.
 
 Two measurement traps cost time here: a patch regex that appended rather than
 replaced (stacked assignments, last one wins, every configuration scoring
