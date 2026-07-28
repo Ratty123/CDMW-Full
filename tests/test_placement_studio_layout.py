@@ -124,3 +124,48 @@ def test_the_clip_filter_rows_fit_the_lane_they_live_in():
         )
     finally:
         window.deleteLater()
+
+
+def test_the_editing_bar_fits_without_clipping_anything():
+    """Every control in the bottom bar must get the width its own text needs.
+
+    Qt answers a row it cannot fit by clipping, and this bar has clipped twice: first from a
+    nine-column grid, where one 362px button set the column width for six 42px nudge buttons,
+    and then from squeezing everything onto two rows when the controls need about 3,050px
+    between them. The guard is on the widths, not the arrangement.
+    """
+
+    import os
+
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QFrame
+
+    from tools.placement_studio.corpus import Baseline
+    from tools.placement_studio.window import PlacementStudioWindow
+
+    _app = QApplication.instance() or QApplication([])
+    try:
+        baseline = Baseline.load()
+    except Exception as error:  # noqa: BLE001 - needs a pinned baseline to build at all
+        import pytest
+
+        pytest.skip(f"no baseline available: {error}")
+
+    window = PlacementStudioWindow(baseline)
+    try:
+        panel = window._edit_target.parent()
+        while panel is not None and not isinstance(panel, QFrame):
+            panel = panel.parent()
+        assert panel is not None, "the editing bar is not in a frame any more"
+
+        # A 1600px monitor is the floor the window as a whole is held to; see the width test.
+        assert panel.sizeHint().width() <= 1500, (
+            f"the editing bar asks for {panel.sizeHint().width()}px and will clip"
+        )
+
+        # Each angle box has to hold its own prefix plus the widest value it accepts.
+        for box in window._euler:
+            needed = box.fontMetrics().horizontalAdvance(box.prefix() + "-180.0")
+            assert box.width() >= needed, f"{box.prefix().strip()} clips its own value"
+    finally:
+        window.deleteLater()

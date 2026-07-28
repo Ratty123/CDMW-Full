@@ -60,10 +60,15 @@ class EditPanelMixin:
         rows = QVBoxLayout(panel)
         rows.setContentsMargins(8, 5, 8, 5)
         rows.setSpacing(4)
-        top, bottom = QHBoxLayout(), QHBoxLayout()
-        for line in (top, bottom):
+        # Three rows, measured rather than assumed. The controls need about 3,050px between
+        # them; two rows means 1,525 each and the bar clipped at any ordinary window width. The
+        # rows are grouped by the question each answers: *what am I editing and how far does a
+        # step go*, *move it*, *act on it*.
+        top, middle, bottom = QHBoxLayout(), QHBoxLayout(), QHBoxLayout()
+        for line in (top, middle, bottom):
             line.setSpacing(6)
         rows.addLayout(top)
+        rows.addLayout(middle)
         rows.addLayout(bottom)
 
         def group(*widgets):
@@ -143,7 +148,7 @@ class EditPanelMixin:
             "rotated bone, +X may not be the direction you expect. Watch the viewport."
         )
         nudges = group(translate_label)
-        bottom.addLayout(nudges)
+        middle.addLayout(nudges)
         self._nudge_buttons: List[QPushButton] = []
         for axis, index in (("X", 0), ("Y", 1), ("Z", 2)):
             for sign, glyph in ((-1.0, "-"), (1.0, "+")):
@@ -164,17 +169,22 @@ class EditPanelMixin:
             "The exact angle the item sits at, in degrees. Type a value to set it precisely, "
             "or use Rotate and Tilt in the viewport to aim it by eye."
         )
-        bottom.addSpacing(10)
+        middle.addSpacing(12)
         angles = group(rotate_label)
-        bottom.addLayout(angles)
+        middle.addLayout(angles)
+        middle.addStretch(1)
         self._euler: List[QDoubleSpinBox] = []
         for position, name in enumerate(("roll", "pitch", "yaw")):
             box = QDoubleSpinBox()
             box.setRange(-180.0, 180.0)
             box.setSingleStep(1.0)
-            box.setDecimals(2)
+            box.setDecimals(1)
             box.setPrefix(f"{name} ")
-            box.setFixedWidth(96)
+            # Wide enough for the longest thing it can hold, measured rather than guessed:
+            # `pitch` is two characters longer than `yaw` and the value can reach `-180.00`, so
+            # a single hard-coded width clips one box and wastes space on another. 34px covers
+            # the spin arrows and the frame.
+            box.setFixedWidth(box.fontMetrics().horizontalAdvance(f"{name} -180.0") + 34)
             box.editingFinished.connect(self._apply_euler)
             angles.addWidget(box)
             self._euler.append(box)
@@ -224,14 +234,16 @@ class EditPanelMixin:
         self._package_button.clicked.connect(self._build_packages)
 
         # Grouped by what they are for: make a point, take a change back, write it out.
-        bottom.addStretch(1)
-        bottom.addLayout(group(self._new_socket_button, self._use_orientation_button))
-        bottom.addSpacing(10)
         bottom.addLayout(group(self._revert_button, self._undo_button, self._redo_button))
         # Writing the mod out is not an editing control, and the top row had the room the
         # bottom one did not. Both rows now fit a 1,500 px window instead of one overflowing.
-        top.addSpacing(10)
-        top.addLayout(group(self._export_button, self._package_button))
+        # Everything that acts on the selection sits together, in the order it is used:
+        # make a point, aim with it, take a change back, write the result out.
+        bottom.addLayout(group(self._new_socket_button, self._use_orientation_button))
+        bottom.addSpacing(10)
+        bottom.addLayout(group(self._revert_button, self._undo_button, self._redo_button))
+        bottom.addStretch(1)
+        bottom.addLayout(group(self._export_button, self._package_button))
 
         self._viewport.socket_dragged.connect(self._on_socket_dragged)
         self._viewport.socket_rotated.connect(self._on_socket_rotated)
