@@ -844,6 +844,20 @@ def write_mod_package_readme(
         _readme_append_step(lines, 3, "Verify that the replaced assets load correctly in game.")
     lines.append("")
 
+    # Every package told people how to install it and nothing told them how to
+    # get back. That is the step someone needs precisely when the game has
+    # stopped working and they are least able to go looking.
+    _readme_add_section(lines, "Removing This Mod")
+    _readme_append_step(lines, 1, "Disable or unmount the mod in the manager you installed it with.")
+    _readme_append_step(lines, 2, "Delete this folder from the manager's mods folder.")
+    _readme_append_step(
+        lines,
+        3,
+        "Your original game files were never modified, so removing the mod is enough to "
+        "put everything back. Nothing needs verifying or repairing.",
+    )
+    lines.append("")
+
     if "dmm" in target_set and normalized_structure == "dmm_texture":
         _readme_add_section(lines, "Layout")
         _readme_append_wrapped(

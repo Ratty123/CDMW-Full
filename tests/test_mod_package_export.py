@@ -760,3 +760,18 @@ class ModPackageExportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RemovalGuidanceTest(unittest.TestCase):
+    """Every package said how to install it and nothing said how to get back.
+
+    That is the step someone needs exactly when the game has stopped working
+    and they are least able to go looking for it.
+    """
+
+    def test_readme_says_how_to_remove_the_mod(self) -> None:
+        from cdmw.core.mod_package import _readme_add_section
+
+        lines: list[str] = []
+        _readme_add_section(lines, "Removing This Mod")
+        self.assertIn("REMOVING THIS MOD", "\n".join(lines))
