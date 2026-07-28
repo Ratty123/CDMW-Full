@@ -354,7 +354,15 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, PrefabStructure
     def _build_objects_tab(self) -> QWidget:
         page = QWidget()
         box = QVBoxLayout(page)
-        box.addWidget(QLabel(self._objects_hint()))
+        # Wrapped, or the sentence sets the dialog's minimum width: an unwrapped
+        # QLabel demands its whole line, and this one grew past 1,000px when the
+        # row-menu note was added -- which silently made the window unshrinkable
+        # on a laptop screen. Wrapping costs a known trap in return, that a
+        # wrapped label reports a one-line height, so the height is set too.
+        self.objects_hint = QLabel(self._objects_hint())
+        self.objects_hint.setWordWrap(True)
+        self.objects_hint.setMinimumHeight(self.objects_hint.fontMetrics().height() * 2)
+        box.addWidget(self.objects_hint)
         # Most prefabs are one object and two rows, so the filter stays out of
         # the way -- but the tail runs to 1,126 objects and 2,252 rows, and 87
         # of the 6,522 readable prefabs carry more than 50 objects. Those are

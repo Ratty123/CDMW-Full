@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Fixed
+- **The Prefab Inspector's hint line was setting the dialog's minimum width.** An unwrapped `QLabel` demands its whole line, and adding the row-menu sentence pushed that past 1,000px — so the window silently refused to shrink below roughly 1,050px, which is most of a laptop screen. Found by launching the dialog on a real shipped prefab and trying to resize it, not by reading the code. It wraps now, with an explicit two-line minimum height because a wrapped label reports a one-line size hint.
+- **Duplicating an object left the cursor at the top of the tree**, so the copy — which reads identically to its original, by design — was unfindable. The selection now lands on the copy and scrolls it into view, which is also the row about to be retargeted.
+
 ### Added
 - **The Prefab Inspector can now add and remove objects.** Right-click an object heading: *Duplicate this object* / *Remove this object*. The previous entry built the resizer; this is the part a modder can reach. Object rows carry their group's byte offset, and `locate_element` turns that into the collection element behind the row by exact offset match — not containment, because an object nested *inside* an element is not itself one, and offering to delete it would delete its parent.
 - Structural changes apply **immediately**, unlike every other edit the Inspector makes. Path and value edits are pending and keyed by byte offset; a splice moves every byte after it, so a pending edit would then land on the wrong field — and on a field that still looks like a plausible target. So the dialog keeps the bytes it opened with alongside the bytes the current rows were read from, *Undo all changes* restores the first, the tree is rebuilt by re-decoding rather than patched, and a structural change is refused outright while row edits are pending, with a dialog saying to save or undo them first.

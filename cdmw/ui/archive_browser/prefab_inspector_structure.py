@@ -136,9 +136,33 @@ class PrefabStructureMixin:
             f"{verb} {label!r} in {result.member_name} "
             f"({result.count_before} -> {result.count_after} objects)"
         )
-        self._adopt_payload(result.data)
+        self._adopt_payload(
+            result.data,
+            # Land on the copy, not back at the top. Two rows now read the same,
+            # so "which one did I just add" is otherwise unanswerable -- and the
+            # copy is the row the modder is about to retarget.
+            select_element=(site.collection_index, site.element_index + 1) if insert else None,
+        )
 
-    def _adopt_payload(self, data: bytes) -> None:
+    def _select_element_row(self, collection_index: int, element_index: int) -> None:
+        """Put the cursor on a collection element, by the offset it now sits at."""
+        collections = getattr(self._document, "collections", ())
+        if collection_index >= len(collections):
+            return
+        elements = collections[collection_index].elements
+        if element_index >= len(elements):
+            return
+        wanted = elements[element_index][0]
+        for index in range(self.tree.topLevelItemCount()):
+            item = self.tree.topLevelItem(index)
+            if item.data(0, OBJECT_ROLE) == wanted:
+                self.tree.setCurrentItem(item)
+                self.tree.scrollToItem(item)
+                return
+
+    def _adopt_payload(
+        self, data: bytes, *, select_element: tuple[int, int] | None = None
+    ) -> None:
         """Take the resized bytes as the working file and rebuild the tree.
 
         Re-decoding rather than patching the rows is the point: every offset the
@@ -150,9 +174,13 @@ class PrefabStructureMixin:
         self.tree.clear()
         self._populate_objects()
         self._apply_object_filter()
-        self._select_first_editable_row()
+        if select_element is None:
+            self._select_first_editable_row()
+        else:
+            self._select_element_row(*select_element)
         self._refresh_pending_state()
         self.banner.setText(self._banner_text())
+        self.objects_hint.setText(self._objects_hint())
 
     # -- reporting -------------------------------------------------------
     def structural_summary(self) -> str:
