@@ -20,10 +20,13 @@ DELETED_ACTIVE_PLANS = {
 
 
 def _documentation_files() -> tuple[Path, ...]:
-    files = [ROOT / "README.md", ROOT / "SECURITY.md"]
+    files = [ROOT / "README.md", ROOT / "SECURITY.md", ROOT / "AGENTS.md", ROOT / "CONTRIBUTING.md"]
     files.extend(path for path in (ROOT / "docs").rglob("*.md") if PLANS_DIR not in path.parents)
-    files.extend((ROOT / "cdmw").rglob("README.md"))
-    return tuple(sorted(set(files)))
+    # Package READMEs are documentation wherever they live. Limiting this to
+    # cdmw/ let a broken docs/ link sit in native/cdmw_mesh_core/README.md.
+    for package_root in ("cdmw", "native", "tools", "tests"):
+        files.extend((ROOT / package_root).rglob("README.md"))
+    return tuple(sorted(path for path in set(files) if path.is_file()))
 
 
 def _tracked_active_plans() -> set[str]:
@@ -65,6 +68,24 @@ def test_documented_markdown_paths_exist_and_deleted_plans_are_unreferenced() ->
                 stale.append((source_path.relative_to(ROOT).as_posix(), deleted_name))
     assert not missing, f"Missing documentation references: {missing}"
     assert not stale, f"Deleted active-plan references remain: {stale}"
+
+
+def test_docs_index_names_every_documentation_file() -> None:
+    """docs/README.md is the entry point, so a doc it omits is a doc nobody opens.
+
+    Eight docs had accumulated outside the index. Matching on file name keeps
+    the guard indifferent to how the index nests its subfolder lists.
+    """
+
+    index_path = ROOT / "docs" / "README.md"
+    index = index_path.read_text(encoding="utf-8-sig")
+    unlisted = sorted(
+        path.relative_to(ROOT).as_posix()
+        for path in (ROOT / "docs").rglob("*.md")
+        if PLANS_DIR not in path.parents and path != index_path and path.name not in index
+    )
+
+    assert not unlisted, f"Docs missing from docs/README.md: {unlisted}"
 
 
 def test_test_matrix_command_paths_exist() -> None:

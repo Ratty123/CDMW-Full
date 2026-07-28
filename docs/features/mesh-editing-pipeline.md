@@ -55,19 +55,21 @@ Status: resident .NET/Vortice editor and safe-import contract, 2026-07-17.
     visual scene files without the Crimson sidecar are not safe game-asset
     rebuild sources.
 - Preview package creation:
-  - Mesh Editor D3D11 packages live under
-    `cdmw.ui.mesh_editor.native_preview_runtime` and
-    `cdmw.ui.mesh_editor.native_preview_payloads`.
+  - Mesh Editor preview packages are packed by
+    `cdmw.ui.mesh_editor.native_preview_payloads` and launched from
+    `cdmw.ui.mesh_editor.tab_native_preview`.
   - Archive/static replacement preview packages use `cdmw.rendering.native_*`
     helpers and archive-browser static replacement callbacks.
-  - Sparse live position, normal, and UV updates use one sender thread per
-    Python D3D11 host.
+  - Sparse live position, normal, and UV updates are paced by
+    `cdmw.ui.mesh_editor.dotnet_update_queue`, which serialises correlated
+    resident updates to the embedded .NET viewport.
     One pending update is retained, newer revisions replace older pending work,
-    native update acknowledgements pace delivery, and superseded `delete_after`
-    payload files are removed. Revision-capable native and .NET receivers apply
-    only monotonic `edit_revision` packets, return explicit applied/rejected
-    acknowledgements, and retain the legacy `revision` alias. Revisionless
-    acknowledgements remain accepted only until an older host is identified.
+    receiver acknowledgements pace delivery, and superseded `delete_after`
+    payload files are removed once the packet that owned them is retired. The
+    .NET receiver applies only monotonic `edit_revision` packets and returns
+    explicit applied/rejected acknowledgements; revision and mutation-envelope
+    support are negotiated as the `mesh_edit_revision_ack_v1` and
+    `resident_mutation_envelope_v2` capabilities rather than assumed.
   - The native editor session has one authoritative resident submesh map.
     Non-topology undo units retain only changed channel/index values; topology
     units retain one reversible affected-submesh snapshot and swap it on
