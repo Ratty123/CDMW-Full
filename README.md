@@ -51,8 +51,8 @@ is smaller and safer to hand to someone who is not modding.
 | Workspace | What you can do |
 |---|---|
 | **Archive Browser** | Browse `.pamt` / `.paz` archives in flat or tree view with filters, search, cache reuse, extraction, text and media preview, and explicit patch/restore flows. |
-| **Mesh Preview & Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path, inspect referenced textures, edit resident meshes through the native edit core, and export OBJ/FBX or import OBJ/DAE/glTF/GLB for comparison. |
-| **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
+| **Mesh Preview & Editor** | Preview `.pam`, `.pamlod`, and `.pac` meshes on the native D3D11 path, inspect referenced textures, edit resident meshes through the native edit core, with OBJ/FBX export and OBJ/DAE/glTF/GLB import preview. |
+| **Texture Workflow** | Rebuild DDS with the bundled `cd-texture-dx.exe` native DirectXTex helper, upscale through Real-ESRGAN NCNN or chaiNNer, plan texture policy, compare before/after, and export mod packages. |
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
 | **Image Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. |
 | **Material Authority** | Build and audit material/mesh replacement packages with source-owned material routing, runtime XML preservation, diagnostics, and final package preview. |
