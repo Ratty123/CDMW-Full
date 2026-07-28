@@ -30,6 +30,7 @@ from typing import Mapping, Sequence
 
 from cdmw.core.prefab_binary import (
     PrefabBinaryError,
+    recover_pointee_strings,
     PrefabDocument,
     decode_prefab_binary,
     pointer_sites,
@@ -179,6 +180,73 @@ def _plan_from_occurrences(
             edits.append(edit)
     edits.sort(key=lambda item: item.offset)
     return tuple(edits)
+
+
+def rewrite_prefab_paths_same_length(
+    data: bytes,
+    edits: Sequence[PrefabPathEdit],
+) -> PrefabRewriteResult:
+    """Replace paths with equal-length ones, without needing a complete walk.
+
+    :func:`rewrite_prefab_paths` refuses a prefab the walk cannot finish,
+    because relocating pointers needs the structure. A replacement of exactly
+    the same byte length relocates nothing: no pointer moves, no pointee length
+    changes, the data header's sizes are untouched, and every byte outside the
+    replaced text keeps its offset. That is safe on any prefab whose pointer
+    records can be read at all -- which is what
+    :func:`recover_pointee_strings` establishes.
+
+    Each edit is still checked against the text actually at its offset, and a
+    different-length replacement is refused rather than quietly padded.
+    """
+    payload = bytearray(data or b"")
+    document = decode_prefab_binary(bytes(payload))
+    at_offset = {
+        item.offset: item.text
+        for item in recover_pointee_strings(
+            bytes(payload), document.blob_offset, document.blob_length
+        )
+    }
+    at_offset.update({item.offset: item.text for item in document.all_strings()})
+
+    applied: list[PrefabPathEdit] = []
+    for edit in edits:
+        found = at_offset.get(edit.offset)
+        if found is None:
+            raise PrefabEditError(f"No string sits at 0x{edit.offset:x}")
+        if found != edit.old_text:
+            raise PrefabEditError(
+                f"String at 0x{edit.offset:x} is {found!r}, not {edit.old_text!r}; "
+                "refusing to write over something the caller has not seen"
+            )
+        old_bytes = edit.old_text.encode("utf-8")
+        new_bytes = edit.new_text.encode("utf-8")
+        if len(new_bytes) != len(old_bytes):
+            raise PrefabEditError(
+                f"This prefab is only partly readable, so a replacement has to be the "
+                f"same length: {edit.old_text!r} is {len(old_bytes)} bytes and "
+                f"{edit.new_text!r} is {len(new_bytes)}."
+            )
+        if new_bytes == old_bytes:
+            continue
+        text_at = edit.offset + 4
+        if bytes(payload[text_at : text_at + len(old_bytes)]) != old_bytes:
+            raise PrefabEditError(f"Bytes at 0x{text_at:x} are not what was read there")
+        payload[text_at : text_at + len(new_bytes)] = new_bytes
+        applied.append(edit)
+
+    proof = [
+        "Same-length replacement: no pointer, pointee length or header size changed, "
+        "so nothing outside the replaced text moved.",
+    ]
+    proof.extend(f"{edit.old_text} -> {edit.new_text}" for edit in applied)
+    return PrefabRewriteResult(
+        data=bytes(payload),
+        edits=tuple(applied),
+        byte_delta=0,
+        relocated_pointers=0,
+        proof_lines=tuple(proof),
+    )
 
 
 def rewrite_prefab_paths(

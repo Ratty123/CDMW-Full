@@ -112,14 +112,18 @@ def test_applying_a_longer_path_produces_a_valid_prefab(qt_app: QApplication) ->
     assert [item.text for item in document.resource_strings()] == [replacement]
 
 
-def test_partly_decoded_prefab_disables_editing(qt_app: QApplication) -> None:
+def test_partly_decoded_prefab_allows_only_same_length_swaps(qt_app: QApplication) -> None:
+    """Nothing may move, so only a replacement that moves nothing is offered."""
     payload = bytearray(_build())
     document = decode_prefab_binary(bytes(payload))
     pointer = document.pointers[0]
     struct.pack_into("<I", payload, pointer.site, pointer.site + 64)
     dialog = PrefabInspectorDialog(bytes(payload))
-    assert not dialog.apply_button.isEnabled()
-    assert "saving is switched off" in dialog.banner.text()
+    assert not dialog.apply_button.isEnabled(), "nothing is pending yet"
+    assert "Partly read" in dialog.banner.text()
+    assert "exactly the same length" in dialog.banner.text()
+    assert not dialog._can_edit()
+    assert dialog._can_swap_same_length()
 
 
 def test_unreadable_payload_reports_instead_of_raising(qt_app: QApplication) -> None:
@@ -867,3 +871,45 @@ def test_filtering_keeps_a_matching_row_s_object_on_screen(qt_app: QApplication)
         if not dialog.tree.topLevelItem(i).isHidden()
     ]
     assert visible_parents, "the owning object must stay visible"
+
+
+def _partly_read(payload: bytes) -> bytes:
+    """A prefab whose walk stops short, with every pointer record intact."""
+    document = decode_prefab_binary(payload)
+    broken = bytearray(payload) + bytes(8)
+    struct.pack_into("<I", broken, document.blob_offset - 4, document.blob_length + 8)
+    struct.pack_into("<I", broken, document.blob_offset - 24, len(broken))
+    return bytes(broken)
+
+
+def test_a_same_length_swap_applies_on_a_partly_read_prefab(qt_app: QApplication) -> None:
+    from cdmw.core.prefab_binary import recover_pointee_strings
+
+    payload = _partly_read(_build())
+    dialog = PrefabInspectorDialog(payload)
+    assert dialog._document is not None and not dialog._document.walk_complete
+
+    row = _path_row(dialog)
+    same_length = PATH[:-5] + "z" + PATH[-4:]
+    assert len(same_length) == len(PATH)
+    row.setText(2, same_length)
+    assert dialog.apply_button.isEnabled(), "a same-length swap must be offered"
+
+    dialog._confirm_changes = lambda: True
+    dialog._apply_changes()
+    assert dialog.result_payload is not None
+    written = dialog.result_payload.data
+    assert len(written) == len(payload), "nothing may move"
+    after = decode_prefab_binary(written)
+    texts = {i.text for i in recover_pointee_strings(written, after.blob_offset, after.blob_length)}
+    assert same_length in texts and PATH not in texts
+
+
+def test_a_resizing_swap_is_refused_on_a_partly_read_prefab(qt_app: QApplication) -> None:
+    dialog = PrefabInspectorDialog(_partly_read(_build()))
+    _path_row(dialog).setText(2, PATH[:-4] + "considerably_longer.pac")
+    dialog._confirm_changes = lambda: True
+    dialog._apply_changes()
+    assert dialog.result_payload is None
+    log = dialog.log.toPlainText()
+    assert "same length" in log and "Refused" in log
