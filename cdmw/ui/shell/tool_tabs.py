@@ -298,6 +298,34 @@ class ShellToolTabsMixin:
         self._build_mod_package_retrofit_tool(tab, run_initial_scan=False)
         return tab
 
+    def _create_placement_studio_tab(self) -> QWidget:
+        """Weapon/armour socket placement and draw-animation retargeting.
+
+        Lazily created like every other tool, which matters more here than elsewhere: the tab
+        pins a vanilla baseline from the archives on first open, and that must not run during
+        startup. It reports its own failures and never raises into the shell.
+        """
+
+        from tools.placement_studio.tab import PlacementStudioTab
+
+        tab = PlacementStudioTab(settings=self.settings, window=self)
+        tab.setObjectName("placement_studio")
+        return tab
+
+    def _create_translation_studio_tab(self) -> QWidget:
+        """Search and retranslate the game's string tables.
+
+        Lazy like the rest, and for the same reason as Placement Studio: opening it
+        lists the languages in the archives, and a language table is 16-25 MB. Neither
+        belongs in startup.
+        """
+
+        from tools.translation_studio.tab import TranslationStudioTab
+
+        tab = TranslationStudioTab()
+        tab.setObjectName("translation_studio")
+        return tab
+
     def _build_shell_tool_tabs(self, pump_startup_splash: Callable[[str], None]) -> None:
         from cdmw.ui.settings_tab import SettingsTab
 
@@ -357,6 +385,18 @@ class ShellToolTabsMixin:
             "mod_package_retrofit",
             self._create_mod_package_retrofit_tab,
         )
+        self.placement_studio_tab = self._add_lazy_shell_tool(
+            self.tools_tabs,
+            "Placement & Animation Studio",
+            "placement_studio",
+            self._create_placement_studio_tab,
+        )
+        self.translation_studio_tab = self._add_lazy_shell_tool(
+            self.tools_tabs,
+            "Translation Studio",
+            "translation_studio",
+            self._create_translation_studio_tab,
+        )
 
     def _register_shell_tool_tabs(self) -> None:
         self._initialize_archive_cache_status_chip()
@@ -371,6 +411,7 @@ class ShellToolTabsMixin:
         self._register_detachable_tool("text_search", self.text_search_tab, "Text Search")
         self._register_detachable_tool("item_icons", self.item_icons_tab, "Icon Creator")
         self._register_detachable_tool("mod_package_retrofit", self.mod_package_retrofit_tab, "Retrofit/Repackage")
+        self._register_detachable_tool("placement_studio", self.placement_studio_tab, "Placement & Animation Studio")
         self._register_detachable_tool("settings", self.settings_tab, "Settings")
         self._build_window_tool_menu_actions()
 
