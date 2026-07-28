@@ -213,12 +213,21 @@ def rewrite_prefab_paths(
     # change keeps the ambiguous ones (6.5% of pointees have more than one
     # position satisfying the length test, and nothing in the file resolves
     # which) out of the blast radius entirely.
+    # The walk read and validated each pointee's trailing length field, so its
+    # position is known rather than searched for. Searching is what landed on a
+    # nested string's own length prefix and corrupted files.
+    known_fields = dict(document.pointee_length_fields)
     in_string = _string_byte_mask(payload, document)
     string_at = {item.offset: item for item in document.all_strings()}
     edit_positions = [edit.offset for edit in edits]
     length_fields: dict[int, int] = {}
     for site in sites:
         target = site + 4
+        derived_by_walk = known_fields.get(site)
+        if derived_by_walk is not None:
+            if any(target <= position < derived_by_walk + 4 for position in edit_positions):
+                length_fields[site] = derived_by_walk
+            continue
         # A pointee that opens with a decoded string has a *computable* field:
         # 4 bytes of head, then the string, then the length. No scan, so no
         # ambiguity -- and this is the shape every resource-path pointee takes,

@@ -15,6 +15,7 @@ import pytest
 from cdmw.core.prefab_binary import (
     KIND_COLLECTION,
     KIND_POINTER,
+    KIND_POINTER,
     KIND_STRING,
     PrefabBinaryError,
     decode_prefab_binary,
@@ -62,6 +63,34 @@ def _build(*, revision: int = 15, version: int = 4, pool: tuple[str, ...] = ()) 
     data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
     data_header += struct.pack("<II", blob_offset, len(blob))
     return bytes(header + pool_bytes + data_header + blob)
+
+
+def _build_with_pointer() -> bytes:
+    """A prefab whose root holds a pointer to a resource path."""
+    types = bytearray()
+    types += _text("SceneObject") + struct.pack("<H", 2)
+    types += _member("_socketName", "IndexedStringA", KIND_STRING, 1)
+    types += _member("_meshFile", "ReflectObjectPtr", KIND_POINTER, 8)
+    types += _text("ResourceReferencePath_SkinnedMesh") + struct.pack("<H", 0)
+
+    header = bytearray()
+    header += struct.pack("<HHH", 0xFFFF, 4, 0) + b"\x00" * 8
+    header += struct.pack("<I", 15) + struct.pack("<H", 2) + types
+    pool = struct.pack("<I", 0)
+    blob_offset = len(header) + len(pool) + 28
+
+    blob = bytearray()
+    blob += struct.pack("<H", 2) + (0b11).to_bytes(6, "little")
+    blob += _text("Pelvis_R_Socket")
+    blob += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    blob += struct.pack("<I", blob_offset + len(blob) + 4)
+    pointee = bytearray(struct.pack("<I", 0) + _text("character/model/a/b.pac"))
+    blob += pointee + struct.pack("<I", len(pointee)) + b"\x00" * 5
+
+    data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
+    data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    data_header += struct.pack("<II", blob_offset, len(blob))
+    return bytes(header + pool + data_header + blob)
 
 
 def test_decodes_type_table_with_member_metadata() -> None:
@@ -247,3 +276,21 @@ def test_objects_record_whether_their_type_was_stated() -> None:
     assert document.inferred_objects == tuple(
         item for item in document.objects if item.type_source == "inferred"
     )
+
+
+def test_the_walk_records_where_each_pointee_length_field_sits() -> None:
+    """It reads and validates that field, so nothing should have to search.
+
+    Searching for "a u32 equal to its own distance from the pointee start" can
+    land on a nested string's own length prefix, which corrupted 63 of 1,371
+    shipped prefabs before the editor stopped relying on it.
+    """
+    from cdmw.core.prefab_binary_edit import _string_byte_mask  # noqa: F401
+
+    payload = _build_with_pointer()
+    document = decode_prefab_binary(payload)
+    assert document.walk_complete, document.walk_note
+    recorded = dict(document.pointee_length_fields)
+    assert recorded, "the walk consumed a pointee, so it must have recorded its field"
+    for site, field in recorded.items():
+        assert struct.unpack_from("<I", payload, field)[0] == field - (site + 4)
