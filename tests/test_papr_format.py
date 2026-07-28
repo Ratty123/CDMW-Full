@@ -248,19 +248,38 @@ class VanillaRigTests(unittest.TestCase):
             self.assertEqual(encode_papr(document), data, path)
         if not parsed and not rejected:
             self.skipTest("no .papr entries in the archives")
-        self.assertGreaterEqual(parsed, 19, "expected at least 19 rigs to parse")
+        self.assertEqual(rejected, 0, "every shipped rig should parse now")
+        self.assertGreaterEqual(parsed, 20, "expected all 20 rigs to parse")
         self.assertGreater(bones, 2000)
         self.assertGreater(frames, 500)
         self.assertGreater(weights, 1000)
 
-    def test_a_rig_that_does_not_tile_is_rejected_not_guessed(self) -> None:
-        """One shipped rig finds 236 entry starts against a declared 237."""
+    def test_every_shipped_rig_now_tiles_and_rebuilds(self) -> None:
+        """`cd_m0001_00_circusmachine_boss` used to find 236 starts against a declared 237.
+
+        The entry it missed is unparented -- a zero-length parent -- which the scan read as
+        a malformed name. Unparented entries also carry their transform frame with the flag
+        byte left at zero, so the writer has to reproduce that rather than derive the flag.
+        """
 
         rejected = [
             path for path, data in self._rigs()
             if not rebuild_is_exact(data, name=path)
         ]
-        self.assertLessEqual(len(rejected), 1, f"unexpected rejections: {rejected}")
+        self.assertEqual(rejected, [], f"unexpected rejections: {rejected}")
+
+    def test_the_unparented_entry_is_read_with_its_frame(self) -> None:
+        unparented = [
+            (path, entry)
+            for path, data in self._rigs()
+            for entry in parse_papr(data, name=path).entries
+            if not entry.parent
+        ]
+
+        self.assertTrue(unparented, "expected at least one unparented entry in the corpus")
+        for path, entry in unparented:
+            self.assertIsNotNone(entry.transform, f"{path}: {entry.name}")
+            self.assertEqual(entry.counters, (0, 0), f"{path}: {entry.name}")
 
     def test_located_weights_are_whole_percentages(self) -> None:
         total = 0
@@ -285,3 +304,42 @@ class VanillaRigTests(unittest.TestCase):
             self.assertIn("influence weights", describe(document))
             return
         self.skipTest("no .papr entries in the archives")
+
+
+class FrameDiscriminatorTests(unittest.TestCase):
+    """What separates a real transform frame from float noise inside a block.
+
+    An unparented entry is recognised by a zero-length parent, and a name followed by two
+    zero bytes occurs inside configuration blocks all the time. Requiring the frame that
+    follows to be a genuine one is what stops those matching: without it the relaxed scan
+    split real blocks apart in ten of the twenty rigs.
+    """
+
+    def test_a_unit_quaternion_with_positive_scale_reads_as_a_frame(self) -> None:
+        from cdmw.core.papr_format import _is_frame
+
+        self.assertTrue(_is_frame((1.0, 1.0, 1.0, 0.113, -0.193, -0.822, 0.524,
+                                   -2.779, 6.705, -0.009)))
+
+    def test_a_rotation_that_is_not_a_unit_quaternion_is_refused(self) -> None:
+        from cdmw.core.papr_format import _is_frame
+
+        # Norm 1.8, not 1.
+        self.assertFalse(_is_frame((1.0, 1.0, 1.0, 0.9, 0.9, 0.9, 0.9, 0.0, 0.0, 0.0)))
+
+    def test_a_zero_or_negative_scale_is_refused(self) -> None:
+        from cdmw.core.papr_format import _is_frame
+
+        rotation_and_translation = (1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+        self.assertFalse(_is_frame((0.0, 1.0, 1.0) + rotation_and_translation))
+        self.assertFalse(_is_frame((-1.0, 1.0, 1.0) + rotation_and_translation))
+
+    def test_float_noise_is_refused(self) -> None:
+        """The case that matters: bytes from the middle of a configuration block."""
+
+        import struct as _struct
+
+        from cdmw.core.papr_format import _is_frame
+
+        noise = _struct.unpack("<10f", bytes(range(40)))
+        self.assertFalse(_is_frame(noise))

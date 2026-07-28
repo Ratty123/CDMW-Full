@@ -3,7 +3,8 @@
 Two formats decoded together because they close two of the gaps
 `docs/features/format-decode-progress.md` ranked highest. They are unrelated in content
 and both are now finished: `.paloc` round-trips and edits, and `.papr` decodes end to
-end -- container, entries, and every one of its 2,541 configuration blocks.
+end across all twenty rigs -- container, entries, and every one of its 2,737
+configuration blocks.
 
 ## `.paloc` — every line of text in the game
 
@@ -114,7 +115,7 @@ the length counts a trailing NUL.
 Owner: `cdmw/core/papr_format.py` for the container, `cdmw/core/papr_block.py` for the
 configuration block. Tests: `tests/test_papr_format.py`, `tests/test_papr_block.py`.
 
-**Status: fully decoded. Entry structure, writer, and every configuration block.**
+**Status: fully decoded. All 20 rigs, every entry, every configuration block.**
 
 ### How the entry chain was found
 
@@ -126,7 +127,7 @@ error is in the other direction on other files.
 
 What works is locating entry **starts** instead: two name-shaped strings followed by a
 tail whose third byte is 0 or 1. Requiring that chain to be exactly `entry_count` long
-and to tile the file is a strong constraint — **19 of the 20 shipped rigs tile exactly**.
+and to tile the file is a strong constraint — **all 20 shipped rigs tile exactly**.
 Block extents then fall out as the gap between one entry's header and the next start.
 
 Two other pieces fell out of this:
@@ -138,8 +139,15 @@ Two other pieces fell out of this:
   and has two blocks of six records; dog declares 30 and has five. It is an independent
   check on the block grammar, and it is what the grammar below was built against.
 
-`cd_m0001_00_circusmachine_boss` finds 236 starts against a declared 237 and is
-**rejected rather than guessed at**.
+**All twenty rigs tile exactly.** `cd_m0001_00_circusmachine_boss` used to find 236 starts
+against a declared 237, and the entry it missed is *unparented* — a zero-length parent,
+read as a malformed name. Such an entry also carries its transform frame with the flag byte
+left at zero, so the frame follows from the empty parent rather than from the flag.
+
+A zero-length parent on its own is far too weak a signal: a name followed by two zero bytes
+occurs inside blocks constantly, and accepting those split real blocks apart in ten of the
+twenty rigs. What makes it safe is checking the frame — the rotation must be a unit
+quaternion and the scale positive and finite, which float noise essentially never is.
 
 ### The block grammar
 
@@ -163,8 +171,8 @@ then `4 + channels` limit floats. A bound node is a flag byte, a name that may b
 and the same limit run. An expression controller is a bound node name, a counted variable
 table, and the formula text.
 
-**Every block consumes exactly — 2,541 of 2,541**, against the 682 (26.8%) that matched
-one canonical 9-record shape before, and **906 expression controllers come out as text** —
+**Every block consumes exactly — 2,737 of 2,737**, against the 682 (26.8%) that matched
+one canonical 9-record shape before, and **1,046 expression controllers come out as text** —
 the rule each driven bone actually runs:
 
 ```
@@ -177,8 +185,8 @@ amin(Local_Euler_Z*5.5+20) 8                            the same on Z, clamped a
 
 Coverage alone proves little — permissive rules also consume bytes. The check that does
 is `record_count` at `0x20`: the file's own total, which no decoding rule can influence.
-**All nineteen rigs that parse reproduce their declared total exactly**, from `bear` at
-12 records to `golem_imp_boss` at 4,317.
+**All twenty rigs reproduce their declared total exactly**, from `bear` at 12 records to
+`golem_imp_boss` at 4,317.
 
 It also settled a question the shapes could not. A bound node looks like any other 3-byte
 record. Counted as one, `deerila` overshoots its declared total by 6 and the two horse rigs
@@ -204,7 +212,7 @@ construct read wrongly here cannot corrupt a file.
 
 ### What can be edited
 
-`encode_papr` rebuilds a rig from its parsed form, and **all 19 parsed rigs rebuild byte
+`encode_papr` rebuilds a rig from its parsed form, and **all 20 rigs rebuild byte
 for byte** across 2,734 bones, 703 transform frames and 1,632 weights. On top of that:
 
 | Edit | Notes |
