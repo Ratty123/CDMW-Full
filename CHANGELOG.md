@@ -12,6 +12,9 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Fixed
+- A Move-dialog row named only the clip it replaces, so `Drawing the weapon · dual swords` sat next to a Watch button that plays a two-handed draw from the back. Reading the row as a description of what you are about to watch is the obvious reading and it was wrong. Rows now name both — `Drawing the weapon · dual swords ← two-handed sword` — using the same arrow the tooltip has always used for target ← donor.
+
+### Fixed
 - The clip browser's scan button and the `Only draws for this spot` checkbox were clipped mid-word. Three controls shared a row and want 216, 312 and 338 px at this DPI — 890 with spacing, in a lane that opens at 620. Qt answers a row it cannot fit by clipping rather than wrapping, so the button gets a row of its own.
 
 ### Docs
