@@ -225,6 +225,44 @@ class BoundNodeTests(unittest.TestCase):
         self.assertTrue(decode_block(block).complete, decode_block(block).note)
 
 
+class BoundNodeTagTests(unittest.TestCase):
+    """Which tags are bound nodes, and which are records at the same type."""
+
+    def _with(self, tag: int, typ: int) -> bytes:
+        return (
+            OPEN
+            + _rec(0x04, 0x04) + _drivers_only(("A", 50.0))
+            + _rec(tag, typ) + _bound_node("N")
+            + CLOSE
+        )
+
+    def test_every_low_tag_at_type_one_or_two_is_a_bound_node(self) -> None:
+        """`02 01` and `02 02` alone accounted for 452 blocks left short."""
+
+        for tag in range(0x01, 0x06):
+            for typ in (0x01, 0x02):
+                decoded = decode_block(self._with(tag, typ))
+                self.assertTrue(decoded.complete, f"tag 0x{tag:02x} type 0x{typ:02x}")
+                self.assertEqual(decoded.names, ("N",))
+                # open, drivers, close -- the bound node is payload.
+                self.assertEqual(decoded.record_count, 3)
+
+    def test_a_scalar_at_the_same_type_is_still_a_record(self) -> None:
+        """Tag 0x10 shares type 0x01 with the bound nodes and must not be read as one."""
+
+        decoded = decode_block(OPEN + SCALAR + CLOSE)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(decoded.record_count, 3)
+        self.assertEqual(decoded.names, ())
+
+    def test_a_name_reference_at_the_same_type_is_still_a_record(self) -> None:
+        decoded = decode_block(OPEN + _rec(0x12, 0x01) + _s("Bip01 R Thigh") + CLOSE)
+
+        self.assertTrue(decoded.complete, decoded.note)
+        self.assertEqual(decoded.record_count, 3)
+
+
 class FrameTests(unittest.TestCase):
     def test_a_frame_record_carries_a_zero_and_three_floats(self) -> None:
         block = OPEN + _rec(0x01, 0x03) + b"\x00" + struct.pack("<3f", 0.5, 0.25, 0.125) + CLOSE
@@ -248,7 +286,8 @@ class RefusalTests(unittest.TestCase):
         self.assertIn("0x7e", decoded.note)
 
     def test_an_unknown_record_type_stops_the_walk(self) -> None:
-        decoded = decode_block(OPEN + _rec(0x05, 0x02) + CLOSE)
+        # Not a low tag: 0x01-0x05 at type 0x02 are bound nodes, not unknowns.
+        decoded = decode_block(OPEN + _rec(0x0F, 0x02) + CLOSE)
 
         self.assertFalse(decoded.complete)
         self.assertIn("no payload rule", decoded.note)
@@ -346,11 +385,11 @@ class VanillaBlockTests(unittest.TestCase):
         return blocks, complete, expressions, exact_rigs
 
     def test_most_of_the_corpus_now_decodes_completely(self) -> None:
-        """A ratchet, not an equality: 78.4% at the time of writing, from 26.8%."""
+        """A ratchet, not an equality: 96.1% at the time of writing, from 26.8%."""
 
         blocks, complete, _expressions, _exact = self._decoded()
 
-        self.assertGreaterEqual(complete / blocks, 0.76, f"{complete}/{blocks}")
+        self.assertGreaterEqual(complete / blocks, 0.94, f"{complete}/{blocks}")
 
     def test_the_driver_formulas_are_recovered(self) -> None:
         _blocks, _complete, expressions, _exact = self._decoded()
