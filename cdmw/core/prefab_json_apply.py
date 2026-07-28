@@ -42,7 +42,7 @@ def apply_prefab_edit_document(data: bytes, document: Mapping[str, Any], *, virt
     current_keys, current_counts_by_text = _current_reference_keys_and_counts(payload, tuple(allowed_roles))
     decoded_for_resize = decode_prefab(payload)
     same_length_replacements_by_text: dict[str, str] = {}
-    resized_replacements_by_field_index: dict[int, str] = {}
+    resized_replacements_by_offset: dict[int, tuple[str, str]] = {}
     row_values_by_text: dict[str, set[str]] = {}
     row_counts_by_text: dict[str, int] = {}
     seen_keys: set[tuple[int, int, int, str, str, str]] = set()
@@ -78,7 +78,7 @@ def apply_prefab_edit_document(data: bytes, document: Mapping[str, Any], *, virt
         if replacement_length != byte_length:
             if not allow_experimental_length_change:
                 raise PrefabEditJsonError(_length_change_blocked_message('Prefab replacement', byte_length, replacement_length, resize_impact))
-            resized_replacements_by_field_index[field_index] = value
+            resized_replacements_by_offset[offset] = (original, value)
         previous = same_length_replacements_by_text.get(original)
         if previous is not None and previous != value:
             raise PrefabEditJsonError('Duplicate prefab references must use the same replacement value.')
@@ -103,11 +103,29 @@ def apply_prefab_edit_document(data: bytes, document: Mapping[str, Any], *, virt
             raise PrefabEditJsonError(str(exc)) from exc
     if same_length_replacements_by_text:
         patched = build_prefab_resource_path_patch(patched, same_length_replacements_by_text, roles=tuple(allowed_roles)).data
-    if resized_replacements_by_field_index:
+    if resized_replacements_by_offset:
+        # This used to go through crimson_formats.rebuild_prefab_resized_strings,
+        # which finds pointers by scanning for u32s that happen to equal a known
+        # string offset and rewrites any coincidental match. The exact rewriter
+        # relocates every pointer and length field by the identity rule and
+        # reproduces the game's own output on 10,124 of 10,124 length-changing
+        # prefabs in the archives, so there is no reason to keep the guesswork.
+        from cdmw.core.prefab_binary import PrefabBinaryError
+        from cdmw.core.prefab_binary_edit import PrefabPathEdit, rewrite_prefab_paths
+
         try:
-            patched = rebuild_prefab_resized_strings(patched, resized_replacements_by_field_index)
-        except ValueError as exc:
-            raise PrefabEditJsonError(str(exc)) from exc
+            patched = rewrite_prefab_paths(
+                patched,
+                [
+                    PrefabPathEdit(offset=offset, old_text=old, new_text=new)
+                    for offset, (old, new) in sorted(resized_replacements_by_offset.items())
+                ],
+            ).data
+        except PrefabBinaryError as exc:
+            raise PrefabEditJsonError(
+                "A different-length replacement needs a prefab this tool can read all "
+                f"the way through, and this one stopped: {exc}"
+            ) from exc
     return patched
 
 

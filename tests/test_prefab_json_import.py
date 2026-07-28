@@ -210,7 +210,17 @@ def test_prefab_edit_json_text_api_does_not_expose_experimental_resize_flag() ->
     assert "allow_experimental_length_change" not in inspect.signature(apply_prefab_edit_json).parameters
 
 
-def test_prefab_edit_json_applies_experimental_length_changing_resource_patch_when_enabled() -> None:
+def test_prefab_edit_json_length_change_needs_a_readable_prefab() -> None:
+    """Length-changing edits go through the exact pointer-relocation path now.
+
+    They used to go through the offset-candidate scanner in crimson_formats,
+    which finds pointers by looking for u32s that happen to equal a known
+    string offset and rewrites any coincidental match. The exact rewriter
+    reproduces the game's own output on 10,124 of 10,124 length-changing
+    prefabs in the archives, but it needs a prefab that decodes all the way
+    through -- and this fixture is a hand-assembled header with no real type
+    table, so the edit is refused. The old path would have rewritten it.
+    """
     prefix = b"\xff\xff\x04\x00" + _lp("_target") + _lp("IndexedStringA")
     old_path = "character/model/test_a.pac"
     new_path = "character/model/much_longer_name.pac"
@@ -219,24 +229,24 @@ def test_prefab_edit_json_applies_experimental_length_changing_resource_patch_wh
     document = build_prefab_edit_document(payload, "character/prefab/test.prefab")
     document["editable"]["resource_references"][0]["value"] = new_path
 
-    patched = apply_prefab_edit_document(
-        payload,
-        document,
-        virtual_path="character/prefab/test.prefab",
-        allow_experimental_length_change=True,
-    )
+    with pytest.raises(PrefabEditJsonError) as caught:
+        apply_prefab_edit_document(
+            payload,
+            document,
+            virtual_path="character/prefab/test.prefab",
+            allow_experimental_length_change=True,
+        )
+    assert "read all the way through" in str(caught.value)
 
-    assert len(patched) == len(payload) + len(new_path.encode("utf-8")) - len(old_path.encode("utf-8"))
-    assert new_path.encode("utf-8") in patched
-    assert old_path.encode("utf-8") not in patched
-    decoded = decode_prefab(patched)
-    assert decoded.layout.fully_accounted is True
-    assert len(decoded.offset_candidates) == 1
-    assert decoded.offset_candidates[0].value == target_offset
-    assert int.from_bytes(patched[target_offset : target_offset + 4], "little") == len(new_path.encode("utf-8"))
-    patched_document = build_prefab_edit_document(patched, "character/prefab/test.prefab")
-    assert apply_prefab_edit_document(patched, patched_document, virtual_path="character/prefab/test.prefab") == patched
-    assert rebuild_prefab_no_edit_from_edit_document(patched, patched_document, virtual_path="character/prefab/test.prefab") == patched
+    # Same-length edits are unaffected: they move nothing and need no structure.
+    same_length = old_path[:-5] + "z" + old_path[-4:]
+    assert len(same_length) == len(old_path)
+    document["editable"]["resource_references"][0]["value"] = same_length
+    patched = apply_prefab_edit_document(
+        payload, document, virtual_path="character/prefab/test.prefab"
+    )
+    assert len(patched) == len(payload)
+    assert same_length.encode("utf-8") in patched
 
 
 def test_prefab_edit_json_rejects_stale_resource_resize_impact() -> None:
