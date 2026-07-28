@@ -411,11 +411,18 @@ cdmw/                    application code
   workers/               worker protocols, result types, cancellation
   core/ modding/ rendering/   archive, DDS, import/export, packaging logic
 native/                  C++ helpers (preview core, mesh core, texture, hkx)
-tools/dotnet_*           .NET 10 helpers (D3D11 host, archive worker, build UI)
+tools/                   .NET 10 helper sources, audit and research scripts
+tools/dotnet_*           D3D11 host, archive worker, build UI -- all source
 schemas/                 versioned capability and package schemas
 tests/                   behaviour, protocol contract, and source-guard tests
 docs/                    guides, runbooks, and reverse-engineering notes
 ```
+
+Note the two similarly named directories. **`tools/`** is source and is in the
+repository. **`.tools/`** — with the dot — is gitignored and holds downloaded or
+locally built binaries: bazelisk, the published build UI, RenderDoc, vgmstream,
+the Havok CLIs. Nothing in it is tracked, and nothing in the release build needs
+it.
 
 Further reading: [Architecture](docs/architecture.md) ·
 [Docs index](docs/README.md) · [Startup flow](docs/runbooks/startup-flow.md) ·
