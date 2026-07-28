@@ -77,6 +77,7 @@ from cdmw.ui.archive_browser.prefab_inspector_widgets import (
 from cdmw.services.prefab_structure_service import (
     asset_extension_for,
     decode_prefab_binary,
+    walk_is_determined,
     path_is_known,
     PrefabPathEdit,
     recover_pointee_strings,
@@ -156,8 +157,12 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         self.result_payload: PrefabInspectorResult | None = None
         self._document: object | None = None
         self._error = ""
+        # Computed once: it costs a second decode, and nothing about it changes
+        # while the dialog is open.
+        self._determined = True
         try:
             self._document = decode_prefab_binary(self._original)
+            self._determined = walk_is_determined(self._original)
         except Exception as exc:  # noqa: BLE001 - surfaced in the banner
             self._error = str(exc)
         self._build_ui()
@@ -248,6 +253,15 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
             for number in self._all_numbers()
             if read_placement(number.raw) is not None
         )
+        if not self._determined:
+            # ~1% of prefabs. Both collection readings close the blob, so the
+            # walk looks clean while the offsets could belong to either parse.
+            return (
+                f"{_count(objects, 'object')}. Editing is off for this one: the file does "
+                "not settle how its collections are sized, and two different readings of "
+                "it are equally valid. The values below are one of them, so an edit could "
+                "land on the wrong field without anything looking wrong."
+            )
         parts = [_count(objects, "object")]
         if paths:
             parts.append(_count(paths, "asset reference"))
@@ -285,8 +299,19 @@ class PrefabInspectorDialog(PrefabRowsMixin, PrefabEditingMixin, QDialog):
         )
 
     def _can_edit(self) -> bool:
-        """Full editing, which needs the structure to relocate bytes."""
-        return self._document is not None and self._document.walk_complete
+        """Full editing, which needs the structure to relocate bytes.
+
+        `_determined` excludes the roughly 1% of prefabs whose collection widths
+        the file itself does not decide: both readings close the blob, so the
+        walk looks clean while the offsets could belong to either parse. Editing
+        one would write a plausible byte to a wrong place, which is precisely the
+        failure that is impossible to notice afterwards.
+        """
+        return (
+            self._document is not None
+            and self._document.walk_complete
+            and self._determined
+        )
 
     def _can_swap_same_length(self) -> bool:
         """Retargets that move nothing, which need no structure at all.

@@ -451,3 +451,37 @@ def test_prefab_references_answers_without_a_complete_walk() -> None:
     struct.pack_into("<I", broken, document.blob_offset - 24, len(broken))
     assert not decode_prefab_binary(bytes(broken)).walk_complete
     assert prefab_references(bytes(broken), referenced)
+
+
+def test_a_file_with_no_ambiguous_collection_is_determined() -> None:
+    """Decoding identically twice is one reading, not two valid ones.
+
+    Most collection headers are locally ambiguous, and that is fine: a wrong
+    width desyncs the rest and the blob fails to close, so completion picks the
+    right one. Only ~1% of prefabs close under *both* readings. An early version
+    of this check called every unambiguous file undetermined, which would have
+    refused editing on nearly every prefab.
+    """
+
+    from cdmw.core.prefab_binary import walk_is_determined
+
+    assert walk_is_determined(_build()) is True
+
+
+def test_a_file_that_does_not_decode_is_not_called_undetermined() -> None:
+    """Partial and unreadable files are already refused by other gates."""
+
+    from cdmw.core.prefab_binary import walk_is_determined
+
+    assert walk_is_determined(b"not a prefab") is True
+    assert walk_is_determined(b"") is True
+
+
+def test_the_shipped_collection_reader_is_restored_afterwards() -> None:
+    """It swaps a module-level function out; leaking that would corrupt later walks."""
+
+    from cdmw.core import prefab_binary as module
+
+    before = module._read_collection_count
+    module.walk_is_determined(_build())
+    assert module._read_collection_count is before

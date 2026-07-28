@@ -5,6 +5,12 @@ from __future__ import annotations
 from typing import Any
 
 
+def walk_is_determined(*args: Any, **kwargs: Any) -> Any:
+    from cdmw.core.prefab_binary import walk_is_determined as owner
+
+    return owner(*args, **kwargs)
+
+
 def decode_prefab_binary(*args: Any, **kwargs: Any) -> Any:
     from cdmw.core.prefab_binary import decode_prefab_binary as owner
 
@@ -103,6 +109,7 @@ __all__ = [
     "asset_extension_for",
     "collect_asset_paths",
     "decode_prefab_binary",
+    "walk_is_determined",
     "path_is_known",
     "plan_prefab_path_edits",
     "PrefabPathEdit",
