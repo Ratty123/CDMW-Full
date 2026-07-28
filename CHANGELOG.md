@@ -11,6 +11,10 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+- A weapon swap can borrow the other playable character's animations where the body has no counterpart of its own. The two rigs share 403 bone names of Kliff's 434 and Damian's 448, and a Kliff sword draw resolves against Damian's skeleton with exactly the coverage it has on Kliff's — 89.6% either way — so the clip plays. It is a fallback and never displaces a clip authored for the body being edited: `.paa` keys are bind-pose deltas in bone-local axes, so the same rotations on different proportions land slightly differently, and contact points are where that shows.
+- What it is worth is worth stating plainly. It gains Kliff two draws and Damian none — not for want of donors, since 1,002 of Kliff's clips qualify, but because a swap rewrites files the game already asks for and Damian *has* only 8 one-handed draws against Kliff's 60. The ceiling on Damian is targets, not donors, and no amount of borrowing raises it.
+
 ### Fixed
 - **Damian could not swap animations at all.** The swap deliberately restricts itself to the player's own clips — an unfiltered sweep once rewrote 121 files including every boss's draw — but the list of what those are called was hard-coded to Kliff's two prefixes. Damian's clips are named differently, so every target was skipped and the dialog truthfully reported that no animation had a counterpart. The prefixes now follow the model; an unknown character falls back to its own token alone, because being wrong here means rewriting somebody else's animations.
 - **Damian's weapon was drawn with the wrong hand.** The part being edited defaulted to `CD_MainWeapon_Sword_R` outright. Kliff's swords are all right-handed so the two agreed by luck; Damian has a left-handed set, and choosing one left the right-hand row selected — the left-hand sword on screen while the animation drove the right arm. The default now matches the hand *and* the kind the chosen weapon is authored for, and a previous choice gives way when it no longer suits, since both characters have a `CD_MainWeapon_Sword_R` for it to survive as.

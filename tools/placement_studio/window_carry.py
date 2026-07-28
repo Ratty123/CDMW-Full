@@ -316,6 +316,32 @@ class CarryPickerMixin:
             if signature and carry.clip_handedness(entry.name) == other and "_swarm_" not in entry.name:
                 donors[signature].append(entry)
 
+        # A body can borrow the other playable character's clips where it has no counterpart of
+        # its own. Only ever as a fallback — a clip authored for this body is always the better
+        # answer — and keyed on the motion alone, since the character token is exactly what
+        # differs between them.
+        #
+        # Worth knowing what this can and cannot do. It gains Kliff two draws. It gains Damian
+        # none, and not for want of donors: 1,002 of Kliff's clips qualify. A swap rewrites the
+        # files the game already asks for, and Damian *has* only 8 one-handed draws against
+        # Kliff's 60. The ceiling there is targets, not donors, and no amount of borrowing
+        # raises it.
+        elsewhere = collections.defaultdict(list)
+        cousin = carry.OTHER_PLAYER.get(session.model, "")
+        if cousin:
+            cousin_prefixes = carry.player_clip_prefixes(cousin)
+            for entry in self._clip_index.entries:
+                name = entry.name
+                if f"/{cousin}/" not in entry.path or "/00_mon/" in entry.path:
+                    continue
+                if not name.startswith(cousin_prefixes) or "_swarm_" in name:
+                    continue
+                if carry.clip_handedness(name) != other:
+                    continue
+                motion = carry.clip_motion(name)
+                if motion:
+                    elsewhere[motion].append(entry)
+
         pairs = []
         for entry in entries:
             name = entry.name
@@ -327,6 +353,9 @@ class CarryPickerMixin:
                 continue
             signature = carry.clip_signature(name)
             candidates = donors.get(signature) if signature else None
+            if not candidates:
+                motion = carry.clip_motion(name)
+                candidates = elsewhere.get(motion) if motion else None
             if not candidates:
                 continue
             ranked = self._ranked_donors(name, candidates)
