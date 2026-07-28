@@ -57,7 +57,7 @@ is smaller and safer to hand to someone who is not modding.
 | **Image Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. |
 | **Material Authority** | Build and audit material/mesh replacement packages with source-owned material routing, runtime XML preservation, diagnostics, and final package preview. |
 | **Placement & Animation Studio** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
-| **Format Explorer** | What every game file format can and cannot do, and which tool does it — read from the same capability manifest the [decoding status](#file-format-decoding-status) below is generated from, so it cannot drift from what the code actually supports. |
+| **Format Explorer** | What every game file format can and cannot do, and which tool does it, read from the same capability manifest the [decoding status](#file-format-decoding-status) below is generated from, so it cannot drift from what the code actually supports. |
 | **Supporting tools** | Model Library, Icon Creator, Recolor Variants, Texture Research, Text Search, Retrofit/Repackage, settings/profile export, diagnostic bundles, detachable tabs. |
 
 ### Placement & Animation Studio
@@ -70,7 +70,7 @@ retargets inside `.paac`, and whole-file substitution of `.paa` and
 `.motionblending` payloads that already exist elsewhere in the game.
 
 The safety model is the operation vocabulary rather than a validation pass bolted
-on afterwards — unsafe operations are not expressible. The editor emits socket
+on afterwards: unsafe operations are not expressible. The editor emits socket
 translate/rotate within configured bounds, routing changes to sockets that
 already exist, descriptor alias pairs that must stay byte-identical, length-
 preserving `.paac` retargets, and verified payload substitution. It refuses, with
@@ -95,9 +95,9 @@ game install.
 
 ## File format decoding status
 
-Crimson Desert ships 141 distinct file extensions. 89 of them are engine formats
-— Pearl Abyss's own or licensed middleware — and **77 of those actually appear in
-the shipped build**. That last number is the honest denominator: a format the
+Crimson Desert ships 141 distinct file extensions. 89 of them are engine formats,
+either Pearl Abyss's own or licensed middleware, and **77 of those actually appear
+in the shipped build**. That last number is the honest denominator: a format the
 game does not contain cannot be modded and should not count against progress.
 
 | Scope | Formats | Read coverage | Write coverage |
@@ -142,31 +142,31 @@ rebuild exactly, across 2,737 configuration blocks.
 | Format | Files | Read | Write | What is left |
 |---|---:|---|---|---|
 | `.prefab` | 47,343 | partial | constrained | 40% of archive prefabs do not walk to completion. Component identity is not stated at the failure sites, and the collection-header width rule is ambiguous at 87% of them. Value editing is scoped to objects whose type the file states. |
-| `.hkx` | 58,031 | partial | constrained | Structural edits — topology, counts, references, strings, arrays — are blocked pending semantic rebuild proof. No new collision shapes or ragdoll bodies. |
+| `.hkx` | 58,031 | partial | constrained | Structural edits (topology, counts, references, strings, arrays) are blocked pending semantic rebuild proof. No new collision shapes or ragdoll bodies. |
 | `.paac` | 520 | partial | constrained | The chart node structure around the strings is not parsed, so only same-length animation retargets are allowed. |
 | `.wem` | 375,762 | partial | constrained | Only uncompressed PCM is re-encoded; Vorbis/Opus streams cannot be authored. |
-| `.pat` | 1,397 | partial | none | No builder, and LOD1+ plus unrecognised vertex layouts stay undecoded — static world geometry is view-only. |
+| `.pat` | 1,397 | partial | none | No builder, and LOD1+ plus unrecognised vertex layouts stay undecoded, so static world geometry is view-only. |
 | `.parg` `.pasg` `.pcg` | 882 | partial | none | The pointer-addressed heap walk stops at the pointee trailer, so nested values are not read. Closing `.parg` opens VFX modding; closing `.pcg` allows custom collision hulls. |
-| `.pab` | 257 | partial | none | Unknown and truncated variants fall back to a best-effort scan, and there is no writer — bones cannot be added, removed, or renamed. |
+| `.pab` | 257 | partial | none | Unknown and truncated variants fall back to a best-effort scan, and there is no writer, so bones cannot be added, removed, or renamed. |
 
 ### What is still closed
 
 The highest-value gaps, in the order they would pay off:
 
-- **`.palevel` / `.levelinfo`** (35,597 files) — placement records are not parsed,
+- **`.palevel` / `.levelinfo`** (35,597 files): placement records are not parsed,
   so level layout cannot be edited.
-- **`.paseq` / `.paseqc` / `.pastage`** (10,947 files) — track and event layout is
+- **`.paseq` / `.paseqc` / `.pastage`** (10,947 files): track and event layout is
   not parsed, so cutscene authoring is closed.
-- **`.pae` / `.paem`** (6,669 files) — parameter tables are not parsed, so VFX
+- **`.pae` / `.paem`** (6,669 files): parameter tables are not parsed, so VFX
   authoring is closed.
-- **`.meshinfo`** (35,310 files) — count/offset tables are unproven, which is why
+- **`.meshinfo`** (35,310 files): count/offset tables are unproven, which is why
   mesh replacement treats it as read-only; physics bounds and socket context
   cannot be edited.
-- **`.paschedule` / `.paschedulepath`** (7,756 files) — NPC routines cannot be
+- **`.paschedule` / `.paschedulepath`** (7,756 files): NPC routines cannot be
   retimed or rerouted.
-- **`.bnk`** (3,186 files) — HIRC event/action tables are not parsed, so sounds
+- **`.bnk`** (3,186 files): HIRC event/action tables are not parsed, so sounds
   can be swapped but not added.
-- **`.padxil`** (89,824 files) — the shader bytecode is catalogued but not
+- **`.padxil`** (89,824 files): the shader bytecode is catalogued but not
   disassembled here, and there is no route to recompile an edited shader back
   into the cache.
 
@@ -194,35 +194,35 @@ helper that cannot do the job reports an explicit unavailable state.
 flowchart LR
     subgraph host["Python host process"]
         direction TB
-        APP["cdmw/app<br/>bootstrap · single instance · splash"]
-        SHELL["cdmw/ui/shell<br/>MainWindow · tabs · controllers"]
-        FEAT["cdmw/ui feature packages<br/>archive · texture · mesh · research"]
-        SVC["cdmw/services + cdmw/domain<br/>coordination · rules · policy"]
-        WRK["cdmw/workers<br/>QThread jobs · cancellation"]
+        APP["cdmw/app<br/>bootstrap<br/>single instance"]
+        SHELL["cdmw/ui/shell<br/>MainWindow<br/>tabs · controllers"]
+        FEAT["cdmw/ui features<br/>archive · texture<br/>mesh · research"]
+        SVC["cdmw/services<br/>cdmw/domain<br/>rules · policy"]
+        WRK["cdmw/workers<br/>QThread jobs<br/>cancellation"]
         APP --> SHELL --> FEAT --> SVC --> WRK
     end
 
     subgraph native["Native helpers (C++)"]
         direction TB
-        PREV["cdmw_preview_core<br/>archive decode · name index · packaging"]
-        MESH["cdmw_mesh_core<br/>resident mesh edit authority"]
-        TEX["cd_texture_dx<br/>DirectXTex encode/decode"]
-        HKX["cd_hkx<br/>Havok container reads"]
+        PREV["cdmw_preview_core<br/>archive decode<br/>name index<br/>packaging"]
+        MESH["cdmw_mesh_core<br/>mesh edit authority"]
+        TEX["cd_texture_dx<br/>DirectXTex"]
+        HKX["cd_hkx<br/>Havok containers"]
     end
 
     subgraph dotnet[".NET 10 helpers"]
         direction TB
-        EDITOR["Cdmw.MeshEditorExperiment<br/>D3D11 / Vortice presentation + input host"]
-        ARCH["Cdmw.FullArchive.Worker<br/>archive backend service"]
+        EDITOR["Mesh Editor host<br/>D3D11 / Vortice<br/>presentation + input"]
+        ARCH["FullArchive.Worker<br/>archive backend"]
     end
 
-    WRK -->|stdio protocol| PREV
-    WRK -->|stdio protocol| ARCH
-    SVC -->|command protocol| MESH
+    WRK -->|stdio| PREV
+    WRK -->|stdio| ARCH
+    SVC -->|commands| MESH
     WRK --> TEX
     WRK --> HKX
-    FEAT -->|embedded HWND + scene protocol| EDITOR
-    PREV -->|schema-8 packages| EDITOR
+    FEAT -->|embedded HWND| EDITOR
+    PREV -->|packages| EDITOR
 ```
 
 ### Layering rules
@@ -231,17 +231,20 @@ Imports point one way. A layer may use the one below it and never the one above.
 
 ```mermaid
 flowchart TD
-    UI["cdmw/ui — the only layer that may import PySide6 widgets"]
-    SERVICES["cdmw/services — coordination boundaries"]
-    DOMAIN["cdmw/domain — pure rules, no Qt"]
-    WORKERS["cdmw/workers — protocols, results, cancellation"]
-    CORE["cdmw/core · cdmw/modding · cdmw/rendering"]
-    NATIVE["native/ · tools/dotnet_* — helper processes"]
+    UI["cdmw/ui<br/>PySide6 widgets"]
+    SERVICES["cdmw/services<br/>coordination"]
+    DOMAIN["cdmw/domain<br/>pure rules, no Qt"]
+    WORKERS["cdmw/workers<br/>protocols<br/>cancellation"]
+    CORE["cdmw/core<br/>cdmw/modding<br/>cdmw/rendering"]
+    NATIVE["native/<br/>tools/dotnet_*"]
 
     UI --> SERVICES --> DOMAIN
     SERVICES --> WORKERS --> CORE --> NATIVE
-    UI -.->|via stable descriptors| WORKERS
+    UI -.->|stable descriptors| WORKERS
 ```
+
+`cdmw/ui` is the only layer allowed to import PySide6 widgets. Everything below
+it is testable without a running Qt application.
 
 `MainWindow` has only `QMainWindow` as a direct base. Feature behaviour is
 registered through stable descriptors bound to the window rather than through
@@ -262,19 +265,21 @@ sequenceDiagram
 
     UI->>SESS: select entry
     SESS->>PREV: prepare package (latest wins)
-    PREV-->>SESS: schema-8 package + material report
+    PREV-->>SESS: schema-8 package
     SESS->>NET: replace resident package
-    NET-->>SESS: Ready (consumed once per process)
+    NET-->>SESS: Ready (once per process)
     SESS-->>UI: scene visible
-
-    Note over SESS,NET: A replacement prepares while the accepted scene stays on screen.
-    Note over SESS,PREV: Package/material failure is retryable and never recycles a healthy process.
 ```
+
+A replacement prepares while the accepted scene stays on screen, so switching
+entries never blanks the viewport. Package and material failures are retryable
+and never recycle a healthy process; only process, device, provenance, or
+protocol failure enters recovery.
 
 The `preview` profile exposes read-only presentation, picking, overlays, and
 capture. The `authoring` profile adds the Mesh Editor mutation protocol and
 rehydrates from authoritative `MeshService` state after a recovery. `Edit Mesh`
-changes mutation permission — it does not choose or restart the renderer.
+changes mutation permission; it does not choose or restart the renderer.
 
 ### Build system
 
@@ -282,19 +287,18 @@ Two build paths, both supported, driven from one UI:
 
 ```mermaid
 flowchart LR
-    UIB[".tools/build-ui/cdmw-build.exe"]
-    BZL["bazel build //:CrimsonDesertModWorkbench<br/>fast · skips release gates"]
-    REL["build.bat onefile release<br/>full gates · publishes to dist/"]
-    NATIVE_T["bazel test //native/..."]
+    UIB["cdmw-build.exe<br/>build UI"]
+    BZL["bazel build<br/>fast<br/>skips release gates"]
+    REL["build.bat<br/>onefile release<br/>full gates"]
+    NATIVE_T["bazel test<br/>//native/..."]
     UIB --> BZL
     UIB --> REL
     UIB --> NATIVE_T
 ```
 
-Bazel builds the shipped executable end to end — all five native C++ helpers,
-both self-contained .NET publishes, and the PyInstaller package — and is
-additive: the PowerShell release path is untouched and still owns the release
-gates. Bazel is installed repo-locally in `.tools/bazel/`; there is no
+Bazel builds the shipped executable end to end: all five native C++ helpers,
+both self-contained .NET publishes, and the PyInstaller package. It is additive,
+so the PowerShell release path is untouched and still owns the release gates. Bazel is installed repo-locally in `.tools/bazel/`; there is no
 system-wide install. See [docs/bazel-migration.md](docs/bazel-migration.md).
 
 ---
@@ -318,7 +322,7 @@ cache, logs, sessions, projects, and research data.
 
 ## Build from source
 
-**Requirements** — Windows 11 x64, Python 3.11 or 3.14 (the two release-tested
+**Requirements:** Windows 11 x64, Python 3.11 or 3.14 (the two release-tested
 interpreters), PowerShell, .NET 10 SDK, and a CMake/MSVC toolchain for the
 native helpers.
 
@@ -417,8 +421,8 @@ as download or help links.
 
 **Placement editing is deliberately bounded.** The operations listed under
 [Placement & Animation Studio](#placement--animation-studio) are the whole
-vocabulary. Anything outside it — full PAAC graph swaps, `ItemInfo`/`EquipSlot`
-edits, new keyframe data, any binary write that changes file length — is out of
+vocabulary. Anything outside it (full PAAC graph swaps, `ItemInfo`/`EquipSlot`
+edits, new keyframe data, any binary write that changes file length) is out of
 scope by design rather than a feature gap, and the editor refuses it with an
 explanation. An earlier `Weapon Placement Studio` made those operations
 expressible and was pulled for hanging the game; its menu entries in the Archive
@@ -427,7 +431,7 @@ path of the feature that crashed.
 
 **Mesh rebuild is LOD0-only.** `.pamlod` LOD1+ can be read but not re-authored,
 and `.meshinfo` is treated as read-only because its count/offset tables are
-unproven — physics bounds and socket context cannot be edited.
+unproven, so physics bounds and socket context cannot be edited.
 
 **Level layout, cutscenes, and VFX are read-only.** See
 [what is still closed](#what-is-still-closed) for the formats behind that and the
