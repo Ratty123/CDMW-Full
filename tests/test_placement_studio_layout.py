@@ -77,7 +77,9 @@ class WindowWidthTests(unittest.TestCase):
                 "the header is forcing the window wider than a 1600 px monitor",
             )
         finally:
+            window.close()
             window.deleteLater()
+            QApplication.processEvents()
 
 
 if __name__ == "__main__":
@@ -123,7 +125,9 @@ def test_the_clip_filter_rows_fit_the_lane_they_live_in():
             "these fit on one row now, so splitting them is no longer what keeps them legible"
         )
     finally:
+        window.close()
         window.deleteLater()
+        QApplication.processEvents()
 
 
 def test_the_editing_bar_fits_without_clipping_anything():
@@ -168,4 +172,6 @@ def test_the_editing_bar_fits_without_clipping_anything():
             needed = box.fontMetrics().horizontalAdvance(box.prefix() + "-180.0")
             assert box.width() >= needed, f"{box.prefix().strip()} clips its own value"
     finally:
+        window.close()
         window.deleteLater()
+        QApplication.processEvents()
