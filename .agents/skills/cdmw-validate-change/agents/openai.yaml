@@ -1,4 +1,0 @@
-interface:
-  display_name: "CDMW Validate Change"
-  short_description: "Select the smallest safe validation"
-  default_prompt: "Use $cdmw-validate-change to select the smallest safe checks for this change."

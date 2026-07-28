@@ -10,7 +10,7 @@ Last updated: 2026-07-23
 - UI code must not mutate archives directly. Route mutation through `ArchiveMutationService`; source PAMT/PAZ files are read-only during tests.
 - Preserve public Python imports, CLI scenario names, executable names, profile formats, wire schemas, and native package formats through cached lazy exports or versioned adapters.
 - Keep `docs/plans/active/` to one current implementation plan. Delete completed plans and architecture-map-only placeholder modules; durable behavior belongs in owning docs, not completion logs.
-- Repo workflows live under `.agents/skills/`: `cdmw-validate-change`, `cdmw-async-ui-work`, `cdmw-safe-archive-mutation`, and `cdmw-verify-mesh-editor`. Keep stable invariants in `AGENTS.md`; keep detailed commands and contracts in their owning docs/scripts instead of duplicating them inside skills.
+- Agent workflows live under `.agents/skills/` — `cdmw-validate-change`, `cdmw-async-ui-work`, `cdmw-safe-archive-mutation`, `cdmw-verify-mesh-editor` — but that directory is **gitignored and local only**, so a fresh clone will not have it. Keep stable invariants in `AGENTS.md`, which is tracked; keep detailed commands and contracts in their owning docs/scripts rather than duplicating them inside skills, precisely because the skills do not travel with the repository.
 
 ## Validated restructure baseline
 
