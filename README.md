@@ -56,7 +56,40 @@ is smaller and safer to hand to someone who is not modding.
 | **Texture Replacer** | Replace edited PNG/DDS textures using the original game DDS as rebuild authority, with package-prefixed loose output and manager metadata. |
 | **Image Editor** | Edit visible textures in-app: layered projects, selections, masks, adjustment layers, channel locks, brush tools, clone/heal, smudge, sharpen, soften, flattened PNG export. |
 | **Material Authority** | Build and audit material/mesh replacement packages with source-owned material routing, runtime XML preservation, diagnostics, and final package preview. |
-| **Supporting tools** | Model Library, Icon Creator, Recolor Variants, Texture Research, Text Search, settings/profile export, diagnostic bundles, detachable tabs. |
+| **Placement & Animation Studio** | Move where a weapon or piece of armour sits, re-route it to a different socket from the viewport, retarget draw/stow animations, and package the result for CDUMM, DMM, or JMM. |
+| **Format Explorer** | What every game file format can and cannot do, and which tool does it — read from the same capability manifest the [decoding status](#file-format-decoding-status) below is generated from, so it cannot drift from what the code actually supports. |
+| **Supporting tools** | Model Library, Icon Creator, Recolor Variants, Texture Research, Text Search, Retrofit/Repackage, settings/profile export, diagnostic bundles, detachable tabs. |
+
+### Placement & Animation Studio
+
+Where a weapon hangs, which socket it routes to, and which clip plays when it is
+drawn are all editable, and none of it requires decoding a Havok tagfile. Four
+mechanisms cover everything the hand-built, in-game-verified mods do: socket
+transform edits and descriptor routing edits in XML, same-length socket-name
+retargets inside `.paac`, and whole-file substitution of `.paa` and
+`.motionblending` payloads that already exist elsewhere in the game.
+
+The safety model is the operation vocabulary rather than a validation pass bolted
+on afterwards — unsafe operations are not expressible. The editor emits socket
+translate/rotate within configured bounds, routing changes to sockets that
+already exist, descriptor alias pairs that must stay byte-identical, length-
+preserving `.paac` retargets, and verified payload substitution. It refuses, with
+an explanation and never a silent fallback, any binary write that changes file
+length, PAAC graph structure edits, `ItemInfo`/`EquipSlot`/prefab-tree edits, a
+socket name that does not already exist in the target's socket set, and authoring
+new `.paa` keyframe data.
+
+That envelope is not asserted, it is measured. A ground-truth harness derives an
+operation list from each known-good mod and replays it against a pinned vanilla
+baseline: 20 of 20 mods express as 6,416 operations, 15 of 15 vanilla-based mods
+reproduce byte-identically, and composing the 1H and 2H operation lists yields
+the combined mod. `.paac` strings are length-prefixed (`<len+1><ASCII><NUL>`),
+verified 30 of 30 across the corpus, which is what makes a same-length retarget
+provably safe rather than folklore.
+
+Open it from **Tools → Placement & Animation Studio**, or standalone with
+`python scripts/placement_studio.py`. 163 unit tests cover it and none need a
+game install.
 
 ---
 
@@ -382,13 +415,23 @@ as download or help links.
 
 ## Known limitations
 
-**Weapon Placement Studio is disabled in the UI.** This is intentional rather
-than unfinished polish: in-game testing showed that the true 1H/offhand and full
-behavior-swap paths need more than partial ItemInfo/PAAC edits, and can hang or
-crash the game. The embedded D3D11 placement preview is disabled for the same
-reason — the host can freeze the app. The repository still keeps the learned
-socket templates and CTF smoke checks for manual package work, but the studio is
-not shipped as a supported workflow.
+**Placement editing is deliberately bounded.** The operations listed under
+[Placement & Animation Studio](#placement--animation-studio) are the whole
+vocabulary. Anything outside it — full PAAC graph swaps, `ItemInfo`/`EquipSlot`
+edits, new keyframe data, any binary write that changes file length — is out of
+scope by design rather than a feature gap, and the editor refuses it with an
+explanation. An earlier `Weapon Placement Studio` made those operations
+expressible and was pulled for hanging the game; its menu entries in the Archive
+Browser are left disabled and untouched, so nothing inherits the name or the code
+path of the feature that crashed.
+
+**Mesh rebuild is LOD0-only.** `.pamlod` LOD1+ can be read but not re-authored,
+and `.meshinfo` is treated as read-only because its count/offset tables are
+unproven — physics bounds and socket context cannot be edited.
+
+**Level layout, cutscenes, and VFX are read-only.** See
+[what is still closed](#what-is-still-closed) for the formats behind that and the
+order in which closing them would pay off.
 
 ## License
 
