@@ -241,3 +241,84 @@ def test_an_undecidable_pointee_is_refused_rather_than_guessed() -> None:
         + struct.pack("<I", 16)
     )
     assert _length_field_candidates(data, 0, 100, bytes(len(data))) == [8, 16]
+
+
+def _value_prefab(count: int) -> bytes:
+    """A prefab with ``count`` plain float members set on its root."""
+    types = bytearray()
+    types += _text("SceneObject") + struct.pack("<H", 1 + count)
+    types += _member("_socketName", "IndexedStringA", KIND_STRING, 1)
+    for index in range(count):
+        types += _member(f"_value{index}", "float", 0x0000, 4)
+
+    header = bytearray()
+    header += struct.pack("<HHH", 0xFFFF, 4, 0) + bytes(8)
+    header += struct.pack("<I", 15) + struct.pack("<H", 1) + types
+    pool = struct.pack("<I", 0)
+    blob_offset = len(header) + len(pool) + 28
+
+    blob = bytearray()
+    blob += struct.pack("<H", 2) + ((1 << (count + 1)) - 1).to_bytes(6, "little")
+    blob += _text("Pelvis_R_Socket")
+    for index in range(count):
+        blob += struct.pack("<f", index + 0.5)
+    blob += bytes(5)
+
+    data_header = struct.pack("<III", 1, blob_offset + len(blob), 0)
+    data_header += struct.pack("<Q", 0xFFFFFFFFFFFFFFFF)
+    data_header += struct.pack("<II", blob_offset, len(blob))
+    return bytes(header + pool + data_header + blob)
+
+
+@pytest.mark.parametrize("seed", range(15))
+def test_in_place_value_writes_never_move_a_byte(seed: int) -> None:
+    """The other write path. Fixed-size, so nothing may shift at all.
+
+    Verified over the shipped archives on 501 prefabs carrying editable values:
+    every batch kept the file the same size, still decoding, with exactly the
+    requested bytes at the requested offsets.
+    """
+    from cdmw.core.prefab_binary_edit import rewrite_prefab_placements
+    from cdmw.domain.archives.prefab_values import decode_value, encode_value
+
+    rng = random.Random(seed)
+    payload = _value_prefab(rng.randint(1, 5))
+    document = decode_prefab_binary(payload)
+    numbers = [n for n in document.root_numbers if n.type_name == "float"]
+    assert numbers
+
+    chosen = rng.sample(numbers, rng.randint(1, len(numbers)))
+    batch = {
+        number.offset: (
+            number.raw,
+            encode_value(number.type_name, number.raw, rng.uniform(-1e4, 1e4)),
+        )
+        for number in chosen
+    }
+    result = rewrite_prefab_placements(payload, batch)
+
+    assert len(result.data) == len(payload), "an in-place write must not resize"
+    assert result.byte_delta == 0
+    after = decode_prefab_binary(result.data)
+    assert after.walk_complete, after.walk_note
+    for offset, (_old, new) in batch.items():
+        assert result.data[offset : offset + len(new)] == new
+    # Everything outside the written spans is untouched.
+    untouched = bytearray(result.data)
+    for offset, (old, _new) in batch.items():
+        untouched[offset : offset + len(old)] = old
+    assert bytes(untouched) == payload
+
+
+def test_a_stale_expectation_is_refused_for_plain_values_too() -> None:
+    from cdmw.core.prefab_binary_edit import PrefabEditError, rewrite_prefab_placements
+    from cdmw.domain.archives.prefab_values import encode_value
+
+    payload = _value_prefab(2)
+    number = [n for n in decode_prefab_binary(payload).root_numbers if n.type_name == "float"][0]
+    replacement = encode_value(number.type_name, number.raw, 9.5)
+
+    wrong = struct.pack("<f", 12345.0)
+    assert wrong != number.raw, "the fake expectation must actually differ"
+    with pytest.raises(PrefabEditError, match="not what was read"):
+        rewrite_prefab_placements(payload, {number.offset: (wrong, replacement)})
