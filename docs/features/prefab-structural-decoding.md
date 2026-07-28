@@ -90,6 +90,79 @@ Placement writes are simpler still: transforms are fixed size, so nothing moves
 and no pointer needs relocating. Placements are applied **before** path edits,
 because path edits move bytes and would invalidate the offsets.
 
+## Adding and removing collection elements
+
+`cdmw/core/prefab_array_edit.py` changes how much of a file there is, rather
+than what it says. A collection is a kind byte, an optional extra byte, a u32
+count and then that many element bodies end to end, so growing one means writing
+a larger count and splicing another body in.
+
+Three measured facts make the splice tractable:
+
+- **Pointers are self-relative**, so a copied pointer is recomputed from the
+  copy's own position. Nothing inside a duplicated element refers outward.
+- **Pointee length fields are distances.** Both ends of a pointee inside a moved
+  or copied element shift together, so those fields keep their values. A pointee
+  spanning the splice point would break this; it is checked for and refused.
+- **Owner fields are not offsets.** This was the hazard worth ruling out. Over
+  1,500 shipped prefabs an owner is either `NULL_OWNER` or a small ordinal, and
+  not one of the 706 non-null owners fell inside the data blob. They are
+  indices, so the splice does not touch them.
+
+The primitives are **duplicate element N** and **remove element N**, not
+"insert a new element". An element body's layout depends on that element's own
+member mask, so there is nothing to synthesise from; a copy of a sibling is by
+construction valid for the same collection, and retargeting it afterwards
+through the path rewriter is what the edit was for.
+
+### Element spans come from the walk
+
+`PrefabDocument.collections` records each collection's header offset, header
+width, declared count and every element's `(start, end)`. None of this is
+recoverable afterwards: a header is only distinguishable from surrounding bytes
+by having been arrived at, and an element ends wherever the previous one stopped
+being read. The walk knows both and now keeps them.
+
+### The collection header width
+
+The header's extra byte is what decides whether the count sits at +1 or +2.
+Reading a wide header as narrow yields the true count shifted up a byte -- still
+small enough to look plausible -- and the walk then *finishes anyway*, because
+it stops on the trailer when the elements run out. The file looks read while the
+count is fiction.
+
+The tell is that the misread count is a **multiple of 256**. Over 1,949
+collections in completed walks, no correct narrow count was ever a multiple of
+256, and where wide was the correct reading the extra byte was zero in 85 of 87
+cases. But the signal is necessary, not sufficient: one file in 1,500 carries it
+at a header where *neither* reading matches the elements that follow, and
+forcing the wide form there costs 5,234 bytes of walk.
+
+So the decoder does not decide per header. It reads the file, and only if a
+collection over-declares *and* carries the signal does it read again with those
+headers taken wide -- keeping the second reading only if it both completes and
+leaves fewer collections over-declared. Judging the retry on the whole file is
+what leaves that one file alone. Measured over 1,500 prefabs: 66 fewer
+over-declared collections, no completion lost.
+
+### Validation
+
+No two shipped prefabs differ by exactly one collection element -- that was
+searched for, and the six near-pairs are unrelated assets whose names coincide.
+So there is no ground truth to diff a resize against, and validation is internal:
+
+- **Duplicate then remove the duplicate returns the original bytes.** Over a
+  1,500-file sample, **687 of 687 round trips are byte-exact, none differing.**
+- Every result is **read back before it is returned** and refused unless the
+  walk completes, the collection carries the new count, the file is the size the
+  splice implies, every pointer still satisfies the identity, and the copy reads
+  back as the same size as its source. That last check is not redundant: one
+  corpus file passed all the others while its re-walk resynchronised a few bytes
+  inside the copy.
+
+Neither proves the game accepts the file. They prove it is the same kind of
+object it was, which is the strongest claim available without the engine.
+
 ## Coverage
 
 Measured on 12,000 archive-extracted prefabs:
