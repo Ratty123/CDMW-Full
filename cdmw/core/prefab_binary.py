@@ -614,6 +614,39 @@ def _is_trailer_run(blob: bytes, at: int) -> bool:
     return seen > 0 and len(blob) - pos <= 1
 
 
+def _describe_cursor(cursor: _BlobCursor) -> str:
+    """What is actually at the cursor, for an error a reader can act on.
+
+    Chasing "collection count 1867710464 (kind 98)" leads to enumerating kind
+    bytes, and there is no enumeration: the rejected kinds are scattered and
+    the bytes are usually a length-prefixed string. The walk is misaligned, and
+    the message should say so rather than describe a field that is not there.
+    """
+    blob = cursor.blob
+    if cursor.pos + 4 > len(blob):
+        return "the end of the data"
+    # Probe a small window: the cursor is usually a byte or two short of a real
+    # record, and saying by how much is the part worth reporting.
+    for skew in range(0, 8):
+        at = cursor.pos + skew
+        if at + 8 > len(blob):
+            break
+        if int.from_bytes(blob[at : at + 8], "little") == NULL_OWNER:
+            return f"an owner field {skew} byte(s) further on" if skew else "an owner field"
+        length = struct.unpack_from("<I", blob, at)[0]
+        if not 0 < length <= _MAX_STRING or at + 4 + length > len(blob):
+            continue
+        try:
+            text = blob[at + 4 : at + 4 + length].decode("utf-8")
+        except UnicodeDecodeError:
+            continue
+        if not text.isprintable():
+            continue
+        where = f" starting {skew} byte(s) further on" if skew else ""
+        return f"a {length}-byte string ({text[:28]!r}){where}"
+    return "bytes " + blob[cursor.pos : cursor.pos + 6].hex(" ")
+
+
 def _read_collection_count(cursor: _BlobCursor) -> int:
     """Read a collection's element count.
 
@@ -632,7 +665,12 @@ def _read_collection_count(cursor: _BlobCursor) -> int:
             cursor.take(5)
             return wider
     if count > _MAX_COUNT:
-        raise PrefabBinaryError(f"collection count {count} (kind {kind})")
+        # Naming the kind byte invites an enumeration that does not exist. The
+        # real fault is that the cursor is not where a collection header is.
+        raise PrefabBinaryError(
+            f"expected a collection here but found {_describe_cursor(cursor)} "
+            f"(read count {count}, kind {kind})"
+        )
     cursor.take(4)
     return count
 

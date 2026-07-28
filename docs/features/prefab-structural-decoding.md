@@ -193,6 +193,12 @@ Roughly in order of value:
      the leftovers hold owner fields and object names. But only 37 of 729 parse
      as further groups when the walk is allowed to resume from the stop, so
      resume-parsing is not the answer and was not kept.
+   - **The presence mask's width was re-tested against this baseline and the
+     full `u16` still wins.** The earlier width result was measured at 54.3%,
+     before the trailer fix, so it was not settled. Re-run at 61.88%: reading
+     the low byte only scores 31.46%, narrowing to `u8` for marker=1 scores
+     61.41%, and narrowing for marker<=2 scores 58.89%. Every variant is worse,
+     including the one the mask-exceeds evidence pointed at.
    - **"Mask exceeds every candidate" fails on the first *child* group.** The
      root mask parses correctly every time (2 bits set, 2 members selected).
      The child's mask needs more members than any candidate type has -- but the
@@ -222,6 +228,16 @@ Roughly in order of value:
    one substitution pattern; randomised multi-edit fuzzing would attack it
    harder.
 6. **Some pointee length fields are undecidable, and those edits are refused.**
+   Reading more files made this slightly worse rather than better: the prefabs
+   the trailer fix unlocked carry proportionally more name-record pointers, so
+   the share of pointer sites whose length field the walk knows exactly fell
+   from 50.5% to 47.8%, and sites with more than one surviving candidate rose
+   from 6.5% to 8.9%, affecting 12.3% of files rather than 5.6%. Those edits are
+   declined, never guessed, and the files concerned could not be edited at all
+   before. Deriving the name record's extent would fix it, and cannot be done
+   cheaply: the distance from the end of the name text to the length field is
+   scattered (86, 108, 112, 132, 242 bytes and so on), because the pointee
+   encloses the whole object rather than just the name.
    The length field is found by scanning for a position whose u32 equals its own
    distance from the pointee start. That test is necessary but not sufficient:
    6.5% of pointees have more than one position satisfying it, and nothing in
