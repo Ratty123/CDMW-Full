@@ -420,6 +420,10 @@ class PlacementStudioWindow(
             return
         self._session = PlacementSession.from_baseline(self._baseline, model)
 
+        # Charts belong to one character, and the archive index arrives once — at startup,
+        # when whichever character loaded first got theirs. Without this the second character
+        # kept being shown the first one's.
+        self._load_archive_charts()
         self._populate_weapons(select_first=True)
 
     def _on_weapon_changed(self, _index: int) -> None:

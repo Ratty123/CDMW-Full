@@ -47,6 +47,12 @@ _FACE = re.compile(r"^character/model/([^/]+)/([^/]+)/head/head/([^/]+)\.pac$")
 #: they are the body every other choice is worn *on*.
 NUDE_SLOT = "nude"
 FACE_SLOT = "head"
+
+#: Action charts, indexed here for the same reason the anatomy is: the pinned baseline holds
+#: only Kliff's, so Damian was being shown another character's charts and the socket list that
+#: reads them came out empty. Carried as a slot so the existing cache round-trips them.
+CHART_SLOT = "chart"
+_CHART = re.compile(r"^actionchart/.+/1_pc/([^/]+)/([^/]+)\.paac$")
 # Weapon *socket* files, which are what make a weapon placeable rather than merely drawable.
 _WEAPON_SOCKETS = re.compile(
     r"^character/descriptors/socketbonedata/([^/]+)/([^/]+)/weapon/.+\.sockets\.xml$"
@@ -172,6 +178,12 @@ def _scan_wearables(game_root, *, should_stop=None):
                 ArmourPiece(path=path, slot=match.group(3), model=match.group(2), source=entry)
             )
             continue
+        chart = _CHART.match(path)
+        if chart is not None:
+            pieces.append(ArmourPiece(
+                path=path, slot=CHART_SLOT, model=chart.group(1), source=entry,
+            ))
+            continue
         body = _NUDE.match(path) or _FACE.match(path)
         if body is not None:
             pieces.append(ArmourPiece(
@@ -190,7 +202,8 @@ def _scan_wearables(game_root, *, should_stop=None):
 
 # Bump when the shape below changes, so a stale file is ignored rather than misread.
 # 2: the bare body and the head joined the index, so a v1 file has no anatomy in it.
-_CACHE_VERSION = 2
+# 3: action charts joined it, so a v2 file has none of Damian's.
+_CACHE_VERSION = 3
 
 
 def _cache_file(game_root) -> Path:

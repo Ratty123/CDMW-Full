@@ -438,6 +438,39 @@ class EditSession:
     def reparent(self, game_path: str, name: str, bone: str) -> None:
         self._record(Command("reparent", game_path, name, "Parent", text=bone))
 
+    def add_base_files(self, files: Mapping[str, bytes]) -> int:
+        """Register several vanilla files at once, replaying only after the last.
+
+        `add_base_file` replays on every call, which is right for one file and quadratic for a
+        hundred — and a character's chart set is a hundred.
+        """
+
+        added = 0
+        for game_path, data in files.items():
+            if data and game_path not in self._base:
+                self._base[game_path] = bytes(data)
+                added += 1
+        if added:
+            self._replay()
+        return added
+
+    def add_base_file(self, game_path: str, data: bytes) -> bool:
+        """Register another vanilla file, so edits can be made against it.
+
+        The baseline is pinned to what one character needs; a second character's action charts
+        live in the packages. Without them the charts on screen belonged to somebody else.
+
+        Returns whether anything was added. Existing entries are left alone — the pinned copy
+        is the one every command so far was replayed onto, and swapping it underneath would
+        silently change what those commands mean.
+        """
+
+        if not data or game_path in self._base:
+            return False
+        self._base[game_path] = bytes(data)
+        self._replay()
+        return True
+
     def add_socket(self, game_path: str, socket: Socket) -> None:
         """Create a socket *definition*. Safe; referencing an undefined socket is not.
 
