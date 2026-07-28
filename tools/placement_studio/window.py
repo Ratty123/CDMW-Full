@@ -224,8 +224,11 @@ class PlacementStudioWindow(
 
         self._mesh_role_box = QComboBox()
         self._mesh_role_box.setToolTip(tip("Stowed and held"))
-        self._mesh_role_box.addItem("put away (stowed)", "stowed")
+        # Held first, and the default: the question this tool answers is where a weapon sits
+        # while it is being carried *and* what the hand does with it, and the held pose is the
+        # one that shows both.
         self._mesh_role_box.addItem("in hand (held)", "held")
+        self._mesh_role_box.addItem("put away (stowed)", "stowed")
         self._mesh_role_box.currentIndexChanged.connect(lambda _i: self._refresh_meshes())
 
         # The part being worked on. Reachable in the tree too, but the tree groups by parent
@@ -958,14 +961,23 @@ class PlacementStudioWindow(
         self._update_gizmo_anchor()
 
     def _should_measure_clipping(self) -> bool:
-        """Live at bind pose; on request once a clip is driving the body."""
+        """On request only.
+
+        It used to run live whenever no clip was loaded, which was affordable while the body
+        was a 5,379-triangle coat. Against a real 28,316-triangle anatomy the ray cast is 5.5
+        million triangle tests — 6.2 s — and it ran on every mesh refresh, so changing
+        character or weapon stalled for six seconds to measure something nobody had asked for.
+
+        The button says what it does: `Check Fit/Clipping`, and its tooltip already says it
+        checks this frame only and wants pressing again after a move.
+        """
 
         if self._playhead_moving():
             return False
         if self._clipping_requested:
             self._clipping_requested = False
             return True
-        return not (self._playback.loaded if hasattr(self, "_playback") else False)
+        return False
 
     def _request_clipping(self) -> None:
         self._clipping_requested = True

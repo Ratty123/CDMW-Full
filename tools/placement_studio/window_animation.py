@@ -159,13 +159,31 @@ class AnimationTabMixin:
         return pane
 
     def _animation_sets(self):
+        """Which clips and sockets each chart names, parsed once per change.
+
+        This walked every chart on every call — 212 of them once a second character's set is
+        loaded — and it is called twice per character switch. That was 1.4 s of a 3.9 s
+        switch, spent re-deriving something that had not changed.
+
+        Keyed on the chart list and the number of commands applied: a retarget rewrites chart
+        bytes, and loading another character's charts lengthens the list, so between them
+        nothing can change the answer without changing the key.
+        """
+
         from .animation_sets import AnimationSetIndex
 
         if self._edits is None:
             return AnimationSetIndex()
-        return AnimationSetIndex.from_files(
-            {path: self._edits.chart_bytes(path) or b"" for path in self._edits.charts()}
+        charts = self._edits.charts()
+        key = (tuple(charts), len(self._edits.commands()))
+        if getattr(self, "_animation_sets_key", None) == key:
+            return self._animation_sets_cache
+        index = AnimationSetIndex.from_files(
+            {path: self._edits.chart_bytes(path) or b"" for path in charts}
         )
+        self._animation_sets_key = key
+        self._animation_sets_cache = index
+        return index
 
     def _refresh_socket_clips(self) -> None:
         from .animation_sets import summarise

@@ -437,15 +437,23 @@ class RowMergeTests(unittest.TestCase):
     def test_a_merged_row_still_carries_every_file(self) -> None:
         self.assertEqual(len(self._dialog().plan().clips), 4, "merging must not drop files")
 
-    def test_a_row_says_how_many_files_it_stands_for(self) -> None:
+    def test_a_row_stands_for_its_files_without_counting_them_on_its_face(self) -> None:
+        """How many takes a row covers is not something anyone decides — it is a property of
+        the game's recording, and it appeared on almost every row. The lane heading counts
+        them and the tooltip lists them by name, so the row itself does not have to."""
+
         tree = self._dialog()._clip_list
-        texts = [
-            tree.topLevelItem(i).child(j).text(0)
+        rows = [
+            tree.topLevelItem(i).child(j)
             for i in range(tree.topLevelItemCount())
             for j in range(tree.topLevelItem(i).childCount())
         ]
 
-        self.assertTrue(any("3 files" in text for text in texts))
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertNotIn(" files)", row.text(0))
+        merged = [row for row in rows if row.toolTip(0).count("\n") >= 2]
+        self.assertTrue(merged, "a row covering several files should still list them on hover")
 
 
 class BorrowedRowTests(unittest.TestCase):
