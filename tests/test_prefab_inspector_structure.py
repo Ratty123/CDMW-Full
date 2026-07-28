@@ -213,3 +213,25 @@ def test_the_hint_stays_quiet_when_nothing_can_be_resized(qt_app) -> None:
 
     assert not dialog._has_resizable_objects()
     assert "Right-click" not in dialog._objects_hint()
+
+
+def test_the_hint_does_not_set_a_minimum_width_for_the_dialog(qt_app) -> None:
+    """An unwrapped QLabel demands its whole line. This sentence runs past
+    1,000px, which silently made the window unshrinkable on a laptop screen."""
+    dialog = _dialog()
+
+    assert dialog.objects_hint.wordWrap()
+    assert dialog.objects_hint.minimumSizeHint().width() < 400
+
+
+def test_duplicating_lands_the_cursor_on_the_copy(qt_app) -> None:
+    """Two rows now read the same, so "which one did I just add" is otherwise
+    unanswerable -- and the copy is the row about to be retargeted."""
+    dialog = _dialog()
+    site = dialog._element_site_for(_row_named(dialog, "Alpha"))
+
+    dialog._resize_at(site, "Alpha", insert=True)
+
+    rows = _object_rows(dialog)
+    assert dialog.tree.currentItem() is rows[1], "the copy, not the original"
+    assert rows[1].text(0) == "Alpha"
