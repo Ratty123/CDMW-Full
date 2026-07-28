@@ -536,3 +536,19 @@ def test_banner_counts_guessed_objects(qt_app: QApplication) -> None:
     # One object is "it", not "they": _count pluralises the noun but the
     # sentence around it has to agree.
     assert "what it is" in banner and "its fields" in banner
+
+
+def test_saving_says_nothing_is_on_disk_yet(qt_app: QApplication) -> None:
+    """The button builds the file; the destination is chosen after closing.
+
+    The old label and tooltip both claimed a write that had not happened, so
+    the export prompt on close arrived as a surprise.
+    """
+    dialog = PrefabInspectorDialog(_build())
+    assert dialog.apply_button.text().endswith("...")
+    assert "after" in dialog.apply_button.toolTip()
+
+    _path_row(dialog).setText(2, "character/model/1_pc/weapon/other.pac")
+    dialog._apply_changes()
+    assert dialog.result_payload is not None
+    assert "Nothing has been written yet" in dialog.log.toPlainText()

@@ -120,6 +120,21 @@ A partial walk is reported, never hidden: `walk_complete` is false,
 
 ## Validation
 
+Randomised multi-edit fuzzing (`tests/test_prefab_rewriter_fuzz.py`) covers what
+the original 1,500 round-trips could not: several resources per file, random
+subsets edited at once, replacements shorter, longer and multi-byte, adjacent
+edits, and first-plus-last together. It is seeded, so failures reproduce, and
+it is mutation-tested -- breaking the shift table or the length scan is caught
+by every case group.
+
+Its synthetic fixtures are flat, though, so they cannot exercise nesting. The
+run that matters is the same invariants over the shipped archives: 1,371
+complete-walk prefabs with resources, random multi-edits, checking that the
+result re-decodes, that untouched strings are unchanged, that pointer counts
+hold, that the data header agrees with the file, and that undoing every edit
+restores the original bytes exactly. That run found a corrupting bug the
+synthetic tests could not reach; see Dead Ends.
+
 ```powershell
 .\.venv\Scripts\python.exe -m pytest tests/test_prefab_binary.py tests/test_prefab_binary_edit.py tests/test_prefab_values.py tests/test_prefab_glossary.py tests/test_prefab_companions.py tests/test_prefab_asset_catalog.py tests/test_prefab_inspector_dialog.py --basetemp="$env:TEMP\cdmw-pytest-prefab"
 ```
@@ -157,13 +172,20 @@ Roughly in order of value:
 5. **No property-based testing of the rewriter.** The 1,500 round-trips used
    one substitution pattern; randomised multi-edit fuzzing would attack it
    harder.
-6. **The pointer test is necessary, not sufficient.** `value == offset + 4` is
-   an exact identity, but arbitrary inline bytes can satisfy it by coincidence,
-   and `_length_field_for` takes the first position whose u32 equals its own
-   distance from the pointee. Neither has produced a failure in 1,500 of 1,500
-   round-trips. Hardening them means validating record structure rather than
-   scanning, which is a larger change and is better attempted after a
-   successful in-game canary than before one.
+6. **Some pointee length fields are undecidable, and those edits are refused.**
+   The length field is found by scanning for a position whose u32 equals its own
+   distance from the pointee start. That test is necessary but not sufficient:
+   6.5% of pointees have more than one position satisfying it, and nothing in
+   the file resolves which is real -- a nesting-consistency rule resolved 0 of
+   244. Where a pointee opens with a decoded string the field is *computed*
+   rather than scanned, which covers every resource-path pointee; where it does
+   not, and an edit falls inside, the rewriter refuses. Measured on the shipped
+   archives, that declines about 4% of files rather than writing them.
+7. **The pointer test is necessary, not sufficient.** `value == offset + 4` is
+   an exact identity, but arbitrary inline bytes can satisfy it by coincidence.
+   No failure in the corpus fuzz. Hardening it means validating record structure
+   rather than scanning, which is better attempted after a successful in-game
+   canary than before one.
 
 ## Dead Ends
 
