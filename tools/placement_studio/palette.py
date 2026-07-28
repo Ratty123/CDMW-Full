@@ -112,3 +112,8 @@ QGroupBox::title {
     font-weight: bold;
 }
 """
+
+
+#: A row whose animation was borrowed from the other playable character. Amber rather than red:
+#: it is a caveat, not a fault — the clip plays, it was simply authored for a different body.
+_BORROWED = QColor(224, 170, 96)

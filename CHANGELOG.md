@@ -11,6 +11,9 @@ The format is intentionally simple:
 
 ## [Unreleased]
 
+### Added
+- A Move-dialog row whose animation was borrowed from the other playable character now says `· borrowed`, in amber, and its tooltip explains the trade: the clip plays because the two rigs share most of their bones, but it was authored for different proportions, so reaching and contact may be a little off. Amber rather than red — it is a caveat, not a fault. The file names it already showed stay in the tooltip underneath.
+
 ### Docs
 - Located the `.paproj` loader, which reframes the format. `CrimsonDesert.exe` carries `paproj` twice, `paprojdesc` once, `ProjectileInfo` 44 times, and **79 MSVC RTTI class names** matching `.?AV*Projectile*@pa@@`. Those names map one-to-one onto the file names — `CommonProjectile` to `commonprojectile.paproj`, `CommonProjectile_AttachToActor` to `projectileinfo_attachtoactor.paproj`, `_Repeat` and `_Wave` likewise, and `ProjectileShotData` to `projectileshotinfo.paproj`.
 - That answers why the earlier analysis kept failing: **each file is a table of one projectile subclass, not one shared record type.** No single record size could fit the set, and only `projectileshotinfo` showed a clean period (156 bytes) because it is the only file holding a single simple struct. The manifest now records the mapping, the four ruled-out readings, and that the remaining work is per-file — recovering each struct's field offsets from the constructors the RTTI names point at.

@@ -36,6 +36,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from .palette import _BORROWED
+
 
 class _Choice:
     """One decision, covering every clip that asks the same question.
@@ -291,6 +293,7 @@ class MoveWeaponDialog(QDialog):
 
         import collections
 
+        from .carry import borrowed_from_other_body
         from .clip_names import (
             family_label, friendly, group_key, lane_of, short_label, stance_of,
         )
@@ -335,12 +338,32 @@ class MoveWeaponDialog(QDialog):
             if len(members) > 1:
                 text = f"{text}   ({len(members)} files)"
 
+            # A row whose clip comes from the other playable character says so. The two rigs
+            # share most of their bones and the clip plays, but `.paa` keys are bind-pose
+            # deltas, so on different proportions the same rotations land somewhere slightly
+            # different — a borrowed draw may reach near the hilt rather than onto it. Somebody
+            # about to ship a mod built on one should learn that from the row.
+            borrowed = [
+                row for row in members
+                if borrowed_from_other_body(row[0].name, row[1].name)
+            ]
+            if borrowed:
+                text += "   ·  borrowed" if len(borrowed) == len(members) else (
+                    f"   ·  {len(borrowed)} borrowed"
+                )
+
             item = QTreeWidgetItem(lane, [text])
             item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
             item.setCheckState(0, Qt.Checked)
+            if borrowed:
+                item.setForeground(0, _BORROWED)
             item.setToolTip(
                 0,
-                "\n".join(f"{t0.name}\n   ←  {d0.name}" for t0, d0, *_r in members),
+                ("Uses the other character's animation, because this body has none of its own "
+                 "for this motion. It plays — the two rigs share most of their bones — but it "
+                 "was authored for different proportions, so reaching and contact may be a "
+                 "little off.\n\n" if borrowed else "")
+                + "\n".join(f"{t0.name}\n   ←  {d0.name}" for t0, d0, *_r in members),
             )
 
             # The style choice lives on the row it belongs to. It used to sit in a separate
