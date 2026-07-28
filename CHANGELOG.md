@@ -12,6 +12,10 @@ The format is intentionally simple:
 ## [Unreleased]
 
 ### Docs
+- Built the `.prefabdata_xml` ↔ `.prefab` pairing and measured it, and **the oracle does not help**. 2,609 stems pair, but **2,607 of them (99.9%) already walk to completion** — only 2 fail. The XML-paired set turns out to be almost exactly the easy subset: small character prefabs with simple roots like `HeadPrefabData` and `NudePrefabData`. The 40% of the corpus that fails has essentially no XML counterpart, so it offers no leverage at all on marker-1 component identity.
+- Measured before being built on, which was the point of recording it as unexploited rather than as a plan. Component selection still has no external discriminator, and that remains the single thing standing between the walk and the other 40%.
+
+### Docs
 - Found what is very likely the external oracle `.prefab` component selection needs. **`.prefabdata_xml` — 2,613 files — is an XML serialisation of the same reflection data, and 399 of 400 sampled pair with a `.prefab` binary of the same stem.** Each names its root type and members outright: `<HeadPrefabData>` with `SkeletonVariationName`, `FacialAnimationIntensityMask`, `FacialAnimationMask`, `MorphTargetSet`, `SkeletonMorphMask`, `EmotionAnimationSet`. That is the same XML-pairing trick that confirmed `.paprojdesc`, and it is exactly the "external source for marker-1 component identity" the previous commit said was missing.
 - Recorded, not yet exploited. The next step is to check across the paired corpus whether the XML names the component the binary omits at marker-1 sites, and if so whether identity is recoverable from member-name signatures rather than from declaration order — the guess that all 247 sampled failures currently rest on.
 
