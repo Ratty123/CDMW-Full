@@ -56,6 +56,7 @@ from cdmw.domain.archives.prefab_glossary import (
     is_asset_path,
     value_kind_hint,
 )
+from cdmw.ui.archive_browser.prefab_inspector_review import ChangeLine, PrefabChangeReview
 from cdmw.ui.archive_browser.prefab_inspector_widgets import (
     AssetPickerDialog,
     PlacementEditDialog,
@@ -834,12 +835,77 @@ class PrefabInspectorDialog(QDialog):
         """The same pending changes as ``{original: replacement}``, for display."""
         return {edit.old_text: edit.new_text for edit in self.collect_path_edits()}
 
+    def _pending_changes(self) -> tuple[list[ChangeLine], list[str]]:
+        """Everything the modder is about to write, with anything that looks wrong.
+
+        Built by walking the tree so each line carries the label the modder saw,
+        not the declared member name.
+        """
+        lines: list[ChangeLine] = []
+        warnings: list[str] = []
+        counts: dict[str, int] = {}
+        for index in range(self.tree.topLevelItemCount()):
+            parent = self.tree.topLevelItem(index)
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                original = child.data(2, _EDIT_ROLE)
+                if isinstance(original, str):
+                    counts[original] = counts.get(original, 0) + 1
+        for index in range(self.tree.topLevelItemCount()):
+            parent = self.tree.topLevelItem(index)
+            for child_index in range(parent.childCount()):
+                child = parent.child(child_index)
+                original = child.data(2, _EDIT_ROLE)
+                current = child.text(2).strip()
+                if isinstance(original, str) and current and current != original:
+                    note = ""
+                    others = counts.get(original, 1) - 1
+                    if others:
+                        # The edit is addressed by offset, so the copies stay
+                        # put. Say so; the opposite is what a modder expects.
+                        note = f"{_count(others, 'other row')} still points at the old file"
+                    companions = self._companion_notes(current)
+                    if companions:
+                        note = (note + "; " if note else "") + companions[0]
+                    lines.append(
+                        ChangeLine(field=child.text(0), before=original, after=current, note=note)
+                    )
+                    problem = self._warning_for(original, current)
+                    if problem:
+                        warnings.append(f"{child.text(0)}: {problem}")
+                stored = child.data(0, _PLACEMENT_ROLE)
+                if stored:
+                    offset, type_name, original_raw, _member = stored
+                    pending = self._placement_edits.get(offset)
+                    if pending:
+                        lines.append(
+                            ChangeLine(
+                                field=child.text(0),
+                                before=describe_value(type_name, pending[0]),
+                                after=describe_value(type_name, pending[1]),
+                            )
+                        )
+        return lines, warnings
+
+    def _confirm_changes(self) -> bool:
+        """Show the review and report whether the modder went ahead.
+
+        Kept separate from :meth:`_apply_changes` so it can be driven without a
+        modal loop. ``_apply_changes`` is signal-connected; this is not, so
+        replacing it on an instance is safe.
+        """
+        lines, warnings = self._pending_changes()
+        return bool(PrefabChangeReview(lines, warnings, parent=self).exec())
+
     def _apply_changes(self) -> None:
         if not self._can_edit():
             return
         replacements = self.collect_path_edits()
         if not replacements and not self._placement_edits:
             self._log("Nothing to apply: nothing was changed.")
+            return
+        if not self._confirm_changes():
+            self._log("Nothing written: you cancelled at the review step.")
             return
         try:
             # Placements first: they are fixed-size, so their byte offsets are
