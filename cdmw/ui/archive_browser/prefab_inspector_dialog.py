@@ -236,7 +236,8 @@ class PrefabInspectorDialog(QDialog):
             if not guessed
             else (
                 f" {_count(guessed, 'object')} marked \"best guess\" below: the file does "
-                "not say what they are, so their fields may belong to something else."
+                f"not say what {'it is' if guessed == 1 else 'they are'}, so "
+                f"{'its' if guessed == 1 else 'their'} fields may belong to something else."
             )
         )
         if document.walk_complete:
