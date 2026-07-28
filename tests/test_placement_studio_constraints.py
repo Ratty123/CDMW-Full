@@ -264,18 +264,29 @@ class PanelTests(unittest.TestCase):
         self.assertEqual(panel.constraint_mod_files(), {})
 
     def test_the_panel_warns_that_the_game_may_not_read_the_file(self) -> None:
-        """The most useful thing the tool knows is bad news, so it must be on screen."""
+        """The most useful thing the tool knows is bad news, so it must be on screen.
+
+        It is a badge now rather than a paragraph, but it still has to be visible without
+        opening anything.
+        """
 
         panel = self._panel()
-        text = panel._constraint_warning.text().lower()
-        self.assertIn("no evidence the game reads", text)
-        self.assertIn("jiggledescriptor.xml", text)
+        self.assertEqual(panel._constraint_badge.text(), "EXPERIMENTAL")
+        self.assertIn("appears to read .papr", panel._constraint_badge.toolTip())
 
-    def test_the_panel_says_it_cannot_preview(self) -> None:
+    def test_the_evidence_is_a_click_away_rather_than_lost(self) -> None:
+        from tools.placement_studio.what_is_this import guide_html
+
+        html = guide_html(self._panel()._guide).lower()
+        self.assertIn("shipped binary", html)
+        self.assertIn("3ds max", html)
+
+    def test_the_guide_says_it_cannot_preview(self) -> None:
         """The one thing the UI must not imply is that the viewport shows the result."""
 
-        panel = self._panel()
-        self.assertIn("cannot show this", panel._constraint_note.text())
+        from tools.placement_studio.what_is_this import guide_html
+
+        self.assertIn("cannot preview", guide_html(self._panel()._guide))
 
     def test_softer_and_stiffer_move_the_strength_in_whole_steps(self) -> None:
         panel = self._panel()
